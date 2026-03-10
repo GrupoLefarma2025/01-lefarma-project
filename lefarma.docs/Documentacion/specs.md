@@ -1,74 +1,64 @@
 # Especificaciones del Sistema de Ordenes de Compra
 ## Grupo Lefarma - Cuentas por Pagar
 
-**Version:** 1.0  
+**Version:** 2.0  
 **Fecha:** Marzo 2026  
-**Documento base:** requerimientos.docx
+**Documentos base:** requerimientos.docx, LEF-AYF-DDP-002, LEF-AYF-MGP-002, Catalogo Contable Corporativo.xlsx
 
 ---
 
 ## 1. Resumen del Sistema
 
-Sistema web para la gestion del proceso de ordenes de compra y cuentas por pagar de Grupo Lefarma, incluyendo flujo de autorizaciones, comprobacion de gastos y conciliacion de pagos.
+Sistema web para la gestion del proceso de ordenes de compra y cuentas por pagar de Grupo Lefarma, incluyendo:
+- Flujo de autorizaciones multinivel (5 firmas)
+- Comprobacion de gastos (XML/PDF y no deducibles)
+- Conciliacion de pagos
+- Integracion con sistema contable
 
 ---
 
 ## 2. Empresas del Grupo
 
-| # | Empresa | Sucursales |
-|---|---------|------------|
-| 1 | Asokam | Antonio Maura, Cedis, Guadalajara |
-| 2 | Lefarma | Planta, Mancera |
-| 3 | Artricenter | Viaducto, La Raza, Atizapan |
-| 4 | Construmedika | - |
-| 5 | GrupoLefarma (Corporativo) | - |
+| # | Empresa | Prefijo | Sucursales |
+|---|---------|---------|------------|
+| 1 | Asokam | ASK | Antonio Maura (101), Cedis (103), Guadalajara (102) |
+| 2 | Lefarma | LEF | Planta (101), Mancera (102) |
+| 3 | Artricenter | ATC | Viaducto (101), La Raza (102), Atizapan (103) |
+| 4 | Construmedika | CON | Unica |
+| 5 | GrupoLefarma (Corporativo) | GRP | Oficinas centrales |
 
 ---
 
 ## 3. Flujo de Autorizaciones
 
 ```
-┌─────────────────┐
-│   CAPTURISTA    │  Crea orden de compra
-│   (Solicitante) │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│    FIRMA 2      │  Gerente General de Empresa (x sucursal)
-│                 │  - Lefarma GDL: Martha Anaya
-│                 │  - Lefarma CDMX: Alfredo Corona
-└────────┬────────┘
-         │ Si autoriza
-         ▼
-┌─────────────────┐
-│    FIRMA 3      │  Polo (CxP) - Revisa formato, soportes, tiempos
-│                 │  Asigna: Centro de costo + Cuenta contable
-└────────┬────────┘
-         │ Si autoriza
-         ▼
-┌─────────────────┐
-│    FIRMA 4      │  Gerente de Administracion y Finanzas
-│                 │  Check: Requiere comprobacion de pago/gasto
-└────────┬────────┘
-         │ Si autoriza
-         ▼
-┌─────────────────┐
-│    FIRMA 5      │  Direccion Corporativa (Lic. Hector Velez Rivera)
-│                 │  Autorizacion final
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│    TESORERIA    │  Realiza pago
-│                 │  Sube comprobante de deposito
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
-│   COMPROBACION  │  Usuario sube XML/PDF o comprobantes
-│                 │  CxP valida y cierra ciclo
-└─────────────────┘
++-----------------+     +-----------------+     +------------------+
+|   CAPTURISTA    |---->|    FIRMA 2      |---->|     FIRMA 3      |
+|   (Solicitante) |     | Gerente General |     |   CxP (Polo)     |
+|   Crea orden    |     | x Sucursal      |     | Asigna cuentas   |
++-----------------+     +--------+--------+     +--------+---------+
+                                 |                       |
+                        Autoriza |                       | Autoriza
+                                 v                       v
+                        +-----------------+     +------------------+
+                        |    FIRMA 4      |---->|     FIRMA 5      |
+                        | Gerente Admon/  |     |   Direccion      |
+                        | Finanzas        |     | Corporativa      |
+                        +--------+--------+     +--------+---------+
+                                 |                       |
+                        Autoriza |                       | Autoriza
+                                 v                       v
+                        +-----------------+     +------------------+
+                        |    TESORERIA    |---->|  COMPROBACION    |
+                        | Realiza pago    |     | Usuario sube     |
+                        | Sube comprobante|     | XML/PDF          |
+                        +-----------------+     +--------+---------+
+                                                         |
+                                                 Valida CxP
+                                                         v
+                                                +------------------+
+                                                |   CICLO CERRADO  |
+                                                +------------------+
 ```
 
 ---
@@ -81,8 +71,8 @@ Sistema web para la gestion del proceso de ordenes de compra y cuentas por pagar
 |-------|------|-----------|-------------|
 | Empresa | Select | Si | Asokam, Lefarma, Artricenter, Construmedika, GrupoLefarma |
 | Sucursal | Select | Si | Segun empresa seleccionada |
-| Area | Select | Si | Solicitar a RH |
-| Tipo de gasto | Select | Si | Catalogo pendiente por definir |
+| Area | Select | Si | Ver Catalogo de Areas (Seccion 9) |
+| Tipo de gasto | Select | Si | Fijo, Variable, Extraordinario |
 | Fecha limite de pago | Date | Si | - |
 | Fecha de solicitud | Date | Auto | La toma el sistema |
 | Elaborado por | Text | Auto | Usuario logueado |
@@ -93,9 +83,9 @@ Sistema web para la gestion del proceso de ordenes de compra y cuentas por pagar
 |-------|------|-----------|-------|
 | Sin datos fiscales | Check | No | Si marcado, desactiva RFC, CP, Regimen |
 | Razon social / Nombre | Text | Si | - |
-| RFC | Text | Condicional | Desactivado si "sin datos fiscales" |
-| Codigo postal | Text | Condicional | Desactivado si "sin datos fiscales" |
-| Regimen fiscal | Select | Condicional | Desactivado si "sin datos fiscales" |
+| RFC | Text | Condicional | 12/13 caracteres |
+| Codigo postal | Text | Condicional | 5 digitos |
+| Regimen fiscal | Select | Condicional | SAT catalogo |
 | Persona de contacto | Text | No | Nombre, telefono, email |
 | Nota forma de pago | Text | No | Ej: "50% anticipo" |
 | Notas generales | Text | No | - |
@@ -141,6 +131,7 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 ### 4.6 Al Guardar
 
 - Generar folio automatico consecutivo irrepetible
+- Formato sugerido: `OC-YYYY-NNNNN` (Ej: OC-2026-00001)
 
 ---
 
@@ -149,9 +140,16 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 ### 5.1 Firma 2 - Gerente General de Empresa
 
 **Asignacion por sucursal:**
-- Lefarma Guadalajara: Martha Anaya
-- Lefarma CDMX: Alfredo Corona
-- (Otros por definir)
+| Empresa | Sucursal | Responsable |
+|---------|----------|-------------|
+| Lefarma | Guadalajara | Martha Anaya |
+| Lefarma | CDMX | Alfredo Corona |
+| Artricenter | Viaducto | Por definir |
+| Artricenter | La Raza | Por definir |
+| Artricenter | Atizapan | Por definir |
+| Asokam | Antonio Maura | Por definir |
+| Asokam | Guadalajara | Por definir |
+| Asokam | Cedis | Por definir |
 
 **Acciones:**
 | Accion | Resultado |
@@ -161,12 +159,14 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 
 ### 5.2 Firma 3 - CxP (Polo)
 
+**Responsable:** CP. Marco Polo Narvaez Oropeza
+
 **Responsabilidades:**
-- Revisar formato
+- Revisar formato de la orden
 - Verificar soportes documentales
 - Verificar tiempos calendario
-- Asignar centro de costo (obligatorio)
-- Asignar cuenta contable (obligatorio)
+- **Asignar centro de costo** (obligatorio) - Ver Seccion 9
+- **Asignar cuenta contable** (obligatorio) - Ver Seccion 10
 
 **Acciones:**
 | Accion | Resultado |
@@ -176,11 +176,13 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 
 ### 5.3 Firma 4 - Gerente Admon y Finanzas
 
+**Responsable:** CP. Diego Angel Villaseñor Garduño
+
 **Checks adicionales:**
-| Check | Default |
-|-------|---------|
-| Requiere comprobacion de pago | Marcado |
-| Requiere comprobacion de gasto | Marcado |
+| Check | Default | Descripcion |
+|-------|---------|-------------|
+| Requiere comprobacion de pago | Marcado | El usuario debe comprobar el pago |
+| Requiere comprobacion de gasto | Marcado | El usuario debe comprobar el gasto |
 
 **Acciones:**
 | Accion | Resultado |
@@ -189,6 +191,8 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 | Rechaza | Avisa a los 3 anteriores (motivo obligatorio) |
 
 ### 5.4 Firma 5 - Direccion Corporativa
+
+**Responsable:** Lic. Hector Velez Rivera
 
 **Acciones:**
 | Accion | Resultado |
@@ -210,8 +214,8 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 
 1. Recibir orden autorizada
 2. Programar pago segun acuerdo con proveedor
-3. Realizar pago
-4. Subir comprobante de deposito (imagen)
+3. Realizar pago (transferencia, cheque, efectivo)
+4. Subir comprobante de deposito (imagen/PDF)
 5. Capturar importe pagado
 6. Avisar al usuario que genero el gasto
 
@@ -227,8 +231,8 @@ Total = ((Precio unitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones
 
 | Tipo | Descripcion | Importe |
 |------|-------------|---------|
-| XML/PDF (CFDI) | Factura electronica | Se extrae automatico del XML |
-| No deducible | Tickets, recibos | Se captura manual + imagen |
+| XML/PDF (CFDI) | Factura electronica SAT | Se extrae automatico del XML |
+| No deducible | Tickets, recibos, taxis | Se captura manual + imagen |
 | Deposito bancario | Ficha de deposito | Se captura manual |
 
 ### 7.2 Reglas de Comprobacion
@@ -258,6 +262,8 @@ Gran Total = Suma(XMLs) + Suma(No deducibles) + Deposito bancario
 Filtros:
 - De pago
 - De comprobar
+- Por usuario
+- Por antiguedad
 
 ### 8.2 Comprobaciones Liberadas
 
@@ -267,47 +273,273 @@ Filtros:
 - Fechas
 - Usuario
 - Tipo de gasto
+- Cuenta contable
+- Centro de costo
+
+### 8.3 Reportes Contables
+
+- Gastos por cuenta contable
+- Presupuesto vs Real
+- Antiguedad de saldos de proveedores
 
 ---
 
-## 9. Catalogos Requeridos
+## 9. Catalogo de Centros de Costo
 
-### 9.1 Catalogos Pendientes de Definir
-
-| Catalogo | Responsable | Autoriza |
-|----------|-------------|----------|
-| Tipos de gasto | Polo | Gerencia Admon |
-| Cuentas contables | Polo | Gerencia Admon |
-| Centros de costo | Polo | Gerencia Admon |
-| Areas | RH | - |
-| Sucursales | Diego | - |
+| ID | Centro de Costo | Descripcion |
+|----|-----------------|-------------|
+| 101 | Operaciones | Produccion, Logistica, Almacen |
+| 102 | Administrativo | Recursos Humanos, Contabilidad, Tesoreria |
+| 103 | Comercial | Ventas, Marketing, TLMK |
+| 104 | Gerencia | Direccion, Calidad, Administracion |
 
 ---
 
-## 10. Alertas y Notificaciones
+## 10. Catalogo Contable Completo
 
-### 10.1 Alertas por Correo
+### 10.1 Estructura de Cuentas
 
-| Evento | Destinatarios |
-|--------|---------------|
-| Nueva orden creada | Gerente de area (Firma 2) |
-| Orden autorizada (cada nivel) | Siguiente firmante |
-| Orden rechazada | Usuario + firmantes anteriores |
-| Pago realizado | Usuario que genero el gasto |
-| Pago pendiente (diario) | Persona que debe pagar |
-| Comprobacion subida | CxP |
-| Comprobacion validada/rechazada | Usuario |
+**Formato:** `AAA-BBB-CCC-DD`
 
-### 10.2 Sistema de Alertas
+| Componente | Descripcion |
+|------------|-------------|
+| AAA | Cuenta mayor (600-604) |
+| BBB | Sub-cuenta |
+| CCC | Analitica |
+| DD | Auxiliar |
+
+### 10.2 Prefijos por Empresa y Sucursal
+
+| Prefijo | Empresa | Sucursal |
+|---------|---------|----------|
+| ATC-103 | Artricenter | Atizapan |
+| ATC-102 | Artricenter | La Raza |
+| ATC-101 | Artricenter | Viaducto |
+| ASK-102 | Asokam | Guadalajara |
+| ASK-101 | Asokam | Antonio Maura |
+| ASK-103 | Asokam | Cedis |
+| LEF-101 | Lefarma | Planta |
+| LEF-102 | Lefarma | Mancera |
+| CON-101 | Construmedika | Unica |
+| GRP-101 | Grupo Lefarma | Corporativo |
+
+### 10.3 Cuentas de Primer Nivel
+
+| Cuenta | Descripcion |
+|--------|-------------|
+| 600 | Gastos |
+| 601 | Gastos Administrativos |
+| 602 | Gastos Financieros |
+| 603 | Gastos de Produccion |
+| 604 | Gastos Administrativos (Operativos) |
+
+### 10.4 Catalogo Detallado - Gastos Administrativos (601)
+
+#### 601-001 - Gastos de Nomina (Percepciones)
+
+| Cuenta | Descripcion | Ejemplo Artricenter | Ejemplo Asokam |
+|--------|-------------|--------------------| ---------------|
+| 601-001-001-01 | Sueldos y salarios | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-002-01 | Premios de asistencia | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-003-01 | Premios de puntualidad | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-004-01 | Vacaciones | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-005-01 | Prima vacacional | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-006-01 | Prima dominical | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-007-01 | Gratificaciones | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-008-01 | Primas de antiguedad | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-009-01 | Aguinaldo | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-010-01 | Transporte | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-011-01 | PTU | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-012-01 | Aportaciones | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-013-01 | Prevision social | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-014-01 | Aportaciones plan de jubilacion | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-015-01 | Apoyo Automovil | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-016-01 | Apoyo de Gasolina | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-017-01 | Apoyo Productividad | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-018-01 | Bono | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-019-01 | Apoyo Mantenimiento de auto | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-020-01 | Apoyo de Tramites Vehiculares | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-021-01 | Apoyo de Estacionamiento | ATC-103-101-601-001 | ASK-102-101-601-001 |
+| 601-001-022-01 | Uniformes | ATC-103-101-601-001 | ASK-102-101-601-001 |
+
+#### 601-002 - Deducciones
+
+| Cuenta | Descripcion | Ejemplo Artricenter | Ejemplo Asokam |
+|--------|-------------|--------------------| ---------------|
+| 601-002-001-01 | Cuotas al IMSS | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-002-01 | Aportaciones al INFONAVIT | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-003-01 | Aportaciones al SAR | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-004-01 | Otras aportaciones | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-005-01 | ISR Retenido | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-006-01 | ISN | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-007-01 | FONACOT | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-008-01 | Prestamos | ATC-103-101-601-002 | ASK-102-101-601-002 |
+| 601-002-009-01 | Otras Retenciones | ATC-103-101-601-002 | ASK-102-101-601-002 |
+
+#### 601-003 - Indemnizaciones
+
+| Cuenta | Descripcion | Ejemplo Artricenter | Ejemplo Asokam |
+|--------|-------------|--------------------| ---------------|
+| 601-003-001-01 | Indemnizaciones | ATC-103-101-601-003 | ASK-102-101-601-003 |
+
+#### 601-004 - Marketing
+
+| Cuenta | Descripcion | Ejemplo Artricenter | Ejemplo Asokam |
+|--------|-------------|--------------------| ---------------|
+| 601-004-001-01 | Cursos y Capacitaciones | ATC-103-101-601-004 | ASK-102-101-601-004 |
+| 601-004-002-01 | Beneficios IMSS | ATC-103-101-601-004 | ASK-102-101-601-004 |
+| 601-004-003-01 | Cafeteria | ATC-103-101-601-004 | ASK-102-101-601-004 |
+| 601-004-004-01 | Donativos | ATC-103-101-601-004 | ASK-102-101-601-004 |
+
+### 10.5 Catalogo Detallado - Todas las Cuentas
+
+| Cuenta Catalogo | Descripcion |
+|-----------------|-------------|
+| 600-000-000-00 | Gastos |
+| 601-000-000-00 | Gastos Administrativos |
+| 601-001-000-00 | Gastos de Nomina (Percepciones) |
+| 601-002-000-00 | Deducciones |
+| 601-003-000-00 | Indemnizaciones |
+| 601-004-000-00 | Marketing |
+| 601-005-000-00 | Inversiones |
+| 601-006-000-00 | Activo Intangible |
+| 601-007-000-00 | Oficina |
+| 601-008-000-00 | Impuestos |
+| 601-009-000-00 | Insumos |
+| 601-010-000-00 | Licencias y Permisos |
+| 601-011-000-00 | Mantenimiento |
+| 601-012-000-00 | Reembolsos |
+| 601-013-000-00 | Seguros |
+| 601-014-000-00 | Servicios |
+| 601-017-000-00 | Logistica y Transporte |
+| 601-019-000-00 | Otros |
+| 602-001-000-00 | Gastos de Nomina (Financieros) |
+| 602-002-000-00 | Deducciones (Financieros) |
+| 602-003-000-00 | Indemnizaciones (Financieros) |
+| 602-004-000-00 | Marketing (Financieros) |
+| 602-019-000-00 | Otros (Financieros) |
+| 603-001-000-00 | Gastos de Nomina (Produccion) |
+| 603-002-000-00 | Deducciones (Produccion) |
+| 603-003-000-00 | Indemnizaciones (Produccion) |
+| 603-005-000-00 | Inversiones (Produccion) |
+| 603-014-000-00 | Servicios (Mano de Obra) |
+| 603-019-000-00 | Otros (Produccion) |
+| 603-020-000-00 | Materia Prima |
+| 603-021-000-00 | Cargos Indirectos |
+| 604-001-000-00 | Gastos de Nomina (Administrativo) |
+| 604-002-000-00 | Deducciones (Administrativo) |
+| 604-003-000-00 | Indemnizaciones (Administrativo) |
+| 604-005-000-00 | Inversiones (Administrativo) |
+| 604-019-000-00 | Otros (Administrativo) |
+| 604-020-000-00 | Materia Prima (Administrativo) |
+| 604-021-000-00 | Gastos Indirectos |
+| 604-022-000-00 | Investigacion y Desarrollo |
+
+### 10.6 Ejemplo de Cuenta Completa
+
+**Cuenta:** `ATC-103-101-601-001`
+
+| Componente | Valor | Significado |
+|------------|-------|-------------|
+| ATC | Artricenter | Empresa |
+| 103 | Atizapan | Sucursal |
+| 101 | Operaciones | Centro de Costo |
+| 601-001 | Gastos de Nomina | Cuenta Contable |
+
+---
+
+## 11. Catalogo de Tipos de Gasto
+
+| ID | Tipo de Gasto | Descripcion |
+|----|---------------|-------------|
+| 1 | Fijo | Gastos recurrentes (renta, nomina, servicios) |
+| 2 | Variable | Gastos segun operacion (materiales, insumos) |
+| 3 | Extraordinario | Gastos no planeados o one-time |
+
+---
+
+## 12. Catalogo de Areas
+
+| ID | Area | Responsable |
+|----|------|-------------|
+| 1 | Recursos Humanos | Solicitar a RH |
+| 2 | Contabilidad | Por definir |
+| 3 | Tesoreria | Por definir |
+| 4 | Compras | Por definir |
+| 5 | Almacen | Por definir |
+| 6 | Produccion | Por definir |
+| 7 | Ventas | Por definir |
+| 8 | Marketing | Por definir |
+| 9 | Tecnologia | Por definir |
+| 10 | Calidad | Por definir |
+
+---
+
+## 13. Catalogo de Estatus de Orden
+
+| Estatus | Descripcion | Siguiente Accion |
+|---------|-------------|------------------|
+| 1 | Capturada | Pendiente Firma 2 |
+| 2 | Pendiente Firma 2 | Esperar autorizacion |
+| 3 | Autorizada Firma 2 | Pendiente Firma 3 |
+| 4 | Pendiente Firma 3 | Esperar asignacion de cuentas |
+| 5 | Autorizada Firma 3 | Pendiente Firma 4 |
+| 6 | Pendiente Firma 4 | Esperar autorizacion |
+| 7 | Autorizada Firma 4 | Pendiente Firma 5 |
+| 8 | Pendiente Firma 5 | Esperar autorizacion final |
+| 9 | Autorizada Firma 5 | Pendiente de Pago |
+| 10 | Pendiente de Pago | Tesoreria programa pago |
+| 11 | Pagado (parcial) | Pendiente de comprobacion |
+| 12 | Pagado (total) | Pendiente de comprobacion |
+| 13 | Pendiente de Comprobacion | Usuario sube comprobantes |
+| 14 | Comprobado | Pendiente validacion CxP |
+| 15 | Validado CxP | Cerrado |
+| 16 | Cerrado | - |
+| 99 | Rechazada | - |
+
+---
+
+## 14. Catalogo de Unidades de Medida
+
+| ID | Unidad | Descripcion |
+|----|--------|-------------|
+| 1 | Piezas | Unidades individuales |
+| 2 | Servicio | Servicios prestados |
+| 3 | Kilos | Peso en kilogramos |
+| 4 | Litros | Volumen en litros |
+| 5 | Metros | Longitud en metros |
+| 6 | Horas | Tiempo en horas |
+| 7 | Cajas | Cajas/empaques |
+| 8 | Kilowatts | Energia |
+
+---
+
+## 15. Alertas y Notificaciones
+
+### 15.1 Alertas por Correo
+
+| Evento | Destinatarios | Plantilla |
+|--------|---------------|-----------|
+| Nueva orden creada | Gerente de area (Firma 2) | notificacion_nueva_orden |
+| Orden autorizada | Siguiente firmante | notificacion_autorizacion |
+| Orden rechazada | Usuario + firmantes anteriores | notificacion_rechazo |
+| Pago realizado | Usuario que genero el gasto | notificacion_pago |
+| Pago pendiente (diario) | Persona que debe pagar | recordatorio_pago |
+| Comprobacion subida | CxP | notificacion_comprobacion |
+| Comprobacion validada | Usuario | notificacion_validacion |
+| Comprobacion rechazada | Usuario | notificacion_rechazo_comprobacion |
+
+### 15.2 Sistema de Alertas
 
 - Considerar alertas para la persona que debe pagar
 - Excepto si esta marcado "No requiere comprobacion de pago"
+- Alertas configurables por usuario
 
 ---
 
-## 11. Reglas de Negocio Futuras
+## 16. Reglas de Negocio Futuras
 
-### 11.1 Bloqueo de Captura (Fase 2)
+### 16.1 Bloqueo de Captura (Fase 2)
 
 - Bloquear nuevas solicitudes si:
   - Usuario tiene mas de X comprobaciones pendientes
@@ -315,42 +547,72 @@ Filtros:
 
 ---
 
-## 12. Roles del Sistema
+## 17. Roles del Sistema
 
-| Rol | Descripcion |
-|-----|-------------|
-| Capturista/Solicitante | Crea ordenes de compra |
-| Gerente de Area | Firma 2 - Autorizacion inicial |
-| CxP (Polo) | Firma 3 - Revision y asignacion contable |
-| Gerente Admon/Finanzas | Firma 4 - Revision financiera |
-| Direccion Corporativa | Firma 5 - Autorizacion final |
-| Tesoreria | Realiza pagos |
-| Auxiliar de pagos | Apoyo en conciliaciones |
-
----
-
-## 13. Documentos de Referencia
-
-| Codigo | Documento |
-|--------|-----------|
-| LEF-AYF-DDP-002 | Diagrama del proceso de cuentas por pagar |
-| LEF-AYF-MGP-002 | Mapa general del proceso de cuentas por pagar |
+| Rol | Descripcion | Permisos |
+|-----|-------------|----------|
+| Capturista/Solicitante | Crea ordenes de compra | Crear, Editar (propia), Ver (propia), Subir comprobantes |
+| Gerente de Area | Firma 2 - Autorizacion inicial | Ver (area), Autorizar/Rechazar Firma 2 |
+| CxP (Polo) | Firma 3 - Revision y asignacion contable | Ver (todas), Autorizar/Rechazar Firma 3, Asignar cuentas |
+| Gerente Admon/Finanzas | Firma 4 - Revision financiera | Ver (todas), Autorizar/Rechazar Firma 4, Reportes |
+| Direccion Corporativa | Firma 5 - Autorizacion final | Ver (todas), Autorizar/Rechazar Firma 5, Reportes ejecutivos |
+| Tesoreria | Realiza pagos | Ver (autorizadas), Registrar pagos, Subir comprobantes |
+| Auxiliar de pagos | Apoyo en conciliaciones | Ver, Conciliar |
+| Administrador | Gestion de catalogos y usuarios | CRUD catalogos, CRUD usuarios, Configuracion |
 
 ---
 
-## 14. Responsables del Proceso
+## 18. Integracion con Sistemas
 
-| Puesto | Nombre |
-|--------|--------|
-| Analista de Metodos y Procedimientos | ING. Javier Vazquez Martinez |
-| Analista de cuentas por pagar | CP. Marco Polo Narvaez Oropeza |
-| Gerente de Administracion y Finanzas | CP. Diego Angel Villaseñor Garduño |
-| Gerente de calidad | QFB. Daniel Gasca |
-| Director corporativo | Lic. Hector Velez Rivera |
+### 18.1 Diagrama de Integracion
+
+```
++-----------------+    +-----------------+    +-----------------+
+|   Sistema CxP   |--->|  Sistema Contable|--->|  Conciliacion   |
+|  (Ordenes)      |    |  (Polizas)       |    |  (Bancos)       |
++-----------------+    +-----------------+    +-----------------+
+```
+
+### 18.2 Interfaces Requeridas
+
+1. **Exportacion a Sistema Contable**:
+   - Generacion de polizas automaticas
+   - Formato: CSV, XML
+
+2. **Conciliacion Bancaria**:
+   - Importacion de estados de cuenta
+   - Formato: Layout bancario
+
+3. **Reportes a Direccion**:
+   - Dashboard de gastos
+   - Alertas de presupuesto
 
 ---
 
-## 15. Empresas del Proceso
+## 19. Responsables del Proceso
+
+| Puesto | Nombre | Rol en el Sistema |
+|--------|--------|-------------------|
+| Analista de Metodos y Procedimientos | ING. Javier Vazquez Martinez | Documentacion |
+| Analista de Cuentas por Pagar | CP. Marco Polo Narvaez Oropeza | CxP (Firma 3) |
+| Gerente de Administracion y Finanzas | CP. Diego Angel Villaseñor Garduño | Firma 4 |
+| Gerente de Calidad | QFB. Daniel Gasca | Revision |
+| Director Corporativo | Lic. Hector Velez Rivera | Firma 5 |
+
+---
+
+## 20. Documentos de Referencia
+
+| Codigo | Documento | Fecha |
+|--------|-----------|-------|
+| LEF-AYF-DDP-002 | Diagrama del proceso de cuentas por pagar | 08-01-2026 |
+| LEF-AYF-MGP-002 | Mapa general del proceso de cuentas por pagar | 09-01-2026 |
+| 2026.01.30 | Catalogo Contable Corporativo.xlsx | Enero 2026 |
+| - | requerimientos.docx | Marzo 2026 |
+
+---
+
+## 21. Empresas del Proceso
 
 1. Construmedika
 2. Artricenter
@@ -362,4 +624,9 @@ Filtros:
 ---
 
 **Documento generado:** Marzo 2026  
-**Fuente:** requerimientos.docx, LEF-AYF-DDP-002, LEF-AYF-MGP-002
+**Version:** 2.0  
+**Fuentes:**  
+- requerimientos.docx  
+- LEF-AYF-DDP-002 (Diagrama del proceso)  
+- LEF-AYF-MGP-002 (Mapa general del proceso)  
+- 2026.01.30 Catalogo Contable Corporativo.xlsx
