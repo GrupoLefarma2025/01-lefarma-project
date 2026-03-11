@@ -9,6 +9,7 @@ using Lefarma.API.Features.Catalogos.TiposMedida;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
+using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
 using Lefarma.API.Services.Identity;
@@ -91,10 +92,10 @@ builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<ITipoMedidaService, TipoMedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 
-// Auth Services
 builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 
 // JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
@@ -278,6 +279,13 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
+    await seeder.SeedAsync();
+}
 
 app.Run();
 
