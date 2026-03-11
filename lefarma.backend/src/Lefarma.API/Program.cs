@@ -9,7 +9,6 @@ using Lefarma.API.Features.Catalogos.TiposMedida;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
-using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
 using Lefarma.API.Services.Identity;
@@ -83,9 +82,6 @@ builder.Services.AddScoped<ITipoGastoRepository, TipoGastoRepository>();
 builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<ITipoMedidaRepository, TipoMedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
-
-// Database Seeder
-builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -282,14 +278,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
-
-// Seed database in development
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
-    await seeder.SeedAsync();
-}
 
 app.Run();
 
