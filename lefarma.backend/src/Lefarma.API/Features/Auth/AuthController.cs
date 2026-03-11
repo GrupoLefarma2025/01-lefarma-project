@@ -1,6 +1,8 @@
 using Lefarma.API.Features.Auth.DTOs;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -27,6 +29,7 @@ public class AuthController : ControllerBase
     /// <param name="request">The login step one request containing username.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Available domains for the user.</returns>
+    [AllowAnonymous]
     [HttpPost("login-step-one")]
     [SwaggerOperation(
         Summary = "Paso 1: Buscar dominios del usuario",
@@ -57,6 +60,7 @@ public class AuthController : ControllerBase
     /// <param name="request">The login step two request with credentials and domain.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Login response with tokens and user info.</returns>
+    [AllowAnonymous]
     [HttpPost("login-step-two")]
     [SwaggerOperation(
         Summary = "Paso 2: Autenticar usuario",
@@ -88,6 +92,7 @@ public class AuthController : ControllerBase
     /// <param name="request">The refresh token request.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>New login response with fresh tokens.</returns>
+    [Authorize]
     [HttpPost("refresh")]
     [SwaggerOperation(
         Summary = "Refrescar token de acceso",
@@ -115,6 +120,7 @@ public class AuthController : ControllerBase
     /// <param name="request">Optional logout request with refresh token.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Logout response.</returns>
+    [Authorize]
     [HttpPost("logout")]
     [SwaggerOperation(
         Summary = "Cerrar sesion",

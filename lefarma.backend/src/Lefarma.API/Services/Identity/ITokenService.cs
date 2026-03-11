@@ -9,15 +9,19 @@ namespace Lefarma.API.Services.Identity;
 public interface ITokenService
 {
     /// <summary>
-    /// Generates a JWT access token for the specified user.
+    /// Generates a JWT access token for the specified user with roles and permissions.
     /// </summary>
     /// <param name="usuario">The user entity.</param>
     /// <param name="sesionId">Optional session ID for token tracking.</param>
+    /// <param name="roles">Optional list of role names for the user.</param>
+    /// <param name="permissions">Optional list of permission codes for the user.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The generated JWT access token.</returns>
     Task<ErrorOr<string>> GenerateAccessTokenAsync(
         Usuario usuario,
         long? sesionId = null,
+        IReadOnlyList<string>? roles = null,
+        IReadOnlyList<string>? permissions = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>

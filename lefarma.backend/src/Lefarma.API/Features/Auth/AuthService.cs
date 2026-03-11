@@ -258,7 +258,10 @@ public class AuthService : BaseService, IAuthService
             await _asokamContext.SaveChangesAsync(cancellationToken);
 
             // 7. Generate JWT access token
-            var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(usuario, session.IdSesion, cancellationToken);
+            var roleNames = userRoles.Select(r => r.NombreRol).ToList();
+            var permissionCodes = allPermissions.Select(p => p.CodigoPermiso).ToList();
+            var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
+                usuario, session.IdSesion, roleNames, permissionCodes, cancellationToken);
             if (accessTokenResult.IsError)
             {
                 return accessTokenResult.Errors;
@@ -388,24 +391,6 @@ public class AuthService : BaseService, IAuthService
                 }
             }
 
-            // Revoke old refresh token
-            await _tokenService.RevokeRefreshTokenAsync(request.RefreshToken, "Token refreshed", cancellationToken);
-
-            // Generate new tokens
-            var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
-                usuario, session?.IdSesion, cancellationToken);
-            if (accessTokenResult.IsError)
-            {
-                return accessTokenResult.Errors;
-            }
-
-            var refreshTokenResult = await _tokenService.GenerateRefreshTokenAsync(
-                usuario, session?.IdSesion, null, cancellationToken);
-            if (refreshTokenResult.IsError)
-            {
-                return refreshTokenResult.Errors;
-            }
-
             // Get roles and permissions
             var userRoles = await _asokamContext.UsuariosRoles
                 .Include(ur => ur.Rol)
@@ -452,6 +437,24 @@ public class AuthService : BaseService, IAuthService
             var allPermissions = permissionsFromRoles
                 .UnionBy(directUserPermissions, p => p.CodigoPermiso)
                 .ToList();
+
+            await _tokenService.RevokeRefreshTokenAsync(request.RefreshToken, "Token refreshed", cancellationToken);
+
+            var roleNames = userRoles.Select(r => r.NombreRol).ToList();
+            var permissionCodes = allPermissions.Select(p => p.CodigoPermiso).ToList();
+            var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
+                usuario, session?.IdSesion, roleNames, permissionCodes, cancellationToken);
+            if (accessTokenResult.IsError)
+            {
+                return accessTokenResult.Errors;
+            }
+
+            var refreshTokenResult = await _tokenService.GenerateRefreshTokenAsync(
+                usuario, session?.IdSesion, null, cancellationToken);
+            if (refreshTokenResult.IsError)
+            {
+                return refreshTokenResult.Errors;
+            }
 
             await _asokamContext.SaveChangesAsync(cancellationToken);
 

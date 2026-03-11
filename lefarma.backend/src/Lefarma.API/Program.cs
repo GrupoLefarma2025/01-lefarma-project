@@ -9,17 +9,24 @@ using Lefarma.API.Features.Catalogos.TiposMedida;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
+using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
 using Lefarma.API.Services.Identity;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
 using System.Reflection;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -77,6 +84,9 @@ builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<ITipoMedidaRepository, TipoMedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
 
+// Database Seeder
+builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
+
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
 builder.Services.AddScoped<ISucursalService, SucursalService>();
@@ -89,6 +99,101 @@ builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
+
+// JWT Bearer Authentication
+var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
+if (jwtSettings is not null && !string.IsNullOrWhiteSpace(jwtSettings.SecretKey))
+{
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwtSettings.Issuer,
+                ValidAudience = jwtSettings.Audience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.SecretKey)),
+                ClockSkew = TimeSpan.Zero
+            };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnAuthenticationFailed = context =>
+                {
+                    Log.Warning("JWT authentication failed: {Message}", context.Exception.Message);
+                    return Task.CompletedTask;
+                },
+                OnTokenValidated = context =>
+                {
+                    var userId = context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                    Log.Debug("JWT token validated for user {UserId}", userId);
+                    return Task.CompletedTask;
+                }
+            };
+        });
+}
+else
+{
+    Log.Warning("JWT settings not configured properly. Authentication will not work.");
+}
+
+// Authorization Policies
+builder.Services.AddAuthorization(options =>
+{
+    // Policy for administrators
+    options.AddPolicy(AuthorizationPolicies.RequireAdministrator, policy =>
+        policy.RequireRole(AuthorizationConstants.Roles.Administrador));
+
+    // Policy for managers (Gerentes)
+    options.AddPolicy(AuthorizationPolicies.RequireManager, policy =>
+        policy.RequireRole(
+            AuthorizationConstants.Roles.GerenteArea,
+            AuthorizationConstants.Roles.GerenteAdmon,
+            AuthorizationConstants.Roles.DireccionCorp,
+            AuthorizationConstants.Roles.Administrador));
+
+    // Policy for finance users
+    options.AddPolicy(AuthorizationPolicies.RequireFinance, policy =>
+        policy.RequireRole(
+            AuthorizationConstants.Roles.CxP,
+            AuthorizationConstants.Roles.Tesoreria,
+            AuthorizationConstants.Roles.AuxiliarPagos,
+            AuthorizationConstants.Roles.GerenteAdmon,
+            AuthorizationConstants.Roles.DireccionCorp,
+            AuthorizationConstants.Roles.Administrador));
+
+    // Policy for payment processing
+    options.AddPolicy(AuthorizationPolicies.RequirePaymentProcessing, policy =>
+        policy.RequireRole(
+            AuthorizationConstants.Roles.Tesoreria,
+            AuthorizationConstants.Roles.AuxiliarPagos,
+            AuthorizationConstants.Roles.Administrador));
+
+    // Permission-based policies
+    options.AddPolicy(AuthorizationPolicies.CanViewCatalogos, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.View)));
+
+    options.AddPolicy(AuthorizationPolicies.CanManageCatalogos, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.Manage)));
+
+    options.AddPolicy(AuthorizationPolicies.CanViewOrdenes, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.View)));
+
+    options.AddPolicy(AuthorizationPolicies.CanCreateOrdenes, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Create)));
+
+    options.AddPolicy(AuthorizationPolicies.CanApproveOrdenes, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Approve)));
+
+    options.AddPolicy(AuthorizationPolicies.CanManageUsers, policy =>
+        policy.Requirements.Add(new PermissionRequirement(Permissions.Usuarios.Manage)));
+});
+
+// Register permission handler
+builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 
 // Controllers
 builder.Services.AddControllers(options =>
@@ -172,9 +277,19 @@ app.UseWideEventLogging();
 // Use CORS
 app.UseCors("CorsPolicy");
 
+// Authentication & Authorization - Order matters: Authentication must come before Authorization
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Seed database in development
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
+    await seeder.SeedAsync();
+}
 
 app.Run();
 

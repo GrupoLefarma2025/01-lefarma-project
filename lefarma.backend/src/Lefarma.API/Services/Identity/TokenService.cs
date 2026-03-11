@@ -38,6 +38,8 @@ public class TokenService : ITokenService
     public async Task<ErrorOr<string>> GenerateAccessTokenAsync(
         Usuario usuario,
         long? sesionId = null,
+        IReadOnlyList<string>? roles = null,
+        IReadOnlyList<string>? permissions = null,
         CancellationToken cancellationToken = default)
     {
         if (usuario == null)
@@ -60,22 +62,41 @@ public class TokenService : ITokenService
                 new(ClaimTypes.Name, usuario.SamAccountName ?? usuario.NombreCompleto ?? usuario.IdUsuario.ToString()),
             };
 
-            // Add email claim if available
             if (!string.IsNullOrWhiteSpace(usuario.Correo))
             {
                 claims.Add(new Claim(ClaimTypes.Email, usuario.Correo));
             }
 
-            // Add session ID claim if provided
             if (sesionId.HasValue)
             {
                 claims.Add(new Claim("sesion_id", sesionId.Value.ToString()));
             }
 
-            // Add domain claim if available
             if (!string.IsNullOrWhiteSpace(usuario.Dominio))
             {
                 claims.Add(new Claim("domain", usuario.Dominio));
+            }
+
+            if (roles?.Count > 0)
+            {
+                foreach (var role in roles)
+                {
+                    if (!string.IsNullOrWhiteSpace(role))
+                    {
+                        claims.Add(new Claim(ClaimTypes.Role, role));
+                    }
+                }
+            }
+
+            if (permissions?.Count > 0)
+            {
+                foreach (var permission in permissions)
+                {
+                    if (!string.IsNullOrWhiteSpace(permission))
+                    {
+                        claims.Add(new Claim("permission", permission));
+                    }
+                }
             }
 
             var tokenDescriptor = new SecurityTokenDescriptor
