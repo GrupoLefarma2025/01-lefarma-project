@@ -130,9 +130,9 @@ const medicamentos = [
 // Datos de tareas para Roadmap
 const hoy = new Date();
 const estados = [
-  { id: "1", nombre: "Pendiente", color: "hsl(25 50% 55%)" },
-  { id: "2", nombre: "En Progreso", color: "hsl(35 70% 55%)" },
-  { id: "3", nombre: "Completado", color: "hsl(145 45% 50%)" },
+  { id: "1", name: "Pendiente", color: "#f59e0b" },
+  { id: "2", name: "En Progreso", color: "#3b82f6" },
+  { id: "3", name: "Completado", color: "#22c55e" },
 ];
 
 const usuarios = [
@@ -408,7 +408,7 @@ const EjemploCalendario = () => {
   return (
     <div className="h-[420px] border rounded-xl overflow-hidden bg-card p-6">
       <CalendarProvider>
-        <CalendarDate className="mb-4">
+        <CalendarDate>
           <CalendarDatePicker>
             <CalendarMonthPicker />
             <CalendarYearPicker start={anioInicio} end={anioFin} />
@@ -438,7 +438,7 @@ const EjemploLista = () => {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
-    const estado = estados.find((s) => s.nombre === over.id);
+    const estado = estados.find((s) => s.name === over.id);
     if (!estado) return;
     setTareas(tareas.map((t) => (t.id === active.id ? { ...t, estado } : t)));
   };
@@ -447,18 +447,18 @@ const EjemploLista = () => {
     <div className="h-[420px] border rounded-xl overflow-hidden bg-card p-6">
       <ListProvider className="h-full overflow-auto" onDragEnd={handleDragEnd}>
         {estados.map((estado) => (
-          <ListGroup id={estado.nombre} key={estado.nombre}>
-            <ListHeader color={estado.color} name={estado.nombre} />
+          <ListGroup id={estado.name} key={estado.name}>
+            <ListHeader color={estado.color} name={estado.name} />
             <ListItems>
               {tareas
-                .filter((t) => t.estado.nombre === estado.nombre)
+                .filter((t) => t.estado.name === estado.name)
                 .map((tarea, index) => (
                   <ListItem
                     id={tarea.id}
                     index={index}
                     key={tarea.id}
                     name={tarea.nombre}
-                    parent={tarea.estado.nombre}
+                    parent={tarea.estado.name}
                   >
                     <div
                       className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background"
@@ -633,7 +633,7 @@ const EjemploGantt = () => {
 
 const EjemploKanban = () => {
   const [tareas, setTareas] = useState(
-    tareasDemo.map((t) => ({ ...t, columna: t.estado.nombre }))
+    tareasDemo.map((t) => ({ ...t, column: t.estado.name, name: t.nombre }))
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -643,25 +643,25 @@ const EjemploKanban = () => {
     const idDestino = over.id as string;
     const idActivo = active.id as string;
 
-    const columnaDestino = estados.find((s) => s.nombre === idDestino);
+    const columnaDestino = estados.find((s) => s.name === idDestino);
     const tareaDestino = tareas.find((t) => t.id === idDestino);
 
     let columnaTarget: string | null = null;
-    if (columnaDestino) columnaTarget = columnaDestino.nombre;
-    else if (tareaDestino) columnaTarget = tareaDestino.columna;
+    if (columnaDestino) columnaTarget = columnaDestino.name;
+    else if (tareaDestino) columnaTarget = tareaDestino.column;
 
     if (!columnaTarget) return;
 
     setTareas((prev) =>
       prev.map((t) =>
         t.id === idActivo
-          ? { ...t, columna: columnaTarget, estado: estados.find((s) => s.nombre === columnaTarget) || t.estado }
+          ? { ...t, column: columnaTarget, estado: estados.find((s) => s.name === columnaTarget) || t.estado }
           : t
       )
     );
   };
 
-  const columnasKanban = estados.map((s) => ({ id: s.nombre, name: s.nombre }));
+  const columnasKanban = estados.map((s) => ({ id: s.name, name: s.name }));
 
   return (
     <div className="h-[500px] rounded-xl overflow-hidden bg-background border shadow-sm">
@@ -672,8 +672,8 @@ const EjemploKanban = () => {
         onDragEnd={handleDragEnd}
       >
         {(columna) => {
-          const tareasColumna = tareas.filter((t) => t.columna === columna.name);
-          const estado = estados.find((s) => s.nombre === columna.name);
+          const tareasColumna = tareas.filter((t) => t.column === columna.name);
+          const estado = estados.find((s) => s.name === columna.name);
 
           return (
             <KanbanBoard
@@ -704,7 +704,7 @@ const EjemploKanban = () => {
                 <KanbanCards id={columna.name} className="h-full overflow-y-auto space-y-2.5">
                   {(tarea: (typeof tareas)[number]) => (
                     <KanbanCard
-                      column={tarea.columna}
+                      column={tarea.column}
                       id={tarea.id}
                       key={tarea.id}
                       name={tarea.nombre}
@@ -799,7 +799,7 @@ const EjemploTabla = () => {
             className="h-2 w-2 rounded-full"
             style={{ backgroundColor: row.original.estado.color }}
           />
-          <span className="text-sm">{row.original.estado.nombre}</span>
+          <span className="text-sm">{row.original.estado.name}</span>
         </div>
       ),
     },
