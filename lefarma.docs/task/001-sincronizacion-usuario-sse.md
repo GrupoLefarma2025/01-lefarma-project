@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 created: 2026-03-11
 updated: 2026-03-12
 assignee: Sisyphus
