@@ -14,6 +14,10 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Auth
             builder.Property(e => e.IdUsuarioRol)
                 .ValueGeneratedOnAdd();
 
+            // Explicitly map FK column names to match database
+            builder.Property(e => e.IdUsuario).HasColumnName("IdUsuario");
+            builder.Property(e => e.IdRol).HasColumnName("IdRol");
+
             builder.Property(e => e.FechaAsignacion)
                 .IsRequired()
                 .HasDefaultValueSql("GETUTCDATE()");

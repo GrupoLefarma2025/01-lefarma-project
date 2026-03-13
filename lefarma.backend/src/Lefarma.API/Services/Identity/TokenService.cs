@@ -19,13 +19,13 @@ namespace Lefarma.API.Services.Identity;
 public class TokenService : ITokenService
 {
     private readonly JwtSettings _jwtSettings;
-    private readonly ApplicationDbContext _context;
+    private readonly AsokamDbContext _context;
     private readonly ILogger<TokenService> _logger;
     private readonly SymmetricSecurityKey _signingKey;
 
     public TokenService(
         IOptions<JwtSettings> jwtSettings,
-        ApplicationDbContext context,
+        AsokamDbContext context,
         ILogger<TokenService> logger)
     {
         _jwtSettings = jwtSettings.Value;

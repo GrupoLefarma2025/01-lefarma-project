@@ -25,6 +25,9 @@ public class AsokamDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Apply all configurations from this assembly
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(AsokamDbContext).Assembly);
+
         // Specify primary keys for all entities
         modelBuilder.Entity<Usuario>(entity =>
         {

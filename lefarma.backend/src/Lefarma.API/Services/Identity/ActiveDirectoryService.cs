@@ -165,31 +165,11 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
             _logger.LogDebug("Bind exitoso para {UPN}", userPrincipalName);
 
-            // Search to verify user exists
-            var searchRequest = new SearchRequest(
-                domainBaseDn,
-                $"(sAMAccountName={EscapeLdapFilter(username)})",
-                SearchScope.Subtree,
-                null);
-
-            searchRequest.TimeLimit = TimeSpan.FromSeconds(domainConfig.TimeoutSeconds);
-
-            var searchResponse = (SearchResponse)connection.SendRequest(searchRequest);
-
-            if (searchResponse.Entries.Count > 0)
-            {
-                _logger.LogInformation(
-                    "Autenticacion exitosa para usuario {Username} en servidor {Server}:{Port}",
-                    username, domainConfig.Server, domainConfig.Port);
-                return true;
-            }
-            else
-            {
-                _logger.LogWarning(
-                    "Usuario {Username} no encontrado en servidor {Server}:{Port}",
-                    username, domainConfig.Server, domainConfig.Port);
-                return false;
-            }
+            // Bind successful - authentication complete
+            _logger.LogInformation(
+                "Autenticacion exitosa para usuario {Username} en servidor {Server}:{Port}",
+                username, domainConfig.Server, domainConfig.Port);
+            return true;
         }
         catch (LdapException ex)
         {
