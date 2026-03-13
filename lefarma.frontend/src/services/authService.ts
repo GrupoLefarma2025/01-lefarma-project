@@ -1,81 +1,104 @@
 import { API } from './api';
-import { LoginCredentials, LoginResponse, User, Empresa, Sucursal } from '@/types/auth.types';
+import {
+  LoginStepOneRequest,
+  LoginStepOneResponse,
+  LoginStepTwoRequest,
+  LoginStepTwoResponse,
+  RefreshTokenRequest,
+  UserInfo,
+  Empresa,
+  Sucursal,
+} from '@/types/auth.types';
 import { ApiResponse } from '@/types/api.types';
 
-/**
- * Servicio de autenticación
- */
+const ACCESS_TOKEN_KEY = 'accessToken';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+const USER_KEY = 'user';
+const EMPRESA_KEY = 'empresa';
+const SUCURSAL_KEY = 'sucursal';
+
 export const authService = {
-  /**
-   * Iniciar sesión
-   */
-  login: async (credentials: LoginCredentials): Promise<LoginResponse> => {
-    const response = await API.post<ApiResponse<LoginResponse>>(
-      'api/auth/login',
-      credentials
+  loginStepOne: async (username: string): Promise<LoginStepOneResponse> => {
+    const response = await API.post<ApiResponse<LoginStepOneResponse>>(
+      '/auth/login-step-one',
+      { username } as LoginStepOneRequest
     );
-    
-    // Guardar token en localStorage
-    const { token, user } = response.data.data;
-    localStorage.setItem('token', token);
-    localStorage.setItem('user', JSON.stringify(user));
-    
     return response.data.data;
   },
 
-  /**
-   * Cerrar sesión
-   */
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('empresa');
-    localStorage.removeItem('sucursal');
+  loginStepTwo: async (request: LoginStepTwoRequest): Promise<LoginStepTwoResponse> => {
+    const response = await API.post<ApiResponse<LoginStepTwoResponse>>(
+      '/auth/login-step-two',
+      request
+    );
+
+    const { accessToken, refreshToken, user } = response.data.data;
+
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return response.data.data;
   },
 
-  /**
-   * Obtener usuario actual desde localStorage
-   */
-  getCurrentUser: (): User | null => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return null;
-    
+  refreshToken: async (refreshToken: string): Promise<LoginStepTwoResponse> => {
+    const response = await API.post<ApiResponse<LoginStepTwoResponse>>(
+      '/auth/refresh',
+      { refreshToken } as RefreshTokenRequest
+    );
+
+    const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
+
+    return response.data.data;
+  },
+
+  logout: async (): Promise<void> => {
     try {
-      return JSON.parse(userStr) as User;
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (refreshToken) {
+        await API.post('/auth/logout', { refreshToken });
+      }
+    } finally {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(EMPRESA_KEY);
+      localStorage.removeItem(SUCURSAL_KEY);
+    }
+  },
+
+  getAccessToken: (): string | null => {
+    return localStorage.getItem(ACCESS_TOKEN_KEY);
+  },
+
+  getRefreshToken: (): string | null => {
+    return localStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+
+  getCurrentUser: (): UserInfo | null => {
+    const userStr = localStorage.getItem(USER_KEY);
+    if (!userStr) return null;
+    try {
+      return JSON.parse(userStr) as UserInfo;
     } catch {
       return null;
     }
   },
 
-  /**
-   * Obtener token desde localStorage
-   */
-  getToken: (): string | null => {
-    return localStorage.getItem('token');
-  },
-
-  /**
-   * Verificar si hay una sesión activa
-   */
   isAuthenticated: (): boolean => {
-    const token = localStorage.getItem('token');
-    return !!token;
+    return !!localStorage.getItem(ACCESS_TOKEN_KEY);
   },
 
-  /**
-   * Guardar empresa seleccionada
-   */
   setEmpresa: (empresa: Empresa) => {
-    localStorage.setItem('empresa', JSON.stringify(empresa));
+    localStorage.setItem(EMPRESA_KEY, JSON.stringify(empresa));
   },
 
-  /**
-   * Obtener empresa seleccionada
-   */
   getEmpresa: (): Empresa | null => {
-    const empresaStr = localStorage.getItem('empresa');
+    const empresaStr = localStorage.getItem(EMPRESA_KEY);
     if (!empresaStr) return null;
-    
     try {
       return JSON.parse(empresaStr) as Empresa;
     } catch {
@@ -83,20 +106,13 @@ export const authService = {
     }
   },
 
-  /**
-   * Guardar sucursal seleccionada
-   */
   setSucursal: (sucursal: Sucursal) => {
-    localStorage.setItem('sucursal', JSON.stringify(sucursal));
+    localStorage.setItem(SUCURSAL_KEY, JSON.stringify(sucursal));
   },
 
-  /**
-   * Obtener sucursal seleccionada
-   */
   getSucursal: (): Sucursal | null => {
-    const sucursalStr = localStorage.getItem('sucursal');
+    const sucursalStr = localStorage.getItem(SUCURSAL_KEY);
     if (!sucursalStr) return null;
-    
     try {
       return JSON.parse(sucursalStr) as Sucursal;
     } catch {
@@ -104,17 +120,11 @@ export const authService = {
     }
   },
 
-  /**
-   * Obtener empresas disponibles para el usuario
-   */
   getEmpresas: async (): Promise<Empresa[]> => {
     const response = await API.get<ApiResponse<Empresa[]>>('/auth/empresas');
     return response.data.data;
   },
 
-  /**
-   * Obtener sucursales de una empresa
-   */
   getSucursales: async (empresaId: string): Promise<Sucursal[]> => {
     const response = await API.get<ApiResponse<Sucursal[]>>(
       `/empresas/${empresaId}/sucursales`
@@ -122,3 +132,5 @@ export const authService = {
     return response.data.data;
   },
 };
+
+export default authService;

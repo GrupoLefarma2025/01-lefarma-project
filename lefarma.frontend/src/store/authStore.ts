@@ -1,37 +1,83 @@
 import { create } from 'zustand';
-import { AuthState, LoginCredentials, User, Empresa, Sucursal } from '@/types/auth.types';
-import { authService } from '@/services/authService';
+import {
+  AuthState,
+  UserInfo,
+  Empresa,
+  Sucursal,
+} from '@/types/auth.types';
 import type { SseUserInfo } from '@/types/sse.types';
+import { authService } from '@/services/authService';
 
-function sseUserInfoToUser(sseUser: SseUserInfo): User {
-  return {
-    id: String(sseUser.id),
-    username: sseUser.username,
-    email: sseUser.correo || '',
-    firstName: sseUser.nombre?.split(' ')[0] || '',
-    lastName: sseUser.nombre?.split(' ').slice(1).join(' ') || '',
-    roles: sseUser.roles.map(r => r.nombreRol),
-  };
-}
+const LEGACY_TOKEN_KEY = 'token';
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   token: null,
   empresa: null,
   sucursal: null,
   isAuthenticated: false,
   isLoading: false,
+  loginStep: 1,
+  availableDomains: [],
+  requiresDomainSelection: false,
+  displayName: null,
+  pendingUsername: null,
 
-  login: async (credentials: LoginCredentials) => {
+  loginStepOne: async (username: string) => {
     set({ isLoading: true });
     try {
-      const response = await authService.login(credentials);
-      
+      const response = await authService.loginStepOne(username);
+      set({
+        loginStep: 2,
+        availableDomains: response.domains,
+        requiresDomainSelection: response.requiresDomainSelection,
+        displayName: response.displayName || null,
+        pendingUsername: username,
+        isLoading: false,
+      });
+
+      sessionStorage.setItem(
+        'loginFlow',
+        JSON.stringify({
+          step: 2,
+          username,
+          domains: response.domains,
+          requiresDomainSelection: response.requiresDomainSelection,
+          displayName: response.displayName,
+        })
+      );
+    } catch (error) {
+      set({ isLoading: false });
+      throw error;
+    }
+  },
+
+  loginStepTwo: async (password: string, domain: string) => {
+    const { pendingUsername } = get();
+    if (!pendingUsername) {
+      throw new Error('No hay usuario pendiente');
+    }
+
+    set({ isLoading: true });
+    try {
+      const response = await authService.loginStepTwo({
+        username: pendingUsername,
+        password,
+        domain,
+      });
+
+      sessionStorage.removeItem('loginFlow');
+
       set({
         user: response.user,
-        token: response.token,
+        token: response.accessToken,
         isAuthenticated: true,
         isLoading: false,
+        loginStep: 1,
+        availableDomains: [],
+        requiresDomainSelection: false,
+        displayName: null,
+        pendingUsername: null,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -39,8 +85,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  logout: () => {
-    authService.logout();
+  resetLoginFlow: () => {
+    sessionStorage.removeItem('loginFlow');
+    set({
+      loginStep: 1,
+      availableDomains: [],
+      requiresDomainSelection: false,
+      displayName: null,
+      pendingUsername: null,
+    });
+  },
+
+  logout: async () => {
+    await authService.logout();
     set({
       user: null,
       token: null,
@@ -61,23 +118,48 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   setToken: (token: string) => {
-    localStorage.setItem('token', token);
+    localStorage.setItem('accessToken', token);
     set({ token, isAuthenticated: true });
   },
 
-  setUser: (user: User) => {
+  setUser: (user: UserInfo) => {
     localStorage.setItem('user', JSON.stringify(user));
     set({ user });
   },
 
   updateUserFromSse: (sseUser: SseUserInfo) => {
-    const user = sseUserInfoToUser(sseUser);
+    const user: UserInfo = {
+      id: sseUser.id,
+      username: sseUser.username,
+      nombre: sseUser.nombre,
+      correo: sseUser.correo,
+      dominio: sseUser.dominio,
+      roles: sseUser.roles.map((r) => ({
+        idRol: r.idRol,
+        nombreRol: r.nombreRol,
+        descripcion: r.descripcion,
+      })),
+      permisos: sseUser.permisos.map((p) => ({
+        idPermiso: p.idPermiso,
+        codigoPermiso: p.codigoPermiso,
+        nombrePermiso: p.nombrePermiso,
+        categoria: p.categoria,
+        recurso: p.recurso,
+        accion: p.accion,
+      })),
+    };
     localStorage.setItem('user', JSON.stringify(user));
     set({ user });
   },
 
   initialize: () => {
-    const token = authService.getToken();
+    const legacyToken = localStorage.getItem(LEGACY_TOKEN_KEY);
+    if (legacyToken && !localStorage.getItem('accessToken')) {
+      localStorage.setItem('accessToken', legacyToken);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+    }
+
+    const token = authService.getAccessToken();
     const user = authService.getCurrentUser();
     const empresa = authService.getEmpresa();
     const sucursal = authService.getSucursal();
@@ -90,6 +172,22 @@ export const useAuthStore = create<AuthState>((set) => ({
         sucursal,
         isAuthenticated: true,
       });
+    }
+
+    const loginFlowStr = sessionStorage.getItem('loginFlow');
+    if (loginFlowStr) {
+      try {
+        const loginFlow = JSON.parse(loginFlowStr);
+        set({
+          loginStep: loginFlow.step,
+          pendingUsername: loginFlow.username,
+          availableDomains: loginFlow.domains,
+          requiresDomainSelection: loginFlow.requiresDomainSelection,
+          displayName: loginFlow.displayName,
+        });
+      } catch {
+        sessionStorage.removeItem('loginFlow');
+      }
     }
   },
 }));

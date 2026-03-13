@@ -29,7 +29,7 @@ export default function Perfil() {
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Nombre</label>
-              <Input value={`${user?.firstName || ''} ${user?.lastName || ''}`} disabled />
+              <Input value={user?.nombre || ''} disabled />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Usuario</label>
@@ -40,7 +40,7 @@ export default function Perfil() {
                 <Mail className="h-4 w-4" />
                 Email
               </label>
-              <Input value={user?.email || ''} disabled />
+              <Input value={user?.correo || ''} disabled />
             </div>
           </CardContent>
         </Card>

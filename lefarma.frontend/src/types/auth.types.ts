@@ -1,5 +1,32 @@
 import type { SseUserInfo } from './sse.types';
 
+// User info from backend (matches UserInfo in backend DTOs)
+export interface UserInfo {
+  id: number;
+  username: string;
+  nombre?: string;
+  correo?: string;
+  dominio?: string;
+  roles: RoleInfo[];
+  permisos: PermissionInfo[];
+}
+
+export interface RoleInfo {
+  idRol: number;
+  nombreRol: string;
+  descripcion?: string;
+}
+
+export interface PermissionInfo {
+  idPermiso: number;
+  codigoPermiso: string;
+  nombrePermiso: string;
+  categoria?: string;
+  recurso?: string;
+  accion?: string;
+}
+
+// Legacy User interface (for backward compatibility)
 export interface User {
   id: string;
   username: string;
@@ -26,6 +53,7 @@ export interface Sucursal {
   activo: boolean;
 }
 
+// Legacy types (for backward compatibility)
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -37,19 +65,65 @@ export interface LoginResponse {
   empresas: Empresa[];
 }
 
+// New 2-step login types
+export interface LoginStepOneRequest {
+  username: string;
+}
+
+export interface LoginStepOneResponse {
+  domains: string[];
+  requiresDomainSelection: boolean;
+  displayName?: string;
+}
+
+export interface LoginStepTwoRequest {
+  username: string;
+  password: string;
+  domain: string;
+}
+
+export interface LoginStepTwoResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: string;
+  expiresIn: number;
+  user: UserInfo;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+// Updated AuthState with 2-step flow
 export interface AuthState {
-  user: User | null;
+  // Existing state
+  user: UserInfo | null;
   token: string | null;
   empresa: Empresa | null;
   sucursal: Sucursal | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
-  logout: () => void;
+
+  // New state for 2-step flow
+  loginStep: 1 | 2;
+  availableDomains: string[];
+  requiresDomainSelection: boolean;
+  displayName: string | null;
+  pendingUsername: string | null;
+
+  // Existing actions
+  logout: () => Promise<void>;
   setEmpresa: (empresa: Empresa) => void;
   setSucursal: (sucursal: Sucursal) => void;
   setToken: (token: string) => void;
-  setUser: (user: User) => void;
-  updateUserFromSse: (sseUser: SseUserInfo) => void;
+  setUser: (user: UserInfo) => void;
   initialize: () => void;
+
+  // New actions for 2-step flow
+  loginStepOne: (username: string) => Promise<void>;
+  loginStepTwo: (password: string, domain: string) => Promise<void>;
+  resetLoginFlow: () => void;
+
+  // SSE compatibility
+  updateUserFromSse: (sseUser: SseUserInfo) => void;
 }

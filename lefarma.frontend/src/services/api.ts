@@ -1,24 +1,39 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { authService } from './authService';
+import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/types/api.types';
 
-// Crear instancia de Axios
+const baseURL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
+  .replace(/\/$/, '') + '/api';
+
 const apiClient: AxiosInstance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor de Request - Agregar token automáticamente
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string) => void> = [];
+
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+const onTokenRefreshed = (token: string) => {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+};
+
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem('token');
-    
+    const token = authService.getAccessToken();
+
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
+
     return config;
   },
   (error: AxiosError) => {
@@ -26,33 +41,65 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Interceptor de Response - Manejar errores globalmente
 apiClient.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error: AxiosError<ApiError>) => {
-    // Si es error 401 (No autorizado), limpiar sesión
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('empresa');
-      localStorage.removeItem('sucursal');
-      
-      // Redirigir al login
-      if (window.location.pathname !== '/login') {
-        window.location.href = '/login';
+  (response) => response,
+  async (error: AxiosError<ApiError>) => {
+    const originalRequest = error.config as InternalAxiosRequestConfig & {
+      _retry?: boolean;
+    };
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve) => {
+          subscribeTokenRefresh((token: string) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(apiClient(originalRequest));
+          });
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const refreshToken = authService.getRefreshToken();
+
+        if (!refreshToken) {
+          throw new Error('No refresh token');
+        }
+
+        const response = await authService.refreshToken(refreshToken);
+        const newToken = response.accessToken;
+
+        onTokenRefreshed(newToken);
+        useAuthStore.getState().setToken(newToken);
+
+        originalRequest.headers.Authorization = `Bearer ${newToken}`;
+        return apiClient(originalRequest);
+      } catch (refreshError) {
+        useAuthStore.getState().logout();
+        refreshSubscribers = [];
+
+        if (
+          window.location.pathname !== '/login' &&
+          window.location.pathname !== '/'
+        ) {
+          window.location.href = '/';
+        }
+
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
       }
     }
 
-    // Si es error 403 (Forbidden)
     if (error.response?.status === 403) {
-      console.error('No tienes permisos para realizar esta acción');
+      console.error('No tienes permisos');
     }
 
-    // Formatear el error
     const apiError: ApiError = {
-      message: error.response?.data?.message || 'Error al comunicarse con el servidor',
+      message:
+        error.response?.data?.message || 'Error al comunicarse con el servidor',
       errors: error.response?.data?.errors,
       statusCode: error.response?.status || 500,
     };
@@ -61,7 +108,6 @@ apiClient.interceptors.response.use(
   }
 );
 
-// Exportar métodos del API
 export const API = {
   get: apiClient.get,
   post: apiClient.post,

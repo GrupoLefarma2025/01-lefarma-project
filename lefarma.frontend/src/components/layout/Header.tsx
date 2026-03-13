@@ -47,9 +47,9 @@ export const Header = () => {
             </div>
             <div className="text-left">
               <p className="text-sm font-medium">
-                {user?.firstName} {user?.lastName}
+                {user?.nombre || user?.username}
               </p>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+              <p className="text-xs text-muted-foreground">{user?.correo}</p>
             </div>
             <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </Button>
