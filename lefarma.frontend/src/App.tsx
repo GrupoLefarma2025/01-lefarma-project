@@ -2,11 +2,11 @@ import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
+import { Toaster } from '@/components/ui/sonner';
 
 function App() {
   const initialize = useAuthStore((state) => state.initialize);
 
-  // Inicializar estado de autenticación al cargar la app
   useEffect(() => {
     initialize();
   }, [initialize]);
@@ -14,6 +14,7 @@ function App() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      <Toaster />
     </BrowserRouter>
   );
 }

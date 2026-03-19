@@ -102,8 +102,12 @@ namespace Lefarma.API.Features.Catalogos.Areas
 
                 var newArea = new Area
                 {
+                    IdEmpresa = request.IdEmpresa,
                     Nombre = request.Nombre,
+                    NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
+                    Clave = request.Clave,
                     Descripcion = request.Descripcion,
+                    DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
                 };
@@ -150,7 +154,10 @@ namespace Lefarma.API.Features.Catalogos.Areas
                 }
 
                 area.Nombre = request.Nombre;
+                area.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
+                area.Clave = request.Clave;
                 area.Descripcion = request.Descripcion;
+                area.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
                 area.Activo = request.Activo;
                 area.FechaModificacion = DateTime.UtcNow;
 

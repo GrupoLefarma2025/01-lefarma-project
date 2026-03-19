@@ -15,19 +15,19 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
     public class UnidadMedidaService : BaseService, IUnidadMedidaService
     {
         private readonly IUnidadMedidaRepository _unidadMedidaRepository;
-        private readonly ITipoMedidaRepository _tipoMedidaRepository;
+        private readonly IMedidaRepository _medidaRepository;
         private readonly ILogger<UnidadMedidaService> _logger;
         protected override string EntityName => "UnidadMedida";
 
         public UnidadMedidaService(
             IUnidadMedidaRepository unidadMedidaRepository,
-            ITipoMedidaRepository tipoMedidaRepository,
+            IMedidaRepository medidaRepository,
             IWideEventAccessor wideEventAccessor,
             ILogger<UnidadMedidaService> logger)
             : base(wideEventAccessor)
         {
             _unidadMedidaRepository = unidadMedidaRepository;
-            _tipoMedidaRepository = tipoMedidaRepository;
+            _medidaRepository = medidaRepository;
             _logger = logger;
         }
 
@@ -39,7 +39,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                 if (result == null || !result.Any())
                 {
                     EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("Unidades de medida");
+                    return CommonErrors.NotFound("UnidadesMedida");
                 }
 
                 var response = result
@@ -84,11 +84,11 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
         {
             try
             {
-                var tipoMedidaExiste = await _tipoMedidaRepository.ExistsAsync(t => t.IdTipoMedida == request.IdTipoMedida);
-                if (!tipoMedidaExiste)
+                var medidaExiste = await _medidaRepository.ExistsAsync(t => t.IdMedida == request.IdMedida);
+                if (!medidaExiste)
                 {
-                    EnrichWideEvent(action: "Create", entityId: request.IdTipoMedida, notFound: true);
-                    return CommonErrors.NotFound("tipo de medida", request.IdTipoMedida.ToString());
+                    EnrichWideEvent(action: "Create", entityId: request.IdMedida, notFound: true);
+                    return CommonErrors.NotFound("medida", request.IdMedida.ToString());
                 }
 
                 var existeNombre = await _unidadMedidaRepository.ExistsAsync(u => u.Nombre == request.Nombre);
@@ -107,7 +107,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
 
                 var unidadMedida = new UnidadMedida
                 {
-                    IdTipoMedida = request.IdTipoMedida,
+                    IdMedida = request.IdMedida,
                     Nombre = request.Nombre.Trim(),
                     NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
                     Descripcion = request.Descripcion,
@@ -137,11 +137,11 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
         {
             try
             {
-                var tipoMedidaExiste = await _tipoMedidaRepository.ExistsAsync(t => t.IdTipoMedida == request.IdTipoMedida);
-                if (!tipoMedidaExiste)
+                var medidaExiste = await _medidaRepository.ExistsAsync(t => t.IdMedida == request.IdMedida);
+                if (!medidaExiste)
                 {
-                    EnrichWideEvent(action: "Update", entityId: request.IdTipoMedida, notFound: true);
-                    return CommonErrors.NotFound("tipo de medida", request.IdTipoMedida.ToString());
+                    EnrichWideEvent(action: "Update", entityId: request.IdMedida, notFound: true);
+                    return CommonErrors.NotFound("medida", request.IdMedida.ToString());
                 }
 
                 var unidadMedida = await _unidadMedidaRepository.GetByIdAsync(id);
@@ -165,7 +165,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                     return CommonErrors.AlreadyExists("unidad de medida", "abreviatura", request.Abreviatura);
                 }
 
-                unidadMedida.IdTipoMedida = request.IdTipoMedida;
+                unidadMedida.IdMedida = request.IdMedida;
                 unidadMedida.Nombre = request.Nombre.Trim();
                 unidadMedida.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
                 unidadMedida.Descripcion = request.Descripcion;
@@ -227,5 +227,6 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la unidad de medida.");
             }
         }
+
     }
 }

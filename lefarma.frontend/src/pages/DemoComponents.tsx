@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import {
   Combobox,
   ComboboxContent,
@@ -29,17 +29,8 @@ import {
   ListItems,
   ListProvider,
 } from "@/components/kibo-ui/list";
-import type { ColumnDef } from "@/components/kibo-ui/table";
-import {
-  TableBody,
-  TableCell,
-  TableColumnHeader,
-  TableHead,
-  TableHeader,
-  TableHeaderGroup,
-  TableProvider,
-  TableRow,
-} from "@/components/kibo-ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@/components/ui/data-table";
 import {
   KanbanBoard,
   KanbanCard,
@@ -750,7 +741,7 @@ const EjemploTabla = () => {
   const columnas: ColumnDef<(typeof tareasDemo)[number]>[] = [
     {
       accessorKey: "nombre",
-      header: ({ column }) => <TableColumnHeader column={column} title="Nombre" />,
+      header: "Nombre",
       cell: ({ row }) => (
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -774,7 +765,7 @@ const EjemploTabla = () => {
     },
     {
       accessorKey: "inicio",
-      header: ({ column }) => <TableColumnHeader column={column} title="Inicio" />,
+      header: "Inicio",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.inicio.toLocaleDateString("es-ES")}
@@ -783,7 +774,7 @@ const EjemploTabla = () => {
     },
     {
       accessorKey: "fin",
-      header: ({ column }) => <TableColumnHeader column={column} title="Fin" />,
+      header: "Fin",
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.fin.toLocaleDateString("es-ES")}
@@ -792,7 +783,7 @@ const EjemploTabla = () => {
     },
     {
       accessorKey: "estado",
-      header: ({ column }) => <TableColumnHeader column={column} title="Estado" />,
+      header: "Estado",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <div
@@ -807,22 +798,7 @@ const EjemploTabla = () => {
 
   return (
     <div className="h-[420px] border rounded-xl overflow-hidden bg-card p-6">
-      <TableProvider columns={columnas} data={tareasDemo}>
-        <TableHeader>
-          {({ headerGroup }) => (
-            <TableHeaderGroup headerGroup={headerGroup} key={headerGroup.id}>
-              {({ header }) => <TableHead header={header} key={header.id} />}
-            </TableHeaderGroup>
-          )}
-        </TableHeader>
-        <TableBody>
-          {({ row }) => (
-            <TableRow key={row.id} row={row}>
-              {({ cell }) => <TableCell cell={cell} key={cell.id} />}
-            </TableRow>
-          )}
-        </TableBody>
-      </TableProvider>
+      <DataTable columns={columnas} data={tareasDemo} showRowCount />
     </div>
   );
 };

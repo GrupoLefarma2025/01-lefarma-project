@@ -4,8 +4,8 @@ using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.Sucursales;
-using Lefarma.API.Features.Catalogos.TipoGastos;
-using Lefarma.API.Features.Catalogos.TiposMedida;
+using Lefarma.API.Features.Catalogos.Gastos;
+using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
@@ -79,17 +79,17 @@ builder.Services.AddDbContext<AsokamDbContext>(options =>
 // Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();
-builder.Services.AddScoped<ITipoGastoRepository, TipoGastoRepository>();
+builder.Services.AddScoped<IGastoRepository, GastoRepository>();
 builder.Services.AddScoped<IAreaRepository, AreaRepository>();
-builder.Services.AddScoped<ITipoMedidaRepository, TipoMedidaRepository>();
+builder.Services.AddScoped<IMedidaRepository, MedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
 builder.Services.AddScoped<ISucursalService, SucursalService>();
-builder.Services.AddScoped<ITipoGastoService, TipoGastoService>();
+builder.Services.AddScoped<IGastoService, GastoService>();
 builder.Services.AddScoped<IAreaService, AreaService>();
-builder.Services.AddScoped<ITipoMedidaService, TipoMedidaService>();
+builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 
 builder.Services.AddActiveDirectoryServices(builder.Configuration);

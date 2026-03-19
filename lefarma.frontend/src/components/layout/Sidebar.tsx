@@ -42,6 +42,11 @@ const menuGroups: MenuGroup[] = [
         path: '/permisos',
       },
       {
+        title: 'Catalogos',
+        icon: Component,
+        path: '/catalogos',
+      },
+      {
         title: 'Perfil',
         icon: User,
         path: '/perfil',
@@ -74,8 +79,8 @@ export const Sidebar = () => {
           <Building2 className="h-6 w-6 text-primary-foreground" />
         </div>
         <div>
-          <h1 className="font-bold text-xl text-foreground">LeFarma</h1>
-          <p className="text-xs text-muted-foreground">v1.0.0</p>
+          <h1 className="font-bold text-xl text-primary">LeFarma</h1>
+          <p className="text-xs text-primary">v1.0.0</p>
         </div>
       </div>
 

@@ -15,8 +15,8 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos
                 .HasColumnName("id_unidad_medida")
                 .ValueGeneratedOnAdd();
 
-            builder.Property(e => e.IdTipoMedida)
-                .HasColumnName("id_tipo_medida")
+            builder.Property(e => e.IdMedida)
+                .HasColumnName("id_medida")
                 .IsRequired();
 
             builder.Property(e => e.Nombre)

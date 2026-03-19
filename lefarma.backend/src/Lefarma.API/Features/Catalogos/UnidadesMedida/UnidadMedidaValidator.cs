@@ -15,8 +15,8 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                 .NotEmpty().WithMessage("La abreviatura es obligatoria")
                 .MaximumLength(20).WithMessage("La abreviatura no puede exceder 20 caracteres");
 
-            RuleFor(x => x.IdTipoMedida)
-                .GreaterThan(0).WithMessage("El tipo de medida es obligatorio");
+            RuleFor(x => x.IdMedida)
+                .GreaterThan(0).WithMessage("La medida es obligatoria");
         }
     }
 
@@ -35,8 +35,8 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                 .NotEmpty().WithMessage("La abreviatura es obligatoria")
                 .MaximumLength(20).WithMessage("La abreviatura no puede exceder 20 caracteres");
 
-            RuleFor(x => x.IdTipoMedida)
-                .GreaterThan(0).WithMessage("El tipo de medida es obligatorio");
+            RuleFor(x => x.IdMedida)
+                .GreaterThan(0).WithMessage("La medida es obligatoria");
         }
     }
 }

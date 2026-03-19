@@ -103,6 +103,7 @@ export interface AuthState {
   sucursal: Sucursal | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isInitialized: boolean;
 
   // New state for 2-step flow
   loginStep: 1 | 2;

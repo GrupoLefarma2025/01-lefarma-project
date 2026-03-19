@@ -121,8 +121,14 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             }
             catch (DbUpdateException ex)
             {
-                //_logger.LogError(ex, "Error de base de datos al guardar empresa: {EmpresaNombre}", request.Nombre);
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.Message);
+                var errorMessage = $"Exception Type: {ex.GetType().Name}, Message: {ex.Message}";
+
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" | Inner Exception: {ex.InnerException.Message}";
+                }
+
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: errorMessage);
                 return CommonErrors.DatabaseError($"guardar la empresa");
             }
             catch (Exception ex)
@@ -170,6 +176,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas
                 empresa.PaginaWeb = request.PaginaWeb;
                 empresa.NumeroEmpleados = request.NumeroEmpleados;
                 empresa.FechaModificacion = DateTime.UtcNow;
+                empresa.Activo = request.Activo;
 
                 var result = await _empresaRepository.UpdateAsync(empresa);
                 EnrichWideEvent(action: "Update", entityId: id, nombre: result.Nombre);
@@ -177,14 +184,26 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                //_logger.LogError(ex, "Error de concurrencia al actualizar empresa: {EmpresaId}", id);
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.Message);
+                var errorMessage = $"Exception Type: {ex.GetType().Name}, Message: {ex.Message}";
+
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" | Inner Exception: {ex.InnerException.Message}";
+                }
+
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: errorMessage);
                 return CommonErrors.ConcurrencyError("empresa");
             }
             catch (DbUpdateException ex)
             {
-                //_logger.LogError(ex, "Error de base de datos al actualizar empresa: {EmpresaId}", id);
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.Message);
+                var errorMessage = $"Exception Type: {ex.GetType().Name}, Message: {ex.Message}";
+
+                if (ex.InnerException != null)
+                {
+                    errorMessage += $" | Inner Exception: {ex.InnerException.Message}";
+                }
+
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: errorMessage);
                 return CommonErrors.DatabaseError($"actualizar la empresa");
             }
             catch (Exception ex)

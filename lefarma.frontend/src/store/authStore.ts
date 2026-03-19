@@ -17,6 +17,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sucursal: null,
   isAuthenticated: false,
   isLoading: false,
+  isInitialized: false,
   loginStep: 1,
   availableDomains: [],
   requiresDomainSelection: false,
@@ -189,5 +190,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sessionStorage.removeItem('loginFlow');
       }
     }
+
+    set({ isInitialized: true });
   },
 }));

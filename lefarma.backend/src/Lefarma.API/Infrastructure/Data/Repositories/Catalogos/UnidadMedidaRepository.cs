@@ -13,5 +13,20 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos
         {
             _context = context;
         }
+
+        public async Task ActualizarActivosAsync(int idMedida, List<int> idsUnidadesActivas)
+        {
+            var todasLasUnidades = await _context.UnidadesMedida
+                .Where(u => u.IdMedida == idMedida)
+                .ToListAsync();
+
+            foreach (var unidad in todasLasUnidades)
+            {
+                unidad.Activo = idsUnidadesActivas.Contains(unidad.IdUnidadMedida);
+                unidad.FechaModificacion = DateTime.UtcNow;
+            }
+
+            await _context.SaveChangesAsync();
+        }
     }
 }

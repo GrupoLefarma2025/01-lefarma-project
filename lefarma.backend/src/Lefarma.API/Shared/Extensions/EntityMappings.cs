@@ -2,8 +2,8 @@ using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Features.Catalogos.Areas.DTOs;
 using Lefarma.API.Features.Catalogos.Empresas.DTOs;
 using Lefarma.API.Features.Catalogos.Sucursales.DTOs;
-using Lefarma.API.Features.Catalogos.TiposMedida.DTOs;
-using Lefarma.API.Features.Catalogos.TipoGastos.DTOs;
+using Lefarma.API.Features.Catalogos.Medidas.DTOs;
+using Lefarma.API.Features.Catalogos.Gastos.DTOs;
 using Lefarma.API.Features.Catalogos.UnidadesMedida.DTOs;
 
 namespace Lefarma.API.Shared.Extensions
@@ -64,11 +64,11 @@ namespace Lefarma.API.Shared.Extensions
 
         #endregion
 
-        #region TipoGasto Mappings
+        #region Gasto Mappings
 
-        public static TipoGastoResponse ToResponse(this TipoGasto entity) => new()
+        public static GastoResponse ToResponse(this Gasto entity) => new()
         {
-            IdTipoGasto = entity.IdTipoGasto,
+            IdGasto = entity.IdGasto,
             Nombre = entity.Nombre,
             Descripcion = entity.Descripcion ?? string.Empty,
             Clave = entity.Clave ?? string.Empty,
@@ -84,7 +84,17 @@ namespace Lefarma.API.Shared.Extensions
             DiasLimiteComprobacion = entity.DiasLimiteComprobacion,
             Activo = entity.Activo,
             FechaCreacion = entity.FechaCreacion,
-            FechaModificacion = entity.FechaModificacion
+            FechaModificacion = entity.FechaModificacion,
+            UnidadesMedida = entity.GastoUnidadesMedida
+                .Where(gu => gu.Activo && gu.UnidadMedida != null)
+                .Select(gu => new UnidadMedidaGastoResponse
+                {
+                    IdUnidadMedida = gu.IdUnidadMedida,
+                    Nombre = gu.UnidadMedida!.Nombre,
+                    Abreviatura = gu.UnidadMedida.Abreviatura,
+                    Activo = gu.Activo
+                })
+                .ToList()
         };
 
         #endregion
@@ -106,16 +116,17 @@ namespace Lefarma.API.Shared.Extensions
 
         #endregion
 
-        #region TipoMedida Mappings
+        #region Medida Mappings
 
-        public static TipoMedidaResponse ToResponse(this TipoMedida entity) => new()
+        public static MedidaResponse ToResponse(this Medida entity) => new()
         {
-            IdTipoMedida = entity.IdTipoMedida,
+            IdMedida = entity.IdMedida,
             Nombre = entity.Nombre,
             Descripcion = entity.Descripcion ?? string.Empty,
             Activo = entity.Activo,
             FechaCreacion = entity.FechaCreacion,
-            FechaModificacion = entity.FechaModificacion
+            FechaModificacion = entity.FechaModificacion,
+            UnidadesMedida = entity.UnidadesMedida.Select(u => u.ToResponse()).ToList()
         };
 
         #endregion
@@ -125,8 +136,8 @@ namespace Lefarma.API.Shared.Extensions
         public static UnidadMedidaResponse ToResponse(this UnidadMedida entity) => new()
         {
             IdUnidadMedida = entity.IdUnidadMedida,
-            IdTipoMedida = entity.IdTipoMedida,
-            NombreTipoMedida = null, // Navegación no incluida para evitar carga
+            IdMedida = entity.IdMedida,
+            NombreMedida = null, // Navegación no incluida para evitar carga
             Nombre = entity.Nombre,
             Descripcion = entity.Descripcion ?? string.Empty,
             Abreviatura = entity.Abreviatura,

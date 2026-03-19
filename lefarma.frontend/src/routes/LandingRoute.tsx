@@ -4,6 +4,9 @@ import Hero from '@/pages/Hero';
 
 export const LandingRoute = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+
+  if (!isInitialized) return null;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
@@ -14,6 +17,9 @@ export const LandingRoute = () => {
 
 export const ProtectedRoute = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+
+  if (!isInitialized) return null;
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />;
@@ -24,6 +30,9 @@ export const ProtectedRoute = () => {
 
 export const PublicOnlyRoute = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+
+  if (!isInitialized) return null;
 
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;

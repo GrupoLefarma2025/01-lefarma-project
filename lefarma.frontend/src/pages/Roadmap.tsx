@@ -1,4 +1,4 @@
-import { faker } from "@faker-js/faker";
+﻿import { faker } from "@faker-js/faker";
 import {
   CalendarBody,
   CalendarDate,
@@ -39,17 +39,8 @@ import {
   ListItems,
   ListProvider,
 } from "@/components/kibo-ui/list";
-import type { ColumnDef } from "@/components/kibo-ui/table";
-import {
-  TableBody,
-  TableCell,
-  TableColumnHeader,
-  TableHead,
-  TableHeader,
-  TableHeaderGroup,
-  TableProvider,
-  TableRow,
-} from "@/components/kibo-ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@/components/ui/data-table";
 import groupBy from "lodash.groupby";
 import {
   CalendarIcon,
@@ -116,15 +107,15 @@ const exampleReleases = Array.from({ length: 3 })
     name: capitalize(faker.company.buzzPhrase()),
   }));
 
-// Helper para generar fechas con duraciones más realistas (1-3 años de rango total)
+// Helper para generar fechas con duraciones mÃ¡s realistas (1-3 aÃ±os de rango total)
 const generateFeatureDates = () => {
   const now = new Date();
-  // Fecha de inicio: entre 6 meses atrás y 1 año adelante
+  // Fecha de inicio: entre 6 meses atrÃ¡s y 1 aÃ±o adelante
   const startDate = faker.date.between({
     from: new Date(now.getFullYear(), now.getMonth() - 6, 1),
     to: new Date(now.getFullYear() + 1, now.getMonth(), 1),
   });
-  // Duración: entre 3 y 18 meses
+  // DuraciÃ³n: entre 3 y 18 meses
   const durationMonths = faker.number.int({ min: 3, max: 18 });
   const endDate = new Date(startDate);
   endDate.setMonth(endDate.getMonth() + durationMonths);
@@ -497,9 +488,7 @@ const TableView = () => {
   const columns: ColumnDef<(typeof exampleFeatures)[number]>[] = [
     {
       accessorKey: "name",
-      header: ({ column }) => (
-        <TableColumnHeader column={column} title="Name" />
-      ),
+      header: "Name",
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -530,9 +519,7 @@ const TableView = () => {
     },
     {
       accessorKey: "startAt",
-      header: ({ column }) => (
-        <TableColumnHeader column={column} title="Start At" />
-      ),
+      header: "Start At",
       cell: ({ row }) =>
         new Intl.DateTimeFormat("en-US", {
           dateStyle: "medium",
@@ -540,9 +527,7 @@ const TableView = () => {
     },
     {
       accessorKey: "endAt",
-      header: ({ column }) => (
-        <TableColumnHeader column={column} title="End At" />
-      ),
+      header: "End At",
       cell: ({ row }) =>
         new Intl.DateTimeFormat("en-US", {
           dateStyle: "medium",
@@ -551,32 +536,13 @@ const TableView = () => {
     {
       id: "release",
       accessorFn: (row) => row.release.id,
-      header: ({ column }) => (
-        <TableColumnHeader column={column} title="Release" />
-      ),
+      header: "Release",
       cell: ({ row }) => row.original.release.name,
     },
   ];
 
   return (
-    <div className="size-full overflow-auto">
-      <TableProvider columns={columns} data={exampleFeatures}>
-        <TableHeader>
-          {({ headerGroup }) => (
-            <TableHeaderGroup headerGroup={headerGroup} key={headerGroup.id}>
-              {({ header }) => <TableHead header={header} key={header.id} />}
-            </TableHeaderGroup>
-          )}
-        </TableHeader>
-        <TableBody>
-          {({ row }) => (
-            <TableRow key={row.id} row={row}>
-              {({ cell }) => <TableCell cell={cell} key={cell.id} />}
-            </TableRow>
-          )}
-        </TableBody>
-      </TableProvider>
-    </div>
+    <DataTable columns={columns} data={exampleFeatures} showRowCount />
   );
 };
 

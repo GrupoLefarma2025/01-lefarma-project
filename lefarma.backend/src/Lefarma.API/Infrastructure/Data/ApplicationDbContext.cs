@@ -15,10 +15,11 @@ namespace Lefarma.API.Infrastructure.Data
         // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
-        public DbSet<TipoGasto> TiposGasto { get; set; }
+        public DbSet<Gasto> Gastos { get; set; }
         public DbSet<Area> Areas { get; set; }
-        public DbSet<TipoMedida> TiposMedida { get; set; }
+        public DbSet<Medida> Medidas { get; set; }
         public DbSet<UnidadMedida> UnidadesMedida { get; set; }
+        public DbSet<GastoUnidadMedida> GastosUnidadesMedida { get; set; }
 
         // DbSets - Auth/Identity
         public DbSet<Usuario> Usuarios { get; set; }
