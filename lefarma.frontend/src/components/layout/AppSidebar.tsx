@@ -12,6 +12,7 @@ import {
   Wallet,
   Ruler,
   Users,
+  CreditCard,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -55,6 +56,7 @@ const menuItems = [
       { title: 'Áreas', icon: Database, path: '/catalogos/areas' },
       { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
       { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
+      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
     ],
   },
   {
