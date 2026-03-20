@@ -121,14 +121,12 @@ export const authService = {
   },
 
   getEmpresas: async (): Promise<Empresa[]> => {
-    const response = await API.get<ApiResponse<Empresa[]>>('/auth/empresas');
+    const response = await API.get<ApiResponse<Empresa[]>>('/catalogos/empresas');
     return response.data.data;
   },
 
-  getSucursales: async (empresaId: string): Promise<Sucursal[]> => {
-    const response = await API.get<ApiResponse<Sucursal[]>>(
-      `/empresas/${empresaId}/sucursales`
-    );
+  getSucursales: async (): Promise<Sucursal[]> => {
+    const response = await API.get<ApiResponse<Sucursal[]>>('/catalogos/sucursales');
     return response.data.data;
   },
 };

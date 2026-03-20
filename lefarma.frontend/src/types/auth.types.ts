@@ -37,15 +37,15 @@ export interface User {
 }
 
 export interface Empresa {
-  id: string;
+  idEmpresa: string | number;
   nombre: string;
   codigo: string;
   activo: boolean;
 }
 
 export interface Sucursal {
-  id: string;
-  empresaId: string;
+  idSucursal: string | number;
+  idEmpresa: string | number;
   nombre: string;
   codigo: string;
   direccion?: string;
@@ -105,15 +105,14 @@ export interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
 
-  // New state for 2-step flow
-  loginStep: 1 | 2;
+  // New state for 3-step flow
+  loginStep: 1 | 2 | 3;
   availableDomains: string[];
   requiresDomainSelection: boolean;
   displayName: string | null;
   pendingUsername: string | null;
-
-  // State for empresa/sucursal selection
-  requiresEmpresaSucursalSelection: boolean;
+  empresas: Empresa[];
+  sucursales: Sucursal[];
 
   // Existing actions
   logout: () => Promise<void>;
@@ -123,14 +122,11 @@ export interface AuthState {
   setUser: (user: UserInfo) => void;
   initialize: () => void;
 
-  // New actions for 2-step flow
+  // New actions for 3-step flow
   loginStepOne: (username: string) => Promise<void>;
   loginStepTwo: (password: string, domain: string) => Promise<void>;
+  loginStepThree: (empresaId: string, sucursalId: string) => Promise<void>;
   resetLoginFlow: () => void;
-
-  // Actions for empresa/sucursal selection
-  showEmpresaSucursalSelector: () => void;
-  hideEmpresaSucursalSelector: () => void;
 
   // SSE compatibility
   updateUserFromSse: (sseUser: SseUserInfo) => void;
