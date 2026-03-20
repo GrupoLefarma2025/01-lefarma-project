@@ -55,4 +55,15 @@ public interface INotificationService
     /// <param name="userId">User ID to mark all notifications as read</param>
     /// <param name="ct">Cancellation token for async operation</param>
     Task MarkAllAsReadAsync(int userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Sends a notification to all configured channels.
+    /// This method broadcasts the same message to all active notification channels.
+    /// </summary>
+    /// <param name="title">Notification title</param>
+    /// <param name="message">Notification message content</param>
+    /// <param name="recipients">Comma-separated list of recipients (user IDs, emails, phone numbers, etc.)</param>
+    /// <param name="ct">Cancellation token for async operation</param>
+    /// <returns>Response indicating success and created notification IDs</returns>
+    Task<SendNotificationResponse> SendToAllChannelsAsync(string title, string message, string recipients, CancellationToken ct = default);
 }

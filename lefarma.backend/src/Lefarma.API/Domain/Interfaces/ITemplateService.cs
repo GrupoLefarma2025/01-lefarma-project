@@ -23,4 +23,12 @@ public interface ITemplateService
     /// <param name="ct">Cancellation token for async operation</param>
     /// <returns>True if template exists, false otherwise</returns>
     Task<bool> TemplateExistsAsync(string templateId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Registers a new template in the system.
+    /// </summary>
+    /// <param name="templateId">Unique template identifier (e.g., "welcome-email", "order-confirmation")</param>
+    /// <param name="content">Template content with variable placeholders (e.g., "Hello {{userName}}")</param>
+    /// <param name="type">Template type determining the rendering format</param>
+    Task RegisterTemplateAsync(string templateId, string content, TemplateType type);
 }
