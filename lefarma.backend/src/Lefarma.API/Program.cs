@@ -74,7 +74,10 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// DbContext 
+// HttpClientFactory for external API calls
+builder.Services.AddHttpClient();
+
+// DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -122,6 +125,16 @@ builder.Services.AddOptions<EmailSettings>()
 
 // Register Email Notification Channel
 builder.Services.AddScoped<Domain.Interfaces.INotificationChannel, EmailNotificationChannel>();
+
+// Telegram Settings configuration
+builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("TelegramSettings"));
+builder.Services.AddOptions<TelegramSettings>()
+    .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.ApiUrl), "ApiUrl is required")
+    .ValidateOnStart();
+
+// Register Telegram Notification Channel
+builder.Services.AddScoped<Domain.Interfaces.INotificationChannel, TelegramNotificationChannel>();
 
 // JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
