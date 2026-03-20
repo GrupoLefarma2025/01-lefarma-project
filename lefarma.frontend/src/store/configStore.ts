@@ -1,0 +1,123 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type { ConfigState, UIConfig, PerfilConfig, SistemaConfig } from '@/types/config.types';
+import { useAuthStore } from './authStore';
+
+const DEFAULT_UI_CONFIG: UIConfig = {
+  tema: 'system',
+  notificaciones: {
+    tiposHabilitados: ['in-app'],
+    preferencias: [
+      { tipo: 'in-app', enabled: true },
+      { tipo: 'email', enabled: false },
+      { tipo: 'telegram', enabled: false },
+      { tipo: 'whatsapp', enabled: false },
+    ],
+  },
+};
+
+const DEFAULT_SISTEMA_CONFIG: SistemaConfig = {
+  version: import.meta.env.VITE_APP_VERSION || '1.0.0',
+  apiUrl: import.meta.env.VITE_API_URL || '/api',
+  appName: import.meta.env.VITE_APP_NAME || 'Lefarma',
+  environment: (import.meta.env.MODE as SistemaConfig['environment']) || 'development',
+  buildDate: import.meta.env.VITE_BUILD_DATE,
+  gitCommit: import.meta.env.VITE_GIT_COMMIT,
+};
+
+export const useConfigStore = create<ConfigState>()(
+  persist(
+    (set, get) => ({
+      ui: DEFAULT_UI_CONFIG,
+
+      perfil: {
+        nombre: '',
+        correo: '',
+        notificacionPreferida: 'in-app',
+      },
+
+      sistema: DEFAULT_SISTEMA_CONFIG,
+
+      setTema: (tema: UIConfig['tema']) => {
+        set((state) => ({
+          ui: { ...state.ui, tema },
+        }));
+
+        // Aplicar tema inmediatamente
+        const htmlElement = document.documentElement;
+        const root = window;
+
+        if (tema === 'dark') {
+          htmlElement.classList.add('dark');
+          localStorage.setItem('theme', 'dark');
+        } else if (tema === 'light') {
+          htmlElement.classList.remove('dark');
+          localStorage.setItem('theme', 'light');
+        } else {
+          // system
+          localStorage.removeItem('theme');
+          const prefersDark = root.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (prefersDark) {
+            htmlElement.classList.add('dark');
+          } else {
+            htmlElement.classList.remove('dark');
+          }
+        }
+      },
+
+      updateNotificacion: (tipo, enabled) => {
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            notificaciones: {
+              ...state.ui.notificaciones,
+              preferencias: state.ui.notificaciones.preferencias.map((p) =>
+                p.tipo === tipo ? { ...p, enabled } : p
+              ),
+              tiposHabilitados: enabled
+                ? [...new Set([...state.ui.notificaciones.tiposHabilitados, tipo])]
+                : state.ui.notificaciones.tiposHabilitados.filter((t) => t !== tipo),
+            },
+          },
+        }));
+      },
+
+      setNotificacionPreferida: (tipo) => {
+        set((state) => ({
+          perfil: {
+            ...state.perfil,
+            notificacionPreferida: tipo,
+          },
+        }));
+      },
+
+      updatePerfil: (perfilUpdates) => {
+        set((state) => ({
+          perfil: {
+            ...state.perfil,
+            ...perfilUpdates,
+          },
+        }));
+      },
+
+      resetConfig: () => {
+        const user = useAuthStore.getState().user;
+        set({
+          ui: DEFAULT_UI_CONFIG,
+          perfil: {
+            nombre: user?.nombre || '',
+            correo: user?.correo || '',
+            notificacionPreferida: 'in-app',
+          },
+        });
+      },
+    }),
+    {
+      name: 'config-storage',
+      partialize: (state) => ({
+        ui: state.ui,
+        perfil: state.perfil,
+      }), // No persistir sistema (se lee de env vars)
+    }
+  )
+);

@@ -7,6 +7,7 @@ import {
 } from '@/types/auth.types';
 import type { SseUserInfo } from '@/types/sse.types';
 import { authService } from '@/services/authService';
+import { useConfigStore } from './configStore';
 
 const LEGACY_TOKEN_KEY = 'token';
 
@@ -76,6 +77,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authService.getEmpresas(),
         authService.getSucursales(),
       ]);
+
+      // Sincronizar con configStore
+      useConfigStore.getState().updatePerfil({
+        nombre: response.user.nombre || '',
+        correo: response.user.correo || '',
+      });
 
       set({
         user: response.user,
@@ -213,6 +220,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         empresa,
         sucursal,
         isAuthenticated: true,
+      });
+
+      // Sincronizar perfil con configStore
+      useConfigStore.getState().updatePerfil({
+        nombre: user.nombre || '',
+        correo: user.correo || '',
       });
     }
 

@@ -1,5 +1,6 @@
 import { useAuthStore } from '@/store/authStore';
 import { usePageStore } from '@/store/pageStore';
+import { useConfigStore } from '@/store/configStore';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,48 +13,37 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Building2, MapPin, User, LogOut, ChevronDown, Sun, Moon } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
 
 export const Header = () => {
   const { user, empresa, sucursal, logout } = useAuthStore();
   const { title, subtitle } = usePageStore();
+  const { ui, setTema } = useConfigStore();
   const navigate = useNavigate();
-  const [isDark, setIsDark] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-   // Detectar el tema actual al cargar
-  useEffect(() => {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark') {
-      document.documentElement.classList.add('dark');
-      setIsDark(true);
-    } else if (saved === 'light') {
-      document.documentElement.classList.remove('dark');
-      setIsDark(false);
-    } else {
-      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-      setIsDark(prefersDark);
-    }
-  }, []);
-
   const handleToggleTheme = () => {
-    const htmlElement = document.documentElement;
-    
-    if (isDark) {
-      htmlElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-      setIsDark(false);
-    } else {
-      htmlElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-      setIsDark(true);
-    }
+    const newTheme = ui.tema === 'light' ? 'dark' : ui.tema === 'dark' ? 'system' : 'light';
+    setTema(newTheme);
   };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const getThemeIcon = () => {
+    switch (ui.tema) {
+      case 'light':
+        return <Sun className="h-4 w-4" />;
+      case 'dark':
+        return <Moon className="h-4 w-4" />;
+      default:
+        // system - detect current
+        const isDark = document.documentElement.classList.contains('dark');
+        return isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
+    }
   };
 
   return (
@@ -91,12 +81,9 @@ export const Header = () => {
           size="icon"
           onClick={handleToggleTheme}
           className="h-9 w-9"
+          title={`Tema: ${ui.tema === 'system' ? 'Sistema' : ui.tema === 'light' ? 'Claro' : 'Oscuro'}`}
         >
-          {isDark ? (
-            <Sun className="h-4 w-4" />
-          ) : (
-            <Moon className="h-4 w-4" />
-          )}
+          {getThemeIcon()}
         </Button>
 
         {/* User Menu */}
