@@ -12,15 +12,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { User, Mail, Phone, Bell, Bell as BellIcon, Mail as MailIcon, Send, MessageSquare } from 'lucide-react';
+import { User, Mail, Phone, Bell, Send, MessageSquare } from 'lucide-react';
 import { useState } from 'react';
 import { usePageStore } from '@/store/pageStore';
 
 const NOTIFICACIONES_CONFIG = [
-  { tipo: 'in-app' as const, label: 'Notificaciones en App', icon: BellIcon, description: 'Muestra notificaciones dentro de la aplicación' },
-  { tipo: 'email' as const, label: 'Correo Electrónico', icon: MailIcon, description: 'Recibe notificaciones por email' },
-  { tipo: 'telegram' as const, label: 'Telegram', icon: Send, description: 'Recibe notificaciones vía Telegram bot' },
-  { tipo: 'whatsapp' as const, label: 'WhatsApp', icon: MessageSquare, description: 'Recibe notificaciones por WhatsApp' },
+  {
+    tipo: 'in-app' as const,
+    label: 'Notificaciones en App',
+    icon: Bell,
+    description: 'Muestra notificaciones dentro de la aplicación',
+  },
+  {
+    tipo: 'email' as const,
+    label: 'Correo Electrónico',
+    icon: Mail,
+    description: 'Recibe notificaciones por email',
+  },
+  {
+    tipo: 'telegram' as const,
+    label: 'Telegram',
+    icon: Send,
+    description: 'Recibe notificaciones vía Telegram bot',
+  },
+  {
+    tipo: 'whatsapp' as const,
+    label: 'WhatsApp',
+    icon: MessageSquare,
+    description: 'Recibe notificaciones por WhatsApp',
+  },
 ];
 
 export function PerfilConfig() {
@@ -34,7 +54,6 @@ export function PerfilConfig() {
   const handleSave = () => {
     updatePerfil(tempPerfil);
     setEditMode(false);
-    // Aquí eventualmente se llamaría al backend para actualizar
     setTitle('Perfil actualizado');
     setTimeout(() => setTitle(''), 3000);
   };
@@ -83,7 +102,7 @@ export function PerfilConfig() {
               Nombre Completo
             </Label>
             <Input
-              value={editMode ? tempPerfil.nombre : (perfil.nombre || user?.nombre || '')}
+              value={editMode ? tempPerfil.nombre : perfil.nombre || user?.nombre || ''}
               onChange={(e) => setTempPerfil({ ...tempPerfil, nombre: e.target.value })}
               disabled={!editMode}
               placeholder="Tu nombre completo"
@@ -98,7 +117,7 @@ export function PerfilConfig() {
             </Label>
             <Input
               type="email"
-              value={editMode ? tempPerfil.correo : (perfil.correo || user?.correo || '')}
+              value={editMode ? tempPerfil.correo : perfil.correo || user?.correo || ''}
               onChange={(e) => setTempPerfil({ ...tempPerfil, correo: e.target.value })}
               disabled={!editMode}
               placeholder="tu.correo@ejemplo.com"
@@ -113,7 +132,7 @@ export function PerfilConfig() {
             </Label>
             <Input
               type="tel"
-              value={editMode ? (tempPerfil.telefono || '') : (perfil.telefono || '')}
+              value={editMode ? tempPerfil.telefono || '' : perfil.telefono || ''}
               onChange={(e) => setTempPerfil({ ...tempPerfil, telefono: e.target.value })}
               disabled={!editMode}
               placeholder="+504 1234-5678"
@@ -168,7 +187,7 @@ export function PerfilConfig() {
                 />
               </div>
             );
-          )}
+          })}
         </CardContent>
       </Card>
 

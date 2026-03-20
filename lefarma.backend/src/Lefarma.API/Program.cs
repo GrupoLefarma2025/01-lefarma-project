@@ -1,4 +1,5 @@
 using FluentValidation;
+using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
