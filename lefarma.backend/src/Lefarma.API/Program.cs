@@ -2,6 +2,7 @@ using FluentValidation;
 using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
+using Lefarma.API.Features.Catalogos.Bancos;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.Sucursales;
 using Lefarma.API.Features.Catalogos.Gastos;
@@ -10,6 +11,7 @@ using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Notifications.Services;
+using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
 using Lefarma.API.Infrastructure.Data.Seeding;
@@ -88,6 +90,7 @@ builder.Services.AddScoped<IMedidaRepository, MedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
 builder.Services.AddScoped<IMedioPagoRepository, MedioPagoRepository>();
 builder.Services.AddScoped<IFormaPagoRepository, FormaPagoRepository>();
+builder.Services.AddScoped<IBancoRepository, BancoRepository>();
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -98,6 +101,7 @@ builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 builder.Services.AddScoped<IMedioPagoService, MedioPagoService>();
 builder.Services.AddScoped<IFormaPagoService, FormaPagoService>();
+builder.Services.AddScoped<IBancoService, BancoService>();
 
 builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
@@ -107,6 +111,17 @@ builder.Services.AddSingleton<ISseService, SseService>();
 
 // Notification Services
 builder.Services.AddScoped<Domain.Interfaces.ITemplateService, TemplateService>();
+
+// Email Settings configuration
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddOptions<EmailSettings>()
+    .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
+    .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
+    .ValidateOnStart();
+
+// Register Email Notification Channel
+builder.Services.AddScoped<Domain.Interfaces.INotificationChannel, EmailNotificationChannel>();
 
 // JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
