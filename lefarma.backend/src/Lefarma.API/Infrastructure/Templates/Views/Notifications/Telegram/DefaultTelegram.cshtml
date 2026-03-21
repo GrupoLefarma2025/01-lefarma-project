@@ -1,0 +1,10 @@
+@model Lefarma.API.Features.Notifications.DTOs.NotificationTemplateViewModel
+
+@{
+    Layout = null;
+    string greeting = !string.IsNullOrEmpty(Model.CustomerName) ? $"👋 Hola *@Model.CustomerName*!" : "👋 Hola!";
+    string title = !string.IsNullOrEmpty(Model.Title) ? $"\n\n📌 *@Model.Title*" : "";
+    string footer = "\n\n---\n🏥 *Lefarma* - Sistema de Gestión Farmacéutica\n_Este es un mensaje automático_";
+}
+
+@Html.Raw(greeting)@Html.Raw(title)@Html.Raw(Model.Message)@Html.Raw(footer)

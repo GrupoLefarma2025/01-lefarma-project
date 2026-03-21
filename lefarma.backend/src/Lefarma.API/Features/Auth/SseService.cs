@@ -83,6 +83,18 @@ public class SseService : ISseService
 
     public bool IsUserConnected(int userId) => _connections.ContainsKey(userId);
 
+    public async Task NotifyAsync(int userId, string eventType, object data, CancellationToken cancellationToken = default)
+    {
+        if (!_connections.TryGetValue(userId, out var response))
+        {
+            _logger.LogDebug("No active SSE connection for user {UserId}", userId);
+            return;
+        }
+
+        await SendEventAsync(response, eventType, data, cancellationToken);
+        _logger.LogInformation("Sent {EventType} event to user {UserId}", eventType, userId);
+    }
+
     private async Task SendConnectedEventAsync(HttpResponse response, CancellationToken cancellationToken)
     {
         await SendEventAsync(response, "connected", new { timestamp = DateTime.UtcNow }, cancellationToken);

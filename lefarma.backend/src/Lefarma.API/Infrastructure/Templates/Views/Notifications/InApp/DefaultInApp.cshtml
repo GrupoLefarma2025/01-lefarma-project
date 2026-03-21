@@ -1,0 +1,142 @@
+@model Lefarma.API.Features.Notifications.DTOs.NotificationTemplateViewModel
+
+@{
+    Layout = null;
+    var timestamp = Model.CreatedAt.HasValue
+        ? Model.CreatedAt.Value.ToString("dd/MM/yyyy HH:mm")
+        : DateTime.Now.ToString("dd/MM/yyyy HH:mm");
+}
+
+<div class="notification-item" data-notification-id="@Model.NotificationId.ToString()" data-priority="@Model.Priority">
+    <div class="notification-header">
+        @if (!string.IsNullOrEmpty(Model.Icon))
+        {
+            <span class="notification-icon">@Model.Icon</span>
+        }
+        <span class="notification-title">@Model.Title</span>
+        <span class="notification-timestamp" title="@timestamp">@timestamp</span>
+    </div>
+
+    <div class="notification-body">
+        @Html.Raw(Model.Message)
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ActionUrl))
+    {
+        <div class="notification-actions">
+            <a href="@Model.ActionUrl" class="notification-action-btn">
+                @if (!string.IsNullOrEmpty(Model.ActionText))
+                {
+                    @Model.ActionText
+                }
+                else
+                {
+                    <text>Ver detalles</text>
+                }
+            </a>
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(Model.CustomerName))
+    {
+        <div class="notification-footer">
+            <small>Para @Model.CustomerName</small>
+        </div>
+    }
+</div>
+
+<style>
+    .notification-item {
+        background-color: #fff;
+        border-left: 4px solid #4CAF50;
+        border-radius: 4px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        animation: slideIn 0.3s ease-out;
+    }
+
+    .notification-item[data-priority="High"] {
+        border-left-color: #f44336;
+        background-color: #ffebee;
+    }
+
+    .notification-item[data-priority="Medium"] {
+        border-left-color: #ff9800;
+    }
+
+    .notification-item[data-priority="Low"] {
+        border-left-color: #4CAF50;
+    }
+
+    @@keyframes slideIn {
+        from {
+            opacity: 0;
+            transform: translateX(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateX(0);
+        }
+    }
+
+    .notification-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+    }
+
+    .notification-icon {
+        font-size: 18px;
+    }
+
+    .notification-title {
+        font-weight: 600;
+        color: #333;
+        flex-grow: 1;
+    }
+
+    .notification-timestamp {
+        font-size: 11px;
+        color: #999;
+        white-space: nowrap;
+    }
+
+    .notification-body {
+        color: #555;
+        line-height: 1.5;
+        margin-bottom: 8px;
+    }
+
+    .notification-actions {
+        margin-top: 12px;
+    }
+
+    .notification-action-btn {
+        display: inline-block;
+        padding: 8px 16px;
+        background-color: #4CAF50;
+        color: white;
+        text-decoration: none;
+        border-radius: 4px;
+        font-size: 13px;
+        transition: background-color 0.2s;
+    }
+
+    .notification-action-btn:hover {
+        background-color: #45a049;
+    }
+
+    .notification-footer {
+        margin-top: 8px;
+        padding-top: 8px;
+        border-top: 1px solid #e0e0e0;
+    }
+
+    .notification-footer small {
+        color: #999;
+        font-size: 11px;
+    }
+</style>

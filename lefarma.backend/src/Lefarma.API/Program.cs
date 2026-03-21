@@ -1,19 +1,26 @@
 using FluentValidation;
 using Lefarma.API.Domain.Interfaces.Admin;
+using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Features.Admin;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
+using Lefarma.API.Features.Catalogos.Bancos;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.Sucursales;
 using Lefarma.API.Features.Catalogos.Gastos;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Logging;
+using Lefarma.API.Features.Catalogos.MediosPago;
+using Lefarma.API.Features.Catalogos.FormasPago;
+using Lefarma.API.Features.Notifications.Services;
+using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
+using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
 using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
@@ -74,7 +81,10 @@ Log.Logger = new LoggerConfiguration()
 
 builder.Host.UseSerilog();
 
-// DbContext 
+// HttpClientFactory for external API calls
+builder.Services.AddHttpClient();
+
+// DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
@@ -89,6 +99,10 @@ builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<IMedidaRepository, MedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IMedioPagoRepository, MedioPagoRepository>();
+builder.Services.AddScoped<IFormaPagoRepository, FormaPagoRepository>();
+builder.Services.AddScoped<IBancoRepository, BancoRepository>();
+// builder.Services.AddScoped<Domain.Interfaces.INotificationRepository, NotificationRepository>(); // TODO: Uncomment when notifications are complete
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -97,6 +111,9 @@ builder.Services.AddScoped<IGastoService, GastoService>();
 builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
+builder.Services.AddScoped<IMedioPagoService, MedioPagoService>();
+builder.Services.AddScoped<IFormaPagoService, FormaPagoService>();
+builder.Services.AddScoped<IBancoService, BancoService>();
 
 // Logging Services
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
@@ -107,6 +124,34 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
+
+// Notification Services
+// TODO: Uncomment when notification interfaces are implemented
+// builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
+// builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, NotificationService>();
+
+// Email Settings configuration
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+// TODO: Uncomment when email settings are configured
+// builder.Services.AddOptions<EmailSettings>()
+//     .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
+//     .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
+//     .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
+//     .ValidateOnStart();
+
+// Register channels as KEYED SERVICES for multi-channel support
+// TODO: Uncomment when notification channels are implemented
+// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
+// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.TelegramNotificationChannel>("telegram");
+// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.InAppNotificationChannel>("in-app");
+
+// Telegram Settings configuration
+builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("TelegramSettings"));
+// TODO: Uncomment when telegram bot is configured
+// builder.Services.AddOptions<TelegramSettings>()
+//     .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
+//     .Validate(x => !string.IsNullOrWhiteSpace(x.ApiUrl), "ApiUrl is required")
+//     .ValidateOnStart();
 
 // JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
@@ -147,6 +192,21 @@ else
 {
     Log.Warning("JWT settings not configured properly. Authentication will not work.");
 }
+
+// TODO: Uncomment when Notifications feature is implemented
+// // Telegram Settings validation
+// builder.Services.Configure<Features.Notifications.Services.Channels.TelegramSettings>(
+//     builder.Configuration.GetSection("TelegramSettings"));
+// builder.Services.AddOptions<Features.Notifications.Services.Channels.TelegramSettings>()
+//     .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
+//     .ValidateOnStart();
+//
+// // Notification Settings validation
+// builder.Services.Configure<Features.Notifications.DTOs.NotificationSettings>(
+//     builder.Configuration.GetSection("NotificationSettings"));
+// builder.Services.AddOptions<Features.Notifications.DTOs.NotificationSettings>()
+//     .Validate(x => x.MaxRetryCount > 0 && x.MaxRetryCount <= 10, "MaxRetryCount must be 1-10")
+//     .ValidateOnStart();
 
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
@@ -291,12 +351,13 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
-    await seeder.SeedAsync();
-}
+// Database seeding deshabilitado temporalmente
+// if (app.Environment.IsDevelopment())
+// {
+//     using var scope = app.Services.CreateScope();
+//     var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
+//     await seeder.SeedAsync();
+// }
 
 app.Run();
 
