@@ -1,282 +1,258 @@
-# Lefarma Project Knowledge System
+# CLAUDE.md
 
-## Philosophy
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Este es un sistema de notas técnicas para el proyecto Lefarma. Cada nota documenta una decisión, patrón, o comprensión del sistema. La meta: mantener contexto compartido entre sesiones — saber siempre "en qué andamos".
+## Project Overview
 
-El agente que opera este sistema:
-- Documenta decisiones de arquitectura con sus razones
-- Conecta notas con el código que referencian
-- Actualiza notas cuando el sistema evoluciona
-- Valida que la documentación refleje el estado actual del código
+Lefarma is a pharmaceutical management system with a .NET 10 backend and React 19 + TypeScript frontend. The architecture follows a modular monolith pattern organized by features.
 
----
+**Repository Structure:**
+- `lefarma.backend/` - .NET 10 Web API
+- `lefarma.frontend/` - React 19 + Vite frontend
+- `lefarma.database/` - Database scripts
+- `lefarma.docs/` - Detailed documentation
 
-## Session Rhythm: Orient, Trabajar, Persistir
+## Quick Start
 
-**Orient (Al iniciar sesión):**
-1. Lee self/goals.md — ¿en qué andamos?
-2. Lee self/metodologia.md — ¿cómo trabajamos?
-3. Lista notas-tecnicas/ para ver estado actual
-4. Revisa ops/reminders.md para acciones pendientes
-5. Revisa ops/queue/ para tareas de procesamiento
-
-**Trabajar:**
-- Documentar decisiones técnicas que surjan
-- Enlazar notas con archivos de código relacionados
-- Actualizar notas obsoletas cuando el código cambie
-
-**Persistir (Al terminar sesión):**
-- Actualiza self/goals.md con el estado actual
-- Crea entrada en ops/sessions/ con lo que pasó
-- Añade observaciones a ops/observations/ si aprendimos algo sobre el proceso
-
----
-
-## Atomic Notes (Notas Técnicas)
-
-Cada nota técnica debe ser:
-- **Proposición como título**: "Usamos Repository Pattern para acceso a datos" (no "Repository Pattern")
-- **Una idea por archivo**: Una decisión, un patrón, un módulo
-- **Referenciable**: Otros archivos deben poder enlazar a esta nota
-
-**Test de composabilidad:**
-Prueba completar: "Esta nota documenta que [título]"
-Si suena raro, el título necesita trabajo.
-
----
-
-## Wiki Links
-
-Los enlaces `[[título de nota]]` conectan el conocimiento.
-
-**Patrones de uso:**
-- **Referencias a decisiones**: "Esta implementación sigue el patrón [[Usamos Repository Pattern para acceso a datos]]"
-- **Conexión de módulos**: "El módulo de Catálogos depende de [[Autenticación multi-tenant]]"
-- **Historial**: "[[Decisión anterior]] fue superada por esta nueva aproximación"
-
-**Creación de enlaces:**
-- Cuando mencionas una decisión existente, enlázala
-- Cuando ves una conexión no documentada, crea el enlace
-- Los enlaces son bidireccionales: aparecen en "Notas relacionadas"
-
----
-
-## MOCs (Mapas de Módulo)
-
-La navegación es de 2 niveles:
-- **Hub** (inicio.md): Índice general de todos los mapas de módulo
-- **Mapas de módulo**: Uno por área funcional (Catálogos, Auth, API, Frontend, Infra)
-
-**Cada mapa de módulo contiene:**
-- Descripción del módulo
-- Notas técnicas que lo componen
-- Archivos de código clave
-- Estado general (activo, en refactor, estable)
-
----
-
-## Processing Pipeline (Flujo de Procesamiento)
-
-**Fase 1: Documentar (/documentar)**
-- Extraer la decisión o patrón del contexto
-- Crear nota técnica con título proposicional
-- Añadir campos: módulo, archivos_relacionados, estado
-
-**Fase 2: Enlazar (/enlazar)**
-- Buscar notas técnicas relacionadas
-- Añadir enlaces wiki entre notas conectadas
-- Actualizar mapas de módulo para incluir la nueva nota
-
-**Fase 3: Actualizar (/actualizar)**
-- Revisar notas marcadas como "revisar" o "obsoleta"
-- Actualizar contenido para reflejar estado actual del código
-- Propagar cambios a notas relacionadas
-
-**Fase 4: Validar (/validar)**
-- Verificar que archivos_relacionados existen
-- Comprobar que enlaces wiki resuelven
-- Validar campos requeridos del schema
-
----
-
-## Schema (Campos de las Notas)
-
-Toda nota técnica usa este schema:
-
-```yaml
----
-descripción: "Contexto de la decisión en ~150 caracteres"
-temas:
-  - "[[mapa-de-modulo]]"
-estado: activa | obsoleta | revisar
-modulo: Catálogos | Auth | API | Frontend | Infra
-archivos_relacionados:
-  - "path/al/archivo.cs"
-  - "path/al/componente.tsx"
-decision_alternativa: "Qué consideramos y descartamos (opcional)"
----
+### First Time Setup
+```powershell
+./install.ps1    # Install dependencies (Node.js, .NET, npm packages)
+./init.ps1       # Start both backend and frontend
 ```
 
-**Reglas:**
-- `descripción` debe añadir información más allá del título
-- `temas` incluye al menos un mapa de módulo
-- `archivos_relacionados` conecta la nota con el código real
-- `estado` se actualiza cuando el código cambia
-
----
-
-## Maintenance (Mantenimiento)
-
-**Condiciones que disparan mantenimiento:**
-- Notas en estado "obsoleta" > 0
-- Notas sin archivos_relacionados válidos > 3
-- Notas sin enlaces entrantes (huérfanas) > 5
-- Enlaces wiki rotos detectados
-
-**Comando /revisar:**
-- Revisa observaciones acumuladas en ops/observations/
-- Evalúa si el sistema necesita ajustes
-- Propone cambios a la metodología si hay fricción
-
----
-
-## Self-Evolution (Evolución del Sistema)
-
-El sistema mejora con el uso:
-
-1. **Captura de fricción**: Cuando algo no funciona bien, crea observación en ops/observations/
-2. **Revisión periódica**: Corre /revisar cuando haya >10 observaciones pendientes
-3. **Ajuste de metodología**: Actualiza self/metodologia.md con aprendizajes
-
----
-
-## Three-Space Architecture
-
-**notas-tecnicas/**: Conocimiento duradero del sistema
-- Decisiones de arquitectura
-- Patrones de código
-- Documentación de módulos
-
-**self/**: Memoria persistente del agente
-- identity.md: Quién soy en este proyecto
-- metodologia.md: Cómo opero
-- goals.md: En qué andamos ahora
-
-**ops/**: Coordinación operacional
-- derivation.md: Cómo se derivó el sistema
-- sessions/: Logs de sesiones
-- observations/: Observaciones de fricción
-- reminders.md: Acciones pendientes con fecha
-
----
-
-## Discovery-First Design
-
-**Antes de crear cualquier nota, pregunta:** ¿Cómo la encontrará una sesión futura?
-
-**Tácticas:**
-- Títulos proposicionales que funcionen como claims
-- Descripciones que permitan filtrar antes de leer
-- Temas que conecten a MOCs
-- Archivos relacionados para búsqueda por código
-
----
-
-## Memory Type Routing
-
-| Contenido | Destino | Por qué |
-|-----------|---------|---------|
-| Decisión de arquitectura | notas-tecnicas/ | Conocimiento duradero |
-| Patrón descubierto | notas-tecnicas/ | Referencia futura |
-| "En qué andamos" | self/goals.md | Orientación de sesión |
-| Cómo trabajo mejor | self/metodologia.md | Mejora operacional |
-| Fricción del proceso | ops/observations/ | Evolución del sistema |
-| Log de sesión | ops/sessions/ | Historial temporal |
-| Recordatorio con fecha | ops/reminders.md | Acción diferida |
-
----
-
-## Common Pitfalls (Errores Comunes)
-
-### Temporal Staleness (Obsolescencia)
-El código cambia pero las notas no se actualizan. Una nota que dice "usamos X" cuando ya migraste a Y es peor que no tener nota.
-
-**Prevención:**
-- Marca notas como "revisar" cuando sepas que el código cambiará
-- Revisa archivos_relacionados periódicamente
-- Usa `estado: obsoleta` activamente
-
-### Orphan Notes (Notas Huérfanas)
-Una nota sin enlaces entrantes es una nota que nunca se encontrará.
-
-**Prevención:**
-- Todo tema debe enlazar a al menos un mapa de módulo
-- Al crear nota, enlaza desde el MOC correspondiente
-- Corre validación de huérfanos periódicamente
-
-### Link Rot (Enlaces Rotos)
-Referencias a archivos que se movieron o eliminaron.
-
-**Prevención:**
-- Nunca elimina, archiva (preserva targets de enlaces)
-- Usa rutas relativas estables
-- Valida archivos_relacionados en cada revisión
-
-### Collector's Fallacy (Falacia del Coleccionista)
-Capturar sin documentar. Tener 20 notas en inbox sin procesar.
-
-**Prevención:**
-- Procesa antes de capturar más
-- Límite de WIP: máximo 5 items en inbox
-- Visible: cuenta de inbox en orientación
-
----
-
-## System Evolution
-
-**Comandos para evolucionar el sistema:**
-
-- `/arscontexta:revisar` — Revisa observaciones acumuladas y propone ajustes
-- `/arscontexta:architect` — Obtén consejo sobre cambios de configuración
-- `/arscontexta:recordar` — Captura fricción operacional (uso automático en hooks)
-
----
-
-## Helper Functions
-
-**Validar nota técnica:**
+### Backend Commands
 ```bash
-# Verifica schema, enlaces, archivos relacionados
-rg "^archivos_relacionados:" notas-tecnicas/*.md
-rg "^estado:" notas-tecnicas/*.md
+cd lefarma.backend/src/Lefarma.API
+
+dotnet run                    # Run API on http://localhost:5000
+dotnet build                  # Build project
+dotnet test                   # Run all tests
+dotnet test --filter "FullyQualifiedName~UnitTest1"  # Run specific test
+
+# Entity Framework Migrations
+dotnet ef migrations add <Name>              # Create migration
+dotnet ef database update                    # Apply migrations
+dotnet ef database update 0                  # Rollback all migrations
+dotnet ef migrations remove                  # Remove last migration
 ```
 
-**Encontrar notas huérfanas:**
+### Frontend Commands
 ```bash
-# Notas sin enlaces entrantes
-# (requiere construir índice de enlaces)
+cd lefarma.frontend
+
+npm run dev           # Start dev server on http://localhost:5173
+npm run build         # Production build
+npm run lint          # Run ESLint
+npm run format        # Format code with Prettier
 ```
 
-**Ver estado por módulo:**
-```bash
-rg "^modulo: Catálogos" notas-tecnicas/*.md -l
+## Architecture
+
+### Backend - Feature-Based Layered Architecture
+
+The backend follows a clean separation of concerns with feature-based organization:
+
+```
+Lefarma.API/
+├── Domain/                    # Core business entities
+│   ├── Entities/              # EF Core entity models
+│   └── Interfaces/            # Repository and service interfaces
+├── Features/                  # Feature modules (self-contained)
+│   ├── Auth/                  # Authentication (LDAP + JWT)
+│   │   ├── AuthController.cs
+│   │   ├── AuthService.cs
+│   │   ├── IAuthService.cs
+│   │   ├── AuthValidator.cs   # FluentValidation validator
+│   │   └── DTOs/              # Request/Response DTOs
+│   └── Catalogos/             # Catalog features
+│       ├── Empresas/
+│       ├── Sucursales/
+│       ├── Areas/
+│       ├── Gastos/
+│       ├── Medidas/
+│       └── UnidadesMedida/
+│           └── [Feature]Controller.cs
+│           ├── [Feature]Service.cs
+│           ├── I[Feature]Service.cs
+│           ├── [Feature]Validator.cs
+│           └── DTOs/
+├── Infrastructure/            # External concerns
+│   ├── Data/
+│   │   ├── ApplicationDbContext.cs
+│   │   ├── Configurations/    # EF Core entity configurations
+│   │   └── Repositories/      # Repository implementations
+│   ├── Filters/               # Global filters (ValidationFilter)
+│   └── Middleware/            # Custom middleware (WideEvent logging)
+├── Services/Identity/         # Identity services (AD, JWT)
+├── Shared/                    # Cross-cutting concerns
+│   ├── Authorization/         # Permission-based authorization
+│   ├── Constants/             # Constants (Roles, Permissions)
+│   ├── Errors/                # Custom exceptions
+│   ├── Extensions/            # Extension methods (ToActionResult)
+│   ├── Logging/               # WideEvent logging infrastructure
+│   └── Models/                # ApiResponse<T>
+└── Program.cs                 # Application entry point
 ```
 
----
+**Key Patterns:**
 
-## Derivation Rationale
+1. **Service Pattern**: Each feature has a service interface and implementation that contains business logic. Controllers are thin and delegate to services.
 
-Este sistema fue derivado de:
-- **Dominio**: Documentación técnica de proyecto software
-- **Volumen**: Moderado (varias veces por semana)
-- **Propósito**: Contexto compartido (tú + agente)
-- **Granularidad**: Moderada (una nota por decisión/patrón)
-- **Procesamiento**: Moderado (documentar, enlazar, actualizar)
-- **Personalidad**: Warm, casual (comunicación cercana en español)
-- **Self-space**: Habilitado (memoria persistente necesaria)
+2. **Repository Pattern**: Repositories abstract data access. Interfaces are in `Domain/Interfaces/`, implementations in `Infrastructure/Data/Repositories/`.
 
-Señales clave de la conversación:
-- "mantener todo junto" → organización flat
-- "notas técnicas" → vocabulario nativo
-- "para ti y para ti" → contexto compartido requiere self-space
+3. **Unified Response**: All endpoints return `ApiResponse<T>` with `Success`, `Message`, `Data`, and `Errors` properties.
+
+4. **Validation**: FluentValidation is used. Validators are registered via `AddValidatorsFromAssemblyContaining<Program>()` and executed through `ValidationFilter`.
+
+5. **Extension Methods**: Services return `Result<T>` types that convert to `IActionResult` via `.ToActionResult()` extension method.
+
+6. **Authorization**: Role-based policies (RequireAdministrator, RequireManager, etc.) and permission-based policies (CanViewCatalogos, CanManageCatalogos) configured in `Program.cs`.
+
+7. **WideEvent Logging**: Custom middleware logs one rich event per HTTP request to JSON files in `logs/` directory with 30-day retention.
+
+### Frontend - Component-Based Architecture
+
+```
+src/
+├── components/
+│   ├── layout/                # Layout components (Header, Sidebar, MainLayout)
+│   └── ui/                    # shadcn/ui components (Button, Card, Dialog, etc.)
+├── pages/
+│   ├── auth/                  # Authentication pages (Login)
+│   ├── catalogos/             # Catalog CRUD pages
+│   │   ├── generales/         # Empresas, Sucursales, Gastos, Medidas, Areas
+│   │   └── seguridad/         # Roles, Permisos
+│   ├── configuracion/         # Configuration pages
+│   └── [OtherPages].tsx
+├── routes/                    # Route components
+│   ├── AppRoutes.tsx          # Main route configuration
+│   ├── ProtectedRoute.tsx     # Auth wrapper
+│   ├── PublicOnlyRoute.tsx    # Public routes (login)
+│   └── LandingRoute.tsx       # Landing/home route
+├── services/                  # API services
+│   ├── api.ts                 # Axios instance with interceptors
+│   └── authService.ts         # Authentication service
+├── store/                     # Zustand state management
+│   ├── authStore.ts           # Auth state (user, token, permissions)
+│   └── pageStore.ts           # Page/UI state
+├── types/                     # TypeScript type definitions
+├── hooks/                     # Custom React hooks
+├── lib/                       # Utilities (cn for classnames)
+└── App.tsx                    # Root component
+```
+
+**Key Patterns:**
+
+1. **Route Guards**: `ProtectedRoute` checks authentication via `authStore`, `PublicOnlyRoute` redirects authenticated users to dashboard.
+
+2. **Axios Interceptors**: The `api.ts` client handles:
+   - Adding JWT tokens to requests
+   - Automatic token refresh on 401 responses
+   - Redirecting to login on refresh failure
+
+3. **State Management**: Zustand stores (`authStore`, `pageStore`) manage global state. Auth store persists to localStorage.
+
+4. **UI Components**: shadcn/ui pattern - components in `components/ui/` are composed into page-specific components.
+
+5. **Form Handling**: React Hook Form + Zod for validation patterns.
+
+## Important Configuration
+
+### Backend Configuration
+
+**Connection Strings** (`appsettings.json`):
+- `DefaultConnection`: Primary SQL Server database
+- `AsokamConnection`: Secondary database for Asokam domain
+
+**Authentication** (`Program.cs`):
+- LDAP authentication for two domains (Asokam, Artricenter)
+- JWT tokens with configurable expiration
+- Master password bypass: `tt01tt` (Development only!)
+
+**Authorization** (`Shared/Authorization/`):
+- Roles: Administrador, GerenteArea, GerenteAdmon, DireccionCorp, CxP, Tesoreria, AuxiliarPagos
+- Permission-based policies for fine-grained access control
+
+### Frontend Configuration
+
+**Environment Variables**:
+- `VITE_API_URL`: Backend API base URL (defaults to `http://localhost:5000/api`)
+
+**API Client** (`services/api.ts`):
+- Base URL automatically appends `/api`
+- 30-second timeout
+- Automatic token refresh on 401
+
+## Development Guidelines
+
+### Adding a New Catalog Feature
+
+1. **Backend**:
+   - Create entity in `Domain/Entities/`
+   - Create EF configuration in `Infrastructure/Data/Configurations/`
+   - Create repository interface in `Domain/Interfaces/Catalogos/`
+   - Create repository implementation in `Infrastructure/Data/Repositories/Catalogos/`
+   - Create service interface and implementation in `Features/Catalogos/[Feature]/`
+   - Create validator in `Features/Catalogos/[Feature]/`
+   - Create controller in `Features/Catalogos/[Feature]/`
+   - Register repository and service in `Program.cs`
+   - Create EF migration
+
+2. **Frontend**:
+   - Create types in `types/`
+   - Create service in `services/` (extends base API client)
+   - Create page component in `pages/catalogos/`
+   - Add route in `routes/AppRoutes.tsx`
+   - Add menu item in `components/layout/Sidebar.tsx` (if applicable)
+
+### Error Handling
+
+**Backend**: Services return `Result<T>` type. Use `.ToActionResult()` to convert to HTTP responses.
+
+**Frontend**: Axios interceptor converts API errors to `ApiError` type. Use try-catch in services and display errors via toast notifications.
+
+### Database Contexts
+
+The application uses two database contexts:
+- `ApplicationDbContext`: Main application database
+- `AsokamDbContext`: Legacy database for Asokam domain
+
+Both use SQL Server with `TrustServerCertificate=true`.
+
+### Testing
+
+Tests are organized in `lefarma.backend/tests/`:
+- `Lefarma.UnitTests/`: Unit tests
+- `Lefarma.IntegrationTests/`: Integration tests
+
+Tests are currently minimal (placeholder `UnitTest1.cs` files).
+
+## URLs
+
+| Service | URL |
+|---------|-----|
+| Frontend (Vite) | http://localhost:5173 |
+| Backend API | http://localhost:5000 |
+| Swagger UI | http://localhost:5000 (Development only) |
+
+## Technology Stack
+
+**Backend:**
+- .NET 10, C# 10
+- Entity Framework Core 10
+- SQL Server
+- FluentValidation
+- JWT Authentication
+- Serilog (JSON file logging)
+- Swashbuckle (Swagger/OpenAPI)
+
+**Frontend:**
+- React 19
+- TypeScript 5.9
+- Vite 7
+- React Router v7
+- Zustand (state management)
+- Axios (HTTP client)
+- Radix UI (component primitives)
+- TailwindCSS (styling)
+- React Hook Form + Zod (forms/validation)

@@ -7,6 +7,7 @@ import {
 } from '@/types/auth.types';
 import type { SseUserInfo } from '@/types/sse.types';
 import { authService } from '@/services/authService';
+import { useConfigStore } from './configStore';
 
 const LEGACY_TOKEN_KEY = 'token';
 
@@ -23,6 +24,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   requiresDomainSelection: false,
   displayName: null,
   pendingUsername: null,
+  empresas: [],
+  sucursales: [],
 
   loginStepOne: async (username: string) => {
     set({ isLoading: true });
@@ -69,21 +72,55 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       sessionStorage.removeItem('loginFlow');
 
+      // Cargar empresas y sucursales para el paso 3
+      const [empresas, sucursales] = await Promise.all([
+        authService.getEmpresas(),
+        authService.getSucursales(),
+      ]);
+
+      // Sincronizar con configStore
+      useConfigStore.getState().updatePerfil({
+        nombre: response.user.nombre || '',
+        correo: response.user.correo || '',
+      });
+
       set({
         user: response.user,
         token: response.accessToken,
-        isAuthenticated: true,
+        isAuthenticated: false, // No autenticado hasta seleccionar empresa/sucursal
         isLoading: false,
-        loginStep: 1,
+        loginStep: 3, // Pasar al paso 3
         availableDomains: [],
         requiresDomainSelection: false,
         displayName: null,
         pendingUsername: null,
+        empresas,
+        sucursales,
       });
     } catch (error) {
       set({ isLoading: false });
       throw error;
     }
+  },
+
+  loginStepThree: async (empresaId: string, sucursalId: string) => {
+    const { empresas, sucursales } = get();
+
+    const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
+    const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
+
+    if (!empresa || !sucursal) {
+      throw new Error('Empresa o sucursal no encontrada');
+    }
+
+    set({
+      empresa,
+      sucursal,
+      isAuthenticated: true,
+      loginStep: 1,
+      empresas: [],
+      sucursales: [],
+    });
   },
 
   resetLoginFlow: () => {
@@ -94,6 +131,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       requiresDomainSelection: false,
       displayName: null,
       pendingUsername: null,
+      empresas: [],
+      sucursales: [],
     });
   },
 
@@ -105,6 +144,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       empresa: null,
       sucursal: null,
       isAuthenticated: false,
+      loginStep: 1,
+      empresas: [],
+      sucursales: [],
     });
   },
 
@@ -116,6 +158,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setSucursal: (sucursal: Sucursal) => {
     authService.setSucursal(sucursal);
     set({ sucursal });
+  },
+
+  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal) => {
+    authService.setEmpresa(empresa);
+    authService.setSucursal(sucursal);
+    set({ empresa, sucursal });
   },
 
   setToken: (token: string) => {
@@ -172,6 +220,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         empresa,
         sucursal,
         isAuthenticated: true,
+      });
+
+      // Sincronizar perfil con configStore
+      useConfigStore.getState().updatePerfil({
+        nombre: user.nombre || '',
+        correo: user.correo || '',
       });
     }
 
