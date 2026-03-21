@@ -13,6 +13,7 @@ using Lefarma.API.Features.Catalogos.Gastos;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Logging;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Notifications.Services;
@@ -122,6 +123,7 @@ builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
 

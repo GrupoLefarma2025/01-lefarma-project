@@ -1,25 +1,36 @@
-// Tipos para Permisos
+// Tipos para Permisos (Alineado con AdminDTOs.cs)
 
 export interface Permiso {
-  id: string;
-  nombre: string;
-  codigo: string;
+  idPermiso: number;
+  codigoPermiso: string;
+  nombrePermiso: string;
   descripcion?: string;
-  activo: boolean;
+  categoria?: string;
+  recurso?: string;
+  accion?: string;
+  esActivo: boolean;
+  esSistema: boolean;
   fechaCreacion: string;
-  fechaModificacion?: string;
+  cantidadRoles: number;
 }
 
-export interface CreatePermisoDto {
-  nombre: string;
-  codigo: string;
+export interface CreatePermisoRequest {
+  codigoPermiso: string;
+  nombrePermiso: string;
   descripcion?: string;
-  activo?: boolean;
+  categoria?: string;
+  recurso?: string;
+  accion?: string;
+  esActivo: boolean;
+  esSistema: boolean;
 }
 
-export interface UpdatePermisoDto {
-  nombre?: string;
-  codigo?: string;
+export interface UpdatePermisoRequest {
+  codigoPermiso: string;
+  nombrePermiso: string;
   descripcion?: string;
-  activo?: boolean;
+  categoria?: string;
+  recurso?: string;
+  accion?: string;
+  esActivo: boolean;
 }

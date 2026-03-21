@@ -1,225 +1,366 @@
-import { useConfigStore } from '@/store/configStore';
+import { useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import { useAuthStore } from '@/store/authStore';
+import { API } from '@/services/api';
+import { ApiResponse } from '@/types/api.types';
+import { Usuario } from '@/types/usuario.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { User, Mail, Phone, Bell, Send, MessageSquare } from 'lucide-react';
-import { useState } from 'react';
-import { usePageStore } from '@/store/pageStore';
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  FormDescription,
+} from '@/components/ui/form';
+import { User, Mail, Phone, Bell, Loader2, Smartphone } from 'lucide-react';
+import { toast } from 'sonner';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
-const NOTIFICACIONES_CONFIG = [
-  {
-    tipo: 'in-app' as const,
-    label: 'Notificaciones en App',
-    icon: Bell,
-    description: 'Muestra notificaciones dentro de la aplicación',
-  },
-  {
-    tipo: 'email' as const,
-    label: 'Correo Electrónico',
-    icon: Mail,
-    description: 'Recibe notificaciones por email',
-  },
-  {
-    tipo: 'telegram' as const,
-    label: 'Telegram',
-    icon: Send,
-    description: 'Recibe notificaciones vía Telegram bot',
-  },
-  {
-    tipo: 'whatsapp' as const,
-    label: 'WhatsApp',
-    icon: MessageSquare,
-    description: 'Recibe notificaciones por WhatsApp',
-  },
-];
+const perfilSchema = z.object({
+  nombreCompleto: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
+  correo: z.string().email('Email inválido').optional().or(z.literal('')),
+  detalle: z.object({
+    celular: z.string().optional().nullable(),
+    telefonoOficina: z.string().optional().nullable(),
+    extension: z.string().optional().nullable(),
+    telegramChat: z.string().optional().nullable(),
+    notificarEmail: z.boolean(),
+    notificarApp: z.boolean(),
+    notificarWhatsapp: z.boolean(),
+    notificarSms: z.boolean(),
+    notificarTelegram: z.boolean(),
+    notificarSoloUrgentes: z.boolean(),
+    notificarResumenDiario: z.boolean(),
+    notificarRechazos: z.boolean(),
+    notificarVencimientos: z.boolean(),
+  }),
+});
+
+type PerfilFormValues = z.infer<typeof perfilSchema>;
 
 export function PerfilConfig() {
-  const { perfil, ui, updatePerfil, setNotificacionPreferida, updateNotificacion } = useConfigStore();
+  usePageTitle('Mi Perfil', 'Configuración de tu perfil y notificaciones');
   const { user } = useAuthStore();
-  const { setTitle } = usePageStore();
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [usuario, setUsuario] = useState<Usuario | null>(null);
 
-  const [editMode, setEditMode] = useState(false);
-  const [tempPerfil, setTempPerfil] = useState(perfil);
+  const form = useForm<PerfilFormValues>({
+    resolver: zodResolver(perfilSchema),
+    defaultValues: {
+      nombreCompleto: '',
+      correo: '',
+      detalle: {
+        celular: '',
+        telefonoOficina: '',
+        extension: '',
+        telegramChat: '',
+        notificarEmail: true,
+        notificarApp: true,
+        notificarWhatsapp: false,
+        notificarSms: false,
+        notificarTelegram: false,
+        notificarSoloUrgentes: false,
+        notificarResumenDiario: true,
+        notificarRechazos: true,
+        notificarVencimientos: true,
+      },
+    },
+  });
 
-  const handleSave = () => {
-    updatePerfil(tempPerfil);
-    setEditMode(false);
-    setTitle('Perfil actualizado');
-    setTimeout(() => setTitle(''), 3000);
+  const fetchPerfil = async () => {
+    try {
+      setLoading(true);
+      const response = await API.get<ApiResponse<Usuario>>('/profile');
+      if (response.data.success && response.data.data) {
+        const u = response.data.data;
+        setUsuario(u);
+        form.reset({
+          nombreCompleto: u.nombreCompleto || '',
+          correo: u.correo || '',
+          detalle: {
+            celular: u.detalle?.celular || '',
+            telefonoOficina: u.detalle?.telefonoOficina || '',
+            extension: u.detalle?.extension || '',
+            telegramChat: u.detalle?.telegramChat || '',
+            notificarEmail: u.detalle?.notificarEmail ?? true,
+            notificarApp: u.detalle?.notificarApp ?? true,
+            notificarWhatsapp: u.detalle?.notificarWhatsapp ?? false,
+            notificarSms: u.detalle?.notificarSms ?? false,
+            notificarTelegram: u.detalle?.notificarTelegram ?? false,
+            notificarSoloUrgentes: u.detalle?.notificarSoloUrgentes ?? false,
+            notificarResumenDiario: u.detalle?.notificarResumenDiario ?? true,
+            notificarRechazos: u.detalle?.notificarRechazos ?? true,
+            notificarVencimientos: u.detalle?.notificarVencimientos ?? true,
+          },
+        });
+      }
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Error al cargar el perfil');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCancel = () => {
-    setTempPerfil(perfil);
-    setEditMode(false);
+  useEffect(() => {
+    fetchPerfil();
+  }, []);
+
+  const handleSave = async (values: PerfilFormValues) => {
+    if (!usuario) return;
+    setIsSaving(true);
+    try {
+      const payload = {
+        nombreCompleto: values.nombreCompleto,
+        correo: values.correo,
+        ...(usuario.detalle && {
+          detalle: {
+            ...usuario.detalle,
+            ...values.detalle,
+            idEmpresa: usuario.detalle.idEmpresa,
+            idSucursal: usuario.detalle.idSucursal,
+          },
+        }),
+      };
+      const response = await API.put('/profile', payload);
+      if (response.data.success) {
+        toast.success('Perfil actualizado correctamente.');
+        fetchPerfil();
+      } else {
+        toast.error(response.data.message ?? 'Error al guardar el perfil');
+      }
+    } catch (error: any) {
+      const errs: Array<{ description: string }> = error?.errors ?? [];
+      if (errs.length > 0) {
+        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+      } else {
+        toast.error(error?.message ?? 'Error al guardar el perfil');
+      }
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleNotificacionChange = (tipo: string, checked: boolean) => {
-    updateNotificacion(tipo as any, checked);
-  };
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Información del Usuario */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Información del Perfil</CardTitle>
-              <CardDescription>Tu información personal y preferencias</CardDescription>
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(handleSave)} className="space-y-6">
+
+        {/* Información General */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Información General
+            </CardTitle>
+            <CardDescription>Tu información personal básica</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-sm font-medium">
+                <User className="h-4 w-4" />
+                Usuario (AD)
+              </Label>
+              <Input value={usuario?.samAccountName || user?.username || ''} disabled className="bg-muted" />
+              <p className="text-xs text-muted-foreground">El nombre de usuario no se puede cambiar</p>
             </div>
-            {!editMode && (
-              <Button variant="outline" onClick={() => setEditMode(true)}>
-                Editar
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Nombre de Usuario (Read-only) */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Usuario
-            </Label>
-            <Input value={user?.username || ''} disabled className="bg-muted" />
-            <p className="text-xs text-muted-foreground">El nombre de usuario no se puede cambiar</p>
-          </div>
 
-          {/* Nombre (Editable) */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Nombre Completo
-            </Label>
-            <Input
-              value={editMode ? tempPerfil.nombre : perfil.nombre || user?.nombre || ''}
-              onChange={(e) => setTempPerfil({ ...tempPerfil, nombre: e.target.value })}
-              disabled={!editMode}
-              placeholder="Tu nombre completo"
-            />
-          </div>
-
-          {/* Correo (Editable) */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              Correo Electrónico
-            </Label>
-            <Input
-              type="email"
-              value={editMode ? tempPerfil.correo : perfil.correo || user?.correo || ''}
-              onChange={(e) => setTempPerfil({ ...tempPerfil, correo: e.target.value })}
-              disabled={!editMode}
-              placeholder="tu.correo@ejemplo.com"
-            />
-          </div>
-
-          {/* Teléfono (Editable) */}
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <Phone className="h-4 w-4" />
-              Teléfono (Opcional)
-            </Label>
-            <Input
-              type="tel"
-              value={editMode ? tempPerfil.telefono || '' : perfil.telefono || ''}
-              onChange={(e) => setTempPerfil({ ...tempPerfil, telefono: e.target.value })}
-              disabled={!editMode}
-              placeholder="+504 1234-5678"
-            />
-          </div>
-
-          {/* Botones de acción en modo edición */}
-          {editMode && (
-            <div className="flex gap-2 pt-4">
-              <Button onClick={handleSave} className="flex-1">
-                Guardar Cambios
-              </Button>
-              <Button variant="outline" onClick={handleCancel}>
-                Cancelar
-              </Button>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="nombreCompleto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nombre Completo</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Tu nombre completo" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="correo"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Mail className="h-4 w-4" />
+                      Correo Electrónico
+                    </FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="tu.correo@empresa.com" {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Configuración de Notificaciones */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Notificaciones
-          </CardTitle>
-          <CardDescription>Selecciona cómo deseas recibir notificaciones</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {NOTIFICACIONES_CONFIG.map((config) => {
-            const Icon = config.icon;
-            const isEnabled = ui.notificaciones.preferencias.find((p) => p.tipo === config.tipo)?.enabled || false;
+        {/* Contacto */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Phone className="h-5 w-5" />
+              Contacto
+            </CardTitle>
+            <CardDescription>Datos de contacto y canales de comunicación</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="detalle.celular"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Smartphone className="h-4 w-4" />
+                      Celular / WhatsApp
+                    </FormLabel>
+                    <FormControl>
+                      <Input placeholder="+52..." {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="detalle.telefonoOficina"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center gap-2">
+                      <Phone className="h-4 w-4" />
+                      Teléfono Oficina
+                    </FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="detalle.extension"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Extensión</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="detalle.telegramChat"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telegram Chat ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="ID numérico" {...field} value={field.value || ''} />
+                    </FormControl>
+                    <FormDescription>Para alertas vía bot de Telegram.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-            return (
-              <div key={config.tipo} className="flex items-start gap-4 p-4 rounded-lg border border-border">
-                <div className="shrink-0">
-                  <div className={`p-2 rounded-full ${isEnabled ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'}`}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                </div>
-                <div className="flex-1 space-y-1">
-                  <Label htmlFor={`perfil-notif-${config.tipo}`} className="font-medium cursor-pointer">
-                    {config.label}
-                  </Label>
-                  <p className="text-sm text-muted-foreground">{config.description}</p>
-                </div>
-                <Switch
-                  id={`perfil-notif-${config.tipo}`}
-                  checked={isEnabled}
-                  onCheckedChange={(checked) => handleNotificacionChange(config.tipo, checked)}
-                />
+        {/* Notificaciones */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bell className="h-5 w-5" />
+              Notificaciones
+            </CardTitle>
+            <CardDescription>Configura cómo y cuándo deseas recibir alertas</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Canales Activos</p>
+                {[
+                  { name: 'detalle.notificarEmail' as const, label: 'Correo Electrónico' },
+                  { name: 'detalle.notificarApp' as const, label: 'Notificaciones App' },
+                  { name: 'detalle.notificarWhatsapp' as const, label: 'WhatsApp' },
+                  { name: 'detalle.notificarSms' as const, label: 'SMS' },
+                  { name: 'detalle.notificarTelegram' as const, label: 'Telegram' },
+                ].map(({ name, label }) => (
+                  <FormField
+                    key={name}
+                    control={form.control}
+                    name={name}
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <FormLabel className="font-normal text-sm">{label}</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                ))}
               </div>
-            );
-          })}
-        </CardContent>
-      </Card>
 
-      {/* Preferencias de Notificación */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
-            Canal de Notificación Preferido
-          </CardTitle>
-          <CardDescription>Selecciona tu método preferido para recibir notificaciones</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Select
-            value={perfil.notificacionPreferida}
-            onValueChange={(value) => setNotificacionPreferida(value as any)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Selecciona el canal preferido" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="in-app">Notificaciones en App</SelectItem>
-              <SelectItem value="email">Correo Electrónico</SelectItem>
-              <SelectItem value="telegram">Telegram</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-sm text-muted-foreground mt-2">
-            Las notificaciones importantes se enviarán prioritariamente por este canal
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Tipos de Alerta</p>
+                {[
+                  { name: 'detalle.notificarRechazos' as const, label: 'Avisar sobre Rechazos' },
+                  { name: 'detalle.notificarVencimientos' as const, label: 'Alertas de Vencimiento' },
+                  { name: 'detalle.notificarResumenDiario' as const, label: 'Resumen Diario (8 AM)' },
+                  { name: 'detalle.notificarSoloUrgentes' as const, label: 'Solo Urgentes' },
+                ].map(({ name, label }) => (
+                  <FormField
+                    key={name}
+                    control={form.control}
+                    name={name}
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                        <FormLabel className="font-normal text-sm">{label}</FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Botón guardar */}
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isSaving}>
+            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Guardar Cambios
+          </Button>
+        </div>
+
+      </form>
+    </Form>
   );
 }
+

@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { Medida, UnidadMedida } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -30,7 +31,6 @@ import {
 } from '@/components/ui/select';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { toast } from 'sonner';
-import { U } from 'node_modules/@faker-js/faker/dist/airline-Dz1uGqgJ';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
 const ENDPOINT = '/catalogos/Medidas';
@@ -50,30 +50,6 @@ const unidadMedidaSchema = z.object({
   descripcion: z.string().optional().or(z.literal('')),
   activo: z.boolean(),
 });
-
-interface Medida {
-  idMedida: number;
-  nombre: string;
-  nombreNormalizado?: string;
-  descripcion?: string;
-  descripcionNormalizada?: string;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-  unidadesMedida?: UnidadMedida[];
-}
-
-interface UnidadMedida {
-  idUnidadMedida: number;
-  idMedida: number;
-  nombre: string;
-  nombreNormalizado?: string;
-  descripcion?: string;
-  abreviatura: string;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-}
 
 type MedidaFormValues = z.infer<typeof medidasSchema>;
 type MedidaRequest = MedidaFormValues & { idMedida: number };

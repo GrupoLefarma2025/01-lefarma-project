@@ -38,10 +38,11 @@ const menuItems = [
     path: '/dashboard',
   },
   {
-    title: 'Seguridad',
+    title: 'Admin',
     icon: Shield,
     isCollapsible: true,
     items: [
+      { title: 'Usuarios', icon: User, path: '/seguridad/usuarios' },
       { title: 'Roles', icon: Users, path: '/seguridad/roles' },
       { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
     ],

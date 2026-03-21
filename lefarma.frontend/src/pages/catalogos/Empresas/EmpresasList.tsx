@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { Empresa } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -42,27 +43,6 @@ const empresaSchema = z.object({
   numeroEmpleados: z.number().optional().or(z.literal(0)),
   activo: z.boolean(),
 });
-
-interface Empresa {
-  idEmpresa: number;
-  nombre: string;
-  descripcion?: string;
-  clave?: string;
-  razonSocial?: string;
-  rfc?: string;
-  direccion?: string;
-  colonia?: string;
-  ciudad?: string;
-  estado?: string;
-  codigoPostal?: string;
-  telefono?: string;
-  email?: string;
-  paginaWeb?: string;
-  numeroEmpleados?: number;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-}
 
 type EmpresaFormValues = z.infer<typeof empresaSchema>;
 type EmpresaRequest = EmpresaFormValues & { idEmpresa: number };

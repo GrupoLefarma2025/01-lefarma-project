@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { Empresa, Sucursal } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -50,32 +51,6 @@ const sucursalSchema = z.object({
   numeroEmpleados: z.number().optional().or(z.literal(0)),
   activo: z.boolean(),
 });
-
-interface Empresa {
-  idEmpresa: number;
-  nombre: string;
-}
-
-interface Sucursal {
-  idSucursal: number;
-  idEmpresa: number;
-  nombre: string;
-  nombreNormalizado?: string;
-  descripcion?: string;
-  clave?: string;
-  claveContable?: string;
-  direccion?: string;
-  codigoPostal?: string;
-  ciudad?: string;
-  estado?: string;
-  telefono?: string;
-  latitud: number;
-  longitud: number;
-  numeroEmpleados: number;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-}
 
 type SucursalFormValues = z.infer<typeof sucursalSchema>;
 type SucursalRequest = SucursalFormValues & { idSucursal: number };

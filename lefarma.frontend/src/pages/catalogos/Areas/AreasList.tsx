@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { Empresa, Area } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -42,25 +43,6 @@ const areaSchema = z.object({
   numeroEmpleados: z.number().optional().or(z.literal(0)),
   activo: z.boolean(),
 });
-
-interface Empresa {
-  idEmpresa: number;
-  nombre: string;
-}
-
-interface Area {
-  idArea: number;
-  idEmpresa: number;
-  idSupervisorResponsable?: number;
-  nombre: string;
-  nombreNormalizado?: string;
-  descripcion?: string;
-  clave?: string;
-  numeroEmpleados: number;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-}
 
 type AreaFormValues = z.infer<typeof areaSchema>;
 type AreaRequest = AreaFormValues & { idArea: number };
