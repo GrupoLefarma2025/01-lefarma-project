@@ -15,7 +15,62 @@
 -- Nota: Script es idempotente - usa IF NOT EXISTS para re-ejecución segura
 -- ============================================================================
 
-USE LefarmaDB;
+USE Lefarma;
+GO
+
+-- ============================================================================
+-- LIMPIEZA: Eliminar tablas si existen para garantizar estado limpio
+-- ============================================================================
+-- Esto permite re-ejecutar el script múltiples veces sin errores
+--
+-- ORDEN IMPORTANTE: Droppear tablas HIJAS antes que PADRES por FK constraints
+-- - estatus_orden: autorreferencia (se droppea sola)
+-- - proveedores: FK → regimenes_fiscales (droppear antes que regimenes)
+-- - regimenes_fiscales: padre de proveedores (droppear después)
+-- - cuentas_contables: FK → centros_costo (droppear antes que centros)
+-- - centros_costo: padre de cuentas_contables (droppear después)
+-- ============================================================================
+
+IF EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos].[estatus_orden]'))
+BEGIN
+    DROP TABLE catalogos.estatus_orden;
+    PRINT 'Tabla catalogos.estatus_orden eliminada (limpieza)';
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos].[proveedores]'))
+BEGIN
+    DROP TABLE catalogos.proveedores;
+    PRINT 'Tabla catalogos.proveedores eliminada (limpieza)';
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos].[regimenes_fiscales]'))
+BEGIN
+    DROP TABLE catalogos.regimenes_fiscales;
+    PRINT 'Tabla catalogos.regimenes_fiscales eliminada (limpieza)';
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos].[cuentas_contables]'))
+BEGIN
+    DROP TABLE catalogos.cuentas_contables;
+    PRINT 'Tabla catalogos.cuentas_contables eliminada (limpieza)';
+END
+GO
+
+IF EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos].[centros_costo]'))
+BEGIN
+    DROP TABLE catalogos.centros_costo;
+    PRINT 'Tabla catalogos.centros_costo eliminada (limpieza)';
+END
+GO
+
+PRINT '';
+PRINT '============================================================';
+PRINT 'LIMPIEZA COMPLETADA - Listo para crear tablas';
+PRINT '============================================================';
+PRINT '';
 GO
 
 -- ============================================================================
@@ -279,25 +334,34 @@ GO
 -- Insertar estatus del flujo de autorizaciones
 -- Basado en Sección 13 del specs.md
 
-INSERT INTO catalogos.estatus_orden (id_estatus_orden, nombre, descripcion, siguiente_estatus_id, requiere_accion, activo, fecha_creacion)
-VALUES
-(1, 'Capturada', 'Pendiente Firma 2', 2, 0, 1, GETDATE()),
-(2, 'Pendiente Firma 2', 'Esperar autorización', NULL, 1, 1, GETDATE()),
-(3, 'Autorizada Firma 2', 'Pendiente Firma 3', 4, 0, 1, GETDATE()),
-(4, 'Pendiente Firma 3', 'Esperar asignación de cuentas', NULL, 1, 1, GETDATE()),
-(5, 'Autorizada Firma 3', 'Pendiente Firma 4', 6, 0, 1, GETDATE()),
-(6, 'Pendiente Firma 4', 'Esperar autorización', NULL, 1, 1, GETDATE()),
-(7, 'Autorizada Firma 4', 'Pendiente Firma 5', 8, 0, 1, GETDATE()),
-(8, 'Pendiente Firma 5', 'Esperar autorización final', NULL, 1, 1, GETDATE()),
-(9, 'Autorizada Firma 5', 'Pendiente de Pago', 10, 0, 1, GETDATE()),
-(10, 'Pendiente de Pago', 'Tesorería programa pago', NULL, 1, 1, GETDATE()),
-(11, 'Pagado (parcial)', 'Pendiente de comprobación', 13, 0, 1, GETDATE()),
-(12, 'Pagado (total)', 'Pendiente de comprobación', 13, 0, 1, GETDATE()),
-(13, 'Pendiente de Comprobación', 'Usuario sube comprobantes', NULL, 1, 1, GETDATE()),
-(14, 'Comprobado', 'Pendiente validación CxP', NULL, 1, 1, GETDATE()),
-(15, 'Validado CxP', 'Cerrado', 16, 0, 1, GETDATE()),
-(16, 'Cerrado', '-', NULL, 0, 1, GETDATE()),
-(99, 'Rechazada', '-', NULL, 0, 1, GETDATE());
+IF NOT EXISTS (SELECT * FROM catalogos.estatus_orden WHERE id_estatus_orden = 1)
+BEGIN
+    INSERT INTO catalogos.estatus_orden (id_estatus_orden, nombre, descripcion, siguiente_estatus_id, requiere_accion, activo, fecha_creacion)
+    VALUES
+    (1, 'Capturada', 'Pendiente Firma 2', 2, 0, 1, GETDATE()),
+    (2, 'Pendiente Firma 2', 'Esperar autorización', NULL, 1, 1, GETDATE()),
+    (3, 'Autorizada Firma 2', 'Pendiente Firma 3', 4, 0, 1, GETDATE()),
+    (4, 'Pendiente Firma 3', 'Esperar asignación de cuentas', NULL, 1, 1, GETDATE()),
+    (5, 'Autorizada Firma 3', 'Pendiente Firma 4', 6, 0, 1, GETDATE()),
+    (6, 'Pendiente Firma 4', 'Esperar autorización', NULL, 1, 1, GETDATE()),
+    (7, 'Autorizada Firma 4', 'Pendiente Firma 5', 8, 0, 1, GETDATE()),
+    (8, 'Pendiente Firma 5', 'Esperar autorización final', NULL, 1, 1, GETDATE()),
+    (9, 'Autorizada Firma 5', 'Pendiente de Pago', 10, 0, 1, GETDATE()),
+    (10, 'Pendiente de Pago', 'Tesorería programa pago', NULL, 1, 1, GETDATE()),
+    (11, 'Pagado (parcial)', 'Pendiente de comprobación', 13, 0, 1, GETDATE()),
+    (12, 'Pagado (total)', 'Pendiente de comprobación', 13, 0, 1, GETDATE()),
+    (13, 'Pendiente de Comprobación', 'Usuario sube comprobantes', NULL, 1, 1, GETDATE()),
+    (14, 'Comprobado', 'Pendiente validación CxP', NULL, 1, 1, GETDATE()),
+    (15, 'Validado CxP', 'Cerrado', 16, 0, 1, GETDATE()),
+    (16, 'Cerrado', '-', NULL, 0, 1, GETDATE()),
+    (99, 'Rechazada', '-', NULL, 0, 1, GETDATE());
+
+    PRINT 'Estatus de orden insertados (17 registros)';
+END
+ELSE
+BEGIN
+    PRINT 'Estatus de orden ya existen - omitiendo insert';
+END
 
 PRINT '============================================================';
 PRINT 'ESTATUS DE ORDEN: Completado (17 registros)';
@@ -315,11 +379,12 @@ IF NOT EXISTS (SELECT * FROM sys.tables WHERE object_id = OBJECT_ID('[catalogos]
 BEGIN
     CREATE TABLE catalogos.regimenes_fiscales (
         id_regimen_fiscal INT IDENTITY(1,1) PRIMARY KEY,
-        clave VARCHAR(10) NOT NULL UNIQUE,
+        clave VARCHAR(10) NOT NULL,
         descripcion VARCHAR(255) NOT NULL,
         tipo_persona VARCHAR(10) NOT NULL, -- 'Moral' o 'Física'
         activo BIT DEFAULT 1,
-        fecha_creacion DATETIME DEFAULT GETDATE() NOT NULL
+        fecha_creacion DATETIME DEFAULT GETDATE() NOT NULL,
+        CONSTRAINT UQ_RegimenFiscal_Clave_Tipo UNIQUE (clave, tipo_persona)
     );
     PRINT 'Tabla [catalogos].[regimenes_fiscales] creada';
 END
@@ -328,47 +393,92 @@ GO
 -- Insertar regímenes fiscales del SAT (CFDI 4.0)
 -- Fuente: https://www.sat.gob.mx/aplicacion/63027/descarga-catlogos-del-sat
 
-INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
-VALUES
--- Personas Morales
-('601', 'General de Ley Personas Morales', 'Moral', 1, GETDATE()),
-('603', 'Personas Morales con Fines no Lucrativos', 'Moral', 1, GETDATE()),
-('605', 'Sueldos y Salarios e Ingresos Asimilados a Salarios', 'Moral', 1, GETDATE()),
-('606', 'Arrendamiento', 'Moral', 1, GETDATE()),
-('608', 'Demás ingresos', 'Moral', 1, GETDATE()),
-('609', 'Consolidación', 'Moral', 1, GETDATE()),
-('610', 'Residentes en el Extranjero sin Establecimiento Permanente en México', 'Moral', 1, GETDATE()),
-('611', 'Ingresos por Dividendos (socios y accionistas)', 'Moral', 1, GETDATE()),
-('612', 'Personas Físicas con Actividades Empresariales', 'Moral', 1, GETDATE()),
-('614', 'Ingresos por intereses', 'Moral', 1, GETDATE()),
-('615', 'Régimen de los ingresos por obtención de premios', 'Moral', 1, GETDATE()),
-('616', 'Sin obligaciones fiscales', 'Moral', 1, GETDATE()),
-('620', 'Sociedades Cooperativas de Producción que optan por diferir sus ingresos', 'Moral', 1, GETDATE()),
-('621', 'Incorporación Fiscal', 'Moral', 1, GETDATE()),
-('622', 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras', 'Moral', 1, GETDATE()),
-('623', 'Opcional para Grupos de Sociedades', 'Moral', 1, GETDATE()),
-('624', 'Coordinados', 'Moral', 1, GETDATE()),
-('625', 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas', 'Moral', 1, GETDATE()),
-('626', 'Régimen Simplificado de Confianza', 'Moral', 1, GETDATE()),
+-- Verificar y crear cada régimen individualmente
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '601' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('601', 'General de Ley Personas Morales', 'Moral', 1, GETDATE());
 
--- Personas Físicas
-('605', 'Sueldos y Salarios e Ingresos Asimilados a Salarios', 'Física', 1, GETDATE()),
-('606', 'Arrendamiento', 'Física', 1, GETDATE()),
-('607', 'Régimen de Enajenación o Adquisición de Bienes', 'Física', 1, GETDATE()),
-('608', 'Demás ingresos', 'Física', 1, GETDATE()),
-('610', 'Residentes en el Extranjero sin Establecimiento Permanente en México', 'Física', 1, GETDATE()),
-('611', 'Ingresos por Dividendos (socios y accionistas)', 'Física', 1, GETDATE()),
-('612', 'Personas Físicas con Actividades Empresariales', 'Física', 1, GETDATE()),
-('614', 'Ingresos por intereses', 'Física', 1, GETDATE()),
-('615', 'Régimen de los ingresos por obtención de premios', 'Física', 1, GETDATE()),
-('616', 'Sin obligaciones fiscales', 'Física', 1, GETDATE()),
-('620', 'Sociedades Cooperativas de Producción que optan por diferir sus ingresos', 'Física', 1, GETDATE()),
-('621', 'Incorporación Fiscal', 'Física', 1, GETDATE()),
-('622', 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras', 'Física', 1, GETDATE()),
-('623', 'Opcional para Grupos de Sociedades', 'Física', 1, GETDATE()),
-('624', 'Coordinados', 'Física', 1, GETDATE()),
-('625', 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas', 'Física', 1, GETDATE()),
-('626', 'Régimen Simplificado de Confianza', 'Física', 1, GETDATE());
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '603' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('603', 'Personas Morales con Fines no Lucrativos', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '605' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('605', 'Sueldos y Salarios e Ingresos Asimilados a Salarios', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '606' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('606', 'Arrendamiento', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '607' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('607', 'Régimen de Enajenación o Adquisición de Bienes', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '608' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('608', 'Demás ingresos', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '609' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('609', 'Consolidación', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '610' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('610', 'Residentes en el Extranjero sin Establecimiento Permanente en México', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '611' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('611', 'Ingresos por Dividendos (socios y accionistas)', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '612' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('612', 'Personas Físicas con Actividades Empresariales', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '614' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('614', 'Ingresos por intereses', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '615' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('615', 'Régimen de los ingresos por obtención de premios', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '616' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('616', 'Sin obligaciones fiscales', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '620' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('620', 'Sociedades Cooperativas de Producción que optan por diferir sus ingresos', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '621' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('621', 'Incorporación Fiscal', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '622' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('622', 'Actividades Agrícolas, Ganaderas, Silvícolas y Pesqueras', 'Física', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '623' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('623', 'Opcional para Grupos de Sociedades', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '624' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('624', 'Coordinados', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '625' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('625', 'Régimen de las Actividades Empresariales con ingresos a través de Plataformas Tecnológicas', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '626' AND tipo_persona = 'Moral')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('626', 'Régimen Simplificado de Confianza', 'Moral', 1, GETDATE());
+
+IF NOT EXISTS (SELECT * FROM catalogos.regimenes_fiscales WHERE clave = '626' AND tipo_persona = 'Física')
+    INSERT INTO catalogos.regimenes_fiscales (clave, descripcion, tipo_persona, activo, fecha_creacion)
+    VALUES ('626', 'Régimen Simplificado de Confianza', 'Física', 1, GETDATE());
+
+PRINT 'Regímenes fiscales insertados';
 
 PRINT '============================================================';
 PRINT 'REGÍMENES FISCALES SAT: Completado (' + CAST(@@ROWCOUNT AS VARCHAR) + ' registros)';
@@ -411,7 +521,7 @@ GO
 IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Proveedores_RazonSocial' AND object_id = OBJECT_ID('[catalogos].[proveedores]'))
 BEGIN
     CREATE NONCLUSTERED INDEX IX_Proveedores_RazonSocial
-    ON catalogos.proveedores(razon_social_normalizado);
+    ON catalogos.proveedores(razon_social_normalizada);
     PRINT 'Índice IX_Proveedores_RazonSocial creado';
 END
 
