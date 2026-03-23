@@ -25,6 +25,15 @@ namespace Lefarma.API.Infrastructure.Data
         public DbSet<UsuarioDetalle> UsuariosDetalle { get; set; }
         public DbSet<FormaPago> FormasPago { get; set; }
 
+        // DbSets - Catalogos Nuevos (Sistema CxP)
+        public DbSet<Proveedor> Proveedores { get; set; }
+        public DbSet<CentroCosto> CentrosCosto { get; set; }
+        public DbSet<CuentaContable> CuentasContables { get; set; }
+        public DbSet<EstatusOrden> EstatusOrden { get; set; }
+        public DbSet<RegimenFiscal> RegimenesFiscales { get; set; }
+        public DbSet<Banco> Bancos { get; set; }
+        public DbSet<MedioPago> MediosPago { get; set; }
+
         // DbSets - Auth/Identity
         public DbSet<Usuario> Usuarios { get; set; }
         public DbSet<Rol> Roles { get; set; }
