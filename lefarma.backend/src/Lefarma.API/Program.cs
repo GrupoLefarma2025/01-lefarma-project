@@ -126,8 +126,8 @@ builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 builder.Services.AddScoped<IMedioPagoService, MedioPagoService>();
 builder.Services.AddScoped<IFormaPagoService, FormaPagoService>();
 builder.Services.AddScoped<IBancoService, BancoService>();
-builder.Services.AddScoped<Lefarma.API.Features.Catalogos.Usuarios.IUsuarioCatalogService, Lefarma.API.Features.Catalogos.Usuarios.UsuarioCatalogService>();
-builder.Services.AddScoped<Lefarma.API.Features.Catalogos.Roles.IRolCatalogService, Lefarma.API.Features.Catalogos.Roles.RolCatalogService>();
+builder.Services.AddScoped<Lefarma.API.Features.Auth.Usuarios.IUsuarioCatalogService, Lefarma.API.Features.Auth.Usuarios.UsuarioCatalogService>();
+builder.Services.AddScoped<Lefarma.API.Features.Auth.Roles.IRolCatalogService, Lefarma.API.Features.Auth.Roles.RolCatalogService>();
 
 // Catálogos Faltantes
 builder.Services.AddScoped<ICentroCostoService, CentroCostoService>();

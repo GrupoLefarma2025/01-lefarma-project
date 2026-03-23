@@ -20,6 +20,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { NotificationList } from '@/components/notifications/NotificationList';
+import { RecipientSelector } from '@/components/notifications/RecipientSelector';
 import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
@@ -34,14 +35,21 @@ export default function NotificationsPage() {
     priority: 'normal' as NotificationPriority,
     category: 'system' as NotificationCategory,
     channels: ['in-app'] as NotificationChannelType[],
-    recipients: user?.correo || '',
   });
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [selectedRoleNames, setSelectedRoleNames] = useState<string[]>([]);
   const [isSending, setIsSending] = useState(false);
 
   /**
    * Envía una notificación de prueba
    */
   const handleSendTest = async () => {
+    // Validar que haya destinatarios seleccionados
+    if (selectedUserIds.length === 0 && selectedRoleNames.length === 0) {
+      toast.error('Selecciona al menos un usuario o rol');
+      return;
+    }
+
     setIsSending(true);
     try {
       await notificationService.sendNotification({
@@ -52,11 +60,15 @@ export default function NotificationsPage() {
         category: testForm.category,
         channels: testForm.channels.map((channelType) => ({
           channelType,
-          recipients: testForm.recipients,
+          userIds: selectedUserIds,
+          roleNames: selectedRoleNames,
         })),
       });
 
       toast.success('Notificación enviada correctamente');
+      // Limpiar selección después de enviar
+      setSelectedUserIds([]);
+      setSelectedRoleNames([]);
     } catch (error) {
       console.error('Error sending test notification:', error);
       toast.error('Error al enviar notificación');
@@ -200,16 +212,14 @@ export default function NotificationsPage() {
 
             {/* Destinatarios */}
             <div className="space-y-2">
-              <Label htmlFor="recipients">Destinatarios</Label>
-              <Input
-                id="recipients"
-                value={testForm.recipients}
-                onChange={(e) => setTestForm({ ...testForm, recipients: e.target.value })}
-                placeholder="email1;email2 o chatId;chatId"
+              <Label>Destinatarios</Label>
+              <RecipientSelector
+                selectedUserIds={selectedUserIds}
+                selectedRoleNames={selectedRoleNames}
+                onUserIdsChange={setSelectedUserIds}
+                onRoleNamesChange={setSelectedRoleNames}
+                disabled={isSending}
               />
-              <p className="text-xs text-muted-foreground">
-                Para email: separar con ;. Para telegram: chat IDs separados con ;
-              </p>
             </div>
 
             {/* Enviar */}

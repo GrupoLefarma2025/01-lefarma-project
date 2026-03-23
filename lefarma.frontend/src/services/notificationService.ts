@@ -120,7 +120,7 @@ class NotificationService {
       channels: [
         {
           channelType,
-          recipients: 'test', // El backend usará el usuario actual
+          // No especificamos userIds - el backend usará el usuario actual
         },
       ],
       title: 'Notificación de Prueba',

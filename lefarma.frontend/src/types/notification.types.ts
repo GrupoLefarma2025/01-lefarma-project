@@ -57,7 +57,8 @@ export interface NotificationChannel {
 
 export interface NotificationChannelRequest {
   channelType: NotificationChannelType;
-  recipients: string; // Semicolon-separated: email1;email2 o chatId1;chatId2
+  userIds?: number[]; // Lista de IDs de usuarios
+  roleNames?: string[]; // Lista de nombres de roles
   channelSpecificData?: Record<string, unknown>;
 }
 
