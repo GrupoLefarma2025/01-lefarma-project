@@ -3,8 +3,7 @@ import { authService } from './authService';
 import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/types/api.types';
 
-const baseURL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api')
-  .replace(/\/$/, '') + '/api';
+const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const apiClient: AxiosInstance = axios.create({
   baseURL,
