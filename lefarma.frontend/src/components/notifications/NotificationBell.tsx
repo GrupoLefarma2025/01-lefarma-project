@@ -4,10 +4,11 @@
  * Se integra en el Header de la aplicación
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useAuthStore } from '@/store/authStore';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +68,7 @@ function getPriorityColor(priority: NotificationPriority): string {
  * Componente principal NotificationBell
  */
 export function NotificationBell({ onError }: NotificationBellProps) {
+  const { user } = useAuthStore();
   const [open, setOpen] = useState(false);
   const { isConnected } = useNotifications({
     autoConnect: true,
@@ -107,12 +109,24 @@ export function NotificationBell({ onError }: NotificationBellProps) {
   };
 
   /**
+   * Carga inicial de notificaciones cuando el usuario se autentica
+   */
+  useEffect(() => {
+    console.log('[NotificationBell] User:', user, 'Loading notifications for userId:', user?.id);
+    if (user?.id && notifications.length === 0) {
+      console.log('[NotificationBell] Loading notifications...');
+      loadNotifications(user.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  /**
    * Carga notificaciones al abrir el dropdown
    */
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
-    if (isOpen && notifications.length === 0) {
-      loadNotifications();
+    if (isOpen && notifications.length === 0 && user?.id) {
+      loadNotifications(user.id);
     }
   };
 
