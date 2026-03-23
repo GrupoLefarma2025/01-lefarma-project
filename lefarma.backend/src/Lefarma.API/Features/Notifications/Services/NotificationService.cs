@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using System.Text.Json;
 using Lefarma.API.Domain.Entities.Notifications;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Notifications.DTOs;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.API.Features.Notifications.Services;
@@ -16,17 +18,20 @@ public class NotificationService : INotificationService
     private readonly ITemplateService _templateService;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<NotificationService> _logger;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public NotificationService(
         INotificationRepository repository,
         ITemplateService templateService,
         IServiceProvider serviceProvider,
-        ILogger<NotificationService> logger)
+        ILogger<NotificationService> logger,
+        IHttpContextAccessor httpContextAccessor)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _templateService = templateService ?? throw new ArgumentNullException(nameof(templateService));
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
     }
 
     /// <inheritdoc/>
@@ -417,7 +422,16 @@ public class NotificationService : INotificationService
         _logger.LogDebug("Creating user notifications for in-app channel");
 
         // Parse recipients (user IDs)
-        var userIds = ParseRecipientUserIds(inAppChannelRequest.Recipients);
+        var userIds = ParseRecipientUserIds(inAppChannelRequest.Recipients, getCurrentUserId());
+
+        // If no user IDs found (e.g., "test" without authenticated user), skip
+        if (userIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "No valid user IDs found for recipients: {Recipients}. Skipping UserNotification creation.",
+                inAppChannelRequest.Recipients);
+            return;
+        }
 
         foreach (var userId in userIds)
         {
@@ -450,15 +464,59 @@ public class NotificationService : INotificationService
     }
 
     /// <summary>
-    /// Parses semicolon-separated recipient string into user IDs.
+    /// Gets the current authenticated user ID from HTTP context.
     /// </summary>
-    private static List<int> ParseRecipientUserIds(string recipients)
+    private int? getCurrentUserId()
+    {
+        try
+        {
+            var httpContext = _httpContextAccessor.HttpContext;
+            if (httpContext?.User == null)
+            {
+                return null;
+            }
+
+            var userIdClaim = httpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdClaim, out var userId))
+            {
+                return userId;
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Parses semicolon-separated recipient string into user IDs.
+    /// Handles special case "test" by using the current authenticated user.
+    /// </summary>
+    private List<int> ParseRecipientUserIds(string recipients, int? currentUserId)
     {
         if (string.IsNullOrWhiteSpace(recipients))
         {
             return new List<int>();
         }
 
+        // Special case: "test" means use current authenticated user
+        if (recipients.Equals("test", StringComparison.OrdinalIgnoreCase))
+        {
+            if (currentUserId.HasValue)
+            {
+                _logger.LogDebug("Using current authenticated user ID for 'test' recipient: {UserId}", currentUserId.Value);
+                return new List<int> { currentUserId.Value };
+            }
+            else
+            {
+                _logger.LogWarning("Recipient is 'test' but no authenticated user found");
+                return new List<int>();
+            }
+        }
+
+        // Normal case: parse semicolon or comma separated user IDs
         return recipients
             .Split(new[] { ';', ',' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(id => id.Trim())
