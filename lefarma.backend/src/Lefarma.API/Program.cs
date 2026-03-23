@@ -102,7 +102,7 @@ builder.Services.AddScoped<IAdminRepository, AdminRepository>();
 builder.Services.AddScoped<IMedioPagoRepository, MedioPagoRepository>();
 builder.Services.AddScoped<IFormaPagoRepository, FormaPagoRepository>();
 builder.Services.AddScoped<IBancoRepository, BancoRepository>();
-// builder.Services.AddScoped<Domain.Interfaces.INotificationRepository, NotificationRepository>(); // TODO: Uncomment when notifications are complete
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -126,32 +126,28 @@ builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
 
 // Notification Services
-// TODO: Uncomment when notification interfaces are implemented
-// builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
-// builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, NotificationService>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.INotificationService, Lefarma.API.Features.Notifications.Services.NotificationService>();
 
 // Email Settings configuration
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-// TODO: Uncomment when email settings are configured
-// builder.Services.AddOptions<EmailSettings>()
-//     .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
-//     .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
-//     .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
-//     .ValidateOnStart();
+builder.Services.AddOptions<EmailSettings>()
+    .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
+    .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
+    .ValidateOnStart();
 
 // Register channels as KEYED SERVICES for multi-channel support
-// TODO: Uncomment when notification channels are implemented
-// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
-// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.TelegramNotificationChannel>("telegram");
-// builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.InAppNotificationChannel>("in-app");
+builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
+builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.TelegramNotificationChannel>("telegram");
+builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.InAppNotificationChannel>("in-app");
 
 // Telegram Settings configuration
 builder.Services.Configure<TelegramSettings>(builder.Configuration.GetSection("TelegramSettings"));
-// TODO: Uncomment when telegram bot is configured
-// builder.Services.AddOptions<TelegramSettings>()
-//     .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
-//     .Validate(x => !string.IsNullOrWhiteSpace(x.ApiUrl), "ApiUrl is required")
-//     .ValidateOnStart();
+builder.Services.AddOptions<TelegramSettings>()
+    .Validate(x => !string.IsNullOrWhiteSpace(x.BotToken), "BotToken is required")
+    .Validate(x => !string.IsNullOrWhiteSpace(x.ApiUrl), "ApiUrl is required")
+    .ValidateOnStart();
 
 // JWT Bearer Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
