@@ -15,6 +15,7 @@ import { Building2, MapPin, User, LogOut, ChevronDown, Sun, Moon } from 'lucide-
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export const Header = () => {
   const { user, empresa, sucursal, logout } = useAuthStore();
@@ -73,8 +74,11 @@ export const Header = () => {
         </div>
       )}
 
-      {/* Right side: Theme Toggle + User Menu */}
+      {/* Right side: Notifications + Theme Toggle + User Menu */}
       <div className="flex items-center gap-2">
+        {/* Notification Bell */}
+        <NotificationBell onError={(error) => console.error('Notification error:', error)} />
+
         {/* Theme Toggle Button */}
         <Button
           variant="ghost"

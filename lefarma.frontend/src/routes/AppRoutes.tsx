@@ -17,6 +17,7 @@ import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
+import NotificationsPage from '@/pages/Notifications';
 import NotFound from '@/pages/NotFound';
 
 export const AppRoutes = () => {
@@ -42,6 +43,7 @@ export const AppRoutes = () => {
           <Route path="/catalogos/formas-pago" element={<FormasPagoList />} />
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
           <Route path="/perfil" element={<Perfil />} />
+          <Route path="/notificaciones" element={<NotificationsPage />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/demo-components" element={<DemoComponents />} />
         </Route>

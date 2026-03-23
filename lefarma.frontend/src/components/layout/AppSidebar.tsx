@@ -13,6 +13,7 @@ import {
   Ruler,
   Users,
   CreditCard,
+  Bell,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -58,6 +59,11 @@ const menuItems = [
       { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
       { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
     ],
+  },
+  {
+    title: 'Notificaciones',
+    icon: Bell,
+    path: '/notificaciones',
   },
   {
     title: 'Configuración',
