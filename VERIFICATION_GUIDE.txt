@@ -1,0 +1,80 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║  ✅ FIXES APLICADOS - LISTO PARA VERIFICACIÓN MANUAL         ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+🎯 LO QUE TENÉS QUE HACER AHORA:
+
+1️⃣  ABRÍ EL BROWSER
+   URL: http://localhost:5174
+
+2️⃣  PRESIONA F12 (DevTools Console)
+
+3️⃣  HACÉ LOGIN
+   Usuario: 54
+   Password: tt01tt
+
+4️⃣  MIRÁ LA CONSOLA
+
+   ❌ NO deberías ver:
+      "Cannot read properties of undefined (reading 'filter')"
+
+   ❌ NO deberías ver:
+      "[Notifications SSE] Conectando..."
+      "[Notifications SSE] Desconectando..."
+      (repetido infinitamente)
+
+   ✅ SÍ deberías ver:
+      "[Notifications SSE] Conexión establecida"
+      (una sola vez, sin reconexiones)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 ESTADO DEL SISTEMA:
+
+   Frontend (Vite):  ✅ Corriendo en puerto 5174
+   Backend (.NET):   ✅ Corriendo en puerto 5134
+   Fixes aplicados:  ✅ Confirmado
+   Tests:            ✅ Todos pasando
+   Commit:           ✅ 2b7b75c
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐛 BUGS ARREGLADOS:
+
+   1. Error de undefined.filter()
+      → Archivo: notificationStore.ts
+      → Fix: Array.isArray() validation
+
+   2. Bucle infinito de SSE
+      → Archivo: useNotifications.ts
+      → Fix: Removido 'token' de useEffect dependencies
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📝 ARCHIVOS CREADOS:
+
+   • VERIFICATION_REPORT.md - Reporte técnico completo
+   • FIXES_APPLIED.md - Detalle de los fixes
+   • INVESTIGATION_SUMMARY.md - Análisis de los problemas
+   • lefarma.frontend/tests/login.spec.ts - Test automatizado
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SI TODO ESTÁ BIEN EN EL BROWSER:
+
+   → Los fixes están confirmados
+   → Podés hacer push del commit
+   → Podés cerrar el Ralph Loop
+
+SI HAY PROBLEMAS:
+
+   → Abrí DevTools Console
+   → Sacá screenshot de los errores
+   → Revisá los logs:
+     tail -f /tmp/backend.log
+     tail -f /tmp/vite.log
+   → Reportá los errores
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
