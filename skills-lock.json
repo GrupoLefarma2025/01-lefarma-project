@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "agent-browser": {
+      "source": "vercel-labs/agent-browser",
+      "sourceType": "github",
+      "computedHash": "939c70dd51a234b3ebefc935a06a24f2a6558e7a1be1dfdf72cd372aee8b88f0"
+    },
     "clean-architecture": {
       "source": "pproenca/dot-skills",
       "sourceType": "github",
@@ -15,6 +20,11 @@
       "source": "wshobson/agents",
       "sourceType": "github",
       "computedHash": "98495b77cf63cbd36e7f152c61d8eddff20d050f2cbc803b45cc6b5b9526cbf1"
+    },
+    "dotnet-best-practices": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "9ef94db7f06c167d544369817e5a4415eeb7886dcff0d47026837a1aada260e3"
     },
     "dotnet-core-expert": {
       "source": "jeffallan/claude-skills",
@@ -44,7 +54,7 @@
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",
-      "computedHash": "516bd2154eb843a8240e43d5b285229129853114ad7075a5e141e1c08e408c84"
+      "computedHash": "063a0e6448123cd359ad0044cc46b0e490cc7964d45ef4bb9fd842bd2ffbca67"
     },
     "gh-cli": {
       "source": "github/awesome-copilot",
@@ -100,6 +110,11 @@
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
       "computedHash": "61f8c307aa8ce0c4c52da8886d42e344dab83f76f9b5360cf8923b25fb1d67bb"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "computedHash": "a6a44d5498f7e8f68289902f3dedfc6f38ae0cee1e96527c80724cf27f727c2a"
     }
   }
 }
