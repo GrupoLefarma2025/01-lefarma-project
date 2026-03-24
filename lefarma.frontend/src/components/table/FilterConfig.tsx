@@ -140,7 +140,7 @@ export const FilterConfig = ({
                 El buscador general buscará en las columnas seleccionadas
               </p>
               <div className="space-y-2">
-                {allColumns.filter(c => c.id).map((column) => (
+                {allColumns.filter(c => c.id !== undefined && c.id !== null).map((column) => (
                   <div key={column.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`search-${column.id}`}
@@ -170,7 +170,7 @@ export const FilterConfig = ({
                 Selecciona las columnas que quieres mostrar en la tabla
               </p>
               <div className="space-y-2">
-                {allColumns.filter(c => c.id).map((column) => (
+                {allColumns.filter(c => c.id !== undefined && c.id !== null).map((column) => (
                   <div key={column.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`visible-${column.id}`}
@@ -195,7 +195,7 @@ export const FilterConfig = ({
           {/* Tab 3: Filtros por columna */}
           <TabsContent value="filtros" className="space-y-4 mt-4">
             <div className="space-y-4">
-              {allColumns.filter(c => c.id).map((column) => {
+              {allColumns.filter(c => c.id !== undefined && c.id !== null).map((column) => {
                 const config = columnFilterConfigs[column.id] || {};
                 const filterType = config.type || getFilterTypeForColumn(column.id);
 
