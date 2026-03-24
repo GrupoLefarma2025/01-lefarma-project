@@ -3,7 +3,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 /**
  * Supported filter types based on column data type
  */
-export type FilterType = 'text' | 'number' | 'boolean' | 'select';
+export type FilterType = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
 /**
  * Operators for text filters
@@ -41,6 +41,15 @@ export interface ColumnFilterConfig {
   // For 'number' type - min/max values
   min?: number;
   max?: number;
+  // Extended filter settings (used in FilterConfig panel)
+  textOperator?: 'contains' | 'exact';
+  textCaseSensitive?: boolean;
+  numberMin?: number;
+  numberMax?: number;
+  numberOperator?: '=' | '!=' | '>' | '<' | '>=' | '<=';
+  booleanValue?: 'all' | 'true' | 'false';
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 /**
@@ -51,6 +60,7 @@ export interface FilterConfig<TData> {
   searchableColumns: string[]; // All columns that CAN be searched
   defaultSearchColumns?: string[]; // Default columns to search (subset of searchableColumns)
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
+  onColumnFilterChange?: (columnId: string, config: ColumnFilterConfig) => void;
 }
 
 /**
@@ -61,6 +71,7 @@ export interface TableConfig {
   visibleColumns: string[];
   searchColumns: string[];
   lastFilters?: Record<string, ColumnFilter>;
+  columnFilterConfigs?: Record<string, ColumnFilterConfig>;
 }
 
 /**
@@ -71,6 +82,7 @@ export interface UseTableFiltersReturn {
   activeFilters: ColumnFilter[];
   searchColumnIds: string[];
   visibleColumnIds: string[];
+  columnFilterConfigs: Record<string, ColumnFilterConfig>;
 
   // Actions
   addFilter: (filter: ColumnFilter) => void;
@@ -79,6 +91,7 @@ export interface UseTableFiltersReturn {
   setSearchColumns: (columnIds: string[]) => void;
   setVisibleColumns: (columnIds: string[]) => void;
   resetToDefaults: () => void;
+  setColumnFilterConfig: (columnId: string, config: ColumnFilterConfig) => void;
 
   // Persistence
   saveConfig: () => void;

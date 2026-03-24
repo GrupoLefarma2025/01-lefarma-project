@@ -83,12 +83,10 @@ class NotificationService {
       params.append('unreadOnly', 'true');
     }
 
-    console.log('[notificationService] Fetching notifications for userId:', userId, 'URL:', `${this.basePath}/user/${userId}`);
     const response = await API.get<ApiResponse<UserNotification[]>>(
       `${this.basePath}/user/${userId}`,
       { params }
     );
-    console.log('[notificationService] Response:', response.data);
     // response.data YA es el array de notificaciones, no response.data.data
     return response.data as unknown as UserNotification[];
   }

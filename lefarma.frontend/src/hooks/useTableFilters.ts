@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ColumnFilter,
+  ColumnFilterConfig,
   FilterConfig,
   TableConfig,
   UseTableFiltersReturn,
@@ -17,10 +18,12 @@ export function useTableFilters<TData>({
   tableId,
   allColumns,
   defaultSearchColumns = [],
+  columnFilterConfigs: initialColumnFilterConfigs = {},
 }: {
   tableId: string;
   allColumns: ColumnDef<TData>[];
   defaultSearchColumns?: string[];
+  columnFilterConfigs?: Record<string, ColumnFilterConfig>;
 }): UseTableFiltersReturn {
   // Extract column IDs from column definitions
   const allColumnIds = allColumns.map(col => col.id as string);
@@ -29,6 +32,7 @@ export function useTableFilters<TData>({
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
   const [searchColumnIds, setSearchColumnIds] = useState<string[]>(defaultSearchColumns);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(allColumnIds);
+  const [columnFilterConfigs, setColumnFilterConfigs] = useState<Record<string, ColumnFilterConfig>>(initialColumnFilterConfigs);
 
   // Track initialization to prevent auto-save race condition
   const isInitialized = useRef(false);
@@ -70,8 +74,16 @@ export function useTableFilters<TData>({
     setActiveFilters([]);
     setSearchColumnIds(defaults.searchColumns);
     setVisibleColumnIds(defaults.visibleColumns);
+    setColumnFilterConfigs({});
     resetConfigInStorage(tableId);
   }, [tableId, allColumnIds, defaultSearchColumns]);
+
+  const setColumnFilterConfig = useCallback((columnId: string, config: ColumnFilterConfig) => {
+    setColumnFilterConfigs(prev => ({
+      ...prev,
+      [columnId]: config,
+    }));
+  }, []);
 
   // Persistence
   const saveConfig = useCallback(() => {
@@ -94,6 +106,9 @@ export function useTableFilters<TData>({
       setVisibleColumnIds(saved.visibleColumns);
       if (saved.lastFilters) {
         setActiveFilters(Object.values(saved.lastFilters));
+      }
+      if (saved.columnFilterConfigs) {
+        setColumnFilterConfigs(saved.columnFilterConfigs);
       }
     } else {
       // Create default config on first visit
@@ -121,6 +136,8 @@ export function useTableFilters<TData>({
     setSearchColumns,
     setVisibleColumns,
     resetToDefaults,
+    setColumnFilterConfig,
+    columnFilterConfigs,
     saveConfig,
     loadConfig,
   };

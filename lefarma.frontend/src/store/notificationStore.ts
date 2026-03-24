@@ -191,20 +191,15 @@ export const useNotificationStore = create<NotificationState>()(
           const { user } = useAuthStore.getState();
           const targetUserId = userId ?? user?.id ?? 0;
 
-          console.log('[notificationStore] Loading notifications for userId:', targetUserId, 'user from store:', user);
-
           if (!targetUserId) {
-            console.log('[notificationStore] No userId, clearing notifications');
             set({ notifications: [], unreadCount: 0, isLoading: false });
             return;
           }
 
           const notifications = await notificationService.getUserNotifications(targetUserId, filter);
-          console.log('[notificationStore] Received notifications:', notifications);
           // Defensive: ensure notifications is always an array
           const safeNotifications = Array.isArray(notifications) ? notifications : [];
           const unreadCount = safeNotifications.filter((n) => !n.isRead).length;
-          console.log('[notificationStore] Safe notifications:', safeNotifications.length, 'Unread:', unreadCount);
           set({ notifications: safeNotifications, unreadCount, isLoading: false });
         } catch (error) {
           console.error('[notificationStore] Error loading notifications:', error);
