@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ColumnFilter,
@@ -17,12 +17,10 @@ export function useTableFilters<TData>({
   tableId,
   allColumns,
   defaultSearchColumns = [],
-  searchableColumns,
 }: {
   tableId: string;
   allColumns: ColumnDef<TData>[];
   defaultSearchColumns?: string[];
-  searchableColumns: string[];
 }): UseTableFiltersReturn {
   // Extract column IDs from column definitions
   const allColumnIds = allColumns.map(col => col.id || col.accessorKey as string);
@@ -32,9 +30,14 @@ export function useTableFilters<TData>({
   const [searchColumnIds, setSearchColumnIds] = useState<string[]>(defaultSearchColumns);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(allColumnIds);
 
+  // Track initialization to prevent auto-save race condition
+  const isInitialized = useRef(false);
+
   // Load config on mount
   useEffect(() => {
     loadConfig();
+    isInitialized.current = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId]);
 
   // Actions
@@ -99,11 +102,13 @@ export function useTableFilters<TData>({
       setVisibleColumnIds(defaults.visibleColumns);
       saveConfigToStorage(defaults);
     }
-  }, [tableId, allColumnIds, defaultSearchColumns]);
+  }, [tableId, allColumnIds, defaultSearchColumns, saveConfigToStorage]);
 
-  // Auto-save when state changes
+  // Auto-save when state changes (only after initialization)
   useEffect(() => {
-    saveConfig();
+    if (isInitialized.current) {
+      saveConfig();
+    }
   }, [activeFilters, searchColumnIds, visibleColumnIds, saveConfig]);
 
   return {
