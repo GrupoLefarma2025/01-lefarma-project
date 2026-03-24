@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { Gasto, UnidadMedida } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -45,35 +46,6 @@ const gastoSchema = z.object({
   activo: z.boolean(),
   unidadesMedida: z.array(z.number()),
 });
-
-interface UnidadMedida {
-  idUnidadMedida: number;
-  nombre: string;
-  abreviatura: string;
-  activo: boolean;
-}
-
-interface Gasto {
-  idGasto: number;
-  nombre: string;
-  nombreNormalizado?: string;
-  descripcion?: string;
-  clave?: string;
-  concepto?: string;
-  cuenta?: string;
-  subCuenta?: string;
-  analitica?: string;
-  integracion?: string;
-  cuentaCatalogo?: string;
-  requiereComprobacionPago: boolean;
-  requiereComprobacionGasto: boolean;
-  permiteSinDatosFiscales: boolean;
-  diasLimiteComprobacion: number;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-  unidadesMedida?: UnidadMedida[];
-}
 
 type GastoFormValues = z.infer<typeof gastoSchema>;
 type GastoRequest = GastoFormValues & { idGasto: number };

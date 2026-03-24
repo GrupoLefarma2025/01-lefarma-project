@@ -58,7 +58,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetAllUsuarios", error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetAllUsuarios", exception: ex);
             return CommonErrors.DatabaseError("obtener los usuarios");
         }
     }
@@ -85,7 +85,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetUsuarioById", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetUsuarioById", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("obtener el usuario");
         }
     }
@@ -127,7 +127,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "CreateUsuario", nombre: request.SamAccountName, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "CreateUsuario", nombre: request.SamAccountName, exception: ex);
             return CommonErrors.DatabaseError("crear el usuario");
         }
     }
@@ -240,7 +240,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "UpdateUsuario", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "UpdateUsuario", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("actualizar el usuario");
         }
     }
@@ -271,7 +271,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetAllRoles", error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetAllRoles", exception: ex);
             return CommonErrors.DatabaseError("obtener los roles");
         }
     }
@@ -295,7 +295,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetRolById", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetRolById", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("obtener el rol");
         }
     }
@@ -333,7 +333,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "CreateRol", nombre: request.NombreRol, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "CreateRol", nombre: request.NombreRol, exception: ex);
             return CommonErrors.DatabaseError("crear el rol");
         }
     }
@@ -379,7 +379,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "UpdateRol", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "UpdateRol", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("actualizar el rol");
         }
     }
@@ -415,7 +415,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "DeleteRol", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "DeleteRol", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("eliminar el rol");
         }
     }
@@ -446,7 +446,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetAllPermisos", error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetAllPermisos", exception: ex);
             return CommonErrors.DatabaseError("obtener los permisos");
         }
     }
@@ -470,7 +470,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetPermisoById", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "GetPermisoById", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("obtener el permiso");
         }
     }
@@ -507,7 +507,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "CreatePermiso", nombre: request.CodigoPermiso, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "CreatePermiso", nombre: request.CodigoPermiso, exception: ex);
             return CommonErrors.DatabaseError("crear el permiso");
         }
     }
@@ -552,7 +552,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "UpdatePermiso", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "UpdatePermiso", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("actualizar el permiso");
         }
     }
@@ -588,7 +588,7 @@ public class AdminService : BaseService, IAdminService
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "DeletePermiso", entityId: id, error: ex.GetDetailedMessage());
+            EnrichWideEvent(action: "DeletePermiso", entityId: id, exception: ex);
             return CommonErrors.DatabaseError("eliminar el permiso");
         }
     }

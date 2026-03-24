@@ -1,4 +1,5 @@
-﻿using Lefarma.API.Shared.Logging;
+﻿using Lefarma.API.Shared.Extensions;
+using Lefarma.API.Shared.Logging;
 
 namespace Lefarma.API.Shared.Services;
 
@@ -28,6 +29,7 @@ public abstract class BaseService
         bool? duplicate = null,
         bool? deleteFailed = null,
         string? error = null,
+        Exception? exception = null,
         Dictionary<string, object>? additionalContext = null)
     {
         var wideEvent = _wideEventAccessor.Current;
@@ -58,8 +60,17 @@ public abstract class BaseService
         if (deleteFailed == true)
             context["deleteFailed"] = true;
 
-        if (!string.IsNullOrEmpty(error))
+        // exception tiene prioridad sobre error string: extrae mensaje y stack trace
+        if (exception != null)
+        {
+            context["error"] = exception.GetDetailedMessage();
+            if (!string.IsNullOrWhiteSpace(exception.StackTrace))
+                context["stackTrace"] = exception.StackTrace;
+        }
+        else if (!string.IsNullOrEmpty(error))
+        {
             context["error"] = error;
+        }
 
         // Merge additional context
         if (additionalContext != null)

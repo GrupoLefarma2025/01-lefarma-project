@@ -77,7 +77,7 @@ namespace Lefarma.API.Features.Catalogos.Gastos
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetAll", exception: ex);
                 return CommonErrors.DatabaseError("obtener los gastos");
             }
         }
@@ -99,7 +99,7 @@ namespace Lefarma.API.Features.Catalogos.Gastos
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetById", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener el gasto");
             }
         }
@@ -145,12 +145,12 @@ namespace Lefarma.API.Features.Catalogos.Gastos
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"guardar el gasto");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear el gasto.");
             }
         }
@@ -198,17 +198,17 @@ namespace Lefarma.API.Features.Catalogos.Gastos
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.ConcurrencyError("gasto");
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"actualizar el gasto");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar el gasto.");
             }
         }
@@ -236,12 +236,12 @@ namespace Lefarma.API.Features.Catalogos.Gastos
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"eliminar el gasto");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar el gasto.");
             }
         }

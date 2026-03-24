@@ -11,15 +11,17 @@ namespace Lefarma.API.Features.Logging;
 /// <summary>
 /// Implementación del servicio de logging de errores a base de datos
 /// </summary>
-public class ErrorLogService(ApplicationDbContext context, ILogger<ErrorLogService> logger) : IErrorLogService
+public class ErrorLogService(ApplicationDbContext context) : IErrorLogService
 {
     private readonly ApplicationDbContext _context = context;
-    private readonly ILogger<ErrorLogService> _logger = logger;
 
-    public async Task<Guid?> LogErrorAsync(WideEvent wideEvent, Exception exception, CancellationToken cancellationToken = default)
+    public async Task<Guid?> LogErrorAsync(WideEvent wideEvent, Exception? exception = null, CancellationToken cancellationToken = default)
     {
         try
         {
+            var mensajeDetallado = exception?.GetDetailedMessage(includeStackTrace: false) 
+                ?? ExtractErrorFromContext(wideEvent);
+
             var errorLog = new ErrorLog
             {
                 // Identificación
@@ -27,16 +29,16 @@ public class ErrorLogService(ApplicationDbContext context, ILogger<ErrorLogServi
                 FechaError = DateTime.UtcNow,
 
                 // Información del error
-                TipoExcepcion = exception.GetType().FullName ?? exception.GetType().Name,
-                MensajeError = exception.Message.Length > 2048 
+                TipoExcepcion = exception?.GetType().FullName ?? wideEvent.ErrorType ?? "HttpError",
+                MensajeError = exception?.Message.Length > 2048 
                     ? exception.Message[..2045] + "..." 
-                    : exception.Message,
-                MensajeDetallado = exception.GetDetailedMessage(includeStackTrace: false),
-                StackTrace = exception.StackTrace,
+                    : (exception?.Message ?? wideEvent.ErrorMessage ?? "Error HTTP sin excepción"),
+                MensajeDetallado = mensajeDetallado,
+                StackTrace = exception?.StackTrace ?? ExtractStackTraceFromContext(wideEvent),
 
-                // Severidad - determinar basado en el tipo de excepción
+                // Severidad - determinar basado en el tipo de excepción o status code
                 Severidad = DetermineSeverity(exception, wideEvent.StatusCode),
-                Categoria = DetermineCategory(exception),
+                Categoria = exception != null ? DetermineCategory(exception) : DetermineCategoryFromStatusCode(wideEvent.StatusCode),
 
                 // Contexto HTTP del WideEvent
                 MetodoHttp = wideEvent.Method,
@@ -75,29 +77,70 @@ public class ErrorLogService(ApplicationDbContext context, ILogger<ErrorLogServi
 
             return errorLog.ErrorGuid;
         }
-        catch (Exception ex)
+        catch
         {
-            // Si falla el logging a DB, no queremos romper la aplicación
-            // Solo logueamos a consola/archivo con el logger estándar
-            _logger.LogError(ex, "Error al intentar guardar ErrorLog en base de datos. Error original: {OriginalError}", 
-                exception.GetDetailedMessage());
-            
+            // Si falla el logging a BD, retornar null sin romper la aplicación
+            // El error será capturado por el fallback en el middleware (Serilog)
             return null;
         }
     }
 
     /// <summary>
+    /// Extrae el stack trace del AdditionalContext del WideEvent.
+    /// Los servicios lo guardan en context[entityName]["stackTrace"]
+    /// </summary>
+    private static string? ExtractStackTraceFromContext(WideEvent wideEvent)
+    {
+        foreach (var entry in wideEvent.AdditionalContext.Values)
+        {
+            if (entry is Dictionary<string, object> contextDict
+                && contextDict.TryGetValue("stackTrace", out var stackTraceValue)
+                && stackTraceValue is string stackTrace
+                && !string.IsNullOrEmpty(stackTrace))
+            {
+                return stackTrace;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Extrae el mensaje de error detallado del AdditionalContext del WideEvent.
+    /// Los servicios guardan el error con GetDetailedMessage() en context[entityName]["error"]
+    /// </summary>
+    private static string? ExtractErrorFromContext(WideEvent wideEvent)
+    {
+        foreach (var entry in wideEvent.AdditionalContext.Values)
+        {
+            if (entry is Dictionary<string, object> contextDict 
+                && contextDict.TryGetValue("error", out var errorValue) 
+                && errorValue is string errorMessage 
+                && !string.IsNullOrEmpty(errorMessage))
+            {
+                return errorMessage;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Determina la severidad del error basado en el tipo de excepción y status code
     /// </summary>
-    private static string DetermineSeverity(Exception exception, int statusCode)
+    private static string DetermineSeverity(Exception? exception, int statusCode)
     {
-        // Critical: errores que requieren atención inmediata
-        if (exception is OutOfMemoryException or StackOverflowException)
-            return "Critical";
+        // Si hay excepción, evaluar primero
+        if (exception != null)
+        {
+            // Critical: errores que requieren atención inmediata
+            if (exception is OutOfMemoryException or StackOverflowException)
+                return "Critical";
 
-        // Error de DB
-        if (exception is DbUpdateException or TimeoutException)
-            return "Error";
+            // Error de DB
+            if (exception is DbUpdateException or TimeoutException)
+                return "Error";
+        }
 
         // Errores de cliente (4xx) son Warning
         if (statusCode >= 400 && statusCode < 500)
@@ -124,6 +167,23 @@ public class ErrorLogService(ApplicationDbContext context, ILogger<ErrorLogServi
             ArgumentException or ArgumentNullException => "Validation",
             HttpRequestException => "External",
             _ => "General"
+        };
+    }
+
+    /// <summary>
+    /// Determina la categoría del error basado en el status code cuando no hay excepción
+    /// </summary>
+    private static string DetermineCategoryFromStatusCode(int statusCode)
+    {
+        return statusCode switch
+        {
+            400 => "Validation",
+            401 or 403 => "Security",
+            404 => "NotFound",
+            409 => "Conflict",
+            500 => "ServerError",
+            502 or 503 or 504 => "ServiceUnavailable",
+            _ => "HttpError"
         };
     }
 }

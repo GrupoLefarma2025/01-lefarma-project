@@ -77,7 +77,7 @@ namespace Lefarma.API.Features.Catalogos.Areas
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetAll", exception: ex);
                 return CommonErrors.DatabaseError("obtener las areas");
             }
         }
@@ -100,7 +100,7 @@ namespace Lefarma.API.Features.Catalogos.Areas
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetById", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener el area");
             }
         }
@@ -141,12 +141,12 @@ namespace Lefarma.API.Features.Catalogos.Areas
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"guardar el area");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear el area.");
             }
         }
@@ -190,17 +190,17 @@ namespace Lefarma.API.Features.Catalogos.Areas
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.ConcurrencyError("area");
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"actualizar el area");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar el area.");
             }
         }
@@ -228,12 +228,12 @@ namespace Lefarma.API.Features.Catalogos.Areas
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"eliminar el area");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar el area.");
             }
         }

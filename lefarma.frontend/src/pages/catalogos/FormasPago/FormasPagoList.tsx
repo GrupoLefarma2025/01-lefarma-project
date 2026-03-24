@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import { FormaPago } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -32,16 +33,6 @@ const formaPagoSchema = z.object({
   clave: z.string().optional().or(z.literal('')),
   activo: z.boolean(),
 });
-
-interface FormaPago {
-  idFormaPago: number;
-  nombre: string;
-  descripcion?: string;
-  clave?: string;
-  activo: boolean;
-  fechaCreacion: string;
-  fechaModificacion?: string;
-}
 
 type FormaPagoFormValues = z.infer<typeof formaPagoSchema>;
 type FormaPagoRequest = FormaPagoFormValues & { idFormaPago: number };

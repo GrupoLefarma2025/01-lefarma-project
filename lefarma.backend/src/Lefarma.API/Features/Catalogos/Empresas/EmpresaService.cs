@@ -93,7 +93,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetAll", exception: ex);
                 return CommonErrors.DatabaseError("obtener las empresas");
             }
         }
@@ -117,7 +117,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             catch (Exception ex)
             {
                 //_logger.LogError(ex, "Error al obtener empresa {EmpresaId}", id);
-                EnrichWideEvent(action: "GetById", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener la empresa");
             }
         }
@@ -162,13 +162,13 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"guardar la empresa");
             }
             catch (Exception ex)
             {
                 //_logger.LogError(ex, "Error inesperado al crear empresa: {EmpresaNombre}", request.Nombre);
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear la empresa.");
             }
         }
@@ -218,18 +218,18 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, exception: ex);
                 return CommonErrors.ConcurrencyError("empresa");
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"actualizar la empresa");
             }
             catch (Exception ex)
             {
                 //_logger.LogError(ex, "Error inesperado al actualizar empresa: {EmpresaId}", id);
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar la empresa.");
             }
         }
@@ -260,13 +260,13 @@ namespace Lefarma.API.Features.Catalogos.Empresas
             catch (DbUpdateException ex)
             {
                 //_logger.LogError(ex, "Error de base de datos al eliminar empresa: {EmpresaId}", id);
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"eliminar la empresa");
             }
             catch (Exception ex)
             {
                 //_logger.LogError(ex, "Error inesperado al eliminar empresa: {EmpresaId}", id);
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la empresa.");
             }
         }

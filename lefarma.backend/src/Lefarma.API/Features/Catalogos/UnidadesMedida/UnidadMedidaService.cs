@@ -82,7 +82,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetAll", exception: ex);
                 return CommonErrors.DatabaseError("obtener las unidades de medida");
             }
         }
@@ -104,7 +104,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetById", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener la unidad de medida");
             }
         }
@@ -152,12 +152,12 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"guardar la unidad de medida");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear la unidad de medida.");
             }
         }
@@ -209,17 +209,17 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.ConcurrencyError("unidad de medida");
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"actualizar la unidad de medida");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar la unidad de medida.");
             }
         }
@@ -247,12 +247,12 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"eliminar la unidad de medida");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la unidad de medida.");
             }
         }

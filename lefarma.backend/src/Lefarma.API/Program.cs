@@ -13,6 +13,7 @@ using Lefarma.API.Features.Catalogos.Gastos;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Logging;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Notifications.Services;
@@ -49,7 +50,7 @@ Log.Logger = new LoggerConfiguration()
     // Se remueven logs de Microsoft (solo errores)
     .MinimumLevel.Override("Microsoft", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
-    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Warning)
+    .MinimumLevel.Override("Microsoft.EntityFrameworkCore", LogEventLevel.Fatal)
     .MinimumLevel.Override("Microsoft.AspNetCore.Hosting.Diagnostics", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore.Routing.EndpointMiddleware", LogEventLevel.Warning)
     .MinimumLevel.Override("Microsoft.AspNetCore.Mvc", LogEventLevel.Warning)
@@ -122,6 +123,7 @@ builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
 

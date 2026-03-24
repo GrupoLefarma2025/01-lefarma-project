@@ -87,7 +87,7 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetAll", exception: ex);
                 return CommonErrors.DatabaseError("obtener las sucursales");
             }
         }
@@ -109,7 +109,7 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "GetById", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener la sucursal");
             }
         }
@@ -159,12 +159,12 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.DatabaseError($"guardar la sucursal");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Create", nombre: request.Nombre, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al crear la sucursal.");
             }
         }
@@ -217,17 +217,17 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.ConcurrencyError("sucursal");
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"actualizar la sucursal");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar la sucursal.");
             }
         }
@@ -255,12 +255,12 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
             }
             catch (DbUpdateException ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"eliminar la sucursal");
             }
             catch (Exception ex)
             {
-                EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
+                EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la sucursal.");
             }
         }

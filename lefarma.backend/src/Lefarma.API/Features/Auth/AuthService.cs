@@ -116,7 +116,7 @@ public class AuthService : BaseService, IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in LoginStepOne for user {Username}", request.Username);
-            EnrichWideEvent(action: "LoginStepOne", error: ex.Message, additionalContext: new Dictionary<string, object>
+            EnrichWideEvent(action: "LoginStepOne", exception: ex, additionalContext: new Dictionary<string, object>
             {
                 ["username"] = request.Username
             });
@@ -340,7 +340,7 @@ public class AuthService : BaseService, IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in LoginStepTwo for user {Username}", request.Username);
-            EnrichWideEvent(action: "LoginStepTwo", error: ex.Message, additionalContext: new Dictionary<string, object>
+            EnrichWideEvent(action: "LoginStepTwo", exception: ex, additionalContext: new Dictionary<string, object>
             {
                 ["username"] = request.Username,
                 ["domain"] = request.Domain
@@ -500,7 +500,7 @@ public class AuthService : BaseService, IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error refreshing token");
-            EnrichWideEvent(action: "RefreshToken", error: ex.Message);
+            EnrichWideEvent(action: "RefreshToken", exception: ex);
             return CommonErrors.InternalServerError("Error al refrescar el token");
         }
     }
@@ -603,7 +603,7 @@ public class AuthService : BaseService, IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during logout for user {UserId}", usuarioId);
-            EnrichWideEvent(action: "Logout", error: ex.Message);
+            EnrichWideEvent(action: "Logout", exception: ex);
             return CommonErrors.InternalServerError("Error al cerrar sesion");
         }
     }

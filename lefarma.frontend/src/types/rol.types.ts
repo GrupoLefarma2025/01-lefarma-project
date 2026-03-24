@@ -1,25 +1,34 @@
-// Tipos para Roles
+import { Permiso } from './permiso.types';
 
 export interface Rol {
-  id: string;
-  nombre: string;
+  idRol: number;
+  nombreRol: string;
   descripcion?: string;
-  activo: boolean;
-  permisos?: string[];
+  esActivo: boolean;
+  esSistema: boolean;
   fechaCreacion: string;
-  fechaModificacion?: string;
+  cantidadUsuarios: number;
+  permisos: Permiso[];
 }
 
-export interface CreateRolDto {
-  nombre: string;
+export interface RolBasicoResponse {
+  idRol: number;
+  nombreRol: string;
   descripcion?: string;
-  activo?: boolean;
-  permisoIds?: string[];
+  esActivo: boolean;
 }
 
-export interface UpdateRolDto {
-  nombre?: string;
+export interface CreateRolRequest {
+  nombreRol: string;
   descripcion?: string;
-  activo?: boolean;
-  permisoIds?: string[];
+  esActivo: boolean;
+  esSistema: boolean;
+  permisosIds: number[];
+}
+
+export interface UpdateRolRequest {
+  nombreRol: string;
+  descripcion?: string;
+  esActivo: boolean;
+  permisosIds: number[];
 }

@@ -5,14 +5,15 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import Login from '@/pages/auth/Login';
 import SelectEmpresaSucursal from '@/pages/auth/SelectEmpresaSucursal';
 import Dashboard from '@/pages/Dashboard';
-import RolesList from '@/pages/catalogos/seguridad/Roles/RolesList';
-import PermisosList from '@/pages/catalogos/seguridad/Permisos/PermisosList';
-import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
-import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
-import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';
-import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
-import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
-import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
+import RolesList from '@/pages/admin/Roles/RolesList';
+import PermisosList from '@/pages/admin/Permisos/PermisosList';
+import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
+import EmpresasList from '@/pages/catalogos/Empresas/EmpresasList';
+import SucursalesList from '@/pages/catalogos/Sucursales/SucursalesList';
+import GastosList from '@/pages/catalogos/Gastos/GastosList';
+import MedidasList from '@/pages/catalogos/Medidas/MedidasList';
+import AreasList from '@/pages/catalogos/Areas/AreasList';
+import FormasPagoList from '@/pages/catalogos/FormasPago/FormasPagoList';
 import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
@@ -32,6 +33,7 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/seguridad/usuarios" element={<UsuariosList />} />
           <Route path="/seguridad/roles" element={<RolesList />} />
           <Route path="/seguridad/permisos" element={<PermisosList />} />
           <Route path="/catalogos/empresas" element={<EmpresasList />} />
