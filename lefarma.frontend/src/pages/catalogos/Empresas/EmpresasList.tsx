@@ -25,6 +25,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
+// Helper function to normalize text (remove accents and convert to lowercase)
+const normalizeText = (text: string): string => {
+  return text
+    .normalize('NFD') // Decompose accented characters
+    .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+    .toLowerCase();
+};
+
 
 const empresaSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
@@ -53,6 +61,7 @@ export default function EmpresasList() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [, forceUpdate] = useState({}); // Force re-render when needed
   const [isEditing, setIsEditing] = useState(false);
 
   const [modalStates, setModalStates] = useState({
@@ -190,13 +199,43 @@ export default function EmpresasList() {
   };
 
   const filteredEmpresas = useMemo(() => {
-    return empresas.filter(
-      (e) =>
-        e.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        e.rfc?.toLowerCase().includes(search.toLowerCase()) ||
-        e.razonSocial?.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [empresas, search]);
+    // Read search columns from localStorage
+    const getSearchColumns = () => {
+      try {
+        const stored = localStorage.getItem('table-configs');
+        if (!stored) return ['nombre']; // Default
+        const parsed = JSON.parse(stored);
+        const empresasConfig = parsed.find((c: any) => c.tableId === 'empresas');
+        return empresasConfig?.searchColumns || ['nombre'];
+      } catch {
+        return ['nombre'];
+      }
+    };
+
+    const searchColumns = getSearchColumns();
+    const searchNormalized = normalizeText(search);
+
+    if (search === '') {
+      return empresas;
+    }
+
+    return empresas.filter((e) => {
+      // Map column IDs to actual object properties
+      const columnToValue: Record<string, string> = {
+        'nombre': e.nombre,
+        'razonSocial': e.razonSocial || '',
+        'ubicacion': [e.ciudad, e.estado].filter(Boolean).join(', '),
+        'contacto': [e.email, e.telefono, e.paginaWeb].filter(Boolean).join(' '),
+        'activo': e.activo ? 'Activo' : 'Inactivo',
+      };
+
+      // Check if any selected column matches (with accent-insensitive search)
+      return searchColumns.some((columnId: string) => {
+        const value = columnToValue[columnId];
+        return value && normalizeText(value).includes(searchNormalized);
+      });
+    });
+  }, [empresas, search, forceUpdate]); // forceUpdate ensures re-read on localStorage change
 
   const columns: ColumnDef<Empresa>[] = [
     {
@@ -344,7 +383,7 @@ export default function EmpresasList() {
               onRefresh={fetchEmpresas}
               filterConfig={{
                 tableId: 'empresas',
-                searchableColumns: ['nombre', 'rfc', 'razonSocial', 'ciudad', 'estado', 'email', 'telefono'],
+                searchableColumns: ['nombre', 'razonSocial', 'ubicacion', 'contacto', 'activo'],
                 defaultSearchColumns: ['nombre'],
               }}
             />

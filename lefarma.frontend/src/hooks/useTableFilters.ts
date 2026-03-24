@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ColumnFilter,
@@ -26,26 +26,47 @@ export function useTableFilters<TData>({
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
 }): UseTableFiltersReturn {
   // Extract column IDs from column definitions
-  // Use same logic as DataTable: try col.id, then accessorKey
-  const allColumnIds = allColumns
-    .map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '') || '')
-    .filter(id => id !== null && id !== undefined && id !== '');
+  // Use useMemo to prevent recalculation on every render (Vercel best practice)
+  const allColumnIds = useMemo(() =>
+    allColumns
+      .map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '') || '')
+      .filter(id => id !== null && id !== undefined && id !== ''),
+    [allColumns]
+  );
 
   // State
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
   const [searchColumnIds, setSearchColumnIds] = useState<string[]>(defaultSearchColumns);
-  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(allColumnIds);
+  const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(allColumnIds); // Initialize with ALL columns
   const [columnFilterConfigs, setColumnFilterConfigs] = useState<Record<string, ColumnFilterConfig>>(initialColumnFilterConfigs);
 
   // Track initialization to prevent auto-save race condition
   const isInitialized = useRef(false);
+  const isLoadingConfig = useRef(false);
 
-  // Load config on mount
+  // Keep a ref to the current value of allColumnIds to avoid stale closure issues
+  const allColumnIdsRef = useRef(allColumnIds);
   useEffect(() => {
+    allColumnIdsRef.current = allColumnIds;
+  }, [allColumnIds]);
+
+  // Load config on mount and when columns change
+  // Only load when allColumnIds has values (not empty)
+  useEffect(() => {
+    // Wait until allColumnIds is populated
+    if (allColumnIds.length === 0) {
+      return;
+    }
+
+    isLoadingConfig.current = true;
     loadConfig();
-    isInitialized.current = true;
+    // Use setTimeout to set flag false after all state updates are processed
+    setTimeout(() => {
+      isLoadingConfig.current = false;
+      isInitialized.current = true;
+    }, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tableId]);
+  }, [tableId, allColumnIds]);
 
   // Actions
   const addFilter = useCallback((filter: ColumnFilter) => {
@@ -91,28 +112,35 @@ export function useTableFilters<TData>({
   }, []);
 
   // Persistence
-  const saveConfig = useCallback(() => {
+  const saveConfig = useCallback((overrides?: { searchColumns?: string[]; visibleColumns?: string[] }) => {
+    // Use ref to get current value
+    const currentAllColumnIds = allColumnIdsRef.current;
+
     const config: TableConfig = {
       tableId,
-      visibleColumns: allColumnIds, // ALWAYS save ALL columns as visible
-      searchColumns: searchColumnIds,
+      visibleColumns: overrides?.visibleColumns ?? visibleColumnIds, // Use override if provided, else use state
+      searchColumns: overrides?.searchColumns ?? searchColumnIds,
       lastFilters: activeFilters.reduce((acc, filter) => {
         acc[filter.columnId] = filter;
         return acc;
       }, {} as Record<string, ColumnFilter>),
+      columnFilterConfigs,
     };
     saveConfigToStorage(config);
-  }, [tableId, allColumnIds, searchColumnIds, activeFilters]);
+  }, [tableId, searchColumnIds, visibleColumnIds, activeFilters, columnFilterConfigs]);
 
   const loadConfig = useCallback(() => {
     const saved = getConfig(tableId);
-    if (saved) {
-      // Always show ALL columns - ignore saved visibility config
-      // This ensures checkboxes are always checked by default
-      setVisibleColumnIds(allColumnIds);
+    // IMPORTANT: Read the CURRENT value from the ref to avoid stale closure
+    const currentAllColumnIds = allColumnIdsRef.current;
 
-      // Clean searchColumns to remove nulls/undefined
-      const cleanSearchColumns = saved.searchColumns.filter(id => id && allColumnIds.includes(id));
+    if (!currentAllColumnIds || currentAllColumnIds.length === 0) {
+      return;
+    }
+
+    if (saved) {
+      // Load searchColumns from localStorage (respect user's selection)
+      const cleanSearchColumns = saved.searchColumns.filter(id => id && currentAllColumnIds.includes(id));
       setSearchColumnIds(cleanSearchColumns);
 
       if (saved.lastFilters) {
@@ -122,27 +150,24 @@ export function useTableFilters<TData>({
         setColumnFilterConfigs(saved.columnFilterConfigs);
       }
 
-      // Update saved config to have all columns visible (cleanup old configs)
-      const updatedConfig: TableConfig = {
-        tableId,
-        visibleColumns: allColumnIds, // Update to all columns
-        searchColumns: cleanSearchColumns,
-        lastFilters: saved.lastFilters,
-        columnFilterConfigs: saved.columnFilterConfigs,
-      };
-      saveConfigToStorage(updatedConfig);
+      // Load visibleColumns from localStorage (respect user's selection)
+      // If empty or missing, default to all columns
+      const savedVisible = saved.visibleColumns && saved.visibleColumns.length > 0
+        ? saved.visibleColumns.filter(id => currentAllColumnIds.includes(id))
+        : currentAllColumnIds;
+      setVisibleColumnIds(savedVisible);
     } else {
       // Create default config on first visit - ALL columns visible
-      const defaults = createDefaultConfig(tableId, allColumnIds, defaultSearchColumns);
+      const defaults = createDefaultConfig(tableId, currentAllColumnIds, defaultSearchColumns);
       setSearchColumnIds(defaults.searchColumns);
       setVisibleColumnIds(defaults.visibleColumns);
       saveConfigToStorage(defaults);
     }
-  }, [tableId, allColumnIds, defaultSearchColumns, saveConfigToStorage]);
+  }, [tableId, defaultSearchColumns, saveConfigToStorage]);
 
-  // Auto-save when state changes (only after initialization)
+  // Auto-save when state changes (only after initialization, not during load)
   useEffect(() => {
-    if (isInitialized.current) {
+    if (isInitialized.current && !isLoadingConfig.current) {
       saveConfig();
     }
   }, [activeFilters, searchColumnIds, visibleColumnIds, saveConfig]);

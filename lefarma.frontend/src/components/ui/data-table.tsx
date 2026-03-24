@@ -147,6 +147,7 @@ export function DataTable<TData>({
     columnFilterConfigs,
     setColumnFilterConfig,
     saveConfig,
+    loadConfig,
   } = useTableFilters({
     tableId: filterConfig?.tableId || '',
     allColumns: columns,
@@ -154,9 +155,21 @@ export function DataTable<TData>({
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
 
-  // Sync visibleColumnIds from useTableFilters with TanStack Table columnVisibility
-  const syncColumnVisibility = useCallback(() => {
-    if (filterEnabled) {
+  // Save handler that receives current values from FilterConfig and saves immediately
+  const handleSave = useCallback((currentSearchColumns: string[], currentVisibleColumns: string[]) => {
+    // Save immediately with the current values from FilterConfig
+    saveConfig({
+      searchColumns: currentSearchColumns,
+      visibleColumns: currentVisibleColumns,
+    });
+    // Then update the hook state for consistency
+    setSearchColumns(currentSearchColumns);
+    setVisibleColumns(currentVisibleColumns);
+  }, [saveConfig, setSearchColumns, setVisibleColumns]);
+
+  // Sync column visibility when filterConfig is enabled and visibleColumnIds change
+  useEffect(() => {
+    if (filterEnabled && visibleColumnIds.length > 0) {
       const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
       const newVisibility: Record<string, boolean> = {};
       allColumnIds.forEach(id => {
@@ -164,12 +177,19 @@ export function DataTable<TData>({
       });
       setColumnVisibility(newVisibility);
     }
-  }, [filterEnabled, columns, visibleColumnIds]);
+  }, [filterEnabled, visibleColumnIds, columns]); // Run when visibleColumnIds changes
 
-  // Sync on mount and when filterEnabled changes
-  useEffect(() => {
-    syncColumnVisibility();
-  }, [filterEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Sync function - only called explicitly (Apply button, Reset, etc)
+  const syncColumnVisibility = useCallback(() => {
+    if (filterEnabled && visibleColumnIds.length > 0) {
+      const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
+      const newVisibility: Record<string, boolean> = {};
+      allColumnIds.forEach(id => {
+        newVisibility[id] = visibleColumnIds.includes(id);
+      });
+      setColumnVisibility(newVisibility);
+    }
+  }, [filterEnabled, visibleColumnIds, columns]);
 
   // Convert activeFilters to TanStack Table format
   const computedColumnFilters = useMemo(() => {
@@ -299,7 +319,7 @@ export function DataTable<TData>({
               onReset={resetToDefaults}
               columnFilterConfigs={columnFilterConfigs}
               onColumnFilterChange={setColumnFilterConfig}
-              onSave={saveConfig}
+              onSave={handleSave}
               onApplyChanges={syncColumnVisibility}
             />
           )}

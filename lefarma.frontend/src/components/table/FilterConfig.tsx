@@ -56,7 +56,7 @@ interface FilterConfigProps {
   onReset: () => void;
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
   onColumnFilterChange?: (columnId: string, config: ColumnFilterConfig) => void;
-  onSave?: () => void;
+  onSave?: (searchColumns: string[], visibleColumns: string[]) => void;
   onApplyChanges?: () => void;
 }
 
@@ -86,7 +86,7 @@ export const FilterConfig = ({
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
     if (!newOpen && onSave) {
-      onSave();
+      onSave(searchableColumns, visibleColumns);
     }
   };
 
@@ -373,7 +373,7 @@ export const FilterConfig = ({
             Cancelar
           </Button>
           <Button onClick={() => {
-            onSave?.();
+            onSave?.(searchableColumns, visibleColumns);
             onApplyChanges?.();
             setOpen(false);
           }}>

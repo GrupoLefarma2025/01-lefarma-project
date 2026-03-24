@@ -94,6 +94,6 @@ export interface UseTableFiltersReturn {
   setColumnFilterConfig: (columnId: string, config: ColumnFilterConfig) => void;
 
   // Persistence
-  saveConfig: () => void;
+  saveConfig: (overrides?: { searchColumns?: string[]; visibleColumns?: string[] }) => void;
   loadConfig: () => void;
 }
