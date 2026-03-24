@@ -11,6 +11,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Areas
 {
@@ -63,7 +64,7 @@ namespace Lefarma.API.Features.Catalogos.Areas
                     {
                         ["filters"] = new { query.IdEmpresa, query.Nombre, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Áreas");
+                    return new List<AreaResponse>();
                 }
 
                 var response = result.Select(a => a.ToResponse()).ToList();

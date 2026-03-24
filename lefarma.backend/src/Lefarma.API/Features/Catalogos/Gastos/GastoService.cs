@@ -9,6 +9,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Gastos
 {
@@ -63,7 +64,7 @@ namespace Lefarma.API.Features.Catalogos.Gastos
                     {
                         ["filters"] = new { query.Nombre, query.RequiereComprobacionPago, query.RequiereComprobacionGasto, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Gastos");
+                    return new List<GastoResponse>();
                 }
 
                 var response = result.Select(g => g.ToResponse()).ToList();

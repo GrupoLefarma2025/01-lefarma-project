@@ -10,6 +10,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Sucursales
 {
@@ -73,7 +74,7 @@ namespace Lefarma.API.Features.Catalogos.Sucursales
                     {
                         ["filters"] = new { query.IdEmpresa, query.Nombre, query.Ciudad, query.Estado, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Sucursales");
+                    return new List<SucursalResponse>();
                 }
 
                 var response = result.Select(s => s.ToResponse()).ToList();

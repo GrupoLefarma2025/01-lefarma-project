@@ -12,6 +12,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.CentrosCosto
 {
@@ -59,7 +60,7 @@ namespace Lefarma.API.Features.Catalogos.CentrosCosto
                     {
                         ["filters"] = new { query.Nombre, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Centros de Costo");
+                    return new List<CentroCostoResponse>();
                 }
 
                 var response = result.Select(c => c.ToResponse()).ToList();

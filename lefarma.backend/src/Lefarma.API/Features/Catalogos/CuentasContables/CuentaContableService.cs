@@ -12,6 +12,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.CuentasContables
 {
@@ -73,7 +74,7 @@ namespace Lefarma.API.Features.Catalogos.CuentasContables
                     {
                         ["filters"] = new { query.Cuenta, query.Nivel1, query.Nivel2, query.CentroCostoId, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Cuentas Contables");
+                    return new List<CuentaContableResponse>();
                 }
 
                 var response = result.Select(c => c.ToResponse()).ToList();

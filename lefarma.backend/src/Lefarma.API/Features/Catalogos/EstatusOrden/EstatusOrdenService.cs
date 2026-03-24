@@ -11,6 +11,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.EstatusOrden
 {
@@ -58,7 +59,7 @@ namespace Lefarma.API.Features.Catalogos.EstatusOrden
                     {
                         ["filters"] = new { query.Activo, query.RequiereAccion, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Estatus de Orden");
+                    return new List<EstatusOrdenResponse>();
                 }
 
                 var response = result.Select(e => e.ToResponse()).ToList();

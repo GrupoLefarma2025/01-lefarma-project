@@ -12,6 +12,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.RegimenesFiscales
 {
@@ -62,7 +63,7 @@ namespace Lefarma.API.Features.Catalogos.RegimenesFiscales
                     {
                         ["filters"] = new { query.Clave, query.TipoPersona, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("Regímenes Fiscales");
+                    return new List<RegimenFiscalResponse>();
                 }
 
                 var response = result.Select(r => r.ToResponse()).ToList();

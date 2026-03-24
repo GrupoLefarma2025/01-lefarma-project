@@ -9,6 +9,7 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.UnidadesMedida
 {
@@ -68,7 +69,7 @@ namespace Lefarma.API.Features.Catalogos.UnidadesMedida
                     {
                         ["filters"] = new { query.IdMedida, query.Nombre, query.Abreviatura, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return CommonErrors.NotFound("UnidadesMedida");
+                    return new List<UnidadMedidaResponse>();
                 }
 
                 var response = result.Select(um => um.ToResponse()).ToList();
