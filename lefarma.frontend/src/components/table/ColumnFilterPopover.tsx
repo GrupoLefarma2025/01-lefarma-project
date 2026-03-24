@@ -16,7 +16,7 @@ interface ColumnFilterPopoverProps {
   hasActiveFilter: boolean;
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
-  options?: { value: string; label: string }[];
+  selectOptions?: { value: string; label: string }[];
 }
 
 export function ColumnFilterPopover({
@@ -26,17 +26,19 @@ export function ColumnFilterPopover({
   hasActiveFilter,
   onApplyFilter,
   onClearFilter,
-  options = [],
+  selectOptions = [],
 }: ColumnFilterPopoverProps) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className={`h-8 w-8 p-0 ${hasActiveFilter ? 'text-primary' : ''}`}
+          className={`h-6 w-6 p-0 ${hasActiveFilter ? 'text-primary' : 'text-muted-foreground'}`}
         >
-          <Filter className="h-4 w-4" />
+          <Filter className="h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80" align="start">
@@ -47,6 +49,8 @@ export function ColumnFilterPopover({
             onApplyFilter={onApplyFilter}
             onClearFilter={onClearFilter}
             hasActiveFilter={hasActiveFilter}
+            open={open}
+            setOpen={setOpen}
           />
         )}
         {filterType === 'boolean' && (
@@ -56,6 +60,8 @@ export function ColumnFilterPopover({
             onApplyFilter={onApplyFilter}
             onClearFilter={onClearFilter}
             hasActiveFilter={hasActiveFilter}
+            open={open}
+            setOpen={setOpen}
           />
         )}
         {filterType === 'number' && (
@@ -65,16 +71,20 @@ export function ColumnFilterPopover({
             onApplyFilter={onApplyFilter}
             onClearFilter={onClearFilter}
             hasActiveFilter={hasActiveFilter}
+            open={open}
+            setOpen={setOpen}
           />
         )}
         {filterType === 'select' && (
           <SelectFilterPopover
             columnId={columnId}
             columnName={columnName}
-            options={options}
+            selectOptions={selectOptions}
             onApplyFilter={onApplyFilter}
             onClearFilter={onClearFilter}
             hasActiveFilter={hasActiveFilter}
+            open={open}
+            setOpen={setOpen}
           />
         )}
       </PopoverContent>
@@ -89,6 +99,8 @@ interface TextFilterPopoverProps {
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   hasActiveFilter: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }
 
 function TextFilterPopover({
@@ -97,6 +109,8 @@ function TextFilterPopover({
   onApplyFilter,
   onClearFilter,
   hasActiveFilter,
+  open,
+  setOpen,
 }: TextFilterPopoverProps) {
   const [operator, setOperator] = useState<TextOperator>('contains');
   const [value, setValue] = useState('');
@@ -112,6 +126,7 @@ function TextFilterPopover({
       displayLabel: `${getOperatorLabel(operator)} "${value}"`,
     });
     setValue('');
+    setOpen(false);
   };
 
   const handleClear = () => {
@@ -121,7 +136,12 @@ function TextFilterPopover({
 
   return (
     <div className="space-y-3">
-      <div className="font-medium text-sm">Filtro: {columnName}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">Filtro: {columnName}</div>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setOpen(false)}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
       <div className="space-y-2">
         <Label>Operador</Label>
@@ -149,7 +169,7 @@ function TextFilterPopover({
       </div>
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleApply} className="flex-1">
+        <Button size="sm" onClick={handleApply} className="flex-1" disabled={!value.trim()}>
           Aplicar
         </Button>
         {hasActiveFilter && (
@@ -169,6 +189,8 @@ interface BooleanFilterPopoverProps {
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   hasActiveFilter: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }
 
 function BooleanFilterPopover({
@@ -177,12 +199,15 @@ function BooleanFilterPopover({
   onApplyFilter,
   onClearFilter,
   hasActiveFilter,
+  open,
+  setOpen,
 }: BooleanFilterPopoverProps) {
   const [value, setValue] = useState<BooleanValue>('all');
 
   const handleApply = () => {
     if (value === 'all') {
       onClearFilter();
+      setOpen(false);
       return;
     }
 
@@ -193,6 +218,7 @@ function BooleanFilterPopover({
       value: value === 'true',
       displayLabel: value === 'true' ? 'Activo' : 'Inactivo',
     });
+    setOpen(false);
   };
 
   const handleClear = () => {
@@ -202,7 +228,12 @@ function BooleanFilterPopover({
 
   return (
     <div className="space-y-3">
-      <div className="font-medium text-sm">Filtro: {columnName}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">Filtro: {columnName}</div>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setOpen(false)}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
       <RadioGroup value={value} onValueChange={(v) => setValue(v as BooleanValue)}>
         <div className="flex items-center space-x-2">
@@ -240,6 +271,8 @@ interface NumberFilterPopoverProps {
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   hasActiveFilter: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }
 
 function NumberFilterPopover({
@@ -248,6 +281,8 @@ function NumberFilterPopover({
   onApplyFilter,
   onClearFilter,
   hasActiveFilter,
+  open,
+  setOpen,
 }: NumberFilterPopoverProps) {
   const [operator, setOperator] = useState<NumberOperator>('equals');
   const [value, setValue] = useState('');
@@ -272,6 +307,7 @@ function NumberFilterPopover({
       });
       setMinValue('');
       setMaxValue('');
+      setOpen(false);
     } else {
       if (!value.trim()) return;
 
@@ -286,6 +322,7 @@ function NumberFilterPopover({
         displayLabel: `${getNumberOperatorLabel(operator)} ${num}`,
       });
       setValue('');
+      setOpen(false);
     }
   };
 
@@ -298,7 +335,12 @@ function NumberFilterPopover({
 
   return (
     <div className="space-y-3">
-      <div className="font-medium text-sm">Filtro: {columnName}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">Filtro: {columnName}</div>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setOpen(false)}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
       <div className="space-y-2">
         <Label>Operador</Label>
@@ -353,7 +395,12 @@ function NumberFilterPopover({
       )}
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleApply} className="flex-1">
+        <Button
+          size="sm"
+          onClick={handleApply}
+          className="flex-1"
+          disabled={operator === 'between' ? !minValue || !maxValue : !value}
+        >
           Aplicar
         </Button>
         {hasActiveFilter && (
@@ -370,19 +417,23 @@ function NumberFilterPopover({
 interface SelectFilterPopoverProps {
   columnId: string;
   columnName: string;
-  options: { value: string; label: string }[];
+  selectOptions: { value: string; label: string }[];
   onApplyFilter: (filter: ColumnFilter) => void;
   onClearFilter: () => void;
   hasActiveFilter: boolean;
+  open: boolean;
+  setOpen: (open: boolean) => void;
 }
 
 function SelectFilterPopover({
   columnId,
   columnName,
-  options,
+  selectOptions,
   onApplyFilter,
   onClearFilter,
   hasActiveFilter,
+  open,
+  setOpen,
 }: SelectFilterPopoverProps) {
   const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
 
@@ -395,7 +446,7 @@ function SelectFilterPopover({
   const handleApply = () => {
     if (selectedOptions.length === 0) return;
 
-    const labels = options
+    const labels = selectOptions
       .filter((opt) => selectedOptions.includes(opt.value))
       .map((opt) => opt.label)
       .join(', ');
@@ -403,11 +454,12 @@ function SelectFilterPopover({
     onApplyFilter({
       columnId,
       type: 'select',
-      operator: 'exact',
+      operator: 'contains',
       value: selectedOptions,
       displayLabel: labels,
     });
     setSelectedOptions([]);
+    setOpen(false);
   };
 
   const handleClear = () => {
@@ -417,10 +469,15 @@ function SelectFilterPopover({
 
   return (
     <div className="space-y-3">
-      <div className="font-medium text-sm">Filtro: {columnName}</div>
+      <div className="flex items-center justify-between">
+        <div className="font-medium text-sm">Filtro: {columnName}</div>
+        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setOpen(false)}>
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
 
       <div className="max-h-48 overflow-y-auto space-y-2">
-        {options.map((option) => (
+        {selectOptions.map((option) => (
           <div key={option.value} className="flex items-center space-x-2">
             <Checkbox
               id={option.value}
@@ -435,7 +492,7 @@ function SelectFilterPopover({
       </div>
 
       <div className="flex gap-2">
-        <Button size="sm" onClick={handleApply} className="flex-1">
+        <Button size="sm" onClick={handleApply} className="flex-1" disabled={selectedOptions.length === 0}>
           Aplicar
         </Button>
         {hasActiveFilter && (
