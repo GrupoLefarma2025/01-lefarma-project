@@ -5,6 +5,7 @@ using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Features.Auth;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ public class NotificationService : INotificationService
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ApplicationDbContext _dbContext;
     private readonly AsokamDbContext _asokamDbContext;
+    private readonly ISseService _sseService;
 
     public NotificationService(
         INotificationRepository repository,
@@ -32,7 +34,8 @@ public class NotificationService : INotificationService
         ILogger<NotificationService> logger,
         IHttpContextAccessor httpContextAccessor,
         ApplicationDbContext dbContext,
-        AsokamDbContext asokamDbContext)
+        AsokamDbContext asokamDbContext,
+        ISseService sseService)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
         _templateService = templateService ?? throw new ArgumentNullException(nameof(templateService));
@@ -41,6 +44,7 @@ public class NotificationService : INotificationService
         _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _asokamDbContext = asokamDbContext ?? throw new ArgumentNullException(nameof(asokamDbContext));
+        _sseService = sseService ?? throw new ArgumentNullException(nameof(sseService));
     }
 
     /// <inheritdoc/>
@@ -523,6 +527,38 @@ public class NotificationService : INotificationService
 
                 _logger.LogDebug(
                     "User notification created: UserId={UserId}, NotificationId={NotificationId}",
+                    userId,
+                    notification.Id);
+
+                // Send SSE event to the user in real-time
+                // This ensures the frontend receives the notification immediately without refresh
+                var notificationDto = new
+                {
+                    id = userNotification.Id,
+                    notificationId = notification.Id,
+                    userId = userId,
+                    isRead = false,
+                    createdAt = userNotification.CreatedAt,
+                    notification = new
+                    {
+                        id = notification.Id,
+                        title = notification.Title,
+                        message = notification.Message,
+                        type = notification.Type,
+                        priority = notification.Priority,
+                        category = notification.Category,
+                        createdAt = notification.CreatedAt
+                    }
+                };
+
+                await _sseService.NotifyAsync(userId, "notification", new
+                {
+                    type = "notification",
+                    data = notificationDto
+                }, ct);
+
+                _logger.LogInformation(
+                    "SSE notification sent to user {UserId} for notification {NotificationId}",
                     userId,
                     notification.Id);
             }

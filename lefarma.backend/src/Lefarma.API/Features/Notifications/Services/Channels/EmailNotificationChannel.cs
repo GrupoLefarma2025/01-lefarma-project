@@ -6,12 +6,15 @@ using MailKit.Security;
 using MimeKit;
 using Microsoft.Extensions.Options;
 using System.Globalization;
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
 
 /// <summary>
 /// Email notification channel implementation using MailKit.
 /// Supports HTML templates, multiple recipients, CC/BCC, and SMTP authentication.
+/// Handles SSL certificate validation and different connection modes (SSL/TLS/STARTTLS).
 /// </summary>
 public class EmailNotificationChannel : INotificationChannel
 {
@@ -146,22 +149,68 @@ public class EmailNotificationChannel : INotificationChannel
             using var client = new SmtpClient();
             client.Timeout = _settings.Timeout;
 
+            // IMPORTANT: SSL certificate validation callback
+            // This allows self-signed certificates (common in corporate SMTP servers)
+            // Set this BEFORE connecting
+            client.ServerCertificateValidationCallback = (sender, certificate, chain, sslPolicyErrors) =>
+            {
+                // If explicitly configured to accept all certificates (for dev/internal servers)
+                if (_settings.AcceptInvalidCertificates)
+                {
+                    _logger.LogWarning("Accepting potentially invalid SSL certificate (AcceptInvalidCertificates=true)");
+                    return true;
+                }
+
+                // Default behavior: require valid certificates
+                if (sslPolicyErrors == SslPolicyErrors.None)
+                {
+                    return true;
+                }
+
+                _logger.LogError("SSL Certificate validation failed: {SslPolicyErrors}", sslPolicyErrors);
+                return false;
+            };
+
             try
             {
-                _logger.LogDebug("Connecting to SMTP server: {Server}:{Port}", _settings.SmtpServer, _settings.SmtpPort);
+                _logger.LogInformation("Connecting to SMTP server: {Server}:{Port} (SSL: {UseSsl})", _settings.SmtpServer, _settings.SmtpPort, _settings.UseSsl);
 
-                // Connect to SMTP server
-                var secureSocketOptions = _settings.UseSsl
-                    ? SecureSocketOptions.StartTls
-                    : SecureSocketOptions.None;
+                // Auto-detect SSL mode based on port and UseSsl setting
+                // Port 465 = SSL implicit (SslOnConnect)
+                // Port 587 = STARTTLS (StartTls)
+                // Port 25 = No encryption by default
+                SecureSocketOptions secureSocketOptions;
+
+                if (!_settings.UseSsl)
+                {
+                    secureSocketOptions = SecureSocketOptions.None;
+                    _logger.LogDebug("Using unencrypted connection");
+                }
+                else if (_settings.SmtpPort == 465)
+                {
+                    secureSocketOptions = SecureSocketOptions.SslOnConnect;
+                    _logger.LogDebug("Using SSL implicit (port 465)");
+                }
+                else
+                {
+                    // Default for port 587 and other TLS ports
+                    secureSocketOptions = SecureSocketOptions.StartTls;
+                    _logger.LogDebug("Using STARTTLS (port {Port})", _settings.SmtpPort);
+                }
 
                 await client.ConnectAsync(_settings.SmtpServer, _settings.SmtpPort, secureSocketOptions, ct);
+                _logger.LogInformation("Successfully connected to SMTP server");
 
                 // Authenticate if credentials provided
                 if (!string.IsNullOrWhiteSpace(_settings.SmtpUser) && !string.IsNullOrWhiteSpace(_settings.SmtpPassword))
                 {
-                    _logger.LogDebug("Authenticating to SMTP server as: {User}", _settings.SmtpUser);
+                    _logger.LogInformation("Authenticating to SMTP server as: {User}", _settings.SmtpUser);
                     await client.AuthenticateAsync(_settings.SmtpUser, _settings.SmtpPassword, ct);
+                    _logger.LogInformation("SMTP authentication successful");
+                }
+                else
+                {
+                    _logger.LogWarning("No SMTP credentials provided, attempting anonymous send");
                 }
 
                 // Send message
@@ -181,14 +230,53 @@ public class EmailNotificationChannel : INotificationChannel
 
                 return result;
             }
+            catch (AuthenticationException ex)
+            {
+                _logger.LogError(ex, "SMTP authentication failed for user {User}. Check credentials.", _settings.SmtpUser);
+                result.FailedRecipients = recipients;
+                result.Message = $"SMTP authentication failed: {ex.Message}";
+                return result;
+            }
+            catch (MailKit.Security.SslHandshakeException ex)
+            {
+                _logger.LogError(ex, "SSL/TLS handshake failed with {Server}:{Port}. If using self-signed certificates, set AcceptInvalidCertificates=true.", _settings.SmtpServer, _settings.SmtpPort);
+                result.FailedRecipients = recipients;
+                result.Message = $"SSL/TLS handshake failed: {ex.Message}. If using self-signed certificates, set AcceptInvalidCertificates=true in EmailSettings.";
+                return result;
+            }
+            catch (MailKit.ServiceNotConnectedException ex)
+            {
+                _logger.LogError(ex, "SMTP connection failed to {Server}:{Port}", _settings.SmtpServer, _settings.SmtpPort);
+                result.FailedRecipients = recipients;
+                result.Message = $"Failed to connect to SMTP server: {ex.Message}";
+                return result;
+            }
+            catch (MailKit.ProtocolException ex)
+            {
+                _logger.LogError(ex, "SMTP protocol error with {Server}:{Port}", _settings.SmtpServer, _settings.SmtpPort);
+                result.FailedRecipients = recipients;
+                result.Message = $"SMTP protocol error: {ex.Message}";
+                return result;
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Network I/O error while sending email to {Server}:{Port}", _settings.SmtpServer, _settings.SmtpPort);
+                result.FailedRecipients = recipients;
+                result.Message = $"Network error: {ex.Message}";
+                return result;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Email sending operation was cancelled (timeout or cancellation token)");
+                result.FailedRecipients = recipients;
+                result.Message = "Operation cancelled or timed out";
+                return result;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send email via SMTP");
-
-                // On failure, mark all recipients as failed
+                _logger.LogError(ex, "Unexpected error sending email via SMTP to {Recipients}", message.Recipients);
                 result.FailedRecipients = recipients;
-                result.Message = $"Failed to send email: {ex.Message}";
-
+                result.Message = $"Unexpected error: {ex.Message}";
                 return result;
             }
         }

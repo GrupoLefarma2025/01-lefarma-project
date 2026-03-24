@@ -42,6 +42,12 @@ public class EmailSettings
     public bool UseSsl { get; set; } = true;
 
     /// <summary>
+    /// Accept SSL certificates that cannot be validated (e.g., self-signed certificates).
+    /// WARNING: Only enable this for development or internal corporate SMTP servers.
+    /// </summary>
+    public bool AcceptInvalidCertificates { get; set; } = false;
+
+    /// <summary>
     /// Connection timeout in milliseconds
     /// </summary>
     public int Timeout { get; set; } = 30000;
