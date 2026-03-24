@@ -102,7 +102,10 @@ export default function EstatusOrdenList() {
       accessorKey: 'requiereAccion',
       header: 'Req. Acción',
       cell: ({ row }) => (
-        <Badge variant={row.original.requiereAccion ? 'warning' : 'secondary'} className="h-5">
+        <Badge
+          variant={row.original.requiereAccion ? 'default' : 'secondary'}
+          className={row.original.requiereAccion ? 'bg-orange-500 hover:bg-orange-600' : ''}
+        >
           {row.original.requiereAccion ? 'Sí' : 'No'}
         </Badge>
       ),

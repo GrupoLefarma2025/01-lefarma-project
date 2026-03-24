@@ -263,7 +263,10 @@ export default function ProveedoresList() {
       accessorKey: 'sinDatosFiscales',
       header: 'Sin Datos Fiscales',
       cell: ({ row }) => (
-        <Badge variant={row.original.sinDatosFiscales ? 'warning' : 'secondary'} className="h-5">
+        <Badge
+          variant={row.original.sinDatosFiscales ? 'default' : 'secondary'}
+          className={row.original.sinDatosFiscales ? 'bg-orange-500 hover:bg-orange-600' : ''}
+        >
           {row.original.sinDatosFiscales ? 'Sí' : 'No'}
         </Badge>
       ),

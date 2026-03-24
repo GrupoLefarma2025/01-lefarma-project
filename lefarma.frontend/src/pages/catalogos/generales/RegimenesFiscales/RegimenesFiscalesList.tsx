@@ -36,7 +36,7 @@ const ENDPOINT = '/catalogos/RegimenesFiscales';
 const regimenFiscalSchema = z.object({
   clave: z.string().min(1, 'La clave es obligatoria'),
   descripcion: z.string().min(3, 'La descripción debe tener al menos 3 caracteres'),
-  tipoPersona: z.enum(['Moral', 'Física'], { errorMap: () => ({ message: 'El tipo de persona es obligatorio' }) }),
+  tipoPersona: z.enum(['Moral', 'Física'], { message: 'El tipo de persona es obligatorio' }),
   activo: z.boolean(),
 });
 

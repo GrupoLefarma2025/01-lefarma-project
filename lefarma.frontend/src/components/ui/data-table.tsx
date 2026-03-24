@@ -270,8 +270,8 @@ export function DataTable<TData>({
             <FilterConfig
               tableId={filterConfig.tableId}
               allColumns={columns.map(col => ({
-                id: (col.id || col.accessorKey as string) || '',
-                header: String(col.header || col.id || col.accessorKey)
+                id: col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '') || '',
+                header: String(col.header || col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : ''))
               }))}
               searchableColumns={filterConfig.searchableColumns}
               visibleColumns={visibleColumnIds}
