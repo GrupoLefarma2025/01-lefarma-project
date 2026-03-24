@@ -74,9 +74,6 @@ export function NotificationBell({ onError }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const { isConnected } = useNotifications({
     autoConnect: true,
-    onConnectionChange: (isConnected) => {
-      console.log('[NotificationBell] SSE connection:', isConnected ? 'connected' : 'disconnected');
-    },
   });
 
   const {
@@ -114,9 +111,7 @@ export function NotificationBell({ onError }: NotificationBellProps) {
    * Carga inicial de notificaciones cuando el usuario se autentica
    */
   useEffect(() => {
-    console.log('[NotificationBell] User:', user, 'Loading notifications for userId:', user?.id);
     if (user?.id && notifications.length === 0) {
-      console.log('[NotificationBell] Loading notifications...');
       loadNotifications(user.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

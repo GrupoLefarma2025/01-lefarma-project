@@ -281,12 +281,12 @@ export const FilterConfig = ({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="=">Igual (=)</SelectItem>
-                                <SelectItem value="!=">Diferente (!=)</SelectItem>
-                                <SelectItem value=">">Mayor (>)</SelectItem>
-                                <SelectItem value="<">Menor (&lt;)</SelectItem>
                                 <SelectItem value=">=">Mayor o igual (&gt;=)</SelectItem>
                                 <SelectItem value="<=">Menor o igual (&lt;=)</SelectItem>
+                                <SelectItem value="=">Igual (=)</SelectItem>
+                                <SelectItem value="!=">Diferente (!=)</SelectItem>
+                                <SelectItem value=">">Mayor (&gt;)</SelectItem>
+                                <SelectItem value="<">Menor (&lt;)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

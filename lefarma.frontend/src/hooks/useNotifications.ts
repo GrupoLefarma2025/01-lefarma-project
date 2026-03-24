@@ -63,7 +63,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
    * Maneja la apertura de la conexión SSE
    */
   const handleOpen = useCallback(() => {
-    console.log('[Notifications SSE] Conexión establecida');
     // Reiniciar contador de reintentos cuando la conexión es exitosa
     reconnectAttemptsRef.current = 0;
     setConnected(true);
@@ -114,7 +113,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     if (isMountedRef.current && isAuthenticated) {
       reconnectTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
-          console.log(`[Notifications SSE] Reintento ${reconnectAttemptsRef.current}/3`);
           connectRef.current?.();
         }
       }, delay);
@@ -130,8 +128,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
       if (data.type === 'notification') {
         const notification = data.data as UserNotification;
-        console.log('[Notifications SSE] Notificación recibida:', notification);
-
         addNotification(notification);
         onNotification?.(notification);
 
@@ -185,7 +181,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     const currentAuth = useAuthStore.getState().isAuthenticated;
 
     if (!currentToken || !currentAuth) {
-      console.log('[Notifications SSE] No token o no autenticado, skipping connection');
       return;
     }
 
@@ -195,7 +190,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
     try {
       const url = `${SSE_NOTIFICATIONS_URL}?token=${encodeURIComponent(currentToken)}`;
-      console.log('[Notifications SSE] Conectando a:', url.replace(/token=[^&]+/, 'token=***'));
       eventSourceRef.current = new EventSource(url);
 
       eventSourceRef.current.onopen = handleOpen;

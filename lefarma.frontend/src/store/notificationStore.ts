@@ -50,13 +50,6 @@ export const useNotificationStore = create<NotificationState>()(
       addNotification: (notification) => {
         const { notifications, unreadCount } = get();
 
-        console.log('[notificationStore] addNotification called (SSE):', {
-          notificationId: notification.id,
-          isRead: notification.isRead,
-          currentCount: notifications.length,
-          currentUnread: unreadCount
-        });
-
         // Buscar si ya existe una notificación con el mismo ID
         const existingIndex = notifications.findIndex((n) => n.id === notification.id);
 
@@ -69,11 +62,6 @@ export const useNotificationStore = create<NotificationState>()(
             const newNotifications = [...notifications];
             newNotifications[existingIndex] = notification;
             const newUnreadCount = unreadCount + 1;
-
-            console.log('[notificationStore] Existing notification marked as unread, incrementing counter:', {
-              oldUnread: unreadCount,
-              newUnread: newUnreadCount
-            });
 
             set({
               notifications: newNotifications,
@@ -151,9 +139,7 @@ export const useNotificationStore = create<NotificationState>()(
           });
 
           try {
-            console.log('[notificationStore] Marking notification as read:', { notificationId, userId });
             await notificationService.markAsRead(notificationId, userId);
-            console.log('[notificationStore] Successfully marked as read');
           } catch (error) {
             console.error('[notificationStore] Error marking notification as read:', error);
             // Revert on error
