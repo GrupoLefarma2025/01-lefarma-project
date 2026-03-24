@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Bell, Check, CheckCircle2, Filter, Trash2 } from 'lucide-react';
+import { Bell, Check, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,7 +83,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     category?: NotificationCategory;
     priority?: NotificationPriority;
   }>({
-    unreadOnly: false,
+    unreadOnly: true,  // Por default mostrar solo no leídas
   });
 
   const {
@@ -96,10 +96,25 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     markAllAsRead,
   } = useNotificationList();
 
-  // Cargar notificaciones al montar
+  // Cargar notificaciones al montar (SOLO la primera vez)
   useEffect(() => {
     loadNotifications(userId, filter);
-  }, [userId, filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]);  // Solo se ejecuta una vez al montar
+
+  // Filtrar notificaciones localmente (sin llamar al backend)
+  let filteredNotifications = notifications.filter((notification) => {
+    if (filter.unreadOnly && notification.isRead) return false;
+    if (filter.type && filter.type !== 'all' && notification.notification?.type !== filter.type) return false;
+    if (filter.category && filter.category !== 'all' && notification.notification?.category !== filter.category) return false;
+    if (filter.priority && filter.priority !== 'all' && notification.notification?.priority !== filter.priority) return false;
+    return true;
+  });
+
+  // Ordenar por fecha descendente (más recientes primero)
+  filteredNotifications = filteredNotifications.sort((a, b) =>
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
 
   /**
    * Aplica los filtros seleccionados
@@ -235,17 +250,6 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
                 <SelectItem value="low">Baja</SelectItem>
               </SelectContent>
             </Select>
-
-            {/* Recargar */}
-            <Button
-              onClick={() => loadNotifications(userId, filter)}
-              variant="outline"
-              size="sm"
-              disabled={isLoading}
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Actualizar
-            </Button>
           </div>
         </CardContent>
       </Card>

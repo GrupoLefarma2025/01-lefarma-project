@@ -5,7 +5,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Bell } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuthStore } from '@/store/authStore';
@@ -69,6 +70,7 @@ function getPriorityColor(priority: NotificationPriority): string {
  */
 export function NotificationBell({ onError }: NotificationBellProps) {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const { isConnected } = useNotifications({
     autoConnect: true,
@@ -174,9 +176,7 @@ export function NotificationBell({ onError }: NotificationBellProps) {
                 No tienes notificaciones
               </div>
             ) : (
-              notifications.map((userNotification) => {
-                console.log('[NotificationBell] Rendering userNotification:', userNotification);
-
+              notifications.slice(0, 5).map((userNotification) => {
                 // Backend devuelve los datos directamente en userNotification,
                 // no anidados en userNotification.notification
                 const title = userNotification.title ||
@@ -242,6 +242,15 @@ export function NotificationBell({ onError }: NotificationBellProps) {
             >
               Marcar todas como leídas
             </DropdownMenuItem>
+            {notifications.length > 5 && (
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => navigate('/notificaciones')}
+              >
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Ver todas las notificaciones
+              </DropdownMenuItem>
+            )}
           </>
         )}
       </DropdownMenuContent>
