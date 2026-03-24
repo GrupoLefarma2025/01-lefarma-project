@@ -132,18 +132,6 @@ export function DataTable<TData>({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
 
-  // Sync visibleColumnIds from useTableFilters with TanStack Table columnVisibility
-  useEffect(() => {
-    if (filterEnabled) {
-      const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
-      const newVisibility: Record<string, boolean> = {};
-      allColumnIds.forEach(id => {
-        newVisibility[id] = visibleColumnIds.includes(id);
-      });
-      setColumnVisibility(newVisibility);
-    }
-  }, [visibleColumnIds, columns, filterEnabled]);
-
   // Filter logic
   const filterEnabled = !!filterConfig;
   const {
@@ -165,6 +153,18 @@ export function DataTable<TData>({
     defaultSearchColumns: filterConfig?.defaultSearchColumns,
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
+
+  // Sync visibleColumnIds from useTableFilters with TanStack Table columnVisibility
+  useEffect(() => {
+    if (filterEnabled) {
+      const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
+      const newVisibility: Record<string, boolean> = {};
+      allColumnIds.forEach(id => {
+        newVisibility[id] = visibleColumnIds.includes(id);
+      });
+      setColumnVisibility(newVisibility);
+    }
+  }, [visibleColumnIds, columns, filterEnabled]);
 
   // Convert activeFilters to TanStack Table format
   const computedColumnFilters = useMemo(() => {
