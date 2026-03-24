@@ -175,8 +175,22 @@ export function NotificationBell({ onError }: NotificationBellProps) {
               </div>
             ) : (
               notifications.map((userNotification) => {
-                const notification = userNotification.notification;
-                if (!notification) return null;
+                console.log('[NotificationBell] Rendering userNotification:', userNotification);
+
+                // Backend devuelve los datos directamente en userNotification,
+                // no anidados en userNotification.notification
+                const title = userNotification.title ||
+                              userNotification.notification?.title ||
+                              'Sin título';
+                const message = userNotification.message ||
+                                 userNotification.notification?.message ||
+                                 'Sin mensaje';
+                const type = userNotification.type ||
+                            userNotification.notification?.type ||
+                            'info';
+                const priority = userNotification.priority ||
+                               userNotification.notification?.priority ||
+                               'normal';
 
                 const timeAgo = formatDistanceToNow(new Date(userNotification.createdAt), {
                   addSuffix: true,
@@ -192,22 +206,20 @@ export function NotificationBell({ onError }: NotificationBellProps) {
                     onClick={() => handleNotificationClick(userNotification.id)}
                   >
                     <div className="flex items-start gap-2 w-full">
-                      <span className="text-lg">{getNotificationIcon(notification.type)}</span>
+                      <span className="text-lg">{getNotificationIcon(type as NotificationType)}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <p className="text-sm font-medium truncate">
-                            {notification.title}
+                            {title}
                           </p>
                           {!userNotification.isRead && (
                             <span
-                              className={`h-2 w-2 rounded-full ${getPriorityColor(
-                                notification.priority
-                              )}`}
+                              className={`h-2 w-2 rounded-full ${getPriorityColor(priority as NotificationPriority)}`}
                             />
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground line-clamp-2">
-                          {notification.message}
+                          {message}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
                           {timeAgo}

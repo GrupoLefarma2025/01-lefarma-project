@@ -274,8 +274,20 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
         <ScrollArea className="h-[600px]">
           <div className="space-y-2 pr-4">
             {notifications.map((userNotification) => {
-              const notification = userNotification.notification;
-              if (!notification) return null;
+              // Backend devuelve los datos directamente en userNotification,
+              // no anidados en userNotification.notification
+              const title = userNotification.title ||
+                            userNotification.notification?.title ||
+                            'Sin título';
+              const message = userNotification.message ||
+                             userNotification.notification?.message ||
+                             'Sin mensaje';
+              const type = userNotification.type ||
+                          userNotification.notification?.type ||
+                          'info';
+              const priority = userNotification.priority ||
+                             userNotification.notification?.priority ||
+                             'normal';
 
               const timeAgo = formatDistanceToNow(new Date(userNotification.createdAt), {
                 addSuffix: true,
@@ -294,13 +306,13 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
                     <div className="flex items-start gap-3">
                       {/* Icono */}
                       <div className="flex-shrink-0 mt-1">
-                        {getNotificationIcon(notification.type)}
+                        {getNotificationIcon(type as NotificationType)}
                       </div>
 
                       {/* Contenido */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2 mb-2">
-                          <h4 className="font-semibold text-sm">{notification.title}</h4>
+                          <h4 className="font-semibold text-sm">{title}</h4>
                           {!userNotification.isRead && (
                             <Badge variant="default" className="flex-shrink-0">
                               Nueva
@@ -309,11 +321,11 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
                         </div>
 
                         <p className="text-sm text-muted-foreground mb-2">
-                          {notification.message}
+                          {message}
                         </p>
 
                         <div className="flex items-center gap-2 flex-wrap">
-                          <PriorityBadge priority={notification.priority} />
+                          <PriorityBadge priority={priority as NotificationPriority} />
                           <span className="text-xs text-muted-foreground">
                             {timeAgo}
                           </span>

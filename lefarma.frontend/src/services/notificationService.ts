@@ -97,7 +97,8 @@ class NotificationService {
    * Marca una notificación como leída
    */
   async markAsRead(notificationId: number, userId: number): Promise<void> {
-    await API.patch(`${this.basePath}/${notificationId}/read`, { userId });
+    // Backend espera UserId con mayúscula (C# naming convention)
+    await API.patch(`${this.basePath}/${notificationId}/read`, { UserId: userId });
   }
 
   /**
