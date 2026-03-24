@@ -366,8 +366,14 @@ export const FilterConfig = ({
           <Button variant="outline" onClick={handleReset}>
             Restaurar defaults
           </Button>
-          <Button onClick={() => setOpen(false)}>
-            Cerrar
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={() => {
+            onSave?.();
+            setOpen(false);
+          }}>
+            Aplicar cambios
           </Button>
         </DialogFooter>
       </DialogContent>

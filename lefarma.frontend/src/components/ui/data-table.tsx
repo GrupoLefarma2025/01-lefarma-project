@@ -12,7 +12,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { useState, useMemo, type ReactNode } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -132,10 +132,23 @@ export function DataTable<TData>({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
 
+  // Sync visibleColumnIds from useTableFilters with TanStack Table columnVisibility
+  useEffect(() => {
+    if (filterEnabled) {
+      const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
+      const newVisibility: Record<string, boolean> = {};
+      allColumnIds.forEach(id => {
+        newVisibility[id] = visibleColumnIds.includes(id);
+      });
+      setColumnVisibility(newVisibility);
+    }
+  }, [visibleColumnIds, columns, filterEnabled]);
+
   // Filter logic
   const filterEnabled = !!filterConfig;
   const {
     activeFilters,
+    searchColumnIds,
     visibleColumnIds,
     addFilter,
     removeFilter,
@@ -145,6 +158,7 @@ export function DataTable<TData>({
     resetToDefaults,
     columnFilterConfigs,
     setColumnFilterConfig,
+    saveConfig,
   } = useTableFilters({
     tableId: filterConfig?.tableId || '',
     allColumns: columns,
@@ -273,17 +287,14 @@ export function DataTable<TData>({
                 id: col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '') || '',
                 header: String(col.header || col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : ''))
               }))}
-              searchableColumns={filterConfig.searchableColumns}
+              searchableColumns={searchColumnIds}
               visibleColumns={visibleColumnIds}
               onSearchColumnsChange={setSearchColumns}
               onVisibleColumnsChange={setVisibleColumns}
               onReset={resetToDefaults}
               columnFilterConfigs={columnFilterConfigs}
               onColumnFilterChange={setColumnFilterConfig}
-              onSave={() => {
-                // Auto-save happens via useEffect in useTableFilters hook
-                // This callback is for explicit save on modal close if needed
-              }}
+              onSave={saveConfig}
             />
           )}
 
