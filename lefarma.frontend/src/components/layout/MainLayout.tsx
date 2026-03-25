@@ -7,8 +7,10 @@ import { useConfigStore } from '@/store/configStore';
 export const MainLayout = () => {
   const { ui } = useConfigStore();
 
+  const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+
   return (
-    <SidebarProvider defaultOpen={!ui.componentes.sidebar.defaultCollapsed}>
+    <SidebarProvider defaultOpen={!defaultCollapsed}>
       <AppSidebar />
       <SidebarInset>
         <Header />

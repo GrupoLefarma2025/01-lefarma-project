@@ -272,6 +272,26 @@ export const useConfigStore = create<ConfigState>()(
         ui: state.ui,
         perfil: state.perfil,
       }), // No persistir sistema (se lee de env vars) ni globalConfig (vendría del backend)
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...persistedState,
+        ui: {
+          ...currentState.ui,
+          ...(persistedState as any)?.ui,
+          componentes: {
+            ...currentState.ui.componentes,
+            ...(persistedState as any)?.ui?.componentes,
+          },
+          visual: {
+            ...currentState.ui.visual,
+            ...(persistedState as any)?.ui?.visual,
+          },
+        },
+        perfil: {
+          ...currentState.perfil,
+          ...(persistedState as any)?.perfil,
+        },
+      }),
     }
   )
 );
