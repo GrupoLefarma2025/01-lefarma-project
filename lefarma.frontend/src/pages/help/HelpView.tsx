@@ -1,20 +1,66 @@
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Edit } from 'lucide-react';
+import { ChevronLeft, Edit, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Textarea } from '@/components/ui/textarea';
 import { useHelpStore } from '@/store/helpStore';
+import LexicalRenderer from '@/components/help/LexicalRenderer';
+import { helpService } from '@/services/helpService';
+import type { UpdateHelpArticleRequest } from '@/types/help.types';
 
 export default function HelpView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { selectedArticle, isLoading, fetchArticleById } = useHelpStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editedContent, setEditedContent] = useState('');
 
   useEffect(() => {
     if (id) {
       fetchArticleById(parseInt(id));
     }
   }, [id, fetchArticleById]);
+
+  useEffect(() => {
+    if (selectedArticle) {
+      setEditedContent(selectedArticle.contenido);
+    }
+  }, [selectedArticle]);
+
+  const handleSave = async () => {
+    if (!selectedArticle || !id) return;
+
+    setIsSaving(true);
+    try {
+      const updateData: UpdateHelpArticleRequest = {
+        id: selectedArticle.id,
+        titulo: selectedArticle.titulo,
+        contenido: editedContent,
+        resumen: selectedArticle.resumen || '',
+        modulo: selectedArticle.modulo,
+        tipo: selectedArticle.tipo,
+        categoria: selectedArticle.categoria || '',
+        orden: selectedArticle.orden,
+        activo: selectedArticle.activo,
+      };
+      await helpService.update(updateData);
+      setIsEditing(false);
+      // Refetch to get updated data
+      await fetchArticleById(parseInt(id));
+    } catch (error) {
+      console.error('Error saving article:', error);
+      alert('Error al guardar artículo');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditedContent(selectedArticle?.contenido || '');
+    setIsEditing(false);
+  };
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -27,13 +73,33 @@ export default function HelpView() {
           <ChevronLeft className="mr-2 h-4 w-4" />
           Volver
         </Button>
-        <Button
-          variant="outline"
-          onClick={() => navigate(`/help/edit/${id}`)}
-        >
-          <Edit className="mr-2 h-4 w-4" />
-          Editar
-        </Button>
+        {!isEditing ? (
+          <Button
+            variant="outline"
+            onClick={() => setIsEditing(true)}
+          >
+            <Edit className="mr-2 h-4 w-4" />
+            Editar
+          </Button>
+        ) : (
+          <>
+            <Button
+              variant="default"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              <Save className="mr-2 h-4 w-4" />
+              {isSaving ? 'Guardando...' : 'Guardar'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleCancelEdit}
+              disabled={isSaving}
+            >
+              Cancelar
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Loading State */}
@@ -92,17 +158,21 @@ export default function HelpView() {
 
           {/* Content */}
           <div className="border-t pt-6">
-            <div className="mb-4 rounded-lg bg-muted p-4 text-sm">
-              <p className="font-semibold mb-2">ℹ️ Contenido mostrado como JSON temporalmente</p>
-              <p className="text-muted-foreground">
-                En la próxima versión se implementará el renderizado visual con Lexical.
-              </p>
-            </div>
-
-            {/* TODO: Implement Lexical renderer for rich content display */}
-            <pre className="whitespace-pre-wrap rounded-lg bg-muted p-6 text-sm overflow-x-auto">
-              {JSON.stringify(JSON.parse(selectedArticle.contenido), null, 2)}
-            </pre>
+            {isEditing ? (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground mb-2">
+                  Editando contenido JSON (próximamente: editor visual con Lexical)
+                </p>
+                <Textarea
+                  value={editedContent}
+                  onChange={(e) => setEditedContent(e.target.value)}
+                  rows={15}
+                  className="font-mono text-sm"
+                />
+              </div>
+            ) : (
+              <LexicalRenderer contenido={selectedArticle.contenido} />
+            )}
           </div>
         </div>
       )}

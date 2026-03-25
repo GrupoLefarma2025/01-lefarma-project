@@ -5,7 +5,7 @@ import type {
   UpdateHelpArticleRequest,
 } from '@/types/help.types';
 
-const HELP_URL = '/api/help/articles';
+const HELP_URL = '/help/articles';
 
 export const helpService = {
   // Get all articles
