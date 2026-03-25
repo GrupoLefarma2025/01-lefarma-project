@@ -24,6 +24,7 @@ import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
 import NotificationsPage from '@/pages/Notifications';
+import HelpList from '@/pages/help/HelpList';
 import NotFound from '@/pages/NotFound';
 
 export const AppRoutes = () => {
@@ -56,6 +57,7 @@ export const AppRoutes = () => {
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/notificaciones" element={<NotificationsPage />} />
+          <Route path="/help" element={<HelpList />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/demo-components" element={<DemoComponents />} />
         </Route>

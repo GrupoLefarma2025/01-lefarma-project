@@ -84,6 +84,11 @@ const menuItems = [
     icon: Settings,
     path: '/configuracion',
   },
+  {
+    title: 'Ayuda',
+    icon: HelpCircle,
+    path: '/help',
+  },
 ];
 
 export function AppSidebar() {
@@ -184,12 +189,6 @@ export function AppSidebar() {
             <SidebarMenuButton size="sm" onClick={handleLogout} tooltip="Cerrar Sesión">
               <LogOut className="h-4 w-4" />
               <span>Cerrar Sesión</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="sm" tooltip="Soporte">
-              <HelpCircle className="h-4 w-4" />
-              <span>Soporte</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
