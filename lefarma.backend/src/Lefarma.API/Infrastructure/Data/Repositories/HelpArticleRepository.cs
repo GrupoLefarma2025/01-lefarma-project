@@ -20,7 +20,7 @@ public class HelpArticleRepository : BaseRepository<HelpArticle>, IHelpArticleRe
     }
 
     /// <summary>
-    /// Obtiene todos los artículos de ayuda activos ordenados por módulo y orden.
+    /// Obtiene todos los artículos de ayuda activos ordenados por fecha de actualización descendente (más recientes primero).
     /// Implementación de interfaz con filtros específicos de HelpArticle.
     /// </summary>
     public async Task<IEnumerable<HelpArticle>> GetAllAsync(CancellationToken ct)
@@ -28,33 +28,34 @@ public class HelpArticleRepository : BaseRepository<HelpArticle>, IHelpArticleRe
         return await _context.HelpArticles
             .AsNoTracking()
             .Where(a => a.Activo)
-            .OrderBy(a => a.Modulo)
-            .ThenBy(a => a.Orden)
+            .OrderByDescending(a => a.FechaActualizacion)
+            .ThenByDescending(a => a.FechaCreacion)
             .ToListAsync(ct);
     }
 
     /// <summary>
-    /// Obtiene artículos de ayuda por módulo.
+    /// Obtiene artículos de ayuda por módulo, ordenados por fecha de actualización descendente.
     /// </summary>
     public async Task<IEnumerable<HelpArticle>> GetByModuleAsync(string modulo, CancellationToken ct)
     {
         return await _context.HelpArticles
             .AsNoTracking()
             .Where(a => a.Modulo == modulo && a.Activo)
-            .OrderBy(a => a.Orden)
+            .OrderByDescending(a => a.FechaActualizacion)
+            .ThenByDescending(a => a.FechaCreacion)
             .ToListAsync(ct);
     }
 
     /// <summary>
-    /// Obtiene artículos de ayuda por tipo.
+    /// Obtiene artículos de ayuda por tipo, ordenados por fecha de actualización descendente.
     /// </summary>
     public async Task<IEnumerable<HelpArticle>> GetByTypeAsync(string tipo, CancellationToken ct)
     {
         return await _context.HelpArticles
             .AsNoTracking()
             .Where(a => a.Tipo == tipo && a.Activo)
-            .OrderBy(a => a.Modulo)
-            .ThenBy(a => a.Orden)
+            .OrderByDescending(a => a.FechaActualizacion)
+            .ThenByDescending(a => a.FechaCreacion)
             .ToListAsync(ct);
     }
 
