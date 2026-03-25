@@ -232,6 +232,356 @@ src/
    - Connection lifecycle tied to authentication state
    - Real-time notification updates in UI
 
+## Working with This Project
+
+### Development Workflow
+
+#### 1. Setup for Development
+```bash
+# Start backend (Terminal 1)
+cd lefarma.backend/src/Lefarma.API
+fuser -k 5134/tcp 2>/dev/null; clear; dotnet run
+
+# Start frontend (Terminal 2)
+cd lefarma.frontend
+npm run dev
+```
+
+Both services must be running for full functionality.
+
+#### 2. Typical Feature Development
+
+**Backend (Catalog Feature)**:
+```bash
+# 1. Create entity
+Domain/Entities/MyEntity.cs
+
+# 2. Create EF config
+Infrastructure/Data/Configurations/MyEntityConfiguration.cs
+
+# 3. Create repository interface
+Domain/Interfaces/ICatalogos/IMyEntityRepository.cs
+
+# 4. Create repository implementation
+Infrastructure/Data/Repositories/Catalogos/MyEntityRepository.cs
+
+# 5. Create service interface and implementation
+Features/Catalogos/MyEntity/IMyEntityService.cs
+Features/Catalogos/MyEntity/MyEntityService.cs
+
+# 6. Create FluentValidation validator
+Features/Catalogos/MyEntity/MyEntityValidator.cs
+
+# 7. Create controller
+Features/Catalogos/MyEntity/MyEntitiesController.cs
+
+# 8. Register in Program.cs
+builder.Services.AddScoped<IMyEntityRepository, MyEntityRepository>();
+builder.Services.AddScoped<IMyEntityService, MyEntityService>();
+
+# 9. Create migration
+dotnet ef migrations add AddMyEntity
+dotnet ef database update
+```
+
+**Frontend (Catalog Page)**:
+```bash
+# 1. Create types
+types/catalogo.types.ts
+
+# 2. Create page component
+pages/catalogos/MyEntity/MyEntityList.tsx
+
+# 3. Add route
+routes/AppRoutes.tsx
+
+# 4. Add sidebar item (if applicable)
+components/layout/Sidebar.tsx
+```
+
+#### 3. Validation Protocol (MANDATORY)
+
+**CRITICAL: Todo cambio debe validarse antes de considerarse completo**
+
+Antes de hacer commit de cualquier cambio, ejecuta este protocolo:
+
+**a) Visual Validation**
+1. Navegar a la página afectada
+2. Verificar renderizado correcto de UI
+3. Tomar screenshot como evidencia
+
+**b) Functional Testing**
+1. Probar CRUD completo (Create, Read, Update, Delete)
+2. Verificar validaciones (required, formatos, etc.)
+3. Probar casos edge (valores vacíos, inválidos, etc.)
+
+**c) Network Verification**
+1. Abrir DevTools (F12) → Network tab
+2. Verificar endpoints correctos (GET, POST, PUT, DELETE)
+3. Validar payloads (request/response)
+4. Verificar autenticación (Authorization header)
+
+**d) Console Verification**
+1. Revisar Console tab en DevTools
+2. Verificar NO errores de JavaScript
+3. Verificar NO warnings de React
+
+**e) Persistence Testing**
+1. Cambiar configuración (filtros, columnas visibles)
+2. F5 para recargar
+3. Verificar cambios persistieron
+
+#### 4. Browser Automation Testing
+
+Usa **agent-browser** o **chrome-devtools MCP** para testing automatizado:
+
+```bash
+# Example: Test catalog CRUD flow
+agent-browser open http://localhost:5173/catalogos/empresas
+agent-browser fill "#username" "54"
+agent-browser fill "#password" "tt01tt"
+agent-browser click "button[type='submit']"
+agent-browser wait --url "**/dashboard"
+agent-browser goto http://localhost:5173/catalogos/empresas
+agent-browser screenshot initial-state.png
+
+# Test create
+agent-browser click "button:has-text('Nueva Empresa')"
+agent-browser fill "#nombre" "Test Company"
+agent-browser click "button[type='submit']"
+agent-browser wait --text "Test Company"  # Esperar que aparezca en tabla
+agent-browser screenshot after-create.png
+```
+
+### Git Workflow
+
+#### Branch Strategy
+- `main`: Producción, siempre estable
+- `dev`: Desarrollo, fusiona a main cuando está estable
+- `feature/*`: Ramas temporales para features específicos
+
+#### Commit Process
+```bash
+# 1. Crear rama feature (opcional para features grandes)
+git checkout -b feature/nueva-funcionalidad
+
+# 2. Hacer cambios y validar
+# ... código ...
+# ... validar con browser automation ...
+
+# 3. Commits atómicos (un cambio por commit)
+git add .
+git commit -m "feat: add user authentication with LDAP"
+
+# 4. Push y crear PR
+git push origin feature/nueva-funcionalidad
+# Crear Pull Request en GitHub: feature → dev
+
+# 5. Fusionar a dev
+git checkout dev
+git pull origin dev
+git merge feature/nueva-funcionalidad
+git push origin dev
+```
+
+#### Commit Message Convention
+```
+feat: nueva funcionalidad
+fix: corrección de bug
+docs: cambios en documentación
+style: formato, semi-colons, etc. (no cambia lógica)
+refactor: refactorización de código (no cambia comportamiento)
+test: agregar o actualizar tests
+chore: actualización de build, configs, dependencies
+perf: mejora de rendimiento
+ci: cambios en CI/CD
+```
+
+**NO agregues "Co-Authored-By" a commits** - Solo usa conventional commits format.
+
+### Troubleshooting Common Issues
+
+#### Backend Issues
+
+**"Port 5134 already in use"**
+```bash
+# Solution: Kill process using port
+fuser -k 5134/tcp 2>/dev/null; dotnet run
+```
+
+**"Cannot find module" or dependency errors**
+```bash
+cd lefarma.backend/src/Lefarma.API
+dotnet restore
+```
+
+**LDAP connection fails**
+- Verify AD server is reachable
+- Check credentials in appsettings.json
+- Test with master password: `54`/`tt01tt`
+
+**JWT expires immediately**
+- Check `JwtSettings:ExpiryMinutes` in appsettings.json
+- Verify refresh token logic in authService
+
+#### Frontend Issues
+
+**"Module not found" errors**
+```bash
+cd lefarma.frontend
+rm -rf node_modules package-lock.json
+npm install
+```
+
+**TypeScript compilation errors**
+- Check type definitions in `types/`
+- Verify imports are correct
+- Run `npx tsc --noEmit` to check
+
+**Blank page or white screen**
+- Check browser console for errors
+- Verify VITE_API_URL is correct
+- Check if backend is running on port 5134
+
+**State not updating**
+- Verify Zustand store is configured correctly
+- Check if you're using `set` method properly
+- Look for stale closures in useEffect dependencies
+
+#### Database Issues
+
+**Migration fails**
+```bash
+# Check current migration
+dotnet ef migrations list
+
+# Rollback if needed
+dotnet ef database update 0
+
+# Remove last migration
+dotnet ef migrations remove
+```
+
+**Connection string errors**
+- Verify SQL Server is running
+- Check connection string in appsettings.json
+- Ensure `TrustServerCertificate=true` for development
+
+### Debugging Tips
+
+#### Backend Debugging
+```csharp
+// Use logger in services
+_logger.LogInformation("Processing request for {Id}", id);
+
+// Use Result pattern explicitly
+var result = await _service.GetAsync(id);
+if (result.IsError) {
+    return BadRequest(result.Errors);
+}
+
+// Check state in Program.cs
+app.MapGet("/debug/state", () => {
+    return Results.Ok(new {
+        User = Thread.CurrentPrincipal?.Identity?.Name,
+        Timestamp = DateTime.Now
+    });
+});
+```
+
+#### Frontend Debugging
+```typescript
+// Use console.log strategically
+console.log('🔍 Filtering with:', { searchColumns, search });
+
+// Use React DevTools Profiler
+// Components tab → Check why component re-renders
+
+// Check Zustand store state
+const authState = useAuthStore();
+console.log('Auth state:', authState);
+
+// Use custom hooks for debugging
+useDebugValue(visibleColumnIds); // Shows in DevTools
+```
+
+#### Network Debugging
+```bash
+# Check if backend is reachable
+curl http://localhost:5134/api/health
+
+# Check API with authentication
+curl -H "Authorization: Bearer YOUR_TOKEN" \
+     http://localhost:5134/api/catalogos/empresas
+```
+
+### Code Quality Standards
+
+#### Backend (C#)
+- **Always use `Result<T>` pattern** instead of exceptions for business logic
+- **Use FluentValidation** for all request DTOs
+- **Inject dependencies** via constructor (no `new` in services)
+- **Use async/await** for I/O operations
+- **Add XML documentation comments** to public methods
+- **Follow C# conventions** (PascalCase for methods/properties, camelCase for locals)
+
+#### Frontend (TypeScript/React)
+- **Use TypeScript strictly** - no `any` unless absolutely necessary
+- **Use functional components** with hooks
+- **Use shadcn/ui components** when available
+- **Implement proper error boundaries** around Suspense
+- **Use Zod schemas** for form validation
+- **Follow React best practices** from Vercel:
+  - `rerender-dependencies`: Only primitive dependencies in useEffect
+  - `rerender-move-effect-to-event`: Put event logic in handlers not effects
+  - `async-parallel`: Use Promise.all() for independent async operations
+
+#### Performance Considerations
+
+**Backend:**
+- Use `AsNoTracking` for read-only queries
+- Project navigation properties explicitly (`Include(x => x.Related)`)
+- Use pagination for large datasets
+- Cache frequently accessed data
+
+**Frontend:**
+- Use `useMemo` for expensive computations
+- Use `useCallback` for callbacks passed to child components
+- Lazy load routes with React.lazy()
+- Implement virtual scrolling for large lists (TanStack Table handles this)
+
+### Security Best Practices
+
+#### Backend
+- **Never commit secrets** (connection strings, API keys, JWT secrets)
+- Use environment variables for sensitive data
+- Validate all input (use FluentValidation)
+- Implement proper authorization (check roles + permissions)
+- Use parameterized SQL queries to prevent SQL injection
+- Log all user actions for audit trail
+
+#### Frontend
+- **Never store tokens in plain text** - use httpOnly cookies
+- Implement proper route guards (ProtectedRoute)
+- Sanitize user input before rendering (prevent XSS)
+- Validate API responses before using data
+- Implement proper error handling (don't expose stack traces)
+- Use CSP headers to prevent injection attacks
+
+### When to Ask for Help
+
+Before asking, check:
+1. ✅ Did I read the relevant documentation?
+2. ✅ Did I search the codebase for similar patterns?
+3. ✅ Did I check the error messages in console/network tab?
+4. ✅ Did I try to debug it myself first?
+
+When asking:
+1. Provide context (what are you trying to do?)
+2. Share error messages (screenshot or copy-paste)
+3. Explain what you've tried
+4. Share your hypothesis about the issue
+
 ## Important Configuration
 
 ### Backend Configuration
@@ -505,3 +855,5 @@ const { notifications, markAsRead, markAllAsRead } = useNotifications();
 - Radix UI (component primitives)
 - TailwindCSS (styling)
 - React Hook Form + Zod (forms/validation)
+- TanStack Table v8 (advanced tables with filters)
+- Sonner (toast notifications)

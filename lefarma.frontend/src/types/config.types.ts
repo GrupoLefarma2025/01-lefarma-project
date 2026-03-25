@@ -1,6 +1,39 @@
 // Tipos de notificación
 export type TipoNotificacion = 'in-app' | 'email' | 'telegram' | 'whatsapp';
 
+// Preset identifier type
+export type UIPresetId = 'compacto' | 'estandar' | 'comodo' | 'accesibilidad';
+
+// Visual preferences (apply via CSS variables)
+export interface VisualPreferences {
+  densidad: 'compacto' | 'comodo';
+  fontSize: 'small' | 'medium' | 'large';
+  animations: boolean;
+}
+
+// Component preferences (apply via props)
+export interface ComponentPreferences {
+  tables: {
+    density: 'compact' | 'standard' | 'comfortable';
+    defaultPageSize: number;
+  };
+  sidebar: {
+    defaultCollapsed: boolean;
+  };
+}
+
+// Preset configuration structure
+export interface UIPreset {
+  id: UIPresetId;
+  nombre: string;
+  descripcion: string;
+  icono: any; // Lucide icon component
+  config: {
+    visual: VisualPreferences;
+    componentes: ComponentPreferences;
+  };
+}
+
 // Preferencias de notificación
 export interface NotificacionPreference {
   tipo: TipoNotificacion;
@@ -11,6 +44,12 @@ export interface NotificacionPreference {
 // Configuración de UI
 export interface UIConfig {
   tema: 'light' | 'dark' | 'system';
+
+  // NEW FIELDS
+  presetId: UIPresetId;
+  visual: VisualPreferences;
+  componentes: ComponentPreferences;
+
   notificaciones: {
     tiposHabilitados: TipoNotificacion[];
     preferencias: NotificacionPreference[];
@@ -83,6 +122,9 @@ export interface ConfigState {
 
   // Actions
   setTema: (tema: UIConfig['tema']) => void;
+  setPreset: (presetId: UIPresetId) => void;
+  updateVisualPreferences: (updates: Partial<VisualPreferences>) => void;
+  updateComponentPreferences: (updates: Partial<ComponentPreferences>) => void;
   updateNotificacion: (tipo: TipoNotificacion, enabled: boolean) => void;
   setNotificacionPreferida: (tipo: TipoNotificacion) => void;
   updatePerfil: (perfil: Partial<PerfilConfig>) => void;

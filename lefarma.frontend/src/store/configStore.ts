@@ -1,10 +1,27 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ConfigState, UIConfig, PerfilConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
+import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/types/config.types';
+import { UI_PRESETS } from '@/constants/uiPresets';
 import { useAuthStore } from './authStore';
 
 const DEFAULT_UI_CONFIG: UIConfig = {
   tema: 'system',
+  presetId: 'estandar', // NEW
+  visual: { // NEW
+    densidad: 'comodo',
+    fontSize: 'medium',
+    animations: true,
+  },
+  componentes: { // NEW
+    tables: {
+      density: 'standard',
+      defaultPageSize: 20,
+    },
+    sidebar: {
+      defaultCollapsed: false,
+    },
+  },
   notificaciones: {
     tiposHabilitados: ['in-app'],
     preferencias: [
@@ -58,6 +75,35 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   },
 };
 
+// Helper function to apply visual preferences via CSS variables
+const applyVisualPreferences = (visual: VisualPreferences) => {
+  const root = document.documentElement;
+
+  // Font scale
+  const fontScales: Record<VisualPreferences['fontSize'], number> = {
+    small: 0.875,
+    medium: 1,
+    large: 1.125,
+  };
+  root.style.setProperty('--font-scale', fontScales[visual.fontSize].toString());
+
+  // Spacing factor
+  const spacingFactors: Record<VisualPreferences['densidad'], number> = {
+    compacto: 0.75,
+    comodo: 1,
+  };
+  root.style.setProperty('--spacing-factor', spacingFactors[visual.densidad].toString());
+
+  // Animations
+  if (!visual.animations) {
+    root.setAttribute('data-no-animations', 'true');
+    root.style.setProperty('--transition-duration', '0ms');
+  } else {
+    root.removeAttribute('data-no-animations');
+    root.style.removeProperty('--transition-duration');
+  }
+};
+
 export const useConfigStore = create<ConfigState>()(
   persist(
     (set, get) => ({
@@ -98,6 +144,50 @@ export const useConfigStore = create<ConfigState>()(
             htmlElement.classList.remove('dark');
           }
         }
+      },
+
+      setPreset: (presetId: UIPresetId) => {
+        const preset = UI_PRESETS[presetId];
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            presetId,
+            visual: preset.config.visual,
+            componentes: preset.config.componentes,
+          },
+        }));
+        applyVisualPreferences(preset.config.visual);
+      },
+
+      updateVisualPreferences: (updates: Partial<VisualPreferences>) => {
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            visual: { ...state.ui.visual, ...updates },
+          },
+        }));
+        const newVisual = { ...get().ui.visual, ...updates };
+        applyVisualPreferences(newVisual);
+      },
+
+      updateComponentPreferences: (updates: Partial<ComponentPreferences>) => {
+        set((state) => ({
+          ui: {
+            ...state.ui,
+            componentes: {
+              ...state.ui.componentes,
+              ...updates,
+              tables: {
+                ...state.ui.componentes.tables,
+                ...(updates.tables || {}),
+              },
+              sidebar: {
+                ...state.ui.componentes.sidebar,
+                ...(updates.sidebar || {}),
+              },
+            },
+          },
+        }));
       },
 
       updateNotificacion: (tipo, enabled) => {
@@ -150,14 +240,30 @@ export const useConfigStore = create<ConfigState>()(
 
       resetConfig: () => {
         const user = useAuthStore.getState().user;
+        const defaultPreset = UI_PRESETS.estandar;
         set({
-          ui: DEFAULT_UI_CONFIG,
+          ui: {
+            tema: 'system',
+            presetId: 'estandar',
+            visual: defaultPreset.config.visual,
+            componentes: defaultPreset.config.componentes,
+            notificaciones: {
+              tiposHabilitados: ['in-app'],
+              preferencias: [
+                { tipo: 'in-app', enabled: true },
+                { tipo: 'email', enabled: false },
+                { tipo: 'telegram', enabled: false },
+                { tipo: 'whatsapp', enabled: false },
+              ],
+            },
+          },
           perfil: {
             nombre: user?.nombre || '',
             correo: user?.correo || '',
             notificacionPreferida: 'in-app',
           },
         });
+        applyVisualPreferences(defaultPreset.config.visual);
       },
     }),
     {
