@@ -40,6 +40,7 @@ import { FilterConfig } from "@/components/table/FilterConfig";
 import { ActiveFiltersBar } from "@/components/table/ActiveFiltersBar";
 import { ColumnFilterPopover } from "@/components/table/ColumnFilterPopover";
 import type { FilterConfig as FilterConfigType } from "@/types/table.types";
+import { useConfigStore } from '@/store/configStore';
 
 export type { ColumnDef } from "@tanstack/react-table";
 
@@ -76,6 +77,10 @@ export interface DataTableProps<TData> {
 
   // Filter configuration
   filterConfig?: FilterConfigType<TData>;
+
+  // NEW: Optional density and page size overrides
+  density?: 'compact' | 'standard' | 'comfortable';
+  pageSizeOverride?: number; // renamed to avoid conflict with existing pageSize
 }
 
 // ─── Sorting header helper ─────────────────────────────────────────────────────
@@ -119,7 +124,15 @@ export function DataTable<TData>({
   onRefresh,
   onRowClick,
   filterConfig,
+  density,
+  pageSizeOverride,
 }: DataTableProps<TData>) {
+  const { ui } = useConfigStore();
+
+  // Use config if not explicitly provided
+  const tableDensity = density || ui.componentes.tables.density;
+  const tablePageSize = pageSizeOverride || pageSize || ui.componentes.tables.defaultPageSize;
+
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
@@ -127,7 +140,7 @@ export function DataTable<TData>({
   const [globalFilterValue, setGlobalFilterValue] = useState("");
   const [paginationState, setPaginationState] = useState<PaginationState>({
     pageIndex: 0,
-    pageSize,
+    pageSize: tablePageSize,
   });
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
@@ -228,6 +241,8 @@ export function DataTable<TData>({
     <div
       className={cn(
         "w-full rounded-xl border bg-card shadow-md backdrop-blur-sm",
+        tableDensity === 'compact' && 'data-table-compact',
+        tableDensity === 'comfortable' && 'data-table-comfortable',
         className
       )}
     >

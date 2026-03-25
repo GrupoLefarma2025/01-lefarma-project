@@ -212,3 +212,14 @@
     font-family: 'Geist Variable', 'Geist', ui-sans-serif, system-ui, sans-serif;
   }
 }
+
+/* Table Density Styles */
+.data-table-compact tbody tr td {
+  padding-top: calc(var(--spacing-factor) * 0.25rem);
+  padding-bottom: calc(var(--spacing-factor) * 0.25rem);
+}
+
+.data-table-comfortable tbody tr td {
+  padding-top: calc(var(--spacing-factor) * 1rem);
+  padding-bottom: calc(var(--spacing-factor) * 1rem);
+}

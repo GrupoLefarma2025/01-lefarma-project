@@ -1,9 +1,14 @@
 import { useConfigStore } from '@/store/configStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Moon, Sun, Monitor } from 'lucide-react';
+import { PresetSelector } from '@/components/config/PresetSelector';
+import { AdvancedConfigUI } from '@/components/config/AdvancedConfigUI';
+import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 
 export function UIConfig() {
   const { ui, setTema } = useConfigStore();
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleTemaChange = (tema: 'light' | 'dark' | 'system') => {
     setTema(tema);
@@ -52,6 +57,33 @@ export function UIConfig() {
               ? 'La aplicación usará el tema de tu sistema operativo'
               : `Tema ${ui.tema === 'light' ? 'claro' : 'oscuro'} seleccionado`}
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Configuración de Presets */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Preconfiguración de Interfaz</CardTitle>
+          <CardDescription>
+            Selecciona un estilo predefinido o personaliza avanzado
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PresetSelector />
+
+          {/* Toggle Configuración Avanzada */}
+          <div className="pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="w-full"
+            >
+              {showAdvanced ? 'Ocultar' : 'Mostrar'} Configuración Avanzada
+            </Button>
+          </div>
+
+          {/* Configuración Avanzada */}
+          {showAdvanced && <AdvancedConfigUI />}
         </CardContent>
       </Card>
     </div>
