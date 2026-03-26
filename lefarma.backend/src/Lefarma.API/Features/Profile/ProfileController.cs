@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Lefarma.API.Features.Profile.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
@@ -83,7 +84,9 @@ public class ProfileController : ControllerBase
     /// </summary>
     private int? GetAuthenticatedUserId()
     {
-        var userIdClaim = User.FindFirst("sub")?.Value ?? User.FindFirst("userId")?.Value;
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst("sub")?.Value
+            ?? User.FindFirst("userId")?.Value;
         if (int.TryParse(userIdClaim, out var userId))
             return userId;
 
