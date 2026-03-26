@@ -76,3 +76,6 @@ logs/security/
 
 # Brainstorming mockups
 .superpowers/
+
+# Archivos subidos (media)
+lefarma.backend/src/Lefarma.API/wwwroot/media/
