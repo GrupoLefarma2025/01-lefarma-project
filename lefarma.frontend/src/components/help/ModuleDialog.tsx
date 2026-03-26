@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,

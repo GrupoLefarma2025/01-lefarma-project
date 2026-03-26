@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useHelpStore } from '@/store/helpStore';
 import TinyMceEditor from '@/components/help/TinyMceEditor';
-import HtmlViewer from '@/components/help/HtmlViewer';
+import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { helpService } from '@/services/helpService';
 import type { UpdateHelpArticleRequest } from '@/types/help.types';
 
@@ -164,7 +164,7 @@ export default function HelpView() {
                 onChange={setEditedContent}
               />
             ) : (
-              <HtmlViewer contenido={selectedArticle.contenido} />
+              <TinyMceViewer contenido={selectedArticle.contenido} />
             )}
           </div>
         </div>
