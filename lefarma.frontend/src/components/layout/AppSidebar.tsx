@@ -13,6 +13,7 @@ import {
   Ruler,
   Users,
   CreditCard,
+  FileCheck2,
   Bell,
   MapPin,
   FileText,
@@ -83,6 +84,11 @@ const menuItems = [
     title: 'Configuración',
     icon: Settings,
     path: '/configuracion',
+  },
+  {
+    title: 'Autorizaciones OC',
+    icon: FileCheck2,
+    path: '/ordenes/autorizaciones',
   },
   {
     title: 'Ayuda',

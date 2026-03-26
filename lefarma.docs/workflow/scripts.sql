@@ -72,8 +72,10 @@ CREATE TABLE config.workflow_pasos (
     id_workflow INT NOT NULL,
     orden INT NOT NULL, -- 10, 20, 30...
     nombre_paso VARCHAR(100) NOT NULL,
-    descripcion_ayuda VARCHAR(255) NULL, -- Texto guía para el usuario en el UI
-    
+    codigo_estado VARCHAR(50) UNIQUE NULL, -- Mapea al enum del dominio: 'EN_REVISION_F2', 'AUTORIZADA', etc.
+    descripcion_ayuda VARCHAR(255) NULL,   -- Texto guía para el usuario en el UI
+    handler_key VARCHAR(50) NULL,          -- Step-handler específico: 'Firma3Handler', 'Firma4Handler'
+
     -- Reglas de Validación en el paso
     es_inicio BIT DEFAULT 0,
     es_final BIT DEFAULT 0,
@@ -107,10 +109,11 @@ CREATE TABLE config.workflow_acciones (
     CONSTRAINT FK_workflow_acciones_destino FOREIGN KEY (id_paso_destino) REFERENCES config.workflow_pasos(id_paso)
 );
 
--- 6. NOTIFICACIONES CONFIGURABLES POR ACCIÓN
+-- 6. NOTIFICACIONES CONFIGURABLES POR ACCIÓN (opcionalmente por paso destino)
 CREATE TABLE config.workflow_notificaciones (
     id_notificacion INT IDENTITY(1,1) PRIMARY KEY,
     id_accion INT NOT NULL,
+    id_paso_destino INT NULL, -- Permite diferenciar templates según el destino real (ramas por condición)
     
     -- Canales activos para esta notificación
     enviar_email BIT DEFAULT 1,
@@ -126,7 +129,8 @@ CREATE TABLE config.workflow_notificaciones (
     asunto_template VARCHAR(200) NULL,
     cuerpo_template VARCHAR(MAX) NOT NULL, -- Puede contener tags: {{Folio}}, {{Solicitante}}, {{Monto}}
     
-    CONSTRAINT FK_workflow_notificaciones_accion FOREIGN KEY (id_accion) REFERENCES config.workflow_acciones(id_accion)
+    CONSTRAINT FK_workflow_notificaciones_accion FOREIGN KEY (id_accion) REFERENCES config.workflow_acciones(id_accion),
+    CONSTRAINT FK_workflow_notificaciones_paso_destino FOREIGN KEY (id_paso_destino) REFERENCES config.workflow_pasos(id_paso)
 );
 
 -- 7. REGLAS Y CONDICIONES (Para saltos dinámicos, ej: Si monto > 50k ir a paso X)
@@ -141,7 +145,118 @@ CREATE TABLE config.workflow_condiciones (
     CONSTRAINT FK_workflow_condiciones_paso FOREIGN KEY (id_paso) REFERENCES config.workflow_pasos(id_paso)
 );
 
+-- 8. BITÁCORA INMUTABLE DE EVENTOS (Auditoría de cambios de estado)
+-- Cumple requisito no-funcional: "Cada cambio de estado debe registrarse en una bitácora inmutable"
+CREATE TABLE config.workflow_bitacora (
+    id_evento       INT IDENTITY(1,1) PRIMARY KEY,
+    id_orden        INT NOT NULL,               -- ID de la Orden de Compra (esquema operaciones)
+    id_workflow     INT NOT NULL,
+    id_paso         INT NOT NULL,               -- Paso en el que ocurrió la acción
+    id_accion       INT NOT NULL,               -- Acción ejecutada (Autorizar, Rechazar, etc.)
+    id_usuario      INT NOT NULL,               -- Usuario que ejecutó la acción (otra BD)
+    comentario      VARCHAR(500) NULL,          -- Justificación capturada en el paso
+    datos_snapshot  NVARCHAR(MAX) NULL,         -- JSON snapshot del estado de la orden en ese momento
+    fecha_evento    DATETIME DEFAULT GETDATE() NOT NULL,
+
+    CONSTRAINT FK_bitacora_workflow FOREIGN KEY (id_workflow) REFERENCES config.workflows(id_workflow),
+    CONSTRAINT FK_bitacora_paso    FOREIGN KEY (id_paso)     REFERENCES config.workflow_pasos(id_paso),
+    CONSTRAINT FK_bitacora_accion  FOREIGN KEY (id_accion)   REFERENCES config.workflow_acciones(id_accion)
+    -- Nota: id_orden e id_usuario son relaciones lógicas con el esquema operaciones y BD de seguridad
+);
+
 -- ÍNDICES PARA RENDIMIENTO
 CREATE INDEX IX_usuario_detalle_empresa_sucursal ON config.usuario_detalle (id_empresa, id_sucursal);
 CREATE INDEX IX_workflow_pasos_workflow_orden ON config.workflow_pasos (id_workflow, orden);
 CREATE INDEX IX_workflow_acciones_origen ON config.workflow_acciones (id_paso_origen);
+CREATE INDEX IX_workflow_bitacora_orden ON config.workflow_bitacora (id_orden);
+CREATE INDEX IX_workflow_bitacora_fecha ON config.workflow_bitacora (fecha_evento);
+
+-- =============================================================================
+-- ESQUEMA: operaciones
+-- DESCRIPCIÓN: Módulo de órdenes de compra y procesos operativos.
+-- =============================================================================
+
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'operaciones')
+BEGIN
+    EXEC('CREATE SCHEMA operaciones');
+END
+GO
+
+-- 1. ÓRDENES DE COMPRA (Cabecera)
+CREATE TABLE operaciones.ordenes_compra (
+    id_orden INT IDENTITY(1,1) PRIMARY KEY,
+    folio VARCHAR(50) UNIQUE NOT NULL, -- OC-2026-00001
+    
+    -- Relaciones con catálogos
+    id_empresa INT NOT NULL,
+    id_sucursal INT NOT NULL,
+    id_area INT NOT NULL,
+    id_tipo_gasto INT NOT NULL,
+    id_forma_pago INT NOT NULL,
+    id_usuario_creador INT NOT NULL, -- Usuario que captura la orden
+    
+    -- Estado y workflow
+    estado INT NOT NULL DEFAULT 1, -- Mapea al enum EstadoOC (1=Creada, 2=EnRevisionF2, etc.)
+    id_paso_actual INT NULL, -- FK lógica a config.workflow_pasos
+    
+    -- Datos del proveedor
+    sin_datos_fiscales BIT NOT NULL DEFAULT 0,
+    razon_social_proveedor VARCHAR(255) NOT NULL,
+    rfc_proveedor VARCHAR(13) NULL,
+    codigo_postal_proveedor VARCHAR(10) NULL,
+    id_regimen_fiscal INT NULL,
+    persona_contacto VARCHAR(150) NULL,
+    nota_forma_pago VARCHAR(500) NULL,
+    notas_generales VARCHAR(1000) NULL,
+    
+    -- Campos asignados en Firma 3 (CxP - Polo)
+    id_centro_costo INT NULL,
+    cuenta_contable VARCHAR(50) NULL,
+    
+    -- Campos configurados en Firma 4 (GAF - Diego)
+    requiere_comprobacion_pago BIT NOT NULL DEFAULT 1,
+    requiere_comprobacion_gasto BIT NOT NULL DEFAULT 1,
+    
+    -- Fechas
+    fecha_solicitud DATE NOT NULL,
+    fecha_limite_pago DATE NOT NULL,
+    fecha_creacion DATETIME NOT NULL DEFAULT GETDATE(),
+    fecha_modificacion DATETIME NULL,
+    fecha_autorizacion DATETIME NULL,
+    
+    -- Totales calculados
+    subtotal DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_iva DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_retenciones DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_otros_impuestos DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total DECIMAL(18,2) NOT NULL DEFAULT 0
+);
+
+-- 2. PARTIDAS DE ÓRDENES DE COMPRA
+CREATE TABLE operaciones.ordenes_compra_partidas (
+    id_partida INT IDENTITY(1,1) PRIMARY KEY,
+    id_orden INT NOT NULL,
+    numero_partida INT NOT NULL, -- Secuencia dentro de la orden: 1, 2, 3...
+    descripcion VARCHAR(500) NOT NULL,
+    cantidad DECIMAL(18,3) NOT NULL,
+    id_unidad_medida INT NOT NULL,
+    precio_unitario DECIMAL(18,2) NOT NULL,
+    descuento DECIMAL(18,2) NOT NULL DEFAULT 0,
+    porcentaje_iva DECIMAL(5,2) NOT NULL DEFAULT 16.00,
+    total_retenciones DECIMAL(18,2) NOT NULL DEFAULT 0,
+    otros_impuestos DECIMAL(18,2) NOT NULL DEFAULT 0,
+    deducible BIT NOT NULL DEFAULT 1,
+    total DECIMAL(18,2) NOT NULL,
+    
+    CONSTRAINT FK_ordenes_compra_partidas_orden FOREIGN KEY (id_orden) 
+        REFERENCES operaciones.ordenes_compra(id_orden) ON DELETE CASCADE,
+    CONSTRAINT UQ_orden_numero_partida UNIQUE (id_orden, numero_partida)
+);
+
+-- ÍNDICES PARA RENDIMIENTO
+CREATE INDEX IX_ordenes_compra_folio ON operaciones.ordenes_compra (folio);
+CREATE INDEX IX_ordenes_compra_estado ON operaciones.ordenes_compra (estado);
+CREATE INDEX IX_ordenes_compra_fecha_creacion ON operaciones.ordenes_compra (fecha_creacion);
+CREATE INDEX IX_ordenes_compra_empresa ON operaciones.ordenes_compra (id_empresa, id_sucursal);
+CREATE INDEX IX_ordenes_compra_usuario_creador ON operaciones.ordenes_compra (id_usuario_creador);
+CREATE INDEX IX_ordenes_compra_partidas_orden ON operaciones.ordenes_compra_partidas (id_orden);

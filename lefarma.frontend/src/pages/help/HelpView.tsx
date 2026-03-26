@@ -4,8 +4,8 @@ import { ChevronLeft, Edit, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useHelpStore } from '@/store/helpStore';
-import LexicalEditor from '@/components/help/LexicalEditor';
-import LexicalViewer from '@/components/help/LexicalViewer';
+import TinyMceEditor from '@/components/help/TinyMceEditor';
+import HtmlViewer from '@/components/help/HtmlViewer';
 import { helpService } from '@/services/helpService';
 import type { UpdateHelpArticleRequest } from '@/types/help.types';
 
@@ -159,12 +159,12 @@ export default function HelpView() {
           {/* Content */}
           <div className="border-t pt-6">
             {isEditing ? (
-              <LexicalEditor
+              <TinyMceEditor
                 initialContent={selectedArticle.contenido}
                 onChange={setEditedContent}
               />
             ) : (
-              <LexicalViewer contenido={selectedArticle.contenido} />
+              <HtmlViewer contenido={selectedArticle.contenido} />
             )}
           </div>
         </div>

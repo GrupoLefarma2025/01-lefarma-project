@@ -6,8 +6,8 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import LexicalEditor from '@/components/help/LexicalEditor';
-import LexicalViewer from '@/components/help/LexicalViewer';
+import TinyMceEditor from '@/components/help/TinyMceEditor';
+import HtmlViewer from '@/components/help/HtmlViewer';
 import { useHelpStore } from '@/store/helpStore';
 import type { HelpArticle } from '@/types/help.types';
 
@@ -227,12 +227,12 @@ export default function HelpList() {
             <div className="rounded-lg border p-6 bg-amber-50/50">
               {selectedArticle && (
                 isEditing ? (
-                  <LexicalEditor
+                  <TinyMceEditor
                     initialContent={selectedArticle.contenido}
                     onChange={setEditedContent}
                   />
                 ) : (
-                  <LexicalViewer contenido={selectedArticle.contenido} />
+                  <HtmlViewer contenido={selectedArticle.contenido} />
                 )
               )}
             </div>

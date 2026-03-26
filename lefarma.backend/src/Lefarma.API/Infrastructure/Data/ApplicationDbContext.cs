@@ -1,7 +1,9 @@
-﻿using Lefarma.API.Domain.Entities.Catalogos;
-using Lefarma.API.Domain.Entities.Auth;
+﻿using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.Catalogos;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Logging;
 using Lefarma.API.Domain.Entities.Notifications;
+using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Entities.Help;
 using Lefarma.API.Domain.Entities.Archivos;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +28,19 @@ namespace Lefarma.API.Infrastructure.Data
         public DbSet<GastoUnidadMedida> GastosUnidadesMedida { get; set; }
         public DbSet<UsuarioDetalle> UsuariosDetalle { get; set; }
         public DbSet<FormaPago> FormasPago { get; set; }
+
+        // DbSets - Config (Motor de Workflows)
+        public DbSet<Workflow> Workflows { get; set; }
+        public DbSet<WorkflowPaso> WorkflowPasos { get; set; }
+        public DbSet<WorkflowParticipante> WorkflowParticipantes { get; set; }
+        public DbSet<WorkflowAccion> WorkflowAcciones { get; set; }
+        public DbSet<WorkflowNotificacion> WorkflowNotificaciones { get; set; }
+        public DbSet<WorkflowCondicion> WorkflowCondiciones { get; set; }
+        public DbSet<WorkflowBitacora> WorkflowBitacoras { get; set; }
+
+        // DbSets - Operaciones
+        public DbSet<OrdenCompra> OrdenesCompra { get; set; }
+        public DbSet<OrdenCompraPartida> OrdenesCompraPartidas { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

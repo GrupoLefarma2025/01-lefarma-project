@@ -20,6 +20,8 @@ import EstatusOrdenList from '@/pages/catalogos/generales/EstatusOrden/EstatusOr
 import RegimenesFiscalesList from '@/pages/catalogos/generales/RegimenesFiscales/RegimenesFiscalesList';
 import ProveedoresList from '@/pages/catalogos/generales/Proveedores/ProveedoresList';
 import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
+import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
+import { AutorizacionesOC } from '@/pages/ordenes';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
@@ -57,6 +59,9 @@ export const AppRoutes = () => {
           <Route path="/catalogos/proveedores" element={<ProveedoresList />} />
           <Route path="/catalogos/regimenes-fiscales" element={<RegimenesFiscalesList />} />
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
+          <Route path="/workflows" element={<WorkflowsList />} />
+          <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+          <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/notificaciones" element={<NotificationsPage />} />
           <Route path="/help" element={<HelpList />} />
