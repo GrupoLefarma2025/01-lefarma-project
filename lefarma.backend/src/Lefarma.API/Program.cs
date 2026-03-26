@@ -25,7 +25,6 @@ using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.Help.Services;
 using Lefarma.API.Features.Archivos.Services;
-using Lefarma.API.Features.Archivos.Conversores;
 using Lefarma.API.Features.Archivos.Settings;
 using Microsoft.Extensions.FileProviders;
 using Lefarma.API.Infrastructure.Data;
@@ -134,7 +133,6 @@ builder.Services.AddScoped<IHelpModuleService, HelpModuleService>();
 builder.Services.Configure<ArchivosSettings>(
     builder.Configuration.GetSection("ArchivosSettings"));
 builder.Services.AddScoped<IArchivoRepository, ArchivoRepository>();
-builder.Services.AddScoped<IOfficeToPdfConverter, OfficeToPdfConverter>();
 builder.Services.AddScoped<IArchivoService, ArchivoService>();
 
 // Servicios

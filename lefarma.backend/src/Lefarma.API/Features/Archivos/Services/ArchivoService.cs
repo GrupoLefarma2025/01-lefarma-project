@@ -2,7 +2,6 @@ using System.Text.Json;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Archivos;
 using Lefarma.API.Domain.Interfaces;
-using Lefarma.API.Features.Archivos.Conversores;
 using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Shared.Errors;
@@ -13,18 +12,15 @@ namespace Lefarma.API.Features.Archivos.Services;
 public class ArchivoService : IArchivoService
 {
     private readonly IArchivoRepository _repository;
-    private readonly IOfficeToPdfConverter _pdfConverter;
     private readonly ArchivosSettings _settings;
     private readonly ILogger<ArchivoService> _logger;
 
     public ArchivoService(
         IArchivoRepository repository,
-        IOfficeToPdfConverter pdfConverter,
         IOptions<ArchivosSettings> settings,
         ILogger<ArchivoService> logger)
     {
         _repository = repository;
-        _pdfConverter = pdfConverter;
         _settings = settings.Value;
         _logger = logger;
     }
@@ -176,31 +172,9 @@ public class ArchivoService : IArchivoService
         if (!File.Exists(rutaOriginal))
             return Errors.Archivo.NotFound;
 
-        // Si es PDF o imagen, devolver directamente
-        var extensionesDirectas = new[] { ".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp" };
-        if (extensionesDirectas.Contains(archivo.Extension.ToLowerInvariant()))
-        {
-            var stream = new FileStream(rutaOriginal, FileMode.Open, FileAccess.Read);
-            return (stream, archivo.NombreOriginal, archivo.TipoMime);
-        }
-
-        // Si es Office, convertir a PDF
-        if (_pdfConverter.CanConvert(archivo.Extension))
-        {
-            var directorioTemp = Path.Combine(_settings.BasePath, archivo.Carpeta, "temp");
-            Directory.CreateDirectory(directorioTemp);
-
-            var resultado = await _pdfConverter.ConvertToPdfAsync(rutaOriginal, directorioTemp, cancellationToken);
-            if (resultado.IsError)
-                return Errors.Archivo.PreviewNotSupported;
-
-            var rutaPdf = resultado.Value;
-            var pdfStream = new FileStream(rutaPdf, FileMode.Open, FileAccess.Read);
-            return (pdfStream, $"{Path.GetFileNameWithoutExtension(archivo.NombreOriginal)}.pdf", "application/pdf");
-        }
-
-        // No soportado
-        return Errors.Archivo.PreviewNotSupported;
+        // Devolver el archivo original directamente
+        var stream = new FileStream(rutaOriginal, FileMode.Open, FileAccess.Read);
+        return (stream, archivo.NombreOriginal, archivo.TipoMime);
     }
 
     public async Task<ErrorOr<bool>> DeleteAsync(int id, CancellationToken cancellationToken = default)
