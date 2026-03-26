@@ -61,7 +61,7 @@ export default function LexicalRenderer({ contenido }: LexicalRendererProps) {
     // Text node
     if (node.type === 'text') {
       const textNode = node as LexicalTextNode;
-      let content = textNode.text;
+      let content: React.ReactNode = textNode.text;
 
       // Apply text formatting
       if (textNode.bold) content = <strong key={index}>{content}</strong>;

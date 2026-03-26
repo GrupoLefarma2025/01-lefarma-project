@@ -107,7 +107,7 @@ export function AutoVerify() {
         updateStep(3, {
           status: 'success',
           message: `Login exitoso - User ID: ${userId}`,
-          details: `Token: ${token.substring(0, 30)}...`
+          details: `Token: ${token?.substring(0, 30) ?? 'N/A'}...`
         });
       } else {
         updateStep(3, { status: 'error', message: 'Login falló', details: JSON.stringify(data) });

@@ -38,6 +38,12 @@ export interface UserNotification {
   createdAt: string;
   // Datos del notification relacionados
   notification?: Notification;
+  // Propiedades planas que el backend puede devolver directamente
+  title?: string;
+  message?: string;
+  type?: NotificationType;
+  priority?: NotificationPriority;
+  category?: NotificationCategory;
 }
 
 export interface NotificationChannel {
@@ -147,9 +153,9 @@ export interface NotificationUiState {
 
 export interface NotificationFilter {
   unreadOnly?: boolean;
-  type?: NotificationType;
-  category?: NotificationCategory;
-  priority?: NotificationPriority;
+  type?: NotificationType | 'all';
+  category?: NotificationCategory | 'all';
+  priority?: NotificationPriority | 'all';
   startDate?: string;
   endDate?: string;
 }

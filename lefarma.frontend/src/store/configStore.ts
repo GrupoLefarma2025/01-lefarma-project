@@ -274,7 +274,7 @@ export const useConfigStore = create<ConfigState>()(
       }), // No persistir sistema (se lee de env vars) ni globalConfig (vendría del backend)
       merge: (persistedState, currentState) => ({
         ...currentState,
-        ...persistedState,
+        ...(persistedState as Record<string, unknown>),
         ui: {
           ...currentState.ui,
           ...(persistedState as any)?.ui,

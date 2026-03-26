@@ -103,11 +103,19 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
   }, [filter]);  // Solo se ejecuta una vez al montar
 
   // Filtrar notificaciones localmente (sin llamar al backend)
+  // Normalizar filtros: convertir 'all' a undefined
+  const rawTypeFilter = filter.type as NotificationType | 'all' | undefined;
+  const rawCategoryFilter = filter.category as NotificationCategory | 'all' | undefined;
+  const rawPriorityFilter = filter.priority as NotificationPriority | 'all' | undefined;
+  const typeFilter = rawTypeFilter !== undefined && rawTypeFilter !== 'all' ? rawTypeFilter : undefined;
+  const categoryFilter = rawCategoryFilter !== undefined && rawCategoryFilter !== 'all' ? rawCategoryFilter : undefined;
+  const priorityFilter = rawPriorityFilter !== undefined && rawPriorityFilter !== 'all' ? rawPriorityFilter : undefined;
+  
   let filteredNotifications = notifications.filter((notification) => {
     if (filter.unreadOnly && notification.isRead) return false;
-    if (filter.type && filter.type !== 'all' && notification.notification?.type !== filter.type) return false;
-    if (filter.category && filter.category !== 'all' && notification.notification?.category !== filter.category) return false;
-    if (filter.priority && filter.priority !== 'all' && notification.notification?.priority !== filter.priority) return false;
+    if (typeFilter && notification.notification?.type !== typeFilter) return false;
+    if (categoryFilter && notification.notification?.category !== categoryFilter) return false;
+    if (priorityFilter && notification.notification?.priority !== priorityFilter) return false;
     return true;
   });
 
