@@ -1,5 +1,7 @@
 // Tipos para Permisos (Alineado con AdminDTOs.cs)
 
+import { RolBasicoResponse, UsuarioBasico } from './rol.types';
+
 export interface Permiso {
   idPermiso: number;
   codigoPermiso: string;
@@ -12,6 +14,12 @@ export interface Permiso {
   esSistema: boolean;
   fechaCreacion: string;
   cantidadRoles: number;
+  cantidadUsuarios: number;
+}
+
+export interface PermisoConRolesYUsuarios extends Permiso {
+  roles: RolBasicoResponse[];
+  usuarios: UsuarioBasico[];
 }
 
 export interface CreatePermisoRequest {
@@ -33,4 +41,12 @@ export interface UpdatePermisoRequest {
   recurso?: string;
   accion?: string;
   esActivo: boolean;
+}
+
+export interface AsignarRolesAPermisoRequest {
+  rolesIds: number[];
+}
+
+export interface AsignarUsuariosAPermisoRequest {
+  usuariosIds: number[];
 }

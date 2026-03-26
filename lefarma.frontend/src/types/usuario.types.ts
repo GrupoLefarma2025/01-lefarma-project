@@ -52,5 +52,6 @@ export interface UpdateUsuarioRequest {
   nombreCompleto: string;
   correo?: string;
   rolesIds: number[];
+  permisosIds: number[];
   detalle?: Partial<UsuarioDetalle>;
 }

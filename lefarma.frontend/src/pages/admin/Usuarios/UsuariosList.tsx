@@ -1,17 +1,25 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { 
-  User, 
-  Search, 
-  Pencil, 
-  Loader2, 
-  RefreshCcw, 
-  Mail, 
-  Building2, 
-  Briefcase, 
+import {
+  User,
+  Search,
+  Pencil,
+  Loader2,
+  RefreshCcw,
+  Mail,
+  Building2,
+  Briefcase,
   Bell,
   Smartphone,
+  Shield,
+  Key,
+  X,
+  Plus,
+  Users,
+  UserCog,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +28,8 @@ import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
+import { Rol } from '@/types/rol.types';
+import { Permiso } from '@/types/permiso.types';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -44,12 +54,162 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { cn } from '@/lib/utils';
+
+// Componente memoizado para la sección de roles
+const RolesSection = memo(({
+  rolesIds,
+  roles,
+  onRemoveRol,
+  onAddRoles,
+}: {
+  rolesIds: number[];
+  roles: Rol[];
+  onRemoveRol: (id: number) => void;
+  onAddRoles: () => void;
+}) => (
+  <div className="space-y-3">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2">
+        <Shield className="h-5 w-5 text-muted-foreground" />
+        <label className="text-base font-semibold">Roles Asignados</label>
+        <Badge variant="secondary">
+          {rolesIds.length} rol{rolesIds.length !== 1 ? 'es' : ''}
+        </Badge>
+      </div>
+      <Button type="button" size="sm" variant="outline" onClick={onAddRoles}>
+        <Plus className="h-4 w-4 mr-1" />
+        Agregar
+      </Button>
+    </div>
+
+    {rolesIds.length > 0 ? (
+      <div className="space-y-2">
+        {roles
+          .filter(r => rolesIds.includes(r.idRol))
+          .map((rol) => (
+            <div
+              key={rol.idRol}
+              className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">{rol.nombreRol}</p>
+                  <p className="text-xs text-muted-foreground">{rol.descripcion || 'Sin descripción'}</p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => onRemoveRol(rol.idRol)}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+      </div>
+    ) : (
+      <p className="text-sm text-muted-foreground italic p-4 border border-dashed rounded-lg text-center">
+        No hay roles asignados a este usuario
+      </p>
+    )}
+  </div>
+));
+
+// Componente memoizado para la sección de permisos
+const PermisosSection = memo(({
+  permisosIds,
+  permisosPorCategoria,
+  collapsedCategories,
+  onToggleCategory,
+  onTogglePermiso,
+}: {
+  permisosIds: number[];
+  permisosPorCategoria: Record<string, Permiso[]>;
+  collapsedCategories: Set<string>;
+  onToggleCategory: (categoria: string) => void;
+  onTogglePermiso: (id: number, checked: boolean) => void;
+}) => (
+  <div className="space-y-3">
+    <div className="flex items-center gap-2">
+      <Key className="h-5 w-5 text-muted-foreground" />
+      <label className="text-base font-semibold">Permisos por Categoría</label>
+      <Badge variant="secondary">
+        {permisosIds.length} permiso{permisosIds.length !== 1 ? 's' : ''}
+      </Badge>
+    </div>
+
+    <div className="space-y-2">
+      {Object.entries(permisosPorCategoria)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([categoria, permsCategoria]) => {
+          const isCollapsed = collapsedCategories.has(categoria);
+          const permisosAsignados = permsCategoria.filter(p => permisosIds.includes(p.idPermiso));
+
+          return (
+            <div key={categoria} className="border rounded-lg overflow-hidden">
+              <button
+                type="button"
+                onClick={() => onToggleCategory(categoria)}
+                className="w-full flex items-center justify-between p-3 bg-muted hover:bg-muted/80 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{categoria}</span>
+                  <Badge variant="outline" className="text-xs">
+                    {permisosAsignados.length}/{permsCategoria.length}
+                  </Badge>
+                </div>
+                {isCollapsed ? (
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                ) : (
+                  <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                )}
+              </button>
+
+              {!isCollapsed && (
+                <div className="p-3 space-y-2 bg-background max-h-60 overflow-y-auto">
+                  {permsCategoria.map((permiso) => {
+                    const isChecked = permisosIds.includes(permiso.idPermiso);
+                    return (
+                      <div
+                        key={permiso.idPermiso}
+                        className={cn(
+                          "flex items-start gap-3 p-2 rounded transition-colors",
+                          isChecked ? "bg-primary/5" : ""
+                        )}
+                      >
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={(checked) => onTogglePermiso(permiso.idPermiso, checked as boolean)}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium">{permiso.nombrePermiso}</p>
+                          <p className="text-xs text-muted-foreground truncate">{permiso.codigoPermiso}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+    </div>
+  </div>
+));
 
 const usuarioSchema = z.object({
   samAccountName: z.string().min(1, 'Requerido'),
   nombreCompleto: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   correo: z.string().email('Email inválido').optional().or(z.literal('')),
   rolesIds: z.array(z.number()),
+  permisosIds: z.array(z.number()),
   detalle: z.object({
     idEmpresa: z.number().min(1, 'La empresa es requerida'),
     idSucursal: z.number().min(1, 'La sucursal es requerida'),
@@ -87,12 +247,15 @@ export default function UsuariosList() {
   
   // Catálogos
   const [roles, setRoles] = useState<any[]>([]);
+  const [permisos, setPermisos] = useState<Permiso[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
   const [sucursales, setSucursales] = useState<any[]>([]);
   const [areas, setAreas] = useState<any[]>([]);
-  
+
   const [selectedUsuarioId, setSelectedUsuarioId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRolesModalOpen, setIsRolesModalOpen] = useState(false);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const form = useForm<UsuarioFormValues>({
     resolver: zodResolver(usuarioSchema),
@@ -101,6 +264,7 @@ export default function UsuariosList() {
       nombreCompleto: '',
       correo: '',
       rolesIds: [],
+      permisosIds: [],
       detalle: {
         idEmpresa: 0,
         idSucursal: 0,
@@ -133,6 +297,16 @@ export default function UsuariosList() {
     notificaciones: false,
   }), [errors]);
 
+  const permisosPorCategoria = useMemo(() => {
+    const grupos: Record<string, Permiso[]> = {};
+    permisos.forEach(p => {
+      const cat = p.categoria || 'Sin categoría';
+      if (!grupos[cat]) grupos[cat] = [];
+      grupos[cat].push(p);
+    });
+    return grupos;
+  }, [permisos]);
+
   const fetchUsuarios = async () => {
     try {
       setLoading(true);
@@ -149,14 +323,16 @@ export default function UsuariosList() {
 
   const fetchCatalogos = async () => {
     try {
-      const [rRoles, rEmpresas, rSucursales, rAreas] = await Promise.all([
+      const [rRoles, rPermisos, rEmpresas, rSucursales, rAreas] = await Promise.all([
         API.get<ApiResponse<any[]>>('/Admin/roles'),
+        API.get<ApiResponse<Permiso[]>>('/Admin/permisos'),
         API.get<ApiResponse<any[]>>('/catalogos/Empresas'),
         API.get<ApiResponse<any[]>>('/catalogos/Sucursales'),
         API.get<ApiResponse<any[]>>('/catalogos/Areas'),
       ]);
 
       if (rRoles.data.success) setRoles(rRoles.data.data);
+      if (rPermisos.data.success) setPermisos(rPermisos.data.data);
       if (rEmpresas.data.success) setEmpresas(rEmpresas.data.data);
       if (rSucursales.data.success) setSucursales(rSucursales.data.data);
       if (rAreas.data.success) setAreas(rAreas.data.data);
@@ -177,6 +353,7 @@ export default function UsuariosList() {
       nombreCompleto: usuario.nombreCompleto || '',
       correo: usuario.correo || '',
       rolesIds: usuario.roles?.map(r => r.idRol) || [],
+      permisosIds: usuario.permisosDirectos?.map(p => p.idPermiso) || [],
       detalle: {
         idEmpresa: usuario.detalle?.idEmpresa || 0,
         idSucursal: usuario.detalle?.idSucursal || 0,
@@ -228,6 +405,36 @@ export default function UsuariosList() {
       setIsSaving(false);
     }
   };
+
+  const handleRemoveRol = useCallback((rolId: number) => {
+    const currentIds = form.getValues('rolesIds');
+    form.setValue('rolesIds', currentIds.filter(id => id !== rolId));
+  }, [form]);
+
+  const handleAddRoles = useCallback(() => {
+    setIsRolesModalOpen(true);
+  }, []);
+
+  const handleTogglePermiso = useCallback((permisoId: number, checked: boolean) => {
+    const currentIds = form.getValues('permisosIds');
+    if (checked) {
+      form.setValue('permisosIds', [...currentIds, permisoId]);
+    } else {
+      form.setValue('permisosIds', currentIds.filter(id => id !== permisoId));
+    }
+  }, [form]);
+
+  const toggleCategory = useCallback((categoria: string) => {
+    setCollapsedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoria)) {
+        newSet.delete(categoria);
+      } else {
+        newSet.add(categoria);
+      }
+      return newSet;
+    });
+  }, []);
 
   const filteredUsuarios = useMemo(() => {
     return usuarios.filter(
@@ -472,24 +679,19 @@ export default function UsuariosList() {
                       </FormItem>
                     )}
                   />
-                  <div className="md:col-span-2">
-                    <FormField
-                      control={form.control}
-                      name="rolesIds"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Roles Asignados</FormLabel>
-                          <FormControl>
-                            <MultiSelect
-                              options={roles.map(r => ({ label: r.nombreRol, value: String(r.idRol) }))}
-                              onChange={(vals) => field.onChange(vals.map(v => Number(v)))}
-                              value={field.value.map(v => String(v))}
-                              placeholder="Seleccionar roles..."
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
+                  <div className="md:col-span-2 space-y-4">
+                    <RolesSection
+                      rolesIds={useWatch({ control: form.control, name: 'rolesIds' }) || []}
+                      roles={roles}
+                      onRemoveRol={handleRemoveRol}
+                      onAddRoles={handleAddRoles}
+                    />
+                    <PermisosSection
+                      permisosIds={useWatch({ control: form.control, name: 'permisosIds' }) || []}
+                      permisosPorCategoria={permisosPorCategoria}
+                      collapsedCategories={collapsedCategories}
+                      onToggleCategory={toggleCategory}
+                      onTogglePermiso={handleTogglePermiso}
                     />
                   </div>
                   <FormField
@@ -806,6 +1008,46 @@ export default function UsuariosList() {
               </TabsContent>
             </Tabs>
           </form>
+        </Form>
+      </Modal>
+
+      {/* Modal para agregar roles */}
+      <Modal
+        id="modal-roles"
+        open={isRolesModalOpen}
+        setOpen={setIsRolesModalOpen}
+        title="Agregar Roles"
+        size="md"
+        footer={
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setIsRolesModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={() => setIsRolesModalOpen(false)}>
+              Aceptar
+            </Button>
+          </div>
+        }
+      >
+        <Form {...form}>
+          <FormField
+            control={form.control}
+            name="rolesIds"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Seleccionar Roles</FormLabel>
+                <FormControl>
+                  <MultiSelect
+                    options={roles.map(r => ({ label: r.nombreRol, value: String(r.idRol) }))}
+                    onChange={(vals) => field.onChange(vals.map(v => Number(v)))}
+                    value={field.value.map(v => String(v))}
+                    placeholder="Buscar roles..."
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </Form>
       </Modal>
     </div>

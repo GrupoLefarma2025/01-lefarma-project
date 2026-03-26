@@ -1,5 +1,13 @@
 import { Permiso } from './permiso.types';
 
+export interface UsuarioBasico {
+  idUsuario: number;
+  samAccountName?: string;
+  nombreCompleto?: string;
+  correo?: string;
+  esActivo: boolean;
+}
+
 export interface Rol {
   idRol: number;
   nombreRol: string;
@@ -9,6 +17,10 @@ export interface Rol {
   fechaCreacion: string;
   cantidadUsuarios: number;
   permisos: Permiso[];
+}
+
+export interface RolConUsuarios extends Rol {
+  usuarios: UsuarioBasico[];
 }
 
 export interface RolBasicoResponse {
@@ -31,4 +43,8 @@ export interface UpdateRolRequest {
   descripcion?: string;
   esActivo: boolean;
   permisosIds: number[];
+}
+
+export interface AsignarUsuariosRequest {
+  usuariosIds: number[];
 }
