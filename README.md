@@ -499,12 +499,12 @@ const { notifications, markAsRead, markAllAsRead } = useNotifications();
 
 ## 📁 Sistema de Gestión de Archivos
 
-Sistema genérico para subir, previsualizar y gestionar archivos asociados a cualquier entidad del sistema.
+Sistema genérico para subir y gestionar archivos asociados a cualquier entidad del sistema.
 
 ### Características
 
 - **Upload con Drag & Drop**: Interfaz moderna para subir archivos
-- **Previsualización en Canvas**: PDF e imágenes directamente
+- **Descarga directa**: Los archivos se descargan sin procesamiento
 - **Versionado**: Al reemplazar un archivo, el anterior se marca como inactivo
 - **Soft Delete**: Los archivos eliminados se pueden recuperar
 - **Metadata Flexible**: Campo JSON para datos adicionales por módulo
@@ -512,13 +512,13 @@ Sistema genérico para subir, previsualizar y gestionar archivos asociados a cua
 
 ### Formatos Soportados
 
-| Tipo | Extensiones | Previsualización |
-|------|-------------|------------------|
-| **PDF** | `.pdf` | ✅ Canvas (pdfjs) |
-| **Imágenes** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` | ✅ Canvas |
-| **Excel** | `.xlsx` | ⬇️ Solo descarga |
-| **Word** | `.docx` | ⬇️ Solo descarga |
-| **PowerPoint** | `.pptx` | ⬇️ Solo descarga |
+| Tipo | Extensiones |
+|------|-------------|
+| **PDF** | `.pdf` |
+| **Imágenes** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` |
+| **Excel** | `.xlsx` |
+| **Word** | `.docx` |
+| **PowerPoint** | `.pptx` |
 
 ### Configuración
 
@@ -540,7 +540,7 @@ Sistema genérico para subir, previsualizar y gestionar archivos asociados a cua
 | `GET` | `/api/archivos?entidadTipo=X&entidadId=Y` | Listar archivos |
 | `GET` | `/api/archivos/{id}` | Obtener metadatos |
 | `GET` | `/api/archivos/{id}/download` | Descargar archivo original |
-| `GET` | `/api/archivos/{id}/preview` | Previsualizar (binario directo) |
+| `GET` | `/api/archivos/{id}/preview` | Obtener binario (igual que download) |
 | `POST` | `/api/archivos/{id}/reemplazar` | Reemplazar archivo |
 | `DELETE` | `/api/archivos/{id}` | Eliminar (soft delete) |
 
@@ -559,7 +559,7 @@ import { FileUploader, FileViewer } from '@/components/archivos';
   onUploadComplete={(archivos) => console.log(archivos)}
 />
 
-// Previsualizar archivos
+// Ver detalles y descargar
 <FileViewer
   open={showViewer}
   onClose={() => setShowViewer(false)}
