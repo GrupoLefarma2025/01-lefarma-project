@@ -825,6 +825,11 @@ const EjemploArchivos = () => {
   const [archivoId, setArchivoId] = useState<number | null>(null);
   const [archivoNombre, setArchivoNombre] = useState<string>("");
   const [archivoIdManual, setArchivoIdManual] = useState<string>("");
+  
+  // Parámetros configurables para el upload
+  const [entidadTipo, setEntidadTipo] = useState<string>("demo");
+  const [entidadId, setEntidadId] = useState<string>("123");
+  const [carpeta, setCarpeta] = useState<string>("demo");
 
   const handleUploadComplete = (archivos: { id: number; nombreOriginal: string }[]) => {
     setUploaderOpen(false);
@@ -847,10 +852,40 @@ const EjemploArchivos = () => {
 
   return (
     <div className="space-y-4">
+      {/* Configuración de parámetros */}
+      <div className="grid grid-cols-3 gap-4 p-4 border rounded-xl bg-muted/30">
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Entidad Tipo</label>
+          <Input 
+            placeholder="ej: cotizacion, producto..."
+            value={entidadTipo}
+            onChange={(e) => setEntidadTipo(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Entidad ID</label>
+          <Input 
+            type="number"
+            placeholder="ID de la entidad"
+            value={entidadId}
+            onChange={(e) => setEntidadId(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Carpeta (Path)</label>
+          <Input 
+            placeholder="ej: cotizaciones, productos..."
+            value={carpeta}
+            onChange={(e) => setCarpeta(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* Botón de subir */}
       <button
         onClick={() => setUploaderOpen(true)}
-        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+        disabled={!entidadTipo || !entidadId || !carpeta}
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Upload className="h-4 w-4" />
         Subir Archivo
@@ -880,9 +915,9 @@ const EjemploArchivos = () => {
       <FileUploader
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
-        entidadTipo="demo"
-        entidadId={123}
-        carpeta="demo"
+        entidadTipo={entidadTipo}
+        entidadId={Number(entidadId)}
+        carpeta={carpeta}
         onUploadComplete={handleUploadComplete}
         onError={(error) => toast.error(error)}
       />

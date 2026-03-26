@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Download, FileIcon, AlertCircle } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { archivoService } from '@/services/archivoService';
+import { API } from '@/services/api';
 import type { Archivo } from '@/types/archivo.types';
 
 // Configure PDF.js worker
@@ -53,14 +54,28 @@ export function FileViewer({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const previewUrl = archivoService.getPreviewUrl(archivo.id);
+    // URL relativa (sin /api porque API.get ya lo agrega)
+    const previewUrl = `/archivos/${archivo.id}/preview`;
+
+    // Fetch con autenticación
+    let blob: Blob;
+    try {
+      const response = await API.get(previewUrl, { responseType: 'blob' });
+      blob = response.data as Blob;
+    } catch (err) {
+      setNotSupported(true);
+      drawNotSupported();
+      return;
+    }
+
+    const blobUrl = URL.createObjectURL(blob);
 
     // Check if it's an image
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
     if (imageExtensions.includes(archivo.extension.toLowerCase())) {
       const img = new Image();
-      img.crossOrigin = 'anonymous';
       img.onload = () => {
+        URL.revokeObjectURL(blobUrl); // Cleanup
         const containerWidth = containerRef.current?.clientWidth || 600;
         const scale = containerWidth / img.width;
         canvas.width = containerWidth;
@@ -68,16 +83,17 @@ export function FileViewer({
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       };
       img.onerror = () => {
+        URL.revokeObjectURL(blobUrl);
         setNotSupported(true);
         drawNotSupported();
       };
-      img.src = previewUrl;
+      img.src = blobUrl;
       return;
     }
 
     // Try to render as PDF
     try {
-      const loadingTask = pdfjsLib.getDocument(previewUrl);
+      const loadingTask = pdfjsLib.getDocument(blobUrl);
       const pdf = await loadingTask.promise;
       const page = await pdf.getPage(1);
       
@@ -96,8 +112,9 @@ export function FileViewer({
       };
 
       await page.render(renderContext).promise;
+      URL.revokeObjectURL(blobUrl); // Cleanup after render
     } catch (err) {
-      // 415 error - not supported
+      URL.revokeObjectURL(blobUrl);
       setNotSupported(true);
       drawNotSupported();
     }
@@ -169,11 +186,28 @@ export function FileViewer({
     }
   };
 
+  // Cerrar con Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && open) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b shrink-0">
           <h2 className="text-lg font-semibold truncate">
@@ -191,9 +225,10 @@ export function FileViewer({
             )}
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-full"
+              className="p-2 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+              title="Cerrar (Esc)"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6 text-gray-600" />
             </button>
           </div>
         </div>
