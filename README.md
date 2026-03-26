@@ -504,7 +504,7 @@ Sistema genérico para subir, previsualizar y gestionar archivos asociados a cua
 ### Características
 
 - **Upload con Drag & Drop**: Interfaz moderna para subir archivos
-- **Previsualización en Canvas**: PDF, imágenes y documentos Office (convertidos a PDF)
+- **Previsualización en Canvas**: PDF e imágenes directamente
 - **Versionado**: Al reemplazar un archivo, el anterior se marca como inactivo
 - **Soft Delete**: Los archivos eliminados se pueden recuperar
 - **Metadata Flexible**: Campo JSON para datos adicionales por módulo
@@ -514,122 +514,34 @@ Sistema genérico para subir, previsualizar y gestionar archivos asociados a cua
 
 | Tipo | Extensiones | Previsualización |
 |------|-------------|------------------|
-| **PDF** | `.pdf` | ✅ Nativo |
-| **Imágenes** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` | ✅ Nativo |
-| **Excel** | `.xlsx` | ✅ Conversión a PDF |
-| **Word** | `.docx` | ✅ Conversión a PDF |
-| **PowerPoint** | `.pptx` | ✅ Conversión a PDF |
-
-### Requisito: LibreOffice
-
-Para la conversión de documentos Office a PDF, necesitas instalar **LibreOffice**.
-
-#### Instalación en Linux (Producción)
-
-```bash
-# Opción 1: Desde repositorios (recomendado)
-sudo apt update
-sudo apt install -y libreoffice
-
-# Opción 2: Descargar DEB desde la web
-# https://www.libreoffice.org/download/download/
-cd ~/Downloads
-# Extraer y instalar
-sudo dpkg -i LibreOffice_*.deb
-sudo apt-get install -f  # Instalar dependencias
-```
-
-#### Instalación en Windows (Desarrollo)
-
-1. Descargar desde: https://www.libreoffice.org/download/download/
-2. Ejecutar el instalador MSI
-3. Instalación por defecto en: `C:\Program Files\LibreOffice\`
-
-#### Verificar Instalación
-
-**Linux:**
-```bash
-# Verificar que está instalado
-soffice --version
-# o
-/opt/libreoffice*/program/soffice --version
-
-# Verificar modo headless (necesario para conversión)
-soffice --headless --version
-```
-
-**Windows:**
-```cmd
-"C:\Program Files\LibreOffice\program\soffice.exe" --version
-```
-
-#### Encontrar la Ruta del Ejecutable
-
-**Linux:**
-```bash
-# Si está en el PATH
-which soffice
-
-# Buscar en /opt (instalaciones manuales)
-find /opt -name "soffice" 2>/dev/null
-
-# Buscar en todo el sistema
-locate soffice | grep -E "program/soffice$"
-```
-
-**Windows:**
-```cmd
-# Buscar en Archivos de Programa
-dir "C:\Program Files\LibreOffice*\program\soffice.exe" /s
-
-# O usar PowerShell
-Get-ChildItem "C:\Program Files" -Recurse -Filter "soffice.exe" -ErrorAction SilentlyContinue
-```
+| **PDF** | `.pdf` | ✅ Canvas (pdfjs) |
+| **Imágenes** | `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp` | ✅ Canvas |
+| **Excel** | `.xlsx` | ⬇️ Solo descarga |
+| **Word** | `.docx` | ⬇️ Solo descarga |
+| **PowerPoint** | `.pptx` | ⬇️ Solo descarga |
 
 ### Configuración
 
-#### Linux/Producción (`appsettings.json`)
-
 ```json
 {
   "ArchivosSettings": {
     "BasePath": "wwwroot/media/archivos",
-    "LibreOfficePath": "/opt/libreoffice26.2/program/soffice",
     "TamanoMaximoMB": 10,
     "ExtensionesPermitidas": [".pdf", ".xlsx", ".docx", ".pptx", ".jpg", ".jpeg", ".png", ".gif", ".webp"]
   }
 }
 ```
-
-> **Nota:** La ruta puede variar según tu instalación:
-> - Ubuntu/Debian: `/usr/bin/soffice`
-> - Instalación manual: `/opt/libreoffice{version}/program/soffice`
-
-#### Windows/Desarrollo (`appsettings.Development.json`)
-
-```json
-{
-  "ArchivosSettings": {
-    "BasePath": "wwwroot/media/archivos",
-    "LibreOfficePath": "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
-    "TamanoMaximoMB": 10,
-    "ExtensionesPermitidas": [".pdf", ".xlsx", ".docx", ".pptx", ".jpg", ".jpeg", ".png", ".gif", ".webp"]
-  }
-}
-```
-
-> **Nota:** En Windows usa `\\` para escapar los backslashes en JSON.
 
 ### Endpoints API
 
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
-| `POST` | `/api/archivos/subir` | Subir archivo |
+| `POST` | `/api/archivos/upload` | Subir archivo |
 | `GET` | `/api/archivos?entidadTipo=X&entidadId=Y` | Listar archivos |
-| `GET` | `/api/archivos/{id}` | Obtener archivo |
-| `GET` | `/api/archivos/{id}/descargar` | Descargar original |
-| `GET` | `/api/archivos/{id}/previsualizar` | Previsualizar (PDF o convertido) |
-| `PUT` | `/api/archivos/{id}/reemplazar` | Reemplazar archivo |
+| `GET` | `/api/archivos/{id}` | Obtener metadatos |
+| `GET` | `/api/archivos/{id}/download` | Descargar archivo original |
+| `GET` | `/api/archivos/{id}/preview` | Previsualizar (binario directo) |
+| `POST` | `/api/archivos/{id}/reemplazar` | Reemplazar archivo |
 | `DELETE` | `/api/archivos/{id}` | Eliminar (soft delete) |
 
 ### Componentes Frontend
@@ -640,19 +552,19 @@ import { FileUploader, FileViewer } from '@/components/archivos';
 // Subir archivos
 <FileUploader
   open={showUploader}
-  onOpenChange={setShowUploader}
+  onClose={() => setShowUploader(false)}
   entidadTipo="cotizacion"
   entidadId={cotizacionId}
   carpeta="cotizaciones"
-  onUploadComplete={() => refetch()}
+  onUploadComplete={(archivos) => console.log(archivos)}
 />
 
 // Previsualizar archivos
 <FileViewer
   open={showViewer}
-  onOpenChange={setShowViewer}
+  onClose={() => setShowViewer(false)}
   archivoId={archivoId}
-  archivoNombre={archivoNombre}
+  titulo={archivoNombre}
 />
 ```
 
