@@ -212,6 +212,15 @@ namespace Lefarma.API.Shared.Extensions
             Detalle = detalle?.ToResponse()
         };
 
+        public static UsuarioBasicoResponse ToUsuarioBasicoResponse(this Usuario entity) => new()
+        {
+            IdUsuario = entity.IdUsuario,
+            SamAccountName = entity.SamAccountName,
+            NombreCompleto = entity.NombreCompleto,
+            Correo = entity.Correo,
+            EsActivo = entity.EsActivo
+        };
+
         #endregion
 
         #region Banco Mappings
@@ -271,7 +280,8 @@ namespace Lefarma.API.Shared.Extensions
             EsActivo = entity.EsActivo,
             EsSistema = entity.EsSistema,
             FechaCreacion = entity.FechaCreacion,
-            CantidadRoles = entity.RolesPermisos.Count
+            CantidadRoles = entity.RolesPermisos.Count,
+            CantidadUsuarios = entity.UsuariosPermisos.Count
         };
 
         public static PermisoBasicoResponse ToPermisoBasicoResponse(this Permiso entity) => new()

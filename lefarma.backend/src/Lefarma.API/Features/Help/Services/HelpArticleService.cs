@@ -103,6 +103,32 @@ public class HelpArticleService : IHelpArticleService
         }
     }
 
+    public async Task<ErrorOr<IEnumerable<HelpArticleDto>>> GetForUserAsync(string? modulo, CancellationToken ct)
+    {
+        try
+        {
+            _logger.LogDebug("Obteniendo artículos de ayuda para usuario. Módulo: {Modulo}", modulo ?? "todos");
+
+            var articles = await _helpArticleRepository.GetForUserAsync(modulo, ct);
+
+            if (!articles.Any())
+            {
+                _logger.LogInformation("No se encontraron artículos de ayuda para usuario. Módulo: {Modulo}", modulo ?? "todos");
+                return new List<HelpArticleDto>();
+            }
+
+            var dtos = articles.Select(MapToDto).ToList();
+            _logger.LogInformation("Se obtuvieron {Count} artículos para usuario. Módulo: {Modulo}", dtos.Count, modulo ?? "todos");
+
+            return dtos;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al obtener artículos de ayuda para usuario. Módulo: {Modulo}", modulo ?? "todos");
+            return CommonErrors.DatabaseError("obtener artículos de ayuda para usuario");
+        }
+    }
+
     public async Task<ErrorOr<HelpArticleDto>> GetByIdAsync(int id, CancellationToken ct)
     {
         try
