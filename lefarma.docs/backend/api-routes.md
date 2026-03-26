@@ -10,6 +10,7 @@ Todos los endpoints están bajo el prefijo `/api`.
 - [Tipos de Gasto](#tipos-de-gasto)
 - [Tipos de Medida](#tipos-de-medida)
 - [Unidades de Medida](#unidades-de-medida)
+- [Ayuda (Help)](#ayuda-help)
 
 ---
 
@@ -187,6 +188,97 @@ Todos los endpoints están bajo el prefijo `/api`.
   "activo": true
 }
 ```
+
+---
+
+## Ayuda (Help)
+
+**Base URL:** `/api/help`
+
+| Método | Ruta | Descripción | Respuesta | Auth |
+|--------|------|-------------|-----------|------|
+| POST | `/images` | Subir imagen para articulo de ayuda | `ApiResponse<HelpImageUploadResponse>` | Administrator, Manager |
+| GET | `/articles/for-user` | Obtener articulos para usuario actual | `ApiResponse<IEnumerable<HelpArticleDto>>` | Autenticado |
+
+### POST /api/help/images
+
+Endpoint para subir imagenes utilizadas en articulos de ayuda.
+
+**Request:**
+- Content-Type: `multipart/form-data`
+- Campo: `file` (tipo archivo)
+
+**Restricciones:**
+- Formatos permitidos: JPG, PNG, GIF, WebP
+- Tamaño maximo: 5MB
+
+**Response:** `HelpImageUploadResponse`
+
+```json
+{
+  "success": true,
+  "message": "Imagen subida exitosamente",
+  "data": {
+    "id": 1,
+    "nombreOriginal": "screenshot.png",
+    "nombreArchivo": "img_abc123.png",
+    "rutaRelativa": "/media/help/2026/03/img_abc123.png",
+    "tamanhoBytes": 102400,
+    "mimeType": "image/png",
+    "ancho": 800,
+    "alto": 600,
+    "fechaSubida": "2026-03-25T10:30:00Z"
+  }
+}
+```
+
+### GET /api/help/articles/for-user
+
+Endpoint para obtener articulos de ayuda visibles para el usuario actual.
+
+**Query Parameters:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `modulo` | string | No | Filtrar por modulo (Catalogos, Auth, Notificaciones, Profile, Admin, SystemConfig, General) |
+
+**Response:** Array de `HelpArticleDto`
+
+```json
+{
+  "success": true,
+  "message": "Articulos obtenidos",
+  "data": [
+    {
+      "id": 1,
+      "titulo": "Como crear una empresa",
+      "contenido": "{...Lexical JSON...}",
+      "resumen": "Guia paso a paso...",
+      "modulo": "Catalogos",
+      "tipo": "usuario",
+      "categoria": "Empresas",
+      "orden": 1,
+      "activo": true,
+      "fechaCreacion": "2026-03-25T10:00:00Z",
+      "fechaActualizacion": "2026-03-25T10:00:00Z"
+    }
+  ]
+}
+```
+
+**Nota:** Este endpoint retorna articulos donde `tipo` es `'usuario'` o `'ambos'`.
+
+### Archivos Estaticos
+
+Las imagenes de ayuda se sirven como archivos estaticos:
+
+**URL Pattern:** `/media/help/{year}/{month}/{filename}`
+
+**Ejemplo:** `http://localhost:5000/media/help/2026/03/img_abc123.png`
+
+**Headers de Cache:**
+- `Cache-Control: public, max-age=31536000` (1 año)
+- Optimizado para assets inmutables
 
 ---
 

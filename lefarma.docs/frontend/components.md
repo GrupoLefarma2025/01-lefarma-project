@@ -4,6 +4,7 @@
 
 - [Layout Components](#layout-components)
 - [UI Components](#ui-components)
+- [Help Components](#help-components)
 
 ---
 
@@ -166,6 +167,233 @@ Botón con múltiples variantes y tamaños.
 ```
 
 ---
+
+## Help Components
+
+Componentes para el modulo de ayuda con editor rich text basado en Lexical.
+
+> **Nota:** El componente `HelpCard` ha sido ELIMINADO y no debe usarse.
+
+### LexicalEditor
+
+**Archivo:** `src/components/help/LexicalEditor.tsx`
+
+Editor rich text basado en Lexical para contenido de articulos de ayuda.
+
+#### Props
+
+| Prop | Tipo | Requerido | Descripcion |
+|------|------|-----------|-------------|
+| `initialContent` | `string` | Si | Estado inicial serializado como JSON de Lexical |
+| `onChange` | `(serializedState: string) => void` | Si | Callback emitido en cada cambio con el estado serializado |
+
+#### Caracteristicas
+
+- Carga estado inicial desde JSON serializado
+- Emite cambios en cada edicion como JSON serializado
+- Incluye historial (`HistoryPlugin`) para undo/redo
+- Editor enriquecido (`RichTextPlugin` + `ContentEditable`)
+- Placeholder: "Escribe el contenido del articulo aqui..."
+- Altura minima: 340px
+
+#### Uso
+
+```tsx
+import LexicalEditor from '@/components/help/LexicalEditor';
+
+<LexicalEditor
+  initialContent={article.contenido}
+  onChange={(json) => setContenido(json)}
+/>
+```
+
+---
+
+### LexicalViewer
+
+**Archivo:** `src/components/help/LexicalViewer.tsx`
+
+Visor de solo lectura para contenido rich text de articulos de ayuda.
+
+#### Props
+
+| Prop | Tipo | Requerido | Descripcion |
+|------|------|-----------|-------------|
+| `contenido` | `string` | Si | Estado serializado como JSON de Lexical |
+
+#### Caracteristicas
+
+- Modo de solo lectura (`editable: false`)
+- Renderiza contenido sin permitir edicion
+- Altura minima: 300px
+
+#### Uso
+
+```tsx
+import LexicalViewer from '@/components/help/LexicalViewer';
+
+<LexicalViewer contenido={article.contenido} />
+```
+
+---
+
+### RichTextToolbar
+
+**Archivo:** `src/components/help/RichTextToolbar.tsx`
+
+Barra de herramientas para formateo de texto en el editor Lexical.
+
+#### Caracteristicas
+
+| Grupo | Funciones |
+|-------|-----------|
+| **Historial** | Deshacer, Rehacer |
+| **Tipo de bloque** | Parrafo, Titulo 1, Titulo 2, Cita, Codigo |
+| **Formato de texto** | Negrita, Cursiva, Subrayado, Tachado, Codigo inline |
+| **Listas** | Lista con viñetas, Lista numerada |
+| **Insercion** | Enlace, Imagen |
+
+#### Dependencias
+
+- `ToolbarButton` - Boton individual con tooltip
+- `ImageUploadDialog` - Dialogo para subir imagenes
+- Lexical plugins: `@lexical/list`, `@lexical/rich-text`, `@lexical/link`
+
+#### Uso
+
+```tsx
+import { RichTextToolbar } from '@/components/help/RichTextToolbar';
+
+// Debe estar dentro de un LexicalComposer
+<LexicalComposer initialConfig={...}>
+  <RichTextToolbar />
+  <RichTextPlugin ... />
+</LexicalComposer>
+```
+
+---
+
+### ImageUploadDialog
+
+**Archivo:** `src/components/help/ui/ImageUploadDialog.tsx`
+
+Dialogo modal para subir imagenes al servidor.
+
+#### Props
+
+| Prop | Tipo | Requerido | Descripcion |
+|------|------|-----------|-------------|
+| `open` | `boolean` | Si | Estado de visibilidad del dialogo |
+| `onOpenChange` | `(open: boolean) => void` | Si | Callback para cambiar visibilidad |
+| `onImageInserted` | `(response: HelpImageUploadResponse) => void` | Si | Callback con la respuesta del upload |
+
+#### Restricciones de Archivo
+
+| Restriccion | Valor |
+|-------------|-------|
+| Formatos permitidos | JPG, PNG, GIF, WebP |
+| Tamaño maximo | 5MB |
+| Tipo MIME | `image/*` |
+
+#### Caracteristicas
+
+- Vista previa de imagen antes de subir
+- Muestra nombre y tamaño del archivo
+- Estados de carga con indicador spinner
+- Manejo de errores con toast notifications
+
+#### Uso
+
+```tsx
+import { ImageUploadDialog } from '@/components/help/ui/ImageUploadDialog';
+
+<ImageUploadDialog
+  open={isDialogOpen}
+  onOpenChange={setIsDialogOpen}
+  onImageInserted={(response) => {
+    // Insertar imagen en el editor
+    console.log(response.rutaRelativa);
+  }}
+/>
+```
+
+---
+
+### ImageNode
+
+**Archivo:** `src/components/help/nodes/ImageNode.tsx`
+
+Nodo decorativo de Lexical para renderizar imagenes en el contenido.
+
+#### Estructura JSON
+
+```json
+{
+  "type": "image",
+  "version": 1,
+  "src": "/media/help/2026/03/img_abc123.png",
+  "altText": "Descripcion de la imagen",
+  "width": 800,
+  "height": 600
+}
+```
+
+#### Propiedades
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `src` | `string` | URL relativa de la imagen |
+| `altText` | `string` | Texto alternativo para accesibilidad |
+| `width` | `number` | Ancho en pixels (opcional) |
+| `height` | `number` | Alto en pixels (opcional) |
+
+#### Funciones de Utilidad
+
+```tsx
+import { $createImageNode, $isImageNode } from '@/components/help/nodes/ImageNode';
+
+// Crear nodo de imagen
+const imageNode = $createImageNode({
+  src: '/media/help/2026/03/img.png',
+  altText: 'Screenshot',
+  width: 800,
+  height: 600,
+});
+
+// Verificar tipo de nodo
+if ($isImageNode(node)) {
+  console.log(node.getSrc());
+}
+```
+
+---
+
+### ToolbarButton
+
+**Archivo:** `src/components/help/ui/ToolbarButton.tsx`
+
+Boton reutilizable para la barra de herramientas con soporte de tooltip.
+
+#### Props
+
+| Prop | Tipo | Requerido | Descripcion |
+|------|------|-----------|-------------|
+| `onClick` | `() => void` | Si | Handler de click |
+| `isActive` | `boolean` | No | Estado activo (estilo resaltado) |
+| `disabled` | `boolean` | No | Estado deshabilitado |
+| `children` | `ReactNode` | Si | Icono o contenido del boton |
+| `tooltip` | `string` | No | Texto del tooltip |
+| `className` | `string` | No | Clases adicionales |
+
+#### Uso
+
+```tsx
+import { ToolbarButton } from '@/components/help/ui/ToolbarButton';
+
+<ToolbarButton onClick={handleBold} isActive={isBold} tooltip="Negrita">
+  <Bold className="h-4 w-4" />
+</ToolbarButton>
+```
 
 ### Card
 

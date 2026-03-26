@@ -4,6 +4,7 @@
 
 - [API Client](#api-client)
 - [Auth Service](#auth-service)
+- [Help Service](#help-service)
 
 ---
 
@@ -327,3 +328,27 @@ El store se sincroniza automáticamente con localStorage:
 - Al hacer logout → Limpia todo
 - Al cambiar empresa/sucursal → Guarda en localStorage
 - Al cargar app → Lee de localStorage (`initialize()`)
+
+---
+
+## Help Service
+
+**Archivo:** `src/services/helpService.ts`
+
+Servicio para CRUD de articulos de ayuda.
+
+### Endpoints
+
+| Metodo | Endpoint | Retorno |
+|--------|----------|---------|
+| `getAll()` | `GET /help/articles` | `HelpArticle[]` |
+| `getById(id)` | `GET /help/articles/{id}` | `HelpArticle` |
+| `getByModule(modulo)` | `GET /help/articles/by-module/{modulo}` | `HelpArticle[]` |
+| `getByType(tipo)` | `GET /help/articles/by-type/{tipo}` | `HelpArticle[]` |
+| `create(article)` | `POST /help/articles` | `HelpArticle` |
+| `update(article)` | `PUT /help/articles/{id}` | `HelpArticle` |
+| `delete(id)` | `DELETE /help/articles/{id}` | `void` |
+
+### Contrato de respuesta
+
+Todos los metodos leen el contrato `ApiResponse<T>` y retornan `response.data.data` para mantener consistencia con el resto del frontend.

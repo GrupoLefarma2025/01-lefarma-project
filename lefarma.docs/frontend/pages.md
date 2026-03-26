@@ -7,6 +7,7 @@
 - [Catálogos](#catálogos)
 - [Configuración](#configuración)
 - [Perfil](#perfil)
+- [Centro de Ayuda](#centro-de-ayuda)
 - [NotFound](#notfound)
 
 ---
@@ -227,6 +228,31 @@ Página de perfil de usuario con información personal.
 ```tsx
 const { user, empresa, sucursal } = useAuthStore();
 ```
+
+---
+
+## Centro de Ayuda
+
+### HelpList
+
+**Archivo:** `src/pages/help/HelpList.tsx`
+
+Listado de articulos del centro de ayuda con acceso rapido a lectura y edicion.
+
+- Incluye un switch para conmutar el tipo de documento: `Usuario` vs `Sistemas` (basado en `tipo`).
+- Muestra tarjetas de articulos por modulo/tipo.
+- Reemplaza la accion principal de "Nuevo Articulo" por "Editar / Guardar" para abrir la vista editable del primer articulo disponible.
+- Cuando no hay articulos, mantiene la accion para crear el primero.
+
+### HelpView
+
+**Archivo:** `src/pages/help/HelpView.tsx`
+
+Vista de detalle de articulo con modo lectura y modo edicion rich text.
+
+- Lectura: renderiza contenido Lexical JSON mediante `LexicalRenderer`.
+- Edicion: usa `LexicalEditor` (editor visual rich text) en lugar de editar JSON crudo.
+- Acciones: flujo `Editar` -> `Guardar` / `Cancelar` y guardado via endpoint de actualizacion.
 
 ---
 

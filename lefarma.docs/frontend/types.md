@@ -6,6 +6,7 @@
 - [Auth Types](#auth-types)
 - [Permiso Types](#permiso-types)
 - [Rol Types](#rol-types)
+- [Help Types](#help-types)
 
 ---
 
@@ -307,6 +308,112 @@ export interface UpdateRolDto {
   descripcion?: string;
   activo: boolean;
   permisoIds?: number[];
+}
+```
+
+---
+
+## Help Types
+
+**Archivo:** `src/types/help.types.ts`
+
+Tipos para el modulo de ayuda.
+
+### HelpArticle
+
+```typescript
+export interface HelpArticle {
+  id: number;
+  titulo: string;
+  contenido: string; // Lexical JSON
+  resumen?: string;
+  modulo: 'Catalogos' | 'Auth' | 'Notificaciones' | 'Profile' | 'Admin' | 'SystemConfig' | 'General';
+  tipo: 'usuario' | 'desarrollador' | 'ambos';
+  categoria?: string;
+  orden: number;
+  activo: boolean;
+  fechaCreacion: string;
+  fechaActualizacion: string;
+  creadoPor?: string;
+  actualizadoPor?: string;
+}
+```
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `id` | `number` | ID del articulo |
+| `titulo` | `string` | Titulo del articulo |
+| `contenido` | `string` | Contenido serializado como JSON de Lexical |
+| `resumen` | `string` | Resumen opcional |
+| `modulo` | `string` | Modulo al que pertenece |
+| `tipo` | `string` | Audiencia: usuario, desarrollador, ambos |
+| `categoria` | `string` | Categoria opcional para agrupar |
+| `orden` | `number` | Orden de visualizacion |
+| `activo` | `boolean` | Estado activo/inactivo |
+
+### HelpImageUploadResponse
+
+```typescript
+export interface HelpImageUploadResponse {
+  id: number;
+  nombreOriginal: string;
+  nombreArchivo: string;
+  rutaRelativa: string;
+  tamanhoBytes: number;
+  mimeType: string;
+  ancho?: number;
+  alto?: number;
+  fechaSubida: string;
+}
+```
+
+| Campo | Tipo | Descripcion |
+|-------|------|-------------|
+| `id` | `number` | ID de la imagen |
+| `nombreOriginal` | `string` | Nombre original del archivo subido |
+| `nombreArchivo` | `string` | Nombre generado en el servidor |
+| `rutaRelativa` | `string` | URL relativa para acceder a la imagen (ej: `/media/help/2026/03/img.png`) |
+| `tamanhoBytes` | `number` | Tamaño en bytes |
+| `mimeType` | `string` | Tipo MIME (ej: `image/png`) |
+| `ancho` | `number` | Ancho en pixels (opcional) |
+| `alto` | `number` | Alto en pixels (opcional) |
+| `fechaSubida` | `string` | Fecha ISO de subida |
+
+### CreateHelpArticleRequest
+
+```typescript
+export interface CreateHelpArticleRequest {
+  titulo: string;
+  contenido: string;
+  resumen?: string;
+  modulo: string;
+  tipo: string;
+  categoria?: string;
+  orden: number;
+}
+```
+
+### UpdateHelpArticleRequest
+
+```typescript
+export interface UpdateHelpArticleRequest extends CreateHelpArticleRequest {
+  id: number;
+  activo: boolean;
+}
+```
+
+### HelpImage
+
+```typescript
+export interface HelpImage {
+  id: number;
+  nombreOriginal: string;
+  nombreArchivo: string;
+  rutaRelativa: string;
+  tamanhoBytes: number;
+  mimeType: string;
+  fechaSubida: string;
+  subidoPor?: string;
 }
 ```
 
