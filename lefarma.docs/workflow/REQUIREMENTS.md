@@ -30,6 +30,8 @@
 ### 3. Lógica de Condicionales (Business Intelligence)
 *   **WORK-REQ-08**: El motor evaluará reglas dinámicas (`condiciones`) basadas en campos de la Orden de Compra para decidir desvíos del flujo original.
     *   Ejemplo: *"Si el Total > $100,000, entonces el Paso Destino es Firma 5"*.
+*   **WORK-REQ-09**: El sistema permitirá asignar **participantes** (`workflow_participantes`) por paso, indicando qué Rol o Usuario específico tiene permiso de ejecutar acciones en cada etapa del flujo.
+*   **WORK-REQ-10**: Cada cambio de estado en el workflow deberá registrarse en una **bitácora inmutable** (`workflow_bitacora`) que incluya: orden afectada, paso, acción ejecutada, usuario responsable, comentario y fecha del evento.
 
 ---
 

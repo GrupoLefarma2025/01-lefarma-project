@@ -3,7 +3,7 @@
 **Created:** 2026-03-21
 **Granularity:** Detailed (Implementation level)
 **Status:** In Progress
-**Coverage:** 100% Core Workflow Requirements
+**Coverage:** 95% Core Workflow Requirements (pending: Auditoría en Fase 1)
 
 ---
 
@@ -14,6 +14,7 @@
     - Implementación de Entidades en .NET 10.
     - Configuración de Fluent API (snake_case mapping).
     - CRUD básico de `UsuarioDetalle`.
+    - Tabla `workflow_bitacora` para auditoría inmutable de cambios de estado.
 
 - [ ] **Fase 2: Motor de Reglas y Transiciones**
     - Lógica de "Siguiente Paso" basada en `config.workflow_acciones`.
@@ -40,12 +41,13 @@
     1.  Tablas creadas en SQL Server bajo el esquema `config`.
     2.  Modelos de C# generados y migración aplicada con éxito.
     3.  Usuario puede guardar su firma digital (Base64) y preferencias.
+    4.  Tabla `workflow_bitacora` registra cada cambio de estado de forma inmutable.
 
 ### Fase 2: Motor de Reglas
 **Objetivo:** Que el sistema sepa qué sigue después de cada firma.
 *   **Success Criteria:**
     1.  Al autorizar una OC, el sistema calcula el `id_paso_destino` automáticamente.
-    2.  Si una OC supera los $50,000, el motor la desvía a Dirección Corporativa (Firma 5) según las reglas de `workflow_condiciones`.
+    2.  Si una OC supera los $100,000, el motor la desvía a Dirección Corporativa (Firma 5) según las reglas de `workflow_condiciones`.
 
 ---
 

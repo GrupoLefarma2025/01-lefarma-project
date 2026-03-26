@@ -13,6 +13,7 @@ import {
   Ruler,
   Users,
   CreditCard,
+  FileCheck2,
 } from 'lucide-react';
 import {
   Sidebar,
@@ -64,6 +65,11 @@ const menuItems = [
     title: 'Configuración',
     icon: Settings,
     path: '/configuracion',
+  },
+  {
+    title: 'Autorizaciones OC',
+    icon: FileCheck2,
+    path: '/ordenes/autorizaciones',
   },
 ];
 

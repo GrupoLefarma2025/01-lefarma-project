@@ -1,27 +1,36 @@
 using FluentValidation;
-using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Domain.Interfaces;
+using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Domain.Interfaces.Catalogos;
+using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Logging;
+using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.Admin;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
 using Lefarma.API.Features.Catalogos.Bancos;
 using Lefarma.API.Features.Catalogos.Empresas;
-using Lefarma.API.Features.Catalogos.Sucursales;
+using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Catalogos.Gastos;
 using Lefarma.API.Features.Catalogos.Medidas;
-using Lefarma.API.Features.Catalogos.UnidadesMedida;
-using Lefarma.API.Features.Logging;
-using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Catalogos.MediosPago;
-using Lefarma.API.Features.Catalogos.FormasPago;
+using Lefarma.API.Features.Catalogos.Sucursales;
+using Lefarma.API.Features.Catalogos.UnidadesMedida;
+using Lefarma.API.Features.Config.Engine;
+using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Logging;
 using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
+using Lefarma.API.Features.OrdenesCompra.Captura;
+using Lefarma.API.Features.OrdenesCompra.Firmas;
+using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
+using Lefarma.API.Infrastructure.Data.Repositories.Config;
 using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
+using Lefarma.API.Infrastructure.Data.Repositories.Operaciones;
 using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
@@ -104,6 +113,22 @@ builder.Services.AddScoped<IMedioPagoRepository, MedioPagoRepository>();
 builder.Services.AddScoped<IFormaPagoRepository, FormaPagoRepository>();
 builder.Services.AddScoped<IBancoRepository, BancoRepository>();
 // builder.Services.AddScoped<Domain.Interfaces.INotificationRepository, NotificationRepository>(); // TODO: Uncomment when notifications are complete
+
+// Repositorios - Config y Operaciones
+builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
+builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
+
+// Motor de Workflows
+builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+
+// Config y Operaciones
+builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
+builder.Services.AddScoped<IFirmasService, FirmasService>();
+
+// Step Handlers (keyed por HandlerKey configurado en workflow_pasos)
+builder.Services.AddKeyedScoped<IStepHandler, Firma3Handler>("Firma3Handler");
+builder.Services.AddKeyedScoped<IStepHandler, Firma4Handler>("Firma4Handler");
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();

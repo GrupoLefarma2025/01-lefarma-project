@@ -1,0 +1,58 @@
+﻿using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Shared.Extensions;
+using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
+
+namespace Lefarma.API.Features.OrdenesCompra.Captura
+{
+    [Route("api/ordenes")]
+    [ApiController]
+    [EndpointGroupName("OrdenesCompra")]
+    public class OrdenCompraController : ControllerBase
+    {
+        private readonly IOrdenCompraService _service;
+        public OrdenCompraController(IOrdenCompraService service) => _service = service;
+
+        private int GetUserId() =>
+            int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
+        [HttpGet]
+        [SwaggerOperation(Summary = "Obtener órdenes de compra con filtros")]
+        public async Task<IActionResult> GetAll([FromQuery] OrdenCompraRequest query)
+        {
+            var result = await _service.GetAllAsync(query, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
+            { Success = true, Message = "Órdenes obtenidas exitosamente.", Data = data }));
+        }
+
+        [HttpGet("{id}")]
+        [SwaggerOperation(Summary = "Obtener orden de compra por ID")]
+        public async Task<IActionResult> GetById(int id)
+        {
+            var result = await _service.GetByIdAsync(id);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
+            { Success = true, Message = "Orden obtenida exitosamente.", Data = data }));
+        }
+
+        [HttpPost]
+        [SwaggerOperation(Summary = "Crear nueva orden de compra")]
+        public async Task<IActionResult> Create([FromBody] CreateOrdenCompraRequest request)
+        {
+            var result = await _service.CreateAsync(request, GetUserId());
+            return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
+                new { id = data.IdOrden },
+                new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
+        }
+
+        [HttpDelete("{id}")]
+        [SwaggerOperation(Summary = "Eliminar orden de compra (solo estado Creada)")]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var result = await _service.DeleteAsync(id);
+            return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+            { Success = true, Message = "Orden eliminada exitosamente.", Data = null }));
+        }
+    }
+}

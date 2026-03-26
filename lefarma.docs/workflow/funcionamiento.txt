@@ -1,0 +1,403 @@
+🧩 EL PROBLEMA QUE RESUELVE
+
+Antes (sin workflow engine):
+
+ - Si querías cambiar el flujo de firmas, tenías que modificar código
+ - Si querías agregar una firma nueva, tocabas Controllers/Services
+ - Si querías cambiar quién recibe notificaciones, tenías que programar
+
+Ahora (con workflow engine):
+
+ - El flujo de firmas está en la base de datos (config.workflow_pasos)
+ - Agregar/quitar firmas = agregar/quitar filas en SQL
+ - Cambiar notificaciones = modificar plantillas en la BD
+ - Cero código para cambios de proceso
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+🏗️ ARQUITECTURA GENERAL
+
+ ┌─────────────────────────────────────────────────────────┐
+ │                    FRONTEND (React)                      │
+ │  - Captura de órdenes                                    │
+ │  - Bandeja de firmas pendientes                          │
+ │  - Botones: Autorizar/Rechazar                           │
+ └─────────────────┬───────────────────────────────────────┘
+                   │ HTTP Requests
+                   ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │              BACKEND (.NET 10 API)                       │
+ │                                                          │
+ │  ┌────────────────────────────────────────────────┐    │
+ │  │  Features/OrdenesCompra/                       │    │
+ │  │  ├─ Captura/                                   │    │
+ │  │  │   └─ OrdenCompraController                  │    │
+ │  │  │       POST /api/ordenes-compra              │    │
+ │  │  │                                              │    │
+ │  │  └─ Firmas/                                    │    │
+ │  │      └─ FirmasController                       │    │
+ │  │          POST /api/ordenes/{id}/firmar         │    │
+ │  └────────────────────────────────────────────────┘    │
+ │                         │                               │
+ │                         ▼                               │
+ │  ┌────────────────────────────────────────────────┐    │
+ │  │  Features/Config/Engine/                       │    │
+ │  │      WorkflowEngine.cs (EL CEREBRO)            │    │
+ │  │   - Lee la config del workflow                 │    │
+ │  │   - Evalúa condiciones ($100k?)               │    │
+ │  │   - Decide a qué paso ir                      │    │
+ │  │   - Escribe bitácora                          │    │
+ │  └────────────────────────────────────────────────┘    │
+ │                         │                               │
+ │                         ▼                               │
+ │  ┌────────────────────────────────────────────────┐    │
+ │  │  Features/OrdenesCompra/Firmas/Handlers/       │    │
+ │  │  ├─ Firma3Handler (aplica CC + Cuenta)        │    │
+ │  │  └─ Firma4Handler (aplica checkboxes)         │    │
+ │  └────────────────────────────────────────────────┘    │
+ └─────────────────┬───────────────────────────────────────┘
+                   │
+                   ▼
+ ┌─────────────────────────────────────────────────────────┐
+ │              SQL SERVER DATABASE                         │
+ │                                                          │
+ │  config.workflows           (define el flujo)           │
+ │  config.workflow_pasos      (los 12 pasos)              │
+ │  config.workflow_acciones   (botones: Autorizar/Rechazar)│
+ │  config.workflow_condiciones (regla: >$100k → Firma 5)   │
+ │  config.workflow_notificaciones (emails automáticos)     │
+ │  config.workflow_bitacora   (auditoría inmutable)        │
+ │                                                          │
+ │  operaciones.ordenes_compra (las órdenes reales)         │
+ │  operaciones.ordenes_compra_partidas (partidas)          │
+ └─────────────────────────────────────────────────────────┘
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+📝 FLUJO COMPLETO: Orden de Compra paso a paso
+
+PASO 1: Usuario captura una orden
+
+ POST /api/ordenes-compra
+ {
+   "idEmpresa": 1,
+   "idSucursal": 1,
+   "razonSocialProveedor": "Papelería López",
+   "total": 75000,
+   "partidas": [
+     {
+       "descripcion": "Papel bond 500 hojas",
+       "cantidad": 100,
+       "precioUnitario": 750
+     }
+   ]
+ }
+
+¿Qué pasa en el backend?
+
+ 1. OrdenCompraController recibe la request
+ 2. OrdenCompraService valida los datos
+ 3. GenerarFolioAsync() crea el folio: OC-2026-00001
+ 4. Guarda en operaciones.ordenes_compra con estado = CREADA (enum = 1)
+ 5. Guarda las partidas en operaciones.ordenes_compra_partidas
+ 6. Responde: { "id": 1, "folio": "OC-2026-00001" }
+
+Estado en BD:
+
+ SELECT folio, estado, total FROM operaciones.ordenes_compra WHERE id_orden = 1
+ -- Resultado:
+ -- OC-2026-00001 | 1 (CREADA) | 75000.00
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+PASO 2: Gerente General autoriza (Firma 2)
+
+El gerente ve la orden en su bandeja y la autoriza:
+
+ POST /api/ordenes/1/firmar
+ {
+   "numeroFirma": 2,
+   "datosAdicionales": {
+     "comentario": "Aprobado, proveedor confiable"
+   }
+ }
+
+¿Qué pasa en el backend?
+
+ 1. FirmasController recibe la request
+ 2. FirmasService carga la orden desde BD
+ 3. Busca el paso correspondiente a Firma 2 en config.workflow_pasos: SELECT
+  * FROM config.workflow_pasos WHERE orden = 10
+ -- Resultado: id_paso = 2, codigo_estado = 'EN_REVISION_F2', handler_key = NULL
+ 4. Como handler_key = NULL, no hay lógica especial
+ 5. Llama al WorkflowEngine con este contexto: var context = new WorkflowContext(
+     CodigoProceso: "ORDEN_COMPRA",
+     IdEntidad: 1,
+     IdAccion: 3, // Acción "Autorizar" desde Firma 2
+     IdUsuario: 101,
+     Comentario: "Aprobado, proveedor confiable",
+     DatosAdicionales: { "Total": 75000 }
+ );
+ 6. WorkflowEngine ejecuta: // a) Busca la acción en workflow_acciones
+ var accion = await _workflowRepo.GetAccionAsync(3);
+ // accion.id_paso_destino = 3 (Firma 3)
+
+ // b) Evalúa condiciones (no hay para Firma 2)
+
+ // c) Escribe en bitácora
+ INSERT INTO config.workflow_bitacora
+ (id_orden, id_workflow, id_paso, id_accion, id_usuario, comentario, datos_snapshot)
+ VALUES (1, 1, 2, 3, 101, 'Aprobado, proveedor confiable', '{"Total":75000}');
+
+ // d) Devuelve el nuevo estado
+ return new WorkflowEjecucionResult(
+     Exitoso: true,
+     IdPasoDestino: 3,
+     CodigoEstadoDestino: "EN_REVISION_F3"
+ );
+ 7. FirmasService actualiza la orden: orden.Estado = EstadoOC.EnRevisionF3; // enum 3
+ orden.IdPasoActual = 3;
+ await _ordenRepo.UpdateAsync(orden);
+ 8. Se dispara notificación a Marco Polo (CxP - Firma 3) vía email
+
+Estado en BD:
+
+ SELECT folio, estado, id_paso_actual FROM operaciones.ordenes_compra WHERE id_orden = 1
+ -- Resultado:
+ -- OC-2026-00001 | 3 (EN_REVISION_F3) | 3
+
+ SELECT * FROM config.workflow_bitacora WHERE id_orden = 1
+ -- 1 evento registrado con el comentario del gerente
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+PASO 3: Marco Polo (CxP) autoriza y asigna cuentas (Firma 3)
+
+Marco Polo revisa la orden y la autoriza, asignando centro de costo y cuenta contable:
+
+ POST /api/ordenes/1/firmar
+ {
+   "numeroFirma": 3,
+   "datosAdicionales": {
+     "comentario": "Formato correcto",
+     "idCentroCosto": 102,
+     "cuentaContable": "5101-001"
+   }
+ }
+
+¿Qué pasa en el backend?
+
+ 1. FirmasService carga la orden
+ 2. Busca el paso Firma 3 en config.workflow_pasos: SELECT
+  * FROM config.workflow_pasos WHERE orden = 20
+ -- Resultado: id_paso = 3, handler_key = 'Firma3Handler'
+ 3. ¡Detecta que hay un handler especial! → Resuelve Firma3Handler: var handler = _serviceProvider.GetKeyedService<IStepHandler>("Firma3Handler");
+ 4. Ejecuta el handler: // Firma3Handler.cs
+ public async Task<ErrorOr<Success>> ExecuteAsync(OrdenCompra orden, Dictionary<string, object> datos)
+ {
+     // Valida que vengan los datos requeridos
+     if (!datos.ContainsKey("idCentroCosto"))
+         return Error.Validation("CentroCosto.Required", "Debe asignar un centro de costo");
+
+     if (!datos.ContainsKey("cuentaContable"))
+         return Error.Validation("CuentaContable.Required", "Debe asignar una cuenta contable");
+
+     // Aplica los cambios a la orden
+     orden.IdCentroCosto = (int)datos["idCentroCosto"];
+     orden.CuentaContable = (string)datos["cuentaContable"];
+
+     return Result.Success;
+ }
+ 5. Llama al WorkflowEngine (igual que en Firma 2)
+ 6. WorkflowEngine devuelve: EN_REVISION_F4 (siguiente paso)
+ 7. FirmasService actualiza la orden con el nuevo estado Y con los datos aplicados por el handler
+
+Estado en BD:
+
+ SELECT folio, estado, id_centro_costo, cuenta_contable
+ FROM operaciones.ordenes_compra
+ WHERE id_orden = 1
+ -- Resultado:
+ -- OC-2026-00001 | 4 (EN_REVISION_F4) | 102 | 5101-001
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+PASO 4: Diego (GAF) autoriza (Firma 4) - Entra la CONDICIÓN
+
+Diego revisa y autoriza:
+
+ POST /api/ordenes/1/firmar
+ {
+   "numeroFirma": 4,
+   "datosAdicionales": {
+     "comentario": "Autorizado",
+     "requiereComprobacionPago": true,
+     "requiereComprobacionGasto": true
+   }
+ }
+
+¿Qué pasa en el backend?
+
+ 1. FirmasService detecta handler_key = 'Firma4Handler'
+ 2. Ejecuta Firma4Handler que aplica los checkboxes: orden.RequiereComprobacionPago = (bool)datos["requiereComprobacionPago"];
+ orden.RequiereComprobacionGasto = (bool)datos["requiereComprobacionGasto"];
+ 3. ¡AQUÍ ES DONDE ENTRA LA MAGIA! → Llama al WorkflowEngine
+ 4. WorkflowEngine busca condiciones en config.workflow_condiciones: SELECT
+  * FROM config.workflow_condiciones WHERE id_paso = 4
+ -- Resultado:
+ -- id_condicion=1: campo='Total', operador='>', valor='100000', id_paso_si_cumple=5
+ -- id_condicion=2: campo='Total', operador='<=', valor='100000', id_paso_si_cumple=6
+ 5. Evalúa las condiciones: // En WorkflowEngine.cs
+ var condiciones = await _repo.GetCondicionesAsync(pasoActual.IdPaso);
+
+ foreach (var condicion in condiciones)
+ {
+     // condicion.campo_evaluacion = "Total"
+     var valorActual = context.DatosAdicionales["Total"]; // 75000
+
+     if (EvaluarCondicion(valorActual, condicion.operador, condicion.valor_comparacion))
+     {
+         // 75000 <= 100000 → TRUE
+         return condicion.id_paso_si_cumple; // Paso 6 (AUTORIZADA)
+     }
+ }
+ 6. Como el total es 75,000 (≤ $100k), SALTA la Firma 5 y va directo a AUTORIZADA
+
+Estado en BD:
+
+ SELECT folio, estado
+ FROM operaciones.ordenes_compra
+ WHERE id_orden = 1
+ -- Resultado:
+ -- OC-2026-00001 | 6 (AUTORIZADA) ← Saltó la Firma 5!
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+CASO ALTERNATIVO: Si el total fuera > $100k
+
+Imagina que el total fuera $150,000:
+
+ POST /api/ordenes/2/firmar
+ {
+   "numeroFirma": 4,
+   "datosAdicionales": {
+     "total": 150000  ← El FirmasService inyecta esto automáticamente
+   }
+ }
+
+ 1. WorkflowEngine evalúa condiciones: 150000 > 100000 → TRUE
+ 2. Devuelve: id_paso_si_cumple = 5 (Firma 5 - Dirección Corporativa)
+ 3. La orden pasa a EN_REVISION_F5
+ 4. Hector Velez recibe notificación
+ 5. Él autoriza → recién ahí va a AUTORIZADA
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+🔑 COMPONENTES CLAVE
+
+1. WorkflowEngine (El Cerebro)
+
+ public interface IWorkflowEngine
+ {
+     Task<ErrorOr<WorkflowEjecucionResult>> EjecutarAccionAsync(WorkflowContext context);
+ }
+
+Responsabilidades:
+
+ - Leer la configuración del workflow desde BD
+ - Evaluar condiciones dinámicas
+ - Escribir bitácora inmutable
+ - Devolver el nuevo estado
+
+NO SABE NADA de Órdenes de Compra → Es genérico, podría usarse para:
+
+ - Solicitudes de vacaciones
+ - Aprobación de viáticos
+ - Flujo de contratos
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+2. IStepHandler (Strategy Pattern)
+
+ public interface IStepHandler
+ {
+     Task<ErrorOr<Success>> ExecuteAsync(OrdenCompra orden, Dictionary<string, object> datos);
+ }
+
+Implementaciones:
+
+ - Firma3Handler → Valida y aplica centro de costo + cuenta contable
+ - Firma4Handler → Valida y aplica checkboxes de comprobación
+
+¿Por qué esto?
+
+ - Firma 3 y Firma 4 tienen lógica de dominio específica
+ - Esa lógica NO puede vivir en el motor genérico
+ - El handler es pluggable: si mañana Firma 6 necesita validar CURP, creas Firma6Handler sin tocar nada más
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+3. FirmasService (El Orquestador)
+
+ public async Task<ErrorOr<Success>> FirmarOrdenAsync(int idOrden, int numeroFirma, Dictionary<string, object> datos)
+ {
+     // 1. Cargar orden desde BD
+     var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+
+     // 2. Validar que el paso existe
+     var paso = await _workflowRepo.GetPasoAsync(numeroFirma);
+
+     // 3. Si hay handler especial, ejecutarlo
+     if (paso.HandlerKey != null)
+     {
+         var handler = _serviceProvider.GetKeyedService<IStepHandler>(paso.HandlerKey);
+         var result = await handler.ExecuteAsync(orden, datos);
+         if (result.IsError) return result.Errors;
+     }
+
+     // 4. Llamar al motor de workflows
+     var context = new WorkflowContext("ORDEN_COMPRA", idOrden, idAccion, idUsuario, datos);
+     var resultado = await _workflowEngine.EjecutarAccionAsync(context);
+
+     // 5. Actualizar el estado de la orden
+     orden.Estado = Enum.Parse<EstadoOC>(resultado.CodigoEstadoDestino);
+     await _ordenRepo.UpdateAsync(orden);
+
+     // 6. Disparar notificaciones (TODO)
+
+     return Result.Success;
+ }
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+💡 VENTAJAS DEL DISEÑO
+
+✅ Separación de responsabilidades
+
+ - WorkflowEngine: Lógica de flujo (genérica)
+ - StepHandlers: Lógica de dominio (específica de OC)
+ - FirmasService: Orquestación
+
+✅ Configuración en BD
+
+ - Cambiar flujo = INSERT/UPDATE en SQL
+ - No recompilar código
+ - No deploy
+
+✅ Auditoría blindada
+
+ - workflow_bitacora es inmutable (no tiene UPDATE ni DELETE)
+ - Cada firma queda registrada con timestamp, usuario, comentario
+ - JSON snapshot del estado de la orden en ese momento
+
+✅ Extensible
+
+ - Agregar Firma 6 = agregar handler + registro en DI
+ - Agregar condición (ej: "Si empresa = Artricenter → otro flujo") = INSERT en workflow_condiciones
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+🎯 RESUMEN EN UNA FRASE
+
+El WorkflowEngine lee las reglas del flujo desde la BD, evalúa condiciones dinámicas, y decide a qué paso ir. Los StepHandlers aplican lógica específica de
+negocio. FirmasService orquesta todo y actualiza la orden.

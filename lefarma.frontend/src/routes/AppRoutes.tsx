@@ -15,6 +15,8 @@ import MedidasList from '@/pages/catalogos/Medidas/MedidasList';
 import AreasList from '@/pages/catalogos/Areas/AreasList';
 import FormasPagoList from '@/pages/catalogos/FormasPago/FormasPagoList';
 import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
+import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
+import { AutorizacionesOC } from '@/pages/ordenes';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
@@ -43,6 +45,9 @@ export const AppRoutes = () => {
           <Route path="/catalogos/areas" element={<AreasList />} />
           <Route path="/catalogos/formas-pago" element={<FormasPagoList />} />
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
+          <Route path="/workflows" element={<WorkflowsList />} />
+          <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+          <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/roadmap" element={<Roadmap />} />
           <Route path="/demo-components" element={<DemoComponents />} />
