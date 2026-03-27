@@ -223,3 +223,23 @@
   padding-top: calc(var(--spacing-factor) * 1rem);
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
+
+/* Force muted-foreground text and be light on primary background */
+[data-selected="true"] .text-muted-foreground,
+[data-selected="true"] .bg-border,
+[data-selected="true"] .text-xs {
+  color: hsl(210 100% 85%) !important;
+}
+
+/* Force badge text to be light on primary background */
+[data-selected="true"] [data-slot="badge"] {
+  color: white !important;
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Force muted-foreground text to be light on primary background */
+.data-table-comfortable tbody tr td {
+  padding-top: calc(var(--spacing-factor) * 1rem);
+  padding-bottom: calc(var(--spacing-factor) * 1rem);
+}

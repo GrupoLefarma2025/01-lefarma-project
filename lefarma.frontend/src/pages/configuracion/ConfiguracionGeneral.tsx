@@ -1,20 +1,15 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings as SettingsIcon, Palette, User, Server } from 'lucide-react';
+import { Palette, User, Server } from 'lucide-react';
 import { UIConfig } from './UIConfig';
 import { PerfilConfig } from './PerfilConfig';
 import { SistemaConfig } from './SistemaConfig';
+import { usePageTitle } from '@/hooks/usePageTitle';
 
 export default function ConfiguracionGeneral() {
+  usePageTitle('Configuración', 'Personaliza tu experiencia y configura el sistema');
+
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Configuración</h1>
-        <p className="text-muted-foreground mt-1">
-          Personaliza tu experiencia y configura el sistema
-        </p>
-      </div>
-
       {/* Tabs */}
       <Tabs defaultValue="ui" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3 lg:w-[600px]">

@@ -6,7 +6,6 @@ import {
   Search,
   Pencil,
   Loader2,
-  RefreshCcw,
   Mail,
   Building2,
   Briefcase,
@@ -55,6 +54,7 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { MultiSelect } from '@/components/ui/multi-select';
 import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
 
 // Componente memoizado para la sección de roles
 const RolesSection = memo(({
@@ -562,22 +562,19 @@ export default function UsuariosList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre, usuario o email..."
-            className="pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-           <Button variant="outline" size="icon" onClick={fetchUsuarios} disabled={loading}>
-            <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-          </Button>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="p-4">
+          <div className="relative max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre, usuario o email..."
+              className="pl-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="relative">
         {!loading && usuarios.length === 0 ? (

@@ -1,20 +1,16 @@
 import { useAuthStore } from '@/store/authStore';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { User, Mail, Building2, MapPin } from 'lucide-react';
 
 export default function Perfil() {
+  usePageTitle('Mi Perfil', 'Información de tu cuenta');
   const { user, empresa, sucursal } = useAuthStore();
 
   return (
     <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-3xl font-bold text-foreground">Mi Perfil</h1>
-        <p className="text-muted-foreground mt-1">
-          Información de tu cuenta
-        </p>
-      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Información Personal */}

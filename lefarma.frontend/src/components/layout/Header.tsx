@@ -8,10 +8,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Building2, MapPin, User, LogOut, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Building2, MapPin, User, LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
@@ -24,9 +26,8 @@ export const Header = () => {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
-  const handleToggleTheme = () => {
-    const newTheme = ui.tema === 'light' ? 'dark' : ui.tema === 'dark' ? 'system' : 'light';
-    setTema(newTheme);
+  const handleThemeChange = (tema: string) => {
+    setTema(tema as 'light' | 'dark' | 'system');
   };
 
   const handleLogout = async () => {
@@ -41,9 +42,7 @@ export const Header = () => {
       case 'dark':
         return <Moon className="h-4 w-4" />;
       default:
-        // system - detect current
-        const isDark = document.documentElement.classList.contains('dark');
-        return isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />;
+        return <Monitor className="h-4 w-4" />;
     }
   };
 
@@ -78,8 +77,35 @@ export const Header = () => {
         </div>
       )}
 
-      {/* Right side: Notifications + User Menu */}
+      {/* Right side: Theme + Notifications + User Menu */}
       <div className="flex items-center gap-2">
+        {/* Theme Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              {getThemeIcon()}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Tema</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuRadioGroup value={ui.tema} onValueChange={handleThemeChange}>
+              <DropdownMenuRadioItem value="light">
+                <Sun className="mr-2 h-4 w-4" />
+                <span>Claro</span>
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="dark">
+                <Moon className="mr-2 h-4 w-4" />
+                <span>Oscuro</span>
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="system">
+                <Monitor className="mr-2 h-4 w-4" />
+                <span>Sistema</span>
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {/* Notification Bell - always visible */}
         <NotificationBell onError={(error) => console.error('Notification error:', error)} />
 
@@ -112,16 +138,6 @@ export const Header = () => {
                 <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
               </div>
             </div>
-
-            <DropdownMenuSeparator />
-
-            {/* Theme Toggle */}
-            <DropdownMenuItem onClick={handleToggleTheme}>
-              {getThemeIcon()}
-              <span className="ml-2">
-                Tema: {ui.tema === 'system' ? 'Sistema' : ui.tema === 'light' ? 'Claro' : 'Oscuro'}
-              </span>
-            </DropdownMenuItem>
 
             <DropdownMenuSeparator />
 
