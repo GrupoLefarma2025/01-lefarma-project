@@ -12,43 +12,91 @@ lefarma-project/
 └── lefarma.docs/            # Esta documentación
 ```
 
-## Sistema de Tasks (Desarrollo)
+## Índice de Documentación
 
-La carpeta [`task/`](./task/) contiene los **PRDs y archivos de tareas** para desarrollo de módulos:
+### Documentación General
 
-| Elemento | Descripción |
-|----------|-------------|
-| [`task/README.md`](./task/README.md) | Guía del sistema de tasks |
-| [`task/000-template.md`](./task/000-template.md) | Template para nuevos tasks |
-| `task/XXX-nombre-modulo.md` | Tasks con consecutivo numérico |
-
-### Para Claude/Agents
-
-Al desarrollar nuevos módulos:
-1. Buscar en `lefarma.docs/task/` el último consecutivo
-2. Crear nuevo task con formato `XXX-nombre-del-modulo.md`
-3. Actualizar estado: `pending` → `in_progress` → `completed`
-
-## Documentación por Módulo
+| Documento | Descripción |
+|-----------|-------------|
+| [PROJECT.md](./PROJECT.md) | README original del proyecto con overview completo |
+| [SPECS.md](./SPECS.md) | Resumen de todas las características construidas |
+| [workflow/REQUIREMENTS.md](./workflow/REQUIREMENTS.md) | Requerimientos del sistema |
+| [workflow/ROADMAP.md](./workflow/ROADMAP.md) | Roadmap de desarrollo |
 
 ### Backend (.NET 10)
 
 | Documento | Descripción |
 |-----------|-------------|
-| [API Routes](./backend/api-routes.md) | Endpoints REST, controladores y rutas |
-| [Entities](./backend/entities.md) | Entidades de dominio y EF Core |
-| [Services](./backend/services.md) | Servicios de negocio e interfaces |
-| [DTOs](./backend/dtos.md) | Objetos de transferencia de datos |
+| [backend/api-routes.md](./backend/api-routes.md) | Endpoints REST, controladores y rutas |
+| [backend/entities.md](./backend/entities.md) | Entidades de dominio y EF Core |
+| [backend/services.md](./backend/services.md) | Servicios de negocio e interfaces |
+| [backend/dtos.md](./backend/dtos.md) | Objetos de transferencia de datos |
 
 ### Frontend (React + TypeScript)
 
 | Documento | Descripción |
 |-----------|-------------|
-| [Routes](./frontend/routes.md) | Sistema de enrutamiento y protección de rutas |
-| [Pages](./frontend/pages.md) | Páginas y vistas de la aplicación |
-| [Components](./frontend/components.md) | Componentes reutilizables (UI + Layout) |
-| [Services](./frontend/services.md) | Servicios API y autenticación |
-| [Types](./frontend/types.md) | Tipos TypeScript y interfaces |
+| [frontend/routes.md](./frontend/routes.md) | Sistema de enrutamiento y protección de rutas |
+| [frontend/pages.md](./frontend/pages.md) | Páginas y vistas de la aplicación |
+| [frontend/components.md](./frontend/components.md) | Componentes reutilizables (UI + Layout) |
+| [frontend/services.md](./frontend/services.md) | Servicios API y autenticación |
+| [frontend/types.md](./frontend/types.md) | Tipos TypeScript y interfaces |
+
+### Especificaciones Técnicas (specs/)
+
+| Documento | Descripción |
+|-----------|-------------|
+| [specs/2025-03-20-notification-system-design.md](./specs/2025-03-20-notification-system-design.md) | Sistema de notificaciones multi-canal |
+| [specs/2026-03-24-table-filters-design.md](./specs/2026-03-24-table-filters-design.md) | Filtros de tabla |
+| [specs/2026-03-25-help-redesign-design.md](./specs/2026-03-25-help-redesign-design.md) | Rediseño del módulo de ayuda |
+| [specs/2026-03-25-sistema-gestion-archivos-design.md](./specs/2026-03-25-sistema-gestion-archivos-design.md) | Sistema de gestión de archivos |
+
+### Planes de Implementación (plans/)
+
+| Documento | Descripción |
+|-----------|-------------|
+| [plans/2025-03-20-notification-system.md](./plans/2025-03-20-notification-system.md) | Plan de implementación del sistema de notificaciones |
+| [plans/2025-03-20-formas-pago-catalog.md](./plans/2025-03-20-formas-pago-catalog.md) | Catálogo de formas de pago |
+| [plans/2026-03-24-fix-typescript-build-errors.md](./plans/2026-03-24-fix-typescript-build-errors.md) | Corrección de errores de TypeScript |
+| [plans/2026-03-24-table-filters.md](./plans/2026-03-24-table-filters.md) | Implementación de filtros de tabla |
+| [plans/2026-03-25-help-system.md](./plans/2026-03-25-help-system.md) | Plan del sistema de ayuda |
+| [plans/2026-03-25-help-redesign-plan.md](./plans/2026-03-25-help-redesign-plan.md) | Plan de rediseño del sistema de ayuda |
+| [plans/2026-03-25-sistema-gestion-archivos-plan.md](./plans/2026-03-25-sistema-gestion-archivos-plan.md) | Plan del sistema de gestión de archivos |
+| [plans/2026-03-26-excel-preview-sheetjs.md](./plans/2026-03-26-excel-preview-sheetjs.md) | Preview de Excel con SheetJS |
+
+### Reportes (reports/)
+
+| Documento | Descripción |
+|-----------|-------------|
+| [reports/verification-report.md](./reports/verification-report.md) | Reporte de verificación |
+| [reports/catalogos-comparativo.md](./reports/catalogos-comparativo.md) | Comparativo de catálogos |
+| [reports/debugging-sse.md](./reports/debugging-sse.md) | Debugging de SSE |
+| [reports/final-status-report.md](./reports/final-status-report.md) | Reporte de estado final |
+| [reports/fixes-applied.md](./reports/fixes-applied.md) | Correcciones aplicadas |
+| [reports/investigation-summary.md](./reports/investigation-summary.md) | Resumen de investigación |
+
+### Investigación (research/)
+
+| Documento | Descripción |
+|-----------|-------------|
+| [research/stack.md](./research/stack.md) | Stack tecnológico del proyecto |
+
+### Sistema de Tasks (task/)
+
+La carpeta [`task/`](./task/) contiene los **PRDs y archivos de tareas** para desarrollo de módulos.
+
+| Elemento | Descripción |
+|----------|-------------|
+| `task/001-sincronizacion-usuario-sse.md` | Sincronización de usuario via SSE |
+| `task/021-sistema-gestion-archivos.md` | Sistema de gestión de archivos |
+
+### Notificaciones (notificaciones/)
+
+Documentación específica del sistema de notificaciones.
+
+### Documentación Interna (Documentacion/)
+
+Carpeta con documentación técnica detallada del sistema (NO MODIFICAR).
 
 ## Stack Tecnológico
 
@@ -93,4 +141,4 @@ npm run dev
 
 ---
 
-*Documentación generada automáticamente. Última actualización: 2026-02-24*
+*Última actualización: 2026-03-27*
