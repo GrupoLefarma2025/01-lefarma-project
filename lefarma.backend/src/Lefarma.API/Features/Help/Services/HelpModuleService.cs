@@ -14,18 +14,29 @@ public interface IHelpModuleService
     Task<ErrorOr<HelpModuleDto>> CreateAsync(CreateHelpModuleRequest request, CancellationToken ct);
     Task<ErrorOr<HelpModuleDto>> UpdateAsync(UpdateHelpModuleRequest request, CancellationToken ct);
     Task<ErrorOr<Success>> DeleteAsync(int id, CancellationToken ct);
+    Task<ErrorOr<MigrateArticlesResult>> MigrateExistingModulesAsync(CancellationToken ct);
+}
+
+public class MigrateArticlesResult
+{
+    public int ModulesProcessed { get; set; }
+    public int ArticlesCreated { get; set; }
+    public List<string> Details { get; set; } = [];
 }
 
 public class HelpModuleService : IHelpModuleService
 {
     private readonly IHelpModuleRepository _repository;
+    private readonly IHelpArticleRepository _articleRepository;
     private readonly ILogger<HelpModuleService> _logger;
 
     public HelpModuleService(
         IHelpModuleRepository repository,
+        IHelpArticleRepository articleRepository,
         ILogger<HelpModuleService> logger)
     {
         _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+        _articleRepository = articleRepository ?? throw new ArgumentNullException(nameof(articleRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -91,6 +102,38 @@ public class HelpModuleService : IHelpModuleService
 
             var result = await _repository.CreateAsync(module, ct);
             _logger.LogInformation("Módulo de ayuda creado exitosamente: {Id} - {Nombre}", result.Id, result.Nombre);
+
+            var emptyContent = string.Empty;
+            var now = DateTime.UtcNow;
+
+            var usuarioArticle = new HelpArticle
+            {
+                Titulo = $"{request.Label} - Usuario",
+                Contenido = emptyContent,
+                Modulo = request.Nombre.Trim(),
+                Tipo = "usuario",
+                Orden = 0,
+                Activo = true,
+                FechaCreacion = now,
+                FechaActualizacion = now
+            };
+
+            var desarrolladorArticle = new HelpArticle
+            {
+                Titulo = $"{request.Label} - Desarrollo",
+                Contenido = emptyContent,
+                Modulo = request.Nombre.Trim(),
+                Tipo = "desarrollador",
+                Orden = 0,
+                Activo = true,
+                FechaCreacion = now,
+                FechaActualizacion = now
+            };
+
+            await _articleRepository.CreateAsync(usuarioArticle, ct);
+            await _articleRepository.CreateAsync(desarrolladorArticle, ct);
+            _logger.LogInformation("Artículos automáticos creados para módulo: {Nombre}", request.Nombre);
+
             return MapToDto(result);
         }
         catch (Exception ex)
@@ -157,6 +200,78 @@ public class HelpModuleService : IHelpModuleService
         {
             _logger.LogError(ex, "Error al eliminar módulo de ayuda: {Id}", id);
             return CommonErrors.DatabaseError("eliminar el módulo de ayuda");
+        }
+    }
+
+    public async Task<ErrorOr<MigrateArticlesResult>> MigrateExistingModulesAsync(CancellationToken ct)
+    {
+        try
+        {
+            _logger.LogDebug("Iniciando migración de artículos para módulos existentes");
+
+            var result = new MigrateArticlesResult();
+            var modules = await _repository.GetAllAsync(ct);
+
+            foreach (var module in modules)
+            {
+                result.ModulesProcessed++;
+                var existingArticles = await _articleRepository.GetByModuleAsync(module.Nombre, ct);
+                var existingTypes = existingArticles.Select(a => a.Tipo).ToHashSet();
+
+                var now = DateTime.UtcNow;
+
+                if (!existingTypes.Contains("usuario"))
+                {
+                    var usuarioArticle = new HelpArticle
+                    {
+                        Titulo = $"{module.Label} - Usuario",
+                        Contenido = string.Empty,
+                        Modulo = module.Nombre,
+                        Tipo = "usuario",
+                        Orden = 0,
+                        Activo = true,
+                        FechaCreacion = now,
+                        FechaActualizacion = now
+                    };
+
+                    await _articleRepository.CreateAsync(usuarioArticle, ct);
+                    result.ArticlesCreated++;
+                    result.Details.Add($"Creado artículo 'usuario' para módulo '{module.Label}'");
+                    _logger.LogInformation("Artículo 'usuario' creado para módulo: {Nombre}", module.Nombre);
+                }
+
+                if (!existingTypes.Contains("desarrollador"))
+                {
+                    var desarrolladorArticle = new HelpArticle
+                    {
+                        Titulo = $"{module.Label} - Desarrollo",
+                        Contenido = string.Empty,
+                        Modulo = module.Nombre,
+                        Tipo = "desarrollador",
+                        Orden = 0,
+                        Activo = true,
+                        FechaCreacion = now,
+                        FechaActualizacion = now
+                    };
+
+                    await _articleRepository.CreateAsync(desarrolladorArticle, ct);
+                    result.ArticlesCreated++;
+                    result.Details.Add($"Creado artículo 'desarrollador' para módulo '{module.Label}'");
+                    _logger.LogInformation("Artículo 'desarrollador' creado para módulo: {Nombre}", module.Nombre);
+                }
+            }
+
+            _logger.LogInformation(
+                "Migración completada. Módulos procesados: {Modules}, Artículos creados: {Articles}",
+                result.ModulesProcessed,
+                result.ArticlesCreated);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error al migrar artículos para módulos existentes");
+            return CommonErrors.DatabaseError("migrar los artículos de ayuda");
         }
     }
 

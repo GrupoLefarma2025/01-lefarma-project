@@ -35,18 +35,11 @@ public class CreateHelpArticleValidator : AbstractValidator<CreateHelpArticleReq
             .MaximumLength(500).WithMessage("El resumen no puede exceder 500 caracteres");
 
         RuleFor(x => x.Modulo)
-            .NotEmpty().WithMessage("El módulo es requerido")
-            .Must(BeValidModule).WithMessage("Módulo no válido");
+            .NotEmpty().WithMessage("El módulo es requerido");
 
         RuleFor(x => x.Tipo)
             .NotEmpty().WithMessage("El tipo es requerido")
             .Must(BeValidType).WithMessage("Tipo debe ser: usuario, desarrollador o ambos");
-    }
-
-    private bool BeValidModule(string modulo)
-    {
-        var validModules = new[] { "Catalogos", "Auth", "Notificaciones", "Profile", "Admin", "SystemConfig", "General" };
-        return validModules.Contains(modulo);
     }
 
     private bool BeValidType(string tipo)

@@ -107,4 +107,20 @@ public class HelpModulesController : ControllerBase
             Data = null
         }));
     }
+
+    [HttpPost("migrate-articles")]
+    [SwaggerOperation(
+        Summary = "Migrar artículos para módulos existentes",
+        Description = "Crea artículos 'usuario' y 'desarrollador' para módulos que no los tengan")]
+    [ProducesResponseType(typeof(ApiResponse<MigrateArticlesResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> MigrateArticles(CancellationToken ct)
+    {
+        var result = await _service.MigrateExistingModulesAsync(ct);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<MigrateArticlesResult>
+        {
+            Success = true,
+            Message = $"Migración completada. {data.ModulesProcessed} módulos procesados, {data.ArticlesCreated} artículos creados.",
+            Data = data
+        }));
+    }
 }
