@@ -63,6 +63,7 @@ public class HelpImageService : IHelpImageService
     {
         try
         {
+            Console.WriteLine($"[DEBUG HelpImageService] UploadAsync iniciado - FileName: {originalFileName}, ContentType: {contentType}");
             _logger.LogDebug("Iniciando carga de imagen: {FileName}, ContentType: {ContentType}", originalFileName, contentType);
 
             // Validar tipo de contenido
@@ -119,6 +120,7 @@ public class HelpImageService : IHelpImageService
             _logger.LogDebug("Archivo guardado en: {FilePath}", fullFilePath);
 
             // Crear registro en base de datos
+            Console.WriteLine($"[DEBUG HelpImageService] Creando entidad HelpImage...");
             var helpImage = new HelpImage
             {
                 NombreOriginal = originalFileName,
@@ -131,8 +133,10 @@ public class HelpImageService : IHelpImageService
                 FechaSubida = DateTime.UtcNow,
                 SubidoPor = uploadedBy
             };
+            Console.WriteLine($"[DEBUG HelpImageService] Entidad creada, llamando a _repository.CreateAsync...");
 
             var savedImage = await _repository.CreateAsync(helpImage, ct);
+            Console.WriteLine($"[DEBUG HelpImageService] Imagen guardada en DB - Id: {savedImage.Id}");
 
             _logger.LogInformation("Imagen de ayuda cargada exitosamente: {ImageId} - {FileName}", savedImage.Id, savedImage.NombreArchivo);
 
@@ -140,6 +144,13 @@ public class HelpImageService : IHelpImageService
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[DEBUG HelpImageService] EXCEPCIÓN: {ex.GetType().Name}");
+            Console.WriteLine($"[DEBUG HelpImageService] Mensaje: {ex.Message}");
+            Console.WriteLine($"[DEBUG HelpImageService] StackTrace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"[DEBUG HelpImageService] InnerException: {ex.InnerException.Message}");
+            }
             _logger.LogError(ex, "Error al cargar imagen de ayuda: {FileName}", originalFileName);
             return CommonErrors.InternalServerError("Error al procesar la imagen. Intente nuevamente.");
         }

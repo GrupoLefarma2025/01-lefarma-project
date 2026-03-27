@@ -21,8 +21,15 @@ public class HelpImageRepository : IHelpImageRepository
     /// </summary>
     public async Task<HelpImage> CreateAsync(HelpImage helpImage, CancellationToken ct)
     {
+        Console.WriteLine($"[DEBUG HelpImageRepository] CreateAsync iniciado - NombreArchivo: {helpImage.NombreArchivo}");
+        Console.WriteLine($"[DEBUG HelpImageRepository] Agregando a HelpImages...");
+
         await _context.HelpImages.AddAsync(helpImage, ct);
+        Console.WriteLine($"[DEBUG HelpImageRepository] AddAsync OK, llamando SaveChangesAsync...");
+
         await _context.SaveChangesAsync(ct);
+        Console.WriteLine($"[DEBUG HelpImageRepository] SaveChangesAsync OK - Id generado: {helpImage.Id}");
+
         return helpImage;
     }
 

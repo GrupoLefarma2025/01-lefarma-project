@@ -14,7 +14,7 @@ namespace Lefarma.API.Features.Help.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/help/images")]
-[Authorize]
+//[Authorize]
 public class HelpImagesController : ControllerBase
 {
     private readonly IHelpImageService _helpImageService;
@@ -41,11 +41,14 @@ public class HelpImagesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Upload(
-        IFormFile file,
+        [FromForm] IFormFile file,
         CancellationToken ct)
     {
+        Console.WriteLine($"[DEBUG] Upload iniciado - file: {(file != null ? "NOT NULL" : "NULL")}");
+
         if (file == null || file.Length == 0)
         {
+            Console.WriteLine("[DEBUG] Archivo es null o vacío");
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
@@ -54,15 +57,24 @@ public class HelpImagesController : ControllerBase
             });
         }
 
+        Console.WriteLine($"[DEBUG] file.FileName: {file.FileName}");
+        Console.WriteLine($"[DEBUG] file.ContentType: {file.ContentType}");
+        Console.WriteLine($"[DEBUG] file.Length: {file.Length}");
+
         var username = User.Identity?.Name ?? "unknown";
+        Console.WriteLine($"[DEBUG] username: {username}");
 
         using var stream = file.OpenReadStream();
+        Console.WriteLine("[DEBUG] Stream creado, llamando al servicio...");
+
         var result = await _helpImageService.UploadAsync(
             stream,
             file.FileName,
             file.ContentType,
             username,
             ct);
+
+        Console.WriteLine($"[DEBUG] Servicio terminó - result.IsError: {result.IsError}");
 
         return result.ToActionResult(this, data => CreatedAtAction(
             nameof(Upload),

@@ -80,7 +80,7 @@ export default function TinyMceEditor({ initialContent, onChange, height }: Tiny
             }
 
             const result = await response.json();
-            return result.url;
+            return result.data?.rutaRelativa;
           },
           toolbar_mode: 'sliding',
           statusbar: false,
