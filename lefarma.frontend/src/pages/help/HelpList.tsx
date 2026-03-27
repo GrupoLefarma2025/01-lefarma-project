@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FilePenLine, Save, FileText, Plus } from 'lucide-react';
+import { FilePenLine, Save, FileText } from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { HelpSidebar } from '@/components/help/HelpSidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,10 +9,12 @@ import { Switch } from '@/components/ui/switch';
 import TinyMceEditor from '@/components/help/TinyMceEditor';
 import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { useHelpStore } from '@/store/helpStore';
+import { helpService } from '@/services/helpService';
 import type { HelpArticle } from '@/types/help.types';
 
 export default function HelpList() {
-  const navigate = useNavigate();
+  usePageTitle('Ayuda', 'Centro de ayuda y soporte');
+
   const { 
     articles, 
     isLoading, 
@@ -45,6 +47,8 @@ export default function HelpList() {
   useEffect(() => {
     fetchForUser();
   }, [fetchForUser]);
+
+
 
   useEffect(() => {
     if (filteredArticles.length > 0 && !selectedArticleId) {
@@ -173,8 +177,7 @@ export default function HelpList() {
 
       <ScrollArea className="flex-1">
         <div className="max-w-4xl mx-auto p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold">Centro de Ayuda</h1>
+          <div className="flex items-center justify-end">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2 rounded-md border px-3 py-2">
                 <span className="text-sm text-muted-foreground">Usuario</span>
@@ -213,15 +216,11 @@ export default function HelpList() {
               <h2 className="text-xl font-semibold text-muted-foreground mb-2">
                 No hay artículos disponibles
               </h2>
-              <p className="text-sm text-muted-foreground text-center mb-6 max-w-md">
+              <p className="text-sm text-muted-foreground text-center max-w-md">
                 {selectedType === 'desarrollador'
                   ? 'No hay artículos de documentación técnica en esta sección.'
                   : 'No hay artículos de ayuda para mostrar en esta sección.'}
               </p>
-              <Button onClick={() => navigate('/help/new')}>
-                <Plus className="h-4 w-4 mr-2" />
-                Crear artículo
-              </Button>
             </div>
           ) : (
             <div className="rounded-lg border p-6 bg-amber-50/50">

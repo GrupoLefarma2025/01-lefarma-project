@@ -90,6 +90,13 @@ export const helpService = {
   deleteModule: async (id: number): Promise<void> => {
     await API.delete(`${MODULES_URL}/${id}`);
   },
+
+  migrateArticles: async (): Promise<{ modulesProcessed: number; articlesCreated: number; details: string[] }> => {
+    const response = await API.post<ApiResponse<{ modulesProcessed: number; articlesCreated: number; details: string[] }>>(
+      `${MODULES_URL}/migrate-articles`
+    );
+    return response.data.data;
+  },
 };
 
 export default helpService;

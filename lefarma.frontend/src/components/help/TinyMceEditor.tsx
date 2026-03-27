@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import type { Editor as TinyMCEEditor } from 'tinymce';
+import { authService } from '@/services/authService';
 
 interface TinyMceEditorProps {
   initialContent: string;
@@ -10,11 +11,16 @@ interface TinyMceEditorProps {
 export default function TinyMceEditor({ initialContent, onChange }: TinyMceEditorProps) {
   const editorRef = useRef<TinyMCEEditor | null>(null);
   const isInitialized = useRef(false);
+  const isSettingContent = useRef(false);
 
   useEffect(() => {
     if (editorRef.current && !isInitialized.current && initialContent) {
+      isSettingContent.current = true;
       editorRef.current.setContent(initialContent);
       isInitialized.current = true;
+      setTimeout(() => {
+        isSettingContent.current = false;
+      }, 0);
     }
   }, [initialContent]);
 
@@ -34,6 +40,7 @@ export default function TinyMceEditor({ initialContent, onChange }: TinyMceEdito
           'charmap',
           'codesample',
           'emoticons',
+          'image',
           'link',
           'lists',
           'media',
@@ -44,8 +51,28 @@ export default function TinyMceEditor({ initialContent, onChange }: TinyMceEdito
         ],
         toolbar:
           'undo redo | blocks fontfamily fontsize | bold italic underline strikethrough | ' +
-          'link table | align lineheight | numlist bullist indent outdent | ' +
+          'link image table | align lineheight | numlist bullist indent outdent | ' +
           'emoticons charmap | removeformat',
+        images_upload_handler: async (blobInfo) => {
+          const formData = new FormData();
+          formData.append('file', blobInfo.blob(), blobInfo.filename());
+
+          const token = authService.getAccessToken();
+          const response = await fetch('/api/help/images', {
+            method: 'POST',
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error('Error al subir la imagen');
+          }
+
+          const result = await response.json();
+          return result.url;
+        },
         toolbar_mode: 'sliding',
         statusbar: false,
         promotion: false,
@@ -85,7 +112,9 @@ export default function TinyMceEditor({ initialContent, onChange }: TinyMceEdito
         `,
       }}
       onEditorChange={(content) => {
-        onChange(content);
+        if (!isSettingContent.current) {
+          onChange(content);
+        }
       }}
     />
   );
