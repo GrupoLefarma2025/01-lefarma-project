@@ -81,7 +81,7 @@ src/
 ├── services/                  # api.ts (Axios), authService.ts
 ├── store/                     # Zustand (authStore, pageStore, etc.)
 ├── types/                     # TypeScript definitions
-├── hooks/                     # Custom React hooks
+├── hooks/                     # Custom hooks (usePageTitle, use-toast)
 └── App.tsx
 ```
 
@@ -93,6 +93,11 @@ src/
 - **Forms**: React Hook Form + Zod validation
 - **SSE**: Real-time notifications via EventSource (auto-reconnect, auth headers)
 - **Tables**: TanStack Table v8 with advanced filters
+- **Page Titles**: `usePageTitle(title, subtitle?)` muestra título en el Header (no en document.title)
+  ```typescript
+  // En cualquier page component
+  usePageTitle('Empresas', 'Gestión de empresas');  // subtítulo opcional
+  ```
 
 **Commands**:
 ```bash

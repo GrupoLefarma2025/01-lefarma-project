@@ -98,7 +98,7 @@ src/
 ├── routes/           # AppRoutes, PrivateRoute, PublicRoute
 ├── services/         # API client (api.ts, authService.ts)
 ├── store/            # Zustand stores (authStore.ts)
-├── hooks/            # Custom hooks (use-toast.ts)
+├── hooks/            # Custom hooks (use-toast.ts, usePageTitle.ts)
 ├── types/            # TypeScript types
 ├── lib/              # Utilities (utils.ts)
 └── App.tsx
@@ -159,6 +159,15 @@ VITE_API_URL=http://localhost:5000/api
 
 // Token stored in localStorage, auto-attached via axios interceptor
 ```
+
+### Frontend Custom Hooks
+
+- **usePageTitle(title, subtitle?)**: Hook estándar para mostrar el título de la página en el nav/header. Debe llamarse al inicio de cada página.
+  ```typescript
+  // En cualquier page component
+  usePageTitle('Empresas', 'Gestión de empresas');  // subtítulo opcional
+  ```
+  El título aparece en el componente `Header`, no en `document.title`. Usa el store global `pageStore`.
 
 ## Tech Stack
 
