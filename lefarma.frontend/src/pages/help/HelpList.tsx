@@ -176,8 +176,8 @@ export default function HelpList() {
         />
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="w-full p-4 space-y-4">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="shrink-0 p-4 pb-0">
           <Card>
             <CardContent className="p-3">
               <div className="flex items-center justify-between">
@@ -212,10 +212,12 @@ export default function HelpList() {
               </div>
             </CardContent>
           </Card>
+        </div>
 
+        <div className="flex-1 min-h-0 p-4">
           {filteredArticles.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-16">
+            <Card className="border-dashed h-full">
+              <CardContent className="flex flex-col items-center justify-center h-full">
                 <FileText className="h-16 w-16 text-muted-foreground/50 mb-4" />
                 <h2 className="text-xl font-semibold text-muted-foreground mb-2">
                   No hay artículos disponibles
@@ -227,24 +229,31 @@ export default function HelpList() {
                 </p>
               </CardContent>
             </Card>
-          ) : (
-            <Card className="flex-1">
-              <CardContent className="p-4">
+          ) : isEditing ? (
+            <Card className="h-full">
+              <CardContent className="p-4 h-full flex flex-col">
                 {selectedArticle && (
-                   isEditing ? (
-                     <TinyMceEditor
-                       initialContent={selectedArticle.contenido}
-                       onChange={setEditedContent}
-                     />
-                   ) : (
-                     <TinyMceViewer contenido={selectedArticle.contenido} />
-                   )
-                  )}
+                  <TinyMceEditor
+                    initialContent={selectedArticle.contenido}
+                    onChange={setEditedContent}
+                    height="100%"
+                  />
+                )}
               </CardContent>
             </Card>
+          ) : (
+            <ScrollArea className="h-full">
+              <Card>
+                <CardContent className="p-4">
+                  {selectedArticle && (
+                    <TinyMceViewer contenido={selectedArticle.contenido} />
+                  )}
+                </CardContent>
+              </Card>
+            </ScrollArea>
           )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

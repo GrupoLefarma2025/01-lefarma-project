@@ -382,6 +382,17 @@ builder.Services.AddScoped<IWideEventAccessor>(sp =>
         : new NullWideEventAccessor();
 });
 
+// Configurar límites de formularios multipart para upload de imágenes (TinyMCE)
+builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+{
+    options.MultipartBodyLengthLimit = 10_000_000; // 10 MB
+});
+
+// Configurar límites de Kestrel para uploads
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 10_000_000; // 10 MB
+});
 
 var app = builder.Build();
 

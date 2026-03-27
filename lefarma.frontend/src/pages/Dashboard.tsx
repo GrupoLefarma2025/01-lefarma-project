@@ -1,12 +1,10 @@
-import { useAuthStore } from '@/store/authStore';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, Users, Shield, Package, BarChart3, TrendingUp } from 'lucide-react';
 
 export default function Dashboard() {
   usePageTitle('Dashboard', 'Panel de control');
-  const { user, empresa, sucursal } = useAuthStore();
-
+  
   const stats = [
     {
       title: 'Total Empresas',
@@ -44,12 +42,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Bienvenida */}
-      {empresa && sucursal && (
-        <p className="text-sm text-muted-foreground">
-          {empresa.nombre} - {sucursal.nombre}
-        </p>
-      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
