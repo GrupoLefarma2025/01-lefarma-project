@@ -8,12 +8,12 @@ import Dashboard from '@/pages/Dashboard';
 import RolesList from '@/pages/admin/Roles/RolesList';
 import PermisosList from '@/pages/admin/Permisos/PermisosList';
 import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
-import EmpresasList from '@/pages/catalogos/Empresas/EmpresasList';
-import SucursalesList from '@/pages/catalogos/Sucursales/SucursalesList';
-import GastosList from '@/pages/catalogos/Gastos/GastosList';
-import MedidasList from '@/pages/catalogos/Medidas/MedidasList';
-import AreasList from '@/pages/catalogos/Areas/AreasList';
-import FormasPagoList from '@/pages/catalogos/FormasPago/FormasPagoList';
+import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
+import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
+import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';
+import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
+import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
+import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
 import CentrosCostoList from '@/pages/catalogos/generales/CentrosCosto/CentrosCostoList';
 import CuentasContablesList from '@/pages/catalogos/generales/CuentasContables/CuentasContablesList';
 import EstatusOrdenList from '@/pages/catalogos/generales/EstatusOrden/EstatusOrdenList';
@@ -21,7 +21,8 @@ import RegimenesFiscalesList from '@/pages/catalogos/generales/RegimenesFiscales
 import ProveedoresList from '@/pages/catalogos/generales/Proveedores/ProveedoresList';
 import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
-import { AutorizacionesOC } from '@/pages/ordenes';
+import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
+import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
@@ -61,6 +62,7 @@ export const AppRoutes = () => {
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
           <Route path="/workflows" element={<WorkflowsList />} />
           <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+          <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/notificaciones" element={<NotificationsPage />} />

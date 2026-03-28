@@ -201,7 +201,7 @@ VITE_API_URL=http://localhost:5000/api
 
 ## IMPORTANT: Documentation Maintenance
 
-**Whenever making changes to the codebase, always update the documentation in `lefarma.docs/` to reflect the actual and current state of the project.**
+**Whenever making changes to the codebase, always update the documentation in `lefarma.docs/` to reflect the actual and current state of the project. Seguir el estándar definido en `lefarma.docs/STANDARD_DOCUMENTATION_PLAN.md` (Técnico) y `lefarma.docs/USER_DOCUMENTATION_PLAN.md` (Usuarios).**
 
 ### When to Update Docs
 

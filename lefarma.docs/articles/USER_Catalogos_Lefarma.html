@@ -1,0 +1,90 @@
+<h1>📂 Manual de Usuario: Catálogos de Lefarma</h1>
+<p>Los <strong>Catálogos</strong> son las librerías de información básica que alimentan todo el sistema Lefarma. En este manual aprenderás a gestionar desde la estructura de tu empresa hasta los datos de proveedores y configuraciones fiscales.</p>
+<hr/>
+<h2>📍 ¿Cómo Acceder?</h2>
+<p>Todos los catálogos se encuentran centralizados en el menú lateral bajo la siguiente ruta:</p>
+<div style="padding: 10px; background-color: #f1f3f5; border-radius: 5px; font-weight: bold; display: inline-block;">
+  Menú Principal > Catálogos > Generales
+</div>
+<p>> 📸 [CAPTURAR PANTALLA: Menú lateral expandido mostrando la sección de Catálogos]</p>
+<hr/>
+<h2>🖥️ Directorio de Catálogos</h2>
+<p>A continuación se listan los catálogos disponibles y su función principal:</p>
+<table>
+  <thead>
+    <tr><th>Catálogo</th><th>¿Qué se gestiona aquí?</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Empresas</strong></td><td>Datos fiscales y comerciales de las entidades legales.</td></tr>
+    <tr><td><strong>Sucursales</strong></td><td>Ubicaciones físicas de operación.</td></tr>
+    <tr><td><strong>Áreas</strong></td><td>Departamentos internos de cada empresa.</td></tr>
+    <tr><td><strong>Proveedores</strong></td><td>Directorio de vendedores y prestadores de servicios.</td></tr>
+    <tr><td><strong>Bancos</strong></td><td>Lista de instituciones financieras para pagos.</td></tr>
+    <tr><td><strong>Gastos</strong></td><td>Tipos de conceptos permitidos para egresos.</td></tr>
+    <tr><td><strong>Centros de Costo</strong></td><td>Unidades para seguimiento de presupuestos.</td></tr>
+    <tr><td><strong>Formas y Medios de Pago</strong></td><td>Métodos de liquidación (Efectivo, Transferencia, etc.).</td></tr>
+    <tr><td><strong>Unidades de Medida</strong></td><td>Estándares de medición para productos (kg, lt, pz).</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>🚀 Operaciones Comunes (Paso a Paso)</h2>
+<p>La interfaz de todos los catálogos es idéntica, lo que facilita su uso. Aquí te explicamos cómo realizar las tareas principales:</p>
+
+<h3>1. Crear un Nuevo Registro</h3>
+<ol>
+  <li>Selecciona el catálogo deseado en el menú.</li>
+  <li>Haz clic en el botón <strong>+ Nuevo [Elemento]</strong> (ej: + Nueva Empresa).</li>
+  <li>Completa los datos en la ventana emergente. Los campos con asterisco (*) son obligatorios.</li>
+  <li>Haz clic en <strong>Guardar</strong>.</li>
+</ol>
+<p>> 📸 [CAPTURAR PANTALLA: Ejemplo de ventana emergente de creación de registro]</p>
+
+<h3>2. Buscar y Editar</h3>
+<ol>
+  <li>Usa la <strong>Barra de Búsqueda</strong> sobre la tabla para escribir el nombre o clave.</li>
+  <li>Una vez localizado, haz clic en el icono del <strong>Lápiz ✏️</strong>.</li>
+  <li>Modifica los datos y haz clic en <strong>Guardar Cambios</strong>.</li>
+</ol>
+
+<h3>3. Desactivar (Eliminar)</h3>
+<ol>
+  <li>Haz clic en el icono de la <strong>Papelera 🗑️</strong>.</li>
+  <li>Confirma la acción. El registro cambiará a color gris (Inactivo) y ya no podrá usarse en nuevas operaciones, pero se mantendrá para consultas históricas.</li>
+</ol>
+<hr/>
+<h2>📝 Guía de Campos Destacados</h2>
+<p>Aunque cada catálogo pide datos distintos, aquí tienes los más importantes:</p>
+
+<div style="padding: 15px; background-color: #e7f5ff; border-left: 5px solid #228be6; margin: 10px 0;">
+  <strong>Empresas y Proveedores:</strong> Requieren el <strong>RFC</strong> con formato legal (12 o 13 caracteres) para poder guardar.
+</div>
+
+<table>
+  <thead>
+    <tr><th>Catálogo</th><th>Campo Crítico</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Sucursales</strong></td><td>Clave Contable</td><td>Código que vincula la sucursal con el sistema de contabilidad.</td></tr>
+    <tr><td><strong>Áreas</strong></td><td>Empresa</td><td>Se debe seleccionar a qué empresa pertenece el departamento.</td></tr>
+    <tr><td><strong>Gastos</strong></td><td>Requiere Comprobante</td><td>Si se marca, el sistema obligará a subir un CFDI al registrar este gasto.</td></tr>
+    <tr><td><strong>Centros de Costo</strong></td><td>Código</td><td>Identificador numérico único para presupuestos.</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>⚠️ Mensajes y Validaciones</h2>
+<p>Si el sistema no te permite guardar, revisa los siguientes mensajes comunes:</p>
+<ul>
+  <li><strong>"El registro ya existe":</strong> Estás intentando guardar un nombre, RFC o Clave que ya está registrado en el sistema.</li>
+  <li><strong>"Campo requerido":</strong> Olvidaste llenar un dato obligatorio resaltado en rojo.</li>
+  <li><strong>"Formato de RFC inválido":</strong> El RFC escrito no cumple con las reglas del SAT.</li>
+</ul>
+<p>> 📸 [CAPTURAR PANTALLA: Notificación de error roja en la esquina superior derecha]</p>
+<hr/>
+<h2>💡 Consejos para el Usuario</h2>
+<ul>
+  <li><strong>Mayúsculas Automáticas:</strong> No te preocupes por el orden; el sistema convertirá automáticamente tus textos a MAYÚSCULAS para que todo se vea uniforme.</li>
+  <li><strong>Filtros de Tabla:</strong> Puedes ordenar la lista haciendo clic en los encabezados de las columnas (Nombre, Fecha, etc.).</li>
+  <li><strong>Exportación:</strong> Algunos catálogos permiten descargar la lista a Excel usando el botón de descarga en la esquina de la tabla.</li>
+</ul>
+<hr/>
+<p><em>Manual de usuario integral de Catálogos - Actualizado: Marzo 2026</em></p>

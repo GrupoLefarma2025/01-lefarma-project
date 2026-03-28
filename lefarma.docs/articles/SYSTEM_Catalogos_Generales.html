@@ -1,0 +1,246 @@
+<h1>📂 Módulo de Catálogos Generales</h1>
+<p>El módulo de <strong>Catálogos</strong> es el núcleo de configuración de Lefarma. Proporciona la infraestructura de datos maestros necesaria para el funcionamiento de los procesos operativos, financieros y de recursos humanos. Está diseñado bajo una arquitectura modular que permite gestionar entidades clave de manera centralizada.</p>
+<hr/>
+<h2>📚 Catálogos Disponibles</h2>
+<p>El sistema cuenta actualmente con los siguientes catálogos operativos y financieros:</p>
+<table>
+  <thead>
+    <tr>
+      <th>Nombre del Catálogo</th>
+      <th>Descripción</th>
+      <th>Módulo Relacionado</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Empresas</strong></td><td>Entidad legal principal y estructura raíz.</td><td>General / Organización</td></tr>
+    <tr><td><strong>Sucursales</strong></td><td>Puntos de operación vinculados a una empresa.</td><td>General / Organización</td></tr>
+    <tr><td><strong>Áreas</strong></td><td>Departamentos o unidades administrativas.</td><td>RH / Operaciones</td></tr>
+    <tr><td><strong>Proveedores</strong></td><td>Directorio de socios comerciales y fiscales.</td><td>Compras / CxP</td></tr>
+    <tr><td><strong>Bancos</strong></td><td>Instituciones financieras registradas.</td><td>Tesorería / Pagos</td></tr>
+    <tr><td><strong>Formas de Pago</strong></td><td>Métodos SAT (Efectivo, Transferencia, etc.).</td><td>Contabilidad / Fiscal</td></tr>
+    <tr><td><strong>Medios de Pago</strong></td><td>Instrumentos de pago (Tarjeta, Cheque, Ventanilla).</td><td>Tesorería</td></tr>
+    <tr><td><strong>Cuentas Contables</strong></td><td>Estructura para la integración con sistemas ERP.</td><td>Contabilidad</td></tr>
+    <tr><td><strong>Centros de Costo</strong></td><td>Segmentación para control de presupuestos.</td><td>Finanzas</td></tr>
+    <tr><td><strong>Gastos</strong></td><td>Tipificación de conceptos de egreso y viáticos.</td><td>Tesorería</td></tr>
+    <tr><td><strong>Medidas</strong></td><td>Categorías de medición (Peso, Volumen, Longitud).</td><td>Inventarios / Logística</td></tr>
+    <tr><td><strong>Unidades de Medida</strong></td><td>Unidades específicas (kg, lt, m, pz).</td><td>Inventarios / Logística</td></tr>
+    <tr><td><strong>Regímenes Fiscales</strong></td><td>Configuraciones fiscales según el catálogo del SAT.</td><td>Fiscal</td></tr>
+    <tr><td><strong>Estatus de Orden</strong></td><td>Estados del flujo de aprobación de órdenes de compra.</td><td>Workflows / Compras</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>📁 Ubicación de Archivos</h2>
+<h3>Backend (.NET 10)</h3>
+<p>El backend sigue un patrón de carpetas por característica dentro de <code>Features/Catalogos/</code>.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Categoría</th>
+      <th>Ejemplo de Archivo</th>
+      <th>Ruta Base</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Entidades</strong></td>
+      <td><code>Empresa.cs</code>, <code>Area.cs</code></td>
+      <td>Domain/Entities/Catalogos/</td>
+    </tr>
+    <tr>
+      <td><strong>Configuración EF</strong></td>
+      <td><code>EmpresaConfiguration.cs</code></td>
+      <td>Infrastructure/Data/Configurations/Catalogos/</td>
+    </tr>
+    <tr>
+      <td><strong>Repositorios</strong></td>
+      <td><code>EmpresaRepository.cs</code></td>
+      <td>Infrastructure/Data/Repositories/Catalogos/</td>
+    </tr>
+    <tr>
+      <td><strong>DTOs</strong></td>
+      <td><code>EmpresaDTOs.cs</code></td>
+      <td>Features/Catalogos/[Feature]/DTOs/</td>
+    </tr>
+    <tr>
+      <td><strong>Servicios</strong></td>
+      <td><code>EmpresaService.cs</code></td>
+      <td>Features/Catalogos/[Feature]/</td>
+    </tr>
+    <tr>
+      <td><strong>Validadores</strong></td>
+      <td><code>EmpresaValidator.cs</code></td>
+      <td>Features/Catalogos/[Feature]/</td>
+    </tr>
+    <tr>
+      <td><strong>Controladores</strong></td>
+      <td><code>EmpresasController.cs</code></td>
+      <td>Features/Catalogos/[Feature]/</td>
+    </tr>
+  </tbody>
+</table>
+<h3>Frontend (React 19)</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Categoría</th>
+      <th>Archivo / Carpeta</th>
+      <th>Ruta</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Tipos</strong></td>
+      <td><code>catalogo.types.ts</code></td>
+      <td>src/types/</td>
+    </tr>
+    <tr>
+      <td><strong>Servicio API</strong></td>
+      <td><code>api.ts</code> (Genérico)</td>
+      <td>src/services/</td>
+    </tr>
+    <tr>
+      <td><strong>Páginas</strong></td>
+      <td><code>EmpresasList.tsx</code>, <code>AreasList.tsx</code></td>
+      <td>src/pages/catalogos/generales/</td>
+    </tr>
+    <tr>
+      <td><strong>Componentes UI</strong></td>
+      <td><code>DataTable.tsx</code>, <code>Form</code> components</td>
+      <td>src/components/ui/</td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>🎯 Propósito del Sistema</h2>
+<p>El sistema de catálogos permite:</p>
+<ul>
+  <li>🏢 <strong>Estructura Organizacional</strong>: Definir la jerarquía de Empresas, Sucursales y Áreas.</li>
+  <li>💰 <strong>Configuración Financiera</strong>: Gestionar Bancos, Formas de Pago, Medios de Pago y Cuentas Contables.</li>
+  <li>📦 <strong>Logística y Operaciones</strong>: Administrar Unidades de Medida y Proveedores.</li>
+  <li>📝 <strong>Reglas de Negocio</strong>: Configurar Tipos de Gasto y Estatus de Órdenes.</li>
+</ul>
+<p><strong>Características principales:</strong></p>
+<ul>
+  <li>CRUD completo con validaciones del lado del servidor (FluentValidation) y cliente (Zod).</li>
+  <li>Normalización automática de nombres (Upper Case) para búsquedas consistentes.</li>
+  <li>Sistema de borrado lógico (campo <code>Activo</code>).</li>
+  <li>Auditoría básica (<code>FechaCreacion</code>, <code>FechaModificacion</code>).</li>
+  <li>Integración con componentes de tablas avanzadas con filtrado y paginación.</li>
+</ul>
+<hr/>
+<h2>🗃️ Entidades de Base de Datos (Principales)</h2>
+<h3>Empresa (<code>catalogos.empresas</code>)</h3>
+<p>Entidad raíz de la estructura organizacional.</p>
+<table>
+  <thead>
+    <tr>
+      <th>Propiedad</th>
+      <th>Tipo</th>
+      <th>Descripción</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>IdEmpresa</td>
+      <td>int</td>
+      <td>Clave primaria</td>
+    </tr>
+    <tr>
+      <td>Nombre</td>
+      <td>string</td>
+      <td>Nombre comercial (Requerido)</td>
+    </tr>
+    <tr>
+      <td>RFC</td>
+      <td>string</td>
+      <td>Registro Federal de Contribuyentes</td>
+    </tr>
+    <tr>
+      <td>RazonSocial</td>
+      <td>string</td>
+      <td>Nombre legal fiscal</td>
+    </tr>
+    <tr>
+      <td>Activo</td>
+      <td>bool</td>
+      <td>Estado del registro</td>
+    </tr>
+  </tbody>
+</table>
+<p>> 📸 [INSERTAR CAPTURA: Pantalla de listado de Empresas mostrando la tabla con datos]</p>
+<hr/>
+<h2>🔧 DTOs (Data Transfer Objects)</h2>
+<p>Los DTOs se agrupan en records de C# para optimizar la transferencia de datos.</p>
+<h3>EmpresaResponse</h3>
+<pre><code>public record EmpresaResponse(
+    int IdEmpresa,
+    string Nombre,
+    string? Clave,
+    string? RFC,
+    bool Activo
+);</code></pre>
+<hr/>
+<h2>🌐 API Endpoints</h2>
+<p>Todos los catálogos siguen un estándar de rutas: <code>/api/catalogos/[entidad]</code>.</p>
+<h3>Ejemplo: Empresas</h3>
+<ul>
+  <li><strong>GET</strong> <code>/api/catalogos/empresas</code>: Obtiene el listado completo.</li>
+  <li><strong>POST</strong> <code>/api/catalogos/empresas</code>: Crea una nueva empresa.</li>
+  <li><strong>PUT</strong> <code>/api/catalogos/empresas/{id}</code>: Actualiza una empresa existente.</li>
+  <li><strong>DELETE</strong> <code>/api/catalogos/empresas/{id}</code>: Borrado lógico de la empresa.</li>
+</ul>
+<hr/>
+<h2>🔧 Backend: Cómo Usar</h2>
+<h3>1. Inyectar Servicio de Catálogo</h3>
+<pre><code>public class FacturacionService {
+    private readonly IEmpresaService _empresaService;
+    
+    public FacturacionService(IEmpresaService empresaService) {
+        _empresaService = empresaService;
+    }
+    
+    public async Task Procesar() {
+        var empresas = await _empresaService.GetAllAsync();
+    }
+}</code></pre>
+<hr/>
+<h2>⚛️ Frontend: Cómo Usar</h2>
+<h3>1. Consumo en Componentes (DataTable)</h3>
+<p>El frontend utiliza un hook de <code>usePageTitle</code> y llamadas directas a la API mediante la instancia configurada de Axios.</p>
+<pre><code>import API from '@/services/api';
+import { Empresa } from '@/types/catalogo.types';
+
+const fetchEmpresas = async () => {
+    const response = await API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas');
+    if (response.data.success) setEmpresas(response.data.data);
+};</code></pre>
+<p>> 📸 [INSERTAR CAPTURA: Modal de creación/edición de Empresa mostrando las validaciones]</p>
+<hr/>
+<h2>📝 Metadatos y Estados</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Campo</th>
+      <th>Valor</th>
+      <th>Comportamiento UI</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>Activo</code></td>
+      <td><code>true</code></td>
+      <td>Badge Verde (Activo)</td>
+    </tr>
+    <tr>
+      <td><code>Activo</code></td>
+      <td><code>false</code></td>
+      <td>Badge Gris (Inactivo)</td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>💡 Ejemplos Prácticos</h2>
+<h3>Ejemplo 1: Creación de Sucursal vinculada a Empresa</h3>
+<p>Al crear una sucursal, es obligatorio seleccionar una <code>IdEmpresa</code> válida del catálogo de empresas. El formulario carga el selector de empresas automáticamente.</p>
+<hr/>
+<p><em>Documentación generada siguiendo el SYSTEM_DOCUMENTATION_PLAN - Marzo 2026</em></p>

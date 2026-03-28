@@ -1,0 +1,90 @@
+<h1>⚙️ Motor de Workflows y Flujos de Autorización</h1>
+<p>El módulo de <strong>Workflow</strong> es el motor de estados de Lefarma. Permite definir flujos de trabajo dinámicos para procesos de negocio (como la aprobación de Órdenes de Compra), permitiendo configurar pasos, acciones, condiciones de ruteo dinámico y notificaciones automatizadas sin necesidad de cambios en el código.</p>
+<hr/>
+<h2>📁 Ubicación de Archivos</h2>
+<h3>Backend (.NET 10)</h3>
+<table>
+  <thead>
+    <tr><th>Categoría</th><th>Archivo / Carpeta</th><th>Ruta Base</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Entidades</strong></td><td><code>Workflow.cs</code>, <code>WorkflowPaso.cs</code>, <code>WorkflowAccion.cs</code></td><td>Domain/Entities/Config/</td></tr>
+    <tr><td><strong>Motor</strong></td><td><code>WorkflowEngine.cs</code></td><td>Features/Config/Engine/</td></tr>
+    <tr><td><strong>Servicios</strong></td><td><code>WorkflowService.cs</code></td><td>Features/Config/Workflows/</td></tr>
+    <tr><td><strong>Controladores</strong></td><td><code>WorkflowsController.cs</code></td><td>Features/Config/Workflows/</td></tr>
+    <tr><td><strong>DTOs</strong></td><td><code>WorkflowDTOs.cs</code></td><td>Features/Config/Workflows/DTOs/</td></tr>
+  </tbody>
+</table>
+<h3>Frontend (React 19)</h3>
+<table>
+  <thead>
+    <tr><th>Categoría</th><th>Archivo / Carpeta</th><th>Ruta</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Tipos</strong></td><td><code>workflow.types.ts</code></td><td>src/types/</td></tr>
+    <tr><td><strong>Páginas</strong></td><td><code>WorkflowsList.tsx</code>, <code>WorkflowDiagram.tsx</code></td><td>src/pages/workflows/</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>🏗️ Arquitectura del Motor</h2>
+<p>El motor funciona como una máquina de estados finitos basada en los siguientes componentes:</p>
+<ul>
+  <li><strong>Workflow:</strong> El contenedor principal ligado a un proceso (ej: <code>ORDEN_COMPRA</code>).</li>
+  <li><strong>Pasos (Steps):</strong> Estados individuales del proceso (ej: <code>PENDIENTE_GERENTE</code>, <code>AUTORIZADA</code>).</li>
+  <li><strong>Acciones (Transitions):</strong> Botones o eventos que mueven el proceso de un paso a otro (ej: <code>Autorizar</code>, <code>Rechazar</code>).</li>
+  <li><strong>Condiciones (Routing):</strong> Lógica IF/THEN que determina a qué paso saltar según datos del negocio (ej: <code>Si Total > 5000 saltar a Paso 5</code>).</li>
+  <li><strong>Participantes:</strong> Roles o Usuarios específicos que tienen permiso para ejecutar acciones en un paso determinado.</li>
+</ul>
+<hr/>
+<h2>🗃️ Entidades de Base de Datos</h2>
+<h3>Workflow</h3>
+<table>
+  <thead>
+    <tr><th>Propiedad</th><th>Tipo</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>IdWorkflow</td><td>int</td><td>Clave Primaria.</td></tr>
+    <tr><td>Nombre</td><td>string</td><td>Nombre descriptivo del flujo.</td></tr>
+    <tr><td>CodigoProceso</td><td>string</td><td>Identificador único (ej: <code>SOLICITUD_PAGO</code>).</td></tr>
+    <tr><td>Version</td><td>int</td><td>Control de versiones del flujo.</td></tr>
+  </tbody>
+</table>
+<p>> 📸 [INSERTAR CAPTURA: Diagrama de Entidad-Relación de las tablas de Workflow]</p>
+<hr/>
+<h2>🌐 API Endpoints</h2>
+<p>Base URL: <code>/api/config/Workflows</code></p>
+<h3>Gestión de Estructura</h3>
+<ul>
+  <li><strong>POST</strong> <code>/</code>: Crea un nuevo encabezado de workflow.</li>
+  <li><strong>PUT</strong> <code>/{idWorkflow}/pasos/{idPaso}</code>: Actualiza la configuración de un paso.</li>
+  <li><strong>POST</strong> <code>/{idWorkflow}/pasos/{idPaso}/acciones</code>: Añade una transición de salida.</li>
+  <li><strong>POST</strong> <code>/{idWorkflow}/pasos/{idPaso}/condiciones</code>: Define lógica de ruteo dinámico.</li>
+</ul>
+<p><strong>Ejemplo Request (Crear Acción):</strong></p>
+<pre><code>{
+  "nombreAccion": "Aprobar Gerencia",
+  "tipoAccion": "APROBACION",
+  "claseEstetica": "success",
+  "idPasoDestino": 5
+}</code></pre>
+<hr/>
+<h2>🔧 Guía de Integración</h2>
+<h3>Backend: Ejecutar una Transición</h3>
+<pre><code>// Inyección del motor
+private readonly IWorkflowEngine _engine;
+
+public async Task ProcesarAccion(int ordenId, int accionId, int usuarioId) {
+    var result = await _engine.ExecuteTransitionAsync(ordenId, accionId, usuarioId);
+    if(result.Success) {
+        // La orden cambió de estado correctamente
+    }
+}</code></pre>
+<hr/>
+<h2>🛑 Validaciones del Motor</h2>
+<ol>
+  <li><strong>Paso Único de Inicio:</strong> Solo puede existir un paso marcado como <code>EsInicio</code>.</li>
+  <li><strong>Caminos Finales:</strong> El sistema valida que todos los caminos lleguen eventualmente a un paso <code>EsFinal</code>.</li>
+  <li><strong>Permisos:</strong> Antes de ejecutar una acción, el motor valida que el <code>UsuarioId</code> tenga el <code>RolId</code> configurado en la tabla de Participantes para ese paso.</li>
+</ol>
+<hr/>
+<p><em>Documentación técnica generada siguiendo el SYSTEM_DOCUMENTATION_PLAN - Marzo 2026</em></p>

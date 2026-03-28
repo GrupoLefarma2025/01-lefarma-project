@@ -20,6 +20,9 @@ lefarma-project/
 |-----------|-------------|
 | [PROJECT.md](./PROJECT.md) | README original del proyecto con overview completo |
 | [SPECS.md](./SPECS.md) | Resumen de todas las características construidas |
+| [SYSTEM_DOCUMENTATION_PLAN.md](./SYSTEM_DOCUMENTATION_PLAN.md) | Estándar oficial de documentación técnica (Sistemas) |
+| [USER_DOCUMENTATION_PLAN.md](./USER_DOCUMENTATION_PLAN.md) | Estándar oficial de documentación para usuarios finales |
+| [DOCUMENTATION_PROMPT.md](./DOCUMENTATION_PROMPT.md) | Prompt maestro para ejecutar el plan de documentación |
 | [workflow/REQUIREMENTS.md](./workflow/REQUIREMENTS.md) | Requerimientos del sistema |
 | [workflow/ROADMAP.md](./workflow/ROADMAP.md) | Roadmap de desarrollo |
 
@@ -90,9 +93,34 @@ La carpeta [`task/`](./task/) contiene los **PRDs y archivos de tareas** para de
 | `task/001-sincronizacion-usuario-sse.md` | Sincronización de usuario via SSE |
 | `task/021-sistema-gestion-archivos.md` | Sistema de gestión de archivos |
 
+### Planes de Documentación
+
+| Documento | Descripción |
+|-----------|-------------|
+| [SYSTEM_DOCUMENTATION_PLAN.md](./SYSTEM_DOCUMENTATION_PLAN.md) | Estándar de documentación técnica (Sistemas) |
+| [USER_DOCUMENTATION_PLAN.md](./USER_DOCUMENTATION_PLAN.md) | Estándar de documentación para usuarios finales |
+
+### Artículos de Ayuda (articles/)
+
+Artículos en formato HTML listos para el sistema de ayuda.
+
+| Documento | Descripción |
+|-----------|-------------|
+| [articles/SYSTEM_Catalogos_Generales.html](./articles/SYSTEM_Catalogos_Generales.html) | Documentación técnica de Catálogos (Empresas, Sucursales, Áreas) |
+| [articles/SYSTEM_Workflow.html](./articles/SYSTEM_Workflow.html) | Documentación técnica del Motor de Workflows |
+| [articles/USER_Catalogos_Lefarma.html](./articles/USER_Catalogos_Lefarma.html) | Manual de usuario integral de TODOS los catálogos |
+| [articles/USER_Workflow.html](./articles/USER_Workflow.html) | Guía de configuración de flujos de trabajo (Administradores) |
+
 ### Notificaciones (notificaciones/)
 
 Documentación específica del sistema de notificaciones.
+
+| Documento | Descripción |
+|-----------|-------------|
+| [notificaciones/README.md](./notificaciones/README.md) | Guía del sistema de notificaciones multi-canal |
+| [notificaciones/PASOS_PARA_PROBAR.md](./notificaciones/PASOS_PARA_PROBAR.md) | Pasos para verificar el sistema |
+| [notificaciones/REPORTE_VALIDACION.md](./notificaciones/REPORTE_VALIDACION.md) | Reporte final de validación |
+
 
 ### Documentación Interna (Documentacion/)
 

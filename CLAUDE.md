@@ -321,6 +321,42 @@ await _notificationService.SendAsync(new SendNotificationRequest {
 });
 ```
 
+## IMPORTANT: Documentation Maintenance
+
+**Whenever making changes to the codebase, always update the documentation in `lefarma.docs/` to reflect the actual and current state of the project. Seguir el estándar definido en `lefarma.docs/STANDARD_DOCUMENTATION_PLAN.md` (Técnico) y `lefarma.docs/USER_DOCUMENTATION_PLAN.md` (Usuarios).**
+
+### When to Update Docs
+
+- **Adding new entities**: Update `backend/entities.md` and `backend/dtos.md`
+- **Adding new endpoints**: Update `backend/api-routes.md`
+- **Adding new services**: Update `backend/services.md`
+- **Adding new pages**: Update `frontend/pages.md` and `frontend/routes.md`
+- **Adding new components**: Update `frontend/components.md`
+- **Adding new types**: Update `frontend/types.md`
+- **Modifying API contracts**: Update all affected documentation files
+
+### Documentation Structure
+
+```text
+lefarma.docs/
+├── README.md                 # Index and overview
+├── backend/
+│   ├── api-routes.md         # API endpoints
+│   ├── entities.md           # Database entities
+│   ├── services.md           # Business services
+│   └── dtos.md               # Data transfer objects
+├── frontend/
+│   ├── routes.md             # Route definitions
+│   ├── pages.md              # Page components
+│   ├── components.md         # Reusable components
+│   ├── services.md           # API client and auth
+│   └── types.md              # TypeScript types
+└── task/                     # PRDs and development tasks
+    ├── README.md             # Task system documentation
+    ├── 001-modulo-ejemplo.md # Task files with consecutive numbering
+    └── 002-otro-modulo.md
+```
+
 ## URLs
 
 | Service | URL |

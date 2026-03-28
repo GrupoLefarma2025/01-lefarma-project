@@ -1,0 +1,61 @@
+<h1>⛓️ Configuración de Flujos de Trabajo (Workflows)</h1>
+<p>El módulo de <strong>Workflows</strong> es una herramienta avanzada para administradores que permite diseñar cómo fluye la información y quién debe autorizar cada etapa de un proceso (como una compra o un pago) sin programar código nuevo.</p>
+<hr/>
+<h2>📍 ¿Cómo Acceder?</h2>
+<div style="padding: 10px; background-color: #f1f3f5; border-radius: 5px; font-weight: bold; display: inline-block;">
+  Menú Principal > Configuración > Workflows
+</div>
+<p>> 📸 [CAPTURAR PANTALLA: Listado de Workflows resaltando el botón "+ Nuevo Workflow"]</p>
+<hr/>
+<h2>🚀 Cómo Crear un Flujo desde Cero</h2>
+
+<h3>1. Definir el Encabezado</h3>
+<p>Haz clic en <strong>+ Nuevo Workflow</strong>. Dale un nombre (ej: "Aprobación de Órdenes") y un Código de Proceso único (ej: <code>ORDEN_COMPRA</code>). Este código es el que vincula el flujo con la pantalla de operación real.</p>
+
+<h3>2. Diseñar los Pasos</h3>
+<p>Un flujo se compone de "Pasos". Cada paso representa una etapa del proceso:</p>
+<ul>
+  <li><strong>Paso Inicial:</strong> Donde comienza el trámite (ej: "Captura de Orden").</li>
+  <li><strong>Pasos Intermedios:</strong> Etapas de revisión (ej: "Validación CxP", "Autorización Gerente").</li>
+  <li><strong>Pasos Finales:</strong> Donde termina el proceso (ej: "Autorizada", "Cancelada").</li>
+</ul>
+
+<h3>3. Configurar Acciones (Botones)</h3>
+<p>En cada paso, debes definir qué botones verá el usuario. Por ejemplo, en el paso de "Revisión", puedes agregar dos acciones:</p>
+<ol>
+  <li><strong>Autorizar:</strong> Mueve el flujo al siguiente paso.</li>
+  <li><strong>Rechazar:</strong> Regresa el flujo al paso anterior o lo cancela.</li>
+</ol>
+<p>> 📸 [CAPTURAR PANTALLA: Ventana de edición de pasos y sus acciones]</p>
+
+<h3>4. Asignar Responsables (Participantes)</h3>
+<p>Para cada paso, debes indicar <strong>quién tiene permiso</strong> de presionar los botones. Puedes asignar roles completos (ej: "Gerentes de Área") o usuarios específicos.</p>
+<hr/>
+<h2>🧠 Lógica Inteligente (Condiciones)</h2>
+<p>Puedes hacer que el flujo tome decisiones automáticas. Por ejemplo:</p>
+<div style="padding: 15px; background-color: #e7f5ff; border-left: 5px solid #228be6; margin: 10px 0;">
+  <strong>Ejemplo:</strong> Si el monto de la compra es <strong>mayor a $10,000</strong>, el flujo debe saltar automáticamente al paso de "Autorización Dirección", saltándose la validación básica.
+</div>
+<p>> 📸 [CAPTURAR PANTALLA: Ejemplo de configuración de una condición de ruteo]</p>
+<hr/>
+<h2>📝 Guía de Estados Visuales</h2>
+<table>
+  <thead>
+    <tr><th>Clase Estética</th><th>Uso Sugerido</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><span style="color: green; font-weight: bold;">success</span></td><td>Botones de Aprobación o Finalización.</td></tr>
+    <tr><td><span style="color: red; font-weight: bold;">danger</span></td><td>Botones de Rechazo o Cancelación.</td></tr>
+    <tr><td><span style="color: orange; font-weight: bold;">warning</span></td><td>Botones para solicitar cambios o devoluciones.</td></tr>
+    <tr><td><span style="color: blue; font-weight: bold;">primary</span></td><td>Acciones de paso estándar o movimiento neutral.</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>💡 Consejos para Administradores</h2>
+<ul>
+  <li><strong>Diagrama Visual:</strong> Usa la opción "Ver Diagrama" para visualizar el mapa del flujo y detectar si algún paso quedó "huérfano" (sin salida).</li>
+  <li><strong>Versiones:</strong> Si haces cambios grandes en un flujo activo, incrementa el número de versión para mantener el orden.</li>
+  <li><strong>Notificaciones:</strong> Recuerda configurar los correos automáticos en la pestaña de notificaciones de cada acción para que los usuarios sepan cuando tienen algo pendiente por firmar.</li>
+</ul>
+<hr/>
+<p><em>Guía de configuración de Workflows - Actualizado: Marzo 2026</em></p>

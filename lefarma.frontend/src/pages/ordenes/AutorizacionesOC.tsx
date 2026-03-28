@@ -454,16 +454,6 @@ export default function AutorizacionesOC() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Bandeja de Autorizaciones OC</h1>
-          <p className="text-sm text-muted-foreground">Pendientes, detalle y timeline de workflow</p>
-        </div>
-        <Button variant="outline" className="gap-2" onClick={fetchOrdenes} disabled={loading}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-          Recargar
-        </Button>
-      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         <div className="xl:col-span-7 space-y-4">
@@ -502,7 +492,13 @@ export default function AutorizacionesOC() {
             pagination
             pageSize={10}
             globalFilter={false}
-            showRefreshButton={false}
+            showRefreshButton
+            onRefresh={fetchOrdenes}
+            filterConfig={{
+              tableId: 'autorizaciones-oc',
+              searchableColumns: ['folio', 'razonSocialProveedor', 'personaContacto'],
+              defaultSearchColumns: ['folio'],
+            }}
             onRowClick={(row) => setSelectedId((row as OrdenCompraResponse).idOrden)}
             height={460}
           />
@@ -514,7 +510,6 @@ export default function AutorizacionesOC() {
               <CardTitle className="text-base flex items-center gap-2">
                 <FileText className="h-4 w-4" /> Vista detalle de orden
               </CardTitle>
-              <CardDescription>Detalle contextual para autorización</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {loadingDetail && (
