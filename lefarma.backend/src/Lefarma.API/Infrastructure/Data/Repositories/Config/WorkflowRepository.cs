@@ -30,7 +30,7 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Config
 
         public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idPaso)
             => await _context.WorkflowAcciones
-                .Where(a => a.IdPasoOrigen == idPaso)
+                .Where(a => a.IdPasoOrigen == idPaso && a.Activo)
                 .ToListAsync();
     }
 }

@@ -22,6 +22,7 @@ export interface WorkflowPaso {
   handlerKey?: string; // 'Firma3Handler', 'Firma4Handler', etc.
   esInicio: boolean;
   esFinal: boolean;
+  activo: boolean;
   requiereFirma: boolean;
   requiereComentario: boolean;
   requiereAdjunto: boolean;
@@ -39,6 +40,7 @@ export interface WorkflowAccion {
   nombreAccion: string; // 'Autorizar', 'Rechazar', etc.
   tipoAccion: 'APROBACION' | 'RECHAZO' | 'RETORNO' | 'CANCELACION';
   claseEstetica?: string; // 'success', 'danger', 'warning', 'primary'
+  activo: boolean;
   notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción
 }
 
@@ -51,6 +53,7 @@ export interface WorkflowCondicion {
   operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN';
   valorComparacion: string;
   idPasoSiCumple: number;
+  activo: boolean;
 }
 
 // ─── WorkflowParticipante ─────────────────────────────────────────────────────
@@ -60,6 +63,7 @@ export interface WorkflowParticipante {
   idPaso: number;
   idRol?: number;
   idUsuario?: number;
+  activo: boolean;
 }
 
 // ─── WorkflowNotificacion ─────────────────────────────────────────────────────
@@ -67,12 +71,14 @@ export interface WorkflowParticipante {
 export interface WorkflowNotificacion {
   idNotificacion: number;
   idAccion: number;
+  idPasoDestino?: number;
   enviarEmail: boolean;
   enviarWhatsapp: boolean;
   enviarTelegram: boolean;
   avisarAlCreador: boolean;
   avisarAlSiguiente: boolean;
   avisarAlAnterior: boolean;
+  activo: boolean;
   asuntoTemplate?: string;
   cuerpoTemplate: string;
 }

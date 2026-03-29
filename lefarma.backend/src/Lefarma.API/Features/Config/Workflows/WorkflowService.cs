@@ -5,6 +5,7 @@ using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
+using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Config.Workflows
@@ -12,12 +13,14 @@ namespace Lefarma.API.Features.Config.Workflows
     public class WorkflowService : BaseService, IWorkflowService
     {
         private readonly IWorkflowRepository _repo;
+        private readonly ApplicationDbContext _context;
         protected override string EntityName => "Workflow";
 
-        public WorkflowService(IWorkflowRepository repo, IWideEventAccessor wideEventAccessor)
+        public WorkflowService(IWorkflowRepository repo, ApplicationDbContext context, IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
             _repo = repo;
+            _context = context;
         }
 
         public async Task<ErrorOr<IEnumerable<WorkflowResponse>>> GetAllAsync(WorkflowRequest query)
@@ -203,13 +206,39 @@ namespace Lefarma.API.Features.Config.Workflows
                     return CommonErrors.NotFound($"Paso con ID {idPaso}");
                 }
 
+                if (!request.Activo)
+                {
+                    if (workflow.Pasos.Count(p => p.Activo) <= 1)
+                        return CommonErrors.Conflict("paso", "No se puede inactivar el último paso activo del workflow.");
+
+                    var tieneOrdenesEnPaso = await _context.OrdenesCompra.AnyAsync(o => o.IdPasoActual == idPaso);
+                    if (tieneOrdenesEnPaso)
+                        return CommonErrors.Conflict("paso", "No se puede inactivar un paso usado por órdenes de compra.");
+
+                var accionesQueApuntanAlPaso = workflow.Pasos
+                    .Where(p => p.IdPaso != idPaso && p.Activo)
+                    .SelectMany(p => p.AccionesOrigen)
+                    .Any(a => a.Activo && a.IdPasoDestino == idPaso);
+                    if (accionesQueApuntanAlPaso)
+                        return CommonErrors.Conflict("paso", "No se puede inactivar el paso porque hay acciones activas que lo usan como destino.");
+
+                var condicionesQueApuntanAlPaso = workflow.Pasos
+                    .Where(p => p.IdPaso != idPaso && p.Activo)
+                    .SelectMany(p => p.Condiciones)
+                    .Any(c => c.Activo && c.IdPasoSiCumple == idPaso);
+                    if (condicionesQueApuntanAlPaso)
+                        return CommonErrors.Conflict("paso", "No se puede inactivar el paso porque hay condiciones activas que lo usan como destino.");
+                }
+
                 // Actualizar propiedades del paso
                 paso.NombrePaso = request.NombrePaso;
+                paso.Orden = request.Orden;
                 paso.CodigoEstado = request.CodigoEstado;
                 paso.DescripcionAyuda = request.DescripcionAyuda;
                 paso.HandlerKey = request.HandlerKey;
                 paso.EsInicio = request.EsInicio;
                 paso.EsFinal = request.EsFinal;
+                paso.Activo = request.Activo;
                 paso.RequiereFirma = request.RequiereFirma;
                 paso.RequiereComentario = request.RequiereComentario;
                 paso.RequiereAdjunto = request.RequiereAdjunto;
@@ -226,6 +255,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     HandlerKey = paso.HandlerKey,
                     EsInicio = paso.EsInicio,
                     EsFinal = paso.EsFinal,
+                    Activo = paso.Activo,
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
@@ -235,7 +265,8 @@ namespace Lefarma.API.Features.Config.Workflows
                         NombreAccion = a.NombreAccion,
                         TipoAccion = a.TipoAccion,
                         ClaseEstetica = a.ClaseEstetica,
-                        IdPasoDestino = a.IdPasoDestino
+                        IdPasoDestino = a.IdPasoDestino,
+                        Activo = a.Activo
                     }).ToList()
                 };
 
@@ -246,6 +277,123 @@ namespace Lefarma.API.Features.Config.Workflows
             {
                 EnrichWideEvent("UpdatePaso", entityId: idWorkflow, exception: ex, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso });
                 return CommonErrors.DatabaseError("actualizar paso");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowPasoResponse>> CreatePasoAsync(int idWorkflow, CreatePasoRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                {
+                    EnrichWideEvent("CreatePaso", entityId: idWorkflow, notFound: true);
+                    return CommonErrors.NotFound($"Workflow con ID {idWorkflow}");
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.CodigoEstado)
+                    && workflow.Pasos.Any(p => p.CodigoEstado == request.CodigoEstado))
+                {
+                    return CommonErrors.AlreadyExists("paso", "codigo_estado", request.CodigoEstado);
+                }
+
+                var paso = new WorkflowPaso
+                {
+                    IdWorkflow = idWorkflow,
+                    Orden = request.Orden,
+                    NombrePaso = request.NombrePaso,
+                    CodigoEstado = request.CodigoEstado,
+                    DescripcionAyuda = request.DescripcionAyuda,
+                    HandlerKey = request.HandlerKey,
+                    EsInicio = request.EsInicio,
+                    EsFinal = request.EsFinal,
+                    Activo = request.Activo,
+                    RequiereFirma = request.RequiereFirma,
+                    RequiereComentario = request.RequiereComentario,
+                    RequiereAdjunto = request.RequiereAdjunto
+                };
+
+                workflow.Pasos.Add(paso);
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("CreatePaso", entityId: idWorkflow, additionalContext: new Dictionary<string, object>
+                {
+                    ["pasoId"] = paso.IdPaso,
+                    ["orden"] = paso.Orden
+                });
+
+                return new WorkflowPasoResponse
+                {
+                    IdPaso = paso.IdPaso,
+                    Orden = paso.Orden,
+                    NombrePaso = paso.NombrePaso,
+                    CodigoEstado = paso.CodigoEstado,
+                    DescripcionAyuda = paso.DescripcionAyuda,
+                    HandlerKey = paso.HandlerKey,
+                    EsInicio = paso.EsInicio,
+                    EsFinal = paso.EsFinal,
+                    Activo = paso.Activo,
+                    RequiereFirma = paso.RequiereFirma,
+                    RequiereComentario = paso.RequiereComentario,
+                    RequiereAdjunto = paso.RequiereAdjunto,
+                    Acciones = new List<WorkflowAccionResponse>()
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("CreatePaso", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("crear paso");
+            }
+        }
+
+        public async Task<ErrorOr<bool>> DeletePasoAsync(int idWorkflow, int idPaso)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones)
+                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
+                    .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow is null)
+                    return CommonErrors.NotFound("workflow", idWorkflow.ToString());
+
+                var paso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPaso);
+                if (paso is null)
+                    return CommonErrors.NotFound("Paso", idPaso.ToString());
+
+                var updateRequest = new UpdatePasoRequest
+                {
+                    NombrePaso = paso.NombrePaso,
+                    Orden = paso.Orden,
+                    CodigoEstado = paso.CodigoEstado,
+                    DescripcionAyuda = paso.DescripcionAyuda,
+                    HandlerKey = paso.HandlerKey,
+                    EsInicio = paso.EsInicio,
+                    EsFinal = paso.EsFinal,
+                    Activo = false,
+                    RequiereFirma = paso.RequiereFirma,
+                    RequiereComentario = paso.RequiereComentario,
+                    RequiereAdjunto = paso.RequiereAdjunto
+                };
+
+                var inactivarResult = await UpdatePasoAsync(idWorkflow, idPaso, updateRequest);
+                if (inactivarResult.IsError)
+                    return inactivarResult.FirstError;
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("DeletePaso", entityId: idWorkflow, exception: ex, additionalContext: new Dictionary<string, object>
+                {
+                    ["pasoId"] = idPaso
+                });
+                return CommonErrors.DatabaseError("inactivar paso");
             }
         }
 
@@ -272,6 +420,10 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("CreateAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
                     return CommonErrors.NotFound("Paso", idPaso.ToString());
                 }
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden crear participantes en un paso inactivo.");
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden crear acciones en un paso inactivo.");
 
                 var accion = new WorkflowAccion
                 {
@@ -279,7 +431,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     NombreAccion = request.NombreAccion,
                     TipoAccion = request.TipoAccion,
                     ClaseEstetica = request.ClaseEstetica,
-                    IdPasoDestino = request.IdPasoDestino
+                    IdPasoDestino = request.IdPasoDestino,
+                    Activo = request.Activo
                 };
 
                 paso.AccionesOrigen.Add(accion);
@@ -291,7 +444,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     NombreAccion = accion.NombreAccion,
                     TipoAccion = accion.TipoAccion,
                     ClaseEstetica = accion.ClaseEstetica,
-                    IdPasoDestino = accion.IdPasoDestino
+                    IdPasoDestino = accion.IdPasoDestino,
+                    Activo = accion.Activo
                 };
 
                 EnrichWideEvent("CreateAccion", entityId: accion.IdAccion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -331,11 +485,14 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("UpdateAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["accionId"] = idAccion, ["notFound"] = true });
                     return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
+                if (!request.Activo && accion.Bitacora.Any())
+                    return CommonErrors.Conflict("accion", "No se puede inactivar una acción con eventos en bitácora.");
 
                 accion.NombreAccion = request.NombreAccion;
                 accion.TipoAccion = request.TipoAccion;
                 accion.ClaseEstetica = request.ClaseEstetica;
                 accion.IdPasoDestino = request.IdPasoDestino;
+                accion.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
 
@@ -345,7 +502,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     NombreAccion = accion.NombreAccion,
                     TipoAccion = accion.TipoAccion,
                     ClaseEstetica = accion.ClaseEstetica,
-                    IdPasoDestino = accion.IdPasoDestino
+                    IdPasoDestino = accion.IdPasoDestino,
+                    Activo = accion.Activo
                 };
 
                 EnrichWideEvent("UpdateAccion", entityId: idAccion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -378,6 +536,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("DeleteAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
                     return CommonErrors.NotFound("Paso", idPaso.ToString());
                 }
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden cambiar acciones de un paso inactivo.");
 
                 var accion = paso.AccionesOrigen.FirstOrDefault(a => a.IdAccion == idAccion);
                 if (accion == null)
@@ -385,8 +545,9 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("DeleteAccion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["accionId"] = idAccion, ["notFound"] = true });
                     return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
-
-                paso.AccionesOrigen.Remove(accion);
+                if (accion.Bitacora.Any())
+                    return CommonErrors.Conflict("accion", "No se puede inactivar una acción con eventos en bitácora.");
+                accion.Activo = false;
                 await _repo.UpdateAsync(workflow);
 
                 EnrichWideEvent("DeleteAccion", entityId: idAccion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -422,6 +583,10 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("CreateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
                     return CommonErrors.NotFound("Paso", idPaso.ToString());
                 }
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden actualizar acciones en un paso inactivo.");
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden crear condiciones en un paso inactivo.");
 
                 var condicion = new WorkflowCondicion
                 {
@@ -429,7 +594,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     CampoEvaluacion = request.CampoEvaluacion,
                     Operador = request.Operador,
                     ValorComparacion = request.ValorComparacion,
-                    IdPasoSiCumple = request.IdPasoSiCumple
+                    IdPasoSiCumple = request.IdPasoSiCumple,
+                    Activo = request.Activo
                 };
 
                 paso.Condiciones.Add(condicion);
@@ -442,7 +608,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     CampoEvaluacion = condicion.CampoEvaluacion,
                     Operador = condicion.Operador,
                     ValorComparacion = condicion.ValorComparacion,
-                    IdPasoSiCumple = condicion.IdPasoSiCumple
+                    IdPasoSiCumple = condicion.IdPasoSiCumple,
+                    Activo = condicion.Activo
                 };
 
                 EnrichWideEvent("CreateCondicion", entityId: condicion.IdCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -482,11 +649,14 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("UpdateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["condicionId"] = idCondicion, ["notFound"] = true });
                     return CommonErrors.NotFound("Condición", idCondicion.ToString());
                 }
+                if (!paso.Activo && request.Activo)
+                    return CommonErrors.Conflict("condicion", "No se puede reactivar una condición en un paso inactivo.");
 
                 condicion.CampoEvaluacion = request.CampoEvaluacion;
                 condicion.Operador = request.Operador;
                 condicion.ValorComparacion = request.ValorComparacion;
                 condicion.IdPasoSiCumple = request.IdPasoSiCumple;
+                condicion.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
 
@@ -497,7 +667,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     CampoEvaluacion = condicion.CampoEvaluacion,
                     Operador = condicion.Operador,
                     ValorComparacion = condicion.ValorComparacion,
-                    IdPasoSiCumple = condicion.IdPasoSiCumple
+                    IdPasoSiCumple = condicion.IdPasoSiCumple,
+                    Activo = condicion.Activo
                 };
 
                 EnrichWideEvent("UpdateCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -537,8 +708,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["condicionId"] = idCondicion, ["notFound"] = true });
                     return CommonErrors.NotFound("Condición", idCondicion.ToString());
                 }
-
-                paso.Condiciones.Remove(condicion);
+                condicion.Activo = false;
                 await _repo.UpdateAsync(workflow);
 
                 EnrichWideEvent("DeleteCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -574,12 +744,15 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("CreateParticipante", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
                     return CommonErrors.NotFound("Paso", idPaso.ToString());
                 }
+                if (!paso.Activo)
+                    return CommonErrors.Conflict("paso", "No se pueden crear participantes en un paso inactivo.");
 
                 var participante = new WorkflowParticipante
                 {
                     IdPaso = idPaso,
                     IdRol = request.IdRol,
-                    IdUsuario = request.IdUsuario
+                    IdUsuario = request.IdUsuario,
+                    Activo = request.Activo
                 };
 
                 paso.Participantes.Add(participante);
@@ -590,7 +763,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     IdParticipante = participante.IdParticipante,
                     IdPaso = participante.IdPaso,
                     IdRol = participante.IdRol,
-                    IdUsuario = participante.IdUsuario
+                    IdUsuario = participante.IdUsuario,
+                    Activo = participante.Activo
                 };
 
                 EnrichWideEvent("CreateParticipante", entityId: participante.IdParticipante, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -630,9 +804,15 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("UpdateParticipante", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["participanteId"] = idParticipante, ["notFound"] = true });
                     return CommonErrors.NotFound("Participante", idParticipante.ToString());
                 }
+                if (!paso.Activo && request.Activo)
+                    return CommonErrors.Conflict("participante", "No se puede reactivar un participante en un paso inactivo.");
+                var participantesActivos = paso.Participantes.Count(p => p.Activo);
+                if (participante.Activo && !request.Activo && participantesActivos <= 1)
+                    return CommonErrors.Conflict("participante", "Debe existir al menos un participante activo por paso.");
 
                 participante.IdRol = request.IdRol;
                 participante.IdUsuario = request.IdUsuario;
+                participante.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
 
@@ -641,7 +821,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     IdParticipante = participante.IdParticipante,
                     IdPaso = participante.IdPaso,
                     IdRol = participante.IdRol,
-                    IdUsuario = participante.IdUsuario
+                    IdUsuario = participante.IdUsuario,
+                    Activo = participante.Activo
                 };
 
                 EnrichWideEvent("UpdateParticipante", entityId: idParticipante, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -681,8 +862,10 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("DeleteParticipante", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["participanteId"] = idParticipante, ["notFound"] = true });
                     return CommonErrors.NotFound("Participante", idParticipante.ToString());
                 }
-
-                paso.Participantes.Remove(participante);
+                var participantesActivos = paso.Participantes.Count(p => p.Activo);
+                if (participante.Activo && participantesActivos <= 1)
+                    return CommonErrors.Conflict("participante", "Debe existir al menos un participante activo por paso.");
+                participante.Activo = false;
                 await _repo.UpdateAsync(workflow);
 
                 EnrichWideEvent("DeleteParticipante", entityId: idParticipante, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -723,6 +906,10 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("CreateNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
                     return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
+                if (!accion.Activo)
+                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acción inactiva.");
+                if (!accion.Activo)
+                    return CommonErrors.Conflict("accion", "No se pueden crear notificaciones en una acción inactiva.");
 
                 var notificacion = new WorkflowNotificacion
                 {
@@ -734,6 +921,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     AvisarAlCreador = request.AvisarAlCreador,
                     AvisarAlSiguiente = request.AvisarAlSiguiente,
                     AvisarAlAnterior = request.AvisarAlAnterior,
+                    Activo = request.Activo,
                     AsuntoTemplate = request.AsuntoTemplate,
                     CuerpoTemplate = request.CuerpoTemplate
                 };
@@ -752,6 +940,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     AvisarAlCreador = notificacion.AvisarAlCreador,
                     AvisarAlSiguiente = notificacion.AvisarAlSiguiente,
                     AvisarAlAnterior = notificacion.AvisarAlAnterior,
+                    Activo = notificacion.Activo,
                     AsuntoTemplate = notificacion.AsuntoTemplate,
                     CuerpoTemplate = notificacion.CuerpoTemplate
                 };
@@ -798,6 +987,8 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("UpdateNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notificacionId"] = idNotificacion, ["notFound"] = true });
                     return CommonErrors.NotFound("Notificación", idNotificacion.ToString());
                 }
+                if (!accion.Activo && request.Activo)
+                    return CommonErrors.Conflict("notificacion", "No se puede reactivar una notificación en una acción inactiva.");
 
                 notificacion.EnviarEmail = request.EnviarEmail;
                 notificacion.EnviarWhatsapp = request.EnviarWhatsapp;
@@ -806,6 +997,7 @@ namespace Lefarma.API.Features.Config.Workflows
                 notificacion.AvisarAlCreador = request.AvisarAlCreador;
                 notificacion.AvisarAlSiguiente = request.AvisarAlSiguiente;
                 notificacion.AvisarAlAnterior = request.AvisarAlAnterior;
+                notificacion.Activo = request.Activo;
                 notificacion.AsuntoTemplate = request.AsuntoTemplate;
                 notificacion.CuerpoTemplate = request.CuerpoTemplate;
 
@@ -822,6 +1014,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     AvisarAlCreador = notificacion.AvisarAlCreador,
                     AvisarAlSiguiente = notificacion.AvisarAlSiguiente,
                     AvisarAlAnterior = notificacion.AvisarAlAnterior,
+                    Activo = notificacion.Activo,
                     AsuntoTemplate = notificacion.AsuntoTemplate,
                     CuerpoTemplate = notificacion.CuerpoTemplate
                 };
@@ -868,8 +1061,7 @@ namespace Lefarma.API.Features.Config.Workflows
                     EnrichWideEvent("DeleteNotificacion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notificacionId"] = idNotificacion, ["notFound"] = true });
                     return CommonErrors.NotFound("Notificación", idNotificacion.ToString());
                 }
-
-                accion.Notificaciones.Remove(notificacion);
+                notificacion.Activo = false;
                 await _repo.UpdateAsync(workflow);
 
                 EnrichWideEvent("DeleteNotificacion", entityId: idNotificacion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
@@ -891,8 +1083,8 @@ namespace Lefarma.API.Features.Config.Workflows
             Version = w.Version,
             Activo = w.Activo,
             FechaCreacion = w.FechaCreacion,
-            Pasos = w.Pasos.OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
-            {
+                Pasos = w.Pasos.Where(p => p.Activo).OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
+                {
                 IdPaso = p.IdPaso,
                 Orden = p.Orden,
                 NombrePaso = p.NombrePaso,
@@ -901,17 +1093,19 @@ namespace Lefarma.API.Features.Config.Workflows
                 HandlerKey = p.HandlerKey,
                 EsInicio = p.EsInicio,
                 EsFinal = p.EsFinal,
+                Activo = p.Activo,
                 RequiereFirma = p.RequiereFirma,
                 RequiereComentario = p.RequiereComentario,
                 RequiereAdjunto = p.RequiereAdjunto,
-                Acciones = p.AccionesOrigen.Select(a => new WorkflowAccionResponse
+                Acciones = p.AccionesOrigen.Where(a => a.Activo).Select(a => new WorkflowAccionResponse
                 {
                     IdAccion = a.IdAccion,
                     NombreAccion = a.NombreAccion,
                     TipoAccion = a.TipoAccion,
                     ClaseEstetica = a.ClaseEstetica,
                     IdPasoDestino = a.IdPasoDestino,
-                    Notificaciones = a.Notificaciones.Select(n => new NotificacionResponse
+                    Activo = a.Activo,
+                    Notificaciones = a.Notificaciones.Where(n => n.Activo).Select(n => new NotificacionResponse
                     {
                         IdNotificacion = n.IdNotificacion,
                         IdAccion = n.IdAccion,
@@ -922,34 +1116,37 @@ namespace Lefarma.API.Features.Config.Workflows
                         AvisarAlCreador = n.AvisarAlCreador,
                         AvisarAlSiguiente = n.AvisarAlSiguiente,
                         AvisarAlAnterior = n.AvisarAlAnterior,
+                        Activo = n.Activo,
                         AsuntoTemplate = n.AsuntoTemplate,
                         CuerpoTemplate = n.CuerpoTemplate
                     }).ToList()
                 }).ToList(),
-                Condiciones = p.Condiciones.Select(c => new CondicionResponse
+                Condiciones = p.Condiciones.Where(c => c.Activo).Select(c => new CondicionResponse
                 {
                     IdCondicion = c.IdCondicion,
                     IdPaso = c.IdPaso,
                     CampoEvaluacion = c.CampoEvaluacion,
                     Operador = c.Operador,
                     ValorComparacion = c.ValorComparacion,
-                    IdPasoSiCumple = c.IdPasoSiCumple
+                    IdPasoSiCumple = c.IdPasoSiCumple,
+                    Activo = c.Activo
                 }).ToList(),
-                Participantes = p.Participantes.Select(pt => new ParticipanteResponse
+                Participantes = p.Participantes.Where(pt => pt.Activo).Select(pt => new ParticipanteResponse
                 {
                     IdParticipante = pt.IdParticipante,
                     IdPaso = pt.IdPaso,
                     IdRol = pt.IdRol,
-                    IdUsuario = pt.IdUsuario
+                    IdUsuario = pt.IdUsuario,
+                    Activo = pt.Activo
                 }).ToList()
             }).ToList(),
             Stats = new WorkflowStatsResponse
             {
-                TotalPasos = w.Pasos.Count,
-                TotalAcciones = w.Pasos.SelectMany(p => p.AccionesOrigen).Count(),
-                TotalCondiciones = w.Pasos.SelectMany(p => p.Condiciones).Count(),
-                TotalNotificaciones = w.Pasos.SelectMany(p => p.AccionesOrigen)
-                    .SelectMany(a => a.Notificaciones).Count()
+                TotalPasos = w.Pasos.Count(p => p.Activo),
+                TotalAcciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.AccionesOrigen).Count(a => a.Activo),
+                TotalCondiciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.Condiciones).Count(c => c.Activo),
+                TotalNotificaciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.AccionesOrigen.Where(a => a.Activo))
+                    .SelectMany(a => a.Notificaciones).Count(n => n.Activo)
             }
         };
     }

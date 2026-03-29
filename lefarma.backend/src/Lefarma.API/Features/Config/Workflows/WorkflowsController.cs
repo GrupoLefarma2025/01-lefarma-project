@@ -78,6 +78,24 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Paso actualizado exitosamente.", Data = data }));
         }
 
+        [HttpPost("{idWorkflow}/pasos")]
+        [SwaggerOperation(Summary = "Crear paso de workflow")]
+        public async Task<IActionResult> CreatePaso(int idWorkflow, [FromBody] CreatePasoRequest request)
+        {
+            var result = await _service.CreatePasoAsync(idWorkflow, request);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowPasoResponse>
+            { Success = true, Message = "Paso creado exitosamente.", Data = data }));
+        }
+
+        [HttpDelete("{idWorkflow}/pasos/{idPaso}")]
+        [SwaggerOperation(Summary = "Inactivar paso de workflow")]
+        public async Task<IActionResult> DeletePaso(int idWorkflow, int idPaso)
+        {
+            var result = await _service.DeletePasoAsync(idWorkflow, idPaso);
+            return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+            { Success = true, Message = "Paso inactivado exitosamente.", Data = null }));
+        }
+
         // ============================================================================
         // ACCIONES
         // ============================================================================

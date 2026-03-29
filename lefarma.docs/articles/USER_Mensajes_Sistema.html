@@ -1,0 +1,59 @@
+<h1>📢 Guía de Mensajes y Alertas del Sistema</h1>
+<p>Lefarma utiliza un sistema de notificaciones visuales para informarte sobre el éxito de tus operaciones o advertirte cuando algo no salió como se esperaba. Esta guía te ayudará a entender qué significan estos mensajes y cómo actuar ante ellos.</p>
+<hr/>
+<h2>🎨 Tipos de Alertas</h2>
+<p>Las alertas aparecen en la esquina superior derecha de la pantalla con diferentes colores:</p>
+<ul>
+  <li><strong style="color: green;">Verde (Éxito):</strong> Tu operación se guardó correctamente. No requiere acción adicional.</li>
+  <li><strong style="color: #e67e22;">Naranja (Advertencia):</strong> Los datos se guardaron, pero hubo un detalle menor (ej: "No se pudo enviar el correo de notificación, pero la orden se creó").</li>
+  <li><strong style="color: red;">Rojo (Error):</strong> La operación falló. El sistema te indicará el motivo específico.</li>
+</ul>
+<p>> 📸 [CAPTURAR PANTALLA: Ejemplo de los tres colores de alertas visuales]</p>
+<hr/>
+<h2>🛑 Errores Comunes y Soluciones</h2>
+
+<h3>1. Errores de Validación (Datos Incorrectos)</h3>
+<p>Son los más frecuentes. El sistema bloquea el guardado para proteger la integridad de la información.</p>
+<table>
+  <thead>
+    <tr><th>Mensaje</th><th>¿Qué significa?</th><th>¿Qué hacer?</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>"El registro ya existe"</td><td>Estás intentando crear algo (RFC, Nombre, Clave) que ya está en el sistema.</td><td>Busca el registro existente para editarlo en lugar de crear uno nuevo.</td></tr>
+    <tr><td>"Campo obligatorio"</td><td>Dejaste un dato vacío que el sistema necesita.</td><td>Llena todos los campos marcados con un asterisco (*).</td></tr>
+    <tr><td>"Formato inválido"</td><td>Escribiste algo mal (ej: un correo sin @ o un RFC mal estructurado).</td><td>Revisa la ortografía y el formato del dato ingresado.</td></tr>
+  </tbody>
+</table>
+
+<h3>2. Errores de Permisos</h3>
+<p>Si ves un mensaje que dice <strong>"No tienes permisos suficientes"</strong> o <strong>"Acceso Denegado"</strong>:</p>
+<ul>
+  <li>Tu usuario no tiene asignado el rol necesario para esa acción específica.</li>
+  <li><strong>Solución:</strong> Contacta al administrador del sistema para revisar tu perfil de seguridad.</li>
+</ul>
+
+<h3>3. Errores de Conexión o del Servidor</h3>
+<p>Si aparece un mensaje genérico como <strong>"Error interno del servidor (500)"</strong> o <strong>"No se pudo conectar con la API"</strong>:</p>
+<ul>
+  <li>Puede ser un fallo temporal en la red o un problema técnico en el servidor.</li>
+  <li><strong>Solución:</strong> Espera un momento y vuelve a intentarlo. Si el problema persiste, reporta el error.</li>
+</ul>
+<hr/>
+<h2>🛠️ Cómo Reportar un Problema</h2>
+<p>Si encuentras un error que no puedes resolver, por favor incluye la siguiente información al contactar a Soporte Técnico:</p>
+<ol>
+  <li><strong>Pantallazo:</strong> Una captura del error donde se vea el mensaje rojo.</li>
+  <li><strong>Acción:</strong> ¿Qué estabas intentando hacer? (ej: "Estaba intentando autorizar la orden #123").</li>
+  <li><strong>Hora:</strong> El momento exacto en que ocurrió.</li>
+</ol>
+<div style="padding: 15px; background-color: #f8f9fa; border-left: 5px solid #007bff; margin: 10px 0;">
+  <strong>Sugerencia:</strong> Si el sistema te muestra un código largo de números y letras (ID de Petición), cópialo y envíalo. Eso ayuda a los programadores a encontrar tu caso en milisegundos.
+</div>
+<hr/>
+<h2>💡 Consejos de Oro</h2>
+<ul>
+  <li><strong>Lee antes de cerrar:</strong> Las alertas rojas suelen decir exactamente qué campo está mal. No las cierres sin leerlas primero.</li>
+  <li><strong>Refrescar:</strong> A veces, simplemente refrescando la página (F5) se solucionan problemas de conexión momentáneos.</li>
+</ul>
+<hr/>
+<p><em>Manual de gestión de errores para usuarios - Actualizado: Marzo 2026</em></p>

@@ -108,8 +108,10 @@ Artículos en formato HTML listos para el sistema de ayuda.
 |-----------|-------------|
 | [articles/SYSTEM_Catalogos_Generales.html](./articles/SYSTEM_Catalogos_Generales.html) | Documentación técnica de Catálogos (Empresas, Sucursales, Áreas) |
 | [articles/SYSTEM_Workflow.html](./articles/SYSTEM_Workflow.html) | Documentación técnica del Motor de Workflows |
+| [articles/SYSTEM_Logging_Errors.html](./articles/SYSTEM_Logging_Errors.html) | Documentación técnica de WideEvents y Errores |
 | [articles/USER_Catalogos_Lefarma.html](./articles/USER_Catalogos_Lefarma.html) | Manual de usuario integral de TODOS los catálogos |
 | [articles/USER_Workflow.html](./articles/USER_Workflow.html) | Guía de configuración de flujos de trabajo (Administradores) |
+| [articles/USER_Mensajes_Sistema.html](./articles/USER_Mensajes_Sistema.html) | Guía de interpretación de errores y alertas |
 
 ### Notificaciones (notificaciones/)
 

@@ -61,7 +61,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var workflowConfig = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
                 if (orden.IdPasoActual.HasValue)
                 {
-                    var paso = workflowConfig?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
+                    var paso = workflowConfig?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value && p.Activo);
                     if (paso is not null)
                         pasoActual = new WorkflowPasoInfo(paso.RequiereComentario, paso.HandlerKey);
                 }
@@ -262,13 +262,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         {
             var accion = workflow?.Pasos
                 .SelectMany(p => p.AccionesOrigen)
-                .FirstOrDefault(a => a.IdAccion == idAccion);
+                .FirstOrDefault(a => a.IdAccion == idAccion && a.Activo);
 
             if (accion is null)
                 return null;
 
-            return accion.Notificaciones.FirstOrDefault(n => n.IdPasoDestino == idPasoDestino)
-                ?? accion.Notificaciones.FirstOrDefault(n => n.IdPasoDestino == null);
+            return accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == idPasoDestino)
+                ?? accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == null);
         }
 
         // Record auxiliar interno

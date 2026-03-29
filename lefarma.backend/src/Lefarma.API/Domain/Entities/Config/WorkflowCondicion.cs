@@ -8,6 +8,7 @@
         public string Operador { get; set; } = null!;         // '>', '<', '=', 'IN'
         public string ValorComparacion { get; set; } = null!;
         public int IdPasoSiCumple { get; set; }
+        public bool Activo { get; set; } = true;
 
         public virtual WorkflowPaso? Paso { get; set; }
     }

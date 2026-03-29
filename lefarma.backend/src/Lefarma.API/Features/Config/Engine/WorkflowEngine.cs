@@ -23,14 +23,14 @@ namespace Lefarma.API.Features.Config.Engine
 
             var accion = workflow.Pasos
                 .SelectMany(p => p.AccionesOrigen)
-                .FirstOrDefault(a => a.IdAccion == ctx.IdAccion);
+                .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
 
             if (accion is null)
                 return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
 
             // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
-            foreach (var condicion in accion.PasoOrigen!.Condiciones)
+            foreach (var condicion in accion.PasoOrigen!.Condiciones.Where(c => c.Activo))
             {
                 if (EvaluarCondicion(condicion, ctx.DatosAdicionales))
                 {
@@ -40,7 +40,7 @@ namespace Lefarma.API.Features.Config.Engine
             }
 
             var nuevoPaso = idPasoDestino.HasValue
-                ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value)
+                ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value && p.Activo)
                 : null;
 
             // Registrar en bitácora inmutable la transición ejecutada
@@ -82,6 +82,7 @@ namespace Lefarma.API.Features.Config.Engine
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
             var workflow = await _workflowRepo.GetByCodigoProcesoAsync(codigoProceso);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
+            if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
             // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
             // se expone una sola acción "Autorizar" para evitar duplicados en UI.

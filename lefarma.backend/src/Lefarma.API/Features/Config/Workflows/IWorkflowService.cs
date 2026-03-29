@@ -11,7 +11,9 @@ namespace Lefarma.API.Features.Config.Workflows
         Task<ErrorOr<WorkflowResponse>> CreateAsync(CreateWorkflowRequest request);
         Task<ErrorOr<WorkflowResponse>> UpdateAsync(int id, UpdateWorkflowRequest request);
         Task<ErrorOr<bool>> DeleteAsync(int id);
+        Task<ErrorOr<WorkflowPasoResponse>> CreatePasoAsync(int idWorkflow, CreatePasoRequest request);
         Task<ErrorOr<WorkflowPasoResponse>> UpdatePasoAsync(int idWorkflow, int idPaso, UpdatePasoRequest request);
+        Task<ErrorOr<bool>> DeletePasoAsync(int idWorkflow, int idPaso);
 
         // Acciones
         Task<ErrorOr<WorkflowAccionResponse>> CreateAccionAsync(int idWorkflow, int idPaso, CreateAccionRequest request);

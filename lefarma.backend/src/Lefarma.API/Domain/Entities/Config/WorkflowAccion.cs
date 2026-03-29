@@ -8,6 +8,7 @@
         public string NombreAccion { get; set; } = null!;  // 'Autorizar', 'Rechazar', 'Corregir'
         public string TipoAccion { get; set; } = null!;    // 'APROBACION', 'RECHAZO', 'RETORNO'
         public string ClaseEstetica { get; set; } = "primary"; // success, danger, warning
+        public bool Activo { get; set; } = true;
 
         public virtual WorkflowPaso? PasoOrigen { get; set; }
         public virtual WorkflowPaso? PasoDestino { get; set; }

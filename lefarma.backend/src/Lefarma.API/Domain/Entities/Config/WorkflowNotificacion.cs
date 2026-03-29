@@ -11,6 +11,7 @@
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; } = true;
         public bool AvisarAlAnterior { get; set; }
+        public bool Activo { get; set; } = true;
         public string? AsuntoTemplate { get; set; }
         public string CuerpoTemplate { get; set; } = null!; // {{Folio}}, {{Solicitante}}, {{Monto}}
 

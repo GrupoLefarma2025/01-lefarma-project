@@ -14,6 +14,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(p => p.IdPaso).HasColumnName("id_paso");
             builder.Property(p => p.IdRol).HasColumnName("id_rol");
             builder.Property(p => p.IdUsuario).HasColumnName("id_usuario");
+            builder.Property(p => p.Activo).HasColumnName("activo").HasDefaultValue(true);
         }
     }
 }

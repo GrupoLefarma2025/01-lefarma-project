@@ -16,6 +16,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(c => c.Operador).HasColumnName("operador").HasMaxLength(10).IsRequired();
             builder.Property(c => c.ValorComparacion).HasColumnName("valor_comparacion").HasMaxLength(100).IsRequired();
             builder.Property(c => c.IdPasoSiCumple).HasColumnName("id_paso_si_cumple");
+            builder.Property(c => c.Activo).HasColumnName("activo").HasDefaultValue(true);
         }
     }
 }

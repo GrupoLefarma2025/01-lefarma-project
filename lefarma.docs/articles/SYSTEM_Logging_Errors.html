@@ -1,0 +1,104 @@
+<h1>📊 Sistema de Observabilidad: WideEvents y Persistencia de Errores</h1>
+<p>Lefarma implementa una arquitectura de logging de alta fidelidad basada en el patrón <strong>Wide Event</strong> (un evento único y rico por cada petición HTTP). Este sistema no solo registra texto, sino que captura el estado completo de la aplicación, el contexto del usuario y el resultado del negocio en un formato estructurado (JSON).</p>
+<hr/>
+<h2>🏗️ Anatomía de un WideEvent</h2>
+<p>Cada objeto <code>WideEvent</code> se compone de cinco dimensiones de datos:</p>
+<table>
+  <thead>
+    <tr><th>Dimensión</th><th>Campos Principales</th><th>Propósito</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Identificación</strong></td>
+      <td><code>RequestId</code>, <code>TraceId</code>, <code>SpanId</code></td>
+      <td>Correlación entre microservicios y rastreo de la petición única.</td>
+    </tr>
+    <tr>
+      <td><strong>Contexto HTTP</strong></td>
+      <td><code>Method</code>, <code>Endpoint</code>, <code>IpAddress</code>, <code>UserAgent</code></td>
+      <td>Detalles técnicos de la conexión y origen del cliente.</td>
+    </tr>
+    <tr>
+      <td><strong>Contexto de Usuario</strong></td>
+      <td><code>UserId</code>, <code>UserSubscription</code></td>
+      <td>Identifica quién realizó la acción (obtenido de los JWT claims).</td>
+    </tr>
+    <tr>
+      <td><strong>Contexto de Negocio</strong></td>
+      <td><code>EntityType</code>, <code>EntityId</code>, <code>Action</code>, <code>AdditionalContext</code></td>
+      <td>Explica <em>qué</em> recurso de negocio se afectó (ej: Orden #105, Autorizar).</td>
+    </tr>
+    <tr>
+      <td><strong>Resultado</strong></td>
+      <td><code>StatusCode</code>, <code>DurationMs</code>, <code>Status</code> (Success/Error)</td>
+      <td>Métricas de performance y éxito técnico de la operación.</td>
+    </tr>
+  </tbody>
+</table>
+<hr/>
+<h2>💾 Política de Persistencia en Base de Datos</h2>
+<p>Aunque el 100% de los WideEvents se emiten a los logs de archivos (Serilog JSON), solo una parte crítica se persiste en la tabla <code>ErrorLogs</code> de SQL Server:</p>
+<ul>
+  <li><strong>Errores de Servidor (5xx):</strong> Cualquier respuesta con código 500 o superior es persistida automáticamente.</li>
+  <li><strong>Excepciones No Controladas:</strong> Cualquier excepción que rompa el pipeline y sea capturada por el <code>WideEventLoggingMiddleware</code>.</li>
+  <li><strong>Captura de Payloads:</strong> En caso de error en peticiones POST/PUT, el sistema intenta capturar los primeros 8KB del <code>RequestBody</code> para facilitar el debugging.</li>
+</ul>
+<div style="padding: 10px; background-color: #fff5f5; border-left: 5px solid #ff6b6b;">
+  <strong>Performance:</strong> El guardado en base de datos se realiza mediante un hilo en segundo plano (Fire-and-Forget) para no penalizar el tiempo de respuesta al usuario.
+</div>
+<hr/>
+<h2>🗃️ Esquema de la Tabla <code>ErrorLogs</code></h2>
+<p>La entidad <code>ErrorLog</code> mapea el WideEvent a una estructura relacional optimizada para consultas:</p>
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>ErrorGuid</code></td><td>Guid</td><td>ID único del error para búsqueda en soporte.</td></tr>
+    <tr><td><code>TipoExcepcion</code></td><td>string</td><td>Nombre de la clase Exception (ej: <code>DbUpdateException</code>).</td></tr>
+    <tr><td><code>Severidad</code></td><td>string</td><td><strong>Critical</strong> (Fallo crítico), <strong>Error</strong> (500s), <strong>Warning</strong> (400s).</td></tr>
+    <tr><td><code>Categoria</code></td><td>string</td><td>Database, Security, Validation, Business, Timeout, External.</td></tr>
+    <tr><td><code>MensajeDetallado</code></td><td>string</td><td>Incluye mensajes de InnerExceptions si existen.</td></tr>
+    <tr><td><code>DatosAdicionales</code></td><td>JSON</td><td>Cualquier contexto extra inyectado por el desarrollador.</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>🛑 Categorización de Errores</h2>
+<p>El <code>ErrorLogService</code> clasifica los fallos automáticamente basándose en el tipo de excepción:</p>
+<table>
+  <thead>
+    <tr><th>Categoría</th><th>Excepciones Mapeadas</th><th>Severidad</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Database</strong></td><td><code>DbUpdateException</code>, <code>SqlException</code></td><td>Error</td></tr>
+    <tr><td><strong>Security</strong></td><td><code>UnauthorizedAccessException</code></td><td>Warning</td></tr>
+    <tr><td><strong>Timeout</strong></td><td><code>TimeoutException</code>, <code>TaskCanceledException</code></td><td>Error</td></tr>
+    <tr><td><strong>Validation</strong></td><td><code>ArgumentException</code>, <code>ValidationException</code></td><td>Warning</td></tr>
+    <tr><td><strong>Business</strong></td><td><code>InvalidOperationException</code></td><td>Error</td></tr>
+  </tbody>
+</table>
+<hr/>
+<h2>🛠️ Guía para Desarrolladores: Enriquecimiento</h2>
+<p>El poder del WideEvent reside en su capacidad de ser enriquecido en cualquier parte del código usando el <code>IWideEventAccessor</code>.</p>
+<pre><code>// 1. Inyectar el accesor
+private readonly IWideEventAccessor _log;
+
+public async Task ProcesarPago(int facturaId) {
+    // 2. Añadir contexto de negocio ANTES de que ocurra el error
+    _log.Current?.Enrich("Factura", facturaId, "ProcesarPago")
+                 .AddContext("ProveedorId", 123)
+                 .AddContext("Monto", 5000.50);
+
+    // Si ocurre una excepción después de aquí, el ErrorLog 
+    // en la BD tendrá asociados estos datos de factura.
+}</code></pre>
+<hr/>
+<h2>🔍 Análisis de Trazabilidad</h2>
+<p>Para buscar un error reportado por un usuario:</p>
+<ol>
+  <li>Solicita el <code>RequestId</code> o <code>ErrorGuid</code> (si se muestra en el frontend).</li>
+  <li>Consulta la base de datos: <code>SELECT * FROM logging.ErrorLogs WHERE RequestId = '...'</code></li>
+  <li>Revisa el <code>StackTrace</code> y los <code>DatosAdicionales</code> para recrear el escenario.</li>
+</ol>
+<hr/>
+<p><em>Actualizado el 2026-03-28: Expansión de detalles técnicos sobre arquitectura de WideEvents, categorización de errores y persistencia condicional.</em></p>

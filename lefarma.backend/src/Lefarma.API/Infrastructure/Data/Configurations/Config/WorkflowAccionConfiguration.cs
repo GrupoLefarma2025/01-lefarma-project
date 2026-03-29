@@ -16,6 +16,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(a => a.NombreAccion).HasColumnName("nombre_accion").HasMaxLength(50).IsRequired();
             builder.Property(a => a.TipoAccion).HasColumnName("tipo_accion").HasMaxLength(20).IsRequired();
             builder.Property(a => a.ClaseEstetica).HasColumnName("clase_estetica").HasMaxLength(20).HasDefaultValue("primary");
+            builder.Property(a => a.Activo).HasColumnName("activo").HasDefaultValue(true);
 
             builder.HasOne(a => a.PasoDestino).WithMany().HasForeignKey(a => a.IdPasoDestino).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
             builder.HasMany(a => a.Notificaciones).WithOne(n => n.Accion).HasForeignKey(n => n.IdAccion).OnDelete(DeleteBehavior.Cascade);

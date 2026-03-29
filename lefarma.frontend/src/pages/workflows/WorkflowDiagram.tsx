@@ -41,6 +41,20 @@ interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
 }
 
+interface CreatePasoPayload {
+  nombrePaso: string;
+  orden: number;
+  codigoEstado: string | null;
+  descripcionAyuda: string | null;
+  handlerKey: string | null;
+  esInicio: boolean;
+  esFinal: boolean;
+  activo: boolean;
+  requiereFirma: boolean;
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+}
+
 // Tipos de acciones para los colores
 const ACTION_COLORS = {
   APROBACION: '#10b981', // green
@@ -56,7 +70,6 @@ export default function WorkflowDiagram() {
   const [loading, setLoading] = useState(true);
   const [selectedPaso, setSelectedPaso] = useState<WorkflowPaso | null>(null);
   const [viewMode, setViewMode] = useState<'diagram' | 'list'>('diagram');
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
 
   usePageTitle(workflow?.nombre || 'Diagrama de Workflow', 'Editor visual de flujo');
 
@@ -65,6 +78,12 @@ export default function WorkflowDiagram() {
       fetchWorkflow(parseInt(id));
     }
   }, [id]);
+
+  useEffect(() => {
+    if (viewMode === 'list') {
+      setSelectedPaso(null);
+    }
+  }, [viewMode]);
 
   const fetchWorkflow = async (workflowId: number) => {
     try {
@@ -83,139 +102,6 @@ export default function WorkflowDiagram() {
     }
   };
 
-  const renderConnection = (
-    fromPos: { x: number; y: number },
-    toPos: { x: number; y: number },
-    accion: WorkflowAccion,
-    index: number, // Para offsetear labels cuando hay múltiples conexiones
-    totalConnections: number
-  ) => {
-    const nodeWidth = 220;
-    const nodeHeight = 90;
-
-    // Puntos de inicio y fin
-    const startX = fromPos.x + nodeWidth / 2;
-    const startY = fromPos.y + nodeHeight;
-    const endX = toPos.x + nodeWidth / 2;
-    const endY = toPos.y;
-
-    // Color según tipo de acción
-    const color = ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS] || '#6b7280';
-
-    // Calcular si va hacia arriba, abajo, izquierda o derecha
-    const goingDown = endY > startY;
-    const goingRight = endX > startX;
-    const goingLeft = endX < startX;
-
-    let path: string;
-    let labelX: number;
-    let labelY: number;
-    let labelOffset = 0;
-
-    // Offset para evitar overlapping de labels
-    if (totalConnections > 1) {
-      labelOffset = (index - (totalConnections - 1) / 2) * 20;
-    }
-
-    if (goingDown) {
-      // Conexión hacia abajo (normal)
-      const midY = startY + (endY - startY) / 2;
-      path = `M ${startX} ${startY} 
-              C ${startX} ${midY}, 
-                ${endX} ${midY}, 
-                ${endX} ${endY}`;
-      labelX = (startX + endX) / 2 + labelOffset;
-      labelY = (startY + endY) / 2;
-    } else {
-      // Conexión hacia arriba o lateral (retornos)
-      const controlOffset = 80;
-      const midX = (startX + endX) / 2;
-      
-      if (goingLeft) {
-        // Curva hacia la izquierda y arriba
-        path = `M ${startX} ${startY} 
-                C ${startX - controlOffset} ${startY + 30}, 
-                  ${endX - controlOffset} ${endY - 30}, 
-                  ${endX} ${endY}`;
-        labelX = startX - controlOffset + labelOffset;
-        labelY = (startY + endY) / 2;
-      } else {
-        // Curva hacia arriba en el mismo lugar
-        path = `M ${startX} ${startY} 
-                C ${startX + controlOffset} ${startY + 30}, 
-                  ${endX + controlOffset} ${endY - 30}, 
-                  ${endX} ${endY}`;
-        labelX = startX + controlOffset + labelOffset;
-        labelY = (startY + endY) / 2;
-      }
-    }
-
-    return (
-      <g key={`connection-${accion.idAccion}`}>
-        {/* Línea con gradiente */}
-        <defs>
-          <linearGradient
-            id={`gradient-${accion.idAccion}`}
-            x1="0%"
-            y1="0%"
-            x2="0%"
-            y2="100%"
-          >
-            <stop offset="0%" stopColor={color} stopOpacity="0.4" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.8" />
-          </linearGradient>
-        </defs>
-
-        <path
-          d={path}
-          stroke={`url(#gradient-${accion.idAccion})`}
-          strokeWidth="2.5"
-          fill="none"
-          strokeDasharray="5,5"
-          className="transition-all duration-300"
-          opacity={0.7}
-        />
-
-        {/* Punta de flecha */}
-        <polygon
-          points={`${endX},${endY} ${endX - 6},${endY - 10} ${endX + 6},${endY - 10}`}
-          fill={color}
-          opacity={0.9}
-        />
-
-        {/* Label de la acción con fondo */}
-        <g>
-          {/* Fondo del label */}
-          <rect
-            x={labelX - 45}
-            y={labelY - 10}
-            width={90}
-            height={20}
-            rx={4}
-            fill="#0a0e14"
-            fillOpacity={0.9}
-            stroke={color}
-            strokeWidth={1}
-            strokeOpacity={0.5}
-          />
-          {/* Texto */}
-          <text
-            x={labelX}
-            y={labelY + 4}
-            fontSize="11"
-            fill={color}
-            textAnchor="middle"
-            fontFamily="Manrope, sans-serif"
-            fontWeight="600"
-          >
-            {accion.nombreAccion.length > 12
-              ? accion.nombreAccion.substring(0, 12) + '...'
-              : accion.nombreAccion}
-          </text>
-        </g>
-      </g>
-    );
-  };
 
   const renderDiagram = () => {
     if (!workflow || !workflow.pasos) return null;
@@ -405,15 +291,6 @@ export default function WorkflowDiagram() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditorOpen(true)}
-            className="gap-2"
-          >
-            <Settings className="h-4 w-4" />
-            Editar Configuración
-          </Button>
           <Badge variant={workflow.activo ? 'default' : 'secondary'}>
             {workflow.activo ? 'Activo' : 'Inactivo'}
           </Badge>
@@ -446,176 +323,172 @@ export default function WorkflowDiagram() {
       </div>
 
       {/* Content */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-280px)]">
-        {/* Main canvas */}
-        <div className="lg:col-span-2 relative flex flex-col gap-4">
-          {/* Legend - Simplified */}
-          <div className="bg-card rounded-lg border border-border p-3 shrink-0">
-            <div className="flex items-center gap-6 text-xs flex-wrap">
-              <span className="text-muted-foreground font-semibold">Tipos de Acción:</span>
-              <div className="flex items-center gap-2">
-                <div className="h-0.5 w-6 bg-green-500" />
-                <span>Aprobación</span>
+      {viewMode === 'diagram' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-280px)]">
+          {/* Main canvas */}
+          <div className="lg:col-span-2 relative flex flex-col gap-4">
+            {/* Legend - Simplified */}
+            <div className="bg-card rounded-lg border border-border p-3 shrink-0">
+              <div className="flex items-center gap-6 text-xs flex-wrap">
+                <span className="text-muted-foreground font-semibold">Tipos de Acción:</span>
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-6 bg-green-500" />
+                  <span>Aprobación</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-6 bg-red-500" />
+                  <span>Rechazo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-6 bg-amber-500" />
+                  <span>Retorno</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-0.5 w-6 bg-gray-500" />
+                  <span>Cancelación</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-0.5 w-6 bg-red-500" />
-                <span>Rechazo</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-0.5 w-6 bg-amber-500" />
-                <span>Retorno</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-0.5 w-6 bg-gray-500" />
-                <span>Cancelación</span>
-              </div>
+            </div>
+
+            {/* Diagram */}
+            <div className="flex-1 overflow-hidden">
+              {renderDiagram()}
             </div>
           </div>
 
-          {/* Diagram */}
-          <div className="flex-1 overflow-hidden">
-            {viewMode === 'diagram' ? (
-              renderDiagram()
+          {/* Side panel - Sticky */}
+          <div className="lg:sticky lg:top-4 lg:self-start bg-card rounded-lg border border-border p-4 overflow-auto max-h-[calc(100vh-280px)]">
+            {selectedPaso ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between sticky top-0 bg-card pb-2 border-b border-border">
+                  <h3 className="font-semibold">Detalles del Paso</h3>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedPaso(null)}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs text-muted-foreground">Orden</label>
+                    <p className="text-sm font-mono">{selectedPaso.orden}</p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-muted-foreground">Nombre</label>
+                    <p className="text-sm font-semibold">{selectedPaso.nombrePaso}</p>
+                  </div>
+
+                  {selectedPaso.codigoEstado && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Código Estado</label>
+                      <p className="text-sm font-mono">{selectedPaso.codigoEstado}</p>
+                    </div>
+                  )}
+
+                  {selectedPaso.descripcionAyuda && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Descripción</label>
+                      <p className="text-sm">{selectedPaso.descripcionAyuda}</p>
+                    </div>
+                  )}
+
+                  {selectedPaso.handlerKey && (
+                    <div>
+                      <label className="text-xs text-muted-foreground">Handler</label>
+                      <Badge variant="outline" className="mt-1 font-mono">
+                        <Wrench className="mr-1 h-3 w-3" />
+                        {selectedPaso.handlerKey}
+                      </Badge>
+                    </div>
+                  )}
+
+                  <div className="border-t border-border pt-3">
+                    <label className="text-xs text-muted-foreground mb-2 block">Requisitos</label>
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        {selectedPaso.requiereFirma ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-500" />
+                        )}
+                        <span>Requiere firma</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        {selectedPaso.requiereComentario ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-500" />
+                        )}
+                        <span>Requiere comentario</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        {selectedPaso.requiereAdjunto ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <XCircle className="h-4 w-4 text-gray-500" />
+                        )}
+                        <span>Requiere adjunto</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {selectedPaso.acciones && selectedPaso.acciones.length > 0 && (
+                    <div className="border-t border-border pt-3">
+                      <label className="text-xs text-muted-foreground mb-2 block">
+                        Acciones ({selectedPaso.acciones.length})
+                      </label>
+                      <div className="space-y-2">
+                        {selectedPaso.acciones.map(accion => (
+                          <div
+                            key={accion.idAccion}
+                            className="flex items-center justify-between p-2 rounded border border-border text-sm"
+                          >
+                            <span>{accion.nombreAccion}</span>
+                            <Badge
+                              variant="outline"
+                              style={{
+                                borderColor: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS],
+                                color: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS]
+                              }}
+                            >
+                              {accion.tipoAccion}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
-              <div className="bg-card rounded-lg border border-border p-6 h-full flex items-center justify-center">
-                <p className="text-muted-foreground">Vista de configuración (TODO)</p>
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2">
+                <GitBranch className="h-8 w-8 text-muted-foreground/40" />
+                <p className="text-sm text-muted-foreground">
+                  Selecciona un paso del diagrama para ver sus detalles
+                </p>
               </div>
             )}
           </div>
         </div>
-
-        {/* Side panel - Sticky */}
-        <div className="lg:sticky lg:top-4 lg:self-start bg-card rounded-lg border border-border p-4 overflow-auto max-h-[calc(100vh-280px)]">
-          {selectedPaso ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between sticky top-0 bg-card pb-2 border-b border-border">
-                <h3 className="font-semibold">Detalles del Paso</h3>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedPaso(null)}
-                >
-                  <XCircle className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs text-muted-foreground">Orden</label>
-                  <p className="text-sm font-mono">{selectedPaso.orden}</p>
-                </div>
-
-                <div>
-                  <label className="text-xs text-muted-foreground">Nombre</label>
-                  <p className="text-sm font-semibold">{selectedPaso.nombrePaso}</p>
-                </div>
-
-                {selectedPaso.codigoEstado && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">Código Estado</label>
-                    <p className="text-sm font-mono">{selectedPaso.codigoEstado}</p>
-                  </div>
-                )}
-
-                {selectedPaso.descripcionAyuda && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">Descripción</label>
-                    <p className="text-sm">{selectedPaso.descripcionAyuda}</p>
-                  </div>
-                )}
-
-                {selectedPaso.handlerKey && (
-                  <div>
-                    <label className="text-xs text-muted-foreground">Handler</label>
-                    <Badge variant="outline" className="mt-1 font-mono">
-                      <Wrench className="mr-1 h-3 w-3" />
-                      {selectedPaso.handlerKey}
-                    </Badge>
-                  </div>
-                )}
-
-                <div className="border-t border-border pt-3">
-                  <label className="text-xs text-muted-foreground mb-2 block">Requisitos</label>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm">
-                      {selectedPaso.requiereFirma ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-gray-500" />
-                      )}
-                      <span>Requiere firma</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      {selectedPaso.requiereComentario ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-gray-500" />
-                      )}
-                      <span>Requiere comentario</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      {selectedPaso.requiereAdjunto ? (
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <XCircle className="h-4 w-4 text-gray-500" />
-                      )}
-                      <span>Requiere adjunto</span>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedPaso.acciones && selectedPaso.acciones.length > 0 && (
-                  <div className="border-t border-border pt-3">
-                    <label className="text-xs text-muted-foreground mb-2 block">
-                      Acciones ({selectedPaso.acciones.length})
-                    </label>
-                    <div className="space-y-2">
-                      {selectedPaso.acciones.map(accion => (
-                        <div
-                          key={accion.idAccion}
-                          className="flex items-center justify-between p-2 rounded border border-border text-sm"
-                        >
-                          <span>{accion.nombreAccion}</span>
-                          <Badge
-                            variant="outline"
-                            style={{
-                              borderColor: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS],
-                              color: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS]
-                            }}
-                          >
-                            {accion.tipoAccion}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center gap-2">
-              <GitBranch className="h-8 w-8 text-muted-foreground/40" />
-              <p className="text-sm text-muted-foreground">
-                Selecciona un paso del diagrama para ver sus detalles
-              </p>
-            </div>
-          )}
+      ) : (
+        <div className="h-[calc(100vh-280px)]">
+          <WorkflowEditorModal
+            workflow={workflow}
+            open
+            embedded
+            onClose={() => setViewMode('diagram')}
+            onSave={async () => {
+              await fetchWorkflow(workflow.idWorkflow);
+              toast.success('Cambios guardados correctamente');
+            }}
+          />
         </div>
-      </div>
-
-      {/* Editor Modal */}
-      {workflow && (
-        <WorkflowEditorModal
-          workflow={workflow}
-          open={isEditorOpen}
-          onClose={() => setIsEditorOpen(false)}
-          onSave={async () => {
-            await fetchWorkflow(workflow.idWorkflow);
-            setIsEditorOpen(false);
-            toast.success('Cambios guardados correctamente');
-          }}
-        />
       )}
+
     </div>
   );
 }
@@ -623,19 +496,21 @@ export default function WorkflowDiagram() {
 
 interface WorkflowEditorModalProps {
   workflow: WorkflowWithDetails;
-  open: boolean;
+  open?: boolean;
+  embedded?: boolean;
   onClose: () => void;
   onSave: () => Promise<void>;
 }
 
-function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditorModalProps) {
+function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose, onSave }: WorkflowEditorModalProps) {
   const [activeTab, setActiveTab] = useState('pasos');
-  const [isSaving, setIsSaving] = useState(false);
   const [editingPaso, setEditingPaso] = useState<WorkflowPaso | null>(null);
+  const [isCreatingPaso, setIsCreatingPaso] = useState(false);
   const [editingAccion, setEditingAccion] = useState<WorkflowAccion | null>(null);
   const [editingCondicion, setEditingCondicion] = useState<any | null>(null);
   const [editingParticipante, setEditingParticipante] = useState<any | null>(null);
   const [editingNotificacion, setEditingNotificacion] = useState<any | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
   
   const [modalStates, setModalStates] = useState({
     stepForm: false,
@@ -652,19 +527,31 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
     }));
   };
 
-  const handleSave = async () => {
-    setIsSaving(true);
-    try {
-      await onSave();
-    } catch (error) {
-      toast.error('Error al guardar los cambios');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleEditPaso = (paso: WorkflowPaso) => {
     setEditingPaso(paso);
+    toggleModal('stepForm', true);
+  };
+
+  const handleAddPaso = () => {
+    setIsCreatingPaso(true);
+    setEditingPaso({
+      idPaso: 0,
+      idWorkflow: workflow.idWorkflow,
+      orden: Math.max(0, ...workflow.pasos.map(p => p.orden)) + 10,
+      nombrePaso: '',
+      codigoEstado: '',
+      descripcionAyuda: '',
+      handlerKey: '',
+      esInicio: false,
+      esFinal: false,
+      activo: true,
+      requiereFirma: false,
+      requiereComentario: false,
+      requiereAdjunto: false,
+      acciones: [],
+      condiciones: [],
+      participantes: []
+    } as WorkflowPaso);
     toggleModal('stepForm', true);
   };
 
@@ -673,41 +560,47 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
       // Preparar el request para actualizar el paso
       const updateRequest = {
         nombrePaso: updatedPaso.nombrePaso,
+        orden: updatedPaso.orden,
         codigoEstado: updatedPaso.codigoEstado || null,
         descripcionAyuda: updatedPaso.descripcionAyuda || null,
         handlerKey: updatedPaso.handlerKey || null,
         esInicio: updatedPaso.esInicio,
         esFinal: updatedPaso.esFinal,
+        activo: updatedPaso.activo,
         requiereFirma: updatedPaso.requiereFirma,
         requiereComentario: updatedPaso.requiereComentario,
         requiereAdjunto: updatedPaso.requiereAdjunto
       };
 
-      // Llamar al endpoint de actualización de paso
-      const response = await API.put<ApiResponse<WorkflowPaso>>(
-        `/config/workflows/${workflow.idWorkflow}/pasos/${updatedPaso.idPaso}`,
-        updateRequest
-      );
+      const response = isCreatingPaso
+        ? await API.post<ApiResponse<WorkflowPaso>>(
+            `/config/workflows/${workflow.idWorkflow}/pasos`,
+            updateRequest as CreatePasoPayload
+          )
+        : await API.put<ApiResponse<WorkflowPaso>>(
+            `/config/workflows/${workflow.idWorkflow}/pasos/${updatedPaso.idPaso}`,
+            updateRequest
+          );
 
       if (response.data.success) {
         toggleModal('stepForm', false);
         setEditingPaso(null);
-        toast.success('Paso actualizado correctamente');
+        setIsCreatingPaso(false);
+        toast.success(isCreatingPaso ? 'Paso creado correctamente' : 'Paso actualizado correctamente');
         // Recargar el workflow completo para ver los cambios
         await onSave();
       } else {
-        toast.error('Error al actualizar el paso');
+        toast.error(isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso');
       }
     } catch (error) {
       console.error('Error saving paso:', error);
-      toast.error('Error al actualizar el paso');
+      toast.error(isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso');
     }
   };
 
-  return (
-     <>
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-6xl h-[85vh] p-0">
+  const renderEditorContent = () => (
+    <>
+      {!embedded && (
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
           <DialogTitle className="flex items-center gap-3">
             <div className="rounded-lg bg-gradient-to-br from-blue-500/10 to-cyan-500/10 p-2 ring-1 ring-blue-500/20">
@@ -721,8 +614,9 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
             </div>
           </DialogTitle>
         </DialogHeader>
+      )}
 
-        <div className="flex-1 overflow-hidden px-6">
+      <div className={embedded ? 'h-full overflow-hidden p-4' : 'flex-1 overflow-hidden px-6'}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
             <TabsList className="grid w-full grid-cols-5 mb-4">
               <TabsTrigger value="pasos" className="gap-2">
@@ -754,17 +648,32 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
                     <p className="text-sm text-muted-foreground">
                       Gestiona los pasos del flujo de trabajo
                     </p>
-                    <Button size="sm" className="gap-2">
-                      <Plus className="h-4 w-4" />
-                      Agregar Paso
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShowInactive(prev => !prev)}
+                      >
+                        {showInactive ? 'Ocultar inactivos' : 'Ver inactivos'}
+                      </Button>
+                      <Button size="sm" className="gap-2" onClick={handleAddPaso}>
+                        <Plus className="h-4 w-4" />
+                        Agregar Paso
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="space-y-2">
-                    {workflow.pasos.map((paso) => (
+                    {workflow.pasos
+                      .filter((paso) => showInactive || paso.activo)
+                      .map((paso) => (
                       <div
                         key={paso.idPaso}
-                        className="p-4 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors"
+                        className={`p-4 rounded-lg border transition-colors ${
+                          paso.activo
+                            ? 'border-border bg-card hover:bg-accent/50'
+                            : 'border-border/60 bg-muted/40 opacity-80'
+                        }`}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex items-start gap-3">
@@ -773,6 +682,11 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
                             </div>
                             <div>
                               <h4 className="font-semibold">{paso.nombrePaso}</h4>
+                              <div className="mt-1">
+                                <Badge variant={paso.activo ? 'default' : 'secondary'} className="text-[10px]">
+                                  {paso.activo ? 'Activo' : 'Inactivo'}
+                                </Badge>
+                              </div>
                               {paso.codigoEstado && (
                                 <p className="text-xs font-mono text-muted-foreground mt-1">
                                   {paso.codigoEstado}
@@ -808,6 +722,22 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
                                     {paso.handlerKey}
                                   </Badge>
                                 )}
+                                <Badge variant="outline" className="text-xs">
+                                  <Info className="mr-1 h-3 w-3" />
+                                  {`${(paso.acciones || []).length} acciones`}
+                                </Badge>
+                                {(paso.condiciones?.length || 0) > 0 && (
+                                  <Badge variant="outline" className="text-xs border-amber-500/40 text-amber-700">
+                                    <Filter className="mr-1 h-3 w-3" />
+                                    {`${paso.condiciones?.length || 0} condiciones`}
+                                  </Badge>
+                                )}
+                                {(paso.participantes?.length || 0) > 0 && (
+                                  <Badge variant="outline" className="text-xs border-blue-500/40 text-blue-700">
+                                    <Users className="mr-1 h-3 w-3" />
+                                    {`${paso.participantes?.length || 0} participantes`}
+                                  </Badge>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -819,7 +749,33 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
                             >
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" className="text-destructive">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className={paso.activo ? 'text-destructive' : 'text-emerald-600'}
+                              onClick={async () => {
+                                const accion = paso.activo ? 'desactivar' : 'activar';
+                                if (!confirm(`¿Deseas ${accion} este paso?`)) return;
+                                try {
+                                  await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${paso.idPaso}`, {
+                                    nombrePaso: paso.nombrePaso,
+                                    orden: paso.orden,
+                                    codigoEstado: paso.codigoEstado || null,
+                                    descripcionAyuda: paso.descripcionAyuda || null,
+                                    handlerKey: paso.handlerKey || null,
+                                    esInicio: paso.esInicio,
+                                    esFinal: paso.esFinal,
+                                    activo: !paso.activo,
+                                    requiereFirma: paso.requiereFirma,
+                                    requiereComentario: paso.requiereComentario,
+                                    requiereAdjunto: paso.requiereAdjunto
+                                  });
+                                  await onSave();
+                                } catch (error: any) {
+                                  toast.error(error?.message ?? `No se pudo ${accion} el paso`);
+                                }
+                              }}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -1184,24 +1140,31 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
               </TabsContent>
             </div>
           </Tabs>
-        </div>
+      </div>
 
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-border">
+      <div className={`${embedded ? 'px-4 pb-4' : 'px-6 py-4 border-t border-border'} flex items-center justify-end`}>
+        {!embedded && (
           <Button variant="outline" onClick={onClose}>
-            Cancelar
+            Cerrar
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Vista Previa
-            </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar Cambios
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        )}
+      </div>
+    </>
+  );
+
+   return (
+      <>
+    {embedded ? (
+      <div className="bg-card rounded-lg border border-border h-full">
+        {renderEditorContent()}
+      </div>
+    ) : (
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-6xl h-[85vh] p-0">
+          {renderEditorContent()}
+        </DialogContent>
+      </Dialog>
+    )}
 
     {/* Step Edit Form */}
       {editingPaso && (
@@ -1211,6 +1174,7 @@ function WorkflowEditorModal({ workflow, open, onClose, onSave }: WorkflowEditor
           onClose={() => {
             toggleModal('stepForm', false);
             setEditingPaso(null);
+            setIsCreatingPaso(false);
           }}
           onSave={handleSavePaso}
         />
@@ -1287,7 +1251,10 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    setFormData(paso);
+    setFormData({
+      ...paso,
+      activo: paso.activo ?? true
+    });
   }, [paso]);
 
   const handleChange = (field: keyof WorkflowPaso, value: any) => {
@@ -1333,6 +1300,18 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
+                <Label htmlFor="ordenPaso" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Orden del Paso *
+                </Label>
+                <Input
+                  id="ordenPaso"
+                  type="number"
+                  value={formData.orden}
+                  onChange={(e) => handleChange('orden', Number(e.target.value))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="nombrePaso" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Nombre del Paso *
                 </Label>
@@ -1346,7 +1325,7 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-2 col-span-2">
                 <Label htmlFor="codigoEstado" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Código de Estado *
                 </Label>
@@ -1478,6 +1457,22 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
             <div className="grid grid-cols-2 gap-3">
               <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
                 <Checkbox
+                  id="activoPaso"
+                  checked={formData.activo}
+                  onCheckedChange={(checked) => handleChange('activo', !!checked)}
+                />
+                <div>
+                  <Label htmlFor="activoPaso" className="cursor-pointer font-medium">
+                    Paso Activo
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Si está inactivo no se usará en ejecución del workflow
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
+                <Checkbox
                   id="esInicio"
                   checked={formData.esInicio}
                   onCheckedChange={(checked) => handleChange('esInicio', checked)}
@@ -1533,11 +1528,14 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
             >
               Cancelar
             </Button>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" className="font-mono text-xs">
-                Orden: {formData.orden}
-              </Badge>
-              <Button type="submit" disabled={isSaving} className="gap-2">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="font-mono text-xs">
+                  Orden: {formData.orden}
+                </Badge>
+                <Badge variant={formData.activo ? 'default' : 'secondary'} className="text-xs">
+                  {formData.activo ? 'Activo' : 'Inactivo'}
+                </Badge>
+                <Button type="submit" disabled={isSaving} className="gap-2">
                 {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Guardar Paso
               </Button>
@@ -1568,7 +1566,8 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
     tipoAccion: 'APROBACION',
     claseEstetica: 'success',
     idPasoOrigen: 0,
-    idPasoDestino: 0
+    idPasoDestino: 0,
+    activo: true
   });
 
   useEffect(() => {
@@ -1583,7 +1582,8 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
         tipoAccion: accion.tipoAccion,
         claseEstetica: accion.claseEstetica || 'success',
         idPasoOrigen: pasoOrigen?.idPaso || 0,
-        idPasoDestino: accion.idPasoDestino || 0
+        idPasoDestino: accion.idPasoDestino || 0,
+        activo: accion.activo ?? true
       });
     } else {
       setFormData({
@@ -1591,7 +1591,8 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
         tipoAccion: 'APROBACION',
         claseEstetica: 'success',
         idPasoOrigen: workflow.pasos[0]?.idPaso || 0,
-        idPasoDestino: 0
+        idPasoDestino: 0,
+        activo: true
       });
     }
   }, [accion, workflow.pasos, open]);
@@ -1600,8 +1601,18 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
     e.preventDefault();
     setIsSaving(true);
     try {
-      // TODO: Implement API call
-      console.log('Saving accion:', formData);
+      const payload = {
+        nombreAccion: formData.nombreAccion,
+        tipoAccion: formData.tipoAccion,
+        claseEstetica: formData.claseEstetica,
+        idPasoDestino: formData.idPasoDestino || null,
+        activo: formData.activo
+      };
+      if (accion) {
+        await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPasoOrigen}/acciones/${accion.idAccion}`, payload);
+      } else {
+        await API.post(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPasoOrigen}/acciones`, payload);
+      }
       await onSave();
       toast.success(accion ? 'Acción actualizada' : 'Acción creada');
     } catch (error) {
@@ -1634,6 +1645,34 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {accion ? 'Actualizar' : 'Crear'} Acción
           </Button>
+          {accion && (
+            <Button
+              type="button"
+              variant={formData.activo ? 'destructive' : 'secondary'}
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPasoOrigen}/acciones/${accion.idAccion}`, {
+                    nombreAccion: formData.nombreAccion,
+                    tipoAccion: formData.tipoAccion,
+                    claseEstetica: formData.claseEstetica,
+                    idPasoDestino: formData.idPasoDestino || null,
+                    activo: !formData.activo
+                  });
+                  toast.success(formData.activo ? 'Acción desactivada' : 'Acción activada');
+                  await onSave();
+                  setOpen(false);
+                } catch (error: any) {
+                  toast.error(error?.message ?? 'No se pudo cambiar estado de la acción');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {formData.activo ? 'Inactivar' : 'Reactivar'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -1793,19 +1832,21 @@ function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: Cond
     campoEvaluacion: '',
     operador: '>',
     valorComparacion: '',
-    idPasoSiCumple: 0
+    idPasoSiCumple: 0,
+    activo: true
   });
 
   useEffect(() => {
     if (condicion) {
-      setFormData(condicion);
+      setFormData({ ...condicion, activo: condicion.activo ?? true });
     } else {
       setFormData({
         idPaso: workflow.pasos[0]?.idPaso || 0,
         campoEvaluacion: '',
         operador: '>',
         valorComparacion: '',
-        idPasoSiCumple: 0
+        idPasoSiCumple: 0,
+        activo: true
       });
     }
   }, [condicion, workflow.pasos, open]);
@@ -1814,7 +1855,18 @@ function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: Cond
     e.preventDefault();
     setIsSaving(true);
     try {
-      console.log('Saving condicion:', formData);
+      const payload = {
+        campoEvaluacion: formData.campoEvaluacion,
+        operador: formData.operador,
+        valorComparacion: formData.valorComparacion,
+        idPasoSiCumple: formData.idPasoSiCumple,
+        activo: formData.activo
+      };
+      if (condicion) {
+        await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/condiciones/${condicion.idCondicion}`, payload);
+      } else {
+        await API.post(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/condiciones`, payload);
+      }
       await onSave();
       toast.success(condicion ? 'Condición actualizada' : 'Condición creada');
     } catch (error) {
@@ -1850,6 +1902,34 @@ function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: Cond
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {condicion ? 'Actualizar' : 'Crear'} Condición
           </Button>
+          {condicion && (
+            <Button
+              type="button"
+              variant={formData.activo ? 'destructive' : 'secondary'}
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/condiciones/${condicion.idCondicion}`, {
+                    campoEvaluacion: formData.campoEvaluacion,
+                    operador: formData.operador,
+                    valorComparacion: formData.valorComparacion,
+                    idPasoSiCumple: formData.idPasoSiCumple,
+                    activo: !formData.activo
+                  });
+                  toast.success(formData.activo ? 'Condición desactivada' : 'Condición activada');
+                  await onSave();
+                  setOpen(false);
+                } catch (error: any) {
+                  toast.error(error?.message ?? 'No se pudo cambiar estado de la condición');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {formData.activo ? 'Inactivar' : 'Reactivar'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -2002,7 +2082,8 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
   const [formData, setFormData] = useState({
     idPaso: 0,
     idRol: 0,
-    idUsuario: 0
+    idUsuario: 0,
+    activo: true
   });
 
   useEffect(() => {
@@ -2010,14 +2091,16 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
       setFormData({
         idPaso: participante.idPaso,
         idRol: participante.idRol || 0,
-        idUsuario: participante.idUsuario || 0
+        idUsuario: participante.idUsuario || 0,
+        activo: participante.activo ?? true
       });
       setTipoAsignacionUI(participante.idRol ? 'rol' : 'usuario');
     } else {
       setFormData({
         idPaso: workflow.pasos[0]?.idPaso || 0,
         idRol: 0,
-        idUsuario: 0
+        idUsuario: 0,
+        activo: true
       });
       setTipoAsignacionUI('rol');
     }
@@ -2028,11 +2111,15 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
     setIsSaving(true);
     try {
       const payload = {
-        idPaso: formData.idPaso,
         idRol: tipoAsignacionUI === 'rol' ? (formData.idRol || null) : null,
-        idUsuario: tipoAsignacionUI === 'usuario' ? (formData.idUsuario || null) : null
+        idUsuario: tipoAsignacionUI === 'usuario' ? (formData.idUsuario || null) : null,
+        activo: formData.activo
       };
-      console.log('Saving participante:', payload);
+      if (participante) {
+        await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/participantes/${participante.idParticipante}`, payload);
+      } else {
+        await API.post(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/participantes`, payload);
+      }
       await onSave();
       toast.success(participante ? 'Participante actualizado' : 'Participante agregado');
     } catch (error) {
@@ -2058,6 +2145,32 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {participante ? 'Actualizar' : 'Crear'} Participante
           </Button>
+          {participante && (
+            <Button
+              type="button"
+              variant={formData.activo ? 'destructive' : 'secondary'}
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/participantes/${participante.idParticipante}`, {
+                    idRol: tipoAsignacionUI === 'rol' ? (formData.idRol || null) : null,
+                    idUsuario: tipoAsignacionUI === 'usuario' ? (formData.idUsuario || null) : null,
+                    activo: !formData.activo
+                  });
+                  toast.success(formData.activo ? 'Participante desactivado' : 'Participante activado');
+                  await onSave();
+                  setOpen(false);
+                } catch (error: any) {
+                  toast.error(error?.message ?? 'No se pudo cambiar estado del participante');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {formData.activo ? 'Inactivar' : 'Reactivar'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -2198,30 +2311,38 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     idAccion: 0,
+    idPasoDestino: 0,
     enviarEmail: true,
     enviarWhatsapp: false,
     enviarTelegram: false,
     avisarAlCreador: true,
     avisarAlSiguiente: true,
     avisarAlAnterior: false,
+    activo: true,
     asuntoTemplate: '',
     cuerpoTemplate: ''
   });
 
   useEffect(() => {
     if (notificacion) {
-      setFormData(notificacion);
+      setFormData({
+        ...notificacion,
+        idPasoDestino: notificacion.idPasoDestino || 0,
+        activo: notificacion.activo ?? true
+      });
     } else {
       // Encontrar la primera acción disponible
       const primeraAccion = workflow.pasos.flatMap(p => p.acciones || [])[0];
       setFormData({
         idAccion: primeraAccion?.idAccion || 0,
+        idPasoDestino: 0,
         enviarEmail: true,
         enviarWhatsapp: false,
         enviarTelegram: false,
         avisarAlCreador: true,
         avisarAlSiguiente: true,
         avisarAlAnterior: false,
+        activo: true,
         asuntoTemplate: '',
         cuerpoTemplate: ''
       });
@@ -2232,7 +2353,23 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
     e.preventDefault();
     setIsSaving(true);
     try {
-      console.log('Saving notificacion:', formData);
+      const payload = {
+        idPasoDestino: formData.idPasoDestino || null,
+        enviarEmail: formData.enviarEmail,
+        enviarWhatsapp: formData.enviarWhatsapp,
+        enviarTelegram: formData.enviarTelegram,
+        avisarAlCreador: formData.avisarAlCreador,
+        avisarAlSiguiente: formData.avisarAlSiguiente,
+        avisarAlAnterior: formData.avisarAlAnterior,
+        activo: formData.activo,
+        asuntoTemplate: formData.asuntoTemplate || '',
+        cuerpoTemplate: formData.cuerpoTemplate || ''
+      };
+      if (notificacion) {
+        await API.put(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/notificaciones/${notificacion.idNotificacion}`, payload);
+      } else {
+        await API.post(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/notificaciones`, payload);
+      }
       await onSave();
       toast.success(notificacion ? 'Notificación actualizada' : 'Notificación creada');
     } catch (error) {
@@ -2263,6 +2400,39 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
             {isSaving && <Loader2 className="h-4 w-4 animate-spin" />}
             {notificacion ? 'Actualizar' : 'Crear'} Notificación
           </Button>
+          {notificacion && (
+            <Button
+              type="button"
+              variant={formData.activo ? 'destructive' : 'secondary'}
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                try {
+                  await API.put(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/notificaciones/${notificacion.idNotificacion}`, {
+                    idPasoDestino: formData.idPasoDestino || null,
+                    enviarEmail: formData.enviarEmail,
+                    enviarWhatsapp: formData.enviarWhatsapp,
+                    enviarTelegram: formData.enviarTelegram,
+                    avisarAlCreador: formData.avisarAlCreador,
+                    avisarAlSiguiente: formData.avisarAlSiguiente,
+                    avisarAlAnterior: formData.avisarAlAnterior,
+                    activo: !formData.activo,
+                    asuntoTemplate: formData.asuntoTemplate || '',
+                    cuerpoTemplate: formData.cuerpoTemplate || ''
+                  });
+                  toast.success(formData.activo ? 'Notificación desactivada' : 'Notificación activada');
+                  await onSave();
+                  setOpen(false);
+                } catch (error: any) {
+                  toast.error(error?.message ?? 'No se pudo cambiar estado de la notificación');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {formData.activo ? 'Inactivar' : 'Reactivar'}
+            </Button>
+          )}
         </div>
       }
     >
@@ -2296,6 +2466,28 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
           <p className="text-xs text-muted-foreground">
             La notificación se enviará cuando se ejecute esta acción
           </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Paso destino (opcional)
+          </Label>
+          <Select
+            value={formData.idPasoDestino.toString()}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, idPasoDestino: parseInt(value, 10) }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona un paso destino" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">Genérica (cualquier destino)</SelectItem>
+              {workflow.pasos.map(paso => (
+                <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
+                  [{paso.orden}] {paso.nombrePaso}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Canales */}

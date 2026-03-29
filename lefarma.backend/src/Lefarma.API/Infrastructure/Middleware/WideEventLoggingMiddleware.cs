@@ -113,7 +113,7 @@ public sealed class WideEventLoggingMiddleware(
         evt.ErrorCode = ex.HResult.ToString();
 
         // Guardar en BD (excepción no controlada)
-        SaveErrorToDatabase(evt, ex);
+         SaveErrorToDatabase(evt, ex);
 
         // Always emit full event for errors
         evt.Emit(_serilogLogger);

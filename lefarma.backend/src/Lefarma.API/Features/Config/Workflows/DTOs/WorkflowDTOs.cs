@@ -11,6 +11,7 @@
         public string Operador { get; set; } = string.Empty;
         public string ValorComparacion { get; set; } = string.Empty;
         public int IdPasoSiCumple { get; set; }
+        public bool Activo { get; set; }
     }
 
     public class ParticipanteResponse
@@ -19,6 +20,7 @@
         public int IdPaso { get; set; }
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool Activo { get; set; }
     }
 
     public class NotificacionResponse
@@ -32,6 +34,7 @@
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool Activo { get; set; }
         public string AsuntoTemplate { get; set; } = string.Empty;
         public string CuerpoTemplate { get; set; } = string.Empty;
     }
@@ -70,6 +73,7 @@
         public string? HandlerKey { get; set; }
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
+        public bool Activo { get; set; }
         public bool RequiereFirma { get; set; }
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
@@ -85,6 +89,7 @@
         public string TipoAccion { get; set; } = string.Empty;
         public string ClaseEstetica { get; set; } = string.Empty;
         public int? IdPasoDestino { get; set; }
+        public bool Activo { get; set; }
         public List<NotificacionResponse> Notificaciones { get; set; } = new();
     }
 
@@ -111,11 +116,28 @@
     public class UpdatePasoRequest
     {
         public required string NombrePaso { get; set; }
+        public int Orden { get; set; }
         public string? CodigoEstado { get; set; }
         public string? DescripcionAyuda { get; set; }
         public string? HandlerKey { get; set; }
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
+        public bool Activo { get; set; } = true;
+        public bool RequiereFirma { get; set; }
+        public bool RequiereComentario { get; set; }
+        public bool RequiereAdjunto { get; set; }
+    }
+
+    public class CreatePasoRequest
+    {
+        public required string NombrePaso { get; set; }
+        public int Orden { get; set; }
+        public string? CodigoEstado { get; set; }
+        public string? DescripcionAyuda { get; set; }
+        public string? HandlerKey { get; set; }
+        public bool EsInicio { get; set; }
+        public bool EsFinal { get; set; }
+        public bool Activo { get; set; } = true;
         public bool RequiereFirma { get; set; }
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
@@ -130,6 +152,7 @@
         public required string TipoAccion { get; set; }
         public required string ClaseEstetica { get; set; }
         public int? IdPasoDestino { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     public class UpdateAccionRequest
@@ -138,6 +161,7 @@
         public required string TipoAccion { get; set; }
         public required string ClaseEstetica { get; set; }
         public int? IdPasoDestino { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     // ============================================================================
@@ -149,6 +173,7 @@
         public required string Operador { get; set; }
         public required string ValorComparacion { get; set; }
         public int IdPasoSiCumple { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     public class UpdateCondicionRequest
@@ -157,6 +182,7 @@
         public required string Operador { get; set; }
         public required string ValorComparacion { get; set; }
         public int IdPasoSiCumple { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     // ============================================================================
@@ -166,12 +192,14 @@
     {
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     public class UpdateParticipanteRequest
     {
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool Activo { get; set; } = true;
     }
 
     // ============================================================================
@@ -186,6 +214,7 @@
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool Activo { get; set; } = true;
         public required string AsuntoTemplate { get; set; }
         public required string CuerpoTemplate { get; set; }
     }
@@ -199,6 +228,7 @@
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool Activo { get; set; } = true;
         public required string AsuntoTemplate { get; set; }
         public required string CuerpoTemplate { get; set; }
     }

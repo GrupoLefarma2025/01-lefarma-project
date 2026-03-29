@@ -11,6 +11,7 @@
         public string? HandlerKey { get; set; }        // 'Firma3Handler', 'Firma4Handler'
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
+        public bool Activo { get; set; } = true;
         public bool RequiereFirma { get; set; }
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
