@@ -363,8 +363,8 @@ builder.Services.AddCors(options =>
     options.AddPolicy("CorsPolicy", policy =>
     {
         policy.AllowAnyOrigin()
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
     });
 });
 
@@ -396,17 +396,19 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
+// Use CORS
+app.UseCors("CorsPolicy");
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
+// if (app.Environment.IsDevelopment())
+// {
     app.MapOpenApi(); 
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
         c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lefarma API v1");
-        c.RoutePrefix = ""; // Hacer que Swagger est� disponible en la ra�z
+        // c.RoutePrefix = ""; // Hacer que Swagger est� disponible en la ra�z
     });
-}
+// }
 
 app.UseHttpsRedirection();
 
@@ -420,8 +422,6 @@ app.UseSerilogRequestLogging(options =>
 // Wide Event logging - logs one rich event per request
 app.UseWideEventLogging();
 
-// Use CORS
-app.UseCors("CorsPolicy");
 
 // Static files for help images
 app.UseStaticFiles(new StaticFileOptions

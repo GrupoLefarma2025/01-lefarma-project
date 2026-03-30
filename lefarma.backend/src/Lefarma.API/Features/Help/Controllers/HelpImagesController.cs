@@ -41,7 +41,7 @@ public class HelpImagesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status413PayloadTooLarge)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Upload(
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken ct)
     {
         Console.WriteLine($"[DEBUG] Upload iniciado - file: {(file != null ? "NOT NULL" : "NULL")}");
