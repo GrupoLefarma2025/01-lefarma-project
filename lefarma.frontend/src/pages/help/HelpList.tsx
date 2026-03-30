@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { FilePenLine, Save, FileText } from 'lucide-react';
+import { FilePenLine, Save, FileText, Menu } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { HelpSidebar } from '@/components/help/HelpSidebar';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,6 +7,12 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/components/ui/sheet';
 import TinyMceEditor from '@/components/help/TinyMceEditor';
 import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { useHelpStore } from '@/store/helpStore';
@@ -32,6 +38,7 @@ export default function HelpList() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const filteredArticles = useMemo(() => {
     if (!selectedModule) return articles;
@@ -87,6 +94,7 @@ export default function HelpList() {
     setIsEditing(false);
     setSelectedArticleId(null);
     setSelectedModule(modulo);
+    setIsSidebarOpen(false);
     if (modulo) {
       fetchArticlesByModule(modulo, selectedType);
     } else if (selectedType === 'desarrollador') {
@@ -142,20 +150,20 @@ export default function HelpList() {
 
   if (isLoading && articles.length === 0) {
     return (
-      <div className="flex h-[calc(100vh-7rem)]">
-        <div className="w-64 border-r shrink-0">
+      <div className="flex flex-col md:flex-row h-[calc(100vh-7rem)]">
+        <div className="hidden md:block w-64 border-r shrink-0">
           <HelpSidebar 
             selectedModule={selectedModule}
             onModuleSelect={handleModuleSelect}
           />
         </div>
         <ScrollArea className="flex-1">
-          <div className="w-full p-4 space-y-4">
+          <div className="w-full p-3 md:p-4 space-y-3 md:space-y-4">
             <div className="space-y-3">
               <Skeleton className="h-8 w-48" />
               <Skeleton className="h-6 w-32" />
             </div>
-            <div className="space-y-4 rounded-lg border p-6">
+            <div className="space-y-4 rounded-lg border p-4 md:p-6">
               <Skeleton className="h-6 w-3/4" />
               <Skeleton className="h-4 w-full" />
               <Skeleton className="h-4 w-full" />
@@ -168,8 +176,20 @@ export default function HelpList() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)]">
-      <div className="w-64 border-r shrink-0">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-7rem)]">
+      <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-72">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Menú de módulos</SheetTitle>
+          </SheetHeader>
+          <HelpSidebar 
+            selectedModule={selectedModule}
+            onModuleSelect={handleModuleSelect}
+          />
+        </SheetContent>
+      </Sheet>
+
+      <div className="hidden md:block w-64 border-r shrink-0">
         <HelpSidebar 
           selectedModule={selectedModule}
           onModuleSelect={handleModuleSelect}
@@ -177,11 +197,19 @@ export default function HelpList() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="shrink-0 p-4 pb-0">
+        <div className="shrink-0 p-2 sm:p-4 sm:pb-0">
           <Card>
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between">
+            <CardContent className="p-2 sm:p-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="md:hidden shrink-0"
+                    onClick={() => setIsSidebarOpen(true)}
+                  >
+                    <Menu className="h-5 w-5" />
+                  </Button>
                   <span className="text-sm text-muted-foreground">Usuario</span>
                   <Switch
                     checked={selectedType === 'desarrollador'}
@@ -193,20 +221,21 @@ export default function HelpList() {
 
                 {selectedArticle && (
                    !isEditing ? (
-                     <Button variant="outline" onClick={handleEdit}>
-                       <FilePenLine className="h-4 w-4 mr-2" />
-                       Editar
+                     <Button variant="outline" size="sm" onClick={handleEdit} className="w-full sm:w-auto">
+                       <FilePenLine className="h-4 w-4 sm:mr-2" />
+                       <span className="hidden sm:inline">Editar</span>
                      </Button>
                    ) : (
-                     <>
-                       <Button onClick={handleSaveEdit} disabled={isSaving}>
-                         <Save className="h-4 w-4 mr-2" />
-                         {isSaving ? 'Guardando...' : 'Guardar'}
+                     <div className="flex gap-2 w-full sm:w-auto">
+                       <Button size="sm" onClick={handleSaveEdit} disabled={isSaving} className="flex-1 sm:flex-initial">
+                         <Save className="h-4 w-4 sm:mr-2" />
+                         <span className="hidden sm:inline">{isSaving ? 'Guardando...' : 'Guardar'}</span>
+                         <span className="sm:hidden">{isSaving ? '...' : 'Guardar'}</span>
                        </Button>
-                       <Button variant="outline" onClick={handleCancelEdit} disabled={isSaving}>
+                       <Button variant="outline" size="sm" onClick={handleCancelEdit} disabled={isSaving} className="flex-1 sm:flex-initial">
                          Cancelar
                        </Button>
-                     </>
+                     </div>
                    )
                 )}
               </div>
@@ -214,15 +243,15 @@ export default function HelpList() {
           </Card>
         </div>
 
-        <div className="flex-1 min-h-0 p-4">
+        <div className="flex-1 min-h-0 p-2 sm:p-4">
           {filteredArticles.length === 0 ? (
             <Card className="border-dashed h-full">
-              <CardContent className="flex flex-col items-center justify-center h-full">
-                <FileText className="h-16 w-16 text-muted-foreground/50 mb-4" />
-                <h2 className="text-xl font-semibold text-muted-foreground mb-2">
+              <CardContent className="flex flex-col items-center justify-center h-full p-4">
+                <FileText className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground/50 mb-4" />
+                <h2 className="text-lg sm:text-xl font-semibold text-muted-foreground mb-2 text-center">
                   No hay artículos disponibles
                 </h2>
-                <p className="text-sm text-muted-foreground text-center max-w-md">
+                <p className="text-sm text-muted-foreground text-center max-w-md px-4">
                   {selectedType === 'desarrollador'
                     ? 'No hay artículos de documentación técnica en esta sección.'
                     : 'No hay artículos de ayuda para mostrar en esta sección.'}
@@ -231,7 +260,7 @@ export default function HelpList() {
             </Card>
           ) : isEditing ? (
             <Card className="h-full">
-              <CardContent className="p-4 h-full flex flex-col">
+              <CardContent className="p-2 sm:p-4 h-full flex flex-col">
                 {selectedArticle && (
                   <TinyMceEditor
                     initialContent={selectedArticle.contenido}
@@ -244,7 +273,7 @@ export default function HelpList() {
           ) : (
             <ScrollArea className="h-full">
               <Card>
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-4">
                   {selectedArticle && (
                     <TinyMceViewer contenido={selectedArticle.contenido} />
                   )}
