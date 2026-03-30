@@ -201,7 +201,8 @@ builder.Services.AddOptions<EmailSettings>()
     .Validate(x => !string.IsNullOrWhiteSpace(x.SmtpServer), "SmtpServer is required")
     .Validate(x => !string.IsNullOrWhiteSpace(x.FromEmail), "FromEmail is required")
     .Validate(x => x.SmtpPort > 0 && x.SmtpPort <= 65535, "SmtpPort must be between 1 and 65535")
-    .ValidateOnStart();
+    //.ValidateOnStart()
+    ;
 
 // Register channels as KEYED SERVICES for multi-channel support
 builder.Services.AddKeyedScoped<Lefarma.API.Domain.Interfaces.INotificationChannel, Lefarma.API.Features.Notifications.Services.Channels.EmailNotificationChannel>("email");
@@ -347,16 +348,16 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Title = "Lefarma API",
         Description = "Lefarma",
-    }); 
+    });
     options.EnableAnnotations();
 
     options.DocInclusionPredicate((docName, apiDesc) =>
     {
-        return true; 
+        return true;
     });
     options.TagActionsBy(api => new List<string>() { api.GroupName ?? "Sin Categor�a" });
 });
-    
+
 // Configure CORS to allow all origins
 builder.Services.AddCors(options =>
 {
@@ -401,13 +402,13 @@ app.UseCors("CorsPolicy");
 // Configure the HTTP request pipeline.
 // if (app.Environment.IsDevelopment())
 // {
-    app.MapOpenApi(); 
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lefarma API v1");
-        // c.RoutePrefix = ""; // Hacer que Swagger est� disponible en la ra�z
-    });
+app.MapOpenApi();
+app.UseSwagger();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lefarma API v1");
+    // c.RoutePrefix = ""; // Hacer que Swagger est� disponible en la ra�z
+});
 // }
 
 app.UseHttpsRedirection();
