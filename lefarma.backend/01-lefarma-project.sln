@@ -6,15 +6,15 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "lefarma.backend", "lefarma.
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{776DAF90-109C-5EBF-2F7D-5886E13F7477}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.IntegrationTests", "lefarma.backend\tests\Lefarma.IntegrationTests\Lefarma.IntegrationTests.csproj", "{1D99A002-01E0-1B32-84A4-828C5066C5F2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.IntegrationTests", "tests\Lefarma.IntegrationTests\Lefarma.IntegrationTests.csproj", "{1D99A002-01E0-1B32-84A4-828C5066C5F2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.UnitTests", "lefarma.backend\tests\Lefarma.UnitTests\Lefarma.UnitTests.csproj", "{61641B44-133B-895A-9BA9-9156686CB19C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.UnitTests", "tests\Lefarma.UnitTests\Lefarma.UnitTests.csproj", "{61641B44-133B-895A-9BA9-9156686CB19C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.Tests", "lefarma.backend\tests\Lefarma.Tests\Lefarma.Tests.csproj", "{B5408EF7-E8E6-13D2-5D8C-6B0B1BC09248}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.Tests", "tests\Lefarma.Tests\Lefarma.Tests.csproj", "{B5408EF7-E8E6-13D2-5D8C-6B0B1BC09248}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{A96A0A7B-E57A-55CC-CEAF-17FB88229D6E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.API", "lefarma.backend\src\Lefarma.API\Lefarma.API.csproj", "{DD70BB86-1DE4-E4A2-D43D-4AA8AE99E154}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lefarma.API", "src\Lefarma.API\Lefarma.API.csproj", "{DD70BB86-1DE4-E4A2-D43D-4AA8AE99E154}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
