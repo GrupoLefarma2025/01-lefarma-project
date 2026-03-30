@@ -435,6 +435,12 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Dev Token middleware for testing (Development only)
+if (app.Environment.IsDevelopment())
+{
+    app.UseDevToken();
+}
+
 // Authentication & Authorization - Order matters: Authentication must come before Authorization
 app.UseAuthentication();
 app.UseAuthorization();
