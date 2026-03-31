@@ -13,7 +13,7 @@ namespace Lefarma.API.Features.Auth.Usuarios;
 [Route("api/auth/usuarios")]
 [ApiController]
 [EndpointGroupName("Auth")]
-[HasPermission(Permissions.Usuarios.View)]
+//[HasPermission(Permissions.Usuarios.View)]
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioCatalogService _usuarioCatalogService;

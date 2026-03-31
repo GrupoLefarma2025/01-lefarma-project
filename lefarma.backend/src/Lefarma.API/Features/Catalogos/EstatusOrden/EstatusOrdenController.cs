@@ -13,7 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-[HasPermission(Permissions.Catalogos.View)]
+//[HasPermission(Permissions.Catalogos.View)]
 public class EstatusOrdenController : ControllerBase
 {
     private readonly IEstatusOrdenService _estatusOrdenService;

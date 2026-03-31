@@ -53,7 +53,7 @@ public class UnidadesMedidaController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva unidad de medida", Description = "Crea una unidad de medida con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos de la unidad de medida a crear", Required = true)] CreateUnidadMedidaRequest request)
@@ -72,7 +72,7 @@ public class UnidadesMedidaController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar unidad de medida", Description = "Actualiza los datos de una unidad de medida existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador de la unidad de medida a actualizar", Required = true)] int id,
@@ -89,7 +89,7 @@ public class UnidadesMedidaController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar unidad de medida", Description = "Elimina una unidad de medida por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador de la unidad de medida a eliminar", Required = true)] int id)

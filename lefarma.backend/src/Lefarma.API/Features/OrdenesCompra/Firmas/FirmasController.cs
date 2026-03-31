@@ -12,7 +12,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     [Route("api/ordenes")]
     [ApiController]
     [EndpointGroupName("OrdenesCompra")]
-    [HasPermission(Permissions.OrdenesCompra.Approve)]
+    //[HasPermission(Permissions.OrdenesCompra.Approve)]
     public class FirmasController : ControllerBase
     {
         private readonly IFirmasService _service;

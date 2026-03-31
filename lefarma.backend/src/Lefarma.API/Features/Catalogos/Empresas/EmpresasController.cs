@@ -13,7 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-[HasPermission(Permissions.Catalogos.View)]
+//[HasPermission(Permissions.Catalogos.View)]
 public class EmpresasController : ControllerBase
 {
     private readonly IEmpresaService _empresaService;
@@ -53,7 +53,7 @@ public class EmpresasController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva empresa", Description = "Crea una empresa con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos de la empresa a crear", Required = true)] CreateEmpresaRequest request)
@@ -72,7 +72,7 @@ public class EmpresasController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar empresa", Description = "Actualiza los datos de una empresa existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador de la empresa a actualizar", Required = true)] int id,
@@ -89,7 +89,7 @@ public class EmpresasController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar empresa", Description = "Elimina una empresa por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador de la empresa a eliminar", Required = true)] int id)

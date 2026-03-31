@@ -13,7 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-[HasPermission(Permissions.Catalogos.View)]
+//[HasPermission(Permissions.Catalogos.View)]
 public class BancosController : ControllerBase
 {
     private readonly IBancoService _bancoService;
@@ -53,7 +53,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo banco", Description = "Crea un banco con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del banco a crear", Required = true)] CreateBancoRequest request)
@@ -72,7 +72,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar banco", Description = "Actualiza los datos de un banco existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del banco a actualizar", Required = true)] int id,
@@ -89,7 +89,7 @@ public class BancosController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+    //[HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar banco", Description = "Elimina un banco por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del banco a eliminar", Required = true)] int id)

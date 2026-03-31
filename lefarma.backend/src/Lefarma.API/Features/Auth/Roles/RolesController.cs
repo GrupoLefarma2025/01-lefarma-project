@@ -13,7 +13,7 @@ namespace Lefarma.API.Features.Auth.Roles;
 [Route("api/auth/roles")]
 [ApiController]
 [EndpointGroupName("Auth")]
-[HasPermission(Permissions.Usuarios.View)]
+//[HasPermission(Permissions.Usuarios.View)]
 public class RolesController : ControllerBase
 {
     private readonly IRolCatalogService _rolCatalogService;

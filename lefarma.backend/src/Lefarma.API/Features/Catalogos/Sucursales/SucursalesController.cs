@@ -53,7 +53,7 @@ public class SucursalesController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva sucursal", Description = "Crea una sucursal con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos de la sucursal a crear", Required = true)] CreateSucursalRequest request)
@@ -72,7 +72,7 @@ public class SucursalesController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar sucursal", Description = "Actualiza los datos de una sucursal existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador de la sucursal a actualizar", Required = true)] int id,

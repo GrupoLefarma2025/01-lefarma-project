@@ -53,7 +53,7 @@ public class MedidasController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nueva medida", Description = "Crea una medida con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos de la medida a crear", Required = true)] CreateMedidaRequest request)
@@ -72,7 +72,7 @@ public class MedidasController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar medida", Description = "Actualiza los datos de una medida existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador de la medida a actualizar", Required = true)] int id,
@@ -89,7 +89,7 @@ public class MedidasController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar medida", Description = "Elimina una medida por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador de la medida a eliminar", Required = true)] int id)

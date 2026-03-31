@@ -53,7 +53,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo proveedor", Description = "Crea un proveedor con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del proveedor a crear", Required = true)] CreateProveedorRequest request)
@@ -72,7 +72,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar proveedor", Description = "Actualiza los datos de un proveedor existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a actualizar", Required = true)] int id,
@@ -89,7 +89,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-    [HasPermission(Permissions.Catalogos.Manage)]
+//    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar proveedor", Description = "Elimina un proveedor por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a eliminar", Required = true)] int id)
@@ -105,7 +105,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost("{id}/autorizar")]
-    [HasPermission(Permissions.Proveedores.Autorizar)]
+//    [HasPermission(Permissions.Proveedores.Autorizar)]
     [SwaggerOperation(Summary = "Autorizar proveedor por CxP", Description = "Marca un proveedor como autorizado por el área de Cuentas por Pagar")]
     public async Task<IActionResult> Autorizar(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a autorizar", Required = true)] int id)
@@ -121,7 +121,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost("{id}/rechazar")]
-    [HasPermission(Permissions.Proveedores.Rechazar)]
+//    [HasPermission(Permissions.Proveedores.Rechazar)]
     [SwaggerOperation(Summary = "Rechazar proveedor por CxP", Description = "Rechaza un proveedor con un motivo")]
     public async Task<IActionResult> Rechazar(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a rechazar", Required = true)] int id,

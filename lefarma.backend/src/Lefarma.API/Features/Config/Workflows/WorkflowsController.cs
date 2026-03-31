@@ -11,7 +11,7 @@ namespace Lefarma.API.Features.Config.Workflows
     [Route("api/config/[controller]")]
     [ApiController]
     [EndpointGroupName("Config")]
-    [HasPermission(Permissions.Workflows.View)]
+//    [HasPermission(Permissions.Workflows.View)]
     public class WorkflowsController : ControllerBase
     {
         private readonly IWorkflowService _service;
@@ -45,7 +45,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPost]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear nuevo workflow")]
         public async Task<IActionResult> Create([FromBody] CreateWorkflowRequest request)
         {
@@ -56,7 +56,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{id}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar workflow")]
         public async Task<IActionResult> Update(int id, [FromBody] UpdateWorkflowRequest request)
         {
@@ -66,7 +66,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{id}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar workflow")]
         public async Task<IActionResult> Delete(int id)
         {
@@ -76,7 +76,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar paso de workflow")]
         public async Task<IActionResult> UpdatePaso(int idWorkflow, int idPaso, [FromBody] UpdatePasoRequest request)
         {
@@ -90,7 +90,7 @@ namespace Lefarma.API.Features.Config.Workflows
         // ============================================================================
         
         [HttpPost("{idWorkflow}/pasos/{idPaso}/acciones")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear acción en un paso")]
         public async Task<IActionResult> CreateAccion(int idWorkflow, int idPaso, [FromBody] CreateAccionRequest request)
         {
@@ -100,7 +100,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}/acciones/{idAccion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar acción de un paso")]
         public async Task<IActionResult> UpdateAccion(int idWorkflow, int idPaso, int idAccion, [FromBody] UpdateAccionRequest request)
         {
@@ -110,7 +110,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/pasos/{idPaso}/acciones/{idAccion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar acción de un paso")]
         public async Task<IActionResult> DeleteAccion(int idWorkflow, int idPaso, int idAccion)
         {
@@ -124,7 +124,7 @@ namespace Lefarma.API.Features.Config.Workflows
         // ============================================================================
         
         [HttpPost("{idWorkflow}/pasos/{idPaso}/condiciones")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear condición en un paso")]
         public async Task<IActionResult> CreateCondicion(int idWorkflow, int idPaso, [FromBody] CreateCondicionRequest request)
         {
@@ -134,7 +134,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}/condiciones/{idCondicion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar condición de un paso")]
         public async Task<IActionResult> UpdateCondicion(int idWorkflow, int idPaso, int idCondicion, [FromBody] UpdateCondicionRequest request)
         {
@@ -144,7 +144,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/pasos/{idPaso}/condiciones/{idCondicion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar condición de un paso")]
         public async Task<IActionResult> DeleteCondicion(int idWorkflow, int idPaso, int idCondicion)
         {
@@ -158,7 +158,7 @@ namespace Lefarma.API.Features.Config.Workflows
         // ============================================================================
         
         [HttpPost("{idWorkflow}/pasos/{idPaso}/participantes")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear participante en un paso")]
         public async Task<IActionResult> CreateParticipante(int idWorkflow, int idPaso, [FromBody] CreateParticipanteRequest request)
         {
@@ -168,7 +168,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/pasos/{idPaso}/participantes/{idParticipante}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar participante de un paso")]
         public async Task<IActionResult> UpdateParticipante(int idWorkflow, int idPaso, int idParticipante, [FromBody] UpdateParticipanteRequest request)
         {
@@ -178,7 +178,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/pasos/{idPaso}/participantes/{idParticipante}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar participante de un paso")]
         public async Task<IActionResult> DeleteParticipante(int idWorkflow, int idPaso, int idParticipante)
         {
@@ -192,7 +192,7 @@ namespace Lefarma.API.Features.Config.Workflows
         // ============================================================================
         
         [HttpPost("{idWorkflow}/acciones/{idAccion}/notificaciones")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear notificación para una acción")]
         public async Task<IActionResult> CreateNotificacion(int idWorkflow, int idAccion, [FromBody] CreateNotificacionRequest request)
         {
@@ -202,7 +202,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpPut("{idWorkflow}/acciones/{idAccion}/notificaciones/{idNotificacion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar notificación de una acción")]
         public async Task<IActionResult> UpdateNotificacion(int idWorkflow, int idAccion, int idNotificacion, [FromBody] UpdateNotificacionRequest request)
         {
@@ -212,7 +212,7 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpDelete("{idWorkflow}/acciones/{idAccion}/notificaciones/{idNotificacion}")]
-        [HasPermission(Permissions.Workflows.Manage)]
+    //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar notificación de una acción")]
         public async Task<IActionResult> DeleteNotificacion(int idWorkflow, int idAccion, int idNotificacion)
         {
