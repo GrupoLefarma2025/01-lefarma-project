@@ -79,3 +79,20 @@ logs/security/
 
 # Archivos subidos (media)
 lefarma.backend/src/Lefarma.API/wwwroot/media/
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+*.code-workspace
+.env
+.env.*
+!.env.example
+.next/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+coverage/
+.cache/
+tmp/
