@@ -223,10 +223,12 @@ export function AppSidebar() {
                 <div className="rounded-lg bg-primary p-1">
                   <img src="/favicon.ico" alt="LeFarma" className="h-5 w-5" />
                 </div>
-                <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-bold text-white">Grupo Lefarma CxP</span>
-                  <span className="text-xs text-white">v1.0.0</span>
-                </div>
+                {!isCollapsed && (
+                  <div className="flex flex-col gap-0.5 leading-none">
+                    <span className="font-bold text-white">Grupo Lefarma CxP</span>
+                    <span className="text-xs text-white">v1.0.0</span>
+                  </div>
+                )}
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
