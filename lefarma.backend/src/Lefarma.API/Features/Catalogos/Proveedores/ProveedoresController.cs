@@ -103,4 +103,37 @@ public class ProveedoresController : ControllerBase
             Data = null
         }));
     }
+
+    [HttpPost("{id}/autorizar")]
+    [HasPermission(Permissions.Proveedores.Autorizar)]
+    [SwaggerOperation(Summary = "Autorizar proveedor por CxP", Description = "Marca un proveedor como autorizado por el área de Cuentas por Pagar")]
+    public async Task<IActionResult> Autorizar(
+        [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a autorizar", Required = true)] int id)
+    {
+        var result = await _proveedorService.AutorizarAsync(id);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Proveedor autorizado exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/rechazar")]
+    [HasPermission(Permissions.Proveedores.Rechazar)]
+    [SwaggerOperation(Summary = "Rechazar proveedor por CxP", Description = "Rechaza un proveedor con un motivo")]
+    public async Task<IActionResult> Rechazar(
+        [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a rechazar", Required = true)] int id,
+        [FromBody][SwaggerRequestBody(Description = "Motivo del rechazo", Required = true)] RechazoProveedorRequest request)
+    {
+        var result = await _proveedorService.RechazarAsync(id, request.Motivo);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Proveedor rechazado exitosamente.",
+            Data = data
+        }));
+    }
 }

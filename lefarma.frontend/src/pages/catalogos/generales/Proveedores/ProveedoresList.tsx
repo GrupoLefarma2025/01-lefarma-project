@@ -1,7 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Building, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw } from 'lucide-react';
+import {
+  Building,
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Loader2,
+  RefreshCcw,
+  CheckCircle,
+  XCircle,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -28,6 +38,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -83,6 +102,10 @@ export default function ProveedoresList() {
   const [isEditing, setIsEditing] = useState(false);
   const [proveedorId, setProveedorId] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
+  const [rechazarDialogOpen, setRechazarDialogOpen] = useState(false);
+  const [rechazarProveedorId, setRechazarProveedorId] = useState<number>(0);
+  const [rechazarMotivo, setRechazarMotivo] = useState('');
+  const [isRechazando, setIsRechazando] = useState(false);
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -213,6 +236,54 @@ export default function ProveedoresList() {
     }
   };
 
+  const handleAutorizarProveedor = async (id: number) => {
+    try {
+      const response = await API.post<ApiResponse<void>>(
+        `/catalogos/proveedores/${id}/autorizar`,
+      );
+      if (response.data.success) {
+        toast.success('Proveedor autorizado correctamente');
+        fetchProveedores();
+      } else {
+        toast.error(response.data.message ?? 'Error al autorizar el proveedor');
+      }
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Error al autorizar el proveedor');
+    }
+  };
+
+  const handleOpenRechazarDialog = (id: number) => {
+    setRechazarProveedorId(id);
+    setRechazarMotivo('');
+    setRechazarDialogOpen(true);
+  };
+
+  const handleConfirmarRechazo = async () => {
+    if (!rechazarMotivo.trim()) {
+      toast.error('El motivo de rechazo es obligatorio');
+      return;
+    }
+    setIsRechazando(true);
+    try {
+      const response = await API.post<ApiResponse<void>>(
+        `/catalogos/proveedores/${rechazarProveedorId}/rechazar`,
+        { motivo: rechazarMotivo.trim() },
+      );
+      if (response.data.success) {
+        toast.success('Proveedor rechazado correctamente');
+        setRechazarDialogOpen(false);
+        setRechazarMotivo('');
+        fetchProveedores();
+      } else {
+        toast.error(response.data.message ?? 'Error al rechazar el proveedor');
+      }
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Error al rechazar el proveedor');
+    } finally {
+      setIsRechazando(false);
+    }
+  };
+
   const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
       p.razonSocial.toLowerCase().includes(search.toLowerCase()) ||
@@ -275,36 +346,68 @@ export default function ProveedoresList() {
       accessorKey: 'autorizadoPorCxP',
       header: 'Autorizado CxP',
       cell: ({ row }) => (
-        <Badge variant={row.original.autorizadoPorCxP ? 'default' : 'destructive'} className="h-5">
-          {row.original.autorizadoPorCxP ? 'Sí' : 'No'}
+        <Badge
+          variant={row.original.autorizadoPorCxP ? 'default' : 'secondary'}
+          className={
+            row.original.autorizadoPorCxP
+              ? 'bg-green-600 hover:bg-green-700 text-white'
+              : 'bg-yellow-500 hover:bg-yellow-600 text-white'
+          }
+        >
+          {row.original.autorizadoPorCxP ? 'Autorizado' : 'Pendiente'}
         </Badge>
       ),
     },
     {
       id: 'actions',
       header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5"
-            onClick={() => handleEditProveedor(row.original.idProveedor)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Editar
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="h-8 gap-1.5"
-            onClick={() => handleDeleteProveedor(row.original.idProveedor)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </Button>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const proveedor = row.original;
+        return (
+          <div className="flex items-center gap-2">
+            {!proveedor.autorizadoPorCxP && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 border-green-600 text-green-600 hover:bg-green-50"
+                  onClick={() => handleAutorizarProveedor(proveedor.idProveedor)}
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  Autorizar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 border-red-600 text-red-600 hover:bg-red-50"
+                  onClick={() => handleOpenRechazarDialog(proveedor.idProveedor)}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Rechazar
+                </Button>
+              </>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => handleEditProveedor(proveedor.idProveedor)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 gap-1.5"
+              onClick={() => handleDeleteProveedor(proveedor.idProveedor)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -531,6 +634,49 @@ export default function ProveedoresList() {
           </form>
         </Form>
       </Modal>
+
+      <Dialog open={rechazarDialogOpen} onOpenChange={setRechazarDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rechazar Proveedor</DialogTitle>
+            <DialogDescription>
+              Indica el motivo del rechazo. Este dato será registrado para referencia.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label htmlFor="motivo-rechazo" className="text-sm font-medium">
+              Motivo del rechazo *
+            </label>
+            <Textarea
+              id="motivo-rechazo"
+              placeholder="Describe el motivo del rechazo..."
+              className="mt-2"
+              value={rechazarMotivo}
+              onChange={(e) => setRechazarMotivo(e.target.value)}
+              rows={3}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRechazarDialogOpen(false)}
+              disabled={isRechazando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={isRechazando || !rechazarMotivo.trim()}
+              onClick={handleConfirmarRechazo}
+            >
+              {isRechazando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Confirmar Rechazo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

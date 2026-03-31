@@ -147,6 +147,8 @@ builder.Services.AddScoped<IArchivoService, ArchivoService>();
 // Repositorios - Config y Operaciones
 builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
+builder.Services.AddScoped<IPagoRepository, PagoRepository>();
+builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
@@ -159,6 +161,8 @@ builder.Services.AddScoped<IFirmasService, FirmasService>();
 // Step Handlers (keyed por HandlerKey configurado en workflow_pasos)
 builder.Services.AddKeyedScoped<IStepHandler, Firma3Handler>("Firma3Handler");
 builder.Services.AddKeyedScoped<IStepHandler, Firma4Handler>("Firma4Handler");
+builder.Services.AddKeyedScoped<IStepHandler, Firma5Handler>("Firma5Handler");
+builder.Services.AddKeyedScoped<IStepHandler, ComprobacionHandler>("ComprobacionHandler");
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -333,6 +337,7 @@ builder.Services.AddAuthorization(options =>
         Permissions.Comprobaciones.View, Permissions.Comprobaciones.Create, Permissions.Comprobaciones.Validate,
         Permissions.Config.View, Permissions.Config.Manage,
         Permissions.Workflows.View, Permissions.Workflows.Manage,
+        Permissions.Proveedores.Autorizar, Permissions.Proveedores.Rechazar,
     };
 
     foreach (var perm in allPermissions)

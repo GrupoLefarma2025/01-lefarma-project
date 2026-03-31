@@ -1,7 +1,6 @@
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Operaciones
 {

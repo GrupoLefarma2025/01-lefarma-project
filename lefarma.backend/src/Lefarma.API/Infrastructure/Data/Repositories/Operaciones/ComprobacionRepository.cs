@@ -1,7 +1,6 @@
 using Lefarma.API.Domain.Entities.Operaciones;
-using Lefarma.API.Domain.Interfaces;
+using Lefarma.API.Domain.Interfaces.Operaciones;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Operaciones
 {
@@ -14,10 +13,10 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Operaciones
             _context = context;
         }
 
-        public async Task<Comprobacion?> GetByIdAsync(int id)
-            => await _context.Comprobaciones.FindAsync(id);
+        public async Task<ICollection<Comprobacion>> GetByOrdenAsync(int idOrden)
+            => await _context.Comprobaciones.Where(c => c.IdOrdenCompra == idOrden).ToListAsync();
 
+        public async Task<Comprobacion?> GetByUuidAsync(string uuid)
+            => await _context.Comprobaciones.FirstOrDefaultAsync(c => c.Uuid == uuid);
     }
-
-}
 }

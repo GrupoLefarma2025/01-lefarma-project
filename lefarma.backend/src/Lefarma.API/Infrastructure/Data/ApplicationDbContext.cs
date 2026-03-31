@@ -41,6 +41,8 @@ namespace Lefarma.API.Infrastructure.Data
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
         public DbSet<OrdenCompraPartida> OrdenesCompraPartidas { get; set; }
+        public DbSet<Pago> Pagos { get; set; }
+        public DbSet<Comprobacion> Comprobaciones { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

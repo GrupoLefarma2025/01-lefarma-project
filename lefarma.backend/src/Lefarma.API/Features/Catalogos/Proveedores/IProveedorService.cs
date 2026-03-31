@@ -10,5 +10,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores
         Task<ErrorOr<ProveedorResponse>> CreateAsync(CreateProveedorRequest request);
         Task<ErrorOr<ProveedorResponse>> UpdateAsync(int id, UpdateProveedorRequest request);
         Task<ErrorOr<bool>> DeleteAsync(int id);
+        Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id);
+        Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo);
     }
 }

@@ -1,4 +1,5 @@
 using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,7 @@ public class DatabaseSeeder : IDatabaseSeeder
         await SeedRolesAsync();
         await SeedPermissionsAsync();
         await SeedRolePermissionsAsync();
+        await SeedWorkflowAsync();
 
         _logger.LogInformation("Database seeding completed successfully.");
     }
@@ -464,5 +466,130 @@ public class DatabaseSeeder : IDatabaseSeeder
                 FechaAsignacion = DateTime.UtcNow
             });
         }
+    }
+
+    private async Task SeedWorkflowAsync()
+    {
+        if (await _context.Set<Workflow>().AnyAsync(w => w.CodigoProceso == "ORDEN_COMPRA"))
+        {
+            _logger.LogInformation("Workflow ORDEN_COMPRA already seeded. Skipping...");
+            return;
+        }
+
+        _logger.LogInformation("Seeding workflow ORDEN_COMPRA...");
+
+        var workflow = new Workflow
+        {
+            Nombre = "Orden de Compra",
+            Descripcion = "Workflow para el proceso de autorización de órdenes de compra",
+            CodigoProceso = "ORDEN_COMPRA",
+            Version = 1,
+            Activo = true,
+            FechaCreacion = DateTime.UtcNow,
+            Pasos = new List<WorkflowPaso>
+            {
+                new()
+                {
+                    Orden = 1,
+                    NombrePaso = "Captura de OC",
+                    CodigoEstado = "Creada",
+                    HandlerKey = null,
+                    EsInicio = true,
+                    EsFinal = false,
+                    RequiereFirma = false,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 2,
+                    NombrePaso = "Firma Gerente de Área",
+                    CodigoEstado = "EnFirma1",
+                    HandlerKey = null,
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = true,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 3,
+                    NombrePaso = "Revisión CxP",
+                    CodigoEstado = "EnFirma3",
+                    HandlerKey = "Firma3Handler",
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = true,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 4,
+                    NombrePaso = "Firma GAF",
+                    CodigoEstado = "EnFirma4",
+                    HandlerKey = "Firma4Handler",
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = true,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 5,
+                    NombrePaso = "Firma Dirección Corporativa",
+                    CodigoEstado = "EnFirma5",
+                    HandlerKey = "Firma5Handler",
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = true,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 6,
+                    NombrePaso = "Tesorería",
+                    CodigoEstado = "EnTesoreria",
+                    HandlerKey = null,
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = false,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                },
+                new()
+                {
+                    Orden = 7,
+                    NombrePaso = "Comprobación",
+                    CodigoEstado = "EnComprobacion",
+                    HandlerKey = "ComprobacionHandler",
+                    EsInicio = false,
+                    EsFinal = false,
+                    RequiereFirma = false,
+                    RequiereComentario = true,
+                    RequiereAdjunto = true
+                },
+                new()
+                {
+                    Orden = 8,
+                    NombrePaso = "Cierre",
+                    CodigoEstado = "Cerrada",
+                    HandlerKey = null,
+                    EsInicio = false,
+                    EsFinal = true,
+                    RequiereFirma = false,
+                    RequiereComentario = false,
+                    RequiereAdjunto = false
+                }
+            }
+        };
+
+        await _context.Set<Workflow>().AddAsync(workflow);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Seeded workflow ORDEN_COMPRA with {Count} steps successfully.", workflow.Pasos.Count);
     }
 }

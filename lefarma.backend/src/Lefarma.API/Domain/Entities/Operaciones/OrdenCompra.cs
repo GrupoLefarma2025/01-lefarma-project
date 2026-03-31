@@ -46,5 +46,7 @@
         public decimal Total { get; set; }
 
         public virtual ICollection<OrdenCompraPartida> Partidas { get; set; } = new List<OrdenCompraPartida>();
+        public virtual ICollection<Pago> Pagos { get; set; } = new List<Pago>();
+        public virtual ICollection<Comprobacion> Comprobaciones { get; set; } = new List<Comprobacion>();
     }
 }

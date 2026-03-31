@@ -112,4 +112,10 @@ public static class Permissions
         public const string View = "workflows.view";
         public const string Manage = "workflows.manage";
     }
+
+    public static class Proveedores
+    {
+        public const string Autorizar = "proveedores.autorizar";
+        public const string Rechazar = "proveedores.rechazar";
+    }
 }

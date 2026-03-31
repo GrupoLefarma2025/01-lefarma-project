@@ -278,5 +278,64 @@ namespace Lefarma.API.Features.Catalogos.Proveedores
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar el proveedor.");
             }
         }
+
+        public async Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id)
+        {
+            try
+            {
+                var proveedor = await _proveedorRepository.GetByIdAsync(id);
+                if (proveedor == null)
+                {
+                    EnrichWideEvent(action: "Autorizar", entityId: id, notFound: true);
+                    return CommonErrors.NotFound("proveedor", id.ToString());
+                }
+
+                if (proveedor.AutorizadoPorCxP)
+                {
+                    EnrichWideEvent(action: "Autorizar", entityId: id, nombre: proveedor.RazonSocial, additionalContext: new Dictionary<string, object> { ["reason"] = "already_authorized" });
+                    return CommonErrors.AlreadyExists("proveedor", "autorización", id.ToString());
+                }
+
+                proveedor.AutorizadoPorCxP = true;
+                proveedor.FechaModificacion = DateTime.UtcNow;
+
+                var result = await _proveedorRepository.UpdateAsync(proveedor);
+                EnrichWideEvent(action: "Autorizar", entityId: id, nombre: result.RazonSocial);
+                return result.ToResponse();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent(action: "Autorizar", entityId: id, error: ex.GetDetailedMessage());
+                return CommonErrors.DatabaseError("autorizar el proveedor");
+            }
+        }
+
+        public async Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo)
+        {
+            try
+            {
+                var proveedor = await _proveedorRepository.GetByIdAsync(id);
+                if (proveedor == null)
+                {
+                    EnrichWideEvent(action: "Rechazar", entityId: id, notFound: true);
+                    return CommonErrors.NotFound("proveedor", id.ToString());
+                }
+
+                proveedor.AutorizadoPorCxP = false;
+                proveedor.NotasGenerales = string.IsNullOrWhiteSpace(motivo)
+                    ? proveedor.NotasGenerales
+                    : $"[RECHAZADO] {motivo}";
+                proveedor.FechaModificacion = DateTime.UtcNow;
+
+                var result = await _proveedorRepository.UpdateAsync(proveedor);
+                EnrichWideEvent(action: "Rechazar", entityId: id, nombre: result.RazonSocial);
+                return result.ToResponse();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent(action: "Rechazar", entityId: id, error: ex.GetDetailedMessage());
+                return CommonErrors.DatabaseError("rechazar el proveedor");
+            }
+        }
     }
 }
