@@ -1,6 +1,8 @@
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.Proveedores;
 using Lefarma.API.Features.Catalogos.Proveedores.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
+[HasPermission(Permissions.Catalogos.View)]
 public class ProveedoresController : ControllerBase
 {
     private readonly IProveedorService _proveedorService;
@@ -50,6 +53,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo proveedor", Description = "Crea un proveedor con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del proveedor a crear", Required = true)] CreateProveedorRequest request)
@@ -68,6 +72,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar proveedor", Description = "Actualiza los datos de un proveedor existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a actualizar", Required = true)] int id,
@@ -84,6 +89,7 @@ public class ProveedoresController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar proveedor", Description = "Elimina un proveedor por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del proveedor a eliminar", Required = true)] int id)

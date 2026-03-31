@@ -1,6 +1,8 @@
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.MediosPago.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
+[HasPermission(Permissions.Catalogos.View)]
 public class MediosPagoController : ControllerBase
 {
     private readonly IMedioPagoService _medioPagoService;
@@ -50,6 +53,7 @@ public class MediosPagoController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo medio de pago", Description = "Crea un medio de pago con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del medio de pago a crear", Required = true)] CreateMedioPagoRequest request)
@@ -68,6 +72,7 @@ public class MediosPagoController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar medio de pago", Description = "Actualiza los datos de un medio de pago existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del medio de pago a actualizar", Required = true)] int id,
@@ -84,6 +89,7 @@ public class MediosPagoController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar medio de pago", Description = "Elimina un medio de pago por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del medio de pago a eliminar", Required = true)] int id)

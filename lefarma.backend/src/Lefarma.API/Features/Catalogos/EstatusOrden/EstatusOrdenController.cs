@@ -1,6 +1,8 @@
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.EstatusOrden;
 using Lefarma.API.Features.Catalogos.EstatusOrden.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
+[HasPermission(Permissions.Catalogos.View)]
 public class EstatusOrdenController : ControllerBase
 {
     private readonly IEstatusOrdenService _estatusOrdenService;

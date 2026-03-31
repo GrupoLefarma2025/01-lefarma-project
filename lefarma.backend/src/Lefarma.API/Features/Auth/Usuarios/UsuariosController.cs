@@ -1,6 +1,7 @@
 using Lefarma.API.Features.Auth.Usuarios.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -12,7 +13,7 @@ namespace Lefarma.API.Features.Auth.Usuarios;
 [Route("api/auth/usuarios")]
 [ApiController]
 [EndpointGroupName("Auth")]
-[Authorize]
+[HasPermission(Permissions.Usuarios.View)]
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioCatalogService _usuarioCatalogService;

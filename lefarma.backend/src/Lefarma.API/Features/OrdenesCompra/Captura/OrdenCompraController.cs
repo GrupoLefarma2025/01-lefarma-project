@@ -1,4 +1,6 @@
 ﻿using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +12,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
     [Route("api/ordenes")]
     [ApiController]
     [EndpointGroupName("OrdenesCompra")]
+    [HasPermission(Permissions.OrdenesCompra.View)]
     public class OrdenCompraController : ControllerBase
     {
         private readonly IOrdenCompraService _service;
@@ -37,6 +40,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         }
 
         [HttpPost]
+        [HasPermission(Permissions.OrdenesCompra.Create)]
         [SwaggerOperation(Summary = "Crear nueva orden de compra")]
         public async Task<IActionResult> Create([FromBody] CreateOrdenCompraRequest request)
         {
@@ -47,6 +51,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         }
 
         [HttpDelete("{id}")]
+        [HasPermission(Permissions.OrdenesCompra.Delete)]
         [SwaggerOperation(Summary = "Eliminar orden de compra (solo estado Creada)")]
         public async Task<IActionResult> Delete(int id)
         {

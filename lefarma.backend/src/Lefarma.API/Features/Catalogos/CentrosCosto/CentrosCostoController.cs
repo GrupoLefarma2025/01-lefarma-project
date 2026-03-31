@@ -1,6 +1,8 @@
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.CentrosCosto;
 using Lefarma.API.Features.Catalogos.CentrosCosto.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
+[HasPermission(Permissions.Catalogos.View)]
 public class CentrosCostoController : ControllerBase
 {
     private readonly ICentroCostoService _centroCostoService;
@@ -50,6 +53,7 @@ public class CentrosCostoController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo centro de costo", Description = "Crea un centro de costo con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del centro de costo a crear", Required = true)] CreateCentroCostoRequest request)
@@ -68,6 +72,7 @@ public class CentrosCostoController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar centro de costo", Description = "Actualiza los datos de un centro de costo existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del centro de costo a actualizar", Required = true)] int id,
@@ -84,6 +89,7 @@ public class CentrosCostoController : ControllerBase
     }
 
     [HttpDelete("{id}")]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar centro de costo", Description = "Elimina un centro de costo por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del centro de costo a eliminar", Required = true)] int id)

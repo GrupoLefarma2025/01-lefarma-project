@@ -2,6 +2,8 @@ using FluentValidation;
 using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Catalogos.FormasPago.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +14,7 @@ namespace Lefarma.API.Features.Catalogos
     [Route("api/catalogos/[controller]")]
     [ApiController]
     [EndpointGroupName("Catalogos")]
+    [HasPermission(Permissions.Catalogos.View)]
     public class FormasPagoController : ControllerBase
     {
         private readonly IFormaPagoService _formaPagoService;
@@ -51,6 +54,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpPost]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Crear nueva forma de pago", Description = "Crea una forma de pago con los datos proporcionados")]
         public async Task<IActionResult> Create(
             [FromBody][SwaggerRequestBody(Description = "Datos de la forma de pago a crear", Required = true)] CreateFormaPagoRequest request)
@@ -69,6 +73,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpPut("{id}")]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Actualizar forma de pago", Description = "Actualiza los datos de una forma de pago existente")]
         public async Task<IActionResult> Update(
             [FromRoute][SwaggerParameter(Description = "Identificador de la forma de pago a actualizar", Required = true)] int id,
@@ -85,6 +90,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpDelete("{id}")]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Eliminar forma de pago", Description = "Elimina una forma de pago por su identificador")]
         public async Task<IActionResult> Delete(
             [FromRoute][SwaggerParameter(Description = "Identificador de la forma de pago a eliminar", Required = true)] int id)

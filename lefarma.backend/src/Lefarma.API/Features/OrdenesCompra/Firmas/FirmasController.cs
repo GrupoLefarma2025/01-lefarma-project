@@ -1,4 +1,6 @@
 ﻿using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +12,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     [Route("api/ordenes")]
     [ApiController]
     [EndpointGroupName("OrdenesCompra")]
+    [HasPermission(Permissions.OrdenesCompra.Approve)]
     public class FirmasController : ControllerBase
     {
         private readonly IFirmasService _service;

@@ -1,7 +1,8 @@
-using Azure;
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.Areas;
 using Lefarma.API.Features.Catalogos.Areas.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +13,7 @@ namespace Lefarma.API.Features.Catalogos
     [Route("api/catalogos/[controller]")]
     [ApiController]
     [EndpointGroupName("Catalogos")]
+    [HasPermission(Permissions.Catalogos.View)]
     public class AreasController : ControllerBase
     {
         private readonly IAreaService _areaService;
@@ -51,6 +53,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpPost]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Crear nueva área", Description = "Crea un área con los datos proporcionados")]
         public async Task<IActionResult> CreateArea(
             [FromBody][SwaggerRequestBody(Description = "Datos del área a crear", Required = true)] CreateAreaRequest request)
@@ -69,6 +72,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpPut("{id}")]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Actualizar área", Description = "Actualiza los datos de un área existente")]
         public async Task<IActionResult> UpdateArea(
             [FromRoute][SwaggerParameter(Description = "Identificador del área a actualizar", Required = true)] int id,
@@ -85,6 +89,7 @@ namespace Lefarma.API.Features.Catalogos
         }
 
         [HttpDelete("{id}")]
+        [HasPermission(Permissions.Catalogos.Manage)]
         [SwaggerOperation(Summary = "Eliminar área", Description = "Elimina un área por su identificador")]
         public async Task<IActionResult> DeleteArea(
             [FromRoute][SwaggerParameter(Description = "Identificador del área a eliminar", Required = true)] int id)
