@@ -67,6 +67,7 @@ interface CollapsibleMenuItem extends MenuItemBase {
 type SidebarMenuItem = MenuItem | CollapsibleMenuItem;
 
 function hasPermission(permission?: PermissionCheckOptions): boolean {
+  console.log('Checking permission for:', permission);
   if (!permission) return true;
   return checkPermission(permission);
 }
@@ -82,8 +83,8 @@ const menuItems: SidebarMenuItem[] = [
     icon: Shield,
     isCollapsible: true,
     items: [
-      { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.view', 'usuarios.manage'] } },
-      { title: 'Roles', icon: Users, path: '/seguridad/roles', permission: { require: 'usuarios.manage' } },
+      { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] } },
+      { title: 'Roles', icon: Users, path: '/seguridad/roles', permission: { require: 'usuarios.ver_detalle' } },
       { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
     ],
   },
