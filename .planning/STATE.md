@@ -1,7 +1,7 @@
 # State: Lefarma CxP — Ordenes de Compra y Cuentas por Pagar
 
 **Initialized:** 2026-03-30
-**Current Phase:** None (ready to start Phase 1)
+**Current Phase:** Phase 1 — Context captured, ready for planning
 **Overall Progress:** 2 / 35 requirements complete (PROV-01 validated, CONF-01 mostly done)
 
 > **Updated 2026-03-31:** Code scan + Playwright audit revealed that ~70% of Phase 1 was already built.
@@ -12,7 +12,7 @@
 
 | Phase | Name | Status | Progress | Requirements |
 |-------|------|--------|----------|-------------|
-| 1 | Workflow Handlers + Proveedores + Foundation | Not Started | 2/8 | WORK-01/02/03, PROV-02/03, CONF-02 (PROV-01 ✅, CONF-01 ✅) |
+| 1 | Workflow Handlers + Proveedores + Foundation | Context Captured | 2/8 | WORK-01/02/03, PROV-02/03, CONF-02 (PROV-01 ✅, CONF-01 ✅) |
 | 2 | Tesoreria / Pagos | Not Started | 0/7 | TES-01 through TES-07 (+ Bancos/MedioPago frontend) |
 | 3 | Comprobacion de Gastos | Not Started | 0/10 | COMP-01 through COMP-10 |
 | 4 | Reportes | Not Started | 0/5 | REP-01 through REP-05 |
@@ -21,9 +21,10 @@
 
 ## Current Phase Detail
 
-**Phase:** —
-**Started:** —
-**Milestones:** —
+**Phase:** Phase 1 — Workflow Handlers + Proveedores + Foundation
+**Started:** 2026-03-31
+**Status:** Context captured, ready for planning
+**Milestones:** 01-CONTEXT.md created with 5 gray area decisions
 
 ## Already Built (validated by code scan)
 
@@ -112,6 +113,11 @@
 | 2026-03-31 | Bancos + MedioPago frontend deferred to Phase 2 | Backend exists but frontend pages missing; needed by Tesoreria module |
 | 2026-03-31 | PROV-01 marked as validated | Entity flag + DTOs + service filter + UI badge/checkbox all present and working |
 | 2026-03-31 | CONF-01 marked as mostly done | WorkflowDiagram.tsx editor has full CRUD for steps/actions/conditions/participants/notifications |
+| 2026-03-31 | Skip TesoreriaHandler — engine handles state transition via CodigoEstado | No handler needed for pure state transition; Firma5 approval routes to Tesoreria paso |
+| 2026-03-31 | ComprobacionHandler as stub in Phase 1 | Registration needed for workflow seeding consistency; implementation deferred to Phase 3 |
+| 2026-03-31 | Test AutorizacionesOC for Firma5 before building new UI | Page is data-driven (reads acciones from API), should work after workflow seeding |
+| 2026-03-31 | Workflow seeding via DatabaseSeeder | Follows existing pattern (idempotent, startup), workflow data IS configuration |
+| 2026-03-31 | Provider approval in existing ProveedoresController | POST /{id}/autorizar + POST /{id}/rechazar endpoints, keeps architecture simple |
 
 ## Blockers
 
@@ -125,9 +131,9 @@ None.
 | 260330-pyp | Quitar boton configuracion del sidebar | 2026-03-31 | 38a75a0 | [260330-pyp-quitar-boton-configuracion-del-sidebar-s](./quick/260330-pyp-quitar-boton-configuracion-del-sidebar-s/) |
 | 260330-qbk | Sistema permisos dinamicos backend [HasPermission] en endpoints | 2026-03-31 | aa12521 | [260330-qbk-sistema-practico-de-permisos-hook-ui-fun](./quick/260330-qbk-sistema-practico-de-permisos-hook-ui-fun/) |
 
-Last activity: 2026-03-31 - Completed quick task 260330-qbk: Sistema permisos dinamicos backend [HasPermission] en endpoints
+Last activity: 2026-03-31 - Phase 1 discuss-phase completed, context captured (01-CONTEXT.md)
 
 ---
 
 *State initialized: 2026-03-30*
-*Last updated: 2026-03-31 after code scan audit*
+*Last updated: 2026-03-31 after Phase 1 context capture*
