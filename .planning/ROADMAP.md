@@ -30,42 +30,65 @@ Phase 6 (Dashboard) ← aggregates ALL prior data
 
 ---
 
-## Phase 1: Workflow + Proveedores + Configuracion
+## Phase 1: Workflow Handlers + Proveedores + Foundation Entities
 
-**Goal:** Complete the authorization chain (Firma 5), provider approval workflow, and configurable firma levels. This phase unlocks ALL subsequent phases by ensuring OCs can reach EnTesoreria state.
+**Goal:** Add Firma5 handler, provider approval endpoints, foundation entities (Pago, Comprobacion), and workflow seeding. This phase unlocks ALL subsequent phases by ensuring OCs can reach EnTesoreria state.
 
-**Requirements:** WORK-01, WORK-02, WORK-03, PROV-01, PROV-02, PROV-03, CONF-01, CONF-02 (8 total)
+> **Actualizado 2026-03-31:** Code scan reveló que la mayoría de Phase 1 YA ESTÁ CONSTRUIDA.
+> - ✅ Workflow Engine completo (motor, condiciones, participantes, bitacora, notificaciones)
+> - ✅ IStepHandler pattern con Firma3 + Firma4 ya funcionando
+> - ✅ Frontend WorkflowsList + WorkflowDiagram (1160+ lineas, editor con 5 tabs)
+> - ✅ Proveedor entity + DTOs + service (filtra por AutorizadoPorCxP) + frontend con badge/checkbox
+> - ✅ EstadoOC enum con todos los 12 estados (EnRevisionF5, EnTesoreria, Pagada, etc.)
+> - ✅ Catálogos completos (11 pages con backend + frontend) — Bancos y MedioPago faltan solo frontend (Phase 2)
+> - ✅ CONF-01 mayormente hecho — WorkflowDiagram editor ya permite CRUD de pasos/acciones/condiciones/participantes/notificaciones
 
-**Implementation Prerequisites (not user-facing requirements, but must be done first):**
+**Requirements:** WORK-01, WORK-02, WORK-03, PROV-02, PROV-03, CONF-02 (6 active — PROV-01 validado, CONF-01 casi done)
+
+**What's ALREADY BUILT (no work needed):**
+- WorkflowEngine + WorkflowService + WorkflowsController (full CRUD API)
+- IStepHandler interface + keyed DI pattern
+- Firma3Handler, Firma4Handler
+- FirmasService + FirmasController (resolves handler, executes engine, returns result)
+- WorkflowDiagram.tsx — editor visual completo con Pasos/Acciones/Condiciones/Participantes/Notificaciones tabs
+- WorkflowsList.tsx — CRUD de workflows con stats
+- Proveedor entity + DTOs + validator + service + repo + frontend page
+- AutorizadoPorCxP flag en entity, DTOs, service filter, frontend badge/checkbox
+- EstadoOC enum — todos los estados incluyendo los de Phase 2/3
+- AuthorizationConstants — 8 roles, 12 permisos
+- NotificationService multi-canal
+
+**Implementation Prerequisites (foundation entities for Phase 2/3):**
 - Create `Pago` entity + `EstadoPago` enum + EF config + repository
 - Create `Comprobacion` entity + `TipoComprobacion` + `EstadoComprobacion` enums + EF config + repository
 - Run EF migration to create new tables
 - Register all new services/repositories in DI (`Program.cs`)
-- Add new permissions to `AuthorizationConstants.cs`
+- Add new permissions to `AuthorizationConstants.cs` (proveedores.autorizar, tesoreria.manage, etc.)
 
-**Backend Deliverables:**
-- `Firma5Handler` — IStepHandler implementation for DireccionCorp approval (pure approval, no extra data)
+**Backend Deliverables (NEW work):**
+- `Firma5Handler` — IStepHandler for DireccionCorp approval (pure approval, no extra data — follows Firma3/Firma4 pattern exactly)
 - `TesoreriaHandler` — pass-through handler that transitions OC to EnTesoreria via WorkflowEngine
 - `ComprobacionHandler` — validates comprobacion sum, triggers closure
-- Workflow seeding — new pasos + acciones + condiciones in database
-- Provider approval service — authorize/reject pending providers
-- Configuration service — CRUD for workflow conditions (monto, tipo gasto, empresa)
+- 3 DI registrations in Program.cs: `AddKeyedScoped<IStepHandler, Firma5Handler>("Firma5Handler")` etc.
+- Workflow seeding — insert WorkflowPaso + WorkflowAccion + WorkflowCondicion rows for Firma5, Tesoreria, Comprobacion steps
+- Provider approval endpoints — `POST /catalogos/Proveedores/{id}/autorizar` and `POST /catalogos/Proveedores/{id}/rechazar` with audit trail + notifications
+- New permissions: `proveedores.autorizar`, `proveedores.rechazar`
 
-**Frontend Deliverables:**
-- Provider approval inbox page (CxP role)
-- Workflow configuration page (Admin role)
-- Extended AutorizacionesOC to support Firma 5 step
+**Frontend Deliverables (NEW work):**
+- Provider approval actions in ProveedoresList — "Autorizar" / "Rechazar" buttons for CxP role (conditional on AutorizadoPorCxP=false)
+- Extended AutorizacionesOC to support Firma 5 step (the existing 825-line page handles Firma 2-4)
+- Workflow seeding via EF migration or admin action (so the diagram shows Firma5 step)
 
 **Success Criteria:**
 1. DireccionCorp user can approve or reject an OC at Firma 5, with mandatory rejection reason that notifies all 4 prior signers
 2. OCs approved at Firma 5 automatically transition to EnTesoreria state without manual intervention
-3. Admin can configure firma levels via UI — add/remove steps, set conditions by monto/tipo/empresa — and changes take effect on new OCs immediately
-4. CxP can approve or reject pending providers with optional rejection reason; approved providers appear in official catalog
-5. Providers created inline during OC capture appear with "Sin Autorizar" flag and are hidden from official catalog until CxP approves
+3. Workflow diagram shows Firma5 step with conditions (visible in existing WorkflowDiagram.tsx editor)
+4. CxP can approve or reject pending providers via dedicated endpoints; approved providers appear in official catalog with audit trail
+5. Foundation entities (Pago, Comprobacion) exist in DB with EF configs for Phase 2/3 to build on
 
 **Dependencies:** None — this is the first phase. Uses existing WorkflowEngine, IStepHandler pattern, and notification infrastructure.
 
-**Estimated Complexity:** HIGH — foundation entities + workflow handlers + provider workflow + config UI is the broadest phase. But individual pieces are straightforward following existing patterns.
+**Estimated Complexity:** MEDIUM — reduced from HIGH after discovering most work is already done. The new work is: 3 simple handlers (following exact pattern), 2 provider endpoints, seeding data, and minor frontend additions. Foundation entities are straightforward EF Core work.
 
 ---
 
@@ -74,6 +97,10 @@ Phase 6 (Dashboard) ← aggregates ALL prior data
 **Goal:** Enable Tesoreria to register payments (partial or total) against authorized OCs, with automatic saldo tracking and state transitions to Pagada.
 
 **Requirements:** TES-01, TES-02, TES-03, TES-04, TES-05, TES-06, TES-07 (7 total)
+
+**Catalog Prerequisites (missing frontend pages):**
+- **Bancos** — backend entity + controller exist, **frontend page missing** (`BancosList.tsx`)
+- **MedioPago** — backend entity + controller exist, **frontend page missing** (`MediosPagoList.tsx`)
 
 **Backend Deliverables:**
 - `Features/Tesoreria/` — TesoreriaService, ITesoreriaService, TesoreriaController, DTOs, Validators
@@ -89,6 +116,7 @@ Phase 6 (Dashboard) ← aggregates ALL prior data
 - `PagosBandeja.tsx` — payment queue showing OCs in EnTesoreria state
 - `RegistrarPago.tsx` — payment form with monto, fecha, medio pago, referencia, file upload
 - `tesoreriaService.ts` + `tesoreria.types.ts`
+- **Missing catalog pages**: `BancosList.tsx` (Bancos controller exists, no frontend) + `MediosPagoList.tsx` (MediosPago controller exists, no frontend)
 
 **Success Criteria:**
 1. Tesoreria user can register a payment (monto, fecha, medio de pago, referencia) against any OC in EnTesoreria state

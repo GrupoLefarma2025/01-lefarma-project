@@ -12,23 +12,37 @@ El flujo completo de una orden de compra — desde captura hasta cierre contable
 
 ### Validated
 
-<!-- Ya construido en la codebase existente -->
+<!-- Ya construido en la codebase existente — verificado por code scan + Playwright -->
 
-- ✓ Captura de Ordenes de Compra — entity, CRUD service, controller, DTOs, validator, auto-folio, partidas con calculos (existe en `Features/OrdenesCompra/Captura/`)
-- ✓ Motor de Workflows — engine generico con pasos, acciones, condiciones, participantes, bitacora, notificaciones (existe en `Features/Config/Engine/`)
-- ✓ Flujo de Autorizaciones (Firmas 2-4) — service, controller, handlers por paso (Firma3=CentroCosto+CuentaContable, Firma4=comprobacion flags) (existe en `Features/OrdenesCompra/Firmas/`)
+- ✓ Captura de Ordenes de Compra — entity, CRUD service, controller, DTOs, validator, auto-folio, partidas con calculos (`Features/OrdenesCompra/Captura/`)
+- ✓ Motor de Workflows COMPLETO — engine generico con pasos, acciones, condiciones dinamicas, participantes, bitacora inmutable, notificaciones (`Features/Config/Engine/WorkflowEngine.cs` + `Features/Config/Workflows/` con full CRUD API)
+- ✓ IStepHandler pattern — keyed DI, Firma3Handler (CxP: CentroCosto+CuentaContable), Firma4Handler (GAF: comprobacion flags) (`Features/OrdenesCompra/Firmas/Handlers/`)
+- ✓ FirmasService + FirmasController — resolucion de handler por key, ejecucion de engine, historial (`Features/OrdenesCompra/Firmas/`)
+- ✓ Flujo de Autorizaciones (Firmas 2-4) — service, controller, handlers por paso con dynamic routing via condiciones
 - ✓ Catalogos completos — Proveedores, Empresas, Sucursales, Areas, Gastos, CentrosCosto, CuentasContables, FormasPago, MediosPago, Bancos, RegimenesFiscales, EstatusOrden, UnidadesMedida
-- ✓ Sistema de Roles y Permisos — 8 roles (Capturista, GerenteArea, CxP, GerenteAdmon, DireccionCorp, Tesoreria, AuxiliarPagos, Administrador) con claims-based authorization
+- ✓ Sistema de Roles y Permisos — 8 roles con claims-based authorization, 12 permisos (`Shared/Constants/AuthorizationConstants.cs`)
 - ✓ Sistema de Notificaciones — multi-canal (Email, Telegram, In-App/SSE), templates con variables, resolucion por rol
-- ✓ Frontend de Autorizaciones — inbox 825 lineas con timeline, dynamic firma forms, historial, filtros
+- ✓ Frontend de Autorizaciones — inbox 825 lineas con timeline, dynamic firma forms, historial, filtros (`pages/ordenes/AutorizacionesOC.tsx`)
 - ✓ Subida de archivos — FileUploader con drag-and-drop, validacion, preview (entidadTipo/entidadId pattern)
-- ✓ Proveedor con bandera de autorizacion — `AutorizadoPorCxP` flag en entity Proveedor
+- ✓ Proveedor con bandera de autorizacion — `AutorizadoPorCxP` flag en entity, DTOs, validator, service (filtra por flag), repo (`Features/Catalogos/Proveedores/`)
+- ✓ Frontend Proveedores — CRUD completo con columna Autorizado CxP badge, checkbox en form, regimen fiscal dropdown (`pages/catalogos/generales/Proveedores/ProveedoresList.tsx`, 536 lineas)
+- ✓ Frontend Workflows List — CRUD de workflows con stats (pasos, acciones, condiciones), busqueda, modal crear/editar (`pages/workflows/WorkflowsList.tsx`, 491 lineas)
+- ✓ Frontend Workflow Diagram — diagrama visual tipo timeline con panel lateral, editor modal con 5 tabs (Pasos, Acciones, Condiciones, Participantes, Notificaciones), CRUD completo para todas las entidades del workflow (`pages/workflows/WorkflowDiagram.tsx`, 1160+ lineas)
+- ✓ WorkflowCondicion — routing dinamico con evaluacion numerica (>, >=, <, <=, =) y override de paso destino
+- ✓ EstadoOC enum — todos los 12 estados incluyendo EnRevisionF5, EnTesoreria, Pagada, EnComprobacion, Cerrada
 
 ### Active
 
-<!-- Lo que falta construir -->
+<!-- Lo que falta construir — actualizado despues de code scan -->
 
-- [ ] Firma 5 Handler — Handler para Direccion Corporativa (paso final de autorizacion antes de tesoreria)
+- [ ] Firma 5 Handler — IStepHandler para Direccion Corporativa (paso final de autorizacion antes de tesoreria)
+- [ ] TesoreriaHandler — IStepHandler pass-through para transicion a EnTesoreria
+- [ ] ComprobacionHandler — IStepHandler que valida suma de comprobantes y dispara cierre
+- [ ] Foundation entities — Pago entity + EstadoPago enum + Comprobacion entity + TipoComprobacion + EstadoComprobacion enums + EF configs + repos
+- [ ] EF Migration — crear tablas nuevas (pagos, comprobaciones)
+- [ ] Workflow seeding — pasos Firma5, Tesoreria, Comprobacion en BD (no hay seeder de workflow)
+- [ ] Provider approval endpoint — endpoint dedicado `POST /catalogos/Proveedores/{id}/autorizar` con audit trail (el toggle existe pero sin flujo dedicado)
+- [ ] Permisos CxP proveedores — `proveedores.autorizar` en AuthorizationConstants
 - [ ] Modulo de Tesoreria — Programacion y ejecucion de pagos (parciales/totales), subida de comprobante de deposito, multiples pagos hasta completar, notificacion al usuario por cada pago
 - [ ] Modulo de Comprobacion de Gastos — Subida de XML/CFDI (extraccion automatica de importe), comprobantes no deducibles (captura manual + imagen), ficha de deposito bancario, validacion de gran total >= importe OC
 - [ ] Validacion CxP de Comprobacion — CxP revisa y valida/rechaza comprobantes subidos por usuarios, cierre del ciclo al validar
@@ -40,8 +54,6 @@ El flujo completo de una orden de compra — desde captura hasta cierre contable
 - [ ] Notificaciones de Comprobacion — Avisos a CxP cuando usuario sube comprobacion, aviso a usuario cuando CxP valida/rechaza
 - [ ] Integracion Contable — Exportacion de polizas automaticas (CSV/XML), layout para sistema contable externo
 - [ ] Conciliacion Bancaria — Importacion de estados de cuenta, match con pagos realizados
-- [ ] Workflow de Proveedores — Proveedores capturados en OC se crean con bandera "sin autorizar", CxP aprueba para agregar al catalogo oficial
-- [ ] Configuracion dinamica de niveles de firma — Las firmas pueden variar por OC: configuracion por monto, tipo de gasto, y empresa/sucursal (el engine ya soporta condiciones, falta la UI de configuracion)
 
 ### Out of Scope
 

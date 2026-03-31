@@ -57,14 +57,14 @@ Requirements para completar el ciclo completo de OC. Cada uno mapea a fases del 
 
 ### Proveedores
 
-- [ ] **PROV-01**: Proveedores capturados en OC se crean con bandera "Sin autorizar" (no aparecen en catalogo oficial)
-- [ ] **PROV-02**: CxP puede autorizar proveedores pendientes, moviendolos al catalogo oficial
-- [ ] **PROV-03**: CxP puede rechazar proveedores pendientes con motivo
+- [x] ~~**PROV-01**: Proveedores capturados en OC se crean con bandera "Sin autorizar" (no aparecen en catalogo oficial)~~ **VALIDADO** — Entity, DTOs, service (filtra por AutorizadoPorCxP), frontend con badge y checkbox. Solo falta endpoint dedicado de aprobacion (ver PROV-02).
+- [ ] **PROV-02**: CxP puede autorizar proveedores pendientes, moviendolos al catalogo oficial — **PARCIAL**: el toggle existe en CRUD, falta endpoint dedicado con audit trail + notificacion + vista inbox CxP
+- [ ] **PROV-03**: CxP puede rechazar proveedores pendientes con motivo — **FALTA**: endpoint con motivo obligatorio + notificacion al capturista
 
 ### Configuracion
 
-- [ ] **CONF-01**: Admin puede configurar niveles de firma por workflow (agregar/quitar pasos, condiciones por monto/tipo/empresa)
-- [ ] **CONF-02**: Gerente Admon/Finanzas puede autorizar cambios al catalogo contable (centros de costo, cuentas contables)
+- [x] ~~**CONF-01**: Admin puede configurar niveles de firma por workflow (agregar/quitar pasos, condiciones por monto/tipo/empresa)~~ **VALIDADO** — WorkflowDiagram editor con 5 tabs (Pasos, Acciones, Condiciones, Participantes, Notificaciones), CRUD completo, condiciones dinamicas con operadores de comparacion numerica. Solo falta el tab "Configuracion" que dice TODO (menor).
+- [ ] **CONF-02**: Gerente Admon/Finanzas puede autorizar cambios al catalogo contable (centros de costo, cuentas contables) — **FALTA**
 
 ## v2 Requirements
 
@@ -111,11 +111,10 @@ Cada requisito mapea exactamente a una fase del roadmap (ver ROADMAP.md).
 | WORK-01 | Phase 1: Workflow + Proveedores + Config | Pending | DireccionCorp approves/rejects at Firma 5 with mandatory rejection reason |
 | WORK-02 | Phase 1: Workflow + Proveedores + Config | Pending | OCs auto-transition to EnTesoreria after Firma 5 approval |
 | WORK-03 | Phase 1: Workflow + Proveedores + Config | Pending | Admin configures firma levels via UI, changes take effect immediately |
-| PROV-01 | Phase 1: Workflow + Proveedores + Config | Pending | Inline providers created with "Sin Autorizar" flag, hidden from official catalog |
-| PROV-02 | Phase 1: Workflow + Proveedores + Config | Pending | CxP approves pending providers into official catalog |
+| PROV-01 | Phase 1: Workflow + Proveedores + Config | **Validated** | Inline providers created with "Sin Autorizar" flag, hidden from official catalog (entity + DTOs + service filter + UI column + checkbox — all built) |
+| PROV-02 | Phase 1: Workflow + Proveedores + Config | Pending | CxP approves pending providers into official catalog (needs dedicated endpoint + audit trail) |
 | PROV-03 | Phase 1: Workflow + Proveedores + Config | Pending | CxP rejects pending providers with optional reason |
-| CONF-01 | Phase 1: Workflow + Proveedores + Config | Pending | Admin configures workflow conditions (monto/tipo/empresa) via UI |
-| CONF-02 | Phase 1: Workflow + Proveedores + Config | Pending | Gerente Admon authorizes catalog contable changes |
+| CONF-01 | Phase 1: Workflow + Proveedores + Config | **Mosty Done** | WorkflowDiagram.tsx editor already allows CRUD of steps/actions/conditions/participants/notifications — only seeding and Firma5-specific config needed |
 | TES-01 | Phase 2: Tesoreria / Pagos | Pending | Tesoreria registers payment against EnTesoreria OC |
 | TES-02 | Phase 2: Tesoreria / Pagos | Pending | Multiple partial payments tracked independently |
 | TES-03 | Phase 2: Tesoreria / Pagos | Pending | Auto-transition to Pagada when payments cover total |
