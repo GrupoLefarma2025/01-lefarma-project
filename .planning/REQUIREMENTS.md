@@ -46,7 +46,7 @@ Requirements para completar el ciclo completo de OC. Cada uno mapea a fases del 
 
 ### Integracion Contable
 
-- [ ] **CONT-01**: Sistema genera pólizas contables automaticas a partir de OCs cerradas (debe haber, haber) con cuenta contable de la OC
+- [ ] **CONT-01**: Sistema genera pólizas contables automaticas a partir de OCs cerradas (debe haber) con cuenta contable de la OC
 - [ ] **CONT-02**: Sistema exporta pólizas en formato CSV/XML compatible con sistema contable externo
 - [ ] **CONT-03**: Conciliacion bancaria: importacion de estados de cuenta y match con pagos realizados
 
@@ -104,51 +104,52 @@ Diferados a futuro release. Rastreados pero no en roadmap actual.
 
 ## Traceability
 
-Cada requisito mapea exactamente a una fase. Actualizado durante creacion de roadmap.
+Cada requisito mapea exactamente a una fase del roadmap (ver ROADMAP.md).
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| WORK-01 | Phase 1 | Pending |
-| WORK-02 | Phase 1 | Pending |
-| WORK-03 | Phase 1 | Pending |
-| TES-01 | Phase 2 | Pending |
-| TES-02 | Phase 2 | Pending |
-| TES-03 | Phase 2 | Pending |
-| TES-04 | Phase 2 | Pending |
-| TES-05 | Phase 2 | Pending |
-| TES-06 | Phase 2 | Pending |
-| TES-07 | Phase 2 | Pending |
-| COMP-01 | Phase 3 | Pending |
-| COMP-02 | Phase 3 | Pending |
-| COMP-03 | Phase 3 | Pending |
-| COMP-04 | Phase 3 | Pending |
-| COMP-05 | Phase 3 | Pending |
-| COMP-06 | Phase 3 | Pending |
-| COMP-07 | Phase 3 | Pending |
-| COMP-08 | Phase 3 | Pending |
-| COMP-09 | Phase 3 | Pending |
-| COMP-10 | Phase 3 | Pending |
-| REP-01 | Phase 4 | Pending |
-| REP-02 | Phase 4 | Pending |
-| REP-03 | Phase 4 | Pending |
-| REP-04 | Phase 4 | Pending |
-| REP-05 | Phase 4 | Pending |
-| CONT-01 | Phase 5 | Pending |
-| CONT-02 | Phase 5 | Pending |
-| CONT-03 | Phase 5 | Pending |
-| DASH-01 | Phase 6 | Pending |
-| DASH-02 | Phase 6 | Pending |
-| PROV-01 | Phase 1 | Pending |
-| PROV-02 | Phase 1 | Pending |
-| PROV-03 | Phase 1 | Pending |
-| CONF-01 | Phase 1 | Pending |
-| CONF-02 | Phase 1 | Pending |
+| Requirement | Phase | Status | Success Criteria |
+|-------------|-------|--------|------------------|
+| WORK-01 | Phase 1: Workflow + Proveedores + Config | Pending | DireccionCorp approves/rejects at Firma 5 with mandatory rejection reason |
+| WORK-02 | Phase 1: Workflow + Proveedores + Config | Pending | OCs auto-transition to EnTesoreria after Firma 5 approval |
+| WORK-03 | Phase 1: Workflow + Proveedores + Config | Pending | Admin configures firma levels via UI, changes take effect immediately |
+| PROV-01 | Phase 1: Workflow + Proveedores + Config | Pending | Inline providers created with "Sin Autorizar" flag, hidden from official catalog |
+| PROV-02 | Phase 1: Workflow + Proveedores + Config | Pending | CxP approves pending providers into official catalog |
+| PROV-03 | Phase 1: Workflow + Proveedores + Config | Pending | CxP rejects pending providers with optional reason |
+| CONF-01 | Phase 1: Workflow + Proveedores + Config | Pending | Admin configures workflow conditions (monto/tipo/empresa) via UI |
+| CONF-02 | Phase 1: Workflow + Proveedores + Config | Pending | Gerente Admon authorizes catalog contable changes |
+| TES-01 | Phase 2: Tesoreria / Pagos | Pending | Tesoreria registers payment against EnTesoreria OC |
+| TES-02 | Phase 2: Tesoreria / Pagos | Pending | Multiple partial payments tracked independently |
+| TES-03 | Phase 2: Tesoreria / Pagos | Pending | Auto-transition to Pagada when payments cover total |
+| TES-04 | Phase 2: Tesoreria / Pagos | Pending | Deposit receipt uploaded per payment |
+| TES-05 | Phase 2: Tesoreria / Pagos | Pending | Creator notified per payment registered |
+| TES-06 | Phase 2: Tesoreria / Pagos | Pending | Daily digest email to Tesoreria with pending payments |
+| TES-07 | Phase 2: Tesoreria / Pagos | Pending | On-demand pending payments report |
+| COMP-01 | Phase 3: Comprobacion de Gastos | Pending | CFDI XML auto-extracts UUID, RFC, totals, taxes, fecha |
+| COMP-02 | Phase 3: Comprobacion de Gastos | Pending | Non-deductible receipt with manual monto + image |
+| COMP-03 | Phase 3: Comprobacion de Gastos | Pending | Bank deposit slip with manual importe |
+| COMP-04 | Phase 3: Comprobacion de Gastos | Pending | Gran Total = Sum(CFDI) + Sum(NoDeducibles) + Deposito |
+| COMP-05 | Phase 3: Comprobacion de Gastos | Pending | Gran Total >= OC Total validation enforced |
+| COMP-06 | Phase 3: Comprobacion de Gastos | Pending | Can exceed OC amount but never less |
+| COMP-07 | Phase 3: Comprobacion de Gastos | Pending | Duplicate UUID rejected with OC reference |
+| COMP-08 | Phase 3: Comprobacion de Gastos | Pending | CxP validates → OC transitions to Cerrada |
+| COMP-09 | Phase 3: Comprobacion de Gastos | Pending | CxP rejects with mandatory reason, notifies user |
+| COMP-10 | Phase 3: Comprobacion de Gastos | Pending | CxP notified on new comprobacion upload |
+| REP-01 | Phase 4: Reportes | Pending | Report of OCs authorized but not yet paid |
+| REP-02 | Phase 4: Reportes | Pending | Report of OCs paid but not yet verified |
+| REP-03 | Phase 4: Reportes | Pending | Filtered by usuario and antiguedad |
+| REP-04 | Phase 4: Reportes | Pending | Multi-filter liberated comprobaciones report |
+| REP-05 | Phase 4: Reportes | Pending | Vendor balance aging report |
+| CONT-01 | Phase 5: Integracion Contable | Pending | Polizas generated from Cerrada OCs |
+| CONT-02 | Phase 5: Integracion Contable | Pending | CSV/XML export for external system |
+| CONT-03 | Phase 5: Integracion Contable | Pending | Bank statement import + payment matching |
+| DASH-01 | Phase 6: Dashboard | Pending | CxP dashboard with KPIs |
+| DASH-02 | Phase 6: Dashboard | Pending | Tesoreria dashboard with KPIs |
 
 **Coverage:**
 - v1 requirements: 34 total
 - Mapped to phases: 34
 - Unmapped: 0 ✓
+- Success criteria: 34 (one per requirement) ✓
 
 ---
 *Requirements defined: 2026-03-30*
-*Last updated: 2026-03-30 after initial definition*
+*Last updated: 2026-03-30 after roadmap creation*
