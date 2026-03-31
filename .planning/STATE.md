@@ -123,8 +123,9 @@ None.
 |---|-------------|------|--------|-----------|
 | 260330-poq | Fix sidebar header in dark mode - change text to white and replace logo with .ico | 2026-03-31 | 0f7fb27 | [260330-poq-fix-sidebar-header-in-dark-mode-change-t](./quick/260330-poq-fix-sidebar-header-in-dark-mode-change-t/) |
 | 260330-pyp | Quitar boton configuracion del sidebar | 2026-03-31 | 38a75a0 | [260330-pyp-quitar-boton-configuracion-del-sidebar-s](./quick/260330-pyp-quitar-boton-configuracion-del-sidebar-s/) |
+| 260330-qbk | Sistema permisos dinamicos backend [HasPermission] en endpoints | 2026-03-31 | aa12521 | [260330-qbk-sistema-practico-de-permisos-hook-ui-fun](./quick/260330-qbk-sistema-practico-de-permisos-hook-ui-fun/) |
 
-Last activity: 2026-03-31 - Updated planning docs after code scan revealed Phase 1 mostly built
+Last activity: 2026-03-31 - Completed quick task 260330-qbk: Sistema permisos dinamicos backend [HasPermission] en endpoints
 
 ---
 
