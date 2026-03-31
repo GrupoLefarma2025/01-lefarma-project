@@ -224,8 +224,8 @@ export function AppSidebar() {
                   <img src="/favicon.ico" alt="LeFarma" className="h-5 w-5" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
-                  <span className="font-bold text-primary-foreground">Grupo Lefarma CxP</span>
-                  <span className="text-xs text-muted-foreground">v1.0.0</span>
+                  <span className="font-bold text-white">Grupo Lefarma CxP</span>
+                  <span className="text-xs text-white">v1.0.0</span>
                 </div>
               </NavLink>
             </SidebarMenuButton>
