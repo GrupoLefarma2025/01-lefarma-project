@@ -5,7 +5,6 @@ import {
   Shield,
   Key,
   Settings,
-  Building2,
   User,
   ChevronRight,
   Database,
@@ -222,11 +221,11 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <NavLink to="/dashboard">
                 <div className="rounded-lg bg-primary p-1">
-                  <Building2 className="h-5 w-5 text-primary-foreground" />
+                  <img src="/favicon.ico" alt="LeFarma" className="h-5 w-5" />
                 </div>
                 <div className="flex flex-col gap-0.5 leading-none">
                   <span className="font-bold text-primary-foreground">LeFarma</span>
-                  <span className="text-xs text-muted">v1.0.0</span>
+                  <span className="text-xs text-muted-foreground">v1.0.0</span>
                 </div>
               </NavLink>
             </SidebarMenuButton>
