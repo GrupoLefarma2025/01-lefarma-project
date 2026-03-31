@@ -303,7 +303,7 @@ builder.Services.AddAuthorization(options =>
             AuthorizationConstants.Roles.AuxiliarPagos,
             AuthorizationConstants.Roles.Administrador));
 
-    // Permission-based policies
+    // Permission-based policies (legacy named policies kept for backward compat)
     options.AddPolicy(AuthorizationPolicies.CanViewCatalogos, policy =>
         policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.View)));
 
@@ -321,6 +321,26 @@ builder.Services.AddAuthorization(options =>
 
     options.AddPolicy(AuthorizationPolicies.CanManageUsers, policy =>
         policy.Requirements.Add(new PermissionRequirement(Permissions.Usuarios.Manage)));
+
+    // Auto-register [HasPermission("x")] policies from all permission constants
+    var allPermissions = new[]
+    {
+        Permissions.Catalogos.View, Permissions.Catalogos.Manage,
+        Permissions.OrdenesCompra.View, Permissions.OrdenesCompra.Create, Permissions.OrdenesCompra.Edit, Permissions.OrdenesCompra.Delete, Permissions.OrdenesCompra.Approve,
+        Permissions.Usuarios.View, Permissions.Usuarios.Manage, Permissions.Usuarios.AssignRoles,
+        Permissions.Reportes.View, Permissions.Reportes.Export,
+        Permissions.Tesoreria.View, Permissions.Tesoreria.Pay, Permissions.Tesoreria.Export,
+        Permissions.Comprobaciones.View, Permissions.Comprobaciones.Create, Permissions.Comprobaciones.Validate,
+        Permissions.Config.View, Permissions.Config.Manage,
+        Permissions.Workflows.View, Permissions.Workflows.Manage,
+    };
+
+    foreach (var perm in allPermissions)
+    {
+        var policyName = $"{HasPermissionAttribute.PolicyPrefix}{perm}";
+        options.AddPolicy(policyName, policy =>
+            policy.Requirements.Add(new PermissionRequirement(perm)));
+    }
 });
 
 // Register permission handler

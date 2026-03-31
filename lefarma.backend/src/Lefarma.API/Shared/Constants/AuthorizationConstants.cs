@@ -86,4 +86,30 @@ public static class Permissions
         public const string View = "reportes.view";
         public const string Export = "reportes.export";
     }
+
+    public static class Tesoreria
+    {
+        public const string View = "tesoreria.view";
+        public const string Pay = "tesoreria.pay";
+        public const string Export = "tesoreria.export";
+    }
+
+    public static class Comprobaciones
+    {
+        public const string View = "comprobaciones.view";
+        public const string Create = "comprobaciones.create";
+        public const string Validate = "comprobaciones.validate";
+    }
+
+    public static class Config
+    {
+        public const string View = "config.view";
+        public const string Manage = "config.manage";
+    }
+
+    public static class Workflows
+    {
+        public const string View = "workflows.view";
+        public const string Manage = "workflows.manage";
+    }
 }
