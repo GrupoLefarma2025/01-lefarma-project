@@ -87,8 +87,9 @@ None.
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260330-poq | Fix sidebar header in dark mode - change text to white and replace logo with .ico | 2026-03-31 | 0f7fb27 | [260330-poq-fix-sidebar-header-in-dark-mode-change-t](./quick/260330-poq-fix-sidebar-header-in-dark-mode-change-t/) |
+| 260330-pyp | Quitar boton configuracion del sidebar | 2026-03-31 | 38a75a0 | [260330-pyp-quitar-boton-configuracion-del-sidebar-s](./quick/260330-pyp-quitar-boton-configuracion-del-sidebar-s/) |
 
-Last activity: 2026-03-31 - Completed quick task 260330-poq: Fix sidebar header in dark mode - change text to white and replace logo with .ico
+Last activity: 2026-03-31 - Completed quick task 260330-pyp: Quitar boton configuracion del sidebar solo dejar nombre arriba de cerrar sesion
 
 ---
 
