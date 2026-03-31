@@ -93,7 +93,7 @@ const menuItems: SidebarMenuItem[] = [
     icon: Database,
     isCollapsible: true,
     items: [
-      { title: 'Empresas', icon: Building2, path: '/catalogos/empresas' },
+      { title: 'Empresas', icon: Building, path: '/catalogos/empresas' },
       { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales' },
       { title: 'Áreas', icon: Database, path: '/catalogos/areas' },
       { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
