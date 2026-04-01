@@ -96,7 +96,7 @@ Integración con el backend.
 
 Manejo de errores específicos.
 
-**403 Forbidden**: Cuando un usuario no tiene permisos para ver un catálogo, se debe manejar explícitamente para evitar que bloquee la carga de otros datos. Ver [[src/pages/ordenes/CrearOrdenCompra.tsx#fetchCatalogs]] y [[src/pages/catalogos/generales/Gastos/GastosList.tsx#fetchGastos]] para ejemplos de implementación.
+**403 Forbidden**: Cuando un usuario no tiene permisos para ver un catálogo, se debe manejar explícitamente para evitar que bloquee la carga de otros datos.
 
 **Promise.all vs carga independiente**: Los catálogos esenciales (Empresas, Sucursales, Áreas) se cargan juntos, mientras que los secundarios se cargan de forma independiente para que un error 403 no bloquee la UI completa.
 
@@ -149,6 +149,20 @@ Componentes clave del frontend.
 - `PresetSelector.tsx` — selector de presets de UI
 - `AdvancedConfigUI.tsx` — configuración avanzada de UI
 
+### Archivos
+
+Componentes para gestión de archivos.
+
+- `FileUploader.tsx` — upload con drag & drop
+- `FileViewer.tsx` — viewer para archivos
+- `ExcelTable.tsx` — viewer Excel con SheetJS
+
+### Dev
+
+Componentes de desarrollo.
+
+- `AutoVerify.tsx` — verificación automática
+
 ## Hooks
 
 Custom hooks del frontend.
@@ -160,6 +174,13 @@ Custom hooks del frontend.
 - `useTokenRefresh` — auto-refresh JWT
 - `useMobile` — detect mobile
 - `useTableFilters` — table filters state
+
+## Lib
+
+Utilidades y helpers.
+
+- `utils.ts` — función cn() para className
+- `tableConfigStorage.ts` — persistencia de config de tablas
 
 ## Pages
 
