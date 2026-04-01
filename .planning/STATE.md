@@ -130,8 +130,9 @@ None.
 | 260330-poq | Fix sidebar header in dark mode - change text to white and replace logo with .ico | 2026-03-31 | 0f7fb27 | [260330-poq-fix-sidebar-header-in-dark-mode-change-t](./quick/260330-poq-fix-sidebar-header-in-dark-mode-change-t/) |
 | 260330-pyp | Quitar boton configuracion del sidebar | 2026-03-31 | 38a75a0 | [260330-pyp-quitar-boton-configuracion-del-sidebar-s](./quick/260330-pyp-quitar-boton-configuracion-del-sidebar-s/) |
 | 260330-qbk | Sistema permisos dinamicos backend [HasPermission] en endpoints | 2026-03-31 | aa12521 | [260330-qbk-sistema-practico-de-permisos-hook-ui-fun](./quick/260330-qbk-sistema-practico-de-permisos-hook-ui-fun/) |
+| 260401-31 | Cambiar tema por defecto a claro cuando no hay preferencias guardadas | 2026-04-01 | PENDING | [260401-31-cambiar-tema-por-defecto-a-claro](./quick/260401-31-cambiar-tema-por-defecto-a-claro/) |
 
-Last activity: 2026-03-31 - Phase 1 discuss-phase completed, context captured (01-CONTEXT.md)
+Last activity: 2026-04-01 - Completed quick task 260401-31: Cambiar tema por defecto a claro cuando no hay preferencias guardadas
 
 ---
 

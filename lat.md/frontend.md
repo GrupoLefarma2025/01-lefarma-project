@@ -92,6 +92,14 @@ Integración con el backend.
 - Timeout: 30s
 - Base URL: `VITE_API_URL`
 
+### Error Handling
+
+Manejo de errores específicos.
+
+**403 Forbidden**: Cuando un usuario no tiene permisos para ver un catálogo, se debe manejar explícitamente para evitar que bloquee la carga de otros datos. Ver [[src/pages/ordenes/CrearOrdenCompra.tsx#fetchCatalogs]] y [[src/pages/catalogos/generales/Gastos/GastosList.tsx#fetchGastos]] para ejemplos de implementación.
+
+**Promise.all vs carga independiente**: Los catálogos esenciales (Empresas, Sucursales, Áreas) se cargan juntos, mientras que los secundarios se cargan de forma independiente para que un error 403 no bloquee la UI completa.
+
 ## Components
 
 Componentes clave del frontend.

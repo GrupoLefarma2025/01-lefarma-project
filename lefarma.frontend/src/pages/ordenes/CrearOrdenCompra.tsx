@@ -33,6 +33,8 @@ import { Loader2, Plus, Trash2, Save, X } from 'lucide-react';
 import type { CreateOrdenCompraRequest } from '@/types/ordenCompra.types';
 import type { Empresa, Sucursal, Area, FormaPago, UnidadMedida, Gasto } from '@/types/catalogo.types';
 
+// @lat: [[frontend#Pages]]
+
 const partidaSchema = z.object({
   descripcion: z.string().min(1, 'La descripción es requerida').max(500),
   cantidad: z.number().positive('Debe ser mayor a 0'),
@@ -166,6 +168,7 @@ export default function CrearOrdenCompra() {
     const total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
     return { subtotal, totalIva, totalRetenciones, totalOtrosImpuestos, total };
   }, [partidas]);
+  // @lat: [[frontend#API Integration#Error Handling]]
   const fetchCatalogs = async () => {
     setLoadingCatalogs(true);
     const errors: string[] = [];

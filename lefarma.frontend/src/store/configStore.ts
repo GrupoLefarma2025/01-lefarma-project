@@ -5,8 +5,10 @@ import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/type
 import { UI_PRESETS } from '@/constants/uiPresets';
 import { useAuthStore } from './authStore';
 
+// @lat: [[frontend#State Management]]
+
 const DEFAULT_UI_CONFIG: UIConfig = {
-  tema: 'system',
+  tema: 'light',
   presetId: 'estandar', // NEW
   visual: { // NEW
     densidad: 'comodo',
@@ -243,7 +245,7 @@ export const useConfigStore = create<ConfigState>()(
         const defaultPreset = UI_PRESETS.estandar;
         set({
           ui: {
-            tema: 'system',
+            tema: 'light',
             presetId: 'estandar',
             visual: defaultPreset.config.visual,
             componentes: defaultPreset.config.componentes,

@@ -100,6 +100,7 @@ export default function GastosList() {
     formGasto.setValue('cuentaCatalogo', partes.join('-'), { shouldDirty: false, shouldTouch: false });
   }, [cuenta, subCuenta, analitica, integracion]);
 
+  // @lat: [[frontend#API Integration#Error Handling]]
   const fetchGastos = async () => {
     try {
       setLoading(true);
