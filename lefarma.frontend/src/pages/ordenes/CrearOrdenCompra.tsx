@@ -18,6 +18,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import {
   Select,
@@ -29,7 +30,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
-import { Loader2, Plus, Trash2, Save, X } from 'lucide-react';
+import { Loader2, Plus, Trash2, Save, X, Building2, MapPin, Tag, CreditCard, Calendar, User, FileText } from 'lucide-react';
 import type { CreateOrdenCompraRequest } from '@/types/ordenCompra.types';
 import type { Empresa, Sucursal, Area, FormaPago, UnidadMedida, Gasto } from '@/types/catalogo.types';
 
@@ -87,6 +88,20 @@ const emptyPartida: PartidaFormValues = {
 };
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
+
+// Componente para secciones con icono
+function FormSection({ icon: Icon, title, children }: { icon: React.ElementType; title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 pb-2 border-b">
+        <Icon className="h-4 w-4 text-muted-foreground" />
+        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">{title}</h3>
+      </div>
+      {children}
+    </div>
+  );
+}
+
 export default function CrearOrdenCompra() {
   usePageTitle('Orden de compra', 'Captura de orden de compra');
   const navigate = useNavigate();
@@ -286,252 +301,39 @@ export default function CrearOrdenCompra() {
     );
   }
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto">
       <Form {...form}>
         <form className="space-y-6">
+          {/* Card: Datos Generales */}
           <Card>
-            <CardHeader>
-              <CardTitle>Datos Generales</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Datos Generales
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="idEmpresa"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Empresa *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {empresas.map((e) => (
-                            <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
-                              {e.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="idSucursal"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sucursal *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredSucursales.map((s) => (
-                            <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
-                              {s.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="idArea"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Área *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {filteredAreas.map((a) => (
-                            <SelectItem key={a.idArea} value={String(a.idArea)}>
-                              {a.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="idTipoGasto"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tipo de Gasto *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {tiposGasto.map((g) => (
-                            <SelectItem key={g.idGasto} value={String(g.idGasto)}>
-                              {g.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="idFormaPago"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Forma de Pago *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {formasPago.map((fp) => (
-                            <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
-                              {fp.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="fechaLimitePago"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Fecha Límite Pago *</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Datos del Proveedor</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <FormField
-                control={form.control}
-                name="sinDatosFiscales"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center space-x-3 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="!mt-0">Sin Datos Fiscales</FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Marcar si el proveedor no tiene datos fiscales completos.
-                      </p>
-                    </div>
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <FormField
-                  control={form.control}
-                  name="razonSocialProveedor"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Razón Social *</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre del proveedor" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                {!sinDatosFiscales && (
+            <CardContent className="space-y-6">
+              {/* Sección: Ubicación */}
+              <FormSection icon={Building2} title="Ubicación">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <FormField
                     control={form.control}
-                    name="rfcProveedor"
+                    name="idEmpresa"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>RFC</FormLabel>
-                        <FormControl>
-                          <Input placeholder="RFC del proveedor" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                {!sinDatosFiscales && (
-                  <FormField
-                    control={form.control}
-                    name="codigoPostalProveedor"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Código Postal</FormLabel>
-                        <FormControl>
-                          <Input placeholder="C.P." {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                {!sinDatosFiscales && (
-                  <FormField
-                    control={form.control}
-                    name="idRegimenFiscal"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Régimen Fiscal</FormLabel>
+                        <FormLabel>Empresa *</FormLabel>
                         <Select
-                          onValueChange={(val) => field.onChange(Number(val))}
-                          value={field.value ? String(field.value) : ''}
+                          onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
                         >
                           <FormControl>
                             <SelectTrigger>
-                              <SelectValue placeholder="Selecciona..." />
+                              <SelectValue placeholder="Selecciona empresa..." />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {regimenesFiscales.map((r) => (
-                              <SelectItem key={r.idRegimenFiscal} value={String(r.idRegimenFiscal)}>
-                                {r.clave} - {r.descripcion}
+                            {empresas.map((e) => (
+                              <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
+                                {e.nombre}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -540,40 +342,290 @@ export default function CrearOrdenCompra() {
                       </FormItem>
                     )}
                   />
-                )}
-                <FormField
-                  control={form.control}
-                  name="personaContacto"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Persona de Contacto</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Nombre del contacto" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="notaFormaPago"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nota Forma de Pago</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Instrucciones de pago" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                  <FormField
+                    control={form.control}
+                    name="idSucursal"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Sucursal *</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
+                          disabled={!selectedEmpresaId}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={selectedEmpresaId ? "Selecciona sucursal..." : "Primero selecciona empresa"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {filteredSucursales.map((s) => (
+                              <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
+                                {s.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="idArea"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Área *</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
+                          disabled={!selectedEmpresaId}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder={selectedEmpresaId ? "Selecciona área..." : "Primero selecciona empresa"} />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {filteredAreas.map((a) => (
+                              <SelectItem key={a.idArea} value={String(a.idArea)}>
+                                {a.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </FormSection>
+
+              {/* Sección: Detalles de la Orden */}
+              <FormSection icon={Tag} title="Detalles de la Orden">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <FormField
+                    control={form.control}
+                    name="idTipoGasto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo de Gasto *</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona tipo de gasto..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {tiposGasto.map((g) => (
+                              <SelectItem key={g.idGasto} value={String(g.idGasto)}>
+                                {g.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="idFormaPago"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Forma de Pago *</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))} value={field.value ? String(field.value) : ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona forma de pago..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {formasPago.map((fp) => (
+                              <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
+                                {fp.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="fechaLimitePago"
+                    render={({ field }) => (
+                      <FormItem className="sm:col-span-2 lg:col-span-2">
+                        <FormLabel className="flex items-center gap-2">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Fecha Límite de Pago *
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="date" {...field} />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Fecha máxima para realizar el pago al proveedor
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </FormSection>
             </CardContent>
           </Card>
 
+          {/* Card: Datos del Proveedor */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Partidas</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold flex items-center gap-2">
+                <User className="h-5 w-5" />
+                Datos del Proveedor
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <FormField
+                control={form.control}
+                name="sinDatosFiscales"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 bg-muted/30">
+                    <FormControl>
+                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="!mt-0 font-medium">Sin Datos Fiscales</FormLabel>
+                      <p className="text-xs text-muted-foreground">
+                        Marcar si el proveedor no cuenta con RFC ni información fiscal completa (ej. persona física sin actividad empresarial)
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+              
+              <FormSection icon={Building2} title="Información General">
+                <div className="grid grid-cols-1 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="razonSocialProveedor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Razón Social *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nombre completo o razón social del proveedor" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </FormSection>
+
+              {!sinDatosFiscales && (
+                <FormSection icon={FileText} title="Datos Fiscales">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="rfcProveedor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>RFC</FormLabel>
+                          <FormControl>
+                            <Input placeholder="ABCD010101XXX" {...field} />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            12 caracteres para personas morales, 13 para físicas
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="codigoPostalProveedor"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Código Postal</FormLabel>
+                          <FormControl>
+                            <Input placeholder="00000" maxLength={5} {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="idRegimenFiscal"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Régimen Fiscal</FormLabel>
+                          <Select
+                            onValueChange={(val) => field.onChange(Number(val))}
+                            value={field.value ? String(field.value) : ''}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecciona régimen fiscal..." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {regimenesFiscales.map((r) => (
+                                <SelectItem key={r.idRegimenFiscal} value={String(r.idRegimenFiscal)}>
+                                  {r.clave} - {r.descripcion}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </FormSection>
+              )}
+
+              <FormSection icon={User} title="Contacto">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="personaContacto"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Persona de Contacto</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Nombre de quien atiende esta orden" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="notaFormaPago"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Nota de Forma de Pago
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="Instrucciones especiales de pago" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </FormSection>
+            </CardContent>
+          </Card>
+
+          {/* Card: Partidas */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-4">
+              <CardTitle className="text-lg font-semibold">Partidas</CardTitle>
               <Button
                 type="button"
                 variant="outline"
@@ -593,14 +645,19 @@ export default function CrearOrdenCompra() {
                 return (
                   <div
                     key={item.id}
-                    className="rounded-lg border p-4 space-y-4"
+                    className="rounded-lg border bg-card p-4 space-y-4"
                   >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-sm font-medium text-muted-foreground">
-                        Partida {index + 1}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-primary">
+                    <div className="flex items-center justify-between pb-3 border-b">
+                      <div className="flex items-center gap-3">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Partida
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-semibold text-primary bg-primary/10 px-3 py-1 rounded-full">
                           Total: {fmt(lineTotal)}
                         </span>
                         <Button
@@ -660,7 +717,7 @@ export default function CrearOrdenCompra() {
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona..." />
+                                  <SelectValue placeholder="Unidad..." />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
@@ -777,7 +834,7 @@ export default function CrearOrdenCompra() {
                         control={form.control}
                         name={`partidas.${index}.deducible`}
                         render={({ field }) => (
-                          <FormItem className="flex items-center space-x-2">
+                          <FormItem className="flex items-center space-x-2 pt-6">
                             <FormControl>
                               <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                             </FormControl>
@@ -792,59 +849,65 @@ export default function CrearOrdenCompra() {
             </CardContent>
           </Card>
 
+          {/* Card: Resumen */}
           <Card>
-            <CardHeader>
-              <CardTitle>Resumen</CardTitle>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Resumen</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Subtotal</span>
-                  <span className="text-sm font-medium">{fmt(totales.subtotal)}</span>
+                  <span className="text-sm font-medium tabular-nums">{fmt(totales.subtotal)}</span>
                 </div>
-                <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">IVA</span>
-                  <span className="text-sm font-medium">{fmt(totales.totalIva)}</span>
+                  <span className="text-sm font-medium tabular-nums">{fmt(totales.totalIva)}</span>
                 </div>
-                <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Retenciones</span>
-                  <span className="text-sm font-medium text-destructive">−{fmt(totales.totalRetenciones)}</span>
+                  <span className="text-sm font-medium text-destructive tabular-nums">−{fmt(totales.totalRetenciones)}</span>
                 </div>
-                <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Otros Impuestos</span>
-                  <span className="text-sm font-medium">{fmt(totales.totalOtrosImpuestos)}</span>
+                  <span className="text-sm font-medium tabular-nums">{fmt(totales.totalOtrosImpuestos)}</span>
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between border-t pt-2">
-                  <span className="text-base font-bold">Total</span>
-                  <span className="text-base font-bold text-primary">{fmt(totales.total)}</span>
+                <div className="flex items-center justify-between bg-primary/5 px-4 py-3 rounded-lg">
+                  <span className="text-base font-bold">Total de la Orden</span>
+                  <span className="text-xl font-bold text-primary tabular-nums">{fmt(totales.total)}</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          <FormField
-            control={form.control}
-            name="notasGenerales"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Notas Generales</FormLabel>
-                <FormControl>
-                  <Textarea
-                    placeholder="Notas generales de la orden de compra..."
-                    rows={4}
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {/* Notas Generales */}
+          <Card>
+            <CardHeader className="pb-4">
+              <CardTitle className="text-lg font-semibold">Notas Generales</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <FormField
+                control={form.control}
+                name="notasGenerales"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Información adicional relevante para esta orden de compra..."
+                        rows={4}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </CardContent>
+          </Card>
 
-          <div className="flex justify-end gap-3">
+          {/* Botones de Acción */}
+          <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -856,6 +919,7 @@ export default function CrearOrdenCompra() {
               type="button"
               disabled={isSaving}
               onClick={form.handleSubmit(handleSave)}
+              size="lg"
             >
               {isSaving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
