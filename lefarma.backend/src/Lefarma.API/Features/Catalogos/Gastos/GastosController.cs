@@ -15,7 +15,6 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-[HasPermission(Permissions.Catalogos.View)]
 public class GastosController : ControllerBase
 {
     private readonly IGastoService _gastoService;
@@ -55,7 +54,7 @@ public class GastosController : ControllerBase
     }
 
     [HttpPost]
-    //[HasPermission(Permissions.Catalogos.Manage)]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Crear nuevo gasto", Description = "Crea un gasto con los datos proporcionados")]
     public async Task<IActionResult> Create(
         [FromBody][SwaggerRequestBody(Description = "Datos del gasto a crear", Required = true)] CreateGastoRequest request)
@@ -74,7 +73,7 @@ public class GastosController : ControllerBase
     }
 
     [HttpPut("{id}")]
-    //[HasPermission(Permissions.Catalogos.Manage)]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Actualizar gasto", Description = "Actualiza los datos de un gasto existente")]
     public async Task<IActionResult> Update(
         [FromRoute][SwaggerParameter(Description = "Identificador del gasto a actualizar", Required = true)] int id,
@@ -91,7 +90,7 @@ public class GastosController : ControllerBase
     }
 
     [HttpDelete("{id}")]
-//    [HasPermission(Permissions.Catalogos.Manage)]
+    [HasPermission(Permissions.Catalogos.Manage)]
     [SwaggerOperation(Summary = "Eliminar gasto", Description = "Elimina un gasto por su identificador")]
     public async Task<IActionResult> Delete(
         [FromRoute][SwaggerParameter(Description = "Identificador del gasto a eliminar", Required = true)] int id)

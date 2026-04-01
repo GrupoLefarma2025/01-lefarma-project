@@ -15,7 +15,7 @@ namespace Lefarma.API.Features.Catalogos;
 [Route("api/catalogos/[controller]")]
 [ApiController]
 [EndpointGroupName("Catalogos")]
-[HasPermission(Permissions.Catalogos.View)]
+// [HasPermission(Permissions.Catalogos.View)]
 public class MedidasController : ControllerBase
 {
     private readonly IMedidaService _service;
