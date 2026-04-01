@@ -7,6 +7,12 @@
         "mcp"
       ],
       "cwd": "lefarma.frontend"
+    },
+    "lat": {
+      "command": "lat",
+      "args": [
+        "mcp"
+      ]
     }
   }
 }

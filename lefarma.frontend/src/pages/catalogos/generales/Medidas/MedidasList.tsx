@@ -107,9 +107,13 @@ export default function MedidasList() {
       }
     } catch (error: any) {
       const isNotFound = error?.errors?.some((e: any) => e.code === 'Medidas.NotFound');
+      const isForbidden = error?.statusCode === 403;
       if (isNotFound) {
         setMedidas([]);
         toast.warning('No se encontraron medidas en el sistema');
+      } else if (isForbidden) {
+        toast.error('No tienes permisos para ver las medidas');
+        setMedidas([]);
       } else {
         toast.error(error?.message ?? 'Error al cargar las medidas');
       }
@@ -124,8 +128,12 @@ export default function MedidasList() {
       if (response.data.success) {
         setUnidadesMedida(response.data.data || []);
       }
-    } catch {
-      // silencioso — el select quedará vacío
+    } catch (error: any) {
+      const isForbidden = error?.statusCode === 403;
+      if (isForbidden) {
+        toast.error('No tienes permisos para ver las unidades de medida');
+      }
+      // silencioso para otros errores — el select quedará vacío
     }
   };
 

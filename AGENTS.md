@@ -1,422 +1,146 @@
-# AGENTS.md — Lefarma Project
+# Before starting work
 
-Pharmaceutical management system: .NET 10 backend API + React 19 frontend. Modular monolith with feature-based organization.
+- Run `lat search` to find sections relevant to your task. Read them to understand the design intent before writing code.
+- Run `lat expand` on user prompts to expand any `[[refs]]` — this resolves section names to file locations and provides context.
 
-## Build & Run Commands
+# Documentation Rules (MANDATORY)
 
-### Backend (from repo root)
+## What to document in lat.md/
+
+**ALWAYS create/update sections for:**
+- New features or modules
+- API endpoints and their behavior
+- Database schemas and relationships
+- Business logic and rules
+- Architecture decisions (ADRs)
+- Configuration and environment variables
+- Error handling patterns
+- Authentication/authorization flows
+- Third-party integrations
+
+## Documentation format
+
+Every section MUST have:
+1. **Leading paragraph** (≤250 chars) explaining what and why
+2. **Links to code** using `[[src/file.ts#function]]`
+3. **Backlinks in code** using `// @lat: [[section-id]]`
+
+Example:
+```markdown
+# Authentication
+
+Handles user login, logout, and session management via JWT tokens.
+
+## OAuth Flow
+
+Users authenticate via Google OAuth 2.0. See [[src/auth/oauth.ts#handleCallback]].
+
+[[src/auth/oauth.ts#exchangeCode]]
+```
+
+```typescript
+// @lat: [[auth#OAuth Flow]]
+export async function exchangeCode(code: string) { ... }
+```
+
+# Post-task checklist (REQUIRED — do not skip)
+
+After EVERY task, before responding to the user:
+
+- [ ] **Document new code** — Create/update sections in `lat.md/` for any new functionality
+- [ ] **Add code refs** — Add `// @lat: [[section-id]]` comments in source files
+- [ ] **Run `lat check`** — All wiki links and code refs must pass
+- [ ] **Do not skip** — Task is NOT complete until documentation is updated
+
+---
+
+# What is lat.md?
+
+This project uses [lat.md](https://www.npmjs.com/package/lat.md) to maintain a structured knowledge graph of its architecture, design decisions, and test specs in the `lat.md/` directory. It is a set of cross-linked markdown files that describe **what** this project does and **why** — the domain concepts, key design decisions, business logic, and test specifications. Use it to ground your work in the actual architecture rather than guessing.
+
+# Commands
 
 ```bash
-# Run API (port 5134)
-cd lefarma.backend/src/Lefarma.API && fuser -k 5134/tcp 2>/dev/null; dotnet run
-
-# Build
-dotnet build lefarma.backend/src/Lefarma.API
-
-# Run ALL tests
-dotnet test lefarma.backend
-
-# Run single test project
-dotnet test lefarma.backend/tests/Lefarma.Tests
-dotnet test lefarma.backend/tests/Lefarma.UnitTests
-dotnet test lefarma.backend/tests/Lefarma.IntegrationTests
-
-# Run single test by name
-dotnet test lefarma.backend --filter "FullyQualifiedName~NotificationServiceTests.SendAsync_ValidRequest"
-
-# Run single test by trait
-dotnet test lefarma.backend --filter "Category=Unit"
-
-# EF Core migrations (from Lefarma.API directory)
-dotnet ef migrations add <Name>
-dotnet ef database update
-dotnet ef database update 0          # Rollback all
-dotnet ef migrations remove          # Remove last
+lat locate "Section Name"      # find a section by name (exact, fuzzy)
+lat refs "file#Section"        # find what references a section
+lat search "natural language"  # semantic search across all sections
+lat expand "user prompt text"  # expand [[refs]] to resolved locations
+lat check                      # validate all links and code refs
 ```
 
-### Frontend (from repo root)
+Run `lat --help` when in doubt about available commands or options.
 
-```bash
-cd lefarma.frontend
+If `lat search` fails because no API key is configured, explain to the user that semantic search requires a key provided via `LAT_LLM_KEY` (direct value), `LAT_LLM_KEY_FILE` (path to key file), or `LAT_LLM_KEY_HELPER` (command that prints the key). Supported key prefixes: `sk-...` (OpenAI) or `vck_...` (Vercel). If the user doesn't want to set it up, use `lat locate` for direct lookups instead.
 
-npm install                          # Install deps
-npm run dev                          # Dev server (port 5173)
-npm run build                        # Production build (tsc + vite)
-npm run lint                         # ESLint (max-warnings 0)
-npm run format                       # Prettier write
-npx tsc --noEmit                     # Type-check only
-```
+# Syntax primer
 
-## Project Structure
+- **Section ids**: `lat.md/path/to/file#Heading#SubHeading` — full form uses project-root-relative path (e.g. `lat.md/tests/search#RAG Replay Tests`). Short form uses bare file name when unique (e.g. `search#RAG Replay Tests`, `cli#search#Indexing`).
+- **Wiki links**: `[[target]]` or `[[target|alias]]` — cross-references between sections. Can also reference source code: `[[src/foo.ts#myFunction]]`.
+- **Source code links**: Wiki links in `lat.md/` files can reference functions, classes, constants, and methods in TypeScript/JavaScript/Python/Rust/Go/C files. Use the full path: `[[src/config.ts#getConfigDir]]`, `[[src/server.ts#App#listen]]` (class method), `[[lib/utils.py#parse_args]]`, `[[src/lib.rs#Greeter#greet]]` (Rust impl method), `[[src/app.go#Greeter#Greet]]` (Go method), `[[src/app.h#Greeter]]` (C struct). `lat check` validates these exist.
+- **Code refs**: `// @lat: [[section-id]]` (JS/TS/Rust/Go/C) or `# @lat: [[section-id]]` (Python) — ties source code to concepts
 
-### Backend (`lefarma.backend/src/Lefarma.API/`)
+# Test specs
 
-```
-Domain/           → Entities + Interfaces (per module: Auth, Catalogos, etc.)
-Features/         → Self-contained feature modules
-  Auth/           → Controllers, Services, DTOs, Validators
-  Catalogos/      → [Feature]/ → Controller, Service, IService, Validator, DTOs/, Extensions/
-  Notifications/  → Services, Channels, DTOs
-Infrastructure/   → Data (DbContext, Repositories, Configurations, Seeding), Filters, Middleware
-Services/         → Identity (AD, JWT, Token)
-Shared/           → Auth, Constants, Errors, Extensions, Logging, Models, Services
-```
-
-### Frontend (`lefarma.frontend/src/`)
-
-```
-components/ui/    → shadcn/ui components (new-york style, Radix + TailwindCSS)
-components/layout/→ Header, Sidebar, MainLayout
-pages/            → Feature pages (auth/, catalogos/, configuracion/)
-routes/           → AppRoutes, ProtectedRoute, PublicOnlyRoute
-services/         → api.ts (Axios + JWT interceptors), authService.ts
-store/            → Zustand stores (authStore, pageStore, etc.)
-hooks/            → usePageTitle, use-toast, useNotifications
-types/            → TypeScript definitions (*.types.ts)
-lib/              → Utilities (utils.ts with cn() helper)
-```
-
-## Code Style — Backend (C#)
-
-### Naming Conventions
-- **PascalCase**: Classes, methods, properties, public fields
-- **camelCase**: Local variables, parameters, private fields (prefixed with `_`)
-- **DTO naming**: `{Entity}Response`, `Create{Entity}Request`, `Update{Entity}Request`
-- **Files**: One class per file, file name matches class name
-
-### Patterns (MANDATORY)
-- **ErrorOr<T>** for service return types — services return `ErrorOr<T>`, never throw for business logic
-- **Constructor injection** — no `new` for dependencies; register in `Program.cs`
-- **FluentValidation** for all request DTOs — register validators in DI
-- **XML docs** (`///`) on all public methods and classes
-- **Swagger annotations** (`[SwaggerOperation]`, `[SwaggerResponse]`) on all controller endpoints
-- **`ApiResponse<T>`** wrapper on all controller responses
-- **`result.ToActionResult(this, ...)`** extension to convert ErrorOr results to IActionResult
-- **Async suffix**: All async methods end with `Async`
-- **`required` keyword**: Use `required` for non-nullable DTO properties
-- **`CancellationToken`**: Always accept and pass through in async methods
-
-### Adding a New Catalog Feature
-1. Entity in `Domain/Entities/Catalogos/`
-2. EF config in `Infrastructure/Data/Configurations/Catalogos/`
-3. Interface in `Domain/Interfaces/Catalogos/I{Feature}Repository.cs`
-4. Repository in `Infrastructure/Data/Repositories/Catalogos/{Feature}Repository.cs`
-5. Service interface + impl in `Features/Catalogos/{Feature}/`
-6. Validator in `Features/Catalogos/{Feature}/`
-7. DTOs in `Features/Catalogos/{Feature}/DTOs/`
-8. Controller in `Features/Catalogos/{Feature}/` — route: `api/catalogos/[controller]`
-9. Register all in `Program.cs`
-
-## Code Style — Frontend (TypeScript/React)
-
-### Formatting (enforced by Prettier)
-- Single quotes, semicolons, 2-space indent, trailing commas (ES5), printWidth 100
-- Tailwind class sorting via `prettier-plugin-tailwindcss`
-
-### TypeScript
-- **Strict mode** enabled (`strict: true`)
-- Path aliases: `@/*` → `./src/*` (configured in tsconfig + vite-tsconfig-paths)
-- Type files: `*.types.ts` convention
-- No `any` — use `unknown` or proper types
-
-### Permission System (UI Blocking)
-
-El sistema de permisos permite bloquear elementos de la UI basándose en los permisos del usuario autenticado.
-
-#### Archivos Clave
-
-| Archivo | Descripción |
-|--------|-------------|
-| `src/components/auth/PermissionGuard.tsx` | Componente wrapper para rutas/secciones |
-| `src/hooks/usePermission.ts` | Hook reactivo para componentes |
-| `src/utils/permissions.ts` | Función utilitaria (fuera de React) |
-
-#### Orden de Evaluación
-
-1. `exclude` — Si el usuario tiene **CUALQUIER** permiso excluido → **denegar**
-2. `require` — Usuario debe tener **TODOS** los permisos listados
-3. `requireAny` — Usuario debe tener **AL MENOS UNO** de los permisos listados
-4. Sin opciones → **permitir** (sin restricciones)
-
-#### Uso en Rutas (PermissionGuard)
-
-```tsx
-import { PermissionGuard } from '@/components/auth/PermissionGuard';
-
-// Requiere un permiso específico
-<Route 
-  path="/seguridad/usuarios" 
-  element={
-    <PermissionGuard require="usuarios.manage">
-      <UsuariosList />
-    </PermissionGuard>
-  } 
-/>
-
-// Requiere CUALQUIERA de los permisos listados
-<Route 
-  path="/seguridad/roles" 
-  element={
-    <PermissionGuard requireAny={['usuarios.view', 'usuarios.manage']}>
-      <RolesList />
-    </PermissionGuard>
-  } 
-/>
-
-// Con fallback personalizado
-<PermissionGuard require="admin.access" fallback={<div>No tienes acceso</div>}>
-  <AdminPanel />
-</PermissionGuard>
-```
-
-#### Uso en Componentes (usePermission hook)
-
-```tsx
-import { usePermission } from '@/hooks/usePermission';
-
-function MyComponent() {
-  const canEdit = usePermission({ require: 'usuarios.editar' });
-  const canViewReports = usePermission({ requireAny: ['reportes.ver', 'reportes.exportar'] });
-  const isBlocked = usePermission({ exclude: 'solo_lectura' });
-
-  return (
-    <div>
-      {canEdit && <Button>Editar</Button>}
-      {canViewReports && <ReportsSection />}
-      {!isBlocked && <DeleteButton />}
-    </div>
-  );
-}
-```
-
-#### Uso Fuera de React (checkPermission)
-
-```tsx
-import { checkPermission } from '@/utils/permissions';
-
-// En menú del sidebar, rutas, interceptores, etc.
-if (checkPermission({ require: 'usuarios.ver_detalle' })) {
-  // mostrar opción de menú
-}
-
-// Verificar múltiples permisos
-const hasAccess = checkPermission({ 
-  requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] 
-});
-```
-
-#### Props del PermissionGuard
-
-| Prop | Tipo | Descripción |
-|------|------|-------------|
-| `require` | `string \| string[]` | Permisos requeridos (debe tener TODOS) |
-| `requireAny` | `string \| string[]` | Al menos uno de los permisos listados |
-| `exclude` | `string \| string[]` | Si tiene alguno, bloquea acceso |
-| `fallback` | `ReactNode` | Contenido alternativo si no tiene permiso (default: redirect a `/bloqueado`) |
-| `children` | `ReactNode` | Contenido a mostrar si tiene permiso |
-
-### Component Patterns
-- **Functional components** only — no class components
-- **Default exports** for page components
-- **shadcn/ui** for all UI primitives — check `components/ui/` before building custom
-- **React Hook Form + Zod** for all forms — define schema with Zod, infer type
-- **`usePageTitle(title, subtitle?)`** called at top of every page component
-- **Zustand** for global state (auth, page title), **Jotai** for atomic state
-- **Sonner** for toast notifications (`toast.success()`, `toast.error()`)
-
-### API Integration
-- Use `API` from `@/services/api` — Axios instance with JWT auto-attach and 401 refresh
-- API base URL: `VITE_API_URL` (default: `http://localhost:5134/api`)
-
-### Import Order (convention)
-1. React / third-party libraries
-2. UI components (`@/components/ui/`)
-3. App components (`@/components/layout/`, etc.)
-4. Services, stores, hooks (`@/services/`, `@/store/`, `@/hooks/`)
-5. Types (`@/types/`)
-6. Utilities (`@/lib/`)
-
-## Testing
-
-### Backend (xUnit + FluentAssertions + Moq)
-```csharp
-[Fact]
-public async Task MethodName_Scenario_ExpectedResult()
-{
-    // Arrange
-    var mockRepo = new Mock<IRepository>();
-    var service = new Service(mockRepo.Object);
-
-    // Act
-    var result = await service.MethodAsync();
-
-    // Assert
-    result.Should().NotBeNull();
-}
-```
-
-### Frontend (Playwright)
-```bash
-npx playwright test                              # Run all E2E tests
-npx playwright test --grep "test name"           # Run specific test
-```
-
-## Key Conventions
-
-- **Port**: Backend 5134, Frontend 5173, Swagger at 5134 in Development
-- **Database**: SQL Server with EF Core 10, `AsNoTracking` for reads
-- **Auth**: LDAP + JWT, master password `tt01tt` for dev bypass
-- **Git**: Conventional commits (`feat:`, `fix:`, `docs:`, etc.). No "Co-Authored-By" tags.
-- **Validation messages**: In Spanish
-- **Docs**: Update `lefarma.docs/` when changing entities, endpoints, pages, or components
-- **Keep CLAUDE.md and AGENTS.md synchronized** when modifying either
-- **usePageTitle(title, subtitle?)**: Hook estándar para mostrar el título de la página en el nav/header. Debe llamarse al inicio de cada página.
-  ```typescript
-  // En cualquier page component
-  usePageTitle('Empresas', 'Gestión de empresas');  // subtítulo opcional
-  ```
-  El título aparece en el componente `Header`, no en `document.title`. Usa el store global `pageStore`.
-
-## Tech Stack
-
-**Backend:**
-- .NET 10 with C# 10 features (nullable reference types, implicit usings)
-- Entity Framework Core 10 with SQL Server
-- FluentValidation for request validation
-- JWT authentication configured
-- Serilog for logging
-- Swashbuckle for Swagger/OpenAPI
-
-**Frontend:**
-- React 19 with TypeScript
-- Vite 7
-- TailwindCSS with tailwind-merge and clsx
-- Radix UI primitives (@radix-ui/react-*)
-- Zustand for state
-- React Hook Form + Zod
-- Axios for HTTP
-- React Router v7
-- date-fns for dates
-- Lucide React for icons
-- react-hot-toast for notifications
-
-## Development Workflow
-
-1. Start backend: `dotnet run` from `lefarma.backend/src/Lefarma.API`
-2. Start frontend: `npm run dev` from `lefarma.frontend`
-3. Frontend proxies API calls to backend via Vite config
-4. Swagger UI available at root in Development
-
-## IMPORTANT: Documentation Maintenance
-
-**Whenever making changes to the codebase, always update the documentation in `lefarma.docs/` to reflect the actual and current state of the project. Seguir el estándar definido en `lefarma.docs/STANDARD_DOCUMENTATION_PLAN.md` (Técnico) y `lefarma.docs/USER_DOCUMENTATION_PLAN.md` (Usuarios).**
-
-### When to Update Docs
-
-- **Adding new entities**: Update `backend/entities.md` and `backend/dtos.md`
-- **Adding new endpoints**: Update `backend/api-routes.md`
-- **Adding new services**: Update `backend/services.md`
-- **Adding new pages**: Update `frontend/pages.md` and `frontend/routes.md`
-- **Adding new components**: Update `frontend/components.md`
-- **Adding new types**: Update `frontend/types.md`
-- **Modifying API contracts**: Update all affected documentation files
-
-### Documentation Structure
-
-```text
-lefarma.docs/
-├── README.md                 # Index and overview
-├── backend/
-│   ├── api-routes.md         # API endpoints
-│   ├── entities.md           # Database entities
-│   ├── services.md           # Business services
-│   └── dtos.md               # Data transfer objects
-├── frontend/
-│   ├── routes.md             # Route definitions
-│   ├── pages.md              # Page components
-│   ├── components.md         # Reusable components
-│   ├── services.md           # API client and auth
-│   └── types.md              # TypeScript types
-└── task/                     # PRDs and development tasks
-    ├── README.md             # Task system documentation
-    ├── 001-modulo-ejemplo.md # Task files with consecutive numbering
-    └── 002-otro-modulo.md
-```
-
-## Task System (lefarma.docs/task/)
-
-When working on new modules or features:
-
-### Finding the Next Task
-
-1. Check the `lefarma.docs/task/` directory for existing tasks
-2. Look for the highest consecutive number (001, 002, 003...)
-3. Read the task file to understand requirements
-
-### Creating New Tasks
-
-```powershell
-# Find the last task number
-Get-ChildItem lefarma.docs/task/*.md | Sort-Object Name -Descending | Select-Object -First 1
-
-# Create new task with next consecutive number
-# Format: XXX-nombre-del-modulo.md
-```
-
-### Task Status Workflow
-
-- `pending` → Not started
-- `in_progress` → Currently being worked on
-- `completed` → Finished and tested
-- `cancelled` → Discarded
-
-### Working on Tasks
-
-1. **Before starting**: Update task status to `in_progress` and add assignee
-2. **During work**: Follow the requirements and acceptance criteria in the task
-3. **After completion**:
-   - Update task status to `completed`
-   - Update all relevant documentation in `lefarma.docs/`
-   - Sync changes to CLAUDE.md and AGENTS.md
-
-### Task Template
-
-New tasks should follow this structure:
+Key tests can be described as sections in `lat.md/` files (e.g. `tests.md`). Add frontmatter to require that every leaf section is referenced by a `// @lat:` or `# @lat:` comment in test code:
 
 ```markdown
 ---
-status: pending
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-assignee: null
+lat:
+  require-code-mention: true
 ---
+# Tests
 
-# Task-XXX: Module Name
+Authentication and authorization test specifications.
 
-## Description
-Brief description of the module.
+## User login
 
-## Requirements
-- [ ] Requirement 1
-- [ ] Requirement 2
+Verify credential validation and error handling for the login endpoint.
 
-## Acceptance Criteria
-- [ ] Criterion 1
-- [ ] Criterion 2
+### Rejects expired tokens
+Tokens past their expiry timestamp are rejected with 401, even if otherwise valid.
 
-## Dependencies
-- Task-YYY: Dependency name
+### Handles missing password
+Login request without a password field returns 400 with a descriptive error.
 ```
 
-Keep documentation in sync with code to ensure it always reflects the real state of the project.
+Every section MUST have a description — at least one sentence explaining what the test verifies and why. Empty sections with just a heading are not acceptable. (This is a specific case of the general leading paragraph rule below.)
 
-### Synchronization Between CLAUDE.md and AGENTS.md
+Each test in code should reference its spec with exactly one comment placed next to the relevant test — not at the top of the file:
 
-**Both `CLAUDE.md` and `AGENTS.md` must always be synchronized.** When modifying either file:
+```python
+# @lat: [[tests#User login#Rejects expired tokens]]
+def test_rejects_expired_tokens():
+    ...
 
-1. Check if the change affects both files
-2. Apply the same update to both files when relevant
-3. Keep architecture decisions, patterns, and guidelines consistent across both
-4. If adding new sections to one, consider if the other needs a corresponding update
+# @lat: [[tests#User login#Handles missing password]]
+def test_handles_missing_password():
+    ...
+```
 
-These two files serve the same purpose but for different AI contexts - they must remain aligned.
+Do not duplicate refs. One `@lat:` comment per spec section, placed at the test that covers it. `lat check` will flag any spec section not covered by a code reference, and any code reference pointing to a nonexistent section.
+
+# Section structure
+
+Every section in `lat.md/` **must** have a leading paragraph — at least one sentence immediately after the heading, before any child headings or other block content. The first paragraph must be ≤250 characters (excluding `[[wiki link]]` content). This paragraph serves as the section's overview and is used in search results, command output, and RAG context — keeping it concise guarantees the section's essence is always captured.
+
+```markdown
+# Good Section
+
+Brief overview of what this section documents and why it matters.
+
+More detail can go in subsequent paragraphs, code blocks, or lists.
+
+## Child heading
+
+Details about this child topic.
+```
+
+```markdown
+# Bad Section
+
+## Child heading
+
+Details about this child topic.
+```
+
+The second example is invalid because `Bad Section` has no leading paragraph. `lat check` validates this rule and reports errors for missing or overly long leading paragraphs.

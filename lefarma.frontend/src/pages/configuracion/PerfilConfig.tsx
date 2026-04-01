@@ -125,7 +125,6 @@ export function PerfilConfig() {
     setIsUploadingFirma(true);
 
     try {
-      // Convertir base64 a File
       const response = await fetch(croppedImageUrl);
       const blob = await response.blob();
       const croppedFile = new File([blob], selectedFile.name, {
@@ -133,15 +132,11 @@ export function PerfilConfig() {
         lastModified: Date.now(),
       });
 
-      const archivo = await archivoService.upload(croppedFile, {
-        entidadTipo: 'usuario',
-        entidadId: usuario.idUsuario,
-        carpeta: 'firmas',
-      });
+      const formData = new FormData();
+      formData.append('file', croppedFile);
 
-      const apiResponse = await API.put('/profile', {
-        ...(form.getValues() as any),
-        firmaPath: archivo.nombreFisico,
+      const apiResponse = await API.post('/profile/firma', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (apiResponse.data.success) {
@@ -167,10 +162,7 @@ export function PerfilConfig() {
   const handleRemoveFirma = async () => {
     setIsUploadingFirma(true);
     try {
-      const response = await API.put('/profile', {
-        ...(form.getValues() as any),
-        firmaPath: '',
-      });
+      const response = await API.delete('/profile/firma');
       if (response.data.success) {
         toast.success('Firma eliminada');
         await fetchPerfil();
@@ -179,7 +171,9 @@ export function PerfilConfig() {
         toast.error(response.data.message ?? 'Error al eliminar firma');
       }
     } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar firma');
+      console.error('Error al eliminar:', error);
+      const errorMessage = error?.response?.data?.message || error?.message || 'Error al eliminar firma';
+      toast.error('Error al eliminar firma', { description: errorMessage });
     } finally {
       setIsUploadingFirma(false);
     }
@@ -194,7 +188,7 @@ export function PerfilConfig() {
         setUsuario(u);
         const firmaPathValue = (u.detalle as any)?.firmaPath ?? null;
         const firmaUrl = firmaPathValue
-          ? `/api/archivos/${encodeURIComponent(firmaPathValue.split('/').pop() ?? '')}/preview`
+          ? `/media/archivos/${firmaPathValue}`
           : null;
 
         setFirmaPreviewUrl(firmaUrl);
