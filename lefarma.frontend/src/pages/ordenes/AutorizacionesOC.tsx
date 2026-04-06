@@ -200,7 +200,7 @@ export default function AutorizacionesOC() {
     setRequiereComprobacionPago(selectedOrden.requiereComprobacionPago);
     setRequiereComprobacionGasto(selectedOrden.requiereComprobacionGasto);
     setCentroCosto(selectedOrden.idCentroCosto ? String(selectedOrden.idCentroCosto) : '');
-    setCuentaContable(selectedOrden.cuentaContable || '');
+    setCuentaContable(selectedOrden.cuentaContable ? String(selectedOrden.cuentaContable) : '');
     setExpandedPasoId(selectedOrden.idPasoActual ?? null);
   }, [selectedOrden]);
 

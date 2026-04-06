@@ -10,7 +10,7 @@ import BlockedPage from '@/pages/auth/BlockedPage';
 import Dashboard from '@/pages/Dashboard';
 import RolesList from '@/pages/admin/Roles/RolesList';
 import PermisosList from '@/pages/admin/Permisos/PermisosList';
-import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
+// import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
 import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
 import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';
@@ -48,7 +48,7 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} />
+          {/* <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} /> */}
           <Route path="/seguridad/roles" element={<PermissionGuard require="usuarios.ver_detalle"><RolesList /></PermissionGuard>} />
           <Route path="/seguridad/permisos" element={<PermisosList /> } />
           <Route path="/catalogos/empresas" element={<EmpresasList />} />

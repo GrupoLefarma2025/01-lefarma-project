@@ -129,8 +129,16 @@ export const authService = {
   },
 
   getEmpresas: async (): Promise<Empresa[]> => {
+    try{
     const response = await API.get<ApiResponse<Empresa[]>>('/catalogos/empresas');
     return response.data.data;
+    console.log('Empresas obtenidas:', response.data.data);
+    }
+    catch(error){
+      console.error('Error al obtener empresas:', error);
+      throw error;
+    }
+   
   },
 
   getSucursales: async (): Promise<Sucursal[]> => {

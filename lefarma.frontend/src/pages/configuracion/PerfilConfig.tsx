@@ -510,13 +510,17 @@ export function PerfilConfig() {
                     <ImageCropContent className="max-h-[300px] w-full" />
                   </div>
                   <div className="flex items-center justify-center gap-2">
-                    <ImageCropReset variant="outline" size="sm">
-                      <RotateCcwIcon className="mr-2 h-4 w-4" />
-                      Reiniciar
+                    <ImageCropReset asChild>
+                      <Button variant="outline" size="sm">
+                        <RotateCcwIcon className="mr-2 h-4 w-4" />
+                        Reiniciar
+                      </Button>
                     </ImageCropReset>
-                    <ImageCropApply variant="default" size="sm">
-                      <Crop className="mr-2 h-4 w-4" />
-                      Aplicar y Guardar
+                    <ImageCropApply asChild>
+                      <Button variant="default" size="sm">
+                        <Crop className="mr-2 h-4 w-4" />
+                        Aplicar y Guardar
+                      </Button>
                     </ImageCropApply>
                   </div>
                 </div>

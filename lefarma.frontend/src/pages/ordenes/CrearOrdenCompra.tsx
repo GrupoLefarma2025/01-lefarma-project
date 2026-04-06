@@ -194,9 +194,8 @@ export default function CrearOrdenCompra() {
         authService.getSucursales(),
         authService.getAreas(),
       ]);
-      console.log('[Empresas] items:', empresasData?.length);
-      setEmpresas(empresasData || []);
-      setSucursales(sucursalesData || []);
+      setEmpresas((empresasData as unknown as Empresa[]) || []);
+      setSucursales((sucursalesData as unknown as Sucursal[]) || []);
       setAreas(areasData || []);
     } catch (err) {
       console.error('[fetchCatalogs] ERROR en catálogos principales:', err);

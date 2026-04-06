@@ -106,8 +106,8 @@ export default function EmpresasList() {
       if (response.data.success) {
         setEmpresas(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'Empresas.NotFound');
+    } catch (error) {
+      const isNotFound = error?.errors?.some((e: { code: string; }) => e.code === 'Empresas.NotFound');
       if (isNotFound) {
         setEmpresas([]);
       } else {
