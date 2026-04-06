@@ -59,6 +59,7 @@ using Serilog.Events;
 using Serilog.Formatting.Json;
 using System.Reflection;
 using System.Text;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Configure Serilog first
@@ -431,11 +432,16 @@ app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lefarma API v1");
-    // c.RoutePrefix = ""; // Hacer que Swagger est� disponible en la ra�z
+    // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }
 
 app.UseHttpsRedirection();
+
+// ---> AGREGADO PARA LA SPA <---
+// Permite servir index.html por defecto y habilita los archivos estáticos base de wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
 
 app.UseSerilogRequestLogging(options =>
 {
@@ -480,5 +486,8 @@ app.MapControllers();
 //     await seeder.SeedAsync();
 // }
 
-app.Run();
+// ---> AGREGADO PARA LA SPA <---
+// Redirige cualquier petición no manejada al index.html para que el router de tu frontend se encargue
+app.MapFallbackToFile("/index.html");
 
+app.Run();
