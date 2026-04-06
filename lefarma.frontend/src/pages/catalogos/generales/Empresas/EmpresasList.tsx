@@ -106,12 +106,12 @@ export default function EmpresasList() {
       if (response.data.success) {
         setEmpresas(response.data.data || []);
       }
-    } catch (error) {
-      const isNotFound = error?.errors?.some((e: { code: string; }) => e.code === 'Empresas.NotFound');
-      if (isNotFound) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; statusCode?: number };
+      if (err.statusCode === 404) {
         setEmpresas([]);
       } else {
-        toast.error(error?.message ?? 'Error al cargar las empresas');
+        toast.error(err.message ?? 'Error al cargar las empresas');
       }
     } finally {
       setLoading(false);

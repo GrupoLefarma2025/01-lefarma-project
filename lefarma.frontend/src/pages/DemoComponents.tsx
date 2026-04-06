@@ -345,7 +345,7 @@ const EjemploComboboxControlado = () => {
                 <ComboboxItem key={med.value} value={med.value}>
                   <div className="flex items-center justify-between w-full">
                     <span>{med.label}</span>
-                     <Badge variant="outline" className="text-xs group-[.data-selected=true]:!text-white group-[.data-selected=true]:!border-white/50 group-[.data-selected=true]:!bg-white/20">{med.categoria}</Badge>
+                     <Badge variant="outline" className="text-xs group-data-[selected=true]:!text-white group-data-[selected=true]:!border-white/50 group-data-[selected=true]:!bg-white/20">{med.categoria}</Badge>
                   </div>
                 </ComboboxItem>
               ))}

@@ -186,8 +186,9 @@ export function PerfilConfig() {
         const u = response.data.data;
         setUsuario(u);
         const firmaPathValue = (u.detalle as any)?.firmaPath ?? null;
+        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const firmaUrl = firmaPathValue
-          ? `/media/archivos/${firmaPathValue}`
+          ? `${apiUrl}/media/archivos/${firmaPathValue}`
           : null;
 
         setFirmaPreviewUrl(firmaUrl);

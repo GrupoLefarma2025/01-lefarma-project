@@ -121,7 +121,6 @@ export default function HelpList() {
     if (!selectedArticle) return;
     setIsSaving(true);
     try {
-      const { helpService } = await import('@/services/helpService');
       await helpService.update({
         id: selectedArticle.id,
         titulo: selectedArticle.titulo,
