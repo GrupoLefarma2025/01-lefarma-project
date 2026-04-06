@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using FluentValidation;
 using Lefarma.API.Features.Catalogos.Proveedores;
 using Lefarma.API.Features.Catalogos.Proveedores.DTOs;
@@ -21,6 +22,9 @@ public class ProveedoresController : ControllerBase
     {
         _proveedorService = proveedorService;
     }
+
+    private int GetUserId() =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener todos los proveedores", Description = "Retorna la lista completa de proveedores con filtros opcionales")]
@@ -104,6 +108,45 @@ public class ProveedoresController : ControllerBase
             Success = true,
             Message = "Proveedor eliminado exitosamente.",
             Data = null
+        }));
+    }
+
+    [HttpPost("{id}/autorizar")]
+//    [HasPermission(Permissions.Proveedores.Autorizar)]
+    [SwaggerOperation(Summary = "Autorizar proveedor por CxP", Description = "Marca un proveedor como autorizado por el área de Cuentas por Pagar")]
+    public async Task<IActionResult> Autorizar(
+        [SwaggerParameter(Description = "Identificador del proveedor a autorizar", Required = true)] int id)
+    {
+        var result = await _proveedorService.AutorizarAsync(id, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Proveedor autorizado exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/rechazar")]
+//    [HasPermission(Permissions.Proveedores.Rechazar)]
+    [SwaggerOperation(Summary = "Rechazar proveedor por CxP", Description = "Rechaza un proveedor con un motivo")]
+    public async Task<IActionResult> Rechazar(
+        [SwaggerParameter(Description = "Identificador del proveedor a rechazar", Required = true)] int id,
+        [SwaggerRequestBody(Description = "Motivo del rechazo", Required = true)] RechazarProveedorRequest request)
+    {
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        if (!ModelState.IsValid)
+            return BadRequest(ModelState);
+
+        var result = await _proveedorService.RechazarAsync(id, request.Motivo, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Proveedor rechazado exitosamente.",
+            Data = data
         }));
     }
 }
