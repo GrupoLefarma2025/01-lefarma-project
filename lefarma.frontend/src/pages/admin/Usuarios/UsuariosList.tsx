@@ -52,7 +52,132 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Card, CardContent } from '@/components/ui/card';
+import { MultiSelect } from '@/components/ui/multi-select';
 
+// @lat: [[usuarios#RolesSection]]
+const RolesSection = memo(function RolesSection({
+  rolesIds,
+  roles,
+  onRemoveRol,
+  onAddRoles,
+}: {
+  rolesIds: number[];
+  roles: any[];
+  onRemoveRol: (rolId: number) => void;
+  onAddRoles: () => void;
+}) {
+  const selectedRoles = roles.filter(r => rolesIds.includes(r.idRol));
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Shield className="h-4 w-4 text-muted-foreground" />
+          Roles asignados
+        </div>
+        <Button type="button" variant="outline" size="sm" className="h-7 gap-1" onClick={onAddRoles}>
+          <Plus className="h-3 w-3" />
+          Agregar
+        </Button>
+      </div>
+      {selectedRoles.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedRoles.map(rol => (
+            <Badge key={rol.idRol} variant="secondary" className="gap-1 pr-1">
+              {rol.nombreRol}
+              <button
+                type="button"
+                onClick={() => onRemoveRol(rol.idRol)}
+                className="ml-1 rounded-full p-0.5 hover:bg-muted-foreground/20"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground">No hay roles asignados.</p>
+      )}
+    </div>
+  );
+});
+
+// @lat: [[usuarios#PermisosSection]]
+const PermisosSection = memo(function PermisosSection({
+  permisosIds,
+  permisosPorCategoria,
+  collapsedCategories,
+  onToggleCategory,
+  onTogglePermiso,
+}: {
+  permisosIds: number[];
+  permisosPorCategoria: Record<string, Permiso[]>;
+  collapsedCategories: Set<string>;
+  onToggleCategory: (categoria: string) => void;
+  onTogglePermiso: (permisoId: number, checked: boolean) => void;
+}) {
+  const categorias = Object.keys(permisosPorCategoria).sort();
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Key className="h-4 w-4 text-muted-foreground" />
+        Permisos directos
+      </div>
+      {categorias.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No hay permisos disponibles.</p>
+      ) : (
+        <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+          {categorias.map(cat => {
+            const isCollapsed = collapsedCategories.has(cat);
+            const permisos = permisosPorCategoria[cat];
+            const selectedCount = permisos.filter(p => permisosIds.includes(p.idPermiso)).length;
+            return (
+              <div key={cat} className="rounded-md border">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium hover:bg-muted/50"
+                  onClick={() => onToggleCategory(cat)}
+                >
+                  <span className="flex items-center gap-2">
+                    {cat}
+                    <span className="text-muted-foreground">
+                      ({selectedCount}/{permisos.length})
+                    </span>
+                  </span>
+                  {isCollapsed ? (
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <ChevronUp className="h-3 w-3 text-muted-foreground" />
+                  )}
+                </button>
+                {!isCollapsed && (
+                  <div className="border-t px-3 py-2 space-y-1">
+                    {permisos.map(p => (
+                      <label
+                        key={p.idPermiso}
+                        className="flex items-center gap-2 text-xs cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5"
+                      >
+                        <Checkbox
+                          checked={permisosIds.includes(p.idPermiso)}
+                          onCheckedChange={(checked) => onTogglePermiso(p.idPermiso, !!checked)}
+                        />
+                        <span>{p.nombrePermiso}</span>
+                        <span className="text-muted-foreground ml-auto text-[10px]">
+                          {p.codigoPermiso}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+});
 
 const usuarioSchema = z.object({
   samAccountName: z.string().min(1, 'Requerido'),
