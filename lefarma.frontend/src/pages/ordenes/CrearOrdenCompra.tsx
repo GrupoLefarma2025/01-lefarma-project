@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate } from 'react-router-dom';
@@ -34,7 +34,6 @@ import { Loader2, Plus, Trash2, Save, X, Building2, MapPin, Tag, CreditCard, Cal
 import type { CreateOrdenCompraRequest } from '@/types/ordenCompra.types';
 import type { Empresa, Sucursal, Area, FormaPago, UnidadMedida, Gasto } from '@/types/catalogo.types';
 
-// @lat: [[frontend#Pages]]
 
 const partidaSchema = z.object({
   descripcion: z.string().min(1, 'La descripción es requerida').max(500),
@@ -114,6 +113,7 @@ export default function CrearOrdenCompra() {
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [regimenesFiscales, setRegimenesFiscales] = useState<RegimenFiscalItem[]>([]);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const catalogFetched = useRef(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(ordenCompraSchema),
     defaultValues: {
@@ -166,13 +166,13 @@ export default function CrearOrdenCompra() {
       form.setValue('idRegimenFiscal', 0);
     }
   }, [sinDatosFiscales]);
-  const partidas = form.watch('partidas');
+  const watchedPartidas = useWatch({ control: form.control, name: 'partidas' });
   const totales = useMemo(() => {
     let subtotal = 0;
     let totalIva = 0;
     let totalRetenciones = 0;
     let totalOtrosImpuestos = 0;
-    for (const p of partidas || []) {
+    for (const p of watchedPartidas || []) {
       const base =
         (p.precioUnitario || 0) * (p.cantidad || 0) - (p.descuento || 0);
       subtotal += base;
@@ -182,8 +182,7 @@ export default function CrearOrdenCompra() {
     }
     const total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
     return { subtotal, totalIva, totalRetenciones, totalOtrosImpuestos, total };
-  }, [partidas]);
-  // @lat: [[frontend#API Integration#Error Handling]]
+  }, [watchedPartidas]);
   const fetchCatalogs = async () => {
     setLoadingCatalogs(true);
     const errors: string[] = [];
@@ -246,6 +245,8 @@ export default function CrearOrdenCompra() {
     setLoadingCatalogs(false);
   };
   useEffect(() => {
+    if (catalogFetched.current) return;
+    catalogFetched.current = true;
     fetchCatalogs();
   }, []);
   const handleSave = async (values: FormValues) => {
@@ -301,7 +302,7 @@ export default function CrearOrdenCompra() {
     );
   }
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-6">
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}
@@ -637,7 +638,7 @@ export default function CrearOrdenCompra() {
             </CardHeader>
             <CardContent className="space-y-4">
               {fields.map((item, index) => {
-                const p = partidas?.[index];
+                const p = watchedPartidas?.[index];
                 const lineBase = (p?.precioUnitario || 0) * (p?.cantidad || 0) - (p?.descuento || 0);
                 const lineIva = lineBase * ((p?.porcentajeIva || 0) / 100);
                 const lineTotal =
