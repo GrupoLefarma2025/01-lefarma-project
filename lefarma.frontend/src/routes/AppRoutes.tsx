@@ -17,6 +17,7 @@ import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
 
 import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
 import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
+import TiposImpuestoList from '@/pages/catalogos/generales/TiposImpuesto/TiposImpuestoList';
 import CentrosCostoList from '@/pages/catalogos/generales/CentrosCosto/CentrosCostoList';
 import CuentasContablesList from '@/pages/catalogos/generales/CuentasContables/CuentasContablesList';
 import EstatusOrdenList from '@/pages/catalogos/generales/EstatusOrden/EstatusOrdenList';
@@ -66,6 +67,7 @@ export const AppRoutes = () => {
 
           <Route path="/catalogos/areas" element={<AreasList />} />
           <Route path="/catalogos/formas-pago" element={<FormasPagoList />} />
+          <Route path="/catalogos/tipos-impuesto" element={<TiposImpuestoList />} />
           <Route path="/catalogos/centros-costo" element={<CentrosCostoList />} />
           <Route path="/catalogos/cuentas-contables" element={<CuentasContablesList />} />
           <Route path="/catalogos/estatus-orden" element={<EstatusOrdenList />} />

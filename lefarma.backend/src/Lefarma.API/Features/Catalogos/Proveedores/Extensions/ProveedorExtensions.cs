@@ -18,10 +18,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores.Extensions
                 RegimenFiscalId = entity.RegimenFiscalId,
                 RegimenFiscalDescripcion = entity.RegimenFiscal?.Descripcion,
                 PersonaContacto = entity.PersonaContacto,
-                NotaFormaPago = entity.NotaFormaPago,
                 NotasGenerales = entity.NotasGenerales,
-                SinDatosFiscales = entity.SinDatosFiscales,
-                AutorizadoPorCxP = entity.AutorizadoPorCxP,
+                UsoCfdi = entity.UsoCfdi,
                 FechaRegistro = entity.FechaRegistro,
                 FechaModificacion = entity.FechaModificacion
             };

@@ -1,4 +1,5 @@
 using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,7 @@ public class DatabaseSeeder : IDatabaseSeeder
         await SeedPermissionsAsync();
         await SeedRolePermissionsAsync();
         await SeedWorkflowAsync();
+        await SeedTiposImpuestoAsync();
 
         _logger.LogInformation("Database seeding completed successfully.");
     }
@@ -590,5 +592,85 @@ public class DatabaseSeeder : IDatabaseSeeder
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Seeded workflow ORDEN_COMPRA with {Count} steps successfully.", workflow.Pasos.Count);
+    }
+
+    private async Task SeedTiposImpuestoAsync()
+    {
+        if (await _context.Set<TipoImpuesto>().AnyAsync())
+        {
+            _logger.LogInformation("Tipos de impuesto already seeded. Skipping...");
+            return;
+        }
+
+        _logger.LogInformation("Seeding tipos de impuesto...");
+
+        var tiposImpuesto = new List<TipoImpuesto>
+        {
+            new()
+            {
+                IdTipoImpuesto = 1,
+                Nombre = "IVA 16%",
+                Clave = "T16",
+                Tasa = 0.16m,
+                Descripcion = "Impuesto al Valor Agregado 16%",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            },
+            new()
+            {
+                IdTipoImpuesto = 2,
+                Nombre = "IVA 8%",
+                Clave = "T08",
+                Tasa = 0.08m,
+                Descripcion = "Impuesto al Valor Agregado 8%",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            },
+            new()
+            {
+                IdTipoImpuesto = 3,
+                Nombre = "IVA 0%",
+                Clave = "T00",
+                Tasa = 0.00m,
+                Descripcion = "Impuesto al Valor Agregado 0%",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            },
+            new()
+            {
+                IdTipoImpuesto = 4,
+                Nombre = "Exento",
+                Clave = "EXENTO",
+                Tasa = 0.00m,
+                Descripcion = "Exento de impuestos",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            },
+            new()
+            {
+                IdTipoImpuesto = 5,
+                Nombre = "ISR",
+                Clave = "ISR",
+                Tasa = 0.30m,
+                Descripcion = "Impuesto Sobre la Renta",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            },
+            new()
+            {
+                IdTipoImpuesto = 6,
+                Nombre = "Sin Impuesto",
+                Clave = "SINIMP",
+                Tasa = 0.00m,
+                Descripcion = "Sin impuesto aplicable",
+                Activo = true,
+                FechaCreacion = DateTime.UtcNow
+            }
+        };
+
+        await _context.Set<TipoImpuesto>().AddRangeAsync(tiposImpuesto);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Seeded {Count} tipos de impuesto successfully.", tiposImpuesto.Count);
     }
 }

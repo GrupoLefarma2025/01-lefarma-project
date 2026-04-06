@@ -1,7 +1,22 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+current_phase: 01
+status: executing
+last_updated: "2026-04-06T21:26:06.897Z"
+last_activity: 2026-04-06
+progress:
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+---
+
 # State: Lefarma CxP — Ordenes de Compra y Cuentas por Pagar
 
 **Initialized:** 2026-03-30
-**Current Phase:** Phase 1 — Context captured, ready for planning
+**Current Phase:** 01
 **Overall Progress:** 2 / 35 requirements complete (PROV-01 validated, CONF-01 mostly done)
 
 > **Updated 2026-03-31:** Code scan + Playwright audit revealed that ~70% of Phase 1 was already built.
@@ -23,12 +38,13 @@
 
 **Phase:** Phase 1 — Workflow Handlers + Proveedores + Foundation
 **Started:** 2026-03-31
-**Status:** Context captured, ready for planning
+**Status:** Executing Phase 01
 **Milestones:** 01-CONTEXT.md created with 5 gray area decisions
 
 ## Already Built (validated by code scan)
 
 ### Backend
+
 - ✅ WorkflowEngine + WorkflowService + WorkflowsController (full CRUD API at api/config/Workflows)
 - ✅ IStepHandler keyed DI pattern + Firma3Handler + Firma4Handler
 - ✅ FirmasService + FirmasController (resolves handler, executes engine)
@@ -41,6 +57,7 @@
 - ✅ DatabaseSeeder — seeds roles + permissions + role-permission mappings
 
 ### Frontend
+
 - ✅ WorkflowsList.tsx (491 lines) — CRUD with stats, search, modal
 - ✅ WorkflowDiagram.tsx (1160+ lines) — visual timeline + editor modal with 5 tabs (Pasos, Acciones, Condiciones, Participantes, Notificaciones)
 - ✅ ProveedoresList.tsx (536 lines) — CRUD with Autorizado CxP badge, Regimen Fiscal dropdown
@@ -50,12 +67,14 @@
 - ✅ Modal, Form (React Hook Form + Zod), Badge, Button patterns established
 
 ### Missing Catalog Frontend (needed in Phase 2)
+
 - ❌ BancosList.tsx — backend exists, frontend missing
 - ❌ MediosPagoList.tsx — backend exists, frontend missing
 
 ## Requirement Status
 
 ### Phase 1: Workflow Handlers + Proveedores + Foundation
+
 - [x] ~~PROV-01: Providers created inline with "Sin Autorizar" flag~~ **VALIDATED** — entity + DTOs + filter + UI badge
 - [x] ~~CONF-01: Admin configures firma levels via UI~~ **MOSTLY DONE** — WorkflowDiagram editor has full CRUD
 - [ ] WORK-01: Firma 5 (Direccion Corporativa) approval/rejection
@@ -66,6 +85,7 @@
 - [ ] CONF-02: Gerente Admon authorizes catalog contable changes
 
 ### Phase 2: Tesoreria / Pagos
+
 - [ ] TES-01: Register payments against authorized OCs
 - [ ] TES-02: Multiple partial payments until total covered
 - [ ] TES-03: Auto-calculate saldo + transition to Pagada
@@ -75,6 +95,7 @@
 - [ ] TES-07: On-demand pending payments report
 
 ### Phase 3: Comprobacion de Gastos
+
 - [ ] COMP-01: CFDI XML upload + auto-extraction
 - [ ] COMP-02: Non-deductible receipts (manual + image)
 - [ ] COMP-03: Bank deposit slip upload
@@ -87,6 +108,7 @@
 - [ ] COMP-10: Notify CxP on new comprobacion upload
 
 ### Phase 4: Reportes
+
 - [ ] REP-01: Pending payment report
 - [ ] REP-02: Pending comprobacion report
 - [ ] REP-03: Filtered by usuario, antiguedad
@@ -94,11 +116,13 @@
 - [ ] REP-05: Vendor balance aging report
 
 ### Phase 5: Integracion Contable
+
 - [ ] CONT-01: Auto poliza generation from closed OCs
 - [ ] CONT-02: CSV/XML export for external system
 - [ ] CONT-03: Bank statement import + payment matching
 
 ### Phase 6: Dashboard
+
 - [ ] DASH-01: CxP dashboard with KPIs
 - [ ] DASH-02: Tesoreria dashboard with KPIs
 
@@ -132,8 +156,9 @@ None.
 | 260330-qbk | Sistema permisos dinamicos backend [HasPermission] en endpoints | 2026-03-31 | aa12521 | [260330-qbk-sistema-practico-de-permisos-hook-ui-fun](./quick/260330-qbk-sistema-practico-de-permisos-hook-ui-fun/) |
 | 260401-31 | Cambiar tema por defecto a claro cuando no hay preferencias guardadas | 2026-04-01 | 005c2b4 | [260401-31-cambiar-tema-por-defecto-a-claro](./quick/260401-31-cambiar-tema-por-defecto-a-claro/) |
 | 260401-bi | Mejorar UI formulario órdenes de compra | 2026-04-01 | bcb38ef | [260401-bi-mejorar-ui-formulario-ordenes-crear](./quick/260401-bi-mejorar-ui-formulario-ordenes-crear/) |
+| 260406-lh4 | Crear catálogo de tipos de impuestos (IVA 16%, IVA 8%, IVA 0%, Exento, ISR, Sin Impuesto) | 2026-04-06 | pending | [260406-lh4-crear-cat-logo-de-tipos-de-impuestos-iva](./quick/260406-lh4-crear-cat-logo-de-tipos-de-impuestos-iva/) |
 
-Last activity: 2026-04-01 - Completed quick task 260401-bi: Mejorar UI formulario órdenes de compra
+Last activity: 2026-04-06
 
 ---
 

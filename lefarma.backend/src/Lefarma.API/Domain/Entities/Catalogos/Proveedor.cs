@@ -11,10 +11,8 @@ public class Proveedor
         public string? CodigoPostal { get; set; }
         public int? RegimenFiscalId { get; set; }
         public string? PersonaContacto { get; set; }
-        public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
-        public bool SinDatosFiscales { get; set; }
-        public bool AutorizadoPorCxP { get; set; }
+        public string? UsoCfdi { get; set; }
         public DateTime FechaRegistro { get; set; }
         public DateTime? FechaModificacion { get; set; }
 

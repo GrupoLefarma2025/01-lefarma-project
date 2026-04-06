@@ -9,8 +9,6 @@ import {
   Search,
   Loader2,
   RefreshCcw,
-  CheckCircle,
-  XCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,9 +26,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-  FormDescription,
 } from '@/components/ui/form';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -38,15 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 
@@ -59,10 +46,8 @@ const proveedorSchema = z.object({
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   personaContacto: z.string().optional(),
-  notaFormaPago: z.string().optional(),
   notasGenerales: z.string().optional(),
-  sinDatosFiscales: z.boolean(),
-  autorizadoPorCxP: z.boolean(),
+  usoCfdi: z.string().optional(),
 });
 
 interface Proveedor {
@@ -73,10 +58,8 @@ interface Proveedor {
   regimenFiscalId?: number;
   regimenFiscalDescripcion?: string;
   personaContacto?: string;
-  notaFormaPago?: string;
   notasGenerales?: string;
-  sinDatosFiscales: boolean;
-  autorizadoPorCxP: boolean;
+  usoCfdi?: string;
   fechaRegistro: string;
   fechaModificacion?: string;
 }
@@ -102,10 +85,6 @@ export default function ProveedoresList() {
   const [isEditing, setIsEditing] = useState(false);
   const [proveedorId, setProveedorId] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
-  const [rechazarDialogOpen, setRechazarDialogOpen] = useState(false);
-  const [rechazarProveedorId, setRechazarProveedorId] = useState<number>(0);
-  const [rechazarMotivo, setRechazarMotivo] = useState('');
-  const [isRechazando, setIsRechazando] = useState(false);
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -115,10 +94,8 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       personaContacto: '',
-      notaFormaPago: '',
       notasGenerales: '',
-      sinDatosFiscales: false,
-      autorizadoPorCxP: false,
+      usoCfdi: '',
     },
   });
 
@@ -166,10 +143,8 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       personaContacto: '',
-      notaFormaPago: '',
       notasGenerales: '',
-      sinDatosFiscales: false,
-      autorizadoPorCxP: false,
+      usoCfdi: '',
     });
     setIsEditing(false);
     setModalOpen(true);
@@ -185,10 +160,8 @@ export default function ProveedoresList() {
         codigoPostal: proveedor.codigoPostal || '',
         regimenFiscalId: proveedor.regimenFiscalId,
         personaContacto: proveedor.personaContacto || '',
-        notaFormaPago: proveedor.notaFormaPago || '',
         notasGenerales: proveedor.notasGenerales || '',
-        sinDatosFiscales: proveedor.sinDatosFiscales,
-        autorizadoPorCxP: proveedor.autorizadoPorCxP,
+        usoCfdi: proveedor.usoCfdi || '',
       });
       setIsEditing(true);
       setModalOpen(true);
@@ -236,53 +209,6 @@ export default function ProveedoresList() {
     }
   };
 
-  const handleAutorizarProveedor = async (id: number) => {
-    try {
-      const response = await API.post<ApiResponse<void>>(
-        `/catalogos/proveedores/${id}/autorizar`,
-      );
-      if (response.data.success) {
-        toast.success('Proveedor autorizado correctamente');
-        fetchProveedores();
-      } else {
-        toast.error(response.data.message ?? 'Error al autorizar el proveedor');
-      }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al autorizar el proveedor');
-    }
-  };
-
-  const handleOpenRechazarDialog = (id: number) => {
-    setRechazarProveedorId(id);
-    setRechazarMotivo('');
-    setRechazarDialogOpen(true);
-  };
-
-  const handleConfirmarRechazo = async () => {
-    if (!rechazarMotivo.trim()) {
-      toast.error('El motivo de rechazo es obligatorio');
-      return;
-    }
-    setIsRechazando(true);
-    try {
-      const response = await API.post<ApiResponse<void>>(
-        `/catalogos/proveedores/${rechazarProveedorId}/rechazar`,
-        { motivo: rechazarMotivo.trim() },
-      );
-      if (response.data.success) {
-        toast.success('Proveedor rechazado correctamente');
-        setRechazarDialogOpen(false);
-        setRechazarMotivo('');
-        fetchProveedores();
-      } else {
-        toast.error(response.data.message ?? 'Error al rechazar el proveedor');
-      }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al rechazar el proveedor');
-    } finally {
-      setIsRechazando(false);
-    }
-  };
 
   const filteredProveedores = useMemo(() => {
     return proveedores.filter((p) =>
@@ -331,62 +257,12 @@ export default function ProveedoresList() {
       ),
     },
     {
-      accessorKey: 'sinDatosFiscales',
-      header: 'Sin Datos Fiscales',
-      cell: ({ row }) => (
-        <Badge
-          variant={row.original.sinDatosFiscales ? 'default' : 'secondary'}
-          className={row.original.sinDatosFiscales ? 'bg-orange-500 hover:bg-orange-600' : ''}
-        >
-          {row.original.sinDatosFiscales ? 'Sí' : 'No'}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: 'autorizadoPorCxP',
-      header: 'Autorizado CxP',
-      cell: ({ row }) => (
-        <Badge
-          variant={row.original.autorizadoPorCxP ? 'default' : 'secondary'}
-          className={
-            row.original.autorizadoPorCxP
-              ? 'bg-green-600 hover:bg-green-700 text-white'
-              : 'bg-yellow-500 hover:bg-yellow-600 text-white'
-          }
-        >
-          {row.original.autorizadoPorCxP ? 'Autorizado' : 'Pendiente'}
-        </Badge>
-      ),
-    },
-    {
       id: 'actions',
       header: '',
       cell: ({ row }) => {
         const proveedor = row.original;
         return (
           <div className="flex items-center gap-2">
-            {!proveedor.autorizadoPorCxP && (
-              <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 border-green-600 text-green-600 hover:bg-green-50"
-                  onClick={() => handleAutorizarProveedor(proveedor.idProveedor)}
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  Autorizar
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 gap-1.5 border-red-600 text-red-600 hover:bg-red-50"
-                  onClick={() => handleOpenRechazarDialog(proveedor.idProveedor)}
-                >
-                  <XCircle className="h-3.5 w-3.5" />
-                  Rechazar
-                </Button>
-              </>
-            )}
             <Button
               size="sm"
               variant="outline"
@@ -573,20 +449,6 @@ export default function ProveedoresList() {
 
               <FormField
                 control={form.control}
-                name="notaFormaPago"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Nota Forma de Pago</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Instrucciones de pago" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="notasGenerales"
                 render={({ field }) => (
                   <FormItem className="md:col-span-2">
@@ -601,32 +463,31 @@ export default function ProveedoresList() {
 
               <FormField
                 control={form.control}
-                name="sinDatosFiscales"
+                name="usoCfdi"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Sin Datos Fiscales</FormLabel>
-                      <FormDescription>Marcar si el proveedor no tiene datos fiscales completos.</FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="autorizadoPorCxP"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Autorizado por CxP</FormLabel>
-                      <FormDescription>El proveedor está autorizado por Cuentas por Pagar.</FormDescription>
-                    </div>
+                  <FormItem>
+                    <FormLabel>Uso del CFDI</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona uso del CFDI..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="G01">G01 - Adquisición de mercancías</SelectItem>
+                        <SelectItem value="G02">G02 - Devoluciones, descuentos o bonificaciones</SelectItem>
+                        <SelectItem value="G03">G03 - Gastos en general</SelectItem>
+                        <SelectItem value="I01">I01 - Construcciones</SelectItem>
+                        <SelectItem value="I02">I02 - Mobiliario y equipo de oficina</SelectItem>
+                        <SelectItem value="I03">I03 - Equipo de transporte</SelectItem>
+                        <SelectItem value="I04">I04 - Equipo de cómputo</SelectItem>
+                        <SelectItem value="D01">D01 - Honorarios médicos</SelectItem>
+                        <SelectItem value="D02">D02 - Gastos médicos por incapacidad</SelectItem>
+                        <SelectItem value="S01">S01 - Sin efectos fiscales</SelectItem>
+                        <SelectItem value="P01">P01 - Por definir</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
                   </FormItem>
                 )}
               />
@@ -634,49 +495,6 @@ export default function ProveedoresList() {
           </form>
         </Form>
       </Modal>
-
-      <Dialog open={rechazarDialogOpen} onOpenChange={setRechazarDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Rechazar Proveedor</DialogTitle>
-            <DialogDescription>
-              Indica el motivo del rechazo. Este dato será registrado para referencia.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-2">
-            <label htmlFor="motivo-rechazo" className="text-sm font-medium">
-              Motivo del rechazo *
-            </label>
-            <Textarea
-              id="motivo-rechazo"
-              placeholder="Describe el motivo del rechazo..."
-              className="mt-2"
-              value={rechazarMotivo}
-              onChange={(e) => setRechazarMotivo(e.target.value)}
-              rows={3}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setRechazarDialogOpen(false)}
-              disabled={isRechazando}
-            >
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={isRechazando || !rechazarMotivo.trim()}
-              onClick={handleConfirmarRechazo}
-            >
-              {isRechazando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Confirmar Rechazo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

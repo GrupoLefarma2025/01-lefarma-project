@@ -1,6 +1,7 @@
-# Phase 1 Plan: Workflow Handlers + Proveedores + Foundation Entities
+# Phase 1 Plan: Provider Approval Endpoints + Frontend
 
 **Created:** 2026-03-31
+**Updated:** 2026-04-06
 **Status:** Ready for execution
 **Context:** See `01-CONTEXT.md`
 
@@ -8,527 +9,451 @@
 
 ## Execution Strategy
 
-**Total Tasks:** 12
-**Execution Order:** Sequential (each task depends on prior)
-**Estimated Complexity:** MEDIUM (most work already built)
+**Total Tasks:** 6
+**Execution Order:** Sequential
+**Estimated Complexity:** LOW
 
-Tasks are ordered by dependency chain — foundation entities first, then handlers, then seeding, then endpoints, then frontend.
-
----
-
-## Task 1: Pago Entity + Enum + EF Configuration
-
-**Type:** Backend — Foundation Entity
-**Requirement:** Foundation for Phase 2 (TES-01 through TES-07)
-**Files to CREATE:**
-
-```
-lefarma.backend/src/Lefarma.API/Domain/Entities/Operaciones/Pago.cs
-lefarma.backend/src/Lefarma.API/Domain/Entities/Operaciones/EstadoPago.cs
-lefarma.backend/src/Lefarma.API/Domain/Interfaces/Operaciones/IPagoRepository.cs
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/Operaciones/PagoConfiguration.cs
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Repositories/Operaciones/PagoRepository.cs
-```
-
-**Implementation:**
-
-### EstadoPago enum
-```csharp
-namespace Lefarma.API.Domain.Entities.Operaciones
-{
-    public enum EstadoPago
-    {
-        Pendiente = 0,
-        Aplicado = 1,
-        Cancelado = 2
-    }
-}
-```
-
-### Pago entity
-```csharp
-namespace Lefarma.API.Domain.Entities.Operaciones
-{
-    public class Pago
-    {
-        public int IdPago { get; set; }
-        public int IdOrdenCompra { get; set; }
-        public decimal Monto { get; set; }
-        public DateTime FechaPago { get; set; }
-        public int IdMedioPago { get; set; }
-        public string? Referencia { get; set; }
-        public string? Nota { get; set; }
-        public EstadoPago Estado { get; set; } = EstadoPago.Pendiente;
-        public int IdUsuarioRegistra { get; set; }
-        public DateTime FechaRegistro { get; set; }
-        public DateTime? FechaModificacion { get; set; }
-
-        // Navigation
-        public virtual OrdenCompra? OrdenCompra { get; set; }
-    }
-}
-```
-
-### IPagoRepository
-- `GetByIdAsync(int id) → Pago?`
-- `GetByOrdenAsync(int idOrden) → IEnumerable<Pago>`
-- `AddAsync(Pago pago) → Pago`
-- `UpdateAsync(Pago pago) → Pago`
-- `GetTotalPagadoByOrdenAsync(int idOrden) → decimal`
-
-### PagoConfiguration (EF)
-- `ToTable("Pagos")`
-- PK: `IdPago`
-- FK: `IdOrdenCompra → OrdenesCompra.IdOrden`
-- Required: Monto, FechaPago, IdMedioPago, Estado, IdUsuarioRegistra
-- Precision: `Monto` with `(18,2)`
-- Index on `IdOrdenCompra`
-
-### PagoRepository
-- Standard CRUD following existing repository pattern
+> **Nota:** Cada tarea tiene una validación inicial de "qué existe vs qué falta"
 
 ---
 
-## Task 2: Comprobacion Entity + Enums + EF Configuration
+## State of Implementation (as of 2026-04-06)
 
-**Type:** Backend — Foundation Entity
-**Requirement:** Foundation for Phase 3 (COMP-01 through COMP-10)
-**Files to CREATE:**
+### ✅ ALREADY BUILT
 
-```
-lefarma.backend/src/Lefarma.API/Domain/Entities/Operaciones/Comprobacion.cs
-lefarma.backend/src/Lefarma.API/Domain/Entities/Operaciones/TipoComprobacion.cs
-lefarma.backend/src/Lefarma.API/Domain/Entities/Operaciones/EstadoComprobacion.cs
-lefarma.backend/src/Lefarma.API/Domain/Interfaces/Operaciones/IComprobacionRepository.cs
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/Operaciones/ComprobacionConfiguration.cs
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Repositories/Operaciones/ComprobacionRepository.cs
-```
+| Component | Status | Location |
+|-----------|--------|----------|
+| Firma5Handler | ✅ Done | `Features/OrdenesCompra/Firmas/Handlers/Firma5Handler.cs` |
+| ComprobacionHandler (stub) | ✅ Done | `Features/OrdenesCompra/Firmas/Handlers/ComprobacionHandler.cs` |
+| Pago entity + EstadoPago enum | ✅ Done | `Domain/Entities/Operaciones/Pago.cs` |
+| PagoConfiguration + PagoRepository | ✅ Done | Infrastructure/Data |
+| Comprobacion entity + enums | ✅ Done | `Domain/Entities/Operaciones/Comprobacion.cs` |
+| ComprobacionConfiguration + Repository | ✅ Done | Infrastructure/Data |
+| Handler DI registration | ✅ Done | `Program.cs` lines 164-165 |
+| Repository DI registration | ✅ Done | `Program.cs` lines 150-151 |
+| Workflow pasos (8 pasos) | ✅ Done | `DatabaseSeeder.cs` lines 470-593 |
+| Permissions `proveedores.autorizar/rechazar` | ✅ Done | `AuthorizationConstants.cs` lines 117-118 |
+| **Permission seeding in DB** | ✅ Done | Already seeded |
+| **ProveedoresController** | ✅ Done | Already exists with CRUD endpoints |
+| API builds | ✅ Done | `dotnet build` passes |
 
-**Implementation:**
+### ❌ NOT BUILT — THIS PHASE
 
-### TipoComprobacion enum
-```csharp
-public enum TipoComprobacion
-{
-    CfdiXml = 1,        // CFDI 4.0 XML (factura electrónica SAT)
-    NoDeducible = 2,    // Ticket/recibo no deducible
-    DepositoBancario = 3 // Ficha de depósito bancario
-}
-```
-
-### EstadoComprobacion enum
-```csharp
-public enum EstadoComprobacion
-{
-    Pendiente = 0,
-    Validada = 1,
-    Rechazada = 2
-}
-```
-
-### Comprobacion entity
-```csharp
-public class Comprobacion
-{
-    public int IdComprobacion { get; set; }
-    public int IdOrdenCompra { get; set; }
-    public TipoComprobacion TipoComprobacion { get; set; }
-    public EstadoComprobacion Estado { get; set; } = EstadoComprobacion.Pendiente;
-
-    // CFDI fields (TipoComprobacion = CfdiXml)
-    public string? Uuid { get; set; }
-    public string? RfcEmisor { get; set; }
-    public string? RfcReceptor { get; set; }
-    public decimal? Subtotal { get; set; }
-    public decimal? TotalIva { get; set; }
-    public decimal? TotalRetenciones { get; set; }
-    public decimal? Total { get; set; }
-    public DateTime? FechaCfdi { get; set; }
-
-    // No Deducible / Deposito fields
-    public decimal? MontoManual { get; set; }
-    public string? Descripcion { get; set; }
-
-    // Common
-    public int IdUsuarioSube { get; set; }
-    public int? IdUsuarioValida { get; set; }
-    public string? MotivoRechazo { get; set; }
-    public DateTime FechaSubida { get; set; }
-    public DateTime? FechaValidacion { get; set; }
-    public DateTime? FechaModificacion { get; set; }
-
-    // Navigation
-    public virtual OrdenCompra? OrdenCompra { get; set; }
-}
-```
-
-### IComprobacionRepository
-- `GetByIdAsync(int id) → Comprobacion?`
-- `GetByOrdenAsync(int idOrden) → IEnumerable<Comprobacion>`
-- `GetByUuidAsync(string uuid) → Comprobacion?` (for UUID dedup in Phase 3)
-- `AddAsync(Comprobacion c) → Comprobacion`
-- `UpdateAsync(Comprobacion c) → Comprobacion`
-
-### ComprobacionConfiguration (EF)
-- `ToTable("Comprobaciones")`
-- PK: `IdComprobacion`
-- FK: `IdOrdenCompra → OrdenesCompra.IdOrden`
-- Required: TipoComprobacion, Estado, IdUsuarioSube
-- Precision: all decimal fields with `(18,2)`
-- **UNIQUE constraint** on `Uuid` (for CFDI dedup in Phase 3)
-- Index on `IdOrdenCompra`, `Uuid`
-
-### ComprobacionRepository
-- Standard CRUD following existing repository pattern
+| Component | Priority |
+|-----------|----------|
+| DTOs (RechazarProveedorRequest) | HIGH |
+| ProveedorService methods (AutorizarAsync, RechazarAsync) | HIGH |
+| **New endpoints** in ProveedoresController | HIGH |
+| Frontend API service | HIGH |
+| Frontend buttons + modals | HIGH |
 
 ---
 
-## Task 3: Register Foundation Entities in DbContext + DI
+## Task 1: Validate — DTOs
 
-**Type:** Backend — Wiring
-**Files to MODIFY:**
+**Type:** Validation
+**Purpose:** Check if RechazarProveedorRequest DTO already exists
 
-```
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs  — Add DbSet<Pago> + DbSet<Comprobacion>
-lefarma.backend/src/Lefarma.API/Program.cs                                    — Add DI for IPagoRepository, IComprobacionRepository
-```
+### Validation
 
-**ApplicationDbContext changes:**
-```csharp
-// DbSets - Operaciones (CxP)
-public DbSet<Pago> Pagos { get; set; }
-public DbSet<Comprobacion> Comprobaciones { get; set; }
-```
-
-**Program.cs DI additions (near existing repository registrations):**
-```csharp
-builder.Services.AddScoped<IPagoRepository, PagoRepository>();
-builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
-```
-
----
-
-## Task 4: Firma5Handler
-
-**Type:** Backend — Workflow Handler
-**Requirement:** WORK-01
-**Files to CREATE:**
-
-```
-lefarma.backend/src/Lefarma.API/Features/OrdenesCompra/Firmas/Handlers/Firma5Handler.cs
-```
-
-**Implementation:** Follows Firma4 pattern EXACTLY — pure approval handler, no validation, no data application. DireccionCorp just approves or rejects with comment.
-
-```csharp
-using Lefarma.API.Domain.Entities.Operaciones;
-
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
-{
-    /// <summary>
-    /// Firma 5 - Dirección Corporativa: aprobación final antes de Tesorería.
-    /// No requiere datos adicionales — es una aprobación pura.
-    /// El rechazo obligatorio se maneja via RequiereComentario en el WorkflowPaso.
-    /// </summary>
-    public class Firma5Handler : IStepHandler
-    {
-        public string HandlerKey => "Firma5Handler";
-
-        public Task<string?> ValidarAsync(OrdenCompra orden, Dictionary<string, object>? datos)
-            => Task.FromResult<string?>(null); // Aprobación pura, sin datos extra
-
-        public Task AplicarAsync(OrdenCompra orden, Dictionary<string, object>? datos)
-            => Task.CompletedTask; // No modifica la OC
-    }
-}
-```
-
----
-
-## Task 5: ComprobacionHandler (Stub)
-
-**Type:** Backend — Workflow Handler (Stub)
-**Requirement:** Foundation for Phase 3 (COMP-08)
-**Files to CREATE:**
-
-```
-lefarma.backend/src/Lefarma.API/Features/OrdenesCompra/Firmas/Handlers/ComprobacionHandler.cs
-```
-
-**Implementation:** No-op stub. Will be implemented in Phase 3 when ComprobacionService exists.
-
-```csharp
-using Lefarma.API.Domain.Entities.Operaciones;
-
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
-{
-    /// <summary>
-    /// Comprobación de Gastos — STUB para Phase 1.
-    /// Implementación real en Phase 3 (validar suma de comprobaciones, trigger cierre OC).
-    /// </summary>
-    public class ComprobacionHandler : IStepHandler
-    {
-        public string HandlerKey => "ComprobacionHandler";
-
-        public Task<string?> ValidarAsync(OrdenCompra orden, Dictionary<string, object>? datos)
-            => Task.FromResult<string?>(null);
-
-        public Task AplicarAsync(OrdenCompra orden, Dictionary<string, object>? datos)
-            => Task.CompletedTask;
-    }
-}
-```
-
----
-
-## Task 6: Register Handlers in DI
-
-**Type:** Backend — Wiring
-**Files to MODIFY:**
-
-```
-lefarma.backend/src/Lefarma.API/Program.cs — Add 2 keyed DI registrations
-```
-
-**Changes (after existing Firma3/Firma4 lines ~160-161):**
-```csharp
-builder.Services.AddKeyedScoped<IStepHandler, Firma5Handler>("Firma5Handler");
-builder.Services.AddKeyedScoped<IStepHandler, ComprobacionHandler>("ComprobacionHandler");
-```
-
----
-
-## Task 7: EF Migration
-
-**Type:** Backend — Database
-**Command:**
 ```bash
-cd lefarma.backend/src/Lefarma.API && dotnet ef migrations add AddPagoAndComprobacionEntities
+# Check if DTO exists
+ls lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/DTOs/RechazarProveedorRequest.cs
 ```
 
-**Expected outcome:** Migration creates `Pagos` and `Comprobaciones` tables with all columns, indexes, and constraints defined in Tasks 1-2.
+**If exists:** Skip this DTO, document what exists
+**If not exists:** Create it
 
----
+### If needs creation
 
-## Task 8: Workflow Seeding
-
-**Type:** Backend — Seeding
-**Requirement:** WORK-01, WORK-02, WORK-03, CONF-01
-**Files to MODIFY:**
-
-```
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Seeding/DatabaseSeeder.cs
-```
-
-**Implementation:** Add `SeedWorkflowAsync()` method called from `SeedAsync()`.
-
-**Seed data for ORDEN_COMPRA workflow:**
-
-### WorkflowConfig
-| Field | Value |
-|-------|-------|
-| Nombre | "Orden de Compra" |
-| CodigoProceso | "ORDEN_COMPRA" |
-| Version | 1 |
-| Activo | true |
-
-### Pasos (7 steps)
-| Orden | Nombre | CodigoEstado | HandlerKey | EsInicio | RequiereComentario | RequiereFirma |
-|-------|--------|-------------|------------|----------|--------------------|---------------|
-| 1 | Firma 1 - Gerente Área | EN_REVISION_F2 | null | true | false (reject yes) | true |
-| 2 | Firma 2 - CxP | EN_REVISION_F3 | Firma3Handler | false | false | true |
-| 3 | Firma 3 - GAF | EN_REVISION_F4 | Firma4Handler | false | false | true |
-| 4 | Firma 4 - Dirección Corp | EN_REVISION_F5 | Firma5Handler | false | true (reject) | true |
-| 5 | Tesorería | EN_TESORERIA | null | false | false | false |
-| 6 | Comprobación | EN_COMPROBACION | ComprobacionHandler | false | false | false |
-| 7 | Cerrada | CERRADA | null | false | false | false |
-
-### Acciones (per paso)
-Each paso gets: "Autorizar" (APROBACION) + "Rechazar" (RECHAZO) actions.
-- Autorizar: routes to next paso
-- Rechazar: routes back to step 1 or sets RECHAZADA state
-
-### Condiciones (dynamic routing on Firma 4 paso)
-| Campo | Operador | Valor | Destino |
-|-------|----------|-------|---------|
-| Total | >= | 100000 | Firma 4 - Dirección Corp |
-
-This means OCs < $100,000 MXN skip Firma5 and go directly to Tesorería from Firma 3 (GAF).
-
-### Participantes (role mapping)
-| Paso | Rol |
-|------|-----|
-| Firma 1 | GerenteArea |
-| Firma 2 | CxP |
-| Firma 3 | GerenteAdmon |
-| Firma 4 | DireccionCorp |
-| Tesorería | Tesoreria |
-
-### Notificaciones
-Each "Autorizar" action: AvisarAlSiguiente=true
-Each "Rechazar" action: AvisarAlCreador=true, AvisarAlAnterior=true
-
-**Idempotency:** Check `if (await _context.Set<Workflow>().AnyAsync()) return;` before seeding.
-
----
-
-## Task 9: New Permissions for Provider Approval
-
-**Type:** Backend — Authorization
-**Requirement:** PROV-02, PROV-03
-**Files to MODIFY:**
-
-```
-lefarma.backend/src/Lefarma.API/Shared/Constants/AuthorizationConstants.cs
-lefarma.backend/src/Lefarma.API/Infrastructure/Data/Seeding/DatabaseSeeder.cs
-```
-
-**AuthorizationConstants.cs additions:**
 ```csharp
-public static class Proveedores
+// lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/DTOs/RechazarProveedorRequest.cs
+using System.ComponentModel.DataAnnotations;
+
+namespace Lefarma.API.Features.Catalogos.Proveedores.DTOs;
+
+public class RechazarProveedorRequest
 {
-    public const string Autorizar = "proveedores.autorizar";
-    public const string Rechazar = "proveedores.rechazar";
+    [Required(ErrorMessage = "El motivo es requerido")]
+    [MinLength(10, ErrorMessage = "El motivo debe tener al menos 10 caracteres")]
+    public string Motivo { get; set; } = string.Empty;
 }
 ```
 
-**DatabaseSeeder.cs additions:**
-- 2 new permissions (IdPermiso 23 + 24): Proveedores.Autorizar, Proveedores.Rechazar
-- CxP role (IdRol=3) gets both permissions
-- GerenteAdmon role (IdRol=4) gets both permissions
-- Administrador role (IdRol=8) gets both permissions
-
 ---
 
-## Task 10: Provider Approval Endpoints
+## Task 2: Validate + Implement — ProveedorService Methods
 
-**Type:** Backend — Feature
-**Requirement:** PROV-02, PROV-03
-**Files to CREATE:**
-
-```
-lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/DTOs/AutorizarProveedorResponse.cs
-lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/DTOs/RechazarProveedorRequest.cs
-```
-
+**Type:** Backend — Service
 **Files to MODIFY:**
 
 ```
-lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedorService.cs — Add AutorizarAsync + RechazarAsync
-lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/IProveedorService.cs — Add interface methods
-lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedoresController.cs — Add 2 endpoints
+lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedorService.cs
+lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/IProveedorService.cs
 ```
 
-**ProveedorService.AutorizarAsync:**
-- Load proveedor by id
-- If not found → Error NotFound
-- If already autorizado → Error Conflict ("Proveedor ya está autorizado")
-- Set `AutorizadoPorCxP = true`, `FechaModificacion = now`
-- Log via WideEventAccessor
-- Return success response
+### Validation
 
-**ProveedorService.RechazarAsync:**
-- Load proveedor by id
-- If not found → Error NotFound
-- If not pendiente (already autorizado) → Error Conflict
-- Validate `motivo` is not empty (FluentValidation)
-- Set `AutorizadoPorCxP = false`, save motivo in NotasGenerales (or new field), `FechaModificacion = now`
-- Log via WideEventAccessor
-- Send notification to capturista (creator) via NotificationService
-- Return success response
+```bash
+# Check if methods already exist
+grep -n "AutorizarAsync\|RechazarAsync" lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/IProveedorService.cs
+grep -n "AutorizarAsync\|RechazarAsync" lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedorService.cs
+```
 
-**ProveedoresController additions:**
+**If exists:** Document what exists, verify it matches requirements
+**If not exists:** Add the methods
+
+### If needs implementation
+
+**IProveedorService additions:**
 ```csharp
-[HttpPost("{id}/autorizar")]
-[SwaggerOperation(Summary = "Autorizar proveedor para catálogo oficial")]
-// [HasPermission("proveedores.autorizar")] — if HasPermission attribute exists
-public async Task<IActionResult> Autorizar(int id)
+Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id, int idUsuario);
+Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo, int idUsuario);
+```
 
-[HttpPost("{id}/rechazar")]
-[SwaggerOperation(Summary = "Rechazar proveedor pendiente con motivo obligatorio")]
-// [HasPermission("proveedores.rechazar")]
-public async Task<IActionResult> Rechazar(int id, [FromBody] RechazarProveedorRequest request)
+**ProveedorService implementation:**
+
+```csharp
+public async Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id, int idUsuario)
+{
+    var proveedor = await _proveedorRepository.GetByIdAsync(id);
+    if (proveedor == null)
+        return Error.NotFound("Proveedor no encontrado");
+
+    if (proveedor.AutorizadoPorCxP == true)
+        return Error.Conflict("El proveedor ya está autorizado");
+
+    proveedor.AutorizadoPorCxP = true;
+    proveedor.FechaModificacion = DateTime.UtcNow;
+
+    await _proveedorRepository.UpdateAsync(proveedor);
+
+    _logger.LogInformation("Proveedor {Id} autorizado por usuario {Usuario}", id, idUsuario);
+
+    return proveedor.ToResponse();
+}
+
+public async Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo, int idUsuario)
+{
+    var proveedor = await _proveedorRepository.GetByIdAsync(id);
+    if (proveedor == null)
+        return Error.NotFound("Proveedor no encontrado");
+
+    if (proveedor.AutorizadoPorCxP == true)
+        return Error.Conflict("El proveedor ya está autorizado — no se puede rechazar");
+
+    proveedor.NotasGenerales = string.IsNullOrEmpty(proveedor.NotasGenerales)
+        ? $"[RECHAZO] {motivo}"
+        : $"{proveedor.NotasGenerales}\n[RECHAZO] {motivo}";
+    proveedor.FechaModificacion = DateTime.UtcNow;
+
+    await _proveedorRepository.UpdateAsync(proveedor);
+
+    _logger.LogInformation("Proveedor {Id} rechazado por usuario {Usuario}: {Motivo}", id, idUsuario, motivo);
+
+    // TODO: NotificationService.SendAsync() — notificar al capturista
+
+    return proveedor.ToResponse();
+}
 ```
 
 ---
 
-## Task 11: Frontend — Provider Approval Buttons
+## Task 3: Validate + Add — ProveedoresController Endpoints
 
-**Type:** Frontend — Feature
-**Requirement:** PROV-02, PROV-03
+**Type:** Backend — Controller
+**Files to MODIFY:**
+
+```
+lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedoresController.cs
+```
+
+### Validation
+
+```bash
+# Check if endpoints already exist
+grep -n '"/{id}/autorizar"\|"/{id}/rechazar"' lefarma.backend/src/Lefarma.API/Features/Catalogos/Proveedores/ProveedoresController.cs
+```
+
+**If exists:** Document what exists, verify it matches requirements
+**If not exists:** Add the new endpoints
+
+### If needs addition
+
+Add these TWO new endpoints to existing controller:
+
+```csharp
+/// <summary>
+/// Autorizar proveedor para uso en órdenes de compra
+/// </summary>
+[HttpPost("{id}/autorizar")]
+[SwaggerOperation(Summary = "Autorizar proveedor")]
+public async Task<IActionResult> Autorizar(int id)
+{
+    var userId = GetCurrentUserId(); // from claims
+    var result = await _proveedorService.AutorizarAsync(id, userId);
+    return result.Match(
+        proveedor => Ok(proveedor),
+        error => error.Code == "NotFound" ? NotFound(error) : Conflict(error)
+    );
+}
+
+/// <summary>
+/// Rechazar proveedor pendiente con motivo obligatorio
+/// </summary>
+[HttpPost("{id}/rechazar")]
+[SwaggerOperation(Summary = "Rechazar proveedor")]
+public async Task<IActionResult> Rechazar(int id, [FromBody] RechazarProveedorRequest request)
+{
+    if (!ModelState.IsValid)
+        return BadRequest(ModelState);
+
+    var userId = GetCurrentUserId(); // from claims
+    var result = await _proveedorService.RechazarAsync(id, request.Motivo, userId);
+    return result.Match(
+        proveedor => Ok(proveedor),
+        error => error.Code == "NotFound" ? NotFound(error) : Conflict(error)
+    );
+}
+```
+
+---
+
+## Task 4: Validate — Frontend API Service
+
+**Type:** Frontend — API
+**Files to MODIFY:**
+
+```
+lefarma.frontend/src/services/api.ts
+```
+
+### Validation
+
+```bash
+# Check if methods already exist
+grep -n "autorizar\|rechazar" lefarma.frontend/src/services/api.ts
+```
+
+**If exists:** Document what exists, verify it matches
+**If not exists:** Add the methods
+
+### If needs implementation
+
+```typescript
+export const proveedorApi = {
+  autorizar: (id: number) => api.post(`/catalogos/Proveedores/${id}/autorizar`),
+  rechazar: (id: number, motivo: string) => 
+    api.post(`/catalogos/Proveedores/${id}/rechazar`, { motivo }),
+};
+```
+
+---
+
+## Task 5: Validate + Implement — Frontend ProveedoresList Buttons
+
+**Type:** Frontend — UI
 **Files to MODIFY:**
 
 ```
 lefarma.frontend/src/pages/catalogos/generales/Proveedores/ProveedoresList.tsx
-lefarma.frontend/src/services/api.ts (or proveedorService.ts if it exists)
 ```
 
-**Implementation:**
-1. Add 2 action buttons to ProveedoresList DataTable: "Autorizar" (green) + "Rechazar" (red)
-2. Buttons visible ONLY when `AutorizadoPorCxP === false` and user has CxP/GerenteAdmon role
-3. "Autorizar" → confirm dialog → `POST /api/catalogos/Proveedores/{id}/autorizar` → toast success
-4. "Rechazar" → modal with Zod-validated `motivo` field (required) → `POST /api/catalogos/Proveedores/{id}/rechazar` → toast success
-5. On success: refresh table data
+### Validation
+
+```bash
+# Check if Autorizar/Rechazar buttons already exist
+grep -n "Autorizar\|Rechazar\|autorizar\|rechazar" lefarma.frontend/src/pages/catalogos/generales/Proveedores/ProveedoresList.tsx
+```
+
+**If exists:** Document what exists, verify functionality
+**If not exists:** Add buttons + modal
+
+### If needs implementation
+
+1. Add state for reject modal:
+```typescript
+const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
+const [rejectMotivo, setRejectMotivo] = useState('');
+```
+
+2. Add action buttons (visible only when `autorizadoPorCxP === false` and user has permission):
+```tsx
+{(row.autorizadoPorCxP === false && hasPermission('proveedores.autorizar')) && (
+  <>
+    <Button
+      size="sm"
+      variant="outline"
+      className="text-green-600 border-green-600 hover:bg-green-50"
+      onClick={() => handleAutorizar(row.id)}
+    >
+      <Check className="h-4 w-4 mr-1" />
+      Autorizar
+    </Button>
+    <Button
+      size="sm"
+      variant="outline"
+      className="text-red-600 border-red-600 hover:bg-red-50"
+      onClick={() => setRejectModal({ open: true, proveedorId: row.id })}
+    >
+      <X className="h-4 w-4 mr-1" />
+      Rechazar
+    </Button>
+  </>
+)}
+```
+
+3. Add reject modal:
+```tsx
+<Modal open={rejectModal.open} onClose={() => setRejectModal({ open: false, proveedorId: null })}>
+  <Modal.Header>Rechazar Proveedor</Modal.Header>
+  <Modal.Body>
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-1">Motivo de rechazo *</label>
+        <textarea
+          className="w-full border rounded px-3 py-2"
+          rows={3}
+          value={rejectMotivo}
+          onChange={(e) => setRejectMotivo(e.target.value)}
+          placeholder="Indique el motivo del rechazo (mínimo 10 caracteres)"
+        />
+      </div>
+    </div>
+  </Modal.Body>
+  <Modal.Footer>
+    <Button variant="outline" onClick={() => setRejectModal({ open: false, proveedorId: null })}>
+      Cancelar
+    </Button>
+    <Button
+      variant="destructive"
+      onClick={handleRechazar}
+      disabled={rejectMotivo.length < 10}
+    >
+      Rechazar
+    </Button>
+  </Modal.Footer>
+</Modal>
+```
+
+4. Add handler functions:
+```typescript
+const handleAutorizar = async (id: number) => {
+  if (!confirm('¿Está seguro de autorizar este proveedor?')) return;
+  try {
+    await proveedorApi.autorizar(id);
+    toast.success('Proveedor autorizado');
+    queryClient.invalidateQueries({ queryKey: ['proveedores'] });
+  } catch (error) {
+    toast.error('Error al autorizar proveedor');
+  }
+};
+
+const handleRechazar = async () => {
+  if (!rejectModal.proveedorId) return;
+  try {
+    await proveedorApi.rechazar(rejectModal.proveedorId, rejectMotivo);
+    toast.success('Proveedor rechazado');
+    setRejectModal({ open: false, proveedorId: null });
+    setRejectMotivo('');
+    queryClient.invalidateQueries({ queryKey: ['proveedores'] });
+  } catch (error) {
+    toast.error('Error al rechazar proveedor');
+  }
+};
+```
 
 ---
 
-## Task 12: Verify End-to-End
+## Task 6: E2E Verification
 
 **Type:** Verification
 **Manual tests:**
-1. Run `dotnet ef database update` — migration applies, tables created
-2. Run `dotnet run` — seeder creates workflow steps
-3. `GET /api/config/Workflows` — returns ORDEN_COMPRA workflow with 7 pasos
-4. `GET /api/config/Workflows/1/diagram` (frontend) — shows all 7 steps in diagram
-5. `POST /api/catalogos/Proveedores/1/autorizar` — sets AutorizadoPorCxP=true
-6. `POST /api/catalogos/Proveedores/2/rechazar` with `{"motivo": "RFC inválido"}` — rejects with notification
-7. Frontend ProveedoresList — "Autorizar" / "Rechazar" buttons appear for non-authorized providers
-8. Existing AutorizacionesOC page — after workflow seeding, Firma5 actions should be available when OC reaches EnRevisionF5 state
+
+1. **Provider authorization:**
+   ```bash
+   # Create a pending provider first
+   POST /api/catalogos/Proveedores
+   { "razonSocial": "Distribuidora ABC", "rfc": "DIA850101XXX" }
+
+   # Authorize it
+   POST /api/catalogos/Proveedores/{id}/autorizar
+   # Should return 200 with AutorizadoPorCxP = true
+
+   # Try to authorize again (should fail)
+   POST /api/catalogos/Proveedores/{id}/autorizar
+   # Should return 409 Conflict
+   ```
+
+2. **Provider rejection:**
+   ```bash
+   POST /api/catalogos/Proveedores/{id}/rechazar
+   { "motivo": "RFC inválido - no coincide con registros del SAT" }
+   # Should return 200
+
+   # Try with short motivo (should fail)
+   POST /api/catalogos/Proveedores/{id}/rechazar
+   { "motivo": "corto" }
+   # Should return 400 Bad Request
+   ```
+
+3. **Frontend test:**
+   ```
+   1. Login as CxP user
+   2. Navigate to /catalogos/proveedores
+   3. Verify Autorizar/Rechazar buttons appear for non-authorized providers
+   4. Click Autorizar → confirm → verify success toast
+   5. Click Rechazar → enter motivo → verify rejection
+   ```
+
+4. **Build verification:**
+   ```bash
+   dotnet build lefarma.backend/src/Lefarma.API/Lefarma.API.csproj
+   # Should succeed
+   ```
 
 ---
 
 ## Execution Order Summary
 
 ```
-Task 1: Pago entity + repo + config
+Task 1: Validate DTOs → create if missing
     ↓
-Task 2: Comprobacion entity + repo + config
+Task 2: Validate ProveedorService → add methods if missing
     ↓
-Task 3: Register in DbContext + DI
+Task 3: Validate Controller → add endpoints if missing
     ↓
-Task 4: Firma5Handler
+Task 4: Validate Frontend API → add methods if missing
     ↓
-Task 5: ComprobacionHandler (stub)
+Task 5: Validate Frontend UI → add buttons if missing
     ↓
-Task 6: Register handlers in DI
-    ↓
-Task 7: EF Migration
-    ↓
-Task 8: Workflow seeding
-    ↓
-Task 9: New permissions + seeding
-    ↓
-Task 10: Provider approval endpoints
-    ↓
-Task 11: Frontend provider approval
-    ↓
-Task 12: E2E verification
+Task 6: E2E verification
 ```
 
 ---
 
 ## Success Criteria
 
-1. ✅ Firma5Handler registered in DI and resolves correctly when workflow seeding references it
-2. ✅ OCs approved at Firma5 automatically transition to EnTesoreria (engine handles via CodigoEstado)
-3. ✅ Workflow diagram shows all 7 steps with Firma5 conditional routing (Total >= 100000)
-4. ✅ CxP can autorizar/rechazar providers via dedicated endpoints with audit trail
-5. ✅ Pago + Comprobacion tables exist in database for Phase 2/3 to build on
-6. ✅ Frontend ProveedoresList has working Autorizar/Rechazar buttons for CxP role
-7. ✅ All existing tests still pass (`dotnet test`)
-8. ✅ API builds without errors (`dotnet build`)
+1. ✅ `POST /api/catalogos/Proveedores/{id}/autorizar` sets `AutorizadoPorCxP = true`
+2. ✅ `POST /api/catalogos/Proveedores/{id}/rechazar` saves motivo
+3. ✅ Reject with short motivo returns 400 validation error
+4. ✅ Authorize already-authorized provider returns 409 conflict
+5. ✅ Frontend shows Autorizar/Rechazar buttons only for non-authorized providers
+6. ✅ Frontend shows buttons only for users with permissions
+7. ✅ API builds without errors
 
 ---
 
-*Plan created: 2026-03-31*
-*Ready for: Execution (Task 1 through Task 12)*
+## Out of Scope (Phase 2)
+
+- WorkflowAccion seeding
+- WorkflowCondicion seeding (Total >= 100000 routing)
+- WorkflowParticipante seeding
+- WorkflowNotificacion seeding
+- TesoreriaHandler (not needed — engine handles state)
+- EF Migration (tables created manually)
+
+---
+
+*Plan updated: 2026-04-06*
+*Ready for: Execution (Task 1 through Task 6)*

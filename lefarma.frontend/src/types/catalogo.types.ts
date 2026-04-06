@@ -101,6 +101,19 @@ export interface Medida {
   unidadesMedida?: UnidadMedida[];
 }
 
+// ─── Tipo de Impuesto ─────────────────────────────────────────────────────────
+
+export interface TipoImpuesto {
+  idTipoImpuesto: number;
+  nombre: string;
+  clave: string;
+  tasa: number;
+  descripcion?: string;
+  activo: boolean;
+  fechaCreacion: string;
+  fechaModificacion?: string;
+}
+
 // ─── Gasto ────────────────────────────────────────────────────────────────────
 
 export interface Gasto {

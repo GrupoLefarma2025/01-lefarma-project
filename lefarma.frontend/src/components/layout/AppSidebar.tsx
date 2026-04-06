@@ -23,6 +23,7 @@ import {
   HelpCircle,
   GitBranch,
   ShoppingCart,
+  Receipt,
 } from 'lucide-react';
 
 import {
@@ -102,6 +103,7 @@ const menuItems: SidebarMenuItem[] = [
       { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
       { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
       { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
+      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto' },
       { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo' },
       { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables' },
       { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden' },

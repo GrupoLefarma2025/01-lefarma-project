@@ -39,21 +39,13 @@ public class ProveedorConfiguration : IEntityTypeConfiguration<Proveedor>
                 .HasColumnName("persona_contacto")
                 .HasMaxLength(255);
 
-            builder.Property(e => e.NotaFormaPago)
-                .HasColumnName("nota_forma_pago")
-                .HasMaxLength(500);
-
             builder.Property(e => e.NotasGenerales)
                 .HasColumnName("notas_generales")
                 .HasMaxLength(1000);
 
-            builder.Property(e => e.SinDatosFiscales)
-                .HasColumnName("sin_datos_fiscales")
-                .HasDefaultValue(false);
-
-            builder.Property(e => e.AutorizadoPorCxP)
-                .HasColumnName("autorizado_por_cxp")
-                .HasDefaultValue(false);
+            builder.Property(e => e.UsoCfdi)
+                .HasColumnName("uso_cfdi")
+                .HasMaxLength(10);
 
             builder.Property(e => e.FechaRegistro)
                 .HasColumnName("fecha_registro")

@@ -47,12 +47,6 @@ public class ProveedorService : BaseService, IProveedorService
                 if (!string.IsNullOrWhiteSpace(query.RFC))
                     queryable = queryable.Where(p => p.RFC != null && p.RFC.Contains(query.RFC));
 
-                if (query.AutorizadoPorCxP.HasValue)
-                    queryable = queryable.Where(p => p.AutorizadoPorCxP == query.AutorizadoPorCxP.Value);
-
-                if (query.SinDatosFiscales.HasValue)
-                    queryable = queryable.Where(p => p.SinDatosFiscales == query.SinDatosFiscales.Value);
-
                 queryable = (query.OrderBy?.ToLower(), query.OrderDirection?.ToLower()) switch
                 {
                     ("razonsocial", "desc") => queryable.OrderByDescending(p => p.RazonSocial),
@@ -69,7 +63,7 @@ public class ProveedorService : BaseService, IProveedorService
                 {
                     EnrichWideEvent(action: "GetAll", count: 0, additionalContext: new Dictionary<string, object>
                     {
-                        ["filters"] = new { query.RazonSocial, query.RFC, query.AutorizadoPorCxP, query.SinDatosFiscales, query.OrderBy, query.OrderDirection }
+                        ["filters"] = new { query.RazonSocial, query.RFC, query.OrderBy, query.OrderDirection }
                     });
                     return new List<ProveedorResponse>();
                 }
@@ -78,7 +72,7 @@ public class ProveedorService : BaseService, IProveedorService
 
                 EnrichWideEvent(action: "GetAll", count: response.Count, additionalContext: new Dictionary<string, object>
                 {
-                    ["filters"] = new { query.RazonSocial, query.RFC, query.AutorizadoPorCxP, query.SinDatosFiscales, query.OrderBy, query.OrderDirection },
+                    ["filters"] = new { query.RazonSocial, query.RFC, query.OrderBy, query.OrderDirection },
                     ["items"] = response.Select(p => p.RazonSocial).ToList()
                 });
                 return response;
@@ -152,10 +146,8 @@ public class ProveedorService : BaseService, IProveedorService
                     CodigoPostal = request.CodigoPostal,
                     RegimenFiscalId = request.RegimenFiscalId,
                     PersonaContacto = request.PersonaContacto,
-                    NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
-                    SinDatosFiscales = request.SinDatosFiscales,
-                    AutorizadoPorCxP = request.AutorizadoPorCxP,
+                    UsoCfdi = request.UsoCfdi,
                     FechaRegistro = DateTime.UtcNow
                 };
 
@@ -219,10 +211,8 @@ public class ProveedorService : BaseService, IProveedorService
                 proveedor.CodigoPostal = request.CodigoPostal;
                 proveedor.RegimenFiscalId = request.RegimenFiscalId;
                 proveedor.PersonaContacto = request.PersonaContacto;
-                proveedor.NotaFormaPago = request.NotaFormaPago;
                 proveedor.NotasGenerales = request.NotasGenerales;
-                proveedor.SinDatosFiscales = request.SinDatosFiscales;
-                proveedor.AutorizadoPorCxP = request.AutorizadoPorCxP;
+                proveedor.UsoCfdi = request.UsoCfdi;
                 proveedor.FechaModificacion = DateTime.UtcNow;
 
                 var result = await _proveedorRepository.UpdateAsync(proveedor);
@@ -279,63 +269,5 @@ public class ProveedorService : BaseService, IProveedorService
             }
         }
 
-        public async Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id)
-        {
-            try
-            {
-                var proveedor = await _proveedorRepository.GetByIdAsync(id);
-                if (proveedor == null)
-                {
-                    EnrichWideEvent(action: "Autorizar", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("proveedor", id.ToString());
-                }
-
-                if (proveedor.AutorizadoPorCxP)
-                {
-                    EnrichWideEvent(action: "Autorizar", entityId: id, nombre: proveedor.RazonSocial, additionalContext: new Dictionary<string, object> { ["reason"] = "already_authorized" });
-                    return CommonErrors.AlreadyExists("proveedor", "autorización", id.ToString());
-                }
-
-                proveedor.AutorizadoPorCxP = true;
-                proveedor.FechaModificacion = DateTime.UtcNow;
-
-                var result = await _proveedorRepository.UpdateAsync(proveedor);
-                EnrichWideEvent(action: "Autorizar", entityId: id, nombre: result.RazonSocial);
-                return result.ToResponse();
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent(action: "Autorizar", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.DatabaseError("autorizar el proveedor");
-            }
-        }
-
-        public async Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo)
-        {
-            try
-            {
-                var proveedor = await _proveedorRepository.GetByIdAsync(id);
-                if (proveedor == null)
-                {
-                    EnrichWideEvent(action: "Rechazar", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("proveedor", id.ToString());
-                }
-
-                proveedor.AutorizadoPorCxP = false;
-                proveedor.NotasGenerales = string.IsNullOrWhiteSpace(motivo)
-                    ? proveedor.NotasGenerales
-                    : $"[RECHAZADO] {motivo}";
-                proveedor.FechaModificacion = DateTime.UtcNow;
-
-                var result = await _proveedorRepository.UpdateAsync(proveedor);
-                EnrichWideEvent(action: "Rechazar", entityId: id, nombre: result.RazonSocial);
-                return result.ToResponse();
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent(action: "Rechazar", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.DatabaseError("rechazar el proveedor");
-            }
-        }
     }
 }

@@ -22,32 +22,14 @@ public class CreateProveedorRequestValidator : AbstractValidator<CreateProveedor
                 .Matches(@"^\d{5}$").WithMessage("El código postal debe tener 5 dígitos")
                 .When(x => !string.IsNullOrWhiteSpace(x.CodigoPostal));
 
-            RuleFor(x => x.RegimenFiscalId)
-                .NotEmpty().WithMessage("El régimen fiscal es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
-            RuleFor(x => x.RFC)
-                .NotEmpty().WithMessage("El RFC es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
-            RuleFor(x => x.CodigoPostal)
-                .NotEmpty().WithMessage("El código postal es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
             RuleFor(x => x.PersonaContacto)
                 .MaximumLength(255).WithMessage("La persona de contacto no puede tener más de 255 caracteres");
-
-            RuleFor(x => x.NotaFormaPago)
-                .MaximumLength(500).WithMessage("La nota de forma de pago no puede tener más de 500 caracteres");
 
             RuleFor(x => x.NotasGenerales)
                 .MaximumLength(1000).WithMessage("Las notas generales no pueden tener más de 1000 caracteres");
 
-            RuleFor(x => x.SinDatosFiscales)
-                .NotNull().WithMessage("El valor de 'SinDatosFiscales' es obligatorio");
-
-            RuleFor(x => x.AutorizadoPorCxP)
-                .NotNull().WithMessage("El valor de 'AutorizadoPorCxP' es obligatorio");
+            RuleFor(x => x.UsoCfdi)
+                .MaximumLength(10).WithMessage("El uso del CFDI no puede tener más de 10 caracteres");
         }
     }
 
@@ -74,32 +56,14 @@ public class CreateProveedorRequestValidator : AbstractValidator<CreateProveedor
                 .Matches(@"^\d{5}$").WithMessage("El código postal debe tener 5 dígitos")
                 .When(x => !string.IsNullOrWhiteSpace(x.CodigoPostal));
 
-            RuleFor(x => x.RegimenFiscalId)
-                .NotEmpty().WithMessage("El régimen fiscal es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
-            RuleFor(x => x.RFC)
-                .NotEmpty().WithMessage("El RFC es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
-            RuleFor(x => x.CodigoPostal)
-                .NotEmpty().WithMessage("El código postal es obligatorio cuando el proveedor tiene datos fiscales")
-                .When(x => !x.SinDatosFiscales);
-
             RuleFor(x => x.PersonaContacto)
                 .MaximumLength(255).WithMessage("La persona de contacto no puede tener más de 255 caracteres");
-
-            RuleFor(x => x.NotaFormaPago)
-                .MaximumLength(500).WithMessage("La nota de forma de pago no puede tener más de 500 caracteres");
 
             RuleFor(x => x.NotasGenerales)
                 .MaximumLength(1000).WithMessage("Las notas generales no pueden tener más de 1000 caracteres");
 
-            RuleFor(x => x.SinDatosFiscales)
-                .NotNull().WithMessage("El valor de 'SinDatosFiscales' es obligatorio");
-
-            RuleFor(x => x.AutorizadoPorCxP)
-                .NotNull().WithMessage("El valor de 'AutorizadoPorCxP' es obligatorio");
+            RuleFor(x => x.UsoCfdi)
+                .MaximumLength(10).WithMessage("El uso del CFDI no puede tener más de 10 caracteres");
         }
     }
 

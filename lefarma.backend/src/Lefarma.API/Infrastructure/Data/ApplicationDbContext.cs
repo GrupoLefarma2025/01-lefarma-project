@@ -51,6 +51,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<RegimenFiscal> RegimenesFiscales { get; set; }
         public DbSet<Banco> Bancos { get; set; }
         public DbSet<MedioPago> MediosPago { get; set; }
+        public DbSet<TipoImpuesto> TiposImpuesto { get; set; }
 
         // DbSets - Auth/Identity
         public DbSet<Usuario> Usuarios { get; set; }

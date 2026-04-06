@@ -19,7 +19,6 @@ public class OrdenCompraResponse
         public string? CodigoPostalProveedor { get; set; }
         public string? PersonaContacto { get; set; }
         public string? NotaFormaPago { get; set; }
-        public string? NotasGenerales { get; set; }
         public int? IdCentroCosto { get; set; }
         public int? IdCuentaContable { get; set; }
         public bool RequiereComprobacionPago { get; set; }
@@ -30,6 +29,7 @@ public class OrdenCompraResponse
         public decimal TotalIva { get; set; }
         public decimal Total { get; set; }
         public List<OrdenCompraPartidaResponse> Partidas { get; set; } = new();
+        public string? NotasGenerales { get; set; }
     }
 
     public class OrdenCompraPartidaResponse
@@ -72,8 +72,8 @@ public class OrdenCompraResponse
         public int? IdRegimenFiscal { get; set; }
         public string? PersonaContacto { get; set; }
         public string? NotaFormaPago { get; set; }
-        public string? NotasGenerales { get; set; }
         public required List<CreatePartidaRequest> Partidas { get; set; }
+        public string? NotasGenerales { get; set; }
     }
 
     public class CreatePartidaRequest
