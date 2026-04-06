@@ -2,6 +2,10 @@
 
 SQL Server + Entity Framework Core 10 — migrations, schema, seed data.
 
+## Database
+
+SQL Server schema, migrations, and key entities overview.
+
 ## Connections
 
 Configuración de conexiones a base de datos.
@@ -51,4 +55,3 @@ Archivos clave de acceso a datos.
 
 - `ApplicationDbContext.cs` — DbContext principal
 
-// @lat: [[index]]

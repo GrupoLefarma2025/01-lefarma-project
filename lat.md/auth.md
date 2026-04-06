@@ -2,12 +2,40 @@
 
 Sistema de autenticación y autorización — LDAP (Active Directory) + JWT.
 
-## Authentication Flow
+## Auth
+
+Authentication (LDAP/JWT) and authorization (RBAC) overview.
+
+## Active Directory
+
+Descripción general del sistema de autenticación.
+
+### Authentication Flow
 
 Three-step login:
 1. Username → validar existe en AD
 2. Domain/password → autenticar via LDAP
 3. Empresa/sucursal → seleccionar contexto
+
+### Frontend
+
+Componentes y servicios de autenticación en el frontend.
+
+- `authStore.ts` — estado de auth (token, user, empresa, sucursal)
+- `authService.ts` — login/logout API calls
+- `PermissionGuard` — route-level permission checks
+
+### Development
+
+Master password `tt01tt` para bypass en desarrollo.
+
+### Key Files
+
+Servicios clave de autenticación.
+
+- `ActiveDirectoryService.cs` — LDAP integration
+- `TokenService.cs` — JWT generation
+- `authStore.ts` — Frontend auth state
 
 ## Active Directory
 
@@ -38,25 +66,3 @@ Issuer/Audience configurados via `JwtSettings` en appsettings.json.
 
 Permission-based policies para acceso granular.
 
-## Frontend
-
-Componentes y servicios de autenticación en el frontend.
-
-- `authStore.ts` — estado de auth (token, user, empresa, sucursal)
-- `authService.ts` — login/logout API calls
-- `PermissionGuard` — route-level permission checks
-
-## Development
-
-Master password `tt01tt` para bypass en desarrollo.
-
-## Key Files
-
-Servicios clave de autenticación.
-
-- `ActiveDirectoryService.cs` — LDAP integration
-- `TokenService.cs` — JWT generation
-- `authStore.ts` — Frontend auth state
-
-// @lat: [[index]]
-// @lat: [[backend]]

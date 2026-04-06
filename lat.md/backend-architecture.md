@@ -2,6 +2,10 @@
 
 Patrón: **Modular Monolith** con feature-based organization y vertical slices.
 
+## Architecture
+
+Data flow, patterns, error handling, and cross-cutting concerns overview.
+
 ## Data Flow
 
 Flujo de request a response a través de las capas.
@@ -81,5 +85,3 @@ RBAC con permissions. Políticas: `RequireAdministrator`, `RequireManager`, `Req
 
 `PermissionGuard` en frontend para route-level permissions.
 
-// @lat: [[backend]]
-// @lat: [[backend#Features]]

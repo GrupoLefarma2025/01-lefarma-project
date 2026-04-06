@@ -2,6 +2,10 @@
 
 Stack tecnológico completo del proyecto Lefarma.
 
+## Stack
+
+Technology stack and dependencies overview.
+
 ## Backend (.NET 10)
 
 Stack del backend .NET.
@@ -85,4 +89,3 @@ Infraestructura y servicios externos.
 - **SMTP:** mail.grupolefarma.com.mx
 - **File Storage:** Local filesystem (`wwwroot/media/`)
 
-// @lat: [[index]]

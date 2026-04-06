@@ -2,6 +2,10 @@
 
 Sistema de gestión farmacéutica — ERP para laboratorios y distribuidoras de medicamentos.
 
+## Lefarma
+
+Project overview covering the ERP system for pharmaceutical distribution.
+
 ## Stack
 
 Tecnologías utilizadas en el proyecto.
@@ -13,11 +17,11 @@ Tecnologías utilizadas en el proyecto.
 
 ## Módulos
 
-Módulos principales del sistema.
+Módulos principales del sistema — API REST, SPA frontend y base de datos.
 
-- [[backend]] — API REST en .NET 10
-- [[frontend]] — SPA en React 19
-- [[database]] — Scripts SQL y schema
+- [[lat.md\backend#Backend]] — API REST en .NET 10
+- [[lat.md\frontend#Frontend]] — SPA en React 19
+- [[lat.md\database#Database]] — Scripts SQL y schema
 
 ## Proyecto
 
@@ -27,4 +31,3 @@ Estructura del proyecto.
 - Docs: `lefarma.docs/`
 - Config: `.planning/` (GSD workflow artifacts)
 
-// @lat: [[backend]]

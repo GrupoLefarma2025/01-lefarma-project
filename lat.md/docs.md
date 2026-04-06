@@ -4,8 +4,9 @@ Documentación del proyecto — specs, planes, reportes, scripts y manuales de u
 
 ## Estructura
 
+Organización de la carpeta de documentación.
+
 ```
-lefarma.docs/
 ├── backend/           # Documentación del backend
 │   ├── api-routes.md  # Rutas API
 │   ├── dtos.md       # DTOs
@@ -73,8 +74,9 @@ Manuales de usuario en formato HTML.
 
 ## Key Files
 
+Archivos principales de documentación del proyecto.
+
 - `lefarma.docs/README.md` — README principal
 - `lefarma.docs/PROJECT.md` — Resumen del proyecto
 - `lefarma.docs/SPECS.md` — Lista de especificaciones
 
-// @lat: [[index]]

@@ -2,11 +2,29 @@
 
 API REST en .NET 10 con arquitectura Modular Monolith — vertical slices por feature.
 
-## Arquitectura
+## Overview
+
+Descripción general del backend. Arquitectura Modular Monolith con feature-based organization.
+
+### Arquitectura
 
 Capas concéntricas: Domain → Features → Infrastructure → Shared.
 
-Ver [[backend-architecture]] para detalles completos del patrón.
+Ver [[backend-architecture#Architecture]] para detalles completos del patrón.
+
+### Patrones
+
+Patrones clave implementados en el backend.
+
+### ErrorOr Pattern
+
+Servicios retornan `ErrorOr<T>` — nunca tiran excepciones por lógica de negocio.
+
+### ApiResponse Wrapper
+
+Wrapper consistente: `{ Success: bool, Message: string, Data?: T, Errors?: ErrorDetail[] }`
+
+---
 
 ## Domain
 
@@ -59,18 +77,3 @@ Utilities cross-cutting.
 ## Entry Point
 
 `Program.cs` — configuración de DI, middleware pipeline, Swagger, auth.
-
-## Patrones
-
-Patrones clave implementados en el backend.
-
-### ErrorOr Pattern
-
-Servicios retornan `ErrorOr<T>` — nunca tiran excepciones por lógica de negocio.
-
-### ApiResponse Wrapper
-
-Wrapper consistente: `{ Success: bool, Message: string, Data?: T, Errors?: ErrorDetail[] }`
-
-// @lat: [[index]]
-// @lat: [[backend-architecture]]
