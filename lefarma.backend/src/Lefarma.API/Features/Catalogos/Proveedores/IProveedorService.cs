@@ -10,5 +10,7 @@ public interface IProveedorService
         Task<ErrorOr<ProveedorResponse>> CreateAsync(CreateProveedorRequest request);
         Task<ErrorOr<ProveedorResponse>> UpdateAsync(int id, UpdateProveedorRequest request);
         Task<ErrorOr<bool>> DeleteAsync(int id);
+        Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id, int idUsuario);
+        Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo, int idUsuario);
     }
 }

@@ -13,6 +13,7 @@ public class Proveedor
         public string? PersonaContacto { get; set; }
         public string? NotasGenerales { get; set; }
         public string? UsoCfdi { get; set; }
+        public bool? AutorizadoPorCxP { get; set; }
         public DateTime FechaRegistro { get; set; }
         public DateTime? FechaModificacion { get; set; }
 

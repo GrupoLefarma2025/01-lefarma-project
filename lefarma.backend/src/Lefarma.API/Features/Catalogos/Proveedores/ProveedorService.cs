@@ -269,5 +269,69 @@ public class ProveedorService : BaseService, IProveedorService
             }
         }
 
+        public async Task<ErrorOr<ProveedorResponse>> AutorizarAsync(int id, int idUsuario)
+        {
+            try
+            {
+                var proveedor = await _proveedorRepository.GetByIdAsync(id);
+                if (proveedor == null)
+                {
+                    EnrichWideEvent(action: "Autorizar", entityId: id, notFound: true);
+                    return CommonErrors.NotFound("proveedor", id.ToString());
+                }
+
+                if (proveedor.AutorizadoPorCxP == true)
+                    return Error.Conflict("El proveedor ya está autorizado");
+
+                proveedor.AutorizadoPorCxP = true;
+                proveedor.FechaModificacion = DateTime.UtcNow;
+
+                await _proveedorRepository.UpdateAsync(proveedor);
+
+                _logger.LogInformation("Proveedor {Id} autorizado por usuario {Usuario}", id, idUsuario);
+
+                EnrichWideEvent(action: "Autorizar", entityId: id, nombre: proveedor.RazonSocial);
+                return proveedor.ToResponse();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent(action: "Autorizar", entityId: id, error: ex.GetDetailedMessage());
+                return CommonErrors.DatabaseError("autorizar el proveedor");
+            }
+        }
+
+        public async Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo, int idUsuario)
+        {
+            try
+            {
+                var proveedor = await _proveedorRepository.GetByIdAsync(id);
+                if (proveedor == null)
+                {
+                    EnrichWideEvent(action: "Rechazar", entityId: id, notFound: true);
+                    return CommonErrors.NotFound("proveedor", id.ToString());
+                }
+
+                if (proveedor.AutorizadoPorCxP == true)
+                    return Error.Conflict("El proveedor ya está autorizado — no se puede rechazar");
+
+                proveedor.NotasGenerales = string.IsNullOrEmpty(proveedor.NotasGenerales)
+                    ? $"[RECHAZO] {motivo}"
+                    : $"{proveedor.NotasGenerales}\n[RECHAZO] {motivo}";
+                proveedor.FechaModificacion = DateTime.UtcNow;
+
+                await _proveedorRepository.UpdateAsync(proveedor);
+
+                _logger.LogInformation("Proveedor {Id} rechazado por usuario {Usuario}: {Motivo}", id, idUsuario, motivo);
+
+                EnrichWideEvent(action: "Rechazar", entityId: id, nombre: proveedor.RazonSocial);
+                return proveedor.ToResponse();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent(action: "Rechazar", entityId: id, error: ex.GetDetailedMessage());
+                return CommonErrors.DatabaseError("rechazar el proveedor");
+            }
+        }
+
     }
 }

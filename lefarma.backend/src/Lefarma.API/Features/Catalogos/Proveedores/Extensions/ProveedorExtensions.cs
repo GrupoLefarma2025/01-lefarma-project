@@ -20,6 +20,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores.Extensions
                 PersonaContacto = entity.PersonaContacto,
                 NotasGenerales = entity.NotasGenerales,
                 UsoCfdi = entity.UsoCfdi,
+                AutorizadoPorCxP = entity.AutorizadoPorCxP,
                 FechaRegistro = entity.FechaRegistro,
                 FechaModificacion = entity.FechaModificacion
             };
