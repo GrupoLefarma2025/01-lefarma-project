@@ -23,8 +23,12 @@ public class GastosController : ControllerBase
 
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener todos los gastos", Description = "Retorna la lista completa de gastos con filtros opcionales")]
-    public async Task<IActionResult> GetAll(GastoRequest query)
+    public async Task<IActionResult> GetAll(GastoRequest? query)
     {
+        if(query == null)
+        {
+            query = new GastoRequest();
+        }
         var result = await _gastoService.GetAllAsync(query);
 
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<GastoResponse>>

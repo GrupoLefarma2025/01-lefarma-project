@@ -24,8 +24,12 @@ public class RegimenesFiscalesController : ControllerBase
 
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener todos los regímenes fiscales", Description = "Retorna el catálogo SAT de regímenes fiscales")]
-    public async Task<IActionResult> GetAll(RegimenFiscalRequest query)
+    public async Task<IActionResult> GetAll(RegimenFiscalRequest? query)
     {
+        if (query == null)
+        {
+            query = new RegimenFiscalRequest();
+        }
         var result = await _regimenFiscalService.GetAllAsync(query);
 
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<RegimenFiscalResponse>>

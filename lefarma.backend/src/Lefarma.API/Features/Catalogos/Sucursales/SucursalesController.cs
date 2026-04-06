@@ -1,4 +1,5 @@
 using FluentValidation;
+using Lefarma.API.Features.Catalogos.Empresas.DTOs;
 using Lefarma.API.Features.Catalogos.Sucursales;
 using Lefarma.API.Features.Catalogos.Sucursales.DTOs;
 using Lefarma.API.Shared.Authorization;
@@ -24,8 +25,12 @@ public class SucursalesController : ControllerBase
 
     [HttpGet]
     [SwaggerOperation(Summary = "Obtener todas las sucursales", Description = "Retorna la lista completa de sucursales con filtros opcionales")]
-    public async Task<IActionResult> GetAll(SucursalRequest query)
+    public async Task<IActionResult> GetAll(SucursalRequest? query)
     {
+        if (query == null)
+        {
+            query = new SucursalRequest();
+        }
         var result = await _sucursalService.GetAllAsync(query);
 
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<SucursalResponse>>

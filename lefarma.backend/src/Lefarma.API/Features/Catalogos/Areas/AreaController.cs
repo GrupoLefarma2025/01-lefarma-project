@@ -25,8 +25,12 @@ namespace Lefarma.API.Features.Catalogos
 
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener todas las áreas", Description = "Retorna la lista completa de áreas con filtros opcionales")]
-        public async Task<IActionResult> GetAllAreas(AreaRequest query)
+        public async Task<IActionResult> GetAllAreas(AreaRequest? query)
         {
+            if(query == null)
+            {
+                query = new AreaRequest();
+            }
             var result = await _areaService.GetAllAsync(query);
 
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AreaResponse>>
