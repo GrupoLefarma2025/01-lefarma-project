@@ -125,8 +125,8 @@ public class FirmasService : BaseService, IFirmasService
                         ["estadoAnterior"] = estadoAnterior,
                         ["nuevoEstado"] = orden.Estado.ToString(),
                         ["idAccion"] = request.IdAccion,
-                        ["idPasoDestino"] = resultado.NuevoIdPaso,
-                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
+                        ["idPasoDestino"] = resultado.NuevoIdPaso ?? 0,
+                        ["idNotificacionSeleccionada"] = (object)(notificacionSeleccionada?.IdNotificacion ?? 0)
                     });
 
                 return new FirmarResponse

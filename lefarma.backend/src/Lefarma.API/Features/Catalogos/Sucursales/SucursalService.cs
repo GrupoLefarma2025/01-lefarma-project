@@ -46,10 +46,10 @@ public class SucursalService : BaseService, ISucursalService
                     queryable = queryable.Where(s => s.Nombre.Contains(query.Nombre));
 
                 if (!string.IsNullOrWhiteSpace(query.Ciudad))
-                    queryable = queryable.Where(s => s.Ciudad.Contains(query.Ciudad));
+                    queryable = queryable.Where(s => s.Ciudad!.Contains(query.Ciudad));
 
                 if (!string.IsNullOrWhiteSpace(query.Estado))
-                    queryable = queryable.Where(s => s.Estado.Contains(query.Estado));
+                    queryable = queryable.Where(s => s.Estado!.Contains(query.Estado));
 
                 if (query.Activo.HasValue)
                     queryable = queryable.Where(s => s.Activo == query.Activo.Value);

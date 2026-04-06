@@ -17,7 +17,7 @@ namespace Lefarma.API.Shared.Extensions
         public static string RemoveDiacritics(this string? text)
         {
             if (string.IsNullOrWhiteSpace(text))
-                return text;
+                return text ?? string.Empty;
 
             var normalizedString = text.Normalize(NormalizationForm.FormD);
             var stringBuilder = new StringBuilder();

@@ -31,7 +31,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         {
             var result = await _service.FirmarAsync(id, request, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
-            { Success = true, Message = data.Mensaje, Data = data }));
+            { Success = true, Message = data?.Mensaje ?? string.Empty, Data = data }));
         }
 
         [HttpGet("{id}/acciones")]

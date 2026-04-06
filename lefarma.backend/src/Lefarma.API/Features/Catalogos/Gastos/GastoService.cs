@@ -113,7 +113,7 @@ public class GastoService : BaseService, IGastoService
                 if (existeConcepto)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Concepto, duplicate: true);
-                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto);
+                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto!);
                 }
 
                 var gasto = new Gasto
@@ -171,7 +171,7 @@ public class GastoService : BaseService, IGastoService
                 if (existeConcepto)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Concepto, duplicate: true);
-                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto);
+                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto!);
                 }
 
                 gasto.Nombre = request.Nombre;

@@ -29,10 +29,10 @@ namespace Lefarma.API.Infrastructure.Filters
             var requestType = context.ActionArguments
                 .Values
                 .Where(v => v != null &&
-                           !v.GetType().IsPrimitive &&
+                           !v!.GetType().IsPrimitive &&
                            !v.GetType().IsValueType &&
                            v.GetType() != typeof(string))
-                .Select(v => v.GetType())
+                .Select(v => v!.GetType())
                 .FirstOrDefault();
 
             if (requestType == null)

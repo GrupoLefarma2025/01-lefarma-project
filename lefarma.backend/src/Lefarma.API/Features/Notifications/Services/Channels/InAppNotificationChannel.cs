@@ -68,7 +68,7 @@ public class InAppNotificationChannel : INotificationChannel
                 {
                     // Check if user notification already exists
                     var existingUserNotification = await _notificationRepository.GetUserNotificationAsync(
-                        notificationId.Value, userId, ct);
+                        notificationId!.Value, userId, ct);
 
                     if (existingUserNotification != null)
                     {

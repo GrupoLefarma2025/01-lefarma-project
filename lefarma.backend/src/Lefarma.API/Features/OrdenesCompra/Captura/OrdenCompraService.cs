@@ -175,7 +175,7 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                 {
                     IdOrden = result.IdOrden,
                     IdWorkflow = workflow.IdWorkflow,
-                    IdPaso = pasoInicio.IdPaso,
+                    IdPaso = pasoInicio!.IdPaso,
                     IdAccion = accionInicial.IdAccion,
                     IdUsuario = idUsuario,
                     Comentario = "Orden de compra creada",

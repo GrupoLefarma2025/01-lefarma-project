@@ -29,7 +29,7 @@ public class UsuarioCatalogService : IUsuarioCatalogService
                 .Select(u => new UsuarioCatalogDto
                 {
                     IdUsuario = u.IdUsuario,
-                    NombreCompleto = u.NombreCompleto,
+                    NombreCompleto = u.NombreCompleto ?? string.Empty,
                     Correo = u.Correo ?? string.Empty
                 })
                 .ToListAsync(ct);

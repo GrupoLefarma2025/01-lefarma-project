@@ -445,7 +445,7 @@ public class NotificationService : INotificationService
                 .Distinct()
                 .ToListAsync(ct);
 
-            emails.AddRange(users);
+            emails.AddRange(users!);
             _logger.LogDebug("Resolved {UserCount} users to {EmailCount} emails", userIds.Count, users.Count);
         }
 

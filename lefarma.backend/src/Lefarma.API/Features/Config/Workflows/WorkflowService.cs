@@ -1117,8 +1117,8 @@ public class WorkflowService : BaseService, IWorkflowService
                         AvisarAlSiguiente = n.AvisarAlSiguiente,
                         AvisarAlAnterior = n.AvisarAlAnterior,
                         Activo = n.Activo,
-                        AsuntoTemplate = n.AsuntoTemplate,
-                        CuerpoTemplate = n.CuerpoTemplate
+                        AsuntoTemplate = n.AsuntoTemplate ?? string.Empty,
+                        CuerpoTemplate = n.CuerpoTemplate ?? string.Empty
                     }).ToList()
                 }).ToList(),
                 Condiciones = p.Condiciones.Where(c => c.Activo).Select(c => new CondicionResponse
