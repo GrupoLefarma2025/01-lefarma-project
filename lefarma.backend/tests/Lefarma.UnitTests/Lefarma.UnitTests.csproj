@@ -24,8 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Lefarma.Application\Lefarma.Application.csproj" />
-    <ProjectReference Include="..\..\src\Lefarma.Domain\Lefarma.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Lefarma.API\Lefarma.API.csproj" />
   </ItemGroup>
 
 </Project>
