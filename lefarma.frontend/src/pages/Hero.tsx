@@ -64,14 +64,14 @@ export default function Hero() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <img
             src={logoEstatico}
             alt="Grupo LeFarma"
             className="h-10 w-auto"
           />
-          <Button onClick={() => navigate('/login')} variant="outline">
+          <Button onClick={() => navigate('/login')} variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
             Iniciar Sesión
           </Button>
         </div>
