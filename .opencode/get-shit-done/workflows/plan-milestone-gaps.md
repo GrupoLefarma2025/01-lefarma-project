@@ -163,9 +163,9 @@ node "/home/zury/workplace/01-lefarma-project/.opencode/get-shit-done/bin/gsd-to
 
 **Plan first gap closure phase**
 
-`/gsd-plan-phase {N}`
+`/clear` then:
 
-<sub>`/clear` first → fresh context window</sub>
+`/gsd-plan-phase {N}`
 
 ---
 

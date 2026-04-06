@@ -423,7 +423,7 @@ git bisect bad              # or good, based on testing
 **Example:** Stale hook warning persists after update
 ```
 Check code says:  hooksDir = path.join(configDir, 'hooks')
-                  configDir = ~/.config/opencode
+                  configDir = /home/zury/workplace/01-lefarma-project/.opencode
                   → checks /home/zury/workplace/01-lefarma-project/.opencode/hooks/
 
 Installer says:   hooksDest = path.join(targetDir, 'hooks')
@@ -950,6 +950,9 @@ Gather symptoms through questioning. Update file after EACH answer.
 </step>
 
 <step name="investigation_loop">
+At investigation decision points, apply structured reasoning:
+@/home/zury/workplace/01-lefarma-project/.opencode/get-shit-done/references/thinking-models-debug.md
+
 **Autonomous investigation. Update file continuously.**
 
 **Phase 0: Check knowledge base**
@@ -970,8 +973,14 @@ Gather symptoms through questioning. Update file after EACH answer.
 - Run app/tests to observe behavior
 - APPEND to Evidence after each finding
 
+**Phase 1.5: Check common bug patterns**
+- Read @/home/zury/workplace/01-lefarma-project/.opencode/get-shit-done/references/common-bug-patterns.md
+- Match symptoms to pattern categories using the Symptom-to-Category Quick Map
+- Any matching patterns become hypothesis candidates for Phase 2
+- If no patterns match, proceed to open-ended hypothesis formation
+
 **Phase 2: Form hypothesis**
-- Based on evidence, form SPECIFIC, FALSIFIABLE hypothesis
+- Based on evidence AND common pattern matches, form SPECIFIC, FALSIFIABLE hypothesis
 - Update Current Focus with hypothesis, test, expecting, next_action
 
 **Phase 3: Test hypothesis**
