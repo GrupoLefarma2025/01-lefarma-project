@@ -1,6 +1,5 @@
-// ─── Partida (Response) ──────────────────────────────────────────────────────
+﻿// ─── Partida (Response) ──────────────────────────────────────────────────────
 
-// @lat: [[frontend#Types]]
 
 export interface OrdenCompraPartidaResponse {
   idPartida: number;
@@ -37,7 +36,7 @@ export interface OrdenCompraResponse {
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idCentroCosto?: number | null;
-  cuentaContable?: string | null;
+  cuentaContable?: number | null;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
   fechaSolicitud: string;

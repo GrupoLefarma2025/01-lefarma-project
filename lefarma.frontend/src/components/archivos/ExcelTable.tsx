@@ -1,6 +1,5 @@
-// lefarma.frontend/src/components/archivos/ExcelTable.tsx
+﻿// lefarma.frontend/src/components/archivos/ExcelTable.tsx
 
-// @lat: [[frontend#Components#Archivos]]
 
 interface ExcelTableProps {
   data: Record<string, unknown>[];

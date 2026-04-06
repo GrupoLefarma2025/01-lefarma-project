@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth {
-    // @lat: [[backend#Infrastructure]]
-    public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
+public class AuditLogConfiguration : IEntityTypeConfiguration<AuditLog>
     {
         public void Configure(EntityTypeBuilder<AuditLog> builder)
         {

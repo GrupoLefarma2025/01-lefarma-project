@@ -1,8 +1,7 @@
 using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Domain.Interfaces.Operaciones {
-    // @lat: [[backend#Domain]]
-    public interface IPagoRepository : IBaseRepository<Pago>
+public interface IPagoRepository : IBaseRepository<Pago>
     {
         Task<decimal> GetTotalPagadoByOrdenAsync(int idOrden);
     }

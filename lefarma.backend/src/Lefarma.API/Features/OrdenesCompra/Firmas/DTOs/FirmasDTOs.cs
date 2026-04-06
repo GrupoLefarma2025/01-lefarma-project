@@ -1,12 +1,11 @@
-﻿namespace Lefarma.API.Features.OrdenesCompra.Firmas.DTOs
+namespace Lefarma.API.Features.OrdenesCompra.Firmas.DTOs
 {
-// @lat: [[backend#Features]]
-    public class FirmarRequest
+public class FirmarRequest
     {
         public required int IdAccion { get; set; }
         public string? Comentario { get; set; }
-        // Datos específicos por firma: Firma3 → CentroCosto, CuentaContable
-        //                              Firma4 → RequiereComprobacionPago, RequiereComprobacionGasto
+        // Datos espec�ficos por firma: Firma3 ? CentroCosto, CuentaContable
+        //                              Firma4 ? RequiereComprobacionPago, RequiereComprobacionGasto
         public Dictionary<string, object>? DatosAdicionales { get; set; }
     }
 
@@ -24,7 +23,7 @@
         public int IdAccion { get; set; }
         public string NombreAccion { get; set; } = string.Empty;
         public string TipoAccion { get; set; } = string.Empty;
-        public string ClaseEstetica { get; set; } = string.Empty; // Para el color del botón en el frontend
+        public string ClaseEstetica { get; set; } = string.Empty; // Para el color del bot�n en el frontend
     }
 
     public class HistorialWorkflowItemResponse

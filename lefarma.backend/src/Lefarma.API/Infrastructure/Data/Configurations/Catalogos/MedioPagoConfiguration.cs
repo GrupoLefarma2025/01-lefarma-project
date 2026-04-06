@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class MedioPagoConfiguration : IEntityTypeConfiguration<MedioPago>
+public class MedioPagoConfiguration : IEntityTypeConfiguration<MedioPago>
     {
         public void Configure(EntityTypeBuilder<MedioPago> builder)
         {

@@ -3,8 +3,7 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class AreaRepository : BaseRepository<Area>, IAreaRepository
+public class AreaRepository : BaseRepository<Area>, IAreaRepository
     {
         private readonly ApplicationDbContext _context;
 

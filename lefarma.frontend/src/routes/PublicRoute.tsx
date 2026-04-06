@@ -1,7 +1,6 @@
-import { Navigate, Outlet } from 'react-router-dom';
+﻿import { Navigate, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 
-// @lat: [[frontend#Routing]]
 
 /**
  * Componente para rutas públicas (solo accesibles sin autenticación)

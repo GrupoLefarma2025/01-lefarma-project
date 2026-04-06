@@ -1,7 +1,4 @@
 namespace Lefarma.API.Domain.Entities.Catalogos;
-
-    // @lat: [[backend#Domain]]
-
 public class UsuarioDetalle
 {
     public int IdUsuario { get; set; }

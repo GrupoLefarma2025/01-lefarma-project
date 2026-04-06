@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.MediosPago.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.MediosPago
 {
-// @lat: [[backend#Features]]
-    public interface IMedioPagoService
+public interface IMedioPagoService
     {
         Task<ErrorOr<IEnumerable<MedioPagoResponse>>> GetAllAsync();
         Task<ErrorOr<MedioPagoResponse>> GetByIdAsync(int id);

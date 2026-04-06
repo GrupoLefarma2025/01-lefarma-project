@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.Proveedores.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores
 {
-// @lat: [[backend#Features]]
-    public class CreateProveedorRequestValidator : AbstractValidator<CreateProveedorRequest>
+public class CreateProveedorRequestValidator : AbstractValidator<CreateProveedorRequest>
     {
         public CreateProveedorRequestValidator()
         {

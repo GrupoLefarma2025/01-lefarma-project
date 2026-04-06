@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth {
-    // @lat: [[backend#Infrastructure]]
-    public class DominioConfigConfiguration : IEntityTypeConfiguration<DominioConfig>
+public class DominioConfigConfiguration : IEntityTypeConfiguration<DominioConfig>
     {
         public void Configure(EntityTypeBuilder<DominioConfig> builder)
         {

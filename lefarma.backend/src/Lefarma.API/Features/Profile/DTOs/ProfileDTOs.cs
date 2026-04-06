@@ -1,7 +1,4 @@
 namespace Lefarma.API.Features.Profile.DTOs;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Response con información del perfil del usuario autenticado
 /// </summary>

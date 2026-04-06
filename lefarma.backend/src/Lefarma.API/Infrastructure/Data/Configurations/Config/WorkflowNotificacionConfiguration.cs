@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Config {
-    // @lat: [[backend#Infrastructure]]
-    public class WorkflowNotificacionConfiguration : IEntityTypeConfiguration<WorkflowNotificacion>
+public class WorkflowNotificacionConfiguration : IEntityTypeConfiguration<WorkflowNotificacion>
     {
         public void Configure(EntityTypeBuilder<WorkflowNotificacion> builder)
         {

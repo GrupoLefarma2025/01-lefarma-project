@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Operaciones {
-    // @lat: [[backend#Domain]]
-    public enum EstadoComprobacion
+public enum EstadoComprobacion
     {
         Pendiente = 0,
         Validada = 1,

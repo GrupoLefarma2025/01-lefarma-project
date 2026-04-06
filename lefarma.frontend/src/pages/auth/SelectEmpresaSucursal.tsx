@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/authService';
@@ -22,7 +21,6 @@ import {
 import { Building2, Building, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
-// @lat: [[frontend#Pages]]
 
 export default function SelectEmpresaSucursal() {
   const navigate = useNavigate();

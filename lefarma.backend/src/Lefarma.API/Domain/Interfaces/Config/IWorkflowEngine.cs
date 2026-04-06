@@ -1,8 +1,7 @@
 using Lefarma.API.Domain.Entities.Config;
 
 namespace Lefarma.API.Domain.Interfaces.Config {
-    // @lat: [[backend#Domain]]
-    public interface IWorkflowEngine
+public interface IWorkflowEngine
     {
         Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext context);
         Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(string codigoProceso, int idOrden, int idUsuario);

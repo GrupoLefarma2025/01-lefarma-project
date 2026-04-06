@@ -1,7 +1,4 @@
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Configuration settings for Telegram notification channel.
 /// Maps to TelegramSettings section in appsettings.json.

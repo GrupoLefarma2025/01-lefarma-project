@@ -11,9 +11,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.API.Features.Notifications.Services;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Main service for orchestrating multi-channel notifications.
 /// Coordinates template rendering, channel delivery, and persistence.

@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { User, Palette, Server, type LucideIcon } from 'lucide-react';
 import { UIConfig } from './UIConfig';
@@ -8,7 +7,6 @@ import { SistemaConfig } from './SistemaConfig';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 
-// @lat: [[frontend#Pages]]
 
 interface TabItem {
   value: string;

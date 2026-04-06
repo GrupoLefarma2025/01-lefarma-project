@@ -1,6 +1,5 @@
-import type { ColumnDef } from '@tanstack/react-table';
+﻿import type { ColumnDef } from '@tanstack/react-table';
 
-// @lat: [[frontend#Types]]
 
 /**
  * Supported filter types based on column data type

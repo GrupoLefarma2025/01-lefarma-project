@@ -4,9 +4,6 @@ using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Seeding;
-
-    // @lat: [[backend#Infrastructure]]
-
 public class DatabaseSeeder : IDatabaseSeeder
 {
     private readonly AsokamDbContext _context;

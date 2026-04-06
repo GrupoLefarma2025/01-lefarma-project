@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.CentrosCosto.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.CentrosCosto
 {
-// @lat: [[backend#Features]]
-    public class CreateCentroCostoRequestValidator : AbstractValidator<CreateCentroCostoRequest>
+public class CreateCentroCostoRequestValidator : AbstractValidator<CreateCentroCostoRequest>
     {
         public CreateCentroCostoRequestValidator()
         {

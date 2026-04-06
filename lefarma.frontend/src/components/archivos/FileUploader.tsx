@@ -1,10 +1,9 @@
-import { useState, useCallback, useRef } from 'react';
+﻿import { useState, useCallback, useRef } from 'react';
 import { Upload, X, FileIcon, AlertCircle } from 'lucide-react';
 import { archivoService } from '@/services/archivoService';
 import type { Archivo, SubirArchivoParams } from '@/types/archivo.types';
 import { toast } from 'sonner';
 
-// @lat: [[frontend#Components#Files]]
 
 interface FileUploaderProps {
   entidadTipo: string;

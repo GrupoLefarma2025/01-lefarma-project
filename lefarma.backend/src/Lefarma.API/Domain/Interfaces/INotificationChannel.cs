@@ -1,9 +1,6 @@
 using Lefarma.API.Features.Notifications.DTOs;
 
 namespace Lefarma.API.Domain.Interfaces;
-
-    // @lat: [[backend#Domain]]
-
 /// <summary>
 /// Defines the contract for notification channel implementations.
 /// Each channel (Email, SMS, In-App, Push) implements this interface.

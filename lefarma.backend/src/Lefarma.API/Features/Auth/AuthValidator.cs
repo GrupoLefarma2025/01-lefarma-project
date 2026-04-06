@@ -2,9 +2,6 @@ using FluentValidation;
 using Lefarma.API.Features.Auth.DTOs;
 
 namespace Lefarma.API.Features.Auth;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Validator for LoginStepOneRequest.
 /// </summary>

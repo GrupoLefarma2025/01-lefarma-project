@@ -15,8 +15,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.EstatusOrden
 {
-// @lat: [[backend#Features]]
-    public class EstatusOrdenService : BaseService, IEstatusOrdenService
+public class EstatusOrdenService : BaseService, IEstatusOrdenService
     {
         private readonly IEstatusOrdenRepository _estatusOrdenRepository;
         private readonly ILogger<EstatusOrdenService> _logger;

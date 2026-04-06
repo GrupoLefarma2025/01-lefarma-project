@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class AreaConfiguration : IEntityTypeConfiguration<Area>
+public class AreaConfiguration : IEntityTypeConfiguration<Area>
     {
         public void Configure(EntityTypeBuilder<Area> builder)
         {

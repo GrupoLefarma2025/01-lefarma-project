@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useEffect, useState, useMemo } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { FilePenLine, Save, FileText, Menu } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { HelpSidebar } from '@/components/help/HelpSidebar';
@@ -20,7 +19,6 @@ import { useHelpStore } from '@/store/helpStore';
 import { helpService } from '@/services/helpService';
 import type { HelpArticle } from '@/types/help.types';
 
-// @lat: [[frontend#Pages]]
 
 export default function HelpList() {
   usePageTitle('Ayuda', 'Centro de ayuda y soporte');

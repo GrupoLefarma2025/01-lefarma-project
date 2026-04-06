@@ -16,8 +16,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores
 {
-// @lat: [[backend#Features]]
-    public class ProveedorService : BaseService, IProveedorService
+public class ProveedorService : BaseService, IProveedorService
     {
         private readonly IProveedorRepository _proveedorRepository;
         private readonly IRegimenFiscalRepository _regimenFiscalRepository;

@@ -1,11 +1,10 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ConfigState, UIConfig, PerfilConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
 import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/types/config.types';
 import { UI_PRESETS } from '@/constants/uiPresets';
 import { useAuthStore } from './authStore';
 
-// @lat: [[frontend#State Management]]
 
 const DEFAULT_UI_CONFIG: UIConfig = {
   tema: 'light',

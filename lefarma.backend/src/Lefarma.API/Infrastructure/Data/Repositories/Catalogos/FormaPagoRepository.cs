@@ -4,8 +4,7 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class FormaPagoRepository : IFormaPagoRepository
+public class FormaPagoRepository : IFormaPagoRepository
     {
         private readonly ApplicationDbContext _context;
 

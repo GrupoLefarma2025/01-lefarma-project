@@ -1,10 +1,9 @@
-/**
+﻿/**
  * Componente NotificationBell
  * Campana de notificaciones con badge de conteo
  * Se integra en el Header de la aplicación
  */
 
-// @lat: [[frontend#Components#Notifications]]
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';

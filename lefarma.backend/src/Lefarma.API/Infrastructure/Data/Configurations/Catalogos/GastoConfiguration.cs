@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class GastoConfiguration : IEntityTypeConfiguration<Gasto>
+public class GastoConfiguration : IEntityTypeConfiguration<Gasto>
     {
         public void Configure(EntityTypeBuilder<Gasto> builder)
         {

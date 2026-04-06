@@ -16,9 +16,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.CuentasContables
 {
-
-// @lat: [[backend#Features]]
-    public class CuentaContableService : BaseService, ICuentaContableService
+public class CuentaContableService : BaseService, ICuentaContableService
     {
         private readonly ICuentaContableRepository _cuentaContableRepository;
         private readonly ICentroCostoRepository _centroCostoRepository;

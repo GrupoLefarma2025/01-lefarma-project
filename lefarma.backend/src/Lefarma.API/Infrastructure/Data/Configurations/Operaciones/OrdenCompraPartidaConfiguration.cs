@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Operaciones {
-    // @lat: [[backend#Infrastructure]]
-    public class OrdenCompraPartidaConfiguration : IEntityTypeConfiguration<OrdenCompraPartida>
+public class OrdenCompraPartidaConfiguration : IEntityTypeConfiguration<OrdenCompraPartida>
     {
         public void Configure(EntityTypeBuilder<OrdenCompraPartida> builder)
         {

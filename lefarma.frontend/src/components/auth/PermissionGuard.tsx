@@ -1,8 +1,7 @@
-import { Navigate } from 'react-router-dom';
+﻿import { Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { checkPermission } from '@/utils/permissions';
 
-// @lat: [[frontend#Components#Auth]]
 
 interface PermissionGuardProps {
   require?: string | string[];

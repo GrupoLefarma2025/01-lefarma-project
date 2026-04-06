@@ -1,5 +1,4 @@
-// @lat: [[frontend#Components#Layout]]
-import { NavLink } from 'react-router-dom';
+﻿import { NavLink } from 'react-router-dom';
 import type { ElementType } from 'react';
 import {
   LayoutDashboard,
@@ -26,7 +25,6 @@ import {
   ShoppingCart,
 } from 'lucide-react';
 
-// @lat: [[frontend#Components#Layout]]
 import {
   Sidebar,
   SidebarContent,
@@ -73,7 +71,6 @@ interface CollapsibleMenuItem extends MenuItemBase {
 type SidebarMenuItem = MenuItem | CollapsibleMenuItem;
 
 function hasPermission(permission?: PermissionCheckOptions): boolean {
-  console.log('Checking permission for:', permission);
   if (!permission) return true;
   return checkPermission(permission);
 }

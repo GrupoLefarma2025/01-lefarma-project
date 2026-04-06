@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';

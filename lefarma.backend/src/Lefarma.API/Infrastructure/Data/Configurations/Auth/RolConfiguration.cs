@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth {
-    // @lat: [[backend#Infrastructure]]
-    public class RolConfiguration : IEntityTypeConfiguration<Rol>
+public class RolConfiguration : IEntityTypeConfiguration<Rol>
     {
         public void Configure(EntityTypeBuilder<Rol> builder)
         {

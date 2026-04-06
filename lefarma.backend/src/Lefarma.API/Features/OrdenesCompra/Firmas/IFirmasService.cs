@@ -1,11 +1,9 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
-
-// @lat: [[backend#Features]]
-    public interface IFirmasService
+public interface IFirmasService
     {
         Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario);
         Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesAsync(int idOrden, int idUsuario);

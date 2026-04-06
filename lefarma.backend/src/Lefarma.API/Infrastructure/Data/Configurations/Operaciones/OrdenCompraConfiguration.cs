@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Operaciones {
-    // @lat: [[backend#Infrastructure]]
-    public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
+public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
     {
         public void Configure(EntityTypeBuilder<OrdenCompra> builder)
         {
@@ -30,7 +29,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Operaciones {
             builder.Property(o => o.NotaFormaPago).HasColumnName("nota_forma_pago").HasMaxLength(500);
             builder.Property(o => o.NotasGenerales).HasColumnName("notas_generales").HasMaxLength(1000);
             builder.Property(o => o.IdCentroCosto).HasColumnName("id_centro_costo");
-            builder.Property(o => o.CuentaContable).HasColumnName("cuenta_contable").HasMaxLength(30);
+            builder.Property(o => o.IdCuentaContable).HasColumnName("id_cuenta_contable");
             builder.Property(o => o.RequiereComprobacionPago).HasColumnName("requiere_comprobacion_pago").HasDefaultValue(true);
             builder.Property(o => o.RequiereComprobacionGasto).HasColumnName("requiere_comprobacion_gasto").HasDefaultValue(true);
             builder.Property(o => o.FechaSolicitud).HasColumnName("fecha_solicitud");

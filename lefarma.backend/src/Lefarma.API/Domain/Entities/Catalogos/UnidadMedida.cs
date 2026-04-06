@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Catalogos {
-    // @lat: [[backend#Domain]]
-    public class UnidadMedida
+public class UnidadMedida
     {
         public int IdUnidadMedida { get; set; }
         public int IdMedida { get; set; }

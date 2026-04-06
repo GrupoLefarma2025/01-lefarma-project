@@ -1,7 +1,6 @@
-﻿namespace Lefarma.API.Features.Config.Workflows.DTOs
+namespace Lefarma.API.Features.Config.Workflows.DTOs
 {
-// @lat: [[backend#Features]]
-    // ============================================================================
+// ============================================================================
     // Response DTOs auxiliares (deben estar antes de WorkflowResponse)
     // ============================================================================
     public class CondicionResponse

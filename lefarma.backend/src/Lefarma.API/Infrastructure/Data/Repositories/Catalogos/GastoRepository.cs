@@ -3,8 +3,7 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class GastoRepository : BaseRepository<Gasto>, IGastoRepository
+public class GastoRepository : BaseRepository<Gasto>, IGastoRepository
     {
         private readonly ApplicationDbContext _context;
         public GastoRepository(ApplicationDbContext context) : base(context)

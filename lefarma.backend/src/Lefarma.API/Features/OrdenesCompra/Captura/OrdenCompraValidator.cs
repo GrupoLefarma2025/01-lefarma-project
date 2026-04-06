@@ -1,11 +1,9 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-
-// @lat: [[backend#Features]]
-    public class CreateOrdenCompraRequestValidator : AbstractValidator<CreateOrdenCompraRequest>
+public class CreateOrdenCompraRequestValidator : AbstractValidator<CreateOrdenCompraRequest>
     {
         public CreateOrdenCompraRequestValidator()
         {
@@ -15,7 +13,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             RuleFor(x => x.IdTipoGasto).GreaterThan(0);
             RuleFor(x => x.IdFormaPago).GreaterThan(0);
             RuleFor(x => x.FechaLimitePago).GreaterThan(DateTime.Today)
-                .WithMessage("La fecha límite de pago debe ser futura.");
+                .WithMessage("La fecha l�mite de pago debe ser futura.");
             RuleFor(x => x.RazonSocialProveedor).NotEmpty().MaximumLength(255);
             RuleFor(x => x.RfcProveedor)
                 .Length(12, 13).WithMessage("El RFC debe tener 12 o 13 caracteres.")

@@ -2,8 +2,7 @@ using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
 {
-// @lat: [[backend#Features]]
-    public class Firma5Handler : IStepHandler
+public class Firma5Handler : IStepHandler
     {
         public string HandlerKey => "Firma5Handler";
 

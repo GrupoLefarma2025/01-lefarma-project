@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Lefarma.API.Domain.Entities.Catalogos {
-    // @lat: [[backend#Domain]]
-    public class Sucursal
+public class Sucursal
     {
         public int IdSucursal { get; set; }
         public int IdEmpresa { get; set; }

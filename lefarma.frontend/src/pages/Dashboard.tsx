@@ -1,10 +1,8 @@
-// @lat: [[frontend#Pages]]
-import { usePageTitle } from '@/hooks/usePageTitle';
+﻿import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, Users, Shield, Package, BarChart3, TrendingUp } from 'lucide-react';
 // import { PermissionGuard } from '@/components/permissions/PermissionGuard';
 
-// @lat: [[frontend#Pages]]
 
 export default function Dashboard() {
   usePageTitle('Dashboard', 'Panel de control');

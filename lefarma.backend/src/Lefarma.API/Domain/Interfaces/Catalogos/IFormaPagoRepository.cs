@@ -1,8 +1,7 @@
 using Lefarma.API.Domain.Entities.Catalogos;
 
 namespace Lefarma.API.Domain.Interfaces.Catalogos {
-    // @lat: [[backend#Domain]]
-    public interface IFormaPagoRepository
+public interface IFormaPagoRepository
     {
         Task<IEnumerable<FormaPago?>> GetAllAsync();
         Task<FormaPago?> GetByIdAsync(int id);

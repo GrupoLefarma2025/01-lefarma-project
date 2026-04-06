@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Config {
-    // @lat: [[backend#Domain]]
-    public class WorkflowBitacora
+public class WorkflowBitacora
     {
         public int IdEvento { get; set; }
         public int IdOrden { get; set; }

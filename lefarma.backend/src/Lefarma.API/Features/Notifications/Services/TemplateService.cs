@@ -4,9 +4,6 @@ using Lefarma.API.Features.Notifications.DTOs;
 using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Notifications.Services;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Service for rendering templates for notifications.
 /// Uses Handlebars.net for simple template rendering with variable substitution.

@@ -1,4 +1,4 @@
-﻿using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
@@ -9,9 +9,7 @@ using System.Security.Claims;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-
-// @lat: [[backend#Features]]
-    [Route("api/ordenes")]
+[Route("api/ordenes")]
     [ApiController]
     [EndpointGroupName("OrdenesCompra")]
 //    [HasPermission(Permissions.OrdenesCompra.View)]
@@ -24,12 +22,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
         [HttpGet]
-        [SwaggerOperation(Summary = "Obtener órdenes de compra con filtros")]
+        [SwaggerOperation(Summary = "Obtener �rdenes de compra con filtros")]
         public async Task<IActionResult> GetAll([FromQuery] OrdenCompraRequest query)
         {
             var result = await _service.GetAllAsync(query, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
-            { Success = true, Message = "Órdenes obtenidas exitosamente.", Data = data }));
+            { Success = true, Message = "�rdenes obtenidas exitosamente.", Data = data }));
         }
 
         [HttpGet("{id}")]

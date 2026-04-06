@@ -12,9 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Catalogos.Bancos
 {
-
-// @lat: [[backend#Features]]
-    public class BancoService : BaseService, IBancoService
+public class BancoService : BaseService, IBancoService
     {
         private readonly IBancoRepository _bancoRepository;
         private readonly ILogger<BancoService> _logger;

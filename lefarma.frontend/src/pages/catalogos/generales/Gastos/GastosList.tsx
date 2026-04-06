@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Receipt, Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
@@ -100,7 +99,6 @@ export default function GastosList() {
     formGasto.setValue('cuentaCatalogo', partes.join('-'), { shouldDirty: false, shouldTouch: false });
   }, [cuenta, subCuenta, analitica, integracion]);
 
-  // @lat: [[frontend#API Integration#Error Handling]]
   const fetchGastos = async () => {
     try {
       setLoading(true);

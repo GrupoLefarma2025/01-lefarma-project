@@ -1,7 +1,4 @@
 namespace Lefarma.API.Shared.Logging;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Wide Event - a single rich event emitted per request with full business context.
 /// Based on loggingsucks.com philosophy.

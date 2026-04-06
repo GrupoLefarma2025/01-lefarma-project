@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
@@ -17,7 +17,6 @@ import { Loader2, FileText, Search, RefreshCcw, ChevronDown, ChevronRight } from
 import { toast } from 'sonner';
 import type { OrdenCompraResponse, OrdenCompraPartidaResponse } from '@/types/ordenCompra.types';
 
-// @lat: [[frontend#Pages]]
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -577,12 +576,14 @@ export default function AutorizacionesOC() {
                                 ? 'border-zinc-300 bg-zinc-100 dark:bg-zinc-900/40 dark:border-zinc-700 opacity-70'
                                 : 'border-border/70 bg-muted/20 opacity-60';
                           return (
-                            <button
-                              type="button"
+                            <div
+                              role="button"
+                              tabIndex={0}
                               key={paso.idPaso}
                               data-paso-id={paso.idPaso}
                               onClick={() => setExpandedPasoId(prev => (prev === paso.idPaso ? null : paso.idPaso))}
-                              className={`w-full text-left rounded-md border p-3 transition ${classes} ${isExpanded ? 'ring-2 ring-primary/40' : ''}`}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setExpandedPasoId(prev => (prev === paso.idPaso ? null : paso.idPaso)); }}
+                              className={`w-full text-left rounded-md border p-3 transition cursor-pointer ${classes} ${isExpanded ? 'ring-2 ring-primary/40' : ''}`}
                             >
                               <div className="flex items-center justify-between gap-2">
                                 <div className="flex items-center gap-2">
@@ -658,7 +659,7 @@ export default function AutorizacionesOC() {
                                   )}
                                 </div>
                               )}
-                            </button>
+                            </div>
                           );
                         })}
                       </div>

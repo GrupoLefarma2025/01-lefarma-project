@@ -1,7 +1,6 @@
 namespace Lefarma.API.Features.Catalogos.MediosPago.DTOs
 {
-// @lat: [[backend#Features]]
-    public class MedioPagoResponse
+public class MedioPagoResponse
     {
         public int IdMedioPago { get; set; }
         public string Nombre { get; set; } = string.Empty;

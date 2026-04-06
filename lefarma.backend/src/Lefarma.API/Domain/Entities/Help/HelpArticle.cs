@@ -1,7 +1,4 @@
 namespace Lefarma.API.Domain.Entities.Help;
-
-    // @lat: [[backend#Domain]]
-
 public class HelpArticle
 {
     public int Id { get; set; }

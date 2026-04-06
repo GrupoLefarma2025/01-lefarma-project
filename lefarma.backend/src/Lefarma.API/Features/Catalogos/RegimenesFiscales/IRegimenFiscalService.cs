@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.RegimenesFiscales.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.RegimenesFiscales
 {
-// @lat: [[backend#Features]]
-    public interface IRegimenFiscalService
+public interface IRegimenFiscalService
     {
         Task<ErrorOr<IEnumerable<RegimenFiscalResponse>>> GetAllAsync(RegimenFiscalRequest query);
         Task<ErrorOr<RegimenFiscalResponse>> GetByIdAsync(int id);

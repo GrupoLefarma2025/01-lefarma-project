@@ -1,6 +1,5 @@
-import { API } from './api';
+﻿import { API } from './api';
 
-// @lat: [[frontend#API Integration]]
 
 export interface BackendConfigResponse {
   jwt: {

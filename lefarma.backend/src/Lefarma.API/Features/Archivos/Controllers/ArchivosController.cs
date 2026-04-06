@@ -7,9 +7,6 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Archivos.Controllers;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Controlador API para gestión de archivos.
 /// </summary>

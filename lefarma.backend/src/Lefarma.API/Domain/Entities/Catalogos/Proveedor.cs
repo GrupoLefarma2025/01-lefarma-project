@@ -2,8 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Lefarma.API.Domain.Entities.Catalogos {
-    // @lat: [[backend#Domain]]
-    public class Proveedor
+public class Proveedor
     {
         public int IdProveedor { get; set; }
         public string RazonSocial { get; set; } = null!;

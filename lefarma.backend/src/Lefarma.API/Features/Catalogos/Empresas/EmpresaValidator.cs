@@ -1,10 +1,9 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Lefarma.API.Features.Catalogos.Empresas.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Empresas
 {
-// @lat: [[backend#Features]]
-    public class EmpresaQueryRequestValidator : AbstractValidator<EmpresaRequest>
+public class EmpresaQueryRequestValidator : AbstractValidator<EmpresaRequest>
     {
         public EmpresaQueryRequestValidator()
         {
@@ -32,28 +31,28 @@ namespace Lefarma.API.Features.Catalogos.Empresas
                 .MinimumLength(3).WithMessage("El nombre debe tener al menos 3 caracteres");
 
             RuleFor(x => x.RazonSocial)
-                .MaximumLength(255).WithMessage("La razón social no puede exceder 255 caracteres")
+                .MaximumLength(255).WithMessage("La raz�n social no puede exceder 255 caracteres")
                 .When(x => !string.IsNullOrEmpty(x.RazonSocial));
 
             RuleFor(x => x.RFC)
                 .Length(12, 13).WithMessage("El RFC debe tener entre 12 y 13 caracteres")
-                .Matches(@"^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$")
-                    .WithMessage("El RFC no tiene un formato válido");
+                .Matches(@"^[A-Z�&]{3,4}\d{6}[A-Z0-9]{3}$")
+                    .WithMessage("El RFC no tiene un formato v�lido");
 
             RuleFor(x => x.Email)
-                .EmailAddress().WithMessage("El email no tiene un formato válido")
+                .EmailAddress().WithMessage("El email no tiene un formato v�lido")
                 .When(x => !string.IsNullOrEmpty(x.Email));
 
             RuleFor(x => x.CodigoPostal)
-                .Matches(@"^\d{5}$").WithMessage("El código postal debe tener 5 dígitos")
+                .Matches(@"^\d{5}$").WithMessage("El c�digo postal debe tener 5 d�gitos")
                 .When(x => !string.IsNullOrEmpty(x.CodigoPostal));
 
             RuleFor(x => x.Telefono)
-                .Matches(@"^\d{10}$").WithMessage("El teléfono debe tener 10 dígitos")
+                .Matches(@"^\d{10}$").WithMessage("El tel�fono debe tener 10 d�gitos")
                 .When(x => !string.IsNullOrEmpty(x.Telefono));
 
             RuleFor(x => x.Direccion)
-                .MaximumLength(500).WithMessage("La dirección no puede exceder 500 caracteres")
+                .MaximumLength(500).WithMessage("La direcci�n no puede exceder 500 caracteres")
                 .When(x => !string.IsNullOrEmpty(x.Direccion));
         }
     }
@@ -64,7 +63,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas
         {
             RuleFor(x => x.IdEmpresa)
             .NotEmpty().WithMessage("El IdEmpresa es obligatorio")
-            .GreaterThan(0).WithMessage("El IdEmpresa debe ser un número mayor a 0");
+            .GreaterThan(0).WithMessage("El IdEmpresa debe ser un n�mero mayor a 0");
 
             RuleFor(x => x.Nombre)
                 .NotEmpty().WithMessage("El nombre de la empresa es obligatorio")
@@ -72,28 +71,28 @@ namespace Lefarma.API.Features.Catalogos.Empresas
                 .MinimumLength(3).WithMessage("El nombre debe tener al menos 3 caracteres");
 
             RuleFor(x => x.RazonSocial)
-                .MaximumLength(255).WithMessage("La razón social no puede exceder 255 caracteres")
+                .MaximumLength(255).WithMessage("La raz�n social no puede exceder 255 caracteres")
                 .When(x => !string.IsNullOrEmpty(x.RazonSocial));
 
             RuleFor(x => x.RFC)
                 .Length(12, 13).WithMessage("El RFC debe tener entre 12 y 13 caracteres")
-                .Matches(@"^[A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3}$")
-                    .WithMessage("El RFC no tiene un formato válido");
+                .Matches(@"^[A-Z�&]{3,4}\d{6}[A-Z0-9]{3}$")
+                    .WithMessage("El RFC no tiene un formato v�lido");
 
             RuleFor(x => x.Email)
-                .EmailAddress().WithMessage("El email no tiene un formato válido")
+                .EmailAddress().WithMessage("El email no tiene un formato v�lido")
                 .When(x => !string.IsNullOrEmpty(x.Email));
 
             RuleFor(x => x.CodigoPostal)
-                .Matches(@"^\d{5}$").WithMessage("El código postal debe tener 5 dígitos")
+                .Matches(@"^\d{5}$").WithMessage("El c�digo postal debe tener 5 d�gitos")
                 .When(x => !string.IsNullOrEmpty(x.CodigoPostal));
 
             RuleFor(x => x.Telefono)
-                .Matches(@"^\d{10}$").WithMessage("El teléfono debe tener 10 dígitos")
+                .Matches(@"^\d{10}$").WithMessage("El tel�fono debe tener 10 d�gitos")
                 .When(x => !string.IsNullOrEmpty(x.Telefono));
 
             RuleFor(x => x.Direccion)
-                .MaximumLength(500).WithMessage("La dirección no puede exceder 500 caracteres")
+                .MaximumLength(500).WithMessage("La direcci�n no puede exceder 500 caracteres")
                 .When(x => !string.IsNullOrEmpty(x.Direccion));
         }
     }

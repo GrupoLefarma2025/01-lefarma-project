@@ -1,8 +1,7 @@
 using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Domain.Interfaces.Operaciones {
-    // @lat: [[backend#Domain]]
-    public interface IOrdenCompraRepository : IBaseRepository<OrdenCompra>
+public interface IOrdenCompraRepository : IBaseRepository<OrdenCompra>
     {
         Task<OrdenCompra?> GetWithPartidasAsync(int idOrden);
         Task<ICollection<OrdenCompra>> GetByEstadoAsync(EstadoOC estado);

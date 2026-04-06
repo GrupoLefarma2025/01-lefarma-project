@@ -2,9 +2,6 @@ using FluentValidation;
 using Lefarma.API.Features.Profile.DTOs;
 
 namespace Lefarma.API.Features.Profile;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Validador para actualización de perfil
 /// </summary>

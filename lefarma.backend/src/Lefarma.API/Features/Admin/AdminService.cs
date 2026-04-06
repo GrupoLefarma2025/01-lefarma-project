@@ -10,9 +10,6 @@ using Lefarma.API.Shared.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Admin;
-
-// @lat: [[backend#Features]]
-
 public class AdminService : BaseService, IAdminService
 {
     private readonly IAdminRepository _repository;

@@ -1,5 +1,4 @@
-// @lat: [[frontend#Components#Table]]
-import { Badge } from '@/components/ui/badge';
+﻿import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
 import type { ColumnFilter } from '@/types/table.types';

@@ -2,8 +2,7 @@ using Lefarma.API.Features.Catalogos.EstatusOrden.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.EstatusOrden.Extensions
 {
-// @lat: [[backend#Features]]
-    public static class EstatusOrdenExtensions
+public static class EstatusOrdenExtensions
     {
         public static EstatusOrdenResponse ToResponse(this Lefarma.API.Domain.Entities.Catalogos.EstatusOrden entity)
         {

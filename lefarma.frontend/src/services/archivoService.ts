@@ -1,4 +1,4 @@
-import { API } from './api';
+﻿import { API } from './api';
 import type { 
   Archivo, 
   ArchivoListItem, 
@@ -7,7 +7,6 @@ import type {
   ReemplazarArchivoParams 
 } from '@/types/archivo.types';
 
-// @lat: [[frontend#API Integration]]
 
 const BASE_URL = '/archivos';
 

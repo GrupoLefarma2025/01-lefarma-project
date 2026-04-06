@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.Medidas.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Medidas
 {
-// @lat: [[backend#Features]]
-    public interface IMedidaService
+public interface IMedidaService
     {
         Task<ErrorOr<IEnumerable<MedidaResponse>>> GetAllAsync(MedidaRequest query);
         Task<ErrorOr<MedidaResponse>> GetByIdAsync(int id);

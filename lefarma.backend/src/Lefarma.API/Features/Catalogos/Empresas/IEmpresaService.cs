@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.Empresas.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Empresas
 {
-// @lat: [[backend#Features]]
-    public interface IEmpresaService
+public interface IEmpresaService
     {
         Task<ErrorOr<IEnumerable<EmpresaResponse>>> GetAllAsync(EmpresaRequest query);
         Task<ErrorOr<EmpresaResponse>> GetByIdAsync(int id);

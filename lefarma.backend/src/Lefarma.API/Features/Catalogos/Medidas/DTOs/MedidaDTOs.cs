@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.UnidadesMedida.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Medidas.DTOs
 {
-// @lat: [[backend#Features]]
-    public class MedidaResponse
+public class MedidaResponse
     {
         public int IdMedida { get; set; }
         public string Nombre { get; set; } = null!;

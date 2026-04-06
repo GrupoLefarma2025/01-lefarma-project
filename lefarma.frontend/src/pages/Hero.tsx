@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useNavigate } from 'react-router-dom';
+﻿import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,

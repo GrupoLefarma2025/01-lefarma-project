@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth {
-    // @lat: [[backend#Infrastructure]]
-    public class SesionConfiguration : IEntityTypeConfiguration<Sesion>
+public class SesionConfiguration : IEntityTypeConfiguration<Sesion>
     {
         public void Configure(EntityTypeBuilder<Sesion> builder)
         {

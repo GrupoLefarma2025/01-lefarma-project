@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
+﻿import { useMemo } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 
-// @lat: [[frontend#Hooks]]
 
 function normalizeCodes(codes: string | string[]): string[] {
   const arr = Array.isArray(codes) ? codes : [codes];

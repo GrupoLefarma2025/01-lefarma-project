@@ -1,9 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 
 namespace Lefarma.API.Shared.Authorization;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Shortcut attribute for permission-based authorization.
 /// Usage: [HasPermission("catalogos.view")] at class or method level.

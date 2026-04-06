@@ -6,9 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Auth.Roles;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Controller for Rol catalog operations
 /// </summary>

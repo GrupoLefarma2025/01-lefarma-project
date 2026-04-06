@@ -1,12 +1,11 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lefarma.API.Shared.Extensions
 {
-    // @lat: [[backend-architecture#Key Abstractions]]
-    public static class ResultExtensions
+public static class ResultExtensions
     {
         public static IActionResult ToActionResult<T>(
             this ErrorOr<T> result,

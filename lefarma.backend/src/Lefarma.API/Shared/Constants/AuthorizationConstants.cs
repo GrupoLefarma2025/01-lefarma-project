@@ -1,7 +1,4 @@
 namespace Lefarma.API.Shared.Constants;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Defines the system roles based on Section 17 of the specification.
 /// </summary>

@@ -1,6 +1,5 @@
-import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
+﻿import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
 
-// @lat: [[frontend#API Integration]]
 
 const SSE_URL = import.meta.env.VITE_API_URL 
   ? `${import.meta.env.VITE_API_URL}/auth/sse`

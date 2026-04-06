@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, FormEvent, useEffect } from 'react';
+﻿import { useState, FormEvent, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -20,7 +19,6 @@ import {
 import { Lock, User, AlertCircle, ArrowLeft, CheckCircle, Building2, Building, MapPin } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
-// @lat: [[frontend#Pages]]
 
 const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-HN': 'LeFarma Honduras',

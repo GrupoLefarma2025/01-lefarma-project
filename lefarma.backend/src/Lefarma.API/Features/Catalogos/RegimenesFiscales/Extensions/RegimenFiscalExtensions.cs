@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.RegimenesFiscales.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.RegimenesFiscales.Extensions
 {
-// @lat: [[backend#Features]]
-    public static class RegimenFiscalExtensions
+public static class RegimenFiscalExtensions
     {
         public static RegimenFiscalResponse ToResponse(this RegimenFiscal entity)
         {

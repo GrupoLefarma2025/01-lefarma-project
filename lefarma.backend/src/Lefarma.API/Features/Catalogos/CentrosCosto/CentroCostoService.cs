@@ -16,9 +16,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.CentrosCosto
 {
-
-// @lat: [[backend#Features]]
-    public class CentroCostoService : BaseService, ICentroCostoService
+public class CentroCostoService : BaseService, ICentroCostoService
     {
         private readonly ICentroCostoRepository _centroCostoRepository;
         private readonly ILogger<CentroCostoService> _logger;

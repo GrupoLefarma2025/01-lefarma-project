@@ -1,9 +1,6 @@
 using Lefarma.API.Domain.Entities.Archivos;
 
 namespace Lefarma.API.Domain.Interfaces;
-
-    // @lat: [[backend#Domain]]
-
 public interface IArchivoRepository
 {
     Task<Archivo> CreateAsync(Archivo archivo, CancellationToken cancellationToken = default);

@@ -1,9 +1,8 @@
-/**
+﻿/**
  * Tipos para el sistema de notificaciones de Lefarma
  * Soporta múltiples canales: email, telegram, in-app
  */
 
-// @lat: [[frontend#Types]]
 
 // ============= Notificaciones =============
 

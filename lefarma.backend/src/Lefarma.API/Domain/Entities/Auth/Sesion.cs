@@ -1,7 +1,4 @@
 namespace Lefarma.API.Domain.Entities.Auth;
-
-    // @lat: [[backend#Domain]]
-
 public class Sesion
 {
     public long IdSesion { get; set; }

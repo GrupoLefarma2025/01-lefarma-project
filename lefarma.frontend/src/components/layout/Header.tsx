@@ -1,5 +1,4 @@
-// @lat: [[frontend#Components#Layout]]
-import { useAuthStore } from '@/store/authStore';
+﻿import { useAuthStore } from '@/store/authStore';
 import { usePageStore } from '@/store/pageStore';
 import { useConfigStore } from '@/store/configStore';
 import { useNavigate } from 'react-router-dom';

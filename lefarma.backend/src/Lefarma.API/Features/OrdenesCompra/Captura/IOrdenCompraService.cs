@@ -1,11 +1,9 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-
-// @lat: [[backend#Features]]
-    public interface IOrdenCompraService
+public interface IOrdenCompraService
     {
         Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario);
         Task<ErrorOr<OrdenCompraResponse>> GetByIdAsync(int id);

@@ -7,9 +7,6 @@ using Lefarma.API.Shared.Models;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Help.Controllers;
-
-// @lat: [[backend#Features]]
-
 [ApiController]
 [Route("api/help/modules")]
 [Authorize]

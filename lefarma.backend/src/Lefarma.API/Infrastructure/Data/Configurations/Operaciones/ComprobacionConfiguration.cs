@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Operaciones {
-    // @lat: [[backend#Infrastructure]]
-    public class ComprobacionConfiguration : IEntityTypeConfiguration<Comprobacion>
+public class ComprobacionConfiguration : IEntityTypeConfiguration<Comprobacion>
     {
         public void Configure(EntityTypeBuilder<Comprobacion> builder)
         {

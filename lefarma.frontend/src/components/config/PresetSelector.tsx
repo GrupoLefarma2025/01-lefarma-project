@@ -1,8 +1,7 @@
-import { useConfigStore } from '@/store/configStore';
+﻿import { useConfigStore } from '@/store/configStore';
 import { Target, BarChart3, Armchair, Accessibility } from 'lucide-react';
 import type { UIPresetId } from '@/types/config.types';
 
-// @lat: [[frontend#Components#Config]]
 
 const PRESET_OPTIONS = [
   { id: 'compacto' as const, name: 'Compacto', icon: Target, desc: 'Más datos por pantalla' },

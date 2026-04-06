@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
+public class EmpresaConfiguration : IEntityTypeConfiguration<Empresa>
     {
         public void Configure(EntityTypeBuilder<Empresa> builder)
         {

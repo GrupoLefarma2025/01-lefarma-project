@@ -1,8 +1,6 @@
-﻿namespace Lefarma.API.Features.Admin.DTOs
+namespace Lefarma.API.Features.Admin.DTOs
 {
-
-// @lat: [[backend#Features]]
-    #region Usuario DTOs
+#region Usuario DTOs
 
     /// <summary>
     /// Response DTO para Usuario
@@ -41,7 +39,7 @@
     }
 
     /// <summary>
-    /// Response DTO básico para Usuario (sin relaciones completas)
+    /// Response DTO b�sico para Usuario (sin relaciones completas)
     /// </summary>
     public class UsuarioBasicoResponse
     {
@@ -185,7 +183,7 @@
     }
 
     /// <summary>
-    /// Response DTO básico para Rol (sin relaciones)
+    /// Response DTO b�sico para Rol (sin relaciones)
     /// </summary>
     public class RolBasicoResponse
     {
@@ -244,7 +242,7 @@
     }
 
     /// <summary>
-    /// Response DTO básico para Permiso (sin relaciones)
+    /// Response DTO b�sico para Permiso (sin relaciones)
     /// </summary>
     public class PermisoBasicoResponse
     {

@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import {
   AuthState,
   UserInfo,
@@ -14,7 +14,6 @@ import type { Usuario } from '@/types/usuario.types';
 import { useConfigStore } from './configStore';
 import { toast } from 'sonner';
 
-// @lat: [[frontend#State Management]]
 
 const LEGACY_TOKEN_KEY = 'token';
 

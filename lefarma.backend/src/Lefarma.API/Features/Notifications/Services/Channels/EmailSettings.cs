@@ -1,7 +1,4 @@
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Configuration settings for email notification channel.
 /// Maps to EmailSettings section in appsettings.json.

@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class EstatusOrdenConfiguration : IEntityTypeConfiguration<EstatusOrden>
+public class EstatusOrdenConfiguration : IEntityTypeConfiguration<EstatusOrden>
     {
         public void Configure(EntityTypeBuilder<EstatusOrden> builder)
         {

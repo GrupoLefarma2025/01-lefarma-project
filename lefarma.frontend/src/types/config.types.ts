@@ -1,6 +1,5 @@
-// Tipos de notificación
+﻿// Tipos de notificación
 
-// @lat: [[frontend#Types]]
 
 export type TipoNotificacion = 'in-app' | 'email' | 'telegram' | 'whatsapp';
 

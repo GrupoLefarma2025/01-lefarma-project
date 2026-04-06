@@ -4,8 +4,7 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class UnidadMedidaRepository : BaseRepository<UnidadMedida>, IUnidadMedidaRepository
+public class UnidadMedidaRepository : BaseRepository<UnidadMedida>, IUnidadMedidaRepository
     {
         private readonly ApplicationDbContext _context;
 

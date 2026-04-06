@@ -10,8 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
 namespace Lefarma.API.Infrastructure.Data {
-    // @lat: [[backend#Infrastructure]]
-    public class ApplicationDbContext : DbContext
+public class ApplicationDbContext : DbContext
     {
         // Constructor del ApplicationDbContext
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)

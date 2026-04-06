@@ -12,9 +12,7 @@ using Lefarma.API.Features.Catalogos.MediosPago.DTOs;
 
 namespace Lefarma.API.Shared.Extensions
 {
-
-// @lat: [[backend#Shared]]
-    /// <summary>
+/// <summary>
     /// Métodos de extensión para mapeo de entidades a DTOs de respuesta.
     /// </summary>
     public static class EntityMappings

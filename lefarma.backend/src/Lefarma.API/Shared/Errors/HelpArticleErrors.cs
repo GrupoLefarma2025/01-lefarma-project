@@ -1,9 +1,6 @@
 using ErrorOr;
 
 namespace Lefarma.API.Shared.Errors;
-
-// @lat: [[backend#Shared]]
-
 public static partial class Errors
 {
     public static class HelpArticle

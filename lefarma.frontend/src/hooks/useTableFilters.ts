@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import type {
   ColumnFilter,
@@ -14,7 +14,6 @@ import {
   createDefaultConfig,
 } from '@/lib/tableConfigStorage';
 
-// @lat: [[frontend#Hooks]]
 
 export function useTableFilters<TData>({
   tableId,

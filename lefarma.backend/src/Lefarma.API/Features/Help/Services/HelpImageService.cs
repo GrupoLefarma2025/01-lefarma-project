@@ -7,9 +7,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Help.Services;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Servicio para la gestión de imágenes de ayuda.
 /// </summary>

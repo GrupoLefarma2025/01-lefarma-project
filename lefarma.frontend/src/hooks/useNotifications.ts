@@ -1,9 +1,8 @@
-/**
+﻿/**
  * Hook personalizado para la conexión SSE de notificaciones
  * Maneja la recepción de notificaciones en tiempo real
  */
 
-// @lat: [[frontend#Hooks]]
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';

@@ -1,5 +1,4 @@
-// @lat: [[frontend#Components#Table]]
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Filter, X } from 'lucide-react';
 import type { ColumnFilter, FilterType, TextOperator, NumberOperator, BooleanValue } from '@/types/table.types';
 
-// @lat: [[frontend#Components#Table]]
 
 interface ColumnFilterPopoverProps {
   columnId: string;

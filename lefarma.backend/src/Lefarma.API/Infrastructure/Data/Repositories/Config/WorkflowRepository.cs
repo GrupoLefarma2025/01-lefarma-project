@@ -3,8 +3,7 @@ using Lefarma.API.Domain.Interfaces.Config;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Config {
-    // @lat: [[backend#Infrastructure]]
-    public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
+public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
     {
         private readonly ApplicationDbContext _context;
 

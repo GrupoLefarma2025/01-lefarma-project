@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Operaciones {
-    // @lat: [[backend#Domain]]
-    public class Comprobacion
+public class Comprobacion
     {
         public int IdComprobacion { get; set; }
         public int IdOrdenCompra { get; set; }

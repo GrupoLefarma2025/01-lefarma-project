@@ -1,6 +1,5 @@
-// ─── Help Article ──────────────────────────────────────────────────────────────
+﻿// ─── Help Article ──────────────────────────────────────────────────────────────
 
-// @lat: [[frontend#Types]]
 
 export interface HelpArticle {
   id: number;

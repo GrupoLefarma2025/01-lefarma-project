@@ -8,9 +8,6 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Help.Controllers;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Controlador API para gestión de imágenes de ayuda.
 /// </summary>

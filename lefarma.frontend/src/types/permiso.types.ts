@@ -1,8 +1,7 @@
-// Tipos para Permisos (Alineado con AdminDTOs.cs)
+﻿// Tipos para Permisos (Alineado con AdminDTOs.cs)
 
 import { RolBasicoResponse, UsuarioBasico } from './rol.types';
 
-// @lat: [[frontend#Types]]
 
 export interface Permiso {
   idPermiso: number;

@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Catalogos {
-    // @lat: [[backend#Domain]]
-    public class FormaPago
+public class FormaPago
     {
         public int IdFormaPago { get; set; }
         public string Nombre { get; set; } = null!;

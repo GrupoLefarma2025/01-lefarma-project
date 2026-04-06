@@ -5,9 +5,6 @@ using Lefarma.API.Features.Notifications.DTOs;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Telegram notification channel implementation using HttpClient.
 /// Supports multiple recipients, Markdown/HTML formatting, and message tracking.

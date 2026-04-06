@@ -3,8 +3,7 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class SucursalRepository : BaseRepository<Sucursal>, ISucursalRepository
+public class SucursalRepository : BaseRepository<Sucursal>, ISucursalRepository
     {
         private readonly ApplicationDbContext _context;
 

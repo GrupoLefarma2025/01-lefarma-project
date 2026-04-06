@@ -2,9 +2,6 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
 namespace Lefarma.API.Shared.Authorization;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Handles permission-based authorization by checking for permission claims in the JWT token.
 /// </summary>

@@ -3,9 +3,6 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.Auth.Usuarios;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Service for Usuario catalog operations
 /// </summary>

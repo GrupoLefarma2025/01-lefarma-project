@@ -1,6 +1,5 @@
-import { Permiso } from './permiso.types';
+﻿import { Permiso } from './permiso.types';
 
-// @lat: [[frontend#Types]]
 
 export interface UsuarioBasico {
   idUsuario: number;

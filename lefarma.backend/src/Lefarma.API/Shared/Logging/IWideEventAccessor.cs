@@ -1,7 +1,4 @@
 namespace Lefarma.API.Shared.Logging;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Provides access to the current request's WideEvent for enrichment.
 /// Based on loggingsucks.com philosophy - one rich event per request.

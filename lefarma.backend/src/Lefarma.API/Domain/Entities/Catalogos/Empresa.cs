@@ -3,8 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Lefarma.API.Domain.Entities.Catalogos {
-    // @lat: [[backend#Domain]]
-    public class Empresa
+public class Empresa
     {
         public int IdEmpresa { get; set; }
         public string Nombre { get; set; } = null!;

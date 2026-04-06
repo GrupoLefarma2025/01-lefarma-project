@@ -1,9 +1,8 @@
-import { useRef, useEffect } from 'react';
+﻿import { useRef, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import type { Editor as TinyMCEEditor } from 'tinymce';
 import { authService } from '@/services/authService';
 
-// @lat: [[frontend#Components#Help]]
 
 interface TinyMceEditorProps {
   initialContent: string;

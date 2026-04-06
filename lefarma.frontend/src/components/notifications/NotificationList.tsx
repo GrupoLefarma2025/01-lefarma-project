@@ -1,10 +1,9 @@
-/**
+﻿/**
  * Componente NotificationList
  * Lista completa de notificaciones con filtros y acciones
  * Se puede usar en una página dedicada de notificaciones
  */
 
-// @lat: [[frontend#Components#Notifications]]
 
 import { useState, useEffect } from 'react';
 import { Bell, Check, CheckCircle2 } from 'lucide-react';

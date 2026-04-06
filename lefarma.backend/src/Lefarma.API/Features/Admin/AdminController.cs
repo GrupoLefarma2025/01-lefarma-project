@@ -1,4 +1,4 @@
-﻿using Lefarma.API.Features.Admin.DTOs;
+using Lefarma.API.Features.Admin.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -6,9 +6,6 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Admin;
-
-// @lat: [[backend#Features]]
-
 [Route("api/[controller]")]
 [ApiController]
 [EndpointGroupName("Admin")]

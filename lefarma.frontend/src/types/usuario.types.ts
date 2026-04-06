@@ -1,7 +1,6 @@
-import { Rol } from './rol.types';
+﻿import { Rol } from './rol.types';
 import { Permiso } from './permiso.types';
 
-// @lat: [[frontend#Types]]
 
 export interface UsuarioDetalle {
   idUsuario: number;

@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+﻿import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import {
@@ -54,7 +53,6 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
 
-// @lat: [[frontend#Pages]]
 
 const usuarioSchema = z.object({
   samAccountName: z.string().min(1, 'Requerido'),

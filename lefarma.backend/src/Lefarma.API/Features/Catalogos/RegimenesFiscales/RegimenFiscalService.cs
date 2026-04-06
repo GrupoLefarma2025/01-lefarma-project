@@ -16,8 +16,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.RegimenesFiscales
 {
-// @lat: [[backend#Features]]
-    public class RegimenFiscalService : BaseService, IRegimenFiscalService
+public class RegimenFiscalService : BaseService, IRegimenFiscalService
     {
         private readonly IRegimenFiscalRepository _regimenFiscalRepository;
         private readonly ILogger<RegimenFiscalService> _logger;

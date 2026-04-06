@@ -1,8 +1,7 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/authService';
 
-// @lat: [[frontend#Hooks]]
 
 /**
  * Hook que refresca el token de acceso proactivamente antes de que expire.

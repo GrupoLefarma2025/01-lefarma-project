@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Config {
-    // @lat: [[backend#Infrastructure]]
-    public class WorkflowPasoConfiguration : IEntityTypeConfiguration<WorkflowPaso>
+public class WorkflowPasoConfiguration : IEntityTypeConfiguration<WorkflowPaso>
     {
         public void Configure(EntityTypeBuilder<WorkflowPaso> builder)
         {

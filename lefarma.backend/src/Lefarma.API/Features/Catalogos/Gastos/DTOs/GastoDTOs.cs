@@ -2,8 +2,7 @@ using Lefarma.API.Features.Catalogos.UnidadesMedida.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Gastos.DTOs
 {
-// @lat: [[backend#Features]]
-    public class GastoResponse
+public class GastoResponse
     {
         public int IdGasto { get; set; }
         public string Nombre { get; set; } = string.Empty;

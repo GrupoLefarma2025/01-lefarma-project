@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Auth {
-    // @lat: [[backend#Infrastructure]]
-    public class UsuarioPermisoConfiguration : IEntityTypeConfiguration<UsuarioPermiso>
+public class UsuarioPermisoConfiguration : IEntityTypeConfiguration<UsuarioPermiso>
     {
         public void Configure(EntityTypeBuilder<UsuarioPermiso> builder)
         {

@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, Store } from 'lucide-react';

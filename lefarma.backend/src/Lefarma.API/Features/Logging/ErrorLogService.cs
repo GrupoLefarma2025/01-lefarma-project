@@ -7,9 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
 namespace Lefarma.API.Features.Logging;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Implementación del servicio de logging de errores a base de datos
 /// </summary>

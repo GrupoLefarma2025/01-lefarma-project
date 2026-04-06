@@ -7,8 +7,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Lefarma.API.Infrastructure.Filters
 {
-// @lat: [[backend#Infrastructure]]
-    /// <summary>
+/// <summary>
     /// Filtro de validación global que automáticamente valida requests
     /// usando FluentValidation y retorna respuestas consistentes.
     /// También enriquece el WideEvent con información de errores de validación.

@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Linq.Expressions;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories {
-    // @lat: [[backend#Infrastructure]]
-    public class BaseRepository<T> : IBaseRepository<T> where T : class
+public class BaseRepository<T> : IBaseRepository<T> where T : class
     {
         private readonly ApplicationDbContext _context;
 

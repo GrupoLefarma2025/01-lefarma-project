@@ -14,9 +14,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Sucursales
 {
-
-// @lat: [[backend#Features]]
-    public class SucursalService : BaseService, ISucursalService
+public class SucursalService : BaseService, ISucursalService
     {
         private readonly ISucursalRepository _sucursalRepository;
         private readonly IEmpresaRepository _empresaRepository;

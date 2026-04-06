@@ -1,5 +1,4 @@
-// @lat: [[frontend#Components#Layout]]
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';

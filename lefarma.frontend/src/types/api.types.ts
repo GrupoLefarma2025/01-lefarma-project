@@ -1,6 +1,5 @@
-// Tipos para respuestas de la API
+﻿// Tipos para respuestas de la API
 
-// @lat: [[frontend#Types]]
 
 export interface ApiResponse<T> {
   data: T;

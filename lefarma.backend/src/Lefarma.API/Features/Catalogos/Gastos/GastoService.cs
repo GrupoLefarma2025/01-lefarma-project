@@ -13,8 +13,7 @@ using System.Linq;
 
 namespace Lefarma.API.Features.Catalogos.Gastos
 {
-// @lat: [[backend#Features]]
-    public class GastoService : BaseService, IGastoService
+public class GastoService : BaseService, IGastoService
     {
         private readonly IGastoRepository _gastoRepository;
         private readonly ILogger<GastoService> _logger;

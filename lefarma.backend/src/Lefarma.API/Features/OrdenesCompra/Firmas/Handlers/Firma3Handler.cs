@@ -1,9 +1,8 @@
-﻿using Lefarma.API.Domain.Entities.Operaciones;
+using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
 {
-// @lat: [[backend#Features]]
-    // Firma 3 - CxP: asigna centro de costo y cuenta contable (specs sección 5.2)
+// Firma 3 - CxP: asigna centro de costo y cuenta contable (specs secci�n 5.2)
     public class Firma3Handler : IStepHandler
     {
         public string HandlerKey => "Firma3Handler";
@@ -22,8 +21,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
             if (datos is null) return Task.CompletedTask;
             if (datos.TryGetValue("CentroCosto", out var cc) && int.TryParse(cc.ToString(), out var idCc))
                 orden.IdCentroCosto = idCc;
-            if (datos.TryGetValue("CuentaContable", out var cuenta))
-                orden.CuentaContable = cuenta.ToString();
+            if (datos.TryGetValue("CuentaContable", out var cuenta) && int.TryParse(cuenta.ToString(), out var idCuenta))
+                orden.IdCuentaContable = idCuenta;
             return Task.CompletedTask;
         }
     }

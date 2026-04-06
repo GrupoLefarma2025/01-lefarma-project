@@ -1,4 +1,4 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
@@ -12,9 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
-
-// @lat: [[backend#Features]]
-    public class FirmasService : BaseService, IFirmasService
+public class FirmasService : BaseService, IFirmasService
     {
         private readonly IOrdenCompraRepository _ordenRepo;
         private readonly IWorkflowEngine _engine;
@@ -56,7 +54,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 }
 
                 if (orden.Estado is EstadoOC.Cerrada or EstadoOC.Cancelada)
-                    return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
+                    return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya est� cerrada o cancelada.");
 
                 // Cargar paso actual para verificar requisitos del paso
                 WorkflowPasoInfo? pasoActual = null;
@@ -72,7 +70,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (pasoActual?.RequiereComentario == true && string.IsNullOrWhiteSpace(request.Comentario))
                     return CommonErrors.Validation("Comentario", "El comentario es obligatorio en este paso.");
 
-                // Ejecutar step handler específico (Firma3Handler, Firma4Handler, etc.)
+                // Ejecutar step handler espec�fico (Firma3Handler, Firma4Handler, etc.)
                 if (!string.IsNullOrEmpty(pasoActual?.HandlerKey))
                 {
                     var handler = _serviceProvider.GetKeyedService<IStepHandler>(pasoActual.HandlerKey);
@@ -118,7 +116,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 orden.FechaModificacion = DateTime.UtcNow;
                 await _ordenRepo.UpdateAsync(orden);
 
-                // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
+                // Selecci�n de plantilla por destino: (id_accion + id_paso_destino) con fallback gen�rico.
                 var notificacionSeleccionada = ResolveWorkflowNotification(workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
@@ -137,7 +135,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     Folio = orden.Folio,
                     EstadoAnterior = estadoAnterior,
                     NuevoEstado = orden.Estado.ToString(),
-                    Mensaje = $"Acción ejecutada exitosamente. Estado: {orden.Estado}"
+                    Mensaje = $"Acci�n ejecutada exitosamente. Estado: {orden.Estado}"
                 };
             }
             catch (Exception ex)

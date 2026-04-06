@@ -1,8 +1,7 @@
-import { useEffect } from 'react';
+﻿import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Trash2 } from 'lucide-react';
 
-// @lat: [[frontend#Components#Help]]
 import {
   Dialog,
   DialogContent,

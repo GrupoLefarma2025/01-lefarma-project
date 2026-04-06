@@ -3,9 +3,6 @@ using Lefarma.API.Features.Profile.DTOs;
 using Microsoft.AspNetCore.Http;
 
 namespace Lefarma.API.Features.Profile;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Servicio para operaciones del usuario autenticado sobre su propio perfil
 /// </summary>

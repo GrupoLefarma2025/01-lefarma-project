@@ -1,9 +1,8 @@
-﻿using Lefarma.API.Domain.Entities.Operaciones;
+using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
 {
-// @lat: [[backend#Features]]
-    // Firma 4 - GAF: configura checkboxes de comprobación (specs sección 5.3)
+// Firma 4 - GAF: configura checkboxes de comprobaci�n (specs secci�n 5.3)
     public class Firma4Handler : IStepHandler
     {
         public string HandlerKey => "Firma4Handler";

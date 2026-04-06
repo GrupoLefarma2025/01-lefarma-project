@@ -1,8 +1,7 @@
 using System.Linq.Expressions;
 
 namespace Lefarma.API.Domain.Interfaces {
-    // @lat: [[backend#Domain]]
-    public interface IBaseRepository<T> where T : class
+public interface IBaseRepository<T> where T : class
     {
         //Metodo para obtener todos los registros
         Task<ICollection<T>> GetAllAsync();

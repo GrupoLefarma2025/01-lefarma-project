@@ -1,4 +1,4 @@
-import { API } from './api';
+﻿import { API } from './api';
 import type {
   HelpArticle,
   HelpModule,
@@ -10,7 +10,6 @@ import type {
 } from '@/types/help.types';
 import type { ApiResponse } from '@/types/api.types';
 
-// @lat: [[frontend#API Integration]]
 
 const HELP_URL = '/help/articles';
 const MODULES_URL = '/help/modules';

@@ -2,8 +2,7 @@ using ErrorOr;
 using Lefarma.API.Features.Catalogos.FormasPago.DTOs;
 
 namespace Lefarma.API.Domain.Interfaces.Catalogos {
-    // @lat: [[backend#Domain]]
-    public interface IFormaPagoService
+public interface IFormaPagoService
     {
         Task<ErrorOr<IEnumerable<FormaPagoResponse>>> GetAllAsync();
         Task<ErrorOr<FormaPagoResponse>> GetByIdAsync(int id);

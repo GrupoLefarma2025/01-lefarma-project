@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.CuentasContables.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.CuentasContables
 {
-// @lat: [[backend#Features]]
-    public class CreateCuentaContableRequestValidator : AbstractValidator<CreateCuentaContableRequest>
+public class CreateCuentaContableRequestValidator : AbstractValidator<CreateCuentaContableRequest>
     {
         public CreateCuentaContableRequestValidator()
         {

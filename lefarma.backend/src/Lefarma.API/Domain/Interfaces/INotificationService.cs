@@ -1,9 +1,6 @@
 using Lefarma.API.Features.Notifications.DTOs;
 
 namespace Lefarma.API.Domain.Interfaces;
-
-    // @lat: [[backend#Domain]]
-
 /// <summary>
 /// Main service contract for notification operations.
 /// Provides methods for sending notifications and managing user notifications.

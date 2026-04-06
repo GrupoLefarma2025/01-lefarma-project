@@ -1,7 +1,6 @@
-import type { SseUserInfo } from './sse.types';
+﻿import type { SseUserInfo } from './sse.types';
 import type { Area } from './catalogo.types';
 
-// @lat: [[frontend#Types]]
 
 // User info from backend (matches UserInfo in backend DTOs)
 export interface UserInfo {

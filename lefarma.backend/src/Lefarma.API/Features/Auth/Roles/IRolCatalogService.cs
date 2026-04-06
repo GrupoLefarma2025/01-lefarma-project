@@ -1,9 +1,6 @@
 using Lefarma.API.Features.Auth.Roles.DTOs;
 
 namespace Lefarma.API.Features.Auth.Roles;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Service interface for Rol catalog operations
 /// </summary>

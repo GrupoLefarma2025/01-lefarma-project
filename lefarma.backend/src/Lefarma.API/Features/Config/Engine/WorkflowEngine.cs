@@ -1,12 +1,10 @@
-﻿using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Infrastructure.Data;
 
 namespace Lefarma.API.Features.Config.Engine
 {
-
-// @lat: [[backend#Features]]
-    public class WorkflowEngine : IWorkflowEngine
+public class WorkflowEngine : IWorkflowEngine
     {
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
@@ -28,9 +26,9 @@ namespace Lefarma.API.Features.Config.Engine
                 .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
 
             if (accion is null)
-                return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
+                return new WorkflowEjecucionResult(false, "Acci�n no v�lida para el estado actual.", null, null);
 
-            // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
+            // Evaluar condiciones din�micas (ej: Total > 100,000 ? desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
             foreach (var condicion in accion.PasoOrigen!.Condiciones.Where(c => c.Activo))
             {
@@ -45,7 +43,7 @@ namespace Lefarma.API.Features.Config.Engine
                 ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value && p.Activo)
                 : null;
 
-            // Registrar en bitácora inmutable la transición ejecutada
+            // Registrar en bit�cora inmutable la transici�n ejecutada
             var snapshot = new Dictionary<string, object?>
             {
                 ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
@@ -86,8 +84,8 @@ namespace Lefarma.API.Features.Config.Engine
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
-            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
-            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
+            // Cuando el paso usa condiciones para enrutar la aprobaci�n (ej. Firma 4 por monto),
+            // se expone una sola acci�n "Autorizar" para evitar duplicados en UI.
             if (pasoActual?.Condiciones.Any() == true)
             {
                 var aprobaciones = acciones

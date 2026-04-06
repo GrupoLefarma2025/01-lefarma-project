@@ -1,6 +1,5 @@
 namespace Lefarma.API.Domain.Entities.Config {
-    // @lat: [[backend#Domain]]
-    public class WorkflowPaso
+public class WorkflowPaso
     {
         public int IdPaso { get; set; }
         public int IdWorkflow { get; set; }

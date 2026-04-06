@@ -1,7 +1,6 @@
-export type SseEventType = 'connected' | 'user.updated';
+﻿export type SseEventType = 'connected' | 'user.updated';
 export type UpdateType = 'profile' | 'permissions';
 
-// @lat: [[frontend#Types]]
 
 export interface SseConnectedEvent {
   timestamp: string;

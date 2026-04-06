@@ -4,9 +4,6 @@ using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories;
-
-    // @lat: [[backend#Infrastructure]]
-
 public class HelpModuleRepository : IHelpModuleRepository
 {
     private readonly ApplicationDbContext _context;

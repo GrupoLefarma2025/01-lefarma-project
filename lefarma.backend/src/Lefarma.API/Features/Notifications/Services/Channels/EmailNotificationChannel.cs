@@ -10,9 +10,6 @@ using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Lefarma.API.Features.Notifications.Services.Channels;
-
-// @lat: [[backend#Features]]
-
 /// <summary>
 /// Email notification channel implementation using MailKit.
 /// Supports HTML templates, multiple recipients, CC/BCC, and SMTP authentication.

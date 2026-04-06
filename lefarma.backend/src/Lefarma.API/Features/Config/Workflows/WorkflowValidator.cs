@@ -1,11 +1,9 @@
-﻿using FluentValidation;
+using FluentValidation;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 
 namespace Lefarma.API.Features.Config.Workflows
 {
-
-// @lat: [[backend#Features]]
-    public class CreateWorkflowRequestValidator : AbstractValidator<CreateWorkflowRequest>
+public class CreateWorkflowRequestValidator : AbstractValidator<CreateWorkflowRequest>
     {
         public CreateWorkflowRequestValidator()
         {
@@ -13,7 +11,7 @@ namespace Lefarma.API.Features.Config.Workflows
             RuleFor(x => x.CodigoProceso)
                 .NotEmpty().MaximumLength(50)
                 .Matches(@"^[A-Z0-9_]+$")
-                .WithMessage("Solo mayúsculas, números y guión bajo. Ej: ORDEN_COMPRA");
+                .WithMessage("Solo may�sculas, n�meros y gui�n bajo. Ej: ORDEN_COMPRA");
         }
     }
 

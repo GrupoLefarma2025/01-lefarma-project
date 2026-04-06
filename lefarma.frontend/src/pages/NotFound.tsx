@@ -1,5 +1,4 @@
-// @lat: [[frontend#Pages]]
-import { Link } from 'react-router-dom';
+﻿import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Home, FileQuestion } from 'lucide-react';
 

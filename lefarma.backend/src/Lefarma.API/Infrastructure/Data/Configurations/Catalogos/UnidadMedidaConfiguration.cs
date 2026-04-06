@@ -3,8 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos {
-    // @lat: [[backend#Infrastructure]]
-    public class UnidadMedidaConfiguration : IEntityTypeConfiguration<UnidadMedida>
+public class UnidadMedidaConfiguration : IEntityTypeConfiguration<UnidadMedida>
     {
         public void Configure(EntityTypeBuilder<UnidadMedida> builder)
         {

@@ -2,9 +2,7 @@ using ErrorOr;
 
 namespace Lefarma.API.Shared.Errors
 {
-
-// @lat: [[backend#Shared]]
-    /// <summary>
+/// <summary>
     /// Errores comunes predefinidos para toda la aplicación.
     /// </summary>
     public static class CommonErrors

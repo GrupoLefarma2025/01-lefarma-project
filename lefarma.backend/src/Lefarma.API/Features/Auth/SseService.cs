@@ -5,9 +5,6 @@ using Lefarma.API.Features.Auth.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Lefarma.API.Features.Auth;
-
-// @lat: [[backend#Features]]
-
 public class SseService : ISseService
 {
     private readonly ConcurrentDictionary<int, HttpResponse> _connections = new();

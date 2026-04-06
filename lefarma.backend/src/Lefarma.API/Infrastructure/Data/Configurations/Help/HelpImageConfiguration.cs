@@ -3,9 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Lefarma.API.Infrastructure.Data.Configurations.Help;
-
-    // @lat: [[backend#Infrastructure]]
-
 public class HelpImageConfiguration : IEntityTypeConfiguration<HelpImage>
 {
     public void Configure(EntityTypeBuilder<HelpImage> builder)

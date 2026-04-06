@@ -1,9 +1,6 @@
 using Serilog;
 
 namespace Lefarma.API.Shared.Logging;
-
-// @lat: [[backend#Shared]]
-
 /// <summary>
 /// Helper for creating and emitting Wide Events.
 /// </summary>

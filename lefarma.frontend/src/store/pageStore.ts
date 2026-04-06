@@ -1,6 +1,5 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 
-// @lat: [[frontend#State Management]]
 
 interface PageState {
   title: string;

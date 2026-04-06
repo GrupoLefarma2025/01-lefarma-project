@@ -3,8 +3,7 @@ using Lefarma.API.Features.Catalogos.Gastos.DTOs;
 
 namespace Lefarma.API.Features.Catalogos.Gastos
 {
-// @lat: [[backend#Features]]
-    public interface IGastoService
+public interface IGastoService
     {
         Task<ErrorOr<IEnumerable<GastoResponse>>> GetAllAsync(GastoRequest query);
         Task<ErrorOr<GastoResponse>> GetByIdAsync(int id);
