@@ -116,4 +116,10 @@ export const API = {
   delete: apiClient.delete,
 };
 
+export const proveedorApi = {
+  autorizar: (id: number) => apiClient.post(`/catalogos/Proveedores/${id}/autorizar`),
+  rechazar: (id: number, motivo: string) =>
+    apiClient.post(`/catalogos/Proveedores/${id}/rechazar`, { motivo }),
+};
+
 export default apiClient;
