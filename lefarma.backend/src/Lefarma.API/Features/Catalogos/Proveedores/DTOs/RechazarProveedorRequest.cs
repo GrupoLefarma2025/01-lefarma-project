@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace Lefarma.API.Features.Catalogos.Proveedores.DTOs;
-
+namespace Lefarma.API.Features.Catalogos.Proveedores.DTOs
 {
     public class RechazarProveedorRequest
     {
