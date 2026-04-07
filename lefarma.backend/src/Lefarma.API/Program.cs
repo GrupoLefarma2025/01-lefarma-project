@@ -14,6 +14,7 @@ using Lefarma.API.Features.Catalogos.CuentasContables;
 using Lefarma.API.Features.Catalogos.EstatusOrden;
 using Lefarma.API.Features.Catalogos.Proveedores;
 using Lefarma.API.Features.Catalogos.RegimenesFiscales;
+using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.FormasPago;
 using Lefarma.API.Features.Catalogos.Gastos;
@@ -130,6 +131,7 @@ builder.Services.AddScoped<IEstatusOrdenRepository, EstatusOrdenRepository>();
 builder.Services.AddScoped<IRegimenFiscalRepository, RegimenFiscalRepository>();
 builder.Services.AddScoped<IProveedorRepository, ProveedorRepository>();
 builder.Services.AddScoped<ICuentaContableRepository, CuentaContableRepository>();
+builder.Services.AddScoped<ITipoImpuestoRepository, TipoImpuestoRepository>();
 
 // Help System
 builder.Services.AddScoped<IHelpArticleRepository, HelpArticleRepository>();
@@ -183,6 +185,7 @@ builder.Services.AddScoped<IEstatusOrdenService, EstatusOrdenService>();
 builder.Services.AddScoped<IRegimenFiscalService, RegimenFiscalService>();
 builder.Services.AddScoped<IProveedorService, ProveedorService>();
 builder.Services.AddScoped<ICuentaContableService, CuentaContableService>();
+builder.Services.AddScoped<ITipoImpuestoService, TipoImpuestoService>();
 
 // Logging Services
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
