@@ -1,6 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
+import { resetConfig } from '@/lib/tableConfigStorage';
 import {
   Building,
   Plus,
@@ -47,8 +48,6 @@ const proveedorSchema = z.object({
   rfc: z.string().optional(),
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
-  personaContacto: z.string().optional(),
-  notasGenerales: z.string().optional(),
   usoCfdi: z.string().optional(),
 });
 
@@ -59,13 +58,37 @@ interface Proveedor {
   codigoPostal?: string;
   regimenFiscalId?: number;
   regimenFiscalDescripcion?: string;
-  personaContacto?: string;
-  notasGenerales?: string;
   usoCfdi?: string;
   fechaRegistro: string;
   fechaModificacion?: string;
-  autorizadoPorCxP?: boolean | null;
+  estatus: number;
+  cambioEstatusPor?: number;
+  detalle?: {
+    personaContactoNombre?: string;
+    contactoTelefono?: string;
+    contactoEmail?: string;
+    comentario?: string;
+  };
 }
+
+const ESTATUS = {
+  NUEVO: 1,
+  APROBADO: 2,
+  RECHAZADO: 3,
+} as const;
+
+const getEstatusLabel = (estatus: number) => {
+  switch (estatus) {
+    case ESTATUS.NUEVO:
+      return 'Nuevo';
+    case ESTATUS.APROBADO:
+      return 'Aprobado';
+    case ESTATUS.RECHAZADO:
+      return 'Rechazado';
+    default:
+      return 'Desconocido';
+  }
+};
 
 interface RegimenFiscal {
   idRegimenFiscal: number;
@@ -98,8 +121,6 @@ export default function ProveedoresList() {
       rfc: '',
       codigoPostal: '',
       regimenFiscalId: undefined,
-      personaContacto: '',
-      notasGenerales: '',
       usoCfdi: '',
     },
   });
@@ -138,6 +159,8 @@ export default function ProveedoresList() {
   useEffect(() => {
     fetchProveedores();
     fetchRegimenesFiscales();
+    // Reset table config to show all columns including new ones (Contacto, Comentario, Estatus)
+    resetConfig('proveedores');
   }, []);
 
   const handleNuevoProveedor = () => {
@@ -147,8 +170,6 @@ export default function ProveedoresList() {
       rfc: '',
       codigoPostal: '',
       regimenFiscalId: undefined,
-      personaContacto: '',
-      notasGenerales: '',
       usoCfdi: '',
     });
     setIsEditing(false);
@@ -164,8 +185,6 @@ export default function ProveedoresList() {
         rfc: proveedor.rfc || '',
         codigoPostal: proveedor.codigoPostal || '',
         regimenFiscalId: proveedor.regimenFiscalId,
-        personaContacto: proveedor.personaContacto || '',
-        notasGenerales: proveedor.notasGenerales || '',
         usoCfdi: proveedor.usoCfdi || '',
       });
       setIsEditing(true);
@@ -286,14 +305,71 @@ export default function ProveedoresList() {
       ),
     },
     {
-      id: 'autorizadoPorCxP',
-      header: 'Estado CxP',
+      id: 'detalle',
+      header: 'Contacto',
       cell: ({ row }) => {
-        const autorizado = row.original.autorizadoPorCxP === true;
+        const detalle = row.original.detalle;
+        if (!detalle?.personaContactoNombre && !detalle?.contactoTelefono && !detalle?.contactoEmail) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
         return (
-          <Badge variant={autorizado ? 'default' : 'outline'} className={autorizado ? 'bg-green-100 text-green-800 border-green-300' : 'bg-yellow-100 text-yellow-800 border-yellow-300'}>
-            {autorizado ? 'Autorizado' : 'Pendiente'}
+          <div className="flex flex-col gap-0.5">
+            {detalle?.personaContactoNombre && (
+              <span className="text-xs font-medium">{detalle.personaContactoNombre}</span>
+            )}
+            {detalle?.contactoTelefono && (
+              <span className="text-xs text-muted-foreground">{detalle.contactoTelefono}</span>
+            )}
+            {detalle?.contactoEmail && (
+              <span className="text-xs text-muted-foreground truncate max-w-[150px]" title={detalle.contactoEmail}>
+                {detalle.contactoEmail}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      id: 'estatus',
+      header: 'Estatus',
+      cell: ({ row }) => {
+        const estatus = row.original.estatus;
+        const isAprobado = estatus === ESTATUS.APROBADO;
+        const isRechazado = estatus === ESTATUS.RECHAZADO;
+        const isNuevo = estatus === ESTATUS.NUEVO;
+
+        const badgeClass = isAprobado
+          ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+          : isRechazado
+          ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
+          : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50';
+
+        return (
+          <Badge
+            variant="outline"
+            className={`${badgeClass} border font-medium text-xs px-2 py-0.5 w-fit`}
+          >
+            {getEstatusLabel(estatus)}
           </Badge>
+        );
+      },
+    },
+    {
+      id: 'comentario',
+      header: 'Comentario',
+      cell: ({ row }) => {
+        const comentario = row.original.detalle?.comentario;
+        if (!comentario) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        const isRechazado = row.original.estatus === ESTATUS.RECHAZADO;
+        return (
+          <div className={`flex items-start gap-1.5 rounded-md px-2 py-1.5 border ${isRechazado ? 'bg-red-50 border-red-100' : 'bg-gray-50 border-gray-100'}`}>
+            {isRechazado && <X className="h-3 w-3 text-red-400 mt-0.5 shrink-0" />}
+            <span className={`text-xs leading-relaxed ${isRechazado ? 'text-red-600' : 'text-gray-600'}`}>
+              {comentario}
+            </span>
+          </div>
         );
       },
     },
@@ -304,7 +380,7 @@ export default function ProveedoresList() {
         const proveedor = row.original;
         return (
           <div className="flex items-center gap-2">
-            {proveedor.autorizadoPorCxP !== true && (
+            {proveedor.estatus === ESTATUS.NUEVO && (
               <>
                 <Button
                   size="sm"
@@ -385,10 +461,11 @@ export default function ProveedoresList() {
               title="Proveedores"
               showRowCount
               showRefreshButton
+              showColumnToggle
               onRefresh={fetchProveedores}
               filterConfig={{
                 tableId: 'proveedores',
-                searchableColumns: ['razonSocial', 'rfc', 'personaContacto'],
+                searchableColumns: ['razonSocial', 'rfc'],
                 defaultSearchColumns: ['razonSocial'],
               }}
             />
@@ -498,34 +575,6 @@ export default function ProveedoresList() {
 
               <FormField
                 control={form.control}
-                name="personaContacto"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Persona de Contacto</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Nombre del contacto" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="notasGenerales"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2">
-                    <FormLabel>Notas Generales</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Notas adicionales" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="usoCfdi"
                 render={({ field }) => (
                   <FormItem>
@@ -557,6 +606,55 @@ export default function ProveedoresList() {
             </div>
           </form>
         </Form>
+      </Modal>
+
+      <Modal
+        id="modal-rechazar"
+        open={rejectModal.open}
+        setOpen={(open) => {
+          if (!open) {
+            setRejectModal({ open: false, proveedorId: null });
+            setRejectMotivo('');
+          }
+        }}
+        title="Rechazar Proveedor"
+        size="md"
+        footer={
+          <div className="flex gap-2 justify-end pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRejectModal({ open: false, proveedorId: null });
+                setRejectMotivo('');
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleRechazar}
+            >
+              Rechazar Proveedor
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            ¿Está seguro de rechazar este proveedor? Esta acción no se puede deshacer.
+          </p>
+          <div>
+            <label className="text-sm font-medium mb-2 block">Motivo del rechazo</label>
+            <textarea
+              className="w-full min-h-[100px] px-3 py-2 text-sm border border-input bg-background rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+              placeholder="Ingrese el motivo del rechazo (opcional)"
+              value={rejectMotivo}
+              onChange={(e) => setRejectMotivo(e.target.value)}
+            />
+          </div>
+        </div>
       </Modal>
     </div>
   );
