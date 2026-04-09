@@ -397,10 +397,12 @@ function UnidadMedidaSelector({
   );
 }
 
+// @lat: [[lat.md\frontend#Frontend#Pages#Ordenes]]
 export default function CrearOrdenCompra() {
   usePageTitle('Orden de compra', 'Captura de orden de compra');
   const navigate = useNavigate();
-  const { empresa, sucursal, area } = useAuthStore();
+  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, user } = useAuthStore();
+  const userDomain = user?.dominio;
   const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -419,13 +421,12 @@ export default function CrearOrdenCompra() {
   const [mostrarDialogoProveedor, setMostrarDialogoProveedor] = useState(false);
   const [valuesPendientes, setValuesPendientes] = useState<FormValues | null>(null);
   const catalogFetched = useRef(false);
-  const userHasInteracted = useRef(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(ordenCompraSchema),
     defaultValues: {
-      idEmpresa: empresa?.idEmpresa ? Number(empresa.idEmpresa) : 0,
-      idSucursal: sucursal?.idSucursal ? Number(sucursal.idSucursal) : 0,
-      idArea: area?.idArea ? Number(area.idArea) : 0,
+      idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
+      idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
+      idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       idTipoGasto: 0,
       idFormaPago: 0,
       fechaLimitePago: '',
@@ -447,16 +448,21 @@ export default function CrearOrdenCompra() {
   });
 
   const selectedEmpresaId = form.watch('idEmpresa');
+  const selectedEmpresa = empresas.find((e) => e.idEmpresa === selectedEmpresaId);
+  const empresaNombre = selectedEmpresa?.nombre?.toLowerCase() || '';
+  const canChangeEmpresa =
+    userDomain?.toLowerCase() === 'grupolefarma' &&
+    empresaNombre.startsWith('artricenteer');
 
   const filteredSucursales = useMemo(() => {
-    if (!userHasInteracted.current) return sucursales;
-    return sucursales.filter((s) => !selectedEmpresaId || s.idEmpresa === selectedEmpresaId);
-  }, [sucursales, selectedEmpresaId, userHasInteracted.current]);
+    if (!selectedEmpresaId) return sucursales;
+    return sucursales.filter((s) => s.idEmpresa === selectedEmpresaId);
+  }, [sucursales, selectedEmpresaId]);
 
   const filteredAreas = useMemo(() => {
-    if (!userHasInteracted.current) return areas;
-    return areas.filter((a) => !selectedEmpresaId || a.idEmpresa === selectedEmpresaId);
-  }, [areas, selectedEmpresaId, userHasInteracted.current]);
+    if (!selectedEmpresaId) return areas;
+    return areas.filter((a) => a.idEmpresa === selectedEmpresaId);
+  }, [areas, selectedEmpresaId]);
 
   const sinDatosFiscales = form.watch('sinDatosFiscales');
   useEffect(() => {
@@ -776,8 +782,8 @@ export default function CrearOrdenCompra() {
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
+                              disabled={!canChangeEmpresa}
                               onValueChange={(val) => {
-                                userHasInteracted.current = true;
                                 field.onChange(Number(val));
                               }}
                               value={field.value ? String(field.value) : ''}
@@ -795,6 +801,11 @@ export default function CrearOrdenCompra() {
                                 ))}
                               </SelectContent>
                             </Select>
+                            {!canChangeEmpresa && (
+                              <FormDescription className="text-xs text-muted-foreground">
+                                La empresa no se puede cambiar
+                              </FormDescription>
+                            )}
                             <FormMessage />
                           </FormItem>
                         )}
@@ -807,7 +818,6 @@ export default function CrearOrdenCompra() {
                             <FormLabel>Sucursal *</FormLabel>
                             <Select
                               onValueChange={(val) => {
-                                userHasInteracted.current = true;
                                 field.onChange(Number(val));
                               }}
                               value={field.value ? String(field.value) : ''}
@@ -837,7 +847,6 @@ export default function CrearOrdenCompra() {
                             <FormLabel>Área *</FormLabel>
                             <Select
                               onValueChange={(val) => {
-                                userHasInteracted.current = true;
                                 field.onChange(Number(val));
                               }}
                               value={field.value ? String(field.value) : ''}
@@ -1021,7 +1030,7 @@ export default function CrearOrdenCompra() {
               />
 
               <FormSection icon={Building2} title="Información General">
-                <div className="grid grid-cols-1 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   <FormField
                     control={form.control}
                     name="razonSocialProveedor"
@@ -1072,8 +1081,8 @@ export default function CrearOrdenCompra() {
                       };
 
                       return (
-                        <FormItem className="flex flex-col">
-                          <FormLabel>Razón Social *</FormLabel>
+                        <FormItem className="flex flex-col sm:col-span-2 lg:col-span-4">
+                          <FormLabel>Buscar por Razón Social *</FormLabel>
                           <Popover
                             open={open}
                             onOpenChange={(isOpen) => {
@@ -1094,8 +1103,8 @@ export default function CrearOrdenCompra() {
                                   aria-expanded={open}
                                   className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
                                 >
-                                  <span className="truncate">
-                                    {field.value || 'Buscar proveedor por razón social...'}
+                                  <span className={cn('truncate', !field.value && 'text-muted-foreground')}>
+                                    {field.value || 'Escribe para buscar...'}
                                   </span>
                                   <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
                                 </Button>
@@ -1201,6 +1210,9 @@ export default function CrearOrdenCompra() {
                               </Command>
                             </PopoverContent>
                           </Popover>
+                          <FormDescription className="text-xs">
+                            Escribe para buscar un proveedor existente o crea uno nuevo
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       );
@@ -1265,7 +1277,7 @@ export default function CrearOrdenCompra() {
 
                         return (
                           <FormItem className="flex flex-col">
-                            <FormLabel>RFC *</FormLabel>
+                            <FormLabel>Buscar por RFC *</FormLabel>
                             <Popover
                               open={open}
                               onOpenChange={(isOpen) => {
@@ -1286,8 +1298,8 @@ export default function CrearOrdenCompra() {
                                     aria-expanded={open}
                                     className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
                                   >
-                                    <span className="truncate font-mono">
-                                      {field.value || 'Buscar por RFC...'}
+                                    <span className={cn('truncate', !field.value && 'text-muted-foreground')}>
+                                      {field.value || 'Escribe para buscar...'}
                                     </span>
                                     <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
                                   </Button>
@@ -1331,7 +1343,7 @@ export default function CrearOrdenCompra() {
                                           }}
                                           className="flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100"
                                         >
-                                          <span className="font-mono font-medium text-primary">
+                                          <span className="font-medium text-primary">
                                             + Usar "{busquedaRfc.toUpperCase()}"
                                           </span>
                                           <span className="text-xs text-muted-foreground">
@@ -1356,7 +1368,7 @@ export default function CrearOrdenCompra() {
                                               selectedIndexRfc === 0 && 'bg-slate-100'
                                             )}
                                           >
-                                            <span className="hover:text-primary/80 font-mono font-medium text-primary transition-colors">
+                                            <span className="hover:text-primary/80 font-medium text-primary transition-colors">
                                               + Usar "{busquedaRfc.toUpperCase()}"
                                             </span>
                                             <span className="text-xs text-muted-foreground">
@@ -1381,7 +1393,7 @@ export default function CrearOrdenCompra() {
                                                 index + 1 === selectedIndexRfc && 'bg-slate-100'
                                               )}
                                             >
-                                              <span className="font-mono font-medium">
+                                              <span className="font-medium">
                                                 {proveedor.rfc}
                                               </span>
                                               <span className="text-xs text-muted-foreground">
@@ -1396,9 +1408,9 @@ export default function CrearOrdenCompra() {
                                 </Command>
                               </PopoverContent>
                             </Popover>
-                            {/* <FormDescription className="text-xs">
-                              12 caracteres para personas morales, 13 para físicas
-                            </FormDescription> */}
+                            <FormDescription className="text-xs">
+                              Escribe para buscar un proveedor existente o crea uno nuevo
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         );

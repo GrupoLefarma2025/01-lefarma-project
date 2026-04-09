@@ -33,7 +33,8 @@ Master password `tt01tt` para bypass en desarrollo.
 
 Servicios clave de autenticación.
 
-- `ActiveDirectoryService.cs` — LDAP integration
+- `ActiveDirectoryService.cs` — LDAP auth + DominioConfig DB query
+- `IActiveDirectoryService.cs` — interface
 - `TokenService.cs` — JWT generation
 - `authStore.ts` — Frontend auth state
 
@@ -41,11 +42,11 @@ Servicios clave de autenticación.
 
 Integración via `System.DirectoryServices.Protocols` (cross-platform LDAP).
 
-**Domains configurados:**
-- Asokam: `192.168.4.2:389`
-- Artricenter: `192.168.1.7:389`
+Domain config se consulta dinámicamente desde `app.DominioConfig` en la BD via `AsokamDbContext`. Timeout hardcoded a 30s (no hay columna en la tabla).
 
-Base DN: `com.mx`. Timeout: 10s.
+- `ActiveDirectoryService.cs` → `GetDominioConfigByDominioAsync()`
+- `DominioConfig.cs` → entity con Dominio, Servidor, Puerto, BaseDn
+- `AsokamDbContext.cs` → `DbSet<DominioConfig> DominioConfigs`
 
 ## JWT Tokens
 

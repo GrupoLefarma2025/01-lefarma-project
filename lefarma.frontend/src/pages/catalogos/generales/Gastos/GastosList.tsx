@@ -325,24 +325,24 @@ export default function GastosList() {
         );
       },
     },
-    {
-      id: 'actions',
-      header: '',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-8 gap-1.5"
-            onClick={() => handleEditGasto(row.original.idGasto)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Editar
-          </Button>
-          <Button size="sm" variant="destructive" className="h-8 gap-1.5"
-            onClick={() => handleDelete(row.original.idGasto)}>
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </Button>
-        </div>
-      ),
-    },
+    // {
+    //   id: 'actions',
+    //   header: '',
+    //   cell: ({ row }) => (
+    //     <div className="flex items-center gap-2">
+    //       <Button size="sm" variant="outline" className="h-8 gap-1.5"
+    //         onClick={() => handleEditGasto(row.original.idGasto)}>
+    //         <Pencil className="h-3.5 w-3.5" />
+    //         Editar
+    //       </Button>
+    //       <Button size="sm" variant="destructive" className="h-8 gap-1.5"
+    //         onClick={() => handleDelete(row.original.idGasto)}>
+    //         <Trash2 className="h-3.5 w-3.5" />
+    //         Eliminar
+    //       </Button>
+    //     </div>
+    //   ),
+    // },
   ];
 
   return (

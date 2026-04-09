@@ -1,4 +1,5 @@
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Services.Identity.Models;
 
 namespace Lefarma.API.Services.Identity;
@@ -38,9 +39,10 @@ public interface IActiveDirectoryService
     IReadOnlyList<LdapDomainOptions> GetConfiguredDomains();
 
     /// <summary>
-    /// Gets domain configuration by name.
+    /// Gets domain configuration from database by domain name.
     /// </summary>
-    /// <param name="domainName">The domain name.</param>
-    /// <returns>Domain configuration or null if not found.</returns>
-    LdapDomainOptions? GetDomainConfig(string domainName);
+    /// <param name="dominio">The domain name.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Domain configuration from database or null if not found.</returns>
+    Task<DominioConfig?> GetDominioConfigByDominioAsync(string dominio, CancellationToken cancellationToken = default);
 }

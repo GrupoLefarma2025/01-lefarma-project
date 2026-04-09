@@ -255,7 +255,7 @@ Páginas de configuración — perfil, sistema y UI.
 
 Páginas de órdenes de compra — creación y autorizaciones.
 
-- `ordenes/CrearOrdenCompra.tsx` — crear orden de compra
+- [[lefarma.frontend/src/pages/ordenes/CrearOrdenCompra.tsx#CrearOrdenCompra]] — crear orden de compra. Empresa locked si `user.dominio !== 'grupolefarma'`. Sucursales filtradas por empresa seleccionada desde el inicio.
 - `ordenes/AutorizacionesOC.tsx` — autorizaciones de OC
 
 ### Workflows
@@ -272,6 +272,14 @@ Páginas del centro de ayuda — lista, vista y editor de artículos.
 - `help/HelpList.tsx` — lista de artículos de ayuda
 - `help/HelpView.tsx` — ver artículo
 - `help/HelpEditor.tsx` — editor de artículos
+
+### Landing Page
+
+Página de inicio pública con información del sistema y call-to-action.
+
+- [[lefarma.frontend/src/pages/Hero.tsx]] — landing page con logo, descripción y botones de acción
+- Botones: "Iniciar Sesión" → `/login`, "Ayuda" → `/ayuda`
+- Botones en header y en sección principal del hero
 
 ### Dashboard
 
