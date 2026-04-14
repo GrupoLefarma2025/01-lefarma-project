@@ -1,4 +1,5 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
@@ -33,6 +34,14 @@ import {
   FileIcon,
   Eye,
   Download,
+  Clock,
+  XCircle,
+  AlertTriangle,
+  UserRound,
+  MessageSquare,
+  MoveRight,
+  Send,
+  RotateCcw,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import { FileUploader } from '@/components/archivos/FileUploader';
@@ -201,9 +210,12 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
 
+  const [searchParams] = useSearchParams();
+  const idOrdenParam = searchParams.get('idOrden') ? Number(searchParams.get('idOrden')) : null;
+
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(idOrdenParam);
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompraResponse | null>(null);
   const [acciones, setAcciones] = useState<AccionDisponibleResponse[]>([]);
   const [historial, setHistorial] = useState<HistorialWorkflowItemResponse[]>([]);
@@ -246,17 +258,15 @@ export default function AutorizacionesOC() {
   const formatCurrency = (value: number) =>
     value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
-  const fetchOrdenes = async () => {
+  const fetchOrdenes = useCallback(async () => {
     try {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes');
       const data = res.data.data || [];
       setOrdenes(data);
-      console.log('Órdenes obtenidas:', data);
-      if (data.length > 0 && selectedId == null) setSelectedId(data[0].idOrden);
     } catch (error: any) {
       toast.error(error?.message ?? 'Error al cargar bandeja de órdenes');
     }
-  };
+  }, []);
 
   const fetchDetalle = async (idOrden: number) => {
     try {
@@ -610,6 +620,19 @@ export default function AutorizacionesOC() {
     return item.nombreAccion || `Acción ${item.idAccion}`;
   };
 
+  const getEventoIcon = (nombreAccion: string | null | undefined) => {
+    const n = (nombreAccion || '').toLowerCase();
+    if (n.includes('aprob') || n.includes('autoriza'))
+      return { Icon: CheckCircle2, color: 'text-emerald-500' };
+    if (n.includes('rechaz'))
+      return { Icon: XCircle, color: 'text-red-500' };
+    if (n.includes('devuelv') || n.includes('retorn'))
+      return { Icon: RotateCcw, color: 'text-amber-500' };
+    if (n.includes('envi') || n.includes('firma'))
+      return { Icon: Send, color: 'text-blue-500' };
+    return { Icon: ChevronRight, color: 'text-muted-foreground' };
+  };
+
   const renderMovimientoEvento = (item: HistorialWorkflowItemResponse) => {
     if (!item.datosSnapshot) return null;
     try {
@@ -642,7 +665,7 @@ export default function AutorizacionesOC() {
     });
   }, [ordenes, estadoFilter, search]);
 
-  const columns: ColumnDef<OrdenCompraResponse>[] = [
+  const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
       accessorKey: 'folio',
       header: 'Folio',
@@ -687,17 +710,24 @@ export default function AutorizacionesOC() {
       id: 'actions',
       header: 'Acción',
       cell: ({ row }) => (
-        <Button size="sm" variant="outline" onClick={() => setSelectedId(row.original.idOrden)}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          onClick={(e) => { e.stopPropagation(); setSelectedId(row.original.idOrden); }}
+        >
+          <Eye className="h-3.5 w-3.5" />
           Revisar
         </Button>
       ),
     },
-  ];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-7">
+        <div className="space-y-4 xl:col-span-5">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
@@ -743,11 +773,12 @@ export default function AutorizacionesOC() {
               defaultSearchColumns: ['folio'],
             }}
             onRowClick={(row) => setSelectedId((row as OrdenCompraResponse).idOrden)}
+            isRowSelected={(row) => (row as OrdenCompraResponse).idOrden === selectedId}
             height={460}
           />
         </div>
 
-        <div className="space-y-4 xl:col-span-5">
+        <div className="space-y-4 xl:col-span-7">
           <Card className="xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-6.5rem)] xl:max-h-[calc(100vh-6.5rem)] xl:min-h-[680px] xl:flex-col">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -762,9 +793,11 @@ export default function AutorizacionesOC() {
               )}
 
               {!loadingDetail && !selectedOrden && (
-                <p className="text-sm text-muted-foreground">
-                  Selecciona una orden para ver detalle.
-                </p>
+                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+                  <FileText className="h-10 w-10 opacity-30" />
+                  <p className="text-sm font-medium">Aquí se mostrará el detalle de la orden</p>
+                  <p className="text-xs opacity-70">Selecciona una orden de la lista para ver su información</p>
+                </div>
               )}
 
               {!loadingDetail && selectedOrden && (
@@ -951,9 +984,8 @@ export default function AutorizacionesOC() {
                                 const totalImpuestos =
                                   (subtotalPartida * partida.porcentajeIva) / 100;
                                 return (
-                                  <>
+                                  <Fragment key={partida.idPartida}>
                                     <tr
-                                      key={partida.idPartida}
                                       className="hover:bg-muted/30 cursor-pointer border-b"
                                       onClick={() =>
                                         setExpandedPartidaId((prev) =>
@@ -1039,7 +1071,7 @@ export default function AutorizacionesOC() {
                                         </td>
                                       </tr>
                                     )}
-                                  </>
+                                  </Fragment>
                                 );
                               })}
                             </tbody>
@@ -1052,207 +1084,249 @@ export default function AutorizacionesOC() {
                       value="autorizar"
                       className="mt-3 space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
-                      <div className="bg-muted/20 rounded-md border p-3">
-                        <p className="text-sm font-medium">Acciones del paso actual</p>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {acciones.length === 0 ? (
-                            <p className="text-xs text-muted-foreground">
-                              No hay acciones disponibles para este usuario/paso.
-                            </p>
-                          ) : (
-                            acciones.map((a) => (
-                              <Button
-                                key={a.idAccion}
-                                size="sm"
-                                variant={a.tipoAccion === 'RECHAZO' ? 'destructive' : 'default'}
-                                onClick={() => abrirModalFirma(a)}
-                              >
-                                {a.nombreAccion}
-                              </Button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
+                      <div className="space-y-3">
                         <p className="text-sm font-medium">Flujo de pasos (inicio → fin)</p>
-                        {progresoPasos.length > 0 && (
+                        {progresoPasos.length > 0 && (() => {
+                          return (
                           <div
                             ref={pasosContainerRef}
-                            className="max-h-[28rem] space-y-2 overflow-y-auto pr-1"
+                            className="relative max-h-[32rem] overflow-y-auto pr-1"
                           >
+                            {/* Línea vertical fija — cubre toda la altura */}
+                            <div className="absolute left-[1.1rem] top-4 bottom-4 w-0.5 rounded-full bg-border/60" />
+
+                            <div className="space-y-2">
                             {progresoPasos.map((paso, index) => {
                               const isActual = paso.estadoVisual === 'actual';
                               const isCompletado = paso.estadoVisual === 'completado';
                               const isOmitido = paso.estadoVisual === 'omitido';
                               const isRechazado = paso.estadoVisual === 'rechazado';
                               const isDevuelto = paso.estadoVisual === 'devuelto';
+                              const isPendiente = !isActual && !isCompletado && !isOmitido && !isRechazado && !isDevuelto;
                               const isExpanded = expandedPasoId === paso.idPaso;
-                              const isActualRechazada =
-                                isActual && selectedOrden?.estado === 'Rechazada';
-                              const isActualCancelada =
-                                isActual && selectedOrden?.estado === 'Cancelada';
+                              const isActualRechazada = isActual && selectedOrden?.estado === 'Rechazada';
+                              const isActualCancelada = isActual && selectedOrden?.estado === 'Cancelada';
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
-                              const classes = isActual
-                                ? isActualRechazada
-                                  ? 'border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800'
-                                  : isActualCancelada
-                                    ? 'border-zinc-400 bg-zinc-100 dark:bg-zinc-900/50 dark:border-zinc-600'
-                                    : 'border-blue-300 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800'
-                                : isCompletado
-                                  ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-800'
-                                  : isRechazado
-                                    ? 'border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800'
-                                    : isDevuelto
-                                      ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800'
-                                      : isOmitido
-                                        ? 'border-zinc-300 bg-zinc-100 dark:bg-zinc-900/40 dark:border-zinc-700 opacity-70'
-                                        : 'border-border/70 bg-muted/20 opacity-60';
-                              return (
-                                <button
-                                  type="button"
-                                  key={paso.idPaso}
-                                  data-paso-id={paso.idPaso}
-                                  onClick={() =>
-                                    setExpandedPasoId((prev) =>
-                                      prev === paso.idPaso ? null : paso.idPaso
-                                    )
-                                  }
-                                  className={`w-full rounded-md border p-3 text-left transition ${classes} ${isExpanded ? 'ring-primary/40 ring-2' : ''}`}
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex items-center gap-2">
-                                      {isExpanded ? (
-                                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                                      ) : (
-                                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                                      )}
-                                      <span className="rounded-full border px-2 py-0.5 text-xs font-semibold">
-                                        {index + 1}
-                                      </span>
-                                      <span className="text-sm font-medium">{paso.nombrePaso}</span>
-                                    </div>
-                                    {isActual ? (
-                                      <Badge
-                                        variant={
-                                          isActualRechazada
-                                            ? 'destructive'
-                                            : isActualCancelada
-                                              ? 'outline'
-                                              : 'secondary'
-                                        }
-                                      >
-                                        {isActualRechazada
-                                          ? 'Actual · Rechazada'
-                                          : isActualCancelada
-                                            ? 'Actual · Cancelada'
-                                            : 'Actual'}
-                                      </Badge>
-                                    ) : isCompletado ? (
-                                      <Badge variant="default">Completado</Badge>
-                                    ) : isRechazado ? (
-                                      <Badge variant="destructive">Rechazado</Badge>
-                                    ) : isDevuelto ? (
-                                      <Badge
-                                        variant="outline"
-                                        className="border-amber-400 bg-amber-50 text-amber-700 dark:bg-amber-950/20"
-                                      >
-                                        Devuelto
-                                      </Badge>
-                                    ) : isOmitido ? (
-                                      <Badge variant="outline">Omitido</Badge>
-                                    ) : (
-                                      <Badge variant="outline">En espera</Badge>
-                                    )}
-                                  </div>
-                                  {paso.descripcionAyuda && (
-                                    <p className="mt-1 text-xs text-muted-foreground">
-                                      {paso.descripcionAyuda}
-                                    </p>
-                                  )}
-                                  {eventosPaso.length > 0 && (
-                                    <p className="mt-2 text-[11px] text-muted-foreground">
-                                      {eventosPaso.length} evento(s) · Último:{' '}
-                                      {renderNombreAccion(ultimoEvento)} ·{' '}
-                                      {new Date(ultimoEvento.fechaEvento).toLocaleString('es-MX')}
-                                    </p>
-                                  )}
-                                  {isExpanded && (
-                                    <div className="mt-3 space-y-2">
-                                      {eventosPaso.length === 0 && (
-                                        <p className="rounded border bg-background p-2 text-xs text-muted-foreground">
-                                          Sin eventos en este paso.
-                                        </p>
-                                      )}
-                                      {eventosPaso.map((item) => (
-                                        <div
-                                          key={item.idEvento}
-                                          className="rounded border bg-background p-2"
-                                        >
-                                          <div className="flex items-center justify-between gap-2">
-                                            <p className="text-xs font-medium">
-                                              {renderNombreAccion(item)}
-                                            </p>
-                                            <span className="text-[11px] text-muted-foreground">
-                                              {new Date(item.fechaEvento).toLocaleString('es-MX')}
-                                            </span>
-                                          </div>
-                                          {renderMovimientoEvento(item) && (
-                                            <p className="mt-1 text-[11px] text-muted-foreground">
-                                              {renderMovimientoEvento(item)}
-                                            </p>
-                                          )}
-                                          <p className="mt-1 text-[11px] text-muted-foreground">
-                                            {item.nombreUsuario || `Usuario ${item.idUsuario}`}
-                                          </p>
-                                          {item.comentario && (
-                                            <p className="bg-muted/30 mt-1 rounded p-2 text-[11px]">
-                                              {item.comentario}
-                                            </p>
-                                          )}
-                                        </div>
-                                      ))}
 
-                                      {isActual && (
-                                        <div className="pt-2">
-                                          <p className="mb-2 text-xs font-semibold">
-                                            Acciones en este paso
-                                          </p>
-                                          <div className="flex flex-wrap gap-2">
-                                            {acciones.length === 0 ? (
-                                              <p className="text-xs text-muted-foreground">
-                                                No hay acciones disponibles para este usuario/paso.
-                                              </p>
-                                            ) : (
-                                              acciones.map((a) => (
-                                                <Button
-                                                  key={a.idAccion}
-                                                  size="sm"
-                                                  variant={
-                                                    a.tipoAccion === 'RECHAZO'
-                                                      ? 'destructive'
-                                                      : 'default'
-                                                  }
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    abrirModalFirma(a);
-                                                  }}
-                                                >
-                                                  {a.nombreAccion}
-                                                </Button>
-                                              ))
-                                            )}
-                                          </div>
-                                        </div>
-                                      )}
+                              // Dot visual
+                              const dotBg = isCompletado
+                                ? 'bg-emerald-500 border-emerald-500'
+                                : isActual
+                                  ? isActualRechazada
+                                    ? 'bg-red-500 border-red-500'
+                                    : isActualCancelada
+                                      ? 'bg-zinc-400 border-zinc-400'
+                                      : 'bg-blue-500 border-blue-500'
+                                  : isRechazado
+                                    ? 'bg-red-400 border-red-400'
+                                    : isDevuelto
+                                      ? 'bg-amber-400 border-amber-400'
+                                      : 'bg-background border-border';
+
+                              const DotIcon = isCompletado
+                                ? CheckCircle2
+                                : isRechazado || isActualRechazada
+                                  ? XCircle
+                                  : isDevuelto
+                                    ? AlertTriangle
+                                    : isPendiente || isOmitido
+                                      ? Clock
+                                      : null;
+
+                              // Card border/bg
+                              const cardClass = isActual
+                                ? isActualRechazada
+                                  ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
+                                  : isActualCancelada
+                                    ? 'border-l-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/30'
+                                    : 'border-l-blue-400 bg-blue-50/60 dark:bg-blue-950/15'
+                                : isCompletado
+                                  ? 'border-l-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/10'
+                                  : isRechazado
+                                    ? 'border-l-red-300 bg-red-50/40 dark:bg-red-950/10'
+                                    : isDevuelto
+                                      ? 'border-l-amber-300 bg-amber-50/40 dark:bg-amber-950/10'
+                                      : 'border-l-border/50 opacity-60';
+
+                              return (
+                                <div key={paso.idPaso} className="relative pl-10">
+                                  {/* Dot */}
+                                  <div className={`absolute left-3 top-3 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 ${dotBg}`}
+                                    style={{ width: '1.1rem', height: '1.1rem', left: '0.55rem' }}
+                                  >
+                                    {isActual && !isActualRechazada && !isActualCancelada ? (
+                                      <span className="relative flex h-full w-full">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-50" />
+                                        <span className="relative inline-flex h-full w-full rounded-full bg-blue-500" />
+                                      </span>
+                                    ) : DotIcon ? (
+                                      <DotIcon className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
+                                    ) : null}
+                                  </div>
+
+                                  {/* Card */}
+                                  <button
+                                    type="button"
+                                    data-paso-id={paso.idPaso}
+                                    onClick={() => setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso)}
+                                    className={`w-full cursor-default rounded-lg border border-l-4 p-3 text-left transition-all hover:shadow-sm ${cardClass} ${isExpanded ? 'ring-1 ring-primary/30' : ''}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
+                                          {index + 1}
+                                        </span>
+                                        <span className="truncate text-sm font-medium">{paso.nombrePaso}</span>
+                                      </div>
+                                      <div className="flex flex-shrink-0 items-center gap-1.5">
+                                        {isActual ? (
+                                          <Badge variant={isActualRechazada ? 'destructive' : isActualCancelada ? 'outline' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                                            {isActualRechazada ? 'Rechazada' : isActualCancelada ? 'Cancelada' : '● Actual'}
+                                          </Badge>
+                                        ) : isCompletado ? (
+                                          <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 hover:bg-emerald-500">✓ Completado</Badge>
+                                        ) : isRechazado ? (
+                                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Rechazado</Badge>
+                                        ) : isDevuelto ? (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600">Devuelto</Badge>
+                                        ) : isOmitido ? (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 opacity-60">Omitido</Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">En espera</Badge>
+                                        )}
+                                        {isExpanded
+                                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                          : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                        }
+                                      </div>
                                     </div>
-                                  )}
-                                </button>
+
+                                    {paso.descripcionAyuda && !isExpanded && (
+                                      <p className="mt-1 ml-7 text-[11px] text-muted-foreground truncate">{paso.descripcionAyuda}</p>
+                                    )}
+                                    {eventosPaso.length > 0 && !isExpanded && (
+                                      <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {new Date(ultimoEvento.fechaEvento).toLocaleString('es-MX')}
+                                      </p>
+                                    )}
+
+                                    {isExpanded && (
+                                      <div className="mt-3 ml-1 space-y-3" onClick={e => e.stopPropagation()}>
+                                        {paso.descripcionAyuda && (
+                                          <p className="text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
+                                        )}
+
+                                        {/* Historial de actividad */}
+                                        <div>
+                                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                            Historial de actividad
+                                          </p>
+                                          {eventosPaso.length === 0 ? (
+                                            <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
+                                          ) : (
+                                            <div className="space-y-2">
+                                            {eventosPaso.map((item) => {
+                                              let transFrom: string | null = null;
+                                              let transTo: string | null = null;
+                                              if (item.datosSnapshot) {
+                                                try {
+                                                  const snap = JSON.parse(item.datosSnapshot) as {
+                                                    idPasoAnterior?: number | null;
+                                                    idPasoNuevo?: number | null;
+                                                  };
+                                                  transFrom = snap.idPasoAnterior
+                                                    ? (pasosMap.get(snap.idPasoAnterior)?.nombrePaso ?? null)
+                                                    : null;
+                                                  transTo = snap.idPasoNuevo
+                                                    ? (pasosMap.get(snap.idPasoNuevo)?.nombrePaso ?? null)
+                                                    : null;
+                                                } catch { /* ignore */ }
+                                              }
+                                              const showTrans = (transFrom || transTo) && transFrom !== transTo;
+
+                                              return (
+                                                <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
+                                                  {/* Fila: acción + fecha */}
+                                                  <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+                                                    <span className="font-semibold truncate">
+                                                      {item.nombreAccion || `Acción ${item.idAccion}`}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                                      {new Date(item.fechaEvento).toLocaleString('es-MX')}
+                                                    </span>
+                                                  </div>
+                                                  {/* Cuerpo con etiquetas */}
+                                                  <div className="space-y-1 px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
+                                                      <div className="flex items-center gap-1 text-foreground/80">
+                                                        <UserRound className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                                                        <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
+                                                      </div>
+                                                    </div>
+                                                    {showTrans && (
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
+                                                        <div className="flex items-center gap-1 text-foreground/80">
+                                                          <MoveRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                                                          <span>
+                                                            {transFrom && (
+                                                              <><span className="text-foreground/60">{transFrom}</span><span className="mx-1 text-muted-foreground">→</span></>
+                                                            )}
+                                                            <span className="font-medium">{transTo}</span>
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                    {item.comentario && (
+                                                      <div className="mt-2 rounded-md border border-border/60 bg-muted/60 px-3 py-2.5 shadow-sm">
+                                                        <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comentario</p>
+                                                        <p className="text-[11px] leading-relaxed text-foreground/90 italic">{item.comentario}</p>
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Acciones disponibles */}
+                                        {isActual && (
+                                          <div className="border-t border-border/50 pt-3">
+                                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                              Acciones disponibles
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {acciones.length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">No hay acciones disponibles.</p>
+                                              ) : (
+                                                acciones.map((a) => (
+                                                  <Button
+                                                    key={a.idAccion}
+                                                    size="sm"
+                                                    variant={a.tipoAccion === 'RECHAZO' ? 'destructive' : 'default'}
+                                                    onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                                                  >
+                                                    {a.nombreAccion}
+                                                  </Button>
+                                                ))
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </button>
+                                </div>
                               );
                             })}
+                            </div>
                           </div>
-                        )}
+                          );
+                        })()}
                       </div>
                     </TabsContent>
 
@@ -1621,7 +1695,7 @@ export default function AutorizacionesOC() {
                   ? 'Motivo del rechazo (obligatorio)'
                   : esRetorno
                     ? 'Motivo de devolución/corrección (obligatorio)'
-                    : 'Comentario de autorización (opcional)'
+                    : 'Comentario de autorización'
               }
               rows={4}
             />

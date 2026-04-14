@@ -8,6 +8,7 @@ using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
@@ -18,6 +19,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
+        private readonly IServiceScopeFactory _scopeFactory;
         protected override string EntityName => "Firma";
 
         private const string CODIGO_PROCESO = "ORDEN_COMPRA";
@@ -28,6 +30,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             IWorkflowRepository workflowRepo,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
+            IServiceScopeFactory scopeFactory,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -36,6 +39,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             _workflowRepo = workflowRepo;
             _context = context;
             _asokamContext = asokamContext;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
@@ -89,6 +93,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
                 var notificacionSeleccionada = ResolveWorkflowNotification(workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
+
+                // Dispatch notificación como fire-and-forget con scope propio:
+                // los DbContext son scoped y el scope HTTP termina antes de que este task corra.
+                var notifSnapshot = notificacionSeleccionada;
+                var ordenId = orden.IdOrden;
+                var folioSnapshot = orden.Folio;
+                var pasoDestino = resultado.NuevoIdPaso;
+                var comentarioSnapshot = request.Comentario;
+                _ = Task.Run(async () =>
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dispatcher = scope.ServiceProvider.GetRequiredService<IWorkflowNotificationDispatcher>();
+                    // Necesitamos la orden completa: la recargamos dentro del scope nuevo
+                    var ordenRepo = scope.ServiceProvider.GetRequiredService<IOrdenCompraRepository>();
+                    var ordenFresh = await ordenRepo.GetWithPartidasAsync(ordenId);
+                    if (ordenFresh is null) return;
+                    await dispatcher.DispatchAsync(notifSnapshot, ordenFresh, pasoDestino, idUsuario, comentarioSnapshot);
+                });
 
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
                     additionalContext: new Dictionary<string, object>
@@ -276,10 +298,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             return codigoEstado.Trim().ToUpperInvariant() switch
             {
                 "CREADA" => (estado = EstadoOC.Creada) == EstadoOC.Creada,
-                "EN_REVISION_F2" => (estado = EstadoOC.EnRevisionF2) == EstadoOC.EnRevisionF2,
-                "EN_REVISION_F3" => (estado = EstadoOC.EnRevisionF3) == EstadoOC.EnRevisionF3,
-                "EN_REVISION_F4" => (estado = EstadoOC.EnRevisionF4) == EstadoOC.EnRevisionF4,
-                "EN_REVISION_F5" => (estado = EstadoOC.EnRevisionF5) == EstadoOC.EnRevisionF5,
+                "EN_REVISION_F2" or "ENFIRMA1" or "ENFIRMA2" => (estado = EstadoOC.EnRevisionF2) == EstadoOC.EnRevisionF2,
+                "EN_REVISION_F3" or "ENFIRMA3" => (estado = EstadoOC.EnRevisionF3) == EstadoOC.EnRevisionF3,
+                "EN_REVISION_F4" or "ENFIRMA4" => (estado = EstadoOC.EnRevisionF4) == EstadoOC.EnRevisionF4,
+                "EN_REVISION_F5" or "ENFIRMA5" => (estado = EstadoOC.EnRevisionF5) == EstadoOC.EnRevisionF5,
                 "AUTORIZADA" => (estado = EstadoOC.Autorizada) == EstadoOC.Autorizada,
                 "EN_TESORERIA" => (estado = EstadoOC.EnTesoreria) == EstadoOC.EnTesoreria,
                 "PAGADA" => (estado = EstadoOC.Pagada) == EstadoOC.Pagada,

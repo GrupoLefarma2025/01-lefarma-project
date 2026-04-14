@@ -18,14 +18,25 @@ public class WorkflowNotificacionConfiguration : IEntityTypeConfiguration<Workfl
             builder.Property(n => n.AvisarAlCreador).HasColumnName("avisar_al_creador").HasDefaultValue(false);
             builder.Property(n => n.AvisarAlSiguiente).HasColumnName("avisar_al_siguiente").HasDefaultValue(true);
             builder.Property(n => n.AvisarAlAnterior).HasColumnName("avisar_al_anterior").HasDefaultValue(false);
+            builder.Property(n => n.AvisarAAutorizadoresPrevios).HasColumnName("avisar_a_autorizadores_previos").HasDefaultValue(false);
+            builder.Property(n => n.IncluirPartidas).HasColumnName("incluir_partidas").HasDefaultValue(false);
             builder.Property(n => n.Activo).HasColumnName("activo").HasDefaultValue(true);
-            builder.Property(n => n.AsuntoTemplate).HasColumnName("asunto_template").HasMaxLength(200);
-            builder.Property(n => n.CuerpoTemplate).HasColumnName("cuerpo_template").IsRequired();
 
             builder.HasOne(n => n.PasoDestino)
                 .WithMany()
                 .HasForeignKey(n => n.IdPasoDestino)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(n => n.IdTipoNotificacion).HasColumnName("id_tipo_notificacion");
+            builder.HasOne(n => n.TipoNotificacion)
+                .WithMany(t => t.Notificaciones)
+                .HasForeignKey(n => n.IdTipoNotificacion)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            builder.HasMany(n => n.Canales)
+                .WithOne(c => c.Notificacion)
+                .HasForeignKey(c => c.IdNotificacion)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

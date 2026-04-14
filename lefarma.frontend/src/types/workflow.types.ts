@@ -90,19 +90,30 @@ export interface WorkflowParticipante {
 
 // ─── WorkflowNotificacion ─────────────────────────────────────────────────────
 
+export interface WorkflowNotificacionCanal {
+  idNotificacionCanal?: number;
+  codigoCanal: string;
+  asuntoTemplate?: string;
+  cuerpoTemplate: string;
+  listadoRowHtml?: string;
+  activo: boolean;
+}
+
 export interface WorkflowNotificacion {
   idNotificacion: number;
   idAccion: number;
   idPasoDestino?: number;
+  idTipoNotificacion?: number;
   enviarEmail: boolean;
   enviarWhatsapp: boolean;
   enviarTelegram: boolean;
   avisarAlCreador: boolean;
   avisarAlSiguiente: boolean;
   avisarAlAnterior: boolean;
+  avisarAAutorizadoresPrevios: boolean;
+  incluirPartidas: boolean;
   activo: boolean;
-  asuntoTemplate?: string;
-  cuerpoTemplate: string;
+  canales?: WorkflowNotificacionCanal[];
 }
 
 // ─── WorkflowBitacora ─────────────────────────────────────────────────────────

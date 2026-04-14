@@ -6,6 +6,7 @@ Knowledge base index for the Lefarma project. Managed by [lat.md](https://www.np
 
 Documentación del proyecto Lefarma organizada por área.
 
+- [[workflow]] — Motor de workflow, handlers, notificaciones de autorización OC
 - [[auth]] — Sistema de autenticación y autorización (LDAP + JWT)
 - [[backend-architecture]] — Data flow, patterns, error handling, cross-cutting concerns
 - [[backend]] — Backend API architecture, layers, and entry point

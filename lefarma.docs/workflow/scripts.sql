@@ -108,11 +108,26 @@ CREATE TABLE config.workflow_acciones (
     CONSTRAINT FK_workflow_acciones_destino FOREIGN KEY (id_paso_destino) REFERENCES config.workflow_pasos(id_paso)
 );
 
--- 6. NOTIFICACIONES CONFIGURABLES POR ACCIÓN (opcionalmente por paso destino)
+-- 6. TIPOS DE NOTIFICACIÓN (catálogo editable de tipos con colores e iconos)
+-- Define las categorías visuales de notificaciones. ColorTema/ColorClaro son inyectados
+-- como {{ColorTema}} y {{ColorClaro}} en el layout HTML del canal para personalizar el color del header.
+CREATE TABLE config.workflow_tipo_notificacion (
+    id_tipo       INT IDENTITY(1,1) PRIMARY KEY,
+    codigo        VARCHAR(30) NOT NULL,      -- 'aprobacion' | 'rechazo' | 'pendiente' | 'pago' | 'devolucion' | 'info'
+    nombre        VARCHAR(100) NOT NULL,
+    color_tema    VARCHAR(7) NOT NULL,        -- color principal (hex) ej: '#16a34a'
+    color_claro   VARCHAR(7) NOT NULL,        -- color claro de fondo (hex) ej: '#dcfce7'
+    icono         VARCHAR(10) NOT NULL,       -- emoji corto ej: '✅'
+    activo        BIT NOT NULL DEFAULT 1,
+    CONSTRAINT UX_workflow_tipo_notificacion_codigo UNIQUE (codigo)
+);
+
+-- 7. NOTIFICACIONES CONFIGURABLES POR ACCIÓN (opcionalmente por paso destino)
 CREATE TABLE config.workflow_notificaciones (
     id_notificacion INT IDENTITY(1,1) PRIMARY KEY,
     id_accion INT NOT NULL,
-    id_paso_destino INT NULL, -- Permite diferenciar templates según el destino real (ramas por condición)
+    id_paso_destino INT NULL,         -- Permite diferenciar templates según el destino real (ramas por condición)
+    id_tipo_notificacion INT NULL,    -- FK a workflow_tipo_notificacion; NULL usa defaults de color
     
     -- Canales activos para esta notificación
     enviar_email BIT DEFAULT 1,
@@ -123,17 +138,35 @@ CREATE TABLE config.workflow_notificaciones (
     avisar_al_creador BIT DEFAULT 0,
     avisar_al_siguiente BIT DEFAULT 1, -- Avisar al que le toca firmar ahora
     avisar_al_anterior BIT DEFAULT 0,  -- Avisar al que ya firmó (confirmación)
+    avisar_a_autorizadores_previos BIT NOT NULL DEFAULT 0, -- Avisar a todos los que aprobaron pasos anteriores
     activo BIT DEFAULT 1,
     
-    -- Contenido (Templates)
-    asunto_template VARCHAR(200) NULL,
-    cuerpo_template VARCHAR(MAX) NOT NULL, -- Puede contener tags: {{Folio}}, {{Solicitante}}, {{Monto}}
+    -- Opciones de contenido
+    incluir_partidas BIT NOT NULL DEFAULT 0, -- Si es 1, genera {{Partidas}} con tabla HTML de partidas
+    -- Nota: asunto_template y cuerpo_template viven en workflow_notificacion_canal (por canal)
     
     CONSTRAINT FK_workflow_notificaciones_accion FOREIGN KEY (id_accion) REFERENCES config.workflow_acciones(id_accion),
-    CONSTRAINT FK_workflow_notificaciones_paso_destino FOREIGN KEY (id_paso_destino) REFERENCES config.workflow_pasos(id_paso)
+    CONSTRAINT FK_workflow_notificaciones_paso_destino FOREIGN KEY (id_paso_destino) REFERENCES config.workflow_pasos(id_paso),
+    CONSTRAINT FK_workflow_notificaciones_tipo FOREIGN KEY (id_tipo_notificacion) REFERENCES config.workflow_tipo_notificacion(id_tipo)
 );
 
--- 7. CAMPOS CONFIGURABLES POR WORKFLOW (metadatos para UI dinámica)
+-- 7. PLANTILLAS DE CANAL POR WORKFLOW (layout HTML editable por canal)
+-- Almacena el "wrapper" completo que envuelve el cuerpo_template de cada notificación.
+-- {{Contenido}} es reemplazado por el cuerpo interpolado; el resto de vars sigue disponible.
+CREATE TABLE config.workflow_canal_templates (
+    id_template INT IDENTITY(1,1) PRIMARY KEY,
+    id_workflow INT NOT NULL,
+    codigo_canal VARCHAR(50) NOT NULL,  -- 'email' | 'in_app' | 'whatsapp' | 'telegram'
+    nombre VARCHAR(100) NOT NULL,
+    layout_html NVARCHAR(MAX) NOT NULL,
+    activo BIT NOT NULL DEFAULT 1,
+    fecha_modificacion DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+
+    CONSTRAINT FK_workflow_canal_templates_workflow FOREIGN KEY (id_workflow) REFERENCES config.workflows(id_workflow),
+    CONSTRAINT UX_workflow_canal_templates_canal UNIQUE (id_workflow, codigo_canal)
+);
+
+-- 8. CAMPOS CONFIGURABLES POR WORKFLOW (metadatos para UI dinámica)
 -- Actúa como "diccionario" de campos que el workflow puede solicitar/validar.
 -- propiedad_entidad: nombre exacto de la propiedad C# en OrdenCompra (para reflexión en FieldUpdater).
 -- validar_fiscal:    solo relevante para tipo_control='Archivo'; si 1, se verificará con webservice CFDI.
@@ -151,7 +184,7 @@ CREATE TABLE config.workflow_campos (
     CONSTRAINT UX_workflow_campos_workflow_nombre UNIQUE (id_workflow, nombre_tecnico)
 );
 
--- 8. HANDLERS DINÁMICOS POR ACCIÓN (Funciones de negocio configurables)
+-- 9. HANDLERS DINÁMICOS POR ACCIÓN (Funciones de negocio configurables)
 -- Dos tipos únicos: RequiredFields (valida presencia) y FieldUpdater (escribe en entidad).
 -- id_workflow_campo: enlaza directamente al campo del diccionario (reemplaza configuracion_json para campo).
 CREATE TABLE config.workflow_accion_handlers (
@@ -204,6 +237,143 @@ CREATE INDEX IX_workflow_acciones_origen ON config.workflow_acciones (id_paso_or
 CREATE INDEX IX_workflow_accion_handlers_accion_orden_activo ON config.workflow_accion_handlers (id_accion, orden_ejecucion, activo);
 CREATE INDEX IX_workflow_bitacora_orden ON config.workflow_bitacora (id_orden);
 CREATE INDEX IX_workflow_bitacora_fecha ON config.workflow_bitacora (fecha_evento);
+
+-- 11. RECORDATORIOS AUTOMÁTICOS POR PASO
+-- Configura reglas de envío periódico para recordar a los usuarios sobre órdenes pendientes.
+-- El BackgroundService evalúa estos recordatorios cada hora y envía resúmenes agrupados por usuario.
+CREATE TABLE config.workflow_recordatorio (
+    id_recordatorio     INT IDENTITY(1,1) PRIMARY KEY,
+    id_workflow         INT NOT NULL,
+    id_paso             INT NULL,          -- NULL = aplica a todos los pasos con participantes activos
+    nombre              VARCHAR(100) NOT NULL,
+    activo              BIT NOT NULL DEFAULT 1,
+
+    -- Trigger de tiempo
+    -- 'horario': se envía diariamente a hora_envio en los dias_semana indicados
+    -- 'recurrente': se envía cada intervalo_horas horas desde el último envío
+    -- 'fecha_especifica': se envía una sola vez en fecha_especifica
+    tipo_trigger        VARCHAR(20) NOT NULL DEFAULT 'horario', -- 'horario' | 'recurrente' | 'fecha_especifica'
+    hora_envio          TIME NULL,          -- Para 'horario': ej. 09:00
+    dias_semana         VARCHAR(20) NULL,   -- Para 'horario': '1,2,3,4,5' (1=lunes…7=domingo)
+    intervalo_horas     INT NULL,           -- Para 'recurrente': cada N horas
+    fecha_especifica    DATE NULL,          -- Para 'fecha_especifica': fecha única de envío
+
+    -- Condiciones de activación (AND lógico entre las que estén definidas)
+    min_ordenes_pendientes  INT NULL,       -- Solo enviar si el usuario tiene >= N órdenes pendientes
+    min_dias_en_paso        INT NULL,       -- Solo si la orden lleva >= N días en el paso actual
+    monto_minimo            DECIMAL(18,2) NULL, -- Filtrar solo órdenes con total >= monto
+    monto_maximo            DECIMAL(18,2) NULL, -- Filtrar solo órdenes con total <= monto
+
+    -- Escalación a jerarquía
+    escalar_a_jerarquia     BIT NOT NULL DEFAULT 0,  -- Notifica también al rol/paso anterior como superior
+    dias_para_escalar       INT NULL,                -- Escalar si la orden lleva >= N días sin acción
+
+    -- Destinatarios
+    enviar_al_responsable   BIT NOT NULL DEFAULT 1,  -- Notifica al usuario/rol asignado al paso
+
+    -- Canales
+    enviar_email            BIT NOT NULL DEFAULT 1,
+    enviar_whatsapp         BIT NOT NULL DEFAULT 0,
+    enviar_telegram         BIT NOT NULL DEFAULT 0,
+
+    fecha_creacion          DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+
+    CONSTRAINT FK_workflow_recordatorio_workflow FOREIGN KEY (id_workflow) REFERENCES config.workflows(id_workflow),
+    CONSTRAINT FK_workflow_recordatorio_paso FOREIGN KEY (id_paso) REFERENCES config.workflow_pasos(id_paso),
+    CONSTRAINT CK_workflow_recordatorio_trigger CHECK (tipo_trigger IN ('horario', 'recurrente', 'fecha_especifica'))
+);
+
+-- Modificaciones a tablas existentes (ejecutar en BD existentes):
+-- ALTER TABLE config.workflow_recordatorio DROP COLUMN asunto_template;
+-- ALTER TABLE config.workflow_recordatorio DROP COLUMN cuerpo_template;
+-- ALTER TABLE config.workflow_recordatorio DROP COLUMN listado_row_html;
+
+-- 12. TEMPLATES POR CANAL DE RECORDATORIO
+-- Permite definir contenido distinto según el canal (email = HTML rico, in_app = texto corto, whatsapp = texto plano).
+-- Todo el contenido del recordatorio vive aquí; no hay fallback genérico en el recordatorio padre.
+CREATE TABLE config.workflow_recordatorio_canal (
+    id_recordatorio_canal   INT IDENTITY(1,1) PRIMARY KEY,
+    id_recordatorio         INT NOT NULL,
+    codigo_canal            VARCHAR(20) NOT NULL,       -- 'email' | 'in_app' | 'whatsapp' | 'telegram'
+    asunto_template         VARCHAR(500) NULL,          -- NULL = sin asunto (canales que no lo usan)
+    cuerpo_template         NVARCHAR(MAX) NOT NULL,
+    -- Template HTML de fila del listado de órdenes (solo este canal).
+    -- Variables: {{Folio}}, {{Proveedor}}, {{Total}}, {{DiasEspera}}. NULL = default del worker.
+    listado_row_html        NVARCHAR(500) NULL,
+    activo                  BIT NOT NULL DEFAULT 1,
+
+    CONSTRAINT FK_recordatorio_canal_recordatorio FOREIGN KEY (id_recordatorio)
+        REFERENCES config.workflow_recordatorio(id_recordatorio) ON DELETE CASCADE,
+    CONSTRAINT UX_recordatorio_canal UNIQUE (id_recordatorio, codigo_canal),
+    CONSTRAINT CK_recordatorio_canal CHECK (codigo_canal IN ('email', 'in_app', 'whatsapp', 'telegram'))
+);
+
+CREATE INDEX IX_recordatorio_canal_recordatorio ON config.workflow_recordatorio_canal (id_recordatorio, activo);
+
+-- Modificación a tabla existente (ejecutar en BD existentes):
+-- ALTER TABLE config.workflow_recordatorio_canal ADD listado_row_html NVARCHAR(500) NULL;
+
+-- 13. LOG DE RECORDATORIOS ENVIADOS
+-- Evita duplicados y sirve como auditoría. Permite al worker saber cuándo fue el último envío.
+CREATE TABLE config.workflow_recordatorio_log (
+    id_log              INT IDENTITY(1,1) PRIMARY KEY,
+    id_recordatorio     INT NOT NULL,
+    id_usuario          INT NOT NULL,       -- Usuario notificado (ID de BD de Seguridad)
+    id_orden            INT NULL,           -- NULL si es resumen multi-orden
+    ordenes_incluidas   INT NULL,           -- Cuántas órdenes se incluyeron en el resumen
+    fecha_envio         DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    canal               VARCHAR(20) NOT NULL,    -- 'email' | 'inapp' | 'whatsapp' | 'telegram'
+    estado              VARCHAR(20) NOT NULL DEFAULT 'enviado', -- 'enviado' | 'error'
+    detalle_error       VARCHAR(500) NULL,
+
+    CONSTRAINT FK_recordatorio_log_recordatorio FOREIGN KEY (id_recordatorio) REFERENCES config.workflow_recordatorio(id_recordatorio) ON DELETE CASCADE
+);
+
+CREATE INDEX IX_workflow_recordatorio_workflow_activo ON config.workflow_recordatorio (id_workflow, activo);
+CREATE INDEX IX_recordatorio_log_recordatorio_usuario ON config.workflow_recordatorio_log (id_recordatorio, id_usuario, fecha_envio);
+
+-- 14. PLANTILLAS DE NOTIFICACIÓN BASE (Catálogo de referencia)
+-- Catálogo de plantillas reutilizables para pre-llenar el editor al crear notificaciones o recordatorios.
+-- NO se enlaza por FK — es un helper de UX. El usuario selecciona una, edita y guarda en la tabla de canal.
+-- Variables email: {{Folio}}, {{NombreResponsable}}, {{Total}}, {{Proveedor}}, {{Comentario}}, {{ListadoPendientes}}, {{Folios}}, etc.
+CREATE TABLE config.workflow_notificaciones_plantillas (
+    id_plantilla            INT IDENTITY(1,1) PRIMARY KEY,
+    nombre                  NVARCHAR(200) NOT NULL,
+    -- Tipo de notificación al que aplica esta plantilla (NULL = genérica, sirve para cualquier tipo)
+    codigo_tipo_notificacion VARCHAR(50) NULL,   -- 'aprobacion' | 'rechazo' | 'pendiente' | 'recordatorio' | etc.
+    codigo_canal             VARCHAR(20) NOT NULL, -- 'email' | 'in_app' | 'whatsapp' | 'telegram'
+    asunto_template          VARCHAR(500) NULL,
+    cuerpo_template          NVARCHAR(MAX) NOT NULL,
+    -- HTML de fila del listado de órdenes para este canal (NULL = default del worker)
+    listado_row_html         NVARCHAR(500) NULL,
+    activo                   BIT NOT NULL DEFAULT 1,
+
+    CONSTRAINT CK_notificaciones_plantillas_canal
+        CHECK (codigo_canal IN ('email', 'in_app', 'whatsapp', 'telegram'))
+);
+
+CREATE INDEX IX_notificaciones_plantillas_tipo_canal
+    ON config.workflow_notificaciones_plantillas (codigo_tipo_notificacion, codigo_canal, activo);
+
+-- 15. TEMPLATES POR CANAL DE NOTIFICACIÓN
+-- Permite definir contenido específico por canal para cada workflow_notificacion.
+-- El dispatcher usa el canal-específico primero; fallback a asunto_template/cuerpo_template de workflow_notificaciones.
+CREATE TABLE config.workflow_notificacion_canal (
+    id_notificacion_canal   INT IDENTITY(1,1) PRIMARY KEY,
+    id_notificacion         INT NOT NULL,
+    codigo_canal            VARCHAR(20) NOT NULL,       -- 'email' | 'in_app' | 'whatsapp' | 'telegram'
+    asunto_template         VARCHAR(500) NULL,
+    cuerpo_template         NVARCHAR(MAX) NOT NULL,
+    listado_row_html        NVARCHAR(500) NULL,
+    activo                  BIT NOT NULL DEFAULT 1,
+
+    CONSTRAINT FK_notificacion_canal_notificacion FOREIGN KEY (id_notificacion)
+        REFERENCES config.workflow_notificaciones(id_notificacion) ON DELETE CASCADE,
+    CONSTRAINT UX_notificacion_canal UNIQUE (id_notificacion, codigo_canal),
+    CONSTRAINT CK_notificacion_canal CHECK (codigo_canal IN ('email', 'in_app', 'whatsapp', 'telegram', 'sms'))
+);
+
+CREATE INDEX IX_notificacion_canal_notificacion ON config.workflow_notificacion_canal (id_notificacion, activo);
 
 -- =============================================================================
 -- ESQUEMA: operaciones
@@ -294,3 +464,53 @@ CREATE INDEX IX_ordenes_compra_fecha_creacion ON operaciones.ordenes_compra (fec
 CREATE INDEX IX_ordenes_compra_empresa ON operaciones.ordenes_compra (id_empresa, id_sucursal);
 CREATE INDEX IX_ordenes_compra_usuario_creador ON operaciones.ordenes_compra (id_usuario_creador);
 CREATE INDEX IX_ordenes_compra_partidas_orden ON operaciones.ordenes_compra_partidas (id_orden);
+
+-- =============================================================================
+-- STORED PROCEDURE: config.sp_procesar_recordatorios
+-- DESCRIPCIÓN: Llama al endpoint de la API para procesar recordatorios de workflow.
+--              Diseñado para ejecutarse desde SQL Server Agent cada X minutos.
+--              Requiere que sp_OA esté habilitado:
+--                  EXEC sp_configure 'Ole Automation Procedures', 1; RECONFIGURE;
+--
+-- USO MANUAL:
+--   EXEC config.sp_procesar_recordatorios;
+--
+-- SQL SERVER AGENT (Job Step):
+--   Crear un Job con un Step de tipo T-SQL:
+--   EXEC config.sp_procesar_recordatorios;
+--   Schedule: cada 15 minutos (o el intervalo deseado)
+-- =============================================================================
+GO
+
+CREATE OR ALTER PROCEDURE config.sp_procesar_recordatorios
+    @api_base_url VARCHAR(255) = 'http://192.168.4.2:5174'
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @Object       INT;
+    DECLARE @ResponseText VARCHAR(8000);
+    DECLARE @URL          VARCHAR(500);
+    DECLARE @ErrMsg       VARCHAR(500);
+
+    SET @URL = @api_base_url + '/api/workflow/recordatorios/ejecutar';
+
+    BEGIN TRY
+        EXEC sp_OACreate 'MSXML2.ServerXMLHTTP', @Object OUT;
+        EXEC sp_OAMethod @Object, 'open', NULL, 'POST', @URL, 'false';
+        EXEC sp_OAMethod @Object, 'setRequestHeader', NULL, 'Content-Type', 'application/json';
+        EXEC sp_OAMethod @Object, 'send';
+        EXEC sp_OAMethod @Object, 'responseText', @ResponseText OUTPUT;
+        EXEC sp_OADestroy @Object;
+
+        PRINT 'Recordatorios procesados. Respuesta: ' + ISNULL(@ResponseText, '(sin respuesta)');
+    END TRY
+    BEGIN CATCH
+        IF @Object IS NOT NULL
+            EXEC sp_OADestroy @Object;
+
+        SET @ErrMsg = 'Error en sp_procesar_recordatorios: ' + ERROR_MESSAGE();
+        RAISERROR(@ErrMsg, 16, 1);
+    END CATCH
+END
+GO

@@ -21,7 +21,11 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Info
+  Info,
+  Mail,
+  Clock,
+  FlaskConical,
+  Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -503,6 +507,11 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [editingCondicion, setEditingCondicion] = useState<any | null>(null);
   const [editingParticipante, setEditingParticipante] = useState<any | null>(null);
   const [editingNotificacion, setEditingNotificacion] = useState<any | null>(null);
+  const [editingCanalTemplate, setEditingCanalTemplate] = useState<any | null>(null);
+  const [canalTemplates, setCanalTemplates] = useState<any[]>([]);
+  const [editingRecordatorio, setEditingRecordatorio] = useState<any | null>(null);
+  const [recordatorios, setRecordatorios] = useState<any[]>([]);
+  const [ejecutandoRecordatorios, setEjecutandoRecordatorios] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   
   const [modalStates, setModalStates] = useState({
@@ -511,7 +520,10 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     handlerModal: false,
     condicionModal: false,
     participanteModal: false,
-    notificacionModal: false
+    notificacionModal: false,
+    canalTemplateModal: false,
+    recordatorioModal: false,
+    plantillasModal: false
   });
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
@@ -610,30 +622,39 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 
       <div className={embedded ? 'h-full overflow-hidden p-4' : 'flex-1 overflow-hidden px-6'}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="grid w-full grid-cols-6 mb-4">
-              <TabsTrigger value="pasos" className="gap-2">
+            <TabsList className="bg-muted/70 grid w-full grid-cols-7 h-10 border p-1 mb-4">
+              <TabsTrigger value="pasos" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <GitBranch className="h-4 w-4" />
                 Pasos
               </TabsTrigger>
-              <TabsTrigger value="acciones" className="gap-2">
+              <TabsTrigger value="acciones" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <Play className="h-4 w-4" />
                 Acciones
               </TabsTrigger>
-              <TabsTrigger value="condiciones" className="gap-2">
+              <TabsTrigger value="condiciones" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <Filter className="h-4 w-4" />
                 Condiciones
               </TabsTrigger>
-              <TabsTrigger value="handlers" className="gap-2">
+              <TabsTrigger value="handlers" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <Wrench className="h-4 w-4" />
                 Reglas
               </TabsTrigger>
-              <TabsTrigger value="participantes" className="gap-2">
+              <TabsTrigger value="participantes" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <Users className="h-4 w-4" />
                 Participantes
               </TabsTrigger>
-              <TabsTrigger value="notificaciones" className="gap-2">
+              <TabsTrigger value="notificaciones" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <Bell className="h-4 w-4" />
                 Notificaciones
+              </TabsTrigger>
+              <TabsTrigger value="recordatorios" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" onClick={async () => {
+                try {
+                  const res = await API.get<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios`);
+                  setRecordatorios(res.data?.data ?? []);
+                } catch { /* silencioso */ }
+              }}>
+                <Clock className="h-4 w-4" />
+                Recordatorios
               </TabsTrigger>
             </TabsList>
 
@@ -1136,17 +1157,34 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     <p className="text-sm text-muted-foreground">
                       Configura alertas automáticas ({workflow.pasos.reduce((acc, p) => acc + (p.acciones || []).reduce((accA, a) => accA + (a.notificaciones?.length || 0), 0), 0)} notificaciones)
                     </p>
-                    <Button
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setEditingNotificacion(null);
-                        toggleModal('notificacionModal', true);
-                      }}
-                    >
-                      <Plus className="h-4 w-4" />
-                      Agregar Notificación
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={async () => {
+                          try {
+                            const res = await API.get<any>(`/config/workflows/${workflow.idWorkflow}/canal-templates`);
+                            setCanalTemplates(res.data?.data ?? []);
+                          } catch { /* silencioso */ }
+                          toggleModal('plantillasModal', true);
+                        }}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Plantillas
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          setEditingNotificacion(null);
+                          toggleModal('notificacionModal', true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Agregar Notificación
+                      </Button>
+                    </div>
                   </div>
 
                   {workflow.pasos.some(p => (p.acciones || []).some(a => a.notificaciones && a.notificaciones.length > 0)) ? (
@@ -1168,7 +1206,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     notificacion.enviarEmail ? 'Email' : null,
                                     notificacion.enviarWhatsapp ? 'WhatsApp' : null,
                                     notificacion.enviarTelegram ? 'Telegram' : null
-                                  ].filter(Boolean).join(', ') || 'Sin canal'} • {notificacion.asuntoTemplate || 'Sin asunto'}
+                                  ].filter(Boolean).join(', ') || 'Sin canal'} • {notificacion.canales?.[0]?.asuntoTemplate || 'Sin asunto'}
                                 </p>
                               </div>
                               <div className="flex gap-1">
@@ -1212,6 +1250,171 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                       </p>
                       <p className="text-xs text-muted-foreground">
                         Email, WhatsApp, Telegram por acción
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+
+              <TabsContent value="recordatorios" className="mt-0 h-full">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">
+                      Recordatorios automáticos para usuarios con pendientes ({recordatorios.length} configurados)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={async () => {
+                          try {
+                            const res = await API.get<any>(`/config/workflows/${workflow.idWorkflow}/canal-templates`);
+                            setCanalTemplates(res.data?.data ?? []);
+                          } catch { /* silencioso */ }
+                          toggleModal('plantillasModal', true);
+                        }}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Plantillas
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        disabled={ejecutandoRecordatorios}
+                        title="Ejecutar todos los recordatorios ahora, independientemente del horario configurado"
+                        onClick={async () => {
+                          setEjecutandoRecordatorios(true);
+                          try {
+                            const res = await API.post<any>('/workflow/recordatorios/ejecutar');
+                            const data = res.data?.data ?? res.data;
+                            toast.success(data?.mensaje ?? 'Recordatorios ejecutados');
+                          } catch {
+                            toast.error('Error al ejecutar los recordatorios');
+                          } finally {
+                            setEjecutandoRecordatorios(false);
+                          }
+                        }}
+                      >
+                        {ejecutandoRecordatorios
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Zap className="h-4 w-4" />}
+                        Ejecutar ahora
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          setEditingRecordatorio(null);
+                          toggleModal('recordatorioModal', true);
+                        }}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Nuevo Recordatorio
+                      </Button>
+                    </div>
+                  </div>
+
+                  {recordatorios.length > 0 ? (
+                    <div className="space-y-2">
+                      {recordatorios.map((rec: any) => (
+                        <div key={rec.idRecordatorio} className={`p-3 rounded-lg border transition-colors ${rec.activo ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                                <span className="font-medium text-sm truncate">{rec.nombre}</span>
+                                <Badge variant={rec.activo ? 'default' : 'secondary'} className="text-[10px] shrink-0">
+                                  {rec.activo ? 'Activo' : 'Inactivo'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                <Badge variant="outline" className="text-xs capitalize">
+                                  {rec.tipoTrigger === 'horario' ? `Horario ${rec.horaEnvio ?? ''}` :
+                                   rec.tipoTrigger === 'recurrente' ? `Cada ${rec.intervaloHoras ?? '?'}h` :
+                                   `Fecha: ${rec.fechaEspecifica ?? ''}`}
+                                </Badge>
+                                {rec.idPaso ? (
+                                  <Badge variant="outline" className="text-xs border-blue-400/50 text-blue-600">
+                                    Paso #{rec.idPaso}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs border-purple-400/50 text-purple-600">
+                                    Todos los pasos
+                                  </Badge>
+                                )}
+                                {rec.enviarEmail && <Badge variant="outline" className="text-xs">Email</Badge>}
+                                {rec.enviarWhatsapp && <Badge variant="outline" className="text-xs">WhatsApp</Badge>}
+                                {rec.enviarTelegram && <Badge variant="outline" className="text-xs">Telegram</Badge>}
+                                {rec.escalarAJerarquia && (
+                                  <Badge variant="outline" className="text-xs border-amber-400/50 text-amber-600">
+                                    Escalación {rec.diasParaEscalar}d
+                                  </Badge>
+                                )}
+                              </div>
+                              {rec.asuntoTemplate && (
+                                <p className="text-xs text-muted-foreground mt-1 truncate">
+                                  {rec.asuntoTemplate}
+                                </p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Probar ahora"
+                                onClick={async () => {
+                                  try {
+                                    await API.post(`/config/workflows/${workflow.idWorkflow}/recordatorios/${rec.idRecordatorio}/test`);
+                                    toast.success('Recordatorio de prueba enviado');
+                                  } catch {
+                                    toast.error('Error al probar el recordatorio');
+                                  }
+                                }}
+                              >
+                                <FlaskConical className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingRecordatorio(rec);
+                                  toggleModal('recordatorioModal', true);
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive"
+                                onClick={async () => {
+                                  if (!confirm(`¿Eliminar recordatorio "${rec.nombre}"?`)) return;
+                                  try {
+                                    await API.delete(`/config/workflows/${workflow.idWorkflow}/recordatorios/${rec.idRecordatorio}`);
+                                    setRecordatorios(prev => prev.filter(r => r.idRecordatorio !== rec.idRecordatorio));
+                                    toast.success('Recordatorio eliminado');
+                                  } catch {
+                                    toast.error('Error al eliminar el recordatorio');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-border bg-muted/30 p-8 text-center">
+                      <Clock className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                      <p className="text-sm text-muted-foreground mb-2">
+                        No hay recordatorios configurados
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Crea recordatorios para notificar automáticamente a usuarios con órdenes pendientes
                       </p>
                     </div>
                   )}
@@ -1321,6 +1524,105 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           await onSave();
           toggleModal('notificacionModal', false);
           setEditingNotificacion(null);
+        }}
+      />
+      {/* Plantillas Modal */}
+      <Dialog open={modalStates.plantillasModal} onOpenChange={(open) => toggleModal('plantillasModal', open)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5" />
+              Plantillas de canal
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">
+                Layout HTML que envuelve el cuerpo de cada notificación por canal
+              </p>
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={() => {
+                  setEditingCanalTemplate(null);
+                  toggleModal('canalTemplateModal', true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Nueva Plantilla
+              </Button>
+            </div>
+
+            {canalTemplates.length > 0 ? (
+              <div className="space-y-2">
+                {canalTemplates.map(template => (
+                  <div key={template.idTemplate} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 text-xs font-semibold uppercase tracking-wide">
+                          {template.codigoCanal}
+                        </span>
+                        <span className="font-medium text-sm">{template.nombre}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground font-mono truncate max-w-sm">
+                        {template.layoutHtml?.substring(0, 70)}…
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setEditingCanalTemplate(template);
+                        toggleModal('canalTemplateModal', true);
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border bg-muted/30 p-8 text-center">
+                <Mail className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-1">No hay plantillas configuradas</p>
+                <p className="text-xs text-muted-foreground">
+                  Crea una plantilla por canal para personalizar el layout de las notificaciones
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      {/* Canal Template Edit Modal */}
+      <CanalTemplateEditModal
+        workflow={workflow}
+        template={editingCanalTemplate}
+        open={modalStates.canalTemplateModal}
+        setOpen={(open) => toggleModal('canalTemplateModal', open)}
+        onSave={async (saved, isNew) => {
+          if (isNew) {
+            setCanalTemplates(prev => [...prev, saved]);
+          } else {
+            setCanalTemplates(prev => prev.map(t => t.idTemplate === saved.idTemplate ? saved : t));
+          }
+          toggleModal('canalTemplateModal', false);
+          setEditingCanalTemplate(null);
+        }}
+      />
+      {/* Recordatorio Edit Modal */}
+      <RecordatorioEditModal
+        workflow={workflow}
+        recordatorio={editingRecordatorio}
+        open={modalStates.recordatorioModal}
+        setOpen={(open) => toggleModal('recordatorioModal', open)}
+        onSave={async (saved, isNew) => {
+          if (isNew) {
+            setRecordatorios(prev => [...prev, saved]);
+          } else {
+            setRecordatorios(prev => prev.map(r => r.idRecordatorio === saved.idRecordatorio ? saved : r));
+          }
+          toggleModal('recordatorioModal', false);
+          setEditingRecordatorio(null);
         }}
       />
     </>
@@ -2769,26 +3071,40 @@ interface NotificacionEditModalProps {
 
 function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }: NotificacionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
+  const [tiposNotificacion, setTiposNotificacion] = useState<any[]>([]);
   const [formData, setFormData] = useState({
     idAccion: 0,
     idPasoDestino: 0,
+    idTipoNotificacion: 0,
     enviarEmail: true,
     enviarWhatsapp: false,
     enviarTelegram: false,
     avisarAlCreador: true,
     avisarAlSiguiente: true,
     avisarAlAnterior: false,
+    avisarAAutorizadoresPrevios: false,
+    incluirPartidas: false,
     activo: true,
-    asuntoTemplate: '',
-    cuerpoTemplate: ''
+    canales: [] as any[]
   });
+
+  // Cargar tipos de notificación la primera vez
+  useEffect(() => {
+    API.get<any>('/config/workflows/tipos-notificacion')
+      .then(res => setTiposNotificacion(res.data?.data ?? []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (notificacion) {
+      // Cargar canales de la notificación
+      const canales = notificacion.canales ?? [];
       setFormData({
         ...notificacion,
         idPasoDestino: notificacion.idPasoDestino || 0,
-        activo: notificacion.activo ?? true
+        idTipoNotificacion: notificacion.idTipoNotificacion || 0,
+        activo: notificacion.activo ?? true,
+        canales
       });
     } else {
       // Encontrar la primera acción disponible
@@ -2796,15 +3112,17 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
       setFormData({
         idAccion: primeraAccion?.idAccion || 0,
         idPasoDestino: 0,
+        idTipoNotificacion: 0,
         enviarEmail: true,
         enviarWhatsapp: false,
         enviarTelegram: false,
         avisarAlCreador: true,
         avisarAlSiguiente: true,
         avisarAlAnterior: false,
+        avisarAAutorizadoresPrevios: false,
+        incluirPartidas: false,
         activo: true,
-        asuntoTemplate: '',
-        cuerpoTemplate: ''
+        canales: [] as any[]
       });
     }
   }, [notificacion, workflow.pasos, open]);
@@ -2815,15 +3133,17 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
     try {
       const payload = {
         idPasoDestino: formData.idPasoDestino || null,
+        idTipoNotificacion: formData.idTipoNotificacion || null,
         enviarEmail: formData.enviarEmail,
         enviarWhatsapp: formData.enviarWhatsapp,
         enviarTelegram: formData.enviarTelegram,
         avisarAlCreador: formData.avisarAlCreador,
         avisarAlSiguiente: formData.avisarAlSiguiente,
         avisarAlAnterior: formData.avisarAlAnterior,
+        avisarAAutorizadoresPrevios: formData.avisarAAutorizadoresPrevios,
+        incluirPartidas: formData.incluirPartidas,
         activo: formData.activo,
-        asuntoTemplate: formData.asuntoTemplate || '',
-        cuerpoTemplate: formData.cuerpoTemplate || ''
+        canales: formData.canales ?? []
       };
       if (notificacion) {
         await API.put(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/notificaciones/${notificacion.idNotificacion}`, payload);
@@ -2870,15 +3190,16 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
                 try {
                   await API.put(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/notificaciones/${notificacion.idNotificacion}`, {
                     idPasoDestino: formData.idPasoDestino || null,
+                    idTipoNotificacion: formData.idTipoNotificacion || null,
                     enviarEmail: formData.enviarEmail,
                     enviarWhatsapp: formData.enviarWhatsapp,
                     enviarTelegram: formData.enviarTelegram,
                     avisarAlCreador: formData.avisarAlCreador,
                     avisarAlSiguiente: formData.avisarAlSiguiente,
                     avisarAlAnterior: formData.avisarAlAnterior,
+                    avisarAAutorizadoresPrevios: formData.avisarAAutorizadoresPrevios,
+                    incluirPartidas: formData.incluirPartidas,
                     activo: !formData.activo,
-                    asuntoTemplate: formData.asuntoTemplate || '',
-                    cuerpoTemplate: formData.cuerpoTemplate || ''
                   });
                   toast.success(formData.activo ? 'Notificación desactivada' : 'Notificación activada');
                   await onSave();
@@ -2913,7 +3234,8 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
               {todasLasAcciones.map(({ idAccion, nombreAccion, tipoAccion, paso }) => (
                 <SelectItem key={idAccion} value={idAccion.toString()}>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">[{paso.orden}]</span>
+                    <span className="text-xs text-muted-foreground">{paso.nombrePaso}</span>
+                    <span className="text-muted-foreground">·</span>
                     <span>{nombreAccion}</span>
                     <Badge variant="outline" className="text-xs">
                       {tipoAccion}
@@ -2948,6 +3270,57 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
               ))}
             </SelectContent>
           </Select>
+        </div>
+
+        {/* Tipo de Notificación */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Tipo de Notificación
+          </Label>
+          <Select
+            value={formData.idTipoNotificacion?.toString() || '0'}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, idTipoNotificacion: parseInt(value, 10) }))}
+          >
+            <SelectTrigger>
+              <SelectValue>
+                {formData.idTipoNotificacion && formData.idTipoNotificacion > 0 ? (
+                  (() => {
+                    const tipo = tiposNotificacion.find(t => t.idTipo === formData.idTipoNotificacion);
+                    return tipo ? (
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: tipo.colorTema }}
+                        />
+                        <span>{tipo.icono} {tipo.nombre}</span>
+                      </span>
+                    ) : 'Sin tipo';
+                  })()
+                ) : (
+                  <span className="text-muted-foreground">Sin tipo asignado</span>
+                )}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">
+                <span className="text-muted-foreground">Sin tipo asignado</span>
+              </SelectItem>
+              {tiposNotificacion.map(tipo => (
+                <SelectItem key={tipo.idTipo} value={tipo.idTipo.toString()}>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: tipo.colorTema }}
+                    />
+                    <span>{tipo.icono} {tipo.nombre}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Determina el color del encabezado y acento en el email
+          </p>
         </div>
 
         {/* Canales */}
@@ -3031,57 +3404,53 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
                 Anterior
               </Label>
             </div>
+            <div className="flex items-center gap-2 p-2 rounded-md bg-card border border-border col-span-3">
+              <Checkbox
+                id="avisarAAutorizadoresPrevios"
+                checked={formData.avisarAAutorizadoresPrevios}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, avisarAAutorizadoresPrevios: !!checked }))}
+              />
+              <Label htmlFor="avisarAAutorizadoresPrevios" className="cursor-pointer text-xs">
+                Autorizadores previos
+              </Label>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Anterior: quien tenía la orden
+            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Anterior: quien tenía la orden • Autorizadores previos: todos los que aprobaron pasos anteriores de esta orden
           </p>
         </div>
 
-        {/* Templates */}
-        {formData.enviarEmail && (
-          <>
-            <div className="space-y-2">
-              <Label htmlFor="asuntoTemplate" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Asunto del Email
-              </Label>
-              <Input
-                id="asuntoTemplate"
-                value={formData.asuntoTemplate}
-                onChange={(e) => setFormData(prev => ({ ...prev, asuntoTemplate: e.target.value }))}
-                placeholder="ej. Orden {{Folio}} - {{Accion}}"
-              />
-              <p className="text-xs text-muted-foreground">
-                Variables: {'{{Folio}}, {{Accion}}, {{Usuario}}, {{Total}}'}
-              </p>
-            </div>
+        {/* Templates por canal */}
+        <CanalesTemplateEditor
+          canales={formData.canales ?? []}
+          enviarEmail={formData.enviarEmail}
+          enviarWhatsapp={formData.enviarWhatsapp}
+          enviarTelegram={formData.enviarTelegram}
+          tipoNotificacion={tiposNotificacion.find((t: any) => t.idTipoNotificacion === formData.idTipoNotificacion)?.codigoTipo}
+          bodyVars={['{{Folio}}', '{{Total}}', '{{Proveedor}}', '{{Comentario}}', '{{Accion}}', '{{NombreAnterior}}', '{{NombreSiguiente}}', '{{Solicitante}}', '{{Partidas}}']}
+          tablaVarName={formData.incluirPartidas ? '{{Partidas}}' : undefined}
+          showListadoRowHtml={!!formData.incluirPartidas}
+          listadoRowHtmlLabel="Avanzado: fila HTML de partidas"
+          listadoRowHtmlVars={['{{NumeroPartida}}', '{{Descripcion}}', '{{Cantidad}}', '{{PrecioUnitario}}', '{{Total}}']}
+          listadoRowHtmlPlaceholder="Dejar vacío para usar la tabla por defecto"
+          listadoRowHtmlExample={`<tr>\n  <td>{{NumeroPartida}}</td>\n  <td>{{Descripcion}}</td>\n  <td style="text-align:right">{{Cantidad}}</td>\n  <td style="text-align:right">{{PrecioUnitario}}</td>\n  <td style="text-align:right;font-weight:600">{{Total}}</td>\n</tr>`}
+          onChange={(canales) => setFormData((prev: any) => ({ ...prev, canales }))}
+        />
 
-            <div className="space-y-2">
-              <Label htmlFor="cuerpoTemplate" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Cuerpo del Mensaje *
-              </Label>
-              <Textarea
-                id="cuerpoTemplate"
-                value={formData.cuerpoTemplate}
-                onChange={(e) => setFormData(prev => ({ ...prev, cuerpoTemplate: e.target.value }))}
-                placeholder="Hola, la orden {{Folio}} por un total de ${{Total}} ha sido {{Accion}}."
-                rows={4}
-                required
+        {/* Opciones adicionales */}
+        <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
+          <div className="flex items-center gap-2">
+            <Info className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="incluirPartidas"
+                checked={formData.incluirPartidas}
+                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, incluirPartidas: !!checked }))}
               />
-              <p className="text-xs text-muted-foreground">
-                Usa variables para personalizar el mensaje
-              </p>
+              <Label htmlFor="incluirPartidas" className="cursor-pointer text-xs font-medium">
+                Incluir tabla de partidas de la orden en la notificación — activa <code className="bg-blue-500/10 px-1 rounded">{'{{Partidas}}'}</code> y la sección de fila HTML
+              </Label>
             </div>
-          </>
-        )}
-
-        {/* Warning note */}
-        <div className="p-4 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
-          <div className="flex items-start gap-2">
-            <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <p className="text-xs">
-              Las notificaciones se enviarán automáticamente cuando se ejecute esta acción.
-              Puedes usar variables en el template como {'{nombreUsuario}'}, {'{fechaAccion}'}, {'{estadoActual}'}.
-            </p>
           </div>
         </div>
       </form>
@@ -3089,4 +3458,661 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
   );
 }
 
+// ============================================================================
+// CanalTemplateEditModal Component
+// ============================================================================
 
+interface CanalTemplateEditModalProps {
+  workflow: WorkflowWithDetails;
+  template: any | null;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  onSave: (saved: any, isNew: boolean) => Promise<void>;
+}
+
+const CANAL_VARS: Record<string, string[]> = {
+  email:    ['{{Contenido}}', '{{Folio}}', '{{Asunto}}', '{{UrlOrden}}', '{{Proveedor}}', '{{Total}}'],
+  in_app:   ['{{Contenido}}'],
+  telegram: ['{{Contenido}}', '{{Folio}}', '{{UrlOrden}}'],
+  whatsapp: ['{{Contenido}}', '{{Folio}}'],
+};
+
+function CanalTemplateEditModal({ workflow, template, open, setOpen, onSave }: CanalTemplateEditModalProps) {
+  const isNew = !template;
+  const [formData, setFormData] = useState({ codigoCanal: '', nombre: '', layoutHtml: '', activo: true });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      if (template) {
+        setFormData({ codigoCanal: template.codigoCanal, nombre: template.nombre, layoutHtml: template.layoutHtml, activo: template.activo ?? true });
+      } else {
+        setFormData({ codigoCanal: '', nombre: '', layoutHtml: '{{Contenido}}', activo: true });
+      }
+    }
+  }, [template, open]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (isNew) {
+        const res = await API.post<any>(
+          `/config/workflows/${workflow.idWorkflow}/canal-templates`,
+          { codigoCanal: formData.codigoCanal, nombre: formData.nombre, layoutHtml: formData.layoutHtml, activo: formData.activo }
+        );
+        toast.success('Plantilla de canal creada');
+        await onSave(res.data?.data ?? formData, true);
+      } else {
+        const res = await API.put<any>(
+          `/config/workflows/${workflow.idWorkflow}/canal-templates/${template.codigoCanal}`,
+          { nombre: formData.nombre, layoutHtml: formData.layoutHtml, activo: formData.activo }
+        );
+        toast.success('Plantilla de canal guardada');
+        await onSave(res.data?.data ?? { ...template, ...formData }, false);
+      }
+    } catch (err: any) {
+      const msg = err?.response?.data?.message ?? (isNew ? 'Error al crear la plantilla' : 'Error al guardar la plantilla');
+      toast.error(msg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const vars = CANAL_VARS[formData.codigoCanal] ?? ['{{Contenido}}'];
+
+  return (
+    <Modal
+      id="modal-canal-template"
+      open={open}
+      setOpen={setOpen}
+      title={isNew ? 'Nueva Plantilla de Canal' : `Plantilla de Canal — ${template?.codigoCanal?.toUpperCase() ?? ''}`}
+      size="xl"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button type="submit" form="form-canal-template" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {isNew ? 'Crear' : 'Guardar'}
+          </Button>
+        </>
+      }
+    >
+      <form id="form-canal-template" onSubmit={handleSubmit} className="space-y-4">
+        {isNew && (
+          <div>
+            <Label htmlFor="ct-canal">Canal</Label>
+            <select
+              id="ct-canal"
+              value={formData.codigoCanal}
+              onChange={e => setFormData(p => ({ ...p, codigoCanal: e.target.value }))}
+              required
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="" disabled>Selecciona un canal…</option>
+              <option value="email">Email</option>
+              <option value="in_app">In-App</option>
+              <option value="telegram">Telegram</option>
+              <option value="whatsapp">WhatsApp</option>
+            </select>
+          </div>
+        )}
+        <div>
+          <Label htmlFor="ct-nombre">Nombre</Label>
+          <Input
+            id="ct-nombre"
+            value={formData.nombre}
+            onChange={e => setFormData(p => ({ ...p, nombre: e.target.value }))}
+            required
+          />
+        </div>
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <Label htmlFor="ct-layout">Layout HTML</Label>
+            {vars.length > 0 && (
+              <span className="text-xs text-muted-foreground">
+                Variables: {vars.map(v => <code key={v} className="mx-0.5 px-1 py-0.5 rounded bg-muted text-xs">{v}</code>)}
+              </span>
+            )}
+          </div>
+          <Textarea
+            id="ct-layout"
+            value={formData.layoutHtml}
+            onChange={e => setFormData(p => ({ ...p, layoutHtml: e.target.value }))}
+            rows={18}
+            className="font-mono text-xs"
+            required
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            <code className="bg-muted px-1 rounded">{'{{Contenido}}'}</code> será reemplazado por el cuerpo de la notificación ya interpolado.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="ct-activo"
+            checked={formData.activo}
+            onCheckedChange={v => setFormData(p => ({ ...p, activo: Boolean(v) }))}
+          />
+          <Label htmlFor="ct-activo">Activo</Label>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+// ============================================================================
+// RecordatorioEditModal Component
+// ============================================================================
+
+interface RecordatorioEditModalProps {
+  workflow: WorkflowWithDetails;
+  recordatorio: any | null;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  onSave: (saved: any, isNew: boolean) => Promise<void>;
+}
+
+const REC_VARS = ['{{NombreResponsable}}', '{{CantidadPendientes}}', '{{DiasEspera}}', '{{ListadoPendientes}}', '{{Folios}}', '{{Folio}}', '{{Total}}'];
+
+const CANAL_DEFAULTS: Record<string, { asunto: string; cuerpo: string }> = {
+  email: {
+    asunto: '',
+    cuerpo: '<p>Hola <strong>{{NombreResponsable}}</strong>,</p>\n<p>Tienes <strong>{{CantidadPendientes}}</strong> orden(es) pendiente(s) de revisión. La más antigua lleva <strong>{{DiasEspera}}</strong> días esperando.</p>\n{{ListadoPendientes}}'
+  },
+  in_app: {
+    asunto: '',
+    cuerpo: 'Tienes {{CantidadPendientes}} OC pendiente(s): {{Folios}}'
+  },
+  whatsapp: {
+    asunto: '',
+    cuerpo: '⏰ *Recordatorio de órdenes*\nHola {{NombreResponsable}}, tienes {{CantidadPendientes}} orden(es) pendiente(s):\n{{Folios}}'
+  },
+  telegram: {
+    asunto: '',
+    cuerpo: '⏰ <b>Recordatorio</b>\nHola {{NombreResponsable}}, tienes <b>{{CantidadPendientes}}</b> orden(es) pendiente(s):\n{{Folios}}'
+  }
+};
+
+const EMPTY_REC = {
+  nombre: '',
+  activo: true,
+  idPaso: '',
+  tipoTrigger: 'horario',
+  horaEnvio: '09:00',
+  diasSemana: '1,2,3,4,5',
+  intervaloHoras: 24,
+  fechaEspecifica: '',
+  minOrdenesPendientes: '',
+  minDiasEnPaso: '',
+  montoMinimo: '',
+  montoMaximo: '',
+  escalarAJerarquia: false,
+  diasParaEscalar: '',
+  enviarAlResponsable: true,
+  enviarEmail: true,
+  enviarWhatsapp: false,
+  enviarTelegram: false,
+  canales: [] as any[]
+};
+
+function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, onSave }: RecordatorioEditModalProps) {
+  const isNew = !recordatorio;
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState<any>(EMPTY_REC);
+
+  useEffect(() => {
+    if (recordatorio) {
+      setFormData({
+        ...EMPTY_REC,
+        ...recordatorio,
+        idPaso: recordatorio.idPaso ?? '',
+        horaEnvio: recordatorio.horaEnvio ?? '09:00',
+        diasSemana: recordatorio.diasSemana ?? '1,2,3,4,5',
+        intervaloHoras: recordatorio.intervaloHoras ?? 24,
+        fechaEspecifica: recordatorio.fechaEspecifica ?? '',
+        minOrdenesPendientes: recordatorio.minOrdenesPendientes ?? '',
+        minDiasEnPaso: recordatorio.minDiasEnPaso ?? '',
+        montoMinimo: recordatorio.montoMinimo ?? '',
+        montoMaximo: recordatorio.montoMaximo ?? '',
+        diasParaEscalar: recordatorio.diasParaEscalar ?? '',
+        canales: recordatorio.canales ?? [],
+      });
+    } else {
+      setFormData(EMPTY_REC);
+    }
+  }, [recordatorio, open]);
+
+  const set = (field: string, value: any) => setFormData((p: any) => ({ ...p, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        ...formData,
+        idPaso: formData.idPaso ? Number(formData.idPaso) : null,
+        minOrdenesPendientes: formData.minOrdenesPendientes !== '' ? Number(formData.minOrdenesPendientes) : null,
+        minDiasEnPaso: formData.minDiasEnPaso !== '' ? Number(formData.minDiasEnPaso) : null,
+        montoMinimo: formData.montoMinimo !== '' ? Number(formData.montoMinimo) : null,
+        montoMaximo: formData.montoMaximo !== '' ? Number(formData.montoMaximo) : null,
+        diasParaEscalar: formData.diasParaEscalar !== '' ? Number(formData.diasParaEscalar) : null,
+        intervaloHoras: formData.tipoTrigger === 'recurrente' ? Number(formData.intervaloHoras) : null,
+        horaEnvio: formData.tipoTrigger === 'horario' ? formData.horaEnvio : null,
+        diasSemana: formData.tipoTrigger === 'horario' ? formData.diasSemana : null,
+        fechaEspecifica: formData.tipoTrigger === 'fecha_especifica' ? formData.fechaEspecifica || null : null,
+      };
+
+      if (isNew) {
+        const res = await API.post<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios`, payload);
+        toast.success('Recordatorio creado');
+        await onSave(res.data?.data ?? payload, true);
+      } else {
+        const res = await API.put<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios/${recordatorio.idRecordatorio}`, payload);
+        toast.success('Recordatorio guardado');
+        await onSave(res.data?.data ?? { ...recordatorio, ...payload }, false);
+      }
+    } catch (err: any) {
+      toast.error(err?.response?.data?.message ?? 'Error al guardar el recordatorio');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const pasos = workflow.pasos ?? [];
+
+  return (
+    <Modal
+      id="modal-recordatorio"
+      open={open}
+      setOpen={setOpen}
+      title={isNew ? 'Nuevo Recordatorio' : `Editar: ${recordatorio?.nombre ?? ''}`}
+      size="xl"
+      footer={
+        <>
+          <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+          <Button type="submit" form="form-recordatorio" disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {isNew ? 'Crear' : 'Guardar'}
+          </Button>
+        </>
+      }
+    >
+      <form id="form-recordatorio" onSubmit={handleSubmit} className="space-y-5">
+
+        {/* Identificación */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="col-span-2 sm:col-span-1">
+            <Label htmlFor="rec-nombre">Nombre *</Label>
+            <Input id="rec-nombre" value={formData.nombre} onChange={e => set('nombre', e.target.value)} required placeholder="Ej. Recordatorio diario pendientes" />
+          </div>
+          <div>
+            <Label htmlFor="rec-paso">Paso específico</Label>
+            <select
+              id="rec-paso"
+              value={formData.idPaso ?? ''}
+              onChange={e => set('idPaso', e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="">Todos los pasos</option>
+              {pasos.map(p => (
+                <option key={p.idPaso} value={p.idPaso}>{p.nombrePaso}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Checkbox id="rec-activo" checked={formData.activo} onCheckedChange={v => set('activo', Boolean(v))} />
+            <Label htmlFor="rec-activo">Activo</Label>
+          </div>
+        </div>
+
+        {/* Trigger */}
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Trigger de tiempo</p>
+          <div>
+            <Label>Tipo</Label>
+            <select
+              value={formData.tipoTrigger}
+              onChange={e => set('tipoTrigger', e.target.value)}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              <option value="horario">Horario (hora del día)</option>
+              <option value="recurrente">Recurrente (cada N horas)</option>
+              <option value="fecha_especifica">Fecha específica</option>
+            </select>
+          </div>
+          {formData.tipoTrigger === 'horario' && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="rec-hora">Hora de envío</Label>
+                <Input id="rec-hora" type="time" value={formData.horaEnvio} onChange={e => set('horaEnvio', e.target.value)} />
+              </div>
+              <div>
+                <Label htmlFor="rec-dias">Días de la semana</Label>
+                <Input id="rec-dias" value={formData.diasSemana} onChange={e => set('diasSemana', e.target.value)} placeholder="1,2,3,4,5 (lun-vie)" />
+                <p className="text-xs text-muted-foreground mt-1">1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb, 7=Dom</p>
+              </div>
+            </div>
+          )}
+          {formData.tipoTrigger === 'recurrente' && (
+            <div>
+              <Label htmlFor="rec-intervalo">Intervalo (horas)</Label>
+              <Input id="rec-intervalo" type="number" min={1} value={formData.intervaloHoras} onChange={e => set('intervaloHoras', e.target.value)} />
+            </div>
+          )}
+          {formData.tipoTrigger === 'fecha_especifica' && (
+            <div>
+              <Label htmlFor="rec-fecha">Fecha</Label>
+              <Input id="rec-fecha" type="date" value={formData.fechaEspecifica} onChange={e => set('fechaEspecifica', e.target.value)} />
+            </div>
+          )}
+        </div>
+
+        {/* Condiciones */}
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condiciones de activación</p>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label htmlFor="rec-minord">Mín. órdenes pendientes</Label>
+              <Input id="rec-minord" type="number" min={1} value={formData.minOrdenesPendientes} onChange={e => set('minOrdenesPendientes', e.target.value)} placeholder="Sin mínimo" />
+            </div>
+            <div>
+              <Label htmlFor="rec-mindias">Mín. días en paso</Label>
+              <Input id="rec-mindias" type="number" min={1} value={formData.minDiasEnPaso} onChange={e => set('minDiasEnPaso', e.target.value)} placeholder="Sin mínimo" />
+            </div>
+            <div>
+              <Label htmlFor="rec-montmin">Monto mínimo</Label>
+              <Input id="rec-montmin" type="number" min={0} value={formData.montoMinimo} onChange={e => set('montoMinimo', e.target.value)} placeholder="Sin límite" />
+            </div>
+            <div>
+              <Label htmlFor="rec-montmax">Monto máximo</Label>
+              <Input id="rec-montmax" type="number" min={0} value={formData.montoMaximo} onChange={e => set('montoMaximo', e.target.value)} placeholder="Sin límite" />
+            </div>
+          </div>
+        </div>
+
+        {/* Destinatarios y canales */}
+        <div className="rounded-lg border border-border p-4 space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Destinatarios y canales</p>
+          <div className="flex items-center gap-2">
+            <Checkbox id="rec-resp" checked={formData.enviarAlResponsable} onCheckedChange={v => set('enviarAlResponsable', Boolean(v))} />
+            <Label htmlFor="rec-resp" className="cursor-pointer">Al responsable del paso</Label>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
+              <Checkbox id="rec-email" checked={formData.enviarEmail} onCheckedChange={v => set('enviarEmail', Boolean(v))} />
+              <Label htmlFor="rec-email" className="cursor-pointer font-medium">📧 Email</Label>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
+              <Checkbox id="rec-wa" checked={formData.enviarWhatsapp} onCheckedChange={v => set('enviarWhatsapp', Boolean(v))} />
+              <Label htmlFor="rec-wa" className="cursor-pointer font-medium">💬 WhatsApp</Label>
+            </div>
+            <div className="flex items-center gap-3 p-3 rounded-md bg-card border border-border">
+              <Checkbox id="rec-tg" checked={formData.enviarTelegram} onCheckedChange={v => set('enviarTelegram', Boolean(v))} />
+              <Label htmlFor="rec-tg" className="cursor-pointer font-medium">✈️ Telegram</Label>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-start gap-4 pt-1 border-t border-border/50">
+            <div className="flex items-center gap-2 pt-2">
+              <Checkbox id="rec-escalar" checked={formData.escalarAJerarquia} onCheckedChange={v => set('escalarAJerarquia', Boolean(v))} />
+              <Label htmlFor="rec-escalar" className="cursor-pointer">Escalar a jerarquía si supera</Label>
+            </div>
+            {formData.escalarAJerarquia && (
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  type="number"
+                  min={1}
+                  value={formData.diasParaEscalar}
+                  onChange={e => set('diasParaEscalar', e.target.value)}
+                  className="w-20"
+                  placeholder="días"
+                />
+                <span className="text-sm text-muted-foreground">días sin acción</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Templates por canal */}
+        <CanalesTemplateEditor
+          canales={formData.canales ?? []}
+          enviarEmail={formData.enviarEmail}
+          enviarWhatsapp={formData.enviarWhatsapp}
+          enviarTelegram={formData.enviarTelegram}
+          bodyVars={REC_VARS}
+          tablaVarName="{{ListadoPendientes}}"
+          showListadoRowHtml={true}
+          listadoRowHtmlExample={`<tr>\n  <td>{{Folio}}</td>\n  <td>{{Proveedor}}</td>\n  <td style="text-align:right">{{Total}}</td>\n  <td style="color:#6b7280">{{DiasEspera}} días</td>\n</tr>`}
+          onChange={(canales) => set('canales', canales)}
+        />
+
+      </form>
+    </Modal>
+  );
+}
+
+// Sub-componente para editar templates por canal
+function CanalesTemplateEditor({ canales, enviarEmail, enviarWhatsapp, enviarTelegram, showListadoRowHtml = false, listadoRowHtmlLabel, listadoRowHtmlVars, listadoRowHtmlPlaceholder, listadoRowHtmlExample, bodyVars, tablaVarName, tipoNotificacion, onChange }: {
+  canales: any[];
+  enviarEmail: boolean;
+  enviarWhatsapp: boolean;
+  enviarTelegram: boolean;
+  showListadoRowHtml?: boolean;
+  listadoRowHtmlLabel?: string;
+  listadoRowHtmlVars?: string[];
+  listadoRowHtmlPlaceholder?: string;
+  listadoRowHtmlExample?: string;
+  bodyVars?: string[];
+  /** Variable name (e.g. '{{Partidas}}') — when set, shows a per-canal toggle that inserts/removes the var from the body template */
+  tablaVarName?: string;
+  tipoNotificacion?: string;
+  onChange: (canales: any[]) => void;
+}) {
+  const canalesActivos = [
+    { codigo: 'in_app', label: '🔔 In-App' },
+    enviarEmail && { codigo: 'email', label: '✉️ Email' },
+    enviarWhatsapp && { codigo: 'whatsapp', label: '💬 WhatsApp' },
+    enviarTelegram && { codigo: 'telegram', label: '📨 Telegram' },
+  ].filter(Boolean) as { codigo: string; label: string }[];
+
+  const [tabActivo, setTabActivo] = useState(canalesActivos[0]?.codigo ?? 'in_app');
+  const [loadingPlantillas, setLoadingPlantillas] = useState(false);
+  const [plantillas, setPlantillas] = useState<any[]>([]);
+  const [showPlantillaMenu, setShowPlantillaMenu] = useState<string | null>(null);
+
+  const getCanalData = (codigo: string) =>
+    canales.find(c => c.codigoCanal === codigo) ?? {
+      codigoCanal: codigo,
+      asuntoTemplate: CANAL_DEFAULTS[codigo]?.asunto ?? '',
+      cuerpoTemplate: CANAL_DEFAULTS[codigo]?.cuerpo ?? '',
+      listadoRowHtml: '',
+      activo: true
+    };
+
+  const updateCanal = (codigo: string, field: string, value: any) => {
+    const existing = canales.find(c => c.codigoCanal === codigo);
+    if (existing) {
+      onChange(canales.map(c => c.codigoCanal === codigo ? { ...c, [field]: value } : c));
+    } else {
+      const defaults = getCanalData(codigo);
+      onChange([...canales, { ...defaults, [field]: value }]);
+    }
+  };
+
+  const cargarPlantillas = async (canal: string) => {
+    setLoadingPlantillas(true);
+    try {
+      const params = new URLSearchParams({ canal });
+      if (tipoNotificacion) params.append('tipoNotificacion', tipoNotificacion);
+      const res = await API.get<any>(`/config/workflows/plantillas-base?${params}`);
+      setPlantillas(res.data?.data ?? []);
+      setShowPlantillaMenu(canal);
+    } catch {
+      toast.error('No se pudieron cargar las plantillas');
+    } finally {
+      setLoadingPlantillas(false);
+    }
+  };
+
+  const aplicarPlantilla = (canal: string, plantilla: any) => {
+    const existing = canales.find(c => c.codigoCanal === canal);
+    const base = existing ?? getCanalData(canal);
+    const updated = {
+      ...base,
+      asuntoTemplate: plantilla.asuntoTemplate ?? base.asuntoTemplate,
+      cuerpoTemplate: plantilla.cuerpoTemplate ?? base.cuerpoTemplate,
+      listadoRowHtml: plantilla.listadoRowHtml ?? base.listadoRowHtml ?? '',
+    };
+    if (existing) {
+      onChange(canales.map(c => c.codigoCanal === canal ? updated : c));
+    } else {
+      onChange([...canales, updated]);
+    }
+    setShowPlantillaMenu(null);
+  };
+
+  useEffect(() => {
+    if (!canalesActivos.find(c => c.codigo === tabActivo)) {
+      setTabActivo(canalesActivos[0]?.codigo ?? 'in_app');
+    }
+  }, [enviarEmail, enviarWhatsapp, enviarTelegram]);
+
+  return (
+    <div className="rounded-lg border border-border p-4 space-y-3">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Plantillas por canal</p>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {canalesActivos.map(c => (
+          <button
+            key={c.codigo}
+            type="button"
+            onClick={() => setTabActivo(c.codigo)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-t transition-colors -mb-px border ${
+              tabActivo === c.codigo
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+      </div>
+
+      {canalesActivos.map(c => {
+        const data = getCanalData(c.codigo);
+        return (
+          <div key={c.codigo} className={tabActivo === c.codigo ? 'space-y-2' : 'hidden'}>
+            {/* Botón cargar plantilla */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => showPlantillaMenu === c.codigo ? setShowPlantillaMenu(null) : cargarPlantillas(c.codigo)}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                📋 {loadingPlantillas && showPlantillaMenu !== c.codigo ? 'Cargando...' : 'Cargar plantilla base'}
+              </button>
+              {showPlantillaMenu === c.codigo && (
+                <div className="absolute z-10 top-6 left-0 bg-background border border-border rounded-lg shadow-lg p-2 min-w-[280px] space-y-1">
+                  {plantillas.length === 0
+                    ? <p className="text-xs text-muted-foreground px-2 py-1">Sin plantillas disponibles para este canal</p>
+                    : plantillas.map(p => (
+                        <button
+                          key={p.idPlantilla}
+                          type="button"
+                          onClick={() => aplicarPlantilla(c.codigo, p)}
+                          className="w-full text-left text-xs px-3 py-1.5 rounded hover:bg-muted"
+                        >
+                          <span className="font-medium">{p.nombre}</span>
+                        </button>
+                      ))
+                  }
+                  <button type="button" onClick={() => setShowPlantillaMenu(null)} className="w-full text-xs text-muted-foreground pt-1 border-t border-border mt-1 hover:text-foreground">
+                    Cerrar
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {(c.codigo === 'email' || c.codigo === 'in_app') && (
+              <div>
+                <Label className="text-xs">{c.codigo === 'email' ? 'Asunto (opcional)' : 'Título / asunto (opcional)'}</Label>
+                <Input
+                  value={data.asuntoTemplate ?? ''}
+                  onChange={e => updateCanal(c.codigo, 'asuntoTemplate', e.target.value)}
+                  placeholder={c.codigo === 'email' ? 'Asunto del email...' : 'Título de la notificación...'}
+                  className="text-xs"
+                />
+              </div>
+            )}
+            {tablaVarName && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md border border-border bg-muted/30">
+                <Checkbox
+                  id={`tabla-${c.codigo}`}
+                  checked={(data.cuerpoTemplate ?? '').includes(tablaVarName)}
+                  onCheckedChange={(checked) => {
+                    const current = data.cuerpoTemplate ?? '';
+                    const updated = checked
+                      ? current.trimEnd() + (current ? '\n\n' : '') + tablaVarName
+                      : current.replace(new RegExp(`\\n*${tablaVarName.replace(/[{}]/g, '\\$&')}\\n*`, 'g'), '\n').trimEnd();
+                    updateCanal(c.codigo, 'cuerpoTemplate', updated);
+                  }}
+                />
+                <Label htmlFor={`tabla-${c.codigo}`} className="cursor-pointer text-xs">
+                  Incluir tabla en este canal — inserta <code className="bg-background border border-border px-1 rounded text-[10px]">{tablaVarName}</code> al final del cuerpo
+                </Label>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs mb-1 block">Cuerpo</Label>
+              {bodyVars && bodyVars.length > 0 && (
+                <div className="mb-1.5 flex flex-wrap gap-1 p-2 rounded-md bg-muted/50 border border-border/60">
+                  <span className="text-[10px] text-muted-foreground self-center mr-0.5 shrink-0">Variables:</span>
+                  {bodyVars.map(v => (
+                    <code key={v} className="px-1.5 py-0.5 rounded bg-background border border-border text-[10px] text-foreground/80">{v}</code>
+                  ))}
+                </div>
+              )}
+              <Textarea
+                value={data.cuerpoTemplate}
+                onChange={e => updateCanal(c.codigo, 'cuerpoTemplate', e.target.value)}
+                rows={5}
+                className="font-mono text-xs"
+                placeholder={`Plantilla para ${c.label}...`}
+              />
+            </div>
+            {showListadoRowHtml && (
+              <details className="border border-border rounded p-2">
+                <summary className="cursor-pointer text-[11px] text-muted-foreground select-none">
+                  {listadoRowHtmlLabel ?? 'Avanzado: fila HTML del listado'}
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <div className="flex flex-wrap gap-1 p-1.5 rounded bg-muted/50 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground self-center mr-0.5 shrink-0">Vars:</span>
+                    {(listadoRowHtmlVars ?? ['{{Folio}}', '{{Proveedor}}', '{{Total}}', '{{DiasEspera}}']).map(v => (
+                      <code key={v} className="px-1.5 py-0.5 rounded bg-background border border-border text-[10px] text-foreground/80">{v}</code>
+                    ))}
+                  </div>
+                  <Textarea
+                    value={data.listadoRowHtml ?? ''}
+                    onChange={e => updateCanal(c.codigo, 'listadoRowHtml', e.target.value)}
+                    rows={3}
+                    className="font-mono text-xs"
+                    placeholder={listadoRowHtmlPlaceholder ?? 'Dejar vacío para usar la fila por defecto'}
+                  />
+                  {listadoRowHtmlExample && (
+                    <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-2.5 space-y-1">
+                      <p className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                        <span>💡</span> Ejemplo de fila
+                      </p>
+                      <pre className="text-[10px] text-foreground/70 whitespace-pre-wrap break-all font-mono leading-relaxed select-all bg-background/80 rounded p-2 border border-border/60">{listadoRowHtmlExample}</pre>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}

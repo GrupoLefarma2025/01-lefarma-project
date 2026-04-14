@@ -8,5 +8,7 @@ public interface IWorkflowRepository : IBaseRepository<Workflow>
         Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idPaso);
         Task<ICollection<WorkflowAccionHandler>> GetAccionHandlersAsync(int idAccion);
         Task<ICollection<WorkflowCampo>> GetCamposByWorkflowAsync(int idWorkflow);
+        Task<ICollection<WorkflowCanalTemplate>> GetCanalTemplatesAsync(int idWorkflow);
+        Task<WorkflowCanalTemplate?> GetCanalTemplateAsync(int idWorkflow, string codigoCanal);
     }
 }

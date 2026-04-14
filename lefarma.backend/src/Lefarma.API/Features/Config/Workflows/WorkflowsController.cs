@@ -5,6 +5,7 @@ using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 
 namespace Lefarma.API.Features.Config.Workflows
 {
@@ -295,6 +296,111 @@ namespace Lefarma.API.Features.Config.Workflows
             var result = await _service.DeleteCampoAsync(idWorkflow, idWorkflowCampo);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Campo eliminado exitosamente.", Data = null }));
+        }
+
+        // ============================================================================
+        // CANAL TEMPLATES
+        // ============================================================================
+
+        [HttpGet("{idWorkflow}/canal-templates")]
+        [SwaggerOperation(Summary = "Obtener plantillas de canal del workflow")]
+        public async Task<IActionResult> GetCanalTemplates(int idWorkflow)
+        {
+            var result = await _service.GetCanalTemplatesAsync(idWorkflow);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowCanalTemplateResponse>>
+            { Success = true, Message = "Plantillas de canal obtenidas exitosamente.", Data = data }));
+        }
+
+        [HttpPost("{idWorkflow}/canal-templates")]
+        [SwaggerOperation(Summary = "Crear nueva plantilla de canal")]
+        public async Task<IActionResult> CreateCanalTemplate(int idWorkflow, [FromBody] CreateCanalTemplateRequest request)
+        {
+            var result = await _service.CreateCanalTemplateAsync(idWorkflow, request);
+            return result.ToActionResult(this, data => StatusCode(201, new ApiResponse<WorkflowCanalTemplateResponse>
+            { Success = true, Message = "Plantilla de canal creada exitosamente.", Data = data }));
+        }
+
+        [HttpPut("{idWorkflow}/canal-templates/{codigoCanal}")]
+        [SwaggerOperation(Summary = "Crear o actualizar plantilla de canal")]
+        public async Task<IActionResult> UpsertCanalTemplate(int idWorkflow, string codigoCanal, [FromBody] UpsertCanalTemplateRequest request)
+        {
+            var result = await _service.UpsertCanalTemplateAsync(idWorkflow, codigoCanal, request);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowCanalTemplateResponse>
+            { Success = true, Message = "Plantilla de canal guardada exitosamente.", Data = data }));
+        }
+
+        // ============================================================================
+        // TIPOS NOTIFICACION
+        // ============================================================================
+
+        [HttpGet("tipos-notificacion")]
+        [SwaggerOperation(Summary = "Obtener tipos de notificación disponibles")]
+        public async Task<IActionResult> GetTiposNotificacion()
+        {
+            var result = await _service.GetTiposNotificacionAsync();
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowTipoNotificacionResponse>>
+            { Success = true, Message = "Tipos obtenidos.", Data = data }));
+        }
+
+        [HttpGet("plantillas-base")]
+        [SwaggerOperation(Summary = "Obtener plantillas base del catálogo para pre-llenar templates")]
+        public async Task<IActionResult> GetPlantillasBase(
+            [FromQuery] string? tipoNotificacion = null,
+            [FromQuery] string? canal = null)
+        {
+            var result = await _service.GetPlantillasBaseAsync(tipoNotificacion, canal);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowNotificacionesPlantillaResponse>>
+            { Success = true, Message = "Plantillas obtenidas.", Data = data }));
+        }
+
+        // ============================================================================
+        // RECORDATORIOS
+        // ============================================================================
+
+        [HttpGet("{idWorkflow}/recordatorios")]
+        [SwaggerOperation(Summary = "Obtener recordatorios automáticos del workflow")]
+        public async Task<IActionResult> GetRecordatorios(int idWorkflow)
+        {
+            var result = await _service.GetRecordatoriosAsync(idWorkflow);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowRecordatorioResponse>>
+            { Success = true, Message = "Recordatorios obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpPost("{idWorkflow}/recordatorios")]
+        [SwaggerOperation(Summary = "Crear recordatorio automático")]
+        public async Task<IActionResult> CreateRecordatorio(int idWorkflow, [FromBody] CreateRecordatorioRequest request)
+        {
+            var result = await _service.CreateRecordatorioAsync(idWorkflow, request);
+            return result.ToActionResult(this, data => StatusCode(201, new ApiResponse<WorkflowRecordatorioResponse>
+            { Success = true, Message = "Recordatorio creado exitosamente.", Data = data }));
+        }
+
+        [HttpPut("{idWorkflow}/recordatorios/{idRecordatorio}")]
+        [SwaggerOperation(Summary = "Actualizar recordatorio automático")]
+        public async Task<IActionResult> UpdateRecordatorio(int idWorkflow, int idRecordatorio, [FromBody] UpdateRecordatorioRequest request)
+        {
+            var result = await _service.UpdateRecordatorioAsync(idWorkflow, idRecordatorio, request);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowRecordatorioResponse>
+            { Success = true, Message = "Recordatorio actualizado exitosamente.", Data = data }));
+        }
+
+        [HttpDelete("{idWorkflow}/recordatorios/{idRecordatorio}")]
+        [SwaggerOperation(Summary = "Eliminar recordatorio automático")]
+        public async Task<IActionResult> DeleteRecordatorio(int idWorkflow, int idRecordatorio)
+        {
+            var result = await _service.DeleteRecordatorioAsync(idWorkflow, idRecordatorio);
+            return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+            { Success = true, Message = "Recordatorio eliminado exitosamente.", Data = null }));
+        }
+
+        [HttpPost("{idWorkflow}/recordatorios/{idRecordatorio}/test")]
+        [SwaggerOperation(Summary = "Probar recordatorio inmediatamente para el usuario actual")]
+        public async Task<IActionResult> TestRecordatorio(int idWorkflow, int idRecordatorio)
+        {
+            var idUsuarioActual = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+            var result = await _service.TestRecordatorioAsync(idWorkflow, idRecordatorio, idUsuarioActual);
+            return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+            { Success = true, Message = "Recordatorio de prueba enviado.", Data = null }));
         }
     }
 }

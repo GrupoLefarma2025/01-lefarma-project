@@ -504,7 +504,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Orden = 2,
                     NombrePaso = "Firma Gerente de Área",
-                    CodigoEstado = "EnFirma1",
+                    CodigoEstado = "EnRevisionF2",
                     EsInicio = false,
                     EsFinal = false,
                     RequiereFirma = true,
@@ -515,7 +515,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Orden = 3,
                     NombrePaso = "Revisión CxP",
-                    CodigoEstado = "EnFirma3",
+                    CodigoEstado = "EnRevisionF3",
                     EsInicio = false,
                     EsFinal = false,
                     RequiereFirma = true,
@@ -526,7 +526,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Orden = 4,
                     NombrePaso = "Firma GAF",
-                    CodigoEstado = "EnFirma4",
+                    CodigoEstado = "EnRevisionF4",
                     EsInicio = false,
                     EsFinal = false,
                     RequiereFirma = true,
@@ -537,7 +537,7 @@ public class DatabaseSeeder : IDatabaseSeeder
                 {
                     Orden = 5,
                     NombrePaso = "Firma Dirección Corporativa",
-                    CodigoEstado = "EnFirma5",
+                    CodigoEstado = "EnRevisionF5",
                     EsInicio = false,
                     EsFinal = false,
                     RequiereFirma = true,
