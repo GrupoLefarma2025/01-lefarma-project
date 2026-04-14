@@ -42,5 +42,21 @@ public interface IWorkflowService
         Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(int idWorkflow, CreateWorkflowCampoRequest request);
         Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflow, int idWorkflowCampo, UpdateWorkflowCampoRequest request);
         Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo);
+
+        // Canal Templates
+        Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync(int idWorkflow);
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(int idWorkflow, CreateCanalTemplateRequest request);
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(int idWorkflow, string codigoCanal, UpsertCanalTemplateRequest request);
+
+        // Tipos Notificacion
+        Task<ErrorOr<IEnumerable<WorkflowTipoNotificacionResponse>>> GetTiposNotificacionAsync();
+        Task<ErrorOr<IEnumerable<WorkflowNotificacionesPlantillaResponse>>> GetPlantillasBaseAsync(string? tipoNotificacion, string? canal);
+
+        // Recordatorios
+        Task<ErrorOr<IEnumerable<WorkflowRecordatorioResponse>>> GetRecordatoriosAsync(int idWorkflow);
+        Task<ErrorOr<WorkflowRecordatorioResponse>> CreateRecordatorioAsync(int idWorkflow, CreateRecordatorioRequest request);
+        Task<ErrorOr<WorkflowRecordatorioResponse>> UpdateRecordatorioAsync(int idWorkflow, int idRecordatorio, UpdateRecordatorioRequest request);
+        Task<ErrorOr<bool>> DeleteRecordatorioAsync(int idWorkflow, int idRecordatorio);
+        Task<ErrorOr<bool>> TestRecordatorioAsync(int idWorkflow, int idRecordatorio, int idUsuarioActual);
     }
 }

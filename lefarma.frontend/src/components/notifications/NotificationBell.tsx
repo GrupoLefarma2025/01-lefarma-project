@@ -214,9 +214,10 @@ export function NotificationBell({ onError }: NotificationBellProps) {
                             />
                           )}
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">
-                          {message}
-                        </p>
+                        <p
+                          className="text-xs text-muted-foreground line-clamp-2"
+                          dangerouslySetInnerHTML={{ __html: message }}
+                        />
                         <p className="text-xs text-muted-foreground mt-1">
                           {timeAgo}
                         </p>

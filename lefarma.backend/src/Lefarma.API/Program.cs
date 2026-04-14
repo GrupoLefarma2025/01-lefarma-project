@@ -159,6 +159,8 @@ builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IFirmasService, FirmasService>();
+builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
+builder.Services.AddScoped<WorkflowReminderService>();
 
 // Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, RequiredFieldsWorkflowHandler>("RequiredFields");

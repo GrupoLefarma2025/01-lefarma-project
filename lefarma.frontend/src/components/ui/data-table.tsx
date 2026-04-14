@@ -74,6 +74,7 @@ export interface DataTableProps<TData> {
   onExport?: () => void;
   onRefresh?: () => void;
   onRowClick?: (row: TData) => void;
+  isRowSelected?: (row: TData) => boolean;
 
   // Filter configuration
   filterConfig?: FilterConfigType<TData>;
@@ -123,6 +124,7 @@ export function DataTable<TData>({
   onExport,
   onRefresh,
   onRowClick,
+  isRowSelected,
   filterConfig,
   density,
   pageSizeOverride,
@@ -423,14 +425,18 @@ export function DataTable<TData>({
               </TableHeader>
               <TableBody>
                 {table.getRowModel().rows.length ? (
-                  table.getRowModel().rows.map((row) => (
+                  table.getRowModel().rows.map((row) => {
+                    const selected = isRowSelected?.(row.original) ?? false;
+                    return (
                     <TableRow
                       key={row.id}
                       data-state={row.getIsSelected() && "selected"}
                       className={cn(
                         "text-sm",
-                        onRowClick && "cursor-pointer hover:bg-muted/50"
+                        onRowClick && "hover:bg-muted/50",
+                        selected && "border-l-2 border-l-primary"
                       )}
+                      style={selected ? { backgroundColor: 'color-mix(in srgb, var(--primary) 12%, transparent)' } : undefined}
                       onClick={
                         onRowClick
                           ? () => onRowClick(row.original)
@@ -446,7 +452,8 @@ export function DataTable<TData>({
                         </TableCell>
                       ))}
                     </TableRow>
-                  ))
+                    );
+                  })
                 ) : (
                   <TableRow>
                     <TableCell

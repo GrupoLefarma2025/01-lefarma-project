@@ -28,15 +28,17 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public int IdNotificacion { get; set; }
         public int IdAccion { get; set; }
         public int? IdPasoDestino { get; set; }
+        public int? IdTipoNotificacion { get; set; }
         public bool EnviarEmail { get; set; }
         public bool EnviarWhatsapp { get; set; }
         public bool EnviarTelegram { get; set; }
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool AvisarAAutorizadoresPrevios { get; set; }
+        public bool IncluirPartidas { get; set; }
         public bool Activo { get; set; }
-        public string AsuntoTemplate { get; set; } = string.Empty;
-        public string CuerpoTemplate { get; set; } = string.Empty;
+        public List<WorkflowNotificacionCanalDto> Canales { get; set; } = new();
     }
 
     // ============================================================================
@@ -271,28 +273,182 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     public class CreateNotificacionRequest
     {
         public int? IdPasoDestino { get; set; }
+        public int? IdTipoNotificacion { get; set; }
         public bool EnviarEmail { get; set; }
         public bool EnviarWhatsapp { get; set; }
         public bool EnviarTelegram { get; set; }
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool AvisarAAutorizadoresPrevios { get; set; }
+        public bool IncluirPartidas { get; set; }
         public bool Activo { get; set; } = true;
-        public required string AsuntoTemplate { get; set; }
-        public required string CuerpoTemplate { get; set; }
+        public List<WorkflowNotificacionCanalDto> Canales { get; set; } = new();
     }
 
     public class UpdateNotificacionRequest
     {
         public int? IdPasoDestino { get; set; }
+        public int? IdTipoNotificacion { get; set; }
         public bool EnviarEmail { get; set; }
         public bool EnviarWhatsapp { get; set; }
         public bool EnviarTelegram { get; set; }
         public bool AvisarAlCreador { get; set; }
         public bool AvisarAlSiguiente { get; set; }
         public bool AvisarAlAnterior { get; set; }
+        public bool AvisarAAutorizadoresPrevios { get; set; }
+        public bool IncluirPartidas { get; set; }
         public bool Activo { get; set; } = true;
-        public required string AsuntoTemplate { get; set; }
-        public required string CuerpoTemplate { get; set; }
+        public List<WorkflowNotificacionCanalDto> Canales { get; set; } = new();
+    }
+
+    // ============================================================================
+    // Canal Template DTOs
+    // ============================================================================
+    public class WorkflowCanalTemplateResponse
+    {
+        public int IdTemplate { get; set; }
+        public int IdWorkflow { get; set; }
+        public string CodigoCanal { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string LayoutHtml { get; set; } = string.Empty;
+        public bool Activo { get; set; }
+        public DateTime FechaModificacion { get; set; }
+    }
+
+    public class UpsertCanalTemplateRequest
+    {
+        public required string Nombre { get; set; }
+        public required string LayoutHtml { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+
+    public class CreateCanalTemplateRequest
+    {
+        public required string CodigoCanal { get; set; }
+        public required string Nombre { get; set; }
+        public required string LayoutHtml { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+
+    // ============================================================================
+    // Tipo Notificacion DTOs
+    // ============================================================================
+    public class WorkflowTipoNotificacionResponse
+    {
+        public int IdTipo { get; set; }
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public string ColorTema { get; set; } = string.Empty;
+        public string ColorClaro { get; set; } = string.Empty;
+        public string Icono { get; set; } = string.Empty;
+        public bool Activo { get; set; }
+    }
+
+    // ============================================================================
+    // Recordatorio DTOs
+    // ============================================================================
+    public class WorkflowRecordatorioCanalDto
+    {
+        public int? IdRecordatorioCanal { get; set; }
+        public string CodigoCanal { get; set; } = string.Empty;
+        public string? AsuntoTemplate { get; set; }
+        public string CuerpoTemplate { get; set; } = string.Empty;
+        public string? ListadoRowHtml { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+
+    public class WorkflowNotificacionCanalDto
+    {
+        public int? IdNotificacionCanal { get; set; }
+        public string CodigoCanal { get; set; } = string.Empty;
+        public string? AsuntoTemplate { get; set; }
+        public string CuerpoTemplate { get; set; } = string.Empty;
+        public string? ListadoRowHtml { get; set; }
+        public bool Activo { get; set; } = true;
+    }
+
+    public class WorkflowNotificacionesPlantillaResponse
+    {
+        public int IdPlantilla { get; set; }
+        public string Nombre { get; set; } = string.Empty;
+        public string? CodigoTipoNotificacion { get; set; }
+        public string CodigoCanal { get; set; } = string.Empty;
+        public string? AsuntoTemplate { get; set; }
+        public string CuerpoTemplate { get; set; } = string.Empty;
+        public string? ListadoRowHtml { get; set; }
+        public bool Activo { get; set; }
+    }
+
+    public class WorkflowRecordatorioResponse
+    {
+        public int IdRecordatorio { get; set; }
+        public int IdWorkflow { get; set; }
+        public int? IdPaso { get; set; }
+        public string Nombre { get; set; } = string.Empty;
+        public bool Activo { get; set; }
+        public string TipoTrigger { get; set; } = string.Empty;
+        public TimeOnly? HoraEnvio { get; set; }
+        public string? DiasSemana { get; set; }
+        public int? IntervaloHoras { get; set; }
+        public DateOnly? FechaEspecifica { get; set; }
+        public int? MinOrdenesPendientes { get; set; }
+        public int? MinDiasEnPaso { get; set; }
+        public decimal? MontoMinimo { get; set; }
+        public decimal? MontoMaximo { get; set; }
+        public bool EscalarAJerarquia { get; set; }
+        public int? DiasParaEscalar { get; set; }
+        public bool EnviarAlResponsable { get; set; }
+        public bool EnviarEmail { get; set; }
+        public bool EnviarWhatsapp { get; set; }
+        public bool EnviarTelegram { get; set; }
+        public DateTime FechaCreacion { get; set; }
+        public List<WorkflowRecordatorioCanalDto> Canales { get; set; } = new();
+    }
+
+    public class CreateRecordatorioRequest
+    {
+        public int? IdPaso { get; set; }
+        public required string Nombre { get; set; }
+        public bool Activo { get; set; } = true;
+        public string TipoTrigger { get; set; } = "horario";
+        public TimeOnly? HoraEnvio { get; set; }
+        public string? DiasSemana { get; set; }
+        public int? IntervaloHoras { get; set; }
+        public DateOnly? FechaEspecifica { get; set; }
+        public int? MinOrdenesPendientes { get; set; }
+        public int? MinDiasEnPaso { get; set; }
+        public decimal? MontoMinimo { get; set; }
+        public decimal? MontoMaximo { get; set; }
+        public bool EscalarAJerarquia { get; set; } = false;
+        public int? DiasParaEscalar { get; set; }
+        public bool EnviarAlResponsable { get; set; } = true;
+        public bool EnviarEmail { get; set; } = true;
+        public bool EnviarWhatsapp { get; set; } = false;
+        public bool EnviarTelegram { get; set; } = false;
+        public List<WorkflowRecordatorioCanalDto> Canales { get; set; } = new();
+    }
+
+    public class UpdateRecordatorioRequest
+    {
+        public int? IdPaso { get; set; }
+        public required string Nombre { get; set; }
+        public bool Activo { get; set; } = true;
+        public string TipoTrigger { get; set; } = "horario";
+        public TimeOnly? HoraEnvio { get; set; }
+        public string? DiasSemana { get; set; }
+        public int? IntervaloHoras { get; set; }
+        public DateOnly? FechaEspecifica { get; set; }
+        public int? MinOrdenesPendientes { get; set; }
+        public int? MinDiasEnPaso { get; set; }
+        public decimal? MontoMinimo { get; set; }
+        public decimal? MontoMaximo { get; set; }
+        public bool EscalarAJerarquia { get; set; } = false;
+        public int? DiasParaEscalar { get; set; }
+        public bool EnviarAlResponsable { get; set; } = true;
+        public bool EnviarEmail { get; set; } = true;
+        public bool EnviarWhatsapp { get; set; } = false;
+        public bool EnviarTelegram { get; set; } = false;
+        public List<WorkflowRecordatorioCanalDto> Canales { get; set; } = new();
     }
 }

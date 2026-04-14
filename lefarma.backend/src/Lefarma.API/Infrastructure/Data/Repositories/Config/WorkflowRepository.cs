@@ -21,6 +21,7 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.Notificaciones)
+                            .ThenInclude(n => n.Canales)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Condiciones)
                 .Include(w => w.Pasos)
@@ -49,5 +50,15 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                 .Where(c => c.IdWorkflow == idWorkflow && c.Activo)
                 .OrderBy(c => c.EtiquetaUsuario)
                 .ToListAsync();
+
+        public async Task<ICollection<WorkflowCanalTemplate>> GetCanalTemplatesAsync(int idWorkflow)
+            => await _context.WorkflowCanalTemplates
+                .Where(t => t.IdWorkflow == idWorkflow)
+                .OrderBy(t => t.CodigoCanal)
+                .ToListAsync();
+
+        public async Task<WorkflowCanalTemplate?> GetCanalTemplateAsync(int idWorkflow, string codigoCanal)
+            => await _context.WorkflowCanalTemplates
+                .FirstOrDefaultAsync(t => t.IdWorkflow == idWorkflow && t.CodigoCanal == codigoCanal);
     }
 }

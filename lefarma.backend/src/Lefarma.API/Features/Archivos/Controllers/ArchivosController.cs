@@ -30,12 +30,13 @@ public class ArchivosController : ControllerBase
     /// <returns>Información del archivo subido.</returns>
     [HttpPost("upload")]
     [RequestSizeLimit(50_000_000)] // 50MB
+    [Consumes("multipart/form-data")]
     [SwaggerOperation(Summary = "Subir archivo", Description = "Sube un nuevo archivo al sistema. Tamaño máximo: 50 MB.")]
     [ProducesResponseType(typeof(ApiResponse<ArchivoResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> Upload(
-        SubirArchivoRequest request,
+        [FromForm] SubirArchivoRequest request,
         IFormFile file)
     {
         if (file == null || file.Length == 0)
@@ -66,6 +67,7 @@ public class ArchivosController : ControllerBase
     /// <returns>Información del archivo actualizado.</returns>
     [HttpPost("{id:int}/reemplazar")]
     [RequestSizeLimit(50_000_000)]
+    [Consumes("multipart/form-data")]
     [SwaggerOperation(Summary = "Reemplazar archivo", Description = "Reemplaza el contenido de un archivo existente. Tamaño máximo: 50 MB.")]
     [ProducesResponseType(typeof(ApiResponse<ArchivoResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -74,7 +76,7 @@ public class ArchivosController : ControllerBase
     public async Task<IActionResult> Reemplazar(
         int id,
         IFormFile file,
-        string? metadata)
+        [FromForm] string? metadata)
     {
         if (file == null || file.Length == 0)
             return BadRequest(new ApiResponse<object>
@@ -126,7 +128,7 @@ public class ArchivosController : ControllerBase
     [SwaggerOperation(Summary = "Listar archivos", Description = "Retorna la lista de archivos con filtros opcionales")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<ArchivoListItemResponse>>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> GetAll(ListarArchivosQuery query)
+    public async Task<IActionResult> GetAll([FromQuery] ListarArchivosQuery query)
     {
         var result = await _service.GetAllAsync(query);
 

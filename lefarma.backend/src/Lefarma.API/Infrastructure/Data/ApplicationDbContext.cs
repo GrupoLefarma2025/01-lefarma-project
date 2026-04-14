@@ -36,8 +36,15 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowAccionHandler> WorkflowAccionHandlers { get; set; }
         public DbSet<WorkflowCampo> WorkflowCampos { get; set; }
         public DbSet<WorkflowNotificacion> WorkflowNotificaciones { get; set; }
+        public DbSet<WorkflowCanalTemplate> WorkflowCanalTemplates { get; set; }
+        public DbSet<WorkflowTipoNotificacion> WorkflowTiposNotificacion { get; set; }
         public DbSet<WorkflowCondicion> WorkflowCondiciones { get; set; }
         public DbSet<WorkflowBitacora> WorkflowBitacoras { get; set; }
+        public DbSet<WorkflowRecordatorio> WorkflowRecordatorios { get; set; }
+        public DbSet<WorkflowRecordatorioLog> WorkflowRecordatorioLogs { get; set; }
+        public DbSet<WorkflowRecordatorioCanal> WorkflowRecordatorioCanales { get; set; }
+        public DbSet<WorkflowNotificacionCanal> WorkflowNotificacionCanales { get; set; }
+        public DbSet<WorkflowNotificacionesPlantillas> WorkflowNotificacionesPlantillas { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
