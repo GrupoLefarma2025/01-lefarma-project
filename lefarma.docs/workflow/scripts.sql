@@ -80,7 +80,8 @@ CREATE TABLE config.workflow_pasos (
     es_final BIT DEFAULT 0,
     requiere_firma BIT DEFAULT 0,
     requiere_comentario BIT DEFAULT 0,
-    requiere_adjunto BIT DEFAULT 0,
+    requiere_adjunto BIT DEFAULT 0,     -- 1 = adjunto OBLIGATORIO para ejecutar cualquier acción del paso
+    permite_adjunto BIT DEFAULT 1,      -- 0 = oculta el uploader libre en el modal de firma (pasos finales/informativos)
     activo BIT DEFAULT 1,
     CONSTRAINT FK_workflow_pasos_workflow FOREIGN KEY (id_workflow) REFERENCES config.workflows(id_workflow)
 );
@@ -190,7 +191,8 @@ CREATE TABLE config.workflow_campos (
 CREATE TABLE config.workflow_accion_handlers (
     id_handler INT IDENTITY(1,1) PRIMARY KEY,
     id_accion INT NOT NULL,
-    handler_key VARCHAR(100) NOT NULL,       -- 'RequiredFields' | 'FieldUpdater'
+    handler_key VARCHAR(100) NOT NULL,       -- 'Field' | 'Document'
+    requerido BIT NOT NULL DEFAULT 1,        -- 1=obligatorio, 0=opcional
     configuracion_json NVARCHAR(MAX) NULL,   -- Reservado para parámetros adicionales futuros
     orden_ejecucion INT NOT NULL DEFAULT 1,  -- Secuencia de ejecución
     activo BIT DEFAULT 1,
@@ -512,5 +514,33 @@ BEGIN
         SET @ErrMsg = 'Error en sp_procesar_recordatorios: ' + ERROR_MESSAGE();
         RAISERROR(@ErrMsg, 16, 1);
     END CATCH
+END
+GO
+
+-- =============================================================================
+-- MIGRACIONES INCREMENTALES
+-- =============================================================================
+
+-- v1.1: Añadir permite_adjunto a workflow_pasos (DEFAULT 1 → todos los pasos existentes lo heredan)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('config.workflow_pasos') AND name = 'permite_adjunto'
+)
+BEGIN
+    ALTER TABLE config.workflow_pasos
+    ADD permite_adjunto BIT NOT NULL DEFAULT 1;
+END
+GO
+
+-- v1.2: Añadir requerido a workflow_accion_handlers + renombrar handler_key values
+--       RequiredFields → Field (non-Archivo) / Document (Archivo)
+--       FieldUpdater   → Field (con requerido=1, ahora valida Y guarda en una sola fila)
+IF NOT EXISTS (
+    SELECT 1 FROM sys.columns 
+    WHERE object_id = OBJECT_ID('config.workflow_accion_handlers') AND name = 'requerido'
+)
+BEGIN
+    ALTER TABLE config.workflow_accion_handlers
+    ADD requerido BIT NOT NULL DEFAULT 1;
 END
 GO

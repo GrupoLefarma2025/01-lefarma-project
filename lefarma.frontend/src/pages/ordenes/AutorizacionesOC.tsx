@@ -1,4 +1,4 @@
-﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { API } from '@/services/api';
@@ -31,7 +31,6 @@ import {
   CheckCircle2,
   X,
   Paperclip,
-  FileIcon,
   Eye,
   Download,
   Clock,
@@ -80,6 +79,7 @@ interface WorkflowListItem {
 interface WorkflowHandlerConfig {
   idHandler: number;
   handlerKey: string;
+  requerido: boolean;
   configuracionJson?: string | null;
   ordenEjecucion: number;
   activo: boolean;
@@ -112,6 +112,9 @@ interface WorkflowPasoConfig {
   descripcionAyuda?: string | null;
   esInicio: boolean;
   esFinal: boolean;
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto: boolean;
   acciones: WorkflowAccionConfig[];
 }
 
@@ -180,24 +183,21 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
 
   for (const handler of handlers) {
     try {
-      // RequiredFields: valida presencia — incluye Archivo, Selector, Checkbox, Texto
-      if (handler.handlerKey === 'RequiredFields' && handler.campo) {
+      // Field: input/selector/checkbox — requerido viene del handler (valida Y guarda)
+      if (handler.handlerKey === 'Field' && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: true, inputKey });
+          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
         }
       }
 
-      // FieldUpdater: guarda el valor — no duplicar si RequiredFields ya lo mostró
-      if (handler.handlerKey === 'FieldUpdater' && handler.campo) {
+      // Document: campo tipo Archivo (comprobante_pago, comprobante_gasto/factura)
+      if (handler.handlerKey === 'Document' && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          // Checkbox siempre es requerido (el usuario debe interactuar explícitamente)
-          const requerido =
-            handler.campo.tipoControl === 'Checkbox' || handler.campo.tipoControl === 'Booleano';
-          result.push({ campo: handler.campo, requerido, inputKey });
+          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
         }
       }
     } catch {
@@ -206,7 +206,6 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
   }
   return result;
 }
-
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
 
@@ -243,7 +242,9 @@ export default function AutorizacionesOC() {
   );
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
   // File upload for DocumentRequired handlers
-  const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo>>({});
+  const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
+  // Free-form adjuntos for steps with permite_adjunto=true
+  const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
   // Archivos adjuntos de la orden seleccionada
   const [archivosOrden, setArchivosOrden] = useState<ArchivoListItem[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(false);
@@ -379,6 +380,7 @@ export default function AutorizacionesOC() {
     }
     setCamposValues(initialValues);
     setArchivoSubidos({});
+    setAdjuntosLibres([]);
 
     // Fetch catalogs for Selector campos that aren't already loaded
     const selectorCampos = campos.filter(
@@ -431,6 +433,7 @@ export default function AutorizacionesOC() {
     setAccionSeleccionada(null);
     setComentarioFirma('');
     setArchivoSubidos({});
+    setAdjuntosLibres([]);
   };
 
   const esRechazo = accionSeleccionada?.tipoAccion === 'RECHAZO';
@@ -464,7 +467,7 @@ export default function AutorizacionesOC() {
       // Validate required campos and build datosAdicionales dynamically
       for (const { campo, requerido, inputKey } of camposParaAccion) {
         if (campo.tipoControl === 'Archivo') {
-          if (requerido && !archivoSubidos[inputKey]) {
+          if (requerido && !archivoSubidos[inputKey]?.length) {
             toast.error(`Debes adjuntar: ${campo.etiquetaUsuario}`);
             setIsSubmittingFirma(false);
             return;
@@ -482,13 +485,20 @@ export default function AutorizacionesOC() {
       }
 
       // Add content type from last uploaded file (for SmartAudit)
-      const archivosList = Object.values(archivoSubidos);
+      const archivosList = Object.values(archivoSubidos).flat();
       if (archivosList.length > 0) {
         datosAdicionales['archivoContentType'] = archivosList[0].tipoMime;
       }
 
       if ((esRechazo || esRetorno) && !comentarioFirma.trim()) {
         toast.error('Para rechazo o devolución el comentario es obligatorio');
+        setIsSubmittingFirma(false);
+        return;
+      }
+
+      // Validate requiereAdjunto from paso config
+      if (currentPaso?.requiereAdjunto && adjuntosLibres.length === 0) {
+        toast.error('Debes adjuntar al menos un documento para esta acción');
         setIsSubmittingFirma(false);
         return;
       }
@@ -522,6 +532,12 @@ export default function AutorizacionesOC() {
     if (!selectedOrden?.idPasoActual) return null;
     return pasosMap.get(selectedOrden.idPasoActual)?.orden ?? null;
   }, [selectedOrden?.idPasoActual, pasosMap]);
+
+  // Current paso config — has permiteAdjunto / requiereAdjunto
+  const currentPaso = useMemo(
+    () => (selectedOrden?.idPasoActual != null ? (pasosMap.get(selectedOrden.idPasoActual) ?? null) : null),
+    [selectedOrden?.idPasoActual, pasosMap]
+  );
 
   const getTipoEvento = (item: HistorialWorkflowItemResponse) => {
     const actionName = (item.nombreAccion || '').toLowerCase();
@@ -1335,115 +1351,212 @@ export default function AutorizacionesOC() {
                       value="archivos"
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            Documentos adjuntos
-                          </p>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 px-2 text-xs"
-                            onClick={() => fetchArchivosOrden(selectedOrden.idOrden)}
-                            disabled={loadingArchivos}
-                          >
+                      {(() => {
+                        // ── helpers locales ────────────────────────────────
+                        const parseMetaArchivo = (meta: unknown): { modulo?: string; origen?: string; tipo?: string; observaciones?: string; paso?: string; nombrePaso?: string; nombreAccion?: string } => {
+                          if (!meta) return {};
+                          if (typeof meta === 'string') {
+                            try { return JSON.parse(meta); } catch { return { observaciones: meta }; }
+                          }
+                          if (typeof meta === 'object') return meta as { modulo?: string; origen?: string; tipo?: string; observaciones?: string; paso?: string; nombrePaso?: string; nombreAccion?: string };
+                          return {};
+                        };
+
+                        const fmtSize = (b: number) =>
+                          b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+
+                        const EXT_BADGE: Record<string, string> = {
+                          pdf:  'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300',
+                          xlsx: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                          xls:  'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+                          docx: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                          doc:  'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+                          png:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                          jpg:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                          jpeg: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                          webp: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                          gif:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
+                        };
+
+                        const TIPO_BADGE: Record<string, string> = {
+                          comprobante:  'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+                          factura:      'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+                          contrato:     'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+                          cotizacion:   'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
+                          autorizacion: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                        };
+
+                        const tipoBadgeClass = (tipo?: string) =>
+                          tipo ? (TIPO_BADGE[tipo.toLowerCase()] ?? 'bg-primary/10 text-primary') : '';
+
+                        // ── agrupar por paso/origen ───────────────────────
+                        type Grupo = { paso: string | null; nombrePaso?: string; origen?: string; items: typeof archivosOrden };
+                        const grupos: Grupo[] = [];
+                        const pasoMap = new Map<string, typeof archivosOrden>();
+                        const pasoNombreMap = new Map<string, string>();
+                        const pasoOrigenMap = new Map<string, string>();
+
+                        archivosOrden.forEach((a) => {
+                          const { paso, nombrePaso, origen } = parseMetaArchivo(a.metadata);
+                          // Archivos de creación van a un grupo especial '__creacion__'
+                          const key = origen === 'creacion' ? '__creacion__' : (paso ?? '__general__');
+                          if (!pasoMap.has(key)) pasoMap.set(key, []);
+                          pasoMap.get(key)!.push(a);
+                          if (nombrePaso && !pasoNombreMap.has(key)) pasoNombreMap.set(key, nombrePaso);
+                          if (origen && !pasoOrigenMap.has(key)) pasoOrigenMap.set(key, origen);
+                        });
+
+                        // Orden: pasos numéricos → creación → general
+                        const keys = Array.from(pasoMap.keys()).sort((a, b) => {
+                          if (a === '__general__') return 1;
+                          if (b === '__general__') return -1;
+                          if (a === '__creacion__') return 1;
+                          if (b === '__creacion__') return -1;
+                          return Number(a) - Number(b);
+                        });
+                        keys.forEach((k) => grupos.push({
+                          paso: k === '__general__' || k === '__creacion__' ? null : k,
+                          nombrePaso: pasoNombreMap.get(k),
+                          origen: pasoOrigenMap.get(k) ?? (k === '__creacion__' ? 'creacion' : undefined),
+                          items: pasoMap.get(k)!,
+                        }));
+
+                        return (
+                          <div className="space-y-2">
+                            {/* Encabezado */}
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                Documentos adjuntos
+                                {archivosOrden.length > 0 && (
+                                  <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] normal-case font-medium">
+                                    {archivosOrden.length}
+                                  </span>
+                                )}
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => fetchArchivosOrden(selectedOrden.idOrden)}
+                                disabled={loadingArchivos}
+                              >
+                                {loadingArchivos ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+                              </Button>
+                            </div>
+
+                            {/* Loading */}
                             {loadingArchivos ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
+                              <div className="flex items-center justify-center py-8 text-muted-foreground">
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                <span className="text-sm">Cargando archivos...</span>
+                              </div>
+                            ) : archivosOrden.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-10 text-muted-foreground">
+                                <Paperclip className="mb-2 h-8 w-8 opacity-30" />
+                                <p className="text-sm">Sin archivos adjuntos</p>
+                                <p className="mt-1 text-xs opacity-70">
+                                  Los documentos subidos en el flujo aparecerán aquí
+                                </p>
+                              </div>
                             ) : (
-                              <RefreshCcw className="h-3 w-3" />
-                            )}
-                          </Button>
-                        </div>
-
-                        {loadingArchivos ? (
-                          <div className="flex items-center justify-center py-8 text-muted-foreground">
-                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            <span className="text-sm">Cargando archivos...</span>
-                          </div>
-                        ) : archivosOrden.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-10 text-muted-foreground">
-                            <Paperclip className="mb-2 h-8 w-8 opacity-30" />
-                            <p className="text-sm">Sin archivos adjuntos</p>
-                            <p className="mt-1 text-xs opacity-70">
-                              Los documentos subidos en el flujo aparecerán aquí
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-1.5">
-                            {archivosOrden.map((archivo) => {
-                              const etiqueta =
-                                typeof archivo.metadata === 'string'
-                                  ? archivo.metadata
-                                  : archivo.metadata
-                                    ? JSON.stringify(archivo.metadata)
-                                    : null;
-                              const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
-                              const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(ext);
-                              const isPdf = ext === 'pdf';
-                              const formatSize = (b: number) =>
-                                b < 1024
-                                  ? `${b} B`
-                                  : b < 1024 * 1024
-                                    ? `${(b / 1024).toFixed(1)} KB`
-                                    : `${(b / (1024 * 1024)).toFixed(1)} MB`;
-
-                              return (
-                                <div
-                                  key={archivo.id}
-                                  className="hover:border-primary/50 group flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs transition-colors"
-                                >
-                                  <div
-                                    className={`shrink-0 rounded p-1.5 ${isPdf ? 'bg-red-100 text-red-600 dark:bg-red-950/40' : isImage ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/40' : 'bg-muted text-muted-foreground'}`}
-                                  >
-                                    <FileIcon className="h-4 w-4" />
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate font-medium">{archivo.nombreOriginal}</p>
-                                    <div className="mt-0.5 flex items-center gap-2">
-                                      {etiqueta && (
-                                        <span className="bg-primary/10 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                                          {etiqueta}
+                              <div className="space-y-3">
+                                {grupos.map(({ paso, nombrePaso, origen, items }) => (
+                                  <div key={paso ?? origen ?? 'general'}>
+                                    {/* Separador de grupo */}
+                                    <div className="mb-1.5 flex items-center gap-2">
+                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
+                                        {paso
+                                          ? `Paso ${paso}`
+                                          : origen === 'creacion'
+                                          ? 'Creación de orden'
+                                          : 'General'}
+                                      </span>
+                                      {nombrePaso && (
+                                        <span className="text-[10px] text-muted-foreground truncate">
+                                          — {nombrePaso}
                                         </span>
                                       )}
-                                      <span className="text-muted-foreground">
-                                        {formatSize(archivo.tamanoBytes)}
-                                      </span>
-                                      <span className="text-muted-foreground">·</span>
-                                      <span className="text-muted-foreground">
-                                        {new Date(archivo.fechaCreacion).toLocaleDateString(
-                                          'es-MX',
-                                          { day: '2-digit', month: 'short', year: 'numeric' }
-                                        )}
-                                      </span>
+                                      <div className="h-px flex-1 bg-border" />
+                                      <span className="text-[10px] text-muted-foreground shrink-0">{items.length}</span>
+                                    </div>
+
+                                    {/* Archivos del grupo */}
+                                    <div className="space-y-1">
+                                      {items.map((archivo) => {
+                                        const meta = parseMetaArchivo(archivo.metadata);
+                                        const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
+                                        // Etiqueta legible para el tipo (usa observaciones como label amigable)
+                                        const tipoLabel = meta.observaciones ?? meta.tipo;
+
+                                        return (
+                                          <div
+                                            key={archivo.id}
+                                            className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
+                                          >
+                                            {/* Badge extensión */}
+                                            <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
+                                              {ext || '?'}
+                                            </span>
+
+                                            {/* Contenido */}
+                                            <div className="min-w-0 flex-1 space-y-0.5">
+                                              <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
+                                                {archivo.nombreOriginal}
+                                              </p>
+                                              <div className="flex flex-wrap items-center gap-1.5">
+                                                {/* Etiqueta del campo (observaciones = etiquetaUsuario) */}
+                                                {tipoLabel && (
+                                                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tipoBadgeClass(meta.tipo)}`}>
+                                                    {tipoLabel}
+                                                  </span>
+                                                )}
+                                                <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
+                                                <span className="text-muted-foreground/40">·</span>
+                                                <span className="text-muted-foreground">
+                                                  {new Date(archivo.fechaCreacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                </span>
+                                              </div>
+                                              {/* Acción con la que se subió */}
+                                              {meta.nombreAccion && (
+                                                <p className="text-[10px] text-muted-foreground/60 leading-tight">
+                                                  Acción: {meta.nombreAccion}
+                                                </p>
+                                              )}
+                                            </div>
+
+                                            {/* Acciones */}
+                                            <div className="flex shrink-0 items-center gap-0.5">
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                                title="Ver documento"
+                                                onClick={() => setViewerArchivoId(archivo.id)}
+                                              >
+                                                <Eye className="h-3.5 w-3.5" />
+                                              </Button>
+                                              <a
+                                                href={archivoService.getDownloadUrl(archivo.id)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                title="Descargar"
+                                              >
+                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                                                  <Download className="h-3.5 w-3.5" />
+                                                </Button>
+                                              </a>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
-                                  <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      title="Ver documento"
-                                      onClick={() => setViewerArchivoId(archivo.id)}
-                                    >
-                                      <Eye className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <a
-                                      href={archivoService.getDownloadUrl(archivo.id)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      title="Descargar"
-                                    >
-                                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                                        <Download className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </a>
-                                  </div>
-                                </div>
-                              );
-                            })}
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        );
+                      })()}
                     </TabsContent>
                   </Tabs>
                 </>
@@ -1612,52 +1725,97 @@ export default function AutorizacionesOC() {
 
                 // Archivo (DocumentRequired) — inline uploader dentro del modal
                 if (campo.tipoControl === 'Archivo') {
-                  const archivo = archivoSubidos[inputKey];
+                  const archivosDelCampo = archivoSubidos[inputKey] ?? [];
+                  const MAX_ARCHIVOS = 5;
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label>
                         {campo.etiquetaUsuario}
                         {requerido && <span className="ml-1 text-red-500">*</span>}
-                      </Label>
-                      {archivo ? (
-                        <div className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-sm dark:bg-green-950/20">
-                          <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                          <span className="truncate text-green-700 dark:text-green-400">
-                            {archivo.nombreOriginal}
+                        {archivosDelCampo.length > 0 && (
+                          <span className="ml-1.5 text-muted-foreground font-normal">
+                            ({archivosDelCampo.length}/{MAX_ARCHIVOS})
                           </span>
-                          <button
-                            type="button"
-                            className="ml-auto text-muted-foreground hover:text-destructive"
-                            onClick={() =>
-                              setArchivoSubidos((prev) => {
-                                const n = { ...prev };
-                                delete n[inputKey];
-                                return n;
-                              })
-                            }
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
+                        )}
+                      </Label>
+
+                      {/* Lista de archivos ya subidos */}
+                      {archivosDelCampo.length > 0 && (
+                        <div className="space-y-1">
+                          {archivosDelCampo.map((a) => (
+                            <div
+                              key={a.id}
+                              className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs dark:bg-green-950/20"
+                            >
+                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                              <span className="flex-1 truncate text-green-700 dark:text-green-400">
+                                {a.nombreOriginal}
+                              </span>
+                              <button
+                                type="button"
+                                title="Ver archivo"
+                                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200 shrink-0"
+                                onClick={() => setViewerArchivoId(a.id)}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Quitar"
+                                className="text-muted-foreground hover:text-destructive shrink-0"
+                                onClick={() =>
+                                  setArchivoSubidos((prev) => ({
+                                    ...prev,
+                                    [inputKey]: prev[inputKey].filter((f) => f.id !== a.id),
+                                  }))
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </div>
+                          ))}
                         </div>
-                      ) : (
-                        selectedOrden && (
-                          <FileUploader
-                            inline
-                            open={true}
-                            entidadTipo="OrdenCompra"
-                            entidadId={selectedOrden.idOrden}
-                            carpeta="ordenes-compra"
-                            metadata={campo.etiquetaUsuario}
-                            tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png']}
-                            descripcion="Arrastra o selecciona el documento"
-                            onUploadComplete={(archivos) => {
-                              if (archivos.length > 0) {
-                                setArchivoSubidos((prev) => ({ ...prev, [inputKey]: archivos[0] }));
-                              }
-                            }}
-                            onClose={() => {}}
-                          />
-                        )
+                      )}
+
+                      {/* Uploader — mostrar si no se alcanzó el límite */}
+                      {archivosDelCampo.length < MAX_ARCHIVOS && selectedOrden && (
+                        <FileUploader
+                          inline
+                          open={true}
+                          multiple
+                          cantidadMaxima={MAX_ARCHIVOS - archivosDelCampo.length}
+                          entidadTipo="OrdenCompra"
+                          entidadId={selectedOrden.idOrden}
+                          carpeta="ordenes-compra"
+                          metadata={{
+                            modulo: 'ordenes_compra',
+                            origen: 'workflow',
+                            tipo: campo.nombreTecnico,
+                            observaciones: campo.etiquetaUsuario,
+                            paso: selectedOrden.idPasoActual ?? undefined,
+                            nombrePaso: selectedOrden.idPasoActual != null
+                              ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? undefined)
+                              : undefined,
+                            nombreAccion: accionSeleccionada?.nombreAccion ?? undefined,
+                          }}
+                          tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png']}
+                          descripcion="Arrastra o selecciona documentos"
+                          onUploadComplete={(nuevos) => {
+                            if (nuevos.length > 0) {
+                              setArchivoSubidos((prev) => ({
+                                ...prev,
+                                [inputKey]: [...(prev[inputKey] ?? []), ...nuevos].slice(0, MAX_ARCHIVOS),
+                              }));
+                            }
+                          }}
+                          onClose={() => {}}
+                        />
+                      )}
+
+                      {archivosDelCampo.length >= MAX_ARCHIVOS && (
+                        <p className="text-xs text-muted-foreground">
+                          Límite de {MAX_ARCHIVOS} archivos alcanzado.
+                        </p>
                       )}
                     </div>
                   );
@@ -1685,31 +1843,117 @@ export default function AutorizacionesOC() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="comentario-firma">Comentario</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="comentario-firma">
+                Comentario
+                {(esRechazo || esRetorno || currentPaso?.requiereComentario) && (
+                  <span className="ml-1 text-red-500">*</span>
+                )}
+              </Label>
+              {!esRechazo && !esRetorno && !currentPaso?.requiereComentario && (
+                <span className="text-xs text-muted-foreground">Opcional</span>
+              )}
+            </div>
             <Textarea
               id="comentario-firma"
               value={comentarioFirma}
               onChange={(e) => setComentarioFirma(e.target.value)}
               placeholder={
                 esRechazo
-                  ? 'Motivo del rechazo (obligatorio)'
+                  ? 'Explica el motivo del rechazo'
                   : esRetorno
-                    ? 'Motivo de devolución/corrección (obligatorio)'
-                    : 'Comentario de autorización'
+                    ? 'Explica el motivo de la devolución'
+                    : 'Escribe un comentario'
               }
               rows={4}
             />
             {(esRechazo || esRetorno) && (
               <p className="text-xs text-red-600">
-                Comentario obligatorio para rechazo o devolución.
-              </p>
-            )}
-            {camposParaAccion.length === 0 && !esRechazo && !esRetorno && (
-              <p className="text-xs text-muted-foreground">
-                Esta acción no requiere campos adicionales.
+                El comentario es obligatorio para esta acción.
               </p>
             )}
           </div>
+
+          {/* Adjunto libre — visible when paso allows free attachments */}
+          {currentPaso?.permiteAdjunto && selectedOrden && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>
+                  Documentos adjuntos
+                  {currentPaso.requiereAdjunto && (
+                    <span className="ml-1 text-red-500">*</span>
+                  )}
+                  {adjuntosLibres.length > 0 && (
+                    <span className="ml-1.5 font-normal text-muted-foreground">
+                      ({adjuntosLibres.length}/5)
+                    </span>
+                  )}
+                </Label>
+                {!currentPaso.requiereAdjunto && (
+                  <span className="text-xs text-muted-foreground">Opcional</span>
+                )}
+              </div>
+
+              {/* List of already-uploaded free adjuntos */}
+              {adjuntosLibres.length > 0 && (
+                <div className="space-y-1.5">
+                  {adjuntosLibres.map((archivo) => (
+                    <div
+                      key={archivo.id}
+                      className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm dark:border-green-800 dark:bg-green-950/20"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600 dark:text-green-400" />
+                      <span className="flex-1 truncate text-green-800 dark:text-green-300">
+                        {archivo.nombreOriginal}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setAdjuntosLibres((prev) => prev.filter((a) => a.id !== archivo.id))}
+                        className="text-green-600 hover:text-red-500 dark:text-green-400 dark:hover:text-red-400"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Uploader — shown while under limit */}
+              {adjuntosLibres.length < 5 && (
+                <FileUploader
+                  inline
+                  open={true}
+                  multiple
+                  cantidadMaxima={5 - adjuntosLibres.length}
+                  entidadTipo="OrdenCompra"
+                  entidadId={selectedOrden.idOrden}
+                  carpeta="ordenes-compra"
+                  metadata={{
+                    modulo: 'ordenes_compra',
+                    origen: 'workflow',
+                    tipo: 'adjunto_libre',
+                    paso: selectedOrden.idPasoActual ?? undefined,
+                    nombrePaso: currentPaso?.nombrePaso ?? undefined,
+                    nombreAccion: accionSeleccionada?.nombreAccion ?? undefined,
+                  }}
+                  tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']}
+                  descripcion="Arrastra o selecciona documentos de soporte"
+                  onUploadComplete={(nuevos) => {
+                    if (nuevos.length > 0) {
+                      setAdjuntosLibres((prev) => [...prev, ...nuevos].slice(0, 5));
+                    }
+                  }}
+                  onClose={() => {}}
+                />
+              )}
+
+              {adjuntosLibres.length >= 5 && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  Límite de 5 documentos alcanzado.
+                </p>
+              )}
+            </div>
+          )}
         </div>
       </Modal>
 

@@ -187,9 +187,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
                 var campos = (await _workflowRepo.GetCamposByWorkflowAsync(workflow.IdWorkflow)).ToList();
 
-                // CamposRequeridos: nombres técnicos de campos vinculados a RequiredFields activos
+                // CamposRequeridos: nombres técnicos de campos vinculados a handlers requeridos activos
                 var camposRequeridos = handlers
-                    .Where(h => h.HandlerKey == "RequiredFields" && h.Campo != null)
+                    .Where(h => h.Requerido && h.Campo != null)
                     .Select(h => h.Campo!.NombreTecnico)
                     .ToList();
 
@@ -201,10 +201,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     TipoAccion = accion.TipoAccion,
                     RequiereComentario = pasoActual.RequiereComentario,
                     RequiereAdjunto = pasoActual.RequiereAdjunto,
+                    PermiteAdjunto = pasoActual.PermiteAdjunto,
                     Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
                     {
                         IdHandler = h.IdHandler,
                         HandlerKey = h.HandlerKey,
+                        Requerido = h.Requerido,
                         ConfiguracionJson = h.ConfiguracionJson,
                         OrdenEjecucion = h.OrdenEjecucion
                     }).ToList(),

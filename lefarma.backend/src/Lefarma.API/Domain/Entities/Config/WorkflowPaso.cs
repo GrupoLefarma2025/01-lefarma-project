@@ -13,6 +13,7 @@ public class WorkflowPaso
         public bool RequiereFirma { get; set; }
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
+        public bool PermiteAdjunto { get; set; } = true;   // Si false, oculta el uploader libre en el modal
 
         public virtual Workflow? Workflow { get; set; }
         public virtual ICollection<WorkflowParticipante> Participantes { get; set; } = new List<WorkflowParticipante>();
