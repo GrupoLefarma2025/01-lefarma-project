@@ -1,8 +1,9 @@
-﻿import { useState, useCallback, useRef } from 'react';
-import { Upload, X, FileIcon, AlertCircle } from 'lucide-react';
+﻿import { useState, useCallback, useRef, useEffect } from 'react';
+import { Upload, X, FileText, AlertCircle, Eye, FileSpreadsheet, Image as ImageIcon, FileCode } from 'lucide-react';
 import { archivoService } from '@/services/archivoService';
 import type { Archivo, SubirArchivoParams } from '@/types/archivo.types';
 import { toast } from 'sonner';
+import { FileViewer } from './FileViewer';
 
 
 interface FileUploaderProps {
@@ -55,7 +56,23 @@ export function FileUploader({
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [viewerFile, setViewerFile] = useState<File | null>(null);
+  const [imagePreviews, setImagePreviews] = useState<Record<number, string>>({});
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Generar/revocar objectURLs para thumbnails de imágenes
+  useEffect(() => {
+    const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg'];
+    const urls: Record<number, string> = {};
+    files.forEach((f, i) => {
+      const ext = '.' + (f.name.split('.').pop() ?? '').toLowerCase();
+      if (IMAGE_EXTS.includes(ext)) {
+        urls[i] = URL.createObjectURL(f);
+      }
+    });
+    setImagePreviews(urls);
+    return () => { Object.values(urls).forEach(URL.revokeObjectURL); };
+  }, [files]);
 
   const validateFile = useCallback((file: File): string | null => {
     const extension = '.' + file.name.split('.').pop()?.toLowerCase();
@@ -209,26 +226,67 @@ export function FileUploader({
       {/* File list */}
       {files.length > 0 && (
         <div className="mt-3 space-y-2">
-          {files.map((file, i) => (
-            <div key={i} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-zinc-800 rounded">
-              <div className="flex items-center gap-2">
-                <FileIcon className="w-5 h-5 text-gray-400 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium truncate max-w-[200px]">{file.name}</p>
-                  <p className="text-xs text-gray-400">{formatSize(file.size)}</p>
+          {files.map((file, i) => {
+            const ext = '.' + (file.name.split('.').pop() ?? '').toLowerCase();
+            const isImage = imagePreviews[i] != null;
+            const isPdf = ext === '.pdf';
+            const isExcel = ['.xlsx', '.xls'].includes(ext);
+            const isText = ['.txt', '.csv', '.xml', '.json', '.log'].includes(ext);
+            return (
+              <div key={i} className="flex items-center gap-3 p-2 bg-muted/50 border border-border rounded-lg">
+                {/* Thumbnail / badge */}
+                {isImage ? (
+                  <img
+                    src={imagePreviews[i]}
+                    alt={file.name}
+                    className="w-10 h-10 rounded object-cover shrink-0 border border-border"
+                  />
+                ) : (
+                  <div className={`w-10 h-10 rounded flex items-center justify-center shrink-0 text-xs font-semibold
+                    ${isPdf ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300' :
+                      isExcel ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' :
+                      isText ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300' :
+                      'bg-gray-100 text-gray-600 dark:bg-zinc-700 dark:text-zinc-300'}`}>
+                    {isPdf ? <FileText className="w-5 h-5" /> :
+                     isExcel ? <FileSpreadsheet className="w-5 h-5" /> :
+                     isText ? <FileCode className="w-5 h-5" /> :
+                     <ImageIcon className="w-5 h-5" />}
+                  </div>
+                )}
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
                 </div>
+                {/* Actions */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setViewerFile(file); }}
+                  className="p-1.5 hover:bg-accent rounded transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                  title="Vista previa"
+                >
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                  className="p-1.5 hover:bg-destructive/10 rounded transition-colors text-muted-foreground hover:text-destructive shrink-0"
+                  title="Quitar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                className="p-1 hover:bg-gray-200 dark:hover:bg-zinc-700 rounded"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* FileViewer para preview local */}
+      <FileViewer
+        localFile={viewerFile}
+        open={viewerFile !== null}
+        onClose={() => setViewerFile(null)}
+      />
 
       {/* Footer actions */}
       <div className={`flex justify-end gap-2 ${inline ? 'mt-3' : 'mt-4 pt-4 border-t'}`}>

@@ -249,8 +249,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 paso.RequiereFirma = request.RequiereFirma;
                 paso.RequiereComentario = request.RequiereComentario;
                 paso.RequiereAdjunto = request.RequiereAdjunto;
-
-                await _repo.UpdateAsync(workflow);
+                paso.PermiteAdjunto = request.PermiteAdjunto;
 
                 var response = new WorkflowPasoResponse
                 {
@@ -265,6 +264,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto,
                     Acciones = paso.AccionesOrigen.Select(a => new WorkflowAccionResponse
                     {
                         IdAccion = a.IdAccion,
@@ -318,7 +318,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = request.Activo,
                     RequiereFirma = request.RequiereFirma,
                     RequiereComentario = request.RequiereComentario,
-                    RequiereAdjunto = request.RequiereAdjunto
+                    RequiereAdjunto = request.RequiereAdjunto,
+                    PermiteAdjunto = request.PermiteAdjunto
                 };
 
                 workflow.Pasos.Add(paso);
@@ -343,6 +344,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto,
                     Acciones = new List<WorkflowAccionResponse>()
                 };
             }
@@ -381,7 +383,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = false,
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
-                    RequiereAdjunto = paso.RequiereAdjunto
+                    RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto
                 };
 
                 var inactivarResult = await UpdatePasoAsync(idWorkflow, idPaso, updateRequest);
@@ -1453,6 +1456,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 RequiereFirma = p.RequiereFirma,
                 RequiereComentario = p.RequiereComentario,
                 RequiereAdjunto = p.RequiereAdjunto,
+                PermiteAdjunto = p.PermiteAdjunto,
                 Acciones = p.AccionesOrigen.Where(a => a.Activo).Select(a => new WorkflowAccionResponse
                 {
                     IdAccion = a.IdAccion,

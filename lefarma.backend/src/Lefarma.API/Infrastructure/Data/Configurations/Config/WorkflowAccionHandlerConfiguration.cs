@@ -13,6 +13,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(h => h.IdHandler).HasColumnName("id_handler").ValueGeneratedOnAdd();
             builder.Property(h => h.IdAccion).HasColumnName("id_accion");
             builder.Property(h => h.HandlerKey).HasColumnName("handler_key").HasMaxLength(100).IsRequired();
+            builder.Property(h => h.Requerido).HasColumnName("requerido").HasDefaultValue(true);
             builder.Property(h => h.ConfiguracionJson).HasColumnName("configuracion_json").HasColumnType("nvarchar(max)");
             builder.Property(h => h.OrdenEjecucion).HasColumnName("orden_ejecucion").HasDefaultValue(1);
             builder.Property(h => h.Activo).HasColumnName("activo").HasDefaultValue(true);

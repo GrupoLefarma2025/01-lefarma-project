@@ -30,6 +30,7 @@ public class FirmarRequest
     {
         public int IdHandler { get; set; }
         public string HandlerKey { get; set; } = string.Empty;
+        public bool Requerido { get; set; } = true;
         public string? ConfiguracionJson { get; set; }
         public int OrdenEjecucion { get; set; }
     }
@@ -51,6 +52,7 @@ public class FirmarRequest
         public string TipoAccion { get; set; } = string.Empty;
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
+        public bool PermiteAdjunto { get; set; }
         public List<AccionHandlerMetadataResponse> Handlers { get; set; } = new();
         public List<WorkflowCampoMetadataResponse> CamposWorkflow { get; set; } = new();
         public List<string> CamposRequeridos { get; set; } = new();

@@ -19,8 +19,11 @@ Implementado como vertical slice en `Features/OrdenesCompra/Firmas/`. El motor g
 Los handlers son responsables de validar o actualizar campos de la orden antes de ejecutar la acción.
 
 Solo existen 2 handler types:
-- **`RequiredFields`** — valida que campos requeridos estén presentes. Soporta `tipo_control=Archivo` (valida que exista archivo en BD) y `tipo_control=Checkbox` (bool). `ValidarFiscal=true` → placeholder CFDI webservice (TODO fase 2).
-- **`FieldUpdater`** — escribe valores en la entidad `OrdenCompra` via reflection. Usa `propiedad_entidad` para saber qué campo tocar y `tipo_control` para el cast correcto.
+- **`Field`** — valida si `requerido=1` Y escribe en `OrdenCompra` vía reflection. 1 fila por campo. Reemplaza la dupla RequiredFields+FieldUpdater.
+- **`Document`** — valida que exista un archivo en BD con el tipo del campo. Si `validar_fiscal=1`:
+  - Archivo imagen → pasa sin validación fiscal (las imágenes no son CFDI).
+  - Archivo XML/PDF → placeholder para webservice SAT (Fase 2).
+  - Columna `requerido` en handler: si `0`, el documento es opcional y el handler no bloquea.
 
 Configuración 100% en BD (`workflow_accion_handlers` + `workflow_campos`). Agregar un nuevo campo no requiere cambios en C#.
 

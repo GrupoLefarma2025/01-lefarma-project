@@ -163,8 +163,8 @@ builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotification
 builder.Services.AddScoped<WorkflowReminderService>();
 
 // Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
-builder.Services.AddKeyedScoped<IWorkflowActionHandler, RequiredFieldsWorkflowHandler>("RequiredFields");
-builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldUpdaterWorkflowHandler>("FieldUpdater");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();

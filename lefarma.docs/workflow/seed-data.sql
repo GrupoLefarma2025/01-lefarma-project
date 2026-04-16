@@ -19,33 +19,38 @@ SET IDENTITY_INSERT config.workflows OFF;
 SET IDENTITY_INSERT config.workflow_pasos ON;
 
 INSERT INTO config.workflow_pasos 
-(id_paso, id_workflow, orden, nombre_paso, codigo_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, activo)
+(id_paso, id_workflow, orden, nombre_paso, codigo_estado, descripcion_ayuda, es_inicio, es_final, requiere_firma, requiere_comentario, requiere_adjunto, permite_adjunto, activo)
 VALUES 
-    -- Paso inicial (captura)
-    (1, 1, 0, 'Creada', 'CREADA', 'Orden de compra capturada por el usuario', 1, 0, 0, 0, 0, 1),
+    -- Paso inicial (captura): solo envío, sin uploader genérico (el uploader está en la creación de OC)
+    (1, 1, 0, 'Creada', 'CREADA', 'Orden de compra capturada por el usuario', 1, 0, 0, 0, 0, 1, 1),
     
-    -- Firma 2: Gerente General por Sucursal
-    (2, 1, 10, 'Firma 2 - Gerente General', 'EN_REVISION_F2', 'Autorización del Gerente General de la Empresa/Sucursal', 0, 0, 1, 0, 0, 1),
+    -- Firma 2: Gerente General — puede adjuntar soporte opcional
+    (2, 1, 10, 'Firma 2 - Gerente General', 'EN_REVISION_F2', 'Autorización del Gerente General de la Empresa/Sucursal', 0, 0, 1, 0, 0, 1, 1),
     
-    -- Firma 3: CxP - Asigna Centro de Costo y Cuenta Contable vía handlers dinámicos
-    (3, 1, 20, 'Firma 3 - CxP', 'EN_REVISION_F3', 'Revisión de CxP, asignación de centro de costo y cuenta contable', 0, 0, 1, 0, 0, 1),
+    -- Firma 3: CxP — puede adjuntar soporte opcional (Centro de Costo/Cuenta Contable vía handlers)
+    (3, 1, 20, 'Firma 3 - CxP', 'EN_REVISION_F3', 'Revisión de CxP, asignación de centro de costo y cuenta contable', 0, 0, 1, 0, 0, 1, 1),
     
-    -- Firma 4: GAF - Configura checks de comprobación vía handlers dinámicos
-    (4, 1, 30, 'Firma 4 - GAF', 'EN_REVISION_F4', 'Autorización del Gerente de Administración y Finanzas', 0, 0, 1, 0, 0, 1),
+    -- Firma 4: GAF — puede adjuntar soporte opcional (checkboxes comprobación vía handlers)
+    (4, 1, 30, 'Firma 4 - GAF', 'EN_REVISION_F4', 'Autorización del Gerente de Administración y Finanzas', 0, 0, 1, 0, 0, 1, 1),
     
-    -- Firma 5: Dirección Corporativa - Solo para montos > $100k (condición dinámica)
-    (5, 1, 40, 'Firma 5 - Dirección Corporativa', 'EN_REVISION_F5', 'Autorización de Dirección Corporativa para montos mayores a $100,000', 0, 0, 1, 0, 0, 1),
+    -- Firma 5: Dirección Corporativa — puede adjuntar soporte opcional
+    (5, 1, 40, 'Firma 5 - Dirección Corporativa', 'EN_REVISION_F5', 'Autorización de Dirección Corporativa para montos mayores a $100,000', 0, 0, 1, 0, 0, 1, 1),
     
     -- Estados post-autorización
-    (6, 1, 50, 'Autorizada', 'AUTORIZADA', 'Orden autorizada, lista para pago', 0, 0, 0, 0, 0, 1),
-    (7, 1, 60, 'En Tesorería', 'EN_TESORERIA', 'Orden en proceso de pago por Tesorería', 0, 0, 0, 0, 0, 1),
-    (8, 1, 70, 'Pagada', 'PAGADA', 'Pago realizado, pendiente de comprobación', 0, 0, 0, 0, 0, 1),
-    (9, 1, 80, 'En Comprobación', 'EN_COMPROBACION', 'Usuario subiendo comprobantes de gasto', 0, 0, 0, 0, 1, 1),
-    (10, 1, 90, 'Cerrada', 'CERRADA', 'Ciclo completo, orden cerrada', 0, 1, 0, 0, 0, 1),
+    -- Autorizada: paso transitorio, puede adjuntar (ej: orden de compra firmada)
+    (6, 1, 50, 'Autorizada', 'AUTORIZADA', 'Orden autorizada, lista para pago', 0, 0, 0, 0, 0, 1, 1),
+    -- En Tesorería: permite_adjunto=0 porque acción 16 (Marcar como Pagada) tiene handler Document comprobante_pago
+    (7, 1, 60, 'En Tesorería', 'EN_TESORERIA', 'Orden en proceso de pago por Tesorería', 0, 0, 0, 0, 0, 0, 1),
+    -- Pagada: permite_adjunto=0 porque acción 17 (Iniciar Comprobación) tiene handler Document comprobante_gasto
+    (8, 1, 70, 'Pagada', 'PAGADA', 'Pago realizado, pendiente de comprobación', 0, 0, 0, 0, 0, 0, 1),
+    -- En Comprobación: permite_adjunto=1 — acciones 18/19 no tienen Document handler, usuario puede adjuntar soporte libre
+    (9, 1, 80, 'En Comprobación', 'EN_COMPROBACION', 'Usuario subiendo comprobantes de gasto (factura CFDI)', 0, 0, 0, 0, 0, 1, 1),
+    -- Cerrada: ciclo completo, no tiene acciones de usuario, ocultar uploader
+    (10, 1, 90, 'Cerrada', 'CERRADA', 'Ciclo completo, orden cerrada', 0, 1, 0, 0, 0, 0, 1),
     
-    -- Estados de rechazo
-    (11, 1, 100, 'Rechazada', 'RECHAZADA', 'Orden rechazada en alguna firma', 0, 1, 0, 1, 0, 1),
-    (12, 1, 110, 'Cancelada', 'CANCELADA', 'Orden cancelada por el usuario', 0, 1, 0, 1, 0, 1);
+    -- Estados de rechazo/cancelación: permiten adjuntar evidencia del motivo
+    (11, 1, 100, 'Rechazada', 'RECHAZADA', 'Orden rechazada en alguna firma', 0, 1, 0, 1, 0, 1, 1),
+    (12, 1, 110, 'Cancelada', 'CANCELADA', 'Orden cancelada por el usuario', 0, 1, 0, 1, 0, 1, 1);
 
 SET IDENTITY_INSERT config.workflow_pasos OFF;
 
@@ -157,28 +162,23 @@ SET IDENTITY_INSERT config.workflow_campos OFF;
 -- RequiredFields con tipo_control=Archivo valida que el documento esté en BD.
 -- FieldUpdater usa reflexión sobre propiedad_entidad del campo.
 -- =============================================================================
-SET IDENTITY_INSERT config.workflow_accion_handlers ON;
-
-INSERT INTO config.workflow_accion_handlers
-(id_handler, id_accion, handler_key, configuracion_json, orden_ejecucion, activo, id_workflow_campo)
+SET IDENTITY_INSERT config.workflow_accion_handlers ON;INSERT INTO config.workflow_accion_handlers
+(id_handler, id_accion, handler_key, requerido, configuracion_json, orden_ejecucion, activo, id_workflow_campo)
 VALUES
-    -- Firma 3 - Autorizar: validar + guardar centro de costo y cuenta contable
-    (1, 5, 'RequiredFields', NULL, 1, 1, 1),
-    (9, 5, 'RequiredFields', NULL, 2, 1, 2),
-    (6, 5, 'FieldUpdater',   NULL, 3, 1, 1),
-    (7, 5, 'FieldUpdater',   NULL, 4, 1, 2),
+    -- Firma 3 - Autorizar: validar Y guardar centro de costo y cuenta contable (1 fila por campo)
+    (1, 5, 'Field', 1, NULL, 1, 1, 1),
+    (9, 5, 'Field', 1, NULL, 2, 1, 2),
 
     -- Firma 4 - Autorizar: guardar checkboxes de comprobación
-    (2, 8, 'FieldUpdater', NULL, 1, 1, 3),
-    (3, 8, 'FieldUpdater', NULL, 2, 1, 4),
+    (2, 8, 'Field', 1, NULL, 1, 1, 3),
+    (3, 8, 'Field', 1, NULL, 2, 1, 4),
 
-    -- Tesorería - Marcar como Pagada: requiere comprobante de pago (tipo Archivo, validar_fiscal=0)
-    (4, 16, 'RequiredFields', NULL, 1, 1, 5),
+    -- Tesorería - Marcar como Pagada: requiere comprobante de pago (Archivo, validar_fiscal=0)
+    (4, 16, 'Document', 1, NULL, 1, 1, 5),
 
-    -- Iniciar Comprobación: requiere comprobante de gasto (tipo Archivo, validar_fiscal=1 → webservice fiscal)
-    (5, 17, 'RequiredFields', NULL, 1, 1, 6);
-
-SET IDENTITY_INSERT config.workflow_accion_handlers OFF;
+    -- Iniciar Comprobación: requiere comprobante de gasto/factura (Archivo, validar_fiscal=1 → webservice fiscal)
+    (5, 17, 'Document', 1, NULL, 1, 1, 6);
+    SET IDENTITY_INSERT config.workflow_accion_handlers OFF;
 
 -- =============================================================================
 -- 7. CONDICIONES (Reglas Dinámicas)
