@@ -123,6 +123,8 @@ const ordenCompraSchema = z
     sinDatosFiscales: z.boolean(),
     // FK al proveedor (proveedor a nivel orden)
     idProveedor: z.number().optional().nullable(),
+    // Campo de UI para mostrar la razón social del proveedor seleccionado
+    razonSocialProveedor: z.string().optional(),
     // Cuentas bancarias múltiples a nivel orden
     idsCuentasBancarias: z.array(z.number()).optional().nullable(),
     notaFormaPago: z.string().optional(),
@@ -451,6 +453,7 @@ export default function CrearOrdenCompra() {
       fechaLimitePago: '',
       sinDatosFiscales: false,
       idProveedor: 0,
+      razonSocialProveedor: '',
       idsCuentasBancarias: [],
       notaFormaPago: '',
       notasGenerales: '',
@@ -625,6 +628,8 @@ export default function CrearOrdenCompra() {
     }, 1000);
   };
 
+  const [allProveedores, setAllProveedores] = useState<Proveedor[]>([]);
+
   const buscarProveedores = async (termino: string, tipo: 'razonSocial' | 'rfc') => {
     if (!termino || termino.length < 1) return;
 
@@ -645,12 +650,42 @@ export default function CrearOrdenCompra() {
     }
   };
 
+  const cargarTodosProveedores = async () => {
+    setBuscandoProveedor(true);
+    try {
+      const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores');
+      if (response.data.success) {
+        const data = response.data.data || [];
+        setAllProveedores(data);
+        setProveedores(data);
+      }
+    } catch (err) {
+      console.error('Error al cargar proveedores:', err);
+    } finally {
+      setBuscandoProveedor(false);
+    }
+  };
+
   const [selectedProveedorId, setSelectedProveedorId] = useState(0);
   const [selectedCuentasBancariasIds, setSelectedCuentasBancariasIds] = useState<number[]>([]);
   const [cuentasBancarias, setCuentasBancarias] = useState<ProveedorCuentaBancaria[]>([]);
 
+  const obtenerProveedorPorId = async (id: number): Promise<Proveedor | null> => {
+    try {
+      const response = await API.get<ApiResponse<Proveedor>>(`/catalogos/Proveedores/${id}`);
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      return null;
+    } catch (err) {
+      console.warn(`Error al obtener proveedor ${id}:`, err);
+      return null;
+    }
+  };
+
   const seleccionarProveedor = (proveedor: Proveedor & { cuentasFormaPago?: ProveedorCuentaBancaria[] }) => {
     form.setValue('idProveedor', proveedor.idProveedor);
+    form.setValue('razonSocialProveedor', proveedor.razonSocial);
     form.setValue('sinDatosFiscales', proveedor.sinDatosFiscales || false);
     setSelectedProveedorId(proveedor.idProveedor);
     setProveedores([]);
@@ -678,6 +713,42 @@ export default function CrearOrdenCompra() {
         const response = await API.get<ApiResponse<OrdenCompraResponse>>(`/ordenes/${id}`);
         if (response.data.success && response.data.data) {
           const orden = response.data.data;
+          
+          let razonSocialProveedor = '';
+          let cuentasBancariasDelProveedor: ProveedorCuentaBancaria[] = [];
+          const proveedoresCargados: Proveedor[] = [];
+          
+          if (orden.idProveedor && orden.idProveedor > 0) {
+            const proveedor = await obtenerProveedorPorId(orden.idProveedor);
+            if (proveedor) {
+              razonSocialProveedor = proveedor.razonSocial;
+              proveedoresCargados.push(proveedor);
+              if (proveedor.cuentasFormaPago && proveedor.cuentasFormaPago.length > 0) {
+                cuentasBancariasDelProveedor = proveedor.cuentasFormaPago.filter((c) => c.activo);
+              }
+            }
+          }
+          
+          const idsProveedoresPartidas = orden.partidas
+            .filter((p) => p.idProveedor && p.idProveedor > 0)
+            .map((p) => p.idProveedor!);
+          
+          const idsUnicos = [...new Set(idsProveedoresPartidas)];
+          
+          for (const idProv of idsUnicos) {
+            if (!proveedoresCargados.find((p) => p.idProveedor === idProv)) {
+              const proveedorPartida = await obtenerProveedorPorId(idProv);
+              if (proveedorPartida) {
+                proveedoresCargados.push(proveedorPartida);
+              }
+            }
+          }
+          
+          if (proveedoresCargados.length > 0) {
+            setProveedores(proveedoresCargados);
+            setAllProveedores(proveedoresCargados);
+          }
+          
           const mapped: FormValues = {
             idEmpresa: orden.idEmpresa,
             idSucursal: orden.idSucursal,
@@ -686,12 +757,10 @@ export default function CrearOrdenCompra() {
             fechaLimitePago: orden.fechaLimitePago.split('T')[0],
             sinDatosFiscales: orden.sinDatosFiscales,
             idProveedor: orden.idProveedor || 0,
+            razonSocialProveedor,
             idsCuentasBancarias: orden.idsCuentasBancarias || [],
             notaFormaPago: orden.notaFormaPago || '',
             notasGenerales: orden.notasGenerales || '',
-            // Auto-detectar modo proveedor por partida:
-            // Si el proveedor en el cabecero está vacío Y hay proveedores en las partidas,
-            // marcar como checked (sin ejecutar el onChange del checkbox para no limpiar lo cargado)
             agregarProveedorPorPartida:
               !orden.idProveedor &&
               orden.partidas.some((p) => p.idProveedor && p.idProveedor > 0),
@@ -715,6 +784,7 @@ export default function CrearOrdenCompra() {
           };
           setSelectedProveedorId(orden.idProveedor || 0);
           setSelectedCuentasBancariasIds(orden.idsCuentasBancarias || []);
+          setCuentasBancarias(cuentasBancariasDelProveedor);
           form.reset(mapped);
         }
       } catch (error) {
@@ -1093,26 +1163,33 @@ export default function CrearOrdenCompra() {
 
                       const handleBuscar = (valor: string) => {
                         setBusqueda(valor);
-                        setBuscado(false);
+                        setBuscado(true);
                         setSelectedIndex(0);
-                        if (valor.length >= 1) {
-                          setBuscado(true);
-                          buscarProveedores(valor, 'razonSocial');
+                        // Filtrar client-side de los proveedores ya cargados
+                        if (!valor || valor.length < 1) {
+                          setProveedores(allProveedores);
+                        } else {
+                          const filtrados = allProveedores.filter(
+                            (prov) =>
+                              prov.razonSocial.toLowerCase().includes(valor.toLowerCase()) ||
+                              (prov.rfc && prov.rfc.toLowerCase().includes(valor.toLowerCase()))
+                          );
+                          setProveedores(filtrados);
                         }
                       };
 
                       const handleKeyDown = (e: React.KeyboardEvent) => {
+                        if (proveedores.length === 0) return;
+                        
                         if (e.key === 'ArrowDown') {
                           e.preventDefault();
-                          const totalOptions = proveedores.length + (busqueda.length > 0 ? 1 : 0);
-                          setSelectedIndex((prev) => (prev + 1) % totalOptions);
+                          setSelectedIndex((prev) => (prev + 1) % proveedores.length);
                         } else if (e.key === 'ArrowUp') {
                           e.preventDefault();
-                          const totalOptions = proveedores.length + (busqueda.length > 0 ? 1 : 0);
-                          setSelectedIndex((prev) => (prev - 1 + totalOptions) % totalOptions);
+                          setSelectedIndex((prev) => (prev - 1 + proveedores.length) % proveedores.length);
                         } else if (e.key === 'Enter') {
                           e.preventDefault();
-                          if (selectedIndex < proveedores.length && proveedores.length > 0) {
+                          if (selectedIndex < proveedores.length) {
                             const proveedor = proveedores[selectedIndex];
                             if (proveedor) {
                               seleccionarProveedor(proveedor);
@@ -1136,7 +1213,8 @@ export default function CrearOrdenCompra() {
                                 setBusqueda('');
                                 setBuscado(false);
                                 setSelectedIndex(0);
-                                setProveedores([]);
+                                // Cargar todos los proveedores autorizados al abrir
+                                cargarTodosProveedores();
                               }
                             }}
                           >
@@ -1168,22 +1246,14 @@ export default function CrearOrdenCompra() {
                                   />
                                 </div>
                                 <CommandList className="max-h-[300px] overflow-auto">
-                                  {busqueda.length === 0 ? (
-                                    <div className="py-4 text-center text-sm text-muted-foreground">
-                                      Escribe para buscar proveedores
-                                    </div>
-                                  ) : buscandoProveedor ? (
+                                  {buscandoProveedor ? (
                                     <div className="py-4 text-center text-sm text-muted-foreground">
                                       <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                                      Buscando...
-                                    </div>
-                                  ) : buscado && proveedores.length === 0 ? (
-                                    <div className="py-4 text-center text-sm text-muted-foreground">
-                                      No se encontraron proveedores
+                                      Cargando proveedores...
                                     </div>
                                   ) : proveedores.length > 0 ? (
                                     <>
-                                      <CommandGroup heading="Proveedores encontrados">
+                                      <CommandGroup heading={`${proveedores.length} proveedor${proveedores.length !== 1 ? 'es' : ''} disponible${proveedores.length !== 1 ? 's' : ''}`}>
                                         {proveedores.map((proveedor, index) => (
                                           <CommandItem
                                             key={proveedor.idProveedor}
@@ -1197,7 +1267,7 @@ export default function CrearOrdenCompra() {
                                             }}
                                             className={cn(
                                               'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100 hover:shadow-sm',
-                                              index + 1 === selectedIndex && 'bg-slate-100'
+                                              index === selectedIndex && 'bg-slate-100'
                                             )}
                                           >
                                             <span className="font-medium">
@@ -1210,7 +1280,11 @@ export default function CrearOrdenCompra() {
                                         ))}
                                       </CommandGroup>
                                     </>
-                                  ) : null}
+                                  ) : (
+                                    <div className="py-4 text-center text-sm text-muted-foreground">
+                                      No se encontraron proveedores autorizados
+                                    </div>
+                                  )}
                                 </CommandList>
                               </Command>
                             </PopoverContent>
@@ -1664,14 +1738,15 @@ export default function CrearOrdenCompra() {
                               const [busqueda, setBusqueda] = useState('');
                               const [buscado, setBuscado] = useState(false);
                               const [selectedIndex, setSelectedIndex] = useState(0);
+                              // Filtrar de allProveedores (independiente del selector de arriba)
                               const partidaProveedores = useMemo(() => {
-                                if (!busqueda || busqueda.length < 1) return [];
-                                return proveedores.filter(
+                                if (!busqueda || busqueda.length < 1) return allProveedores;
+                                return allProveedores.filter(
                                   (prov) =>
                                     prov.razonSocial.toLowerCase().includes(busqueda.toLowerCase()) ||
                                     (prov.rfc && prov.rfc.toLowerCase().includes(busqueda.toLowerCase()))
                                 );
-                              }, [busqueda, proveedores]);
+                              }, [busqueda, allProveedores]);
 
                               const handleKeyDown = (e: React.KeyboardEvent) => {
                                 if (e.key === 'ArrowDown') {
@@ -1700,11 +1775,20 @@ export default function CrearOrdenCompra() {
                               };
 
                               const selectedProveedorPartidaId = field.value;
-                              const selectedProv = proveedores.find((pr) => pr.idProveedor === selectedProveedorPartidaId);
+                              const selectedProv = allProveedores.find((pr) => pr.idProveedor === selectedProveedorPartidaId);
 
                               return (
                                 <FormItem className="flex flex-col">
-                                  <Popover open={open} onOpenChange={setOpen}>
+                                    <Popover open={open} onOpenChange={(isOpen) => {
+                                      setOpen(isOpen);
+                                      if (isOpen) {
+                                        setBusqueda('');
+                                        setBuscado(false);
+                                        setSelectedIndex(0);
+                                        // Siempre cargar/recargar proveedores al abrir
+                                        cargarTodosProveedores();
+                                      }
+                                    }}>
                                     <PopoverTrigger asChild>
                                       <FormControl>
                                         <Button
@@ -1729,24 +1813,17 @@ export default function CrearOrdenCompra() {
                                             value={busqueda}
                                             onValueChange={(val) => {
                                               setBusqueda(val);
-                                              setBuscado(false);
+                                              setBuscado(true);
                                               setSelectedIndex(0);
-                                              if (val.length >= 1) {
-                                                setBuscado(true);
-                                                buscarProveedores(val, 'razonSocial');
-                                              }
+                                              // La búsqueda se filtra client-side via partidaProveedores
                                             }}
                                             onKeyDown={handleKeyDown}
                                             className="flex-1 bg-transparent outline-none placeholder:text-slate-400"
                                           />
                                         </div>
                                         <CommandList className="max-h-[200px] overflow-auto">
-                                          {busqueda.length === 0 ? (
-                                            <div className="py-4 text-center text-sm text-muted-foreground">
-                                              Escribe para buscar proveedores
-                                            </div>
-                                          ) : partidaProveedores.length > 0 ? (
-                                              <CommandGroup heading="Proveedores">
+                                          {partidaProveedores.length > 0 ? (
+                                              <CommandGroup heading={`${partidaProveedores.length} proveedor${partidaProveedores.length !== 1 ? 'es' : ''} disponible${partidaProveedores.length !== 1 ? 's' : ''}`}>
                                                 {partidaProveedores.map((prov, idx) => (
                                                   <CommandItem
                                                     key={prov.idProveedor}
@@ -1772,7 +1849,7 @@ export default function CrearOrdenCompra() {
                                               </CommandGroup>
                                             ) : (
                                               <div className="py-4 text-center text-sm text-muted-foreground">
-                                                No se encontraron proveedores
+                                                No se encontraron proveedores autorizados
                                               </div>
                                             )}
                                         </CommandList>

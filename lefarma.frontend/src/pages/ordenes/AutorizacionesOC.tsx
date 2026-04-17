@@ -48,17 +48,19 @@ import {
   Pencil,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
+import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
-import type { OrdenCompraResponse, OrdenCompraPartidaResponse } from '@/types/ordenCompra.types';
-import type { PartidaPendienteResponse, ComprobanteResponse } from '@/types/comprobante.types';
+import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
+import type { PartidaPendienteResponse, } from '@/types/comprobante.types';
 import { comprobanteService } from '@/services/comprobanteService';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
 import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobantePagoModal';
 import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
+import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -114,6 +116,23 @@ interface WorkflowCampoConfig {
   propiedadEntidad?: string | null;
   validarFiscal?: boolean;
   activo: boolean;
+}
+
+interface Proveedor {
+  idProveedor: number;
+  razonSocial: string;
+  rfc?: string;
+  codigoPostal?: string;
+  regimenFiscalId?: number;
+  regimenFiscalDescripcion?: string;
+  usoCfdi?: string;
+  sinDatosFiscales?: boolean;
+  detalle?: {
+    personaContactoNombre?: string;
+    contactoTelefono?: string;
+    contactoEmail?: string;
+  };
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
 
 interface WorkflowPasoConfig {
@@ -267,8 +286,9 @@ export default function AutorizacionesOC() {
   const [isSubirComprobanteOpen, setIsSubirComprobanteOpen] = useState(false);
   const [isSubirComprobantePagoOpen, setIsSubirComprobantePagoOpen] = useState<string | null>(null);
 
-  // Comprobantes subidos en el flujo de firma (clave = nombreTecnico del campo, valor = lista porque puede haber varios)
   const [comprobantesWorkflow, setComprobantesWorkflow] = useState<Record<string, import('@/types/comprobante.types').ComprobanteResponse[]>>({});
+  const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
+  const [loadingProveedores, setLoadingProveedores] = useState(false);
 
   const estados = useMemo(() => {
     const values = Array.from(new Set(ordenes.map((o) => o.estado))).sort();
@@ -289,6 +309,50 @@ export default function AutorizacionesOC() {
     }
   }, []);
 
+  const obtenerProveedorPorId = async (id: number): Promise<Proveedor | null> => {
+    try {
+      const response = await API.get<ApiResponse<Proveedor>>(`/catalogos/Proveedores/${id}`);
+      if (response.data.success && response.data.data) {
+        return response.data.data;
+      }
+      return null;
+    } catch (err) {
+      console.warn(`Error al obtener proveedor ${id}:`, err);
+      return null;
+    }
+  };
+
+  const cargarProveedoresOrden = async (orden: OrdenCompraResponse) => {
+    setLoadingProveedores(true);
+    const nuevosProveedores = new Map<number, Proveedor>();
+
+    try {
+      const idsProveedores: number[] = [];
+
+      if (orden.idProveedor && orden.idProveedor > 0) {
+        idsProveedores.push(orden.idProveedor);
+      }
+
+      orden.partidas.forEach((p) => {
+        if (p.idProveedor && p.idProveedor > 0 && !idsProveedores.includes(p.idProveedor)) {
+          idsProveedores.push(p.idProveedor);
+        }
+      });
+
+      await Promise.all(
+        idsProveedores.map(async (id) => {
+          const proveedor = await obtenerProveedorPorId(id);
+          if (proveedor) {
+            nuevosProveedores.set(id, proveedor);
+          }
+        })
+      );
+    } finally {
+      setProveedoresMap(nuevosProveedores);
+      setLoadingProveedores(false);
+    }
+  };
+
   const fetchDetalle = async (idOrden: number) => {
     try {
       setLoadingDetail(true);
@@ -302,11 +366,15 @@ export default function AutorizacionesOC() {
         ).catch(() => ({ data: { data: [] } })),
       ]);
 
-      setSelectedOrden(ordenRes.data.data || null);
+      const orden = ordenRes.data.data || null;
+      setSelectedOrden(orden);
       setAcciones((accionesRes as any).data?.data || []);
       setHistorial((historialRes as any).data?.data || []);
 
-      // Cargar archivos adjuntos de la orden
+      if (orden) {
+        cargarProveedoresOrden(orden);
+      }
+
       fetchArchivosOrden(idOrden);
       fetchPartidasPendientes(idOrden);
     } catch (error: any) {
@@ -877,13 +945,24 @@ export default function AutorizacionesOC() {
               {!loadingDetail && selectedOrden && (
                 <>
                   <Tabs defaultValue="detalle" className="xl:flex xl:h-full xl:min-h-0 xl:flex-col">
-                    <div className="bg-muted/20 rounded-lg border p-3">
+                      <div className="bg-muted/20 rounded-lg border p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <p className="font-semibold">{selectedOrden.folio}</p>
-                          <p className="text-xs text-muted-foreground">
-                            Proveedor ID: {selectedOrden.idProveedor || 'Sin dato'}
-                          </p>
+                          {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor) ? (
+                            <div className="text-xs text-muted-foreground">
+                              <p className="truncate font-medium text-foreground">
+                                {proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial}
+                              </p>
+                              <p className="text-[10px]">
+                                RFC: {proveedoresMap.get(selectedOrden.idProveedor)?.rfc || 'N/A'}
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">
+                              {loadingProveedores ? 'Cargando proveedor...' : 'Sin proveedor asignado'}
+                            </p>
+                          )}
                         </div>
                         <Badge
                           variant={ESTADO_BADGE[selectedOrden.estado] || 'outline'}
@@ -952,10 +1031,39 @@ export default function AutorizacionesOC() {
                       className="mt-3 space-y-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-md border bg-background px-2 py-1.5">
-                          <p className="text-muted-foreground">ID Proveedor</p>
-                          <p className="font-medium">{selectedOrden.idProveedor || 'Sin dato'}</p>
-                        </div>
+                        {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor) ? (
+                          <div className="col-span-2 rounded-md border bg-background px-2 py-1.5">
+                            <div className="flex items-center justify-between">
+                              <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                Nivel orden
+                              </span>
+                            </div>
+                            <p className="font-medium">
+                              {proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              RFC: {proveedoresMap.get(selectedOrden.idProveedor)?.rfc || 'N/A'}
+                              {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion && (
+                                <span className="ml-2">
+                                  • {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="col-span-2 rounded-md border border-dashed border-amber-300 bg-amber-50/30 px-2 py-1.5">
+                            <div className="flex items-center justify-between">
+                              <p className="text-muted-foreground">Proveedor</p>
+                              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-medium text-amber-600">
+                                Por partida
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">
+                              Cada partida tiene su propio proveedor asignado
+                            </p>
+                          </div>
+                        )}
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Fiscales</p>
                           <p className="font-medium">
@@ -1073,13 +1181,19 @@ export default function AutorizacionesOC() {
                                         )}
                                       </td>
                                       <td className="px-3 py-2">{partida.numeroPartida}</td>
-                                      <td className="px-3 py-2">
-                                        <p className="font-medium">{partida.descripcion}</p>
-                                        <p className="text-[11px] text-muted-foreground">
-                                          Deducible: {partida.deducible ? 'Sí' : 'No'}
-                                        </p>
-                                      </td>
-                                      <td className="px-3 py-2 text-right">{partida.cantidad}</td>
+                                       <td className="px-3 py-2">
+                                         <p className="font-medium">{partida.descripcion}</p>
+                                         <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                                           <span>Deducible: {partida.deducible ? 'Sí' : 'No'}</span>
+                                            {partida.idProveedor && !selectedOrden.idProveedor && (
+                                              <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                                Prov: {proveedoresMap.get(partida.idProveedor)?.razonSocial?.substring(0, 20) ?? 'N/A'}
+                                                {(proveedoresMap.get(partida.idProveedor)?.razonSocial?.length ?? 0) > 20 ? '...' : ''}
+                                              </span>
+                                            )}
+                                         </div>
+                                       </td>
+                                       <td className="px-3 py-2 text-right">{partida.cantidad}</td>
                                       <td className="px-3 py-2 text-right">
                                         {formatCurrency(partida.precioUnitario)}
                                       </td>
@@ -1131,18 +1245,34 @@ export default function AutorizacionesOC() {
                                                 {formatCurrency(partida.totalRetenciones)}
                                               </p>
                                             </div>
-                                            <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Otros impuestos
-                                              </p>
-                                              <p className="font-medium">
-                                                {formatCurrency(partida.otrosImpuestos)}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        </td>
-                                      </tr>
-                                    )}
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                               <p className="text-muted-foreground">
+                                                 Otros impuestos
+                                               </p>
+                                               <p className="font-medium">
+                                                 {formatCurrency(partida.otrosImpuestos)}
+                                               </p>
+                                             </div>
+                                             {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
+                                               <div className="col-span-2 rounded border border-blue-200 bg-blue-50/50 px-2 py-1.5">
+                                                 <div className="flex items-center justify-between">
+                                                   <p className="text-muted-foreground">Proveedor de partida</p>
+                                                   <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                                     Nivel partida
+                                                   </span>
+                                                 </div>
+                                                 <p className="font-medium">
+                                                   {proveedoresMap.get(partida.idProveedor)?.razonSocial}
+                                                 </p>
+                                                 <p className="text-[10px] text-muted-foreground">
+                                                   RFC: {proveedoresMap.get(partida.idProveedor)?.rfc || 'N/A'}
+                                                 </p>
+                                               </div>
+                                             )}
+                                           </div>
+                                         </td>
+                                       </tr>
+                                     )}
                                   </Fragment>
                                 );
                               })}
@@ -1164,10 +1294,47 @@ export default function AutorizacionesOC() {
                               variant="outline"
                               size="sm"
                               className="h-7 gap-1.5 text-xs"
-                              onClick={() => window.print()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const handleBeforePrint = () => {
+                                  document.body.classList.add('print-flujo');
+                                };
+                                const handleAfterPrint = () => {
+                                  document.body.classList.remove('print-flujo');
+                                  window.removeEventListener('beforeprint', handleBeforePrint);
+                                  window.removeEventListener('afterprint', handleAfterPrint);
+                                };
+                                window.addEventListener('beforeprint', handleBeforePrint);
+                                window.addEventListener('afterprint', handleAfterPrint);
+                                window.print();
+                              }}
                             >
                               <Printer className="h-3.5 w-3.5" />
-                              Exportar PDF
+                              Exportar flujo a PDF
+                            </Button>
+                          )}
+                          {selectedOrden && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1.5 text-xs"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const handleBeforePrint = () => {
+                                  document.body.classList.add('print-orden');
+                                };
+                                const handleAfterPrint = () => {
+                                  document.body.classList.remove('print-orden');
+                                  window.removeEventListener('beforeprint', handleBeforePrint);
+                                  window.removeEventListener('afterprint', handleAfterPrint);
+                                };
+                                window.addEventListener('beforeprint', handleBeforePrint);
+                                window.addEventListener('afterprint', handleAfterPrint);
+                                window.print();
+                              }}
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              Exportar orden a PDF
                             </Button>
                           )}
                         </div>
@@ -2247,13 +2414,22 @@ export default function AutorizacionesOC() {
         />
       )}
 
-      {/* ── PDF Print Document — mounted on body via portal, invisible on screen, visible on print ── */}
+      {/* ── PDF Print Document — Flujo ── */}
       {selectedOrden && progresoPasos.length > 0 && createPortal(
         <FlujoOrdenPDF
           orden={selectedOrden}
           progresoPasos={progresoPasos as ProgresoPasoPDF[]}
           eventosPorPaso={eventosPorPaso as Map<number, HistorialPDFItem[]>}
           pasosMap={pasosMap as Map<number, PasoPDFConfig>}
+        />,
+        document.body
+      )}
+
+      {/* ── PDF Print Document — Orden de Compra ── */}
+      {selectedOrden && createPortal(
+        <OrdenCompraPDF
+          orden={selectedOrden}
+          historial={historial}
         />,
         document.body
       )}

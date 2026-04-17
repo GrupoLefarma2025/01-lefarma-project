@@ -39,6 +39,9 @@ public class ProveedorService : BaseService, IProveedorService
         {
             var baseQuery = _proveedorRepository.GetQueryable();
 
+            // IMPORTANTE: Solo proveedores autorizados (Aprobado = 2) para órdenes de compra
+            baseQuery = baseQuery.Where(p => p.Estatus == EstatusProveedor.Aprobado);
+
             if (!string.IsNullOrWhiteSpace(query.RazonSocial))
                 baseQuery = baseQuery.Where(p => p.RazonSocial.Contains(query.RazonSocial));
 

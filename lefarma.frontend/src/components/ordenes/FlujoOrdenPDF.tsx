@@ -1,4 +1,5 @@
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import logoImage from '@/assets/logo.png';
 
 // ─── Types (mirrored from AutorizacionesOC) ─────────────────────────────────
 
@@ -158,7 +159,11 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="pdf-header">
         <div className="pdf-header-left">
-          <div className="pdf-logo">LEFARMA</div>
+          <img 
+            src={logoImage} 
+            alt="Lefarma" 
+            style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
+          />
           <div className="pdf-subtitle">Sistema de Autorizaciones</div>
         </div>
         <div className="pdf-header-right">
