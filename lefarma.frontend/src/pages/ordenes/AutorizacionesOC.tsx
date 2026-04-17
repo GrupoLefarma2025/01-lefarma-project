@@ -41,6 +41,8 @@ import {
   MoveRight,
   Send,
   RotateCcw,
+  Receipt,
+  Upload,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import { FileUploader } from '@/components/archivos/FileUploader';
@@ -48,6 +50,10 @@ import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse, OrdenCompraPartidaResponse } from '@/types/ordenCompra.types';
+import type { PartidaPendienteResponse, ComprobanteResponse } from '@/types/comprobante.types';
+import { comprobanteService } from '@/services/comprobanteService';
+import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
+import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobantePagoModal';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -250,6 +256,15 @@ export default function AutorizacionesOC() {
   const [loadingArchivos, setLoadingArchivos] = useState(false);
   const [viewerArchivoId, setViewerArchivoId] = useState<number | null>(null);
 
+  // Facturación tab state
+  const [partidasPendientes, setPartidasPendientes] = useState<PartidaPendienteResponse[]>([]);
+  const [loadingFacturacion, setLoadingFacturacion] = useState(false);
+  const [isSubirComprobanteOpen, setIsSubirComprobanteOpen] = useState(false);
+  const [isSubirComprobantePagoOpen, setIsSubirComprobantePagoOpen] = useState<string | null>(null);
+
+  // Comprobantes subidos en el flujo de firma (clave = nombreTecnico del campo, valor = lista porque puede haber varios)
+  const [comprobantesWorkflow, setComprobantesWorkflow] = useState<Record<string, import('@/types/comprobante.types').ComprobanteResponse[]>>({});
+
   const estados = useMemo(() => {
     const values = Array.from(new Set(ordenes.map((o) => o.estado))).sort();
     return ['all', ...values];
@@ -288,6 +303,7 @@ export default function AutorizacionesOC() {
 
       // Cargar archivos adjuntos de la orden
       fetchArchivosOrden(idOrden);
+      fetchPartidasPendientes(idOrden);
     } catch (error: any) {
       toast.error(error?.message ?? 'Error al cargar detalle de orden');
     } finally {
@@ -308,6 +324,18 @@ export default function AutorizacionesOC() {
       setArchivosOrden([]);
     } finally {
       setLoadingArchivos(false);
+    }
+  };
+
+  const fetchPartidasPendientes = async (idOrden: number) => {
+    try {
+      setLoadingFacturacion(true);
+      const data = await comprobanteService.getPartidasPendientes(idOrden);
+      setPartidasPendientes(data);
+    } catch {
+      setPartidasPendientes([]);
+    } finally {
+      setLoadingFacturacion(false);
     }
   };
 
@@ -429,11 +457,21 @@ export default function AutorizacionesOC() {
   };
 
   const cerrarModalFirma = () => {
+    // Limpiar archivos de comprobante_pago que quedaron subidos pero la firma fue cancelada
+    const archivosParaEliminar = Object.values(archivoSubidos).flat();
+    if (archivosParaEliminar.length > 0) {
+      archivosParaEliminar.forEach((a) => {
+        archivoService.delete(a.id).catch(() => {
+          // silencioso — el archivo queda huérfano pero no bloquea el flujo
+        });
+      });
+    }
     setIsFirmarModalOpen(false);
     setAccionSeleccionada(null);
     setComentarioFirma('');
     setArchivoSubidos({});
     setAdjuntosLibres([]);
+    setComprobantesWorkflow({});
   };
 
   const esRechazo = accionSeleccionada?.tipoAccion === 'RECHAZO';
@@ -467,12 +505,16 @@ export default function AutorizacionesOC() {
       // Validate required campos and build datosAdicionales dynamically
       for (const { campo, requerido, inputKey } of camposParaAccion) {
         if (campo.tipoControl === 'Archivo') {
-          if (requerido && !archivoSubidos[inputKey]?.length) {
-            toast.error(`Debes adjuntar: ${campo.etiquetaUsuario}`);
-            setIsSubmittingFirma(false);
-            return;
+          if (requerido) {
+            const tieneArchivo = !!archivoSubidos[inputKey]?.length;
+            const tieneComprobante = (comprobantesWorkflow[inputKey]?.length ?? 0) > 0;
+            if (!tieneArchivo && !tieneComprobante) {
+              toast.error(`Debes adjuntar: ${campo.etiquetaUsuario}`);
+              setIsSubmittingFirma(false);
+              return;
+            }
           }
-          continue; // archivos no van en datosAdicionales (ya están en BD)
+          continue; // archivos/comprobantes no van en datosAdicionales (ya están en BD)
         }
         const val = camposValues[inputKey];
         const isEmpty = val === undefined || val === null || val === '';
@@ -851,7 +893,7 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
-                    <TabsList className="bg-muted/70 mt-3 grid h-10 w-full grid-cols-3 border p-1">
+                    <TabsList className="bg-muted/70 mt-3 grid h-10 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"
                         className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -863,6 +905,18 @@ export default function AutorizacionesOC() {
                         className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                       >
                         Firmar
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="facturacion"
+                        className="hidden border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                        onClick={() => selectedOrden && fetchPartidasPendientes(selectedOrden.idOrden)}
+                      >
+                        Facturación
+                        {partidasPendientes.some((p) => p.estadoFacturacion < 2) && (
+                          <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
+                            {partidasPendientes.filter((p) => p.estadoFacturacion < 2).length}
+                          </span>
+                        )}
                       </TabsTrigger>
                       <TabsTrigger
                         value="archivos"
@@ -888,22 +942,16 @@ export default function AutorizacionesOC() {
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">C.P. proveedor</p>
-                          <p className="font-medium">
-                            {selectedOrden.codigoPostalProveedor || 'Sin dato'}
-                          </p>
+                          <p className="font-medium">{selectedOrden.codigoPostalProveedor || 'Sin dato'}</p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Contacto</p>
-                          <p className="font-medium">
-                            {selectedOrden.personaContacto || 'Sin dato'}
-                          </p>
+                          <p className="font-medium">{selectedOrden.personaContacto || 'Sin dato'}</p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Fiscales</p>
                           <p className="font-medium">
-                            {selectedOrden.sinDatosFiscales
-                              ? 'Sin datos fiscales'
-                              : 'Con datos fiscales'}
+                            {selectedOrden.sinDatosFiscales ? 'Sin datos fiscales' : 'Con datos fiscales'}
                           </p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
@@ -1182,11 +1230,13 @@ export default function AutorizacionesOC() {
                                   </div>
 
                                   {/* Card */}
-                                  <button
-                                    type="button"
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
                                     data-paso-id={paso.idPaso}
                                     onClick={() => setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso)}
-                                    className={`w-full cursor-default rounded-lg border border-l-4 p-3 text-left transition-all hover:shadow-sm ${cardClass} ${isExpanded ? 'ring-1 ring-primary/30' : ''}`}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso); } }}
+                                    className={`w-full cursor-default rounded-lg border border-l-4 p-3 text-left transition-all hover:shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${cardClass} ${isExpanded ? 'ring-1 ring-primary/30' : ''}`}
                                   >
                                     <div className="flex items-start justify-between gap-2">
                                       <div className="flex items-center gap-2 min-w-0">
@@ -1335,7 +1385,7 @@ export default function AutorizacionesOC() {
                                         )}
                                       </div>
                                     )}
-                                  </button>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -1346,6 +1396,121 @@ export default function AutorizacionesOC() {
                       </div>
                     </TabsContent>
 
+                    {/* Tab: Facturación */}
+                    <TabsContent
+                      value="facturacion"
+                      className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
+                    >
+                      <div className="space-y-3">
+                        {/* Header del tab */}
+                        <div>
+                          <h3 className="text-sm font-semibold">Comprobantes de pago</h3>
+                          <p className="text-muted-foreground text-xs">
+                            Partidas de la orden y su estado de facturación
+                          </p>
+                        </div>
+
+                        {loadingFacturacion ? (
+                          <div className="flex items-center justify-center py-10">
+                            <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+                          </div>
+                        ) : partidasPendientes.length === 0 ? (
+                          <div className="text-muted-foreground flex flex-col items-center gap-2 py-10 text-sm">
+                            <Receipt className="h-8 w-8 opacity-30" />
+                            <p>No hay partidas con requisito de facturación</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            {partidasPendientes.map((partida) => {
+                              const pctFacturado =
+                                partida.cantidad > 0
+                                  ? Math.min(
+                                      100,
+                                      (partida.cantidadFacturada / partida.cantidad) * 100
+                                    )
+                                  : 0;
+                              const estadoConfig = {
+                                0: {
+                                  label: 'Pendiente',
+                                  className: 'bg-amber-100 text-amber-700 border-amber-200',
+                                  barColor: 'bg-amber-400',
+                                },
+                                1: {
+                                  label: 'Parcial',
+                                  className: 'bg-blue-100 text-blue-700 border-blue-200',
+                                  barColor: 'bg-blue-400',
+                                },
+                                2: {
+                                  label: 'Completa',
+                                  className: 'bg-green-100 text-green-700 border-green-200',
+                                  barColor: 'bg-green-500',
+                                },
+                              }[partida.estadoFacturacion] ?? {
+                                label: 'Desconocido',
+                                className: 'bg-muted text-muted-foreground border-muted',
+                                barColor: 'bg-muted',
+                              };
+
+                              return (
+                                <div
+                                  key={partida.idPartida}
+                                  className="bg-card rounded-lg border p-3 shadow-sm"
+                                >
+                                  <div className="mb-2 flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground text-xs font-mono">
+                                          #{partida.numeroPartida}
+                                        </span>
+                                        <p className="truncate text-sm font-medium">
+                                          {partida.descripcionPartida}
+                                        </p>
+                                      </div>
+                                      <p className="text-muted-foreground mt-0.5 text-xs">
+                                        {partida.folioOrden}
+                                      </p>
+                                    </div>
+                                    <span
+                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}
+                                    >
+                                      {estadoConfig.label}
+                                    </span>
+                                  </div>
+
+                                  {/* Barra de progreso */}
+                                  <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${estadoConfig.barColor}`}
+                                      style={{ width: `${pctFacturado}%` }}
+                                    />
+                                  </div>
+
+                                  {/* Cantidades */}
+                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                    <span>
+                                      {partida.cantidadFacturada} / {partida.cantidad} unidades
+                                    </span>
+                                    <span>
+                                      ${partida.importeFacturado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} /{' '}
+                                      ${(partida.cantidad * partida.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+
+                                  {partida.cantidadPendiente > 0 && (
+                                    <p className="mt-1 text-[10px] text-amber-600">
+                                      Pendiente: {partida.cantidadPendiente} unidades · $
+                                      {partida.importePendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                    </TabsContent>
+
                     {/* Tab: Archivos adjuntos */}
                     <TabsContent
                       value="archivos"
@@ -1353,12 +1518,16 @@ export default function AutorizacionesOC() {
                     >
                       {(() => {
                         // ── helpers locales ────────────────────────────────
-                        const parseMetaArchivo = (meta: unknown): { modulo?: string; origen?: string; tipo?: string; observaciones?: string; paso?: string; nombrePaso?: string; nombreAccion?: string } => {
+                        const parseMetaArchivo = (meta: unknown): {
+                          modulo?: string; origen?: string; tipo?: string; observaciones?: string;
+                          paso?: string; nombrePaso?: string; nombreAccion?: string;
+                          monto?: number; idComprobante?: number; subtipo?: string; archivo?: string;
+                        } => {
                           if (!meta) return {};
                           if (typeof meta === 'string') {
                             try { return JSON.parse(meta); } catch { return { observaciones: meta }; }
                           }
-                          if (typeof meta === 'object') return meta as { modulo?: string; origen?: string; tipo?: string; observaciones?: string; paso?: string; nombrePaso?: string; nombreAccion?: string };
+                          if (typeof meta === 'object') return meta as ReturnType<typeof parseMetaArchivo>;
                           return {};
                         };
 
@@ -1379,11 +1548,13 @@ export default function AutorizacionesOC() {
                         };
 
                         const TIPO_BADGE: Record<string, string> = {
-                          comprobante:  'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-                          factura:      'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-                          contrato:     'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
-                          cotizacion:   'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
-                          autorizacion: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+                          comprobante:       'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+                          comprobante_pago:  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+                          comprobante_gasto: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+                          factura:           'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+                          contrato:          'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
+                          cotizacion:        'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
+                          autorizacion:      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
                         };
 
                         const tipoBadgeClass = (tipo?: string) =>
@@ -1482,11 +1653,19 @@ export default function AutorizacionesOC() {
 
                                     {/* Archivos del grupo */}
                                     <div className="space-y-1">
-                                      {items.map((archivo) => {
+                                       {items.map((archivo) => {
                                         const meta = parseMetaArchivo(archivo.metadata);
                                         const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
-                                        // Etiqueta legible para el tipo (usa observaciones como label amigable)
-                                        const tipoLabel = meta.observaciones ?? meta.tipo;
+                                        // Label: para comprobantes usar subtipo + tipo de archivo
+                                        const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
+                                        let tipoLabel: string | undefined;
+                                        if (esComprobante) {
+                                          const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
+                                          const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
+                                          tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
+                                        } else {
+                                          tipoLabel = meta.observaciones ?? meta.tipo;
+                                        }
 
                                         return (
                                           <div
@@ -1504,10 +1683,15 @@ export default function AutorizacionesOC() {
                                                 {archivo.nombreOriginal}
                                               </p>
                                               <div className="flex flex-wrap items-center gap-1.5">
-                                                {/* Etiqueta del campo (observaciones = etiquetaUsuario) */}
                                                 {tipoLabel && (
                                                   <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tipoBadgeClass(meta.tipo)}`}>
                                                     {tipoLabel}
+                                                  </span>
+                                                )}
+                                                {/* Monto del comprobante */}
+                                                {esComprobante && meta.monto != null && (
+                                                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                    {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                                   </span>
                                                 )}
                                                 <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
@@ -1516,10 +1700,9 @@ export default function AutorizacionesOC() {
                                                   {new Date(archivo.fechaCreacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
                                                 </span>
                                               </div>
-                                              {/* Acción con la que se subió */}
                                               {meta.nombreAccion && (
                                                 <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                                  Acción: {meta.nombreAccion}
+                                                  {meta.nombreAccion}
                                                 </p>
                                               )}
                                             </div>
@@ -1725,48 +1908,99 @@ export default function AutorizacionesOC() {
 
                 // Archivo (DocumentRequired) — inline uploader dentro del modal
                 if (campo.tipoControl === 'Archivo') {
-                  const archivosDelCampo = archivoSubidos[inputKey] ?? [];
-                  const MAX_ARCHIVOS = 5;
+
+                  // ── comprobante_gasto → flujo CFDI con SubirComprobanteModal ──────
+                  if (campo.nombreTecnico === 'comprobante_gasto') {
+                    const comprobantesGasto = comprobantesWorkflow['comprobante_gasto'] ?? [];
+                    return (
+                      <div key={inputKey} className="space-y-1.5">
+                        <Label>
+                          {campo.etiquetaUsuario}
+                          {requerido && <span className="ml-1 text-red-500">*</span>}
+                        </Label>
+
+                        {/* Lista de comprobantes ya registrados */}
+                        {comprobantesGasto.length > 0 && (
+                          <div className="space-y-1.5">
+                            {comprobantesGasto.map((cg, idx) => (
+                              <div key={cg.idComprobante} className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs dark:bg-green-950/20">
+                                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-medium text-green-700 dark:text-green-400 truncate">
+                                    {cg.nombreEmisor ?? 'Factura CFDI'}
+                                  </p>
+                                  <p className="text-green-600/80 dark:text-green-500/80">
+                                    {cg.uuidCfdi ? `UUID: ${cg.uuidCfdi.slice(0, 8)}…` : 'Sin UUID'}
+                                    {' · '}
+                                    ${cg.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  title="Quitar"
+                                  className="text-muted-foreground hover:text-destructive shrink-0"
+                                  onClick={() =>
+                                    setComprobantesWorkflow((prev) => ({
+                                      ...prev,
+                                      comprobante_gasto: (prev['comprobante_gasto'] ?? []).filter((_, i) => i !== idx),
+                                    }))
+                                  }
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Botón agregar */}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="w-full gap-1.5 border-dashed"
+                          onClick={() => setIsSubirComprobanteOpen(true)}
+                        >
+                          <Receipt className="h-3.5 w-3.5" />
+                          {comprobantesGasto.length > 0 ? 'Agregar otra factura CFDI' : 'Subir Factura CFDI (XML + PDF)'}
+                        </Button>
+                      </div>
+                    );
+                  }
+
+                  // ── comprobante_pago → modal SubirComprobantePagoModal ─────────
+                  const comprobantesP = comprobantesWorkflow[inputKey] ?? [];
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label>
                         {campo.etiquetaUsuario}
                         {requerido && <span className="ml-1 text-red-500">*</span>}
-                        {archivosDelCampo.length > 0 && (
-                          <span className="ml-1.5 text-muted-foreground font-normal">
-                            ({archivosDelCampo.length}/{MAX_ARCHIVOS})
-                          </span>
-                        )}
                       </Label>
 
-                      {/* Lista de archivos ya subidos */}
-                      {archivosDelCampo.length > 0 && (
-                        <div className="space-y-1">
-                          {archivosDelCampo.map((a) => (
-                            <div
-                              key={a.id}
-                              className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-1.5 text-xs dark:bg-green-950/20"
-                            >
+                      {/* Lista de comprobantes ya registrados */}
+                      {comprobantesP.length > 0 && (
+                        <div className="space-y-1.5">
+                          {comprobantesP.map((cp, idx) => (
+                            <div key={cp.idComprobante} className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs dark:bg-green-950/20">
                               <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                              <span className="flex-1 truncate text-green-700 dark:text-green-400">
-                                {a.nombreOriginal}
-                              </span>
-                              <button
-                                type="button"
-                                title="Ver archivo"
-                                className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-200 shrink-0"
-                                onClick={() => setViewerArchivoId(a.id)}
-                              >
-                                <Eye className="h-3 w-3" />
-                              </button>
+                              <div className="flex-1 min-w-0">
+                                <p className="truncate font-medium text-green-700 dark:text-green-400">
+                                  {cp.tipoComprobante?.toUpperCase()} — {
+                                    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cp.total)
+                                  }
+                                </p>
+                                {cp.referenciaPago && (
+                                  <p className="text-muted-foreground">Ref: {cp.referenciaPago}</p>
+                                )}
+                              </div>
                               <button
                                 type="button"
                                 title="Quitar"
                                 className="text-muted-foreground hover:text-destructive shrink-0"
                                 onClick={() =>
-                                  setArchivoSubidos((prev) => ({
+                                  setComprobantesWorkflow((prev) => ({
                                     ...prev,
-                                    [inputKey]: prev[inputKey].filter((f) => f.id !== a.id),
+                                    [inputKey]: (prev[inputKey] ?? []).filter((_, i) => i !== idx),
                                   }))
                                 }
                               >
@@ -1777,46 +2011,15 @@ export default function AutorizacionesOC() {
                         </div>
                       )}
 
-                      {/* Uploader — mostrar si no se alcanzó el límite */}
-                      {archivosDelCampo.length < MAX_ARCHIVOS && selectedOrden && (
-                        <FileUploader
-                          inline
-                          open={true}
-                          multiple
-                          cantidadMaxima={MAX_ARCHIVOS - archivosDelCampo.length}
-                          entidadTipo="OrdenCompra"
-                          entidadId={selectedOrden.idOrden}
-                          carpeta="ordenes-compra"
-                          metadata={{
-                            modulo: 'ordenes_compra',
-                            origen: 'workflow',
-                            tipo: campo.nombreTecnico,
-                            observaciones: campo.etiquetaUsuario,
-                            paso: selectedOrden.idPasoActual ?? undefined,
-                            nombrePaso: selectedOrden.idPasoActual != null
-                              ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? undefined)
-                              : undefined,
-                            nombreAccion: accionSeleccionada?.nombreAccion ?? undefined,
-                          }}
-                          tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png']}
-                          descripcion="Arrastra o selecciona documentos"
-                          onUploadComplete={(nuevos) => {
-                            if (nuevos.length > 0) {
-                              setArchivoSubidos((prev) => ({
-                                ...prev,
-                                [inputKey]: [...(prev[inputKey] ?? []), ...nuevos].slice(0, MAX_ARCHIVOS),
-                              }));
-                            }
-                          }}
-                          onClose={() => {}}
-                        />
-                      )}
-
-                      {archivosDelCampo.length >= MAX_ARCHIVOS && (
-                        <p className="text-xs text-muted-foreground">
-                          Límite de {MAX_ARCHIVOS} archivos alcanzado.
-                        </p>
-                      )}
+                      {/* Botón para agregar */}
+                      <button
+                        type="button"
+                        onClick={() => setIsSubirComprobantePagoOpen(inputKey)}
+                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
+                      >
+                        <Upload className="h-4 w-4 shrink-0" />
+                        <span>{comprobantesP.length > 0 ? 'Agregar otro pago' : 'Registrar comprobante de pago'}</span>
+                      </button>
                     </div>
                   );
                 }
@@ -1957,6 +2160,63 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
+      {/* ── Modal CFDI gasto — fuera del modal de firma para evitar Dialog anidado ─────── */}
+      {selectedOrden && (
+        <SubirComprobanteModal
+          open={isSubirComprobanteOpen}
+          onClose={() => setIsSubirComprobanteOpen(false)}
+          idEmpresa={selectedOrden.idEmpresa}
+          idOrden={selectedOrden.idOrden}
+          idPasoWorkflow={selectedOrden.idPasoActual ?? undefined}
+          nombrePaso={
+            selectedOrden.idPasoActual != null
+              ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
+              : null
+          }
+          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          partidasPendientes={partidasPendientes}
+          onComprobanteSubido={(c) => {
+            setComprobantesWorkflow((prev) => ({
+              ...prev,
+              comprobante_gasto: [...(prev['comprobante_gasto'] ?? []), c],
+            }));
+            setIsSubirComprobanteOpen(false);
+            fetchPartidasPendientes(selectedOrden.idOrden);
+          }}
+        />
+      )}
+
+      {/* ── Modal comprobante pago — fuera del modal de firma para evitar Dialog anidado ─ */}
+      {selectedOrden && isSubirComprobantePagoOpen && (
+        <SubirComprobantePagoModal
+          open={!!isSubirComprobantePagoOpen}
+          onClose={() => setIsSubirComprobantePagoOpen(null)}
+          idEmpresa={selectedOrden.idEmpresa}
+          idOrden={selectedOrden.idOrden}
+          idPasoWorkflow={selectedOrden.idPasoActual ?? null}
+          nombrePaso={
+            selectedOrden.idPasoActual != null
+              ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
+              : null
+          }
+          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          totalOrden={selectedOrden.total}
+          folioOrden={selectedOrden.folio}
+          totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
+          partidasPendientes={partidasPendientes}
+          onComprobanteSubido={(c) => {
+            const key = isSubirComprobantePagoOpen;
+            setComprobantesWorkflow((prev) => ({
+              ...prev,
+              [key]: [...(prev[key] ?? []), c],
+            }));
+            setIsSubirComprobantePagoOpen(null);
+            fetchPartidasPendientes(selectedOrden.idOrden);
+            fetchArchivosOrden(selectedOrden.idOrden);
+          }}
+        />
+      )}
+
       {/* FileViewer para previsualizar archivos adjuntos */}
       {viewerArchivoId !== null && (
         <FileViewer
@@ -1965,6 +2225,7 @@ export default function AutorizacionesOC() {
           onClose={() => setViewerArchivoId(null)}
         />
       )}
+
     </div>
   );
 }

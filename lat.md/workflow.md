@@ -73,3 +73,35 @@ Templates en `workflow_notificaciones.cuerpo_template` soportan: `{{Folio}}`, `{
 ## Seed Data
 
 Configuración canónica en `lefarma.docs/workflow/seed-data.sql`. DDL en `lefarma.docs/workflow/scripts.sql`.
+
+## Comprobantes y Facturación CFDI
+
+Módulo para subir y relacionar comprobantes (facturas CFDI o simples) con las partidas de órdenes de compra. Integrado en el workflow como un tab dentro de `AutorizacionesOC`.
+
+### Modelo
+
+- `operaciones.comprobantes` — cabecera del comprobante (CFDI o ticket/nota/recibo)
+- `operaciones.comprobantes_conceptos` — conceptos extraídos del XML CFDI
+- `operaciones.comprobantes_partidas` — tabla puente: relaciona conceptos/comprobantes con `ordenes_compra_partidas`
+
+La relación principal es **Comprobante → Partida** (no directamente a la orden).
+
+### Reglas de facturación
+
+- `cantidad_facturada` y `importe_facturado` en `ordenes_compra_partidas` se actualizan al asignar
+- `estado_facturacion`: 0=Pendiente, 1=Parcial, 2=Completa (calculado en servicio, tolerancia ±0.01)
+- UUID CFDI único por empresa (índice filtrado `WHERE uuid_cfdi IS NOT NULL`)
+- Facturación parcial y multi-orden (vía partidas) permitida
+
+### Backend
+
+- `Features/Facturas/ComprobanteService.cs` — lógica principal (parseo, subida, asignación)
+- `Features/Facturas/Parsing/CfdiParser.cs` — parser CFDI 4.0 con `System.Xml.Linq`
+- `Features/Facturas/ComprobanteController.cs` — 7 endpoints bajo `/api/facturas`
+
+### Frontend
+
+- `src/components/facturas/SubirComprobanteModal.tsx` — modal 4 pasos (tipo → archivos → asignar → listo)
+- `src/services/comprobanteService.ts` — llamadas a los 7 endpoints
+- `src/types/comprobante.types.ts` — tipos TypeScript del módulo
+- Tab "Facturación" en `src/pages/ordenes/AutorizacionesOC.tsx`

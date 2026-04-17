@@ -106,6 +106,7 @@ const partidaSchema = z.object({
   otrosImpuestos: z.number().min(0),
   tipoOtrosImpuestos: z.enum(['MXN', 'PERCENTAGE']),
   deducible: z.boolean(),
+  requiereFactura: z.boolean(),
 });
 
 const ordenCompraSchema = z
@@ -181,6 +182,7 @@ const emptyPartida: PartidaFormValues = {
   otrosImpuestos: 0,
   tipoOtrosImpuestos: 'MXN',
   deducible: true,
+  requiereFactura: true,
 };
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
@@ -621,6 +623,8 @@ export default function CrearOrdenCompra() {
     }
   };
 
+  const [selectedProveedorId, setSelectedProveedorId] = useState(0);
+
   const seleccionarProveedor = (proveedor: Proveedor) => {
     form.setValue('razonSocialProveedor', proveedor.razonSocial);
     form.setValue('rfcProveedor', proveedor.rfc || '');
@@ -629,13 +633,14 @@ export default function CrearOrdenCompra() {
     form.setValue('usoCFDI', proveedor.usoCfdi || '');
     form.setValue('personaContacto', proveedor.detalle?.personaContactoNombre || '');
     form.setValue('sinDatosFiscales', proveedor.sinDatosFiscales || false);
+    setSelectedProveedorId(proveedor.idProveedor);
     setProveedores([]);
     setProveedorNoExiste(false);
   };
 
-  const validarProveedorExistente = async (): Promise<boolean> => {
+  const validarProveedorExistente = async (): Promise<number | null> => {
     const rfc = form.getValues('rfcProveedor');
-    if (!rfc || rfc.length < 10) return true;
+    if (!rfc || rfc.length < 10) return null;
 
     try {
       const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores', {
@@ -645,15 +650,15 @@ export default function CrearOrdenCompra() {
       if (response.data.success && response.data.data && response.data.data.length > 0) {
         const proveedor = response.data.data[0];
         if (proveedor.razonSocial === form.getValues('razonSocialProveedor')) {
-          return true;
+          return proveedor.idProveedor;
         }
       }
 
       setProveedorNoExiste(true);
-      return false;
+      return 0;
     } catch (err) {
       console.error('Error al validar proveedor:', err);
-      return true;
+      return null;
     }
   };
   useEffect(() => {
@@ -681,15 +686,31 @@ export default function CrearOrdenCompra() {
         }
       }
 
-      const proveedorExiste = await validarProveedorExistente();
-      if (!proveedorExiste) {
+      // Si ya tenemos el ID del proveedor (seleccionado del catálogo), proceder directamente
+      if (selectedProveedorId > 0) {
+        await guardarOrden(values, selectedProveedorId);
+        return;
+      }
+
+      // Buscar proveedor por RFC
+      const proveedorId = await validarProveedorExistente();
+      if (proveedorId === null) {
+        // Sin RFC o error de búsqueda — mostrar diálogo para crear nuevo
+        setValuesPendientes(values);
+        setMostrarDialogoProveedor(true);
+        setIsSaving(false);
+        return;
+      }
+      if (proveedorId === 0) {
+        // No encontrado — mostrar diálogo para crear nuevo
         setValuesPendientes(values);
         setMostrarDialogoProveedor(true);
         setIsSaving(false);
         return;
       }
 
-      await guardarOrden(values);
+      // Encontrado en el catálogo
+      await guardarOrden(values, proveedorId);
     } catch (error) {
       const apiError = error as { errors?: Array<{ description: string }>; message?: string };
       const errs = apiError.errors ?? [];
@@ -705,17 +726,37 @@ export default function CrearOrdenCompra() {
     }
   };
 
-  const guardarOrden = async (values: FormValues) => {
+  const guardarOrden = async (values: FormValues, idProveedor: number) => {
     setIsSaving(true);
     try {
       const payload: CreateOrdenCompraRequest = {
-        ...values,
+        idEmpresa: values.idEmpresa,
+        idSucursal: values.idSucursal,
+        idArea: values.idArea,
+        idTipoGasto: values.idTipoGasto,
+        idFormaPago: values.idFormaPago,
+        fechaLimitePago: values.fechaLimitePago,
+        idProveedor: idProveedor > 0 ? idProveedor : null,
+        sinDatosFiscales: values.sinDatosFiscales,
+        razonSocialProveedor: values.razonSocialProveedor,
         rfcProveedor: values.rfcProveedor || null,
         codigoPostalProveedor: values.codigoPostalProveedor || null,
         idRegimenFiscal: values.idRegimenFiscal || null,
         personaContacto: values.personaContacto || null,
         notaFormaPago: values.notaFormaPago || null,
         notasGenerales: values.notasGenerales || null,
+        partidas: values.partidas.map((p) => ({
+          descripcion: p.descripcion,
+          cantidad: p.cantidad,
+          idUnidadMedida: p.idUnidadMedida,
+          precioUnitario: p.precioUnitario,
+          descuento: p.descuento,
+          porcentajeIva: p.porcentajeIva,
+          totalRetenciones: p.totalRetenciones,
+          otrosImpuestos: p.otrosImpuestos,
+          deducible: p.deducible,
+          requiereFactura: p.requiereFactura,
+        })),
       };
       const response = await API.post<ApiResponse<void>>('/ordenes', payload);
       if (response.data.success) {
@@ -739,10 +780,33 @@ export default function CrearOrdenCompra() {
     }
   };
 
-  const confirmarGuardarProveedorNuevo = () => {
+  const confirmarGuardarProveedorNuevo = async () => {
     setMostrarDialogoProveedor(false);
-    if (valuesPendientes) {
-      guardarOrden(valuesPendientes);
+    if (!valuesPendientes) return;
+
+    setIsSaving(true);
+    try {
+      const createProveedorPayload = {
+        razonSocial: valuesPendientes.razonSocialProveedor,
+        rfc: valuesPendientes.rfcProveedor || null,
+        codigoPostal: valuesPendientes.codigoPostalProveedor || null,
+        regimenFiscalId: valuesPendientes.idRegimenFiscal || null,
+        usoCfdi: valuesPendientes.usoCFDI || null,
+        sinDatosFiscales: valuesPendientes.sinDatosFiscales,
+      };
+      const provResponse = await API.post<ApiResponse<Proveedor>>('/catalogos/Proveedores', createProveedorPayload);
+      if (!provResponse.data.success || !provResponse.data.data) {
+        toast.error(provResponse.data.message ?? 'Error al registrar el proveedor');
+        setIsSaving(false);
+        return;
+      }
+      const newProveedorId = provResponse.data.data.idProveedor;
+      setSelectedProveedorId(newProveedorId);
+      await guardarOrden(valuesPendientes, newProveedorId);
+    } catch (error) {
+      const apiError = error as { errors?: Array<{ description: string }>; message?: string };
+      toast.error(apiError.message ?? 'Error al registrar el proveedor');
+      setIsSaving(false);
     }
   };
   if (loadingCatalogs) {
@@ -1804,6 +1868,18 @@ export default function CrearOrdenCompra() {
                           render={({ field }) => (
                             <FormItem className="col-span-2 flex h-full items-center justify-end gap-2 pb-2 md:col-span-1 md:flex-col md:items-start md:justify-start md:pb-0">
                               <FormLabel className="!mt-0 md:mt-2">Deducible</FormLabel>
+                              <FormControl>
+                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name={`partidas.${index}.requiereFactura`}
+                          render={({ field }) => (
+                            <FormItem className="col-span-2 flex h-full items-center justify-end gap-2 pb-2 md:col-span-1 md:flex-col md:items-start md:justify-start md:pb-0">
+                              <FormLabel className="!mt-0 md:mt-2">Req. Factura</FormLabel>
                               <FormControl>
                                 <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                               </FormControl>

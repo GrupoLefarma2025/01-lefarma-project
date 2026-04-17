@@ -13,10 +13,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdFormaPago { get; set; }
         public string Estado { get; set; } = string.Empty;
         public int? IdPasoActual { get; set; }
+        // Proveedor
+        public int? IdProveedor { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string RazonSocialProveedor { get; set; } = string.Empty;
         public string? RfcProveedor { get; set; }
         public string? CodigoPostalProveedor { get; set; }
+        public int? IdRegimenFiscal { get; set; }
         public string? PersonaContacto { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
@@ -49,6 +52,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; }
         public decimal Total { get; set; }
+        public int? IdProveedor { get; set; }
+        public bool RequiereFactura { get; set; }
+        public string? TipoComprobante { get; set; }
+        public decimal? CantidadFacturada { get; set; }
+        public decimal? ImporteFacturado { get; set; }
+        public byte EstadoFacturacion { get; set; }
     }
 
     public class OrdenCompraRequest
@@ -68,6 +77,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public required int IdTipoGasto { get; set; }
         public required int IdFormaPago { get; set; }
         public required DateTime FechaLimitePago { get; set; }
+        // Proveedor: FK opcional + snapshot de datos
+        public int? IdProveedor { get; set; }
         public bool SinDatosFiscales { get; set; }
         public required string RazonSocialProveedor { get; set; }
         public string? RfcProveedor { get; set; }
@@ -90,5 +101,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; } = true;
+        public int? IdProveedor { get; set; }
+        public bool RequiereFactura { get; set; } = true;
+        public string? TipoComprobante { get; set; }
     }
 }

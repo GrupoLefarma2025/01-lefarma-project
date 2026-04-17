@@ -1,4 +1,4 @@
-﻿// ─── Partida (Response) ──────────────────────────────────────────────────────
+// ─── Partida (Response) ──────────────────────────────────────────────────────
 
 export interface OrdenCompraPartidaResponse {
   idPartida: number;
@@ -13,6 +13,12 @@ export interface OrdenCompraPartidaResponse {
   otrosImpuestos: number;
   deducible: boolean;
   total: number;
+  idProveedor?: number | null;
+  requiereFactura: boolean;
+  tipoComprobante?: string | null;
+  cantidadFacturada?: number | null;
+  importeFacturado?: number | null;
+  estadoFacturacion: number;
 }
 
 // ─── Orden de Compra (Response) ──────────────────────────────────────────────
@@ -27,10 +33,13 @@ export interface OrdenCompraResponse {
   idFormaPago: number;
   estado: string;
   idPasoActual?: number | null;
+  // Proveedor
+  idProveedor?: number | null;
   sinDatosFiscales: boolean;
   razonSocialProveedor: string;
   rfcProveedor?: string | null;
   codigoPostalProveedor?: string | null;
+  idRegimenFiscal?: number | null;
   personaContacto?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
@@ -61,6 +70,9 @@ export interface CreatePartidaRequest {
   totalRetenciones: number;
   otrosImpuestos: number;
   deducible: boolean;
+  idProveedor?: number | null;
+  requiereFactura?: boolean;
+  tipoComprobante?: string | null;
 }
 
 // ─── Create Orden de Compra (Request) ────────────────────────────────────────
@@ -72,6 +84,8 @@ export interface CreateOrdenCompraRequest {
   idTipoGasto: number;
   idFormaPago: number;
   fechaLimitePago: string;
+  // Proveedor
+  idProveedor?: number | null;
   sinDatosFiscales: boolean;
   razonSocialProveedor: string;
   rfcProveedor?: string | null;
