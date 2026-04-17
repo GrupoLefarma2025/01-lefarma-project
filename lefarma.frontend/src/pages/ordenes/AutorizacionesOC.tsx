@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+
+import { createPortal } from 'react-dom';
+import {useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
@@ -55,6 +57,8 @@ import type { PartidaPendienteResponse, ComprobanteResponse } from '@/types/comp
 import { comprobanteService } from '@/services/comprobanteService';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
 import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobantePagoModal';
+import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
+import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -1153,7 +1157,20 @@ export default function AutorizacionesOC() {
                       className="mt-3 space-y-4 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
                     >
                       <div className="space-y-3">
-                        <p className="text-sm font-medium">Flujo de pasos (inicio → fin)</p>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium">Flujo de pasos (inicio → fin)</p>
+                          {selectedOrden && progresoPasos.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 gap-1.5 text-xs"
+                              onClick={() => window.print()}
+                            >
+                              <Printer className="h-3.5 w-3.5" />
+                              Exportar PDF
+                            </Button>
+                          )}
+                        </div>
                         {progresoPasos.length > 0 && (() => {
                           return (
                           <div
@@ -2228,6 +2245,17 @@ export default function AutorizacionesOC() {
           open={viewerArchivoId !== null}
           onClose={() => setViewerArchivoId(null)}
         />
+      )}
+
+      {/* ── PDF Print Document — mounted on body via portal, invisible on screen, visible on print ── */}
+      {selectedOrden && progresoPasos.length > 0 && createPortal(
+        <FlujoOrdenPDF
+          orden={selectedOrden}
+          progresoPasos={progresoPasos as ProgresoPasoPDF[]}
+          eventosPorPaso={eventosPorPaso as Map<number, HistorialPDFItem[]>}
+          pasosMap={pasosMap as Map<number, PasoPDFConfig>}
+        />,
+        document.body
       )}
 
     </div>
