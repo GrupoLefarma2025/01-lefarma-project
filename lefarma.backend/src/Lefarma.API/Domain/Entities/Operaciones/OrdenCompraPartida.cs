@@ -18,6 +18,8 @@ public class OrdenCompraPartida
 
         // Proveedor específico de la partida (puede diferir del proveedor principal de la orden)
         public int? IdProveedor { get; set; }
+        // Múltiples cuentas bancarias como JSON array, ej: "[1,2,3]"
+        public string? IdsCuentasBancarias { get; set; }
 
         // Facturación
         public bool RequiereFactura { get; set; } = true;

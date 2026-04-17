@@ -1,4 +1,4 @@
-﻿using Lefarma.API.Domain.Entities.Catalogos;
+using Lefarma.API.Domain.Entities.Catalogos;
 
 namespace Lefarma.API.Domain.Entities.Operaciones
 {
@@ -11,20 +11,16 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int IdSucursal { get; set; }
         public int IdArea { get; set; }
         public int IdTipoGasto { get; set; }
-        public int IdFormaPago { get; set; }
         public int IdUsuarioCreador { get; set; }
 
         public EstadoOC Estado { get; set; } = EstadoOC.Creada;
-        public int? IdPasoActual { get; set; }  // FK lógica a config.workflow_pasos
+        public int? IdPasoActual { get; set; }
 
-        // Proveedor: FK opcional al catálogo + snapshot de datos en el momento de la orden
+        // Proveedor: FK opcional al catálogo
         public int? IdProveedor { get; set; }
+        // Múltiples cuentas bancarias como JSON array, ej: "[1,2,3]"
+        public string? IdsCuentasBancarias { get; set; }
         public bool SinDatosFiscales { get; set; }
-        public string RazonSocialProveedor { get; set; } = null!;
-        public string? RfcProveedor { get; set; }
-        public string? CodigoPostalProveedor { get; set; }
-        public int? IdRegimenFiscal { get; set; }
-        public string? PersonaContacto { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
 
