@@ -56,12 +56,26 @@ public class ComprobanteController : ControllerBase
         IFormFile? archivo,
         CancellationToken ct)
     {
-        Stream? xmlStream = xmlFile?.OpenReadStream();
-        Stream? archivoStream = archivo?.OpenReadStream();
+        // Leer XML a string en el controller para evitar problemas con el stream del request
+        string? xmlContent = null;
+        if (xmlFile != null && xmlFile.Length > 0)
+        {
+            using var sr = new StreamReader(xmlFile.OpenReadStream());
+            xmlContent = await sr.ReadToEndAsync(ct);
+        }
+
+        // Leer archivo adicional a MemoryStream
+        MemoryStream? archivoStream = null;
+        if (archivo != null && archivo.Length > 0)
+        {
+            archivoStream = new MemoryStream();
+            await archivo.OpenReadStream().CopyToAsync(archivoStream, ct);
+            archivoStream.Position = 0;
+        }
 
         var result = await _service.SubirAsync(
             request,
-            xmlStream, xmlFile?.FileName,
+            xmlContent, xmlFile?.FileName,
             archivoStream, archivo?.FileName, archivo?.ContentType,
             GetUserId(),
             ct);

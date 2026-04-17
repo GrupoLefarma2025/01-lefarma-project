@@ -39,7 +39,7 @@ public class DocumentWorkflowHandler : IWorkflowActionHandler
         if (tieneComprobante)
             return HandlerResult.Ok();
 
-        return HandlerResult.Fail($"No se encontró el documento requerido: {campo.EtiquetaUsuario}.");
+        return HandlerResult.Fail($"No hay {campo.EtiquetaUsuario.ToLower()} registrado.");
     }
 }
 }

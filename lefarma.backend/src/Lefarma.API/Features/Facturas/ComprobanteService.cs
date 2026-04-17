@@ -55,22 +55,18 @@ public class ComprobanteService : IComprobanteService
 
     public async Task<ErrorOr<ComprobanteResponse>> SubirAsync(
         SubirComprobanteRequest request,
-        Stream? xmlStream, string? xmlFileName,
+        string? xmlContent, string? xmlFileName,
         Stream? archivoStream, string? archivoFileName, string? archivoContentType,
         int idUsuario,
         CancellationToken ct = default)
     {
         CfdiPreviewResponse? cfdi = null;
-        string? xmlContent = null;
 
         bool esCfdi = request.TipoComprobante == "cfdi";
         bool esPago = request.Categoria == "pago";
 
-        if (esCfdi && xmlStream != null)
+        if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
-            using var sr = new StreamReader(xmlStream);
-            xmlContent = await sr.ReadToEndAsync(ct);
-
             try { cfdi = CfdiParser.Parse(xmlContent); }
             catch (FormatException) { return Errors.Comprobante.XmlInvalido; }
 
@@ -121,13 +117,16 @@ public class ComprobanteService : IComprobanteService
             // Conceptos CFDI
             if (esCfdi && cfdi != null)
             {
+                const int maxDescripcionLength = 1000;
                 var conceptos = cfdi.Conceptos.Select(c => new ComprobanteConcepto
                 {
                     IdComprobante  = comprobante.IdComprobante,
                     NumeroConcepto = c.Numero,
                     ClaveProdServ  = c.ClaveProdServ,
                     ClaveUnidad    = c.ClaveUnidad,
-                    Descripcion    = c.Descripcion,
+                    Descripcion    = c.Descripcion?.Length > maxDescripcionLength
+                        ? c.Descripcion[..maxDescripcionLength]
+                        : c.Descripcion ?? "",
                     Cantidad       = c.Cantidad,
                     ValorUnitario  = c.ValorUnitario,
                     Descuento      = c.Descuento,

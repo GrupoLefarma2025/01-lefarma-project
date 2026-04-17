@@ -9,7 +9,7 @@ public interface IComprobanteService
 
     Task<ErrorOr<ComprobanteResponse>> SubirAsync(
         SubirComprobanteRequest request,
-        Stream? xmlStream, string? xmlFileName,
+        string? xmlContent, string? xmlFileName,
         Stream? archivoStream, string? archivoFileName, string? archivoContentType,
         int idUsuario,
         CancellationToken ct = default);

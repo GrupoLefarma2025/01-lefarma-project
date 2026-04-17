@@ -55,6 +55,7 @@ import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
 import type { PartidaPendienteResponse, } from '@/types/comprobante.types';
+import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
 import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobantePagoModal';
@@ -290,6 +291,7 @@ export default function AutorizacionesOC() {
   const [comprobantesWorkflow, setComprobantesWorkflow] = useState<Record<string, import('@/types/comprobante.types').ComprobanteResponse[]>>({});
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
+  const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
 
   const estados = useMemo(() => {
     const values = Array.from(new Set(ordenes.map((o) => o.estado))).sort();
@@ -354,6 +356,29 @@ export default function AutorizacionesOC() {
     }
   };
 
+  const fetchFirmasUsuarios = async (historialData: HistorialWorkflowItemResponse[]) => {
+    try {
+      const userIds = [...new Set(historialData.map(h => h.idUsuario).filter(id => id > 0))];
+
+      if (userIds.length === 0) {
+        setFirmasMap(new Map());
+        return;
+      }
+
+      const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+      const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+
+      const newFirmasMap = new Map<number, string>();
+      userIds.forEach(userId => {
+        newFirmasMap.set(userId, `${apiUrl}/media/archivos/firmas_usuarios/${userId}.png?t=${Date.now()}`);
+      });
+
+      setFirmasMap(newFirmasMap);
+    } catch {
+      setFirmasMap(new Map());
+    }
+  };
+
   const fetchDetalle = async (idOrden: number) => {
     try {
       setLoadingDetail(true);
@@ -374,6 +399,16 @@ export default function AutorizacionesOC() {
 
       if (orden) {
         cargarProveedoresOrden(orden);
+      }
+
+      const historialData = (historialRes as any).data?.data || [];
+      console.log('[Detalle] Historial data:', historialData);
+      if (historialData.length > 0) {
+        console.log('[Detalle] Llamando fetchFirmasUsuarios con', historialData.length, 'items');
+        await fetchFirmasUsuarios(historialData);
+      } else {
+        console.log('[Detalle] Historial vacío, limpiando firmasMap');
+        setFirmasMap(new Map());
       }
 
       fetchArchivosOrden(idOrden);
@@ -593,7 +628,22 @@ export default function AutorizacionesOC() {
               return;
             }
           }
-          continue; // archivos/comprobantes no van en datosAdicionales (ya están en BD)
+          continue;
+        }
+
+        if (campo.tipoControl === 'Archivo') {
+          const comprobantes = comprobantesWorkflow[inputKey] ?? [];
+          for (const comp of comprobantes) {
+            const tieneAsignaciones = comp.conceptos?.some(
+              (c: { cantidadAsignada?: number; importeAsignado?: number }) =>
+                (c.cantidadAsignada ?? 0) > 0 || (c.importeAsignado ?? 0) > 0
+            );
+            if (!tieneAsignaciones) {
+              toast.error(`El comprobante ${comp.nombreEmisor ?? comp.uuidCfdi ?? comp.tipoComprobante} no tiene asignaciones a partidas. Debes asignarlo antes de firmar.`);
+              setIsSubmittingFirma(false);
+              return;
+            }
+          }
         }
         const val = camposValues[inputKey];
         const isEmpty = val === undefined || val === null || val === '';
@@ -634,7 +684,18 @@ export default function AutorizacionesOC() {
       cerrarModalFirma();
       await Promise.all([fetchOrdenes(), fetchDetalle(selectedOrden.idOrden)]);
     } catch (error: any) {
-      toast.error(error?.message ?? 'No fue posible procesar la firma');
+      const responseData = error?.response?.data;
+      let errorMessage = 'No fue posible procesar la firma';
+      
+      if (responseData?.errors?.length > 0) {
+        errorMessage = responseData.errors[0].description || responseData.errors[0].code || responseData.message || errorMessage;
+      } else if (responseData?.message) {
+        errorMessage = responseData.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsSubmittingFirma(false);
     }
@@ -2438,6 +2499,7 @@ export default function AutorizacionesOC() {
           orden={selectedOrden}
           historial={historial}
           proveedoresMap={proveedoresMap}
+          firmasMap={firmasMap}
         />,
         document.body
       )}

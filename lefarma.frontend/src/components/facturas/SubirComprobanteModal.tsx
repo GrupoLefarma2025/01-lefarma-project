@@ -80,6 +80,7 @@ export function SubirComprobanteModal({
   const [totalManual, setTotalManual] = useState<string>('');
   const [notas, setNotas] = useState('');
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [cfdiPreview, setCfdiPreview] = useState<CfdiPreviewResponse | null>(null);
   const [comprobanteSubido, setComprobanteSubido] = useState<ComprobanteResponse | null>(null);
 
@@ -105,6 +106,7 @@ export function SubirComprobanteModal({
     setArchivoFile(null);
     setTotalManual('');
     setNotas('');
+    setSubmitError(null);
     setCfdiPreview(null);
     setComprobanteSubido(null);
     setAsignaciones([]);
@@ -127,6 +129,7 @@ export function SubirComprobanteModal({
   const handleXmlChange = async (file: File) => {
     setXmlFile(file);
     setCfdiPreview(null);
+    setSubmitError(null);
     setLoading(true);
     try {
       const preview = await comprobanteService.parsearXml(file);
@@ -201,7 +204,27 @@ export function SubirComprobanteModal({
 
       setStep('asignar');
     } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Error al subir comprobante');
+      const responseData = err?.response?.data;
+      let errorMessage = 'Error al subir comprobante';
+      
+      if (responseData?.errors?.length > 0) {
+        const firstError = responseData.errors[0];
+        if (firstError?.description) {
+          errorMessage = firstError.description;
+        } else if (firstError?.code === 'Comprobante.UuidDuplicado') {
+          errorMessage = 'Ya existe una factura registrada con este UUID CFDI';
+        } else {
+          errorMessage = firstError?.code || responseData.message || 'Error al subir comprobante';
+        }
+      } else if (responseData?.message) {
+        errorMessage = responseData.message;
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      setSubmitError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -338,6 +361,24 @@ export function SubirComprobanteModal({
       {/* ── Step: archivos ── */}
       {step === 'archivos' && (
         <div className="space-y-4">
+          {/* Error banner */}
+          {submitError && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/20 dark:text-red-300">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="flex-1">
+                <p className="font-medium">Error al subir comprobante</p>
+                <p className="text-red-600 dark:text-red-400">{submitError}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSubmitError(null)}
+                className="text-red-400 hover:text-red-600 dark:text-red-500 dark:hover:text-red-300"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+
           {/* XML (solo CFDI) */}
           {esCfdi && (
             <div className="space-y-2">

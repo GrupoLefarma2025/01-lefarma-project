@@ -1,5 +1,35 @@
+import React, { useState } from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import logoImage from '@/assets/logo.png';
+
+function FirmaImagen({ firmaUrl }: { firmaUrl: string }) {
+  const [imgError, setImgError] = useState(false);
+
+  if (imgError) {
+    return (
+      <span style={{ fontSize: '7pt', color: '#9ca3af', position: 'absolute', bottom: '5px', left: '50%', transform: 'translateX(-50%)' }}>
+        sin firma
+      </span>
+    );
+  }
+
+  return (
+    <img
+      src={firmaUrl}
+      alt="Firma digital"
+      onError={() => setImgError(true)}
+      style={{
+        maxHeight: '45px',
+        maxWidth: '90%',
+        objectFit: 'contain',
+        position: 'absolute',
+        bottom: '2px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+      }}
+    />
+  );
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -25,6 +55,7 @@ interface Props {
   orden: OrdenCompraResponse;
   historial?: HistorialWorkflowItem[];
   proveedoresMap?: Map<number, ProveedorInfo>;
+  firmasMap?: Map<number, string>;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -61,7 +92,7 @@ function fmtMoney(n: number) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OrdenCompraPDF({ orden, historial = [], proveedoresMap }: Props) {
+export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap }: Props) {
   const proveedores = proveedoresMap || new Map<number, ProveedorInfo>();
 
   const now = new Date().toLocaleString('es-MX', {
@@ -316,22 +347,27 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap }: Props)
         <div className="pdf-section">
           <div className="pdf-section-title">Firmas y Autorizaciones</div>
           <div className="pdf-firmas-grid">
-            {firmas.map((firma) => (
-              <div key={firma.idEvento} className="pdf-firma-box">
-                <div className="pdf-firma-line"></div>
-                <div className="pdf-firma-nombre">{firma.nombreUsuario || `Usuario ${firma.idUsuario}`}</div>
-                <div className="pdf-firma-paso">{firma.nombreAccion || `Acción ${firma.idAccion}`}</div>
-                {firma.nombrePaso && (
-                  <div style={{ fontSize: '7pt', color: '#6b7280', marginTop: '2px' }}>
-                    {firma.nombrePaso}
+            {firmas.map((firma) => {
+              const firmaUrl = firmasMap?.get(firma.idUsuario);
+              return (
+                <div key={firma.idEvento} className="pdf-firma-box">
+                  <div className="pdf-firma-line" style={{ position: 'relative', minHeight: '50px' }}>
+                    {firmaUrl ? (
+                      <FirmaImagen firmaUrl={firmaUrl} />
+                    ) : (
+                      <span style={{ fontSize: '7pt', color: '#9ca3af', position: 'absolute', bottom: '5px', left: '50%', transform: 'translateX(-50%)' }}>
+                        sin firma
+                      </span>
+                    )}
                   </div>
-                )}
-                <div className="pdf-firma-fecha">{fmtDateTime(firma.fechaEvento)}</div>
-                {firma.comentario && (
-                  <div className="pdf-firma-comentario">"{firma.comentario}"</div>
-                )}
-              </div>
-            ))}
+                  <div className="pdf-firma-nombre">{firma.nombreUsuario || `Usuario ${firma.idUsuario}`}</div>
+                  <div className="pdf-firma-fecha">{fmtDateTime(firma.fechaEvento)}</div>
+                  {firma.comentario && (
+                    <div className="pdf-firma-comentario">"{firma.comentario}"</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
