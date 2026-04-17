@@ -57,7 +57,6 @@ public class ProveedorService : BaseService, IProveedorService
 
             var result = await orderedQuery
                 .Include(p => p.RegimenFiscal!)
-                .Include(p => p.FormaPago!)
                 .Include(p => p.Detalle)
                 .Include(p => p.CuentasFormaPago)
                     .ThenInclude(c => c.FormaPago)
@@ -152,7 +151,6 @@ public class ProveedorService : BaseService, IProveedorService
                 CodigoPostal = request.CodigoPostal,
                 RegimenFiscalId = request.RegimenFiscalId,
                 UsoCfdi = request.UsoCfdi,
-                FormaPagoId = request.FormaPagoId,
                 SinDatosFiscales = request.SinDatosFiscales,
                 FechaRegistro = DateTime.UtcNow,
                 Detalle = request.Detalle != null ? new ProveedorDetalle
@@ -242,7 +240,6 @@ public class ProveedorService : BaseService, IProveedorService
             proveedor.CodigoPostal = request.CodigoPostal;
             proveedor.RegimenFiscalId = request.RegimenFiscalId;
             proveedor.UsoCfdi = request.UsoCfdi;
-            proveedor.FormaPagoId = request.FormaPagoId;
             proveedor.SinDatosFiscales = request.SinDatosFiscales;
             proveedor.FechaModificacion = DateTime.UtcNow;
 

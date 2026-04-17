@@ -17,8 +17,6 @@ public static class ProveedorExtensions
             RegimenFiscalId = entity.RegimenFiscalId,
             RegimenFiscalDescripcion = entity.RegimenFiscal?.Descripcion,
             UsoCfdi = entity.UsoCfdi,
-            FormaPagoId = entity.FormaPagoId,
-            FormaPagoDescripcion = entity.FormaPago?.Nombre,
             SinDatosFiscales = entity.SinDatosFiscales,
             Estatus = entity.Estatus,
             CambioEstatusPor = entity.CambioEstatusPor,

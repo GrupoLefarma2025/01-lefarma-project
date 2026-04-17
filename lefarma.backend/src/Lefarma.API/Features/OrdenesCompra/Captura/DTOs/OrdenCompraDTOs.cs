@@ -71,6 +71,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 
     public class CreateOrdenCompraRequest
     {
+        public int? IdOrden { get; set; }
         public required int IdEmpresa { get; set; }
         public required int IdSucursal { get; set; }
         public required int IdArea { get; set; }

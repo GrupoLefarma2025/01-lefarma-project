@@ -51,7 +51,6 @@ const proveedorSchema = z.object({
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   usoCfdi: z.string().optional(),
-  formaPagoId: z.number().optional(),
 });
 
 interface ProveedorMetadata {
@@ -75,8 +74,6 @@ interface Proveedor {
   regimenFiscalId?: number;
   regimenFiscalDescripcion?: string;
   usoCfdi?: string;
-  formaPagoId?: number;
-  formaPagoDescripcion?: string;
   fechaRegistro: string;
   fechaModificacion?: string;
   estatus: number;
@@ -170,7 +167,6 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
-      formaPagoId: undefined,
     },
   });
 
@@ -244,7 +240,6 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
-      formaPagoId: undefined,
     });
     setCuentasFormaPago([]);
     setIsEditing(false);
@@ -261,7 +256,6 @@ export default function ProveedoresList() {
         codigoPostal: proveedor.codigoPostal || '',
         regimenFiscalId: proveedor.regimenFiscalId,
         usoCfdi: proveedor.usoCfdi || '',
-        formaPagoId: proveedor.formaPagoId,
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
       setIsEditing(true);
@@ -384,15 +378,6 @@ export default function ProveedoresList() {
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{row.original.regimenFiscalDescripcion || '—'}</span>
       ),
-    },
-    {
-      id: 'formaPago',
-      header: 'Forma de Pago',
-      cell: ({ row }) => {
-        const fp = row.original.formaPagoDescripcion;
-        if (!fp) return <span className="text-xs text-muted-foreground">—</span>;
-        return <span className="text-xs">{fp}</span>;
-      },
     },
     {
       id: 'cuentas',
@@ -696,34 +681,6 @@ export default function ProveedoresList() {
                         <SelectItem value="D02">D02 - Gastos médicos por incapacidad</SelectItem>
                         <SelectItem value="S01">S01 - Sin efectos fiscales</SelectItem>
                         <SelectItem value="P01">P01 - Por definir</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="formaPagoId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Forma de Pago</FormLabel>
-                    <Select
-                      onValueChange={(val) => field.onChange(Number(val))}
-                      value={field.value ? String(field.value) : ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona forma de pago..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {formasPago.map((fp) => (
-                          <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
-                            {fp.clave ? `${fp.clave} - ${fp.nombre}` : fp.nombre}
-                          </SelectItem>
-                        ))}
                       </SelectContent>
                     </Select>
                     <FormMessage />

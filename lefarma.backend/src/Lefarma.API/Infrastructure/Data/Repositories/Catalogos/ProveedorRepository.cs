@@ -17,7 +17,6 @@ public class ProveedorRepository : BaseRepository<Proveedor>, IProveedorReposito
     {
         return await _context.Set<Proveedor>()
             .Include(p => p.RegimenFiscal!)
-            .Include(p => p.FormaPago!)
             .Include(p => p.Detalle)
             .Include(p => p.CuentasFormaPago)
                 .ThenInclude(c => c.FormaPago)

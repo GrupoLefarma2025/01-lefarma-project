@@ -9,5 +9,6 @@ public interface IOrdenCompraService
         Task<ErrorOr<OrdenCompraResponse>> GetByIdAsync(int id);
         Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario);
         Task<ErrorOr<bool>> DeleteAsync(int id);
+        Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario);
     }
 }

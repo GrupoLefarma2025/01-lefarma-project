@@ -77,6 +77,7 @@ export const AppRoutes = () => {
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
           <Route path="/workflows" element={<WorkflowsList />} />
           <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+          <Route path="/ordenes/editar/:id" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/perfil" element={<Perfil />} />

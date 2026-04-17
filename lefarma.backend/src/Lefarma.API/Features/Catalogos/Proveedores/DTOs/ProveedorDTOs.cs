@@ -10,8 +10,6 @@ public class ProveedorResponse
     public int? RegimenFiscalId { get; set; }
     public string? RegimenFiscalDescripcion { get; set; }
     public string? UsoCfdi { get; set; }
-    public int? FormaPagoId { get; set; }
-    public string? FormaPagoDescripcion { get; set; }
     public bool SinDatosFiscales { get; set; }
     public int Estatus { get; set; }
     public int? CambioEstatusPor { get; set; }
@@ -39,7 +37,6 @@ public class CreateProveedorRequest
     public string? CodigoPostal { get; set; }
     public int? RegimenFiscalId { get; set; }
     public string? UsoCfdi { get; set; }
-    public int? FormaPagoId { get; set; }
     public bool SinDatosFiscales { get; set; }
     public CreateProveedorDetalleRequest? Detalle { get; set; }
     public List<CreateProveedorFormaPagoCuentaRequest>? CuentasFormaPago { get; set; }
@@ -72,7 +69,6 @@ public class UpdateProveedorRequest
     public string? CodigoPostal { get; set; }
     public int? RegimenFiscalId { get; set; }
     public string? UsoCfdi { get; set; }
-    public int? FormaPagoId { get; set; }
     public bool SinDatosFiscales { get; set; }
     public UpdateProveedorDetalleRequest? Detalle { get; set; }
     public List<CreateProveedorFormaPagoCuentaRequest>? CuentasFormaPago { get; set; }

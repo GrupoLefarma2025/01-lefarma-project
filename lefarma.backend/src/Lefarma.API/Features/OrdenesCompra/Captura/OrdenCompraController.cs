@@ -63,5 +63,17 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Orden eliminada exitosamente.", Data = null }));
         }
+
+        [HttpPut("{id}")]
+        [SwaggerOperation(Summary = "Actualizar orden de compra")]
+        public async Task<IActionResult> Update(int id, [FromBody] CreateOrdenCompraRequest? request)
+        {
+            if (request == null)
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Datos requeridos" });
+
+            var result = await _service.UpdateAsync(id, request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
+            { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
+        }
     }
 }

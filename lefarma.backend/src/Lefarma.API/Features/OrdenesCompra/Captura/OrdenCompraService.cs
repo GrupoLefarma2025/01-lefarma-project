@@ -237,6 +237,80 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
+        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario)
+        {
+            try
+            {
+                var orden = await _repo.GetWithPartidasAsync(id);
+                if (orden == null)
+                    return CommonErrors.NotFound("orden de compra", id.ToString());
+
+                if (orden.Estado != EstadoOC.Creada)
+                    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
+
+                // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
+                orden.IdEmpresa = request.IdEmpresa;
+                orden.IdSucursal = request.IdSucursal;
+                orden.IdArea = request.IdArea;
+                orden.IdTipoGasto = request.IdTipoGasto;
+                orden.IdFormaPago = request.IdFormaPago;
+                orden.FechaLimitePago = request.FechaLimitePago;
+                orden.IdProveedor = request.IdProveedor;
+                orden.SinDatosFiscales = request.SinDatosFiscales;
+                orden.RazonSocialProveedor = request.RazonSocialProveedor;
+                orden.RfcProveedor = request.RfcProveedor;
+                orden.CodigoPostalProveedor = request.CodigoPostalProveedor;
+                orden.IdRegimenFiscal = request.IdRegimenFiscal;
+                orden.PersonaContacto = request.PersonaContacto;
+                orden.NotaFormaPago = request.NotaFormaPago;
+                orden.NotasGenerales = request.NotasGenerales;
+
+                // Recrear partidas: remover existentes y crear nuevas
+                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
+                var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
+                {
+                    IdOrden = orden.IdOrden,
+                    NumeroPartida = i + 1,
+                    Descripcion = p.Descripcion.Trim(),
+                    Cantidad = p.Cantidad,
+                    IdUnidadMedida = p.IdUnidadMedida,
+                    PrecioUnitario = p.PrecioUnitario,
+                    Descuento = p.Descuento,
+                    PorcentajeIva = p.PorcentajeIva,
+                    TotalRetenciones = p.TotalRetenciones,
+                    OtrosImpuestos = p.OtrosImpuestos,
+                    Deducible = p.Deducible,
+                    IdProveedor = p.IdProveedor,
+                    RequiereFactura = p.RequiereFactura,
+                    TipoComprobante = p.TipoComprobante,
+                    Total = CalcularTotalPartida(p)
+                }).ToList();
+                orden.Partidas = partidas;
+
+                // Recalcular totales
+                orden.Subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
+                orden.TotalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
+                orden.TotalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+                orden.Total = partidas.Sum(p => p.Total);
+
+                await _context.SaveChangesAsync();
+
+                EnrichWideEvent("Update", entityId: orden.IdOrden, nombre: orden.Folio);
+                return ToResponse(orden);
+            }
+            catch (DbUpdateException ex)
+            {
+                EnrichWideEvent("Update", exception: ex);
+                return CommonErrors.DatabaseError("actualizar la orden de compra");
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("Update", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al actualizar la orden de compra.");
+            }
+        }
+
         private static decimal CalcularTotalPartida(CreatePartidaRequest p)
             => (p.PrecioUnitario * p.Cantidad - p.Descuento) * (1 + p.PorcentajeIva / 100) - p.TotalRetenciones + p.OtrosImpuestos;
 
