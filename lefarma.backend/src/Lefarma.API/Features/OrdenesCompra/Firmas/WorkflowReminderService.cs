@@ -101,7 +101,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             int enviados = 0;
             try
             {
-                var query = _db.OrdenesCompra.Where(o => o.IdPasoActual != null);
+                var query = _db.OrdenesCompra.Include(o => o.Proveedor).Where(o => o.IdPasoActual != null);
 
                 if (rec.IdPaso.HasValue)
                 {
@@ -303,7 +303,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     var rowCtx = new Dictionary<string, string>
                     {
                         ["Folio"] = o.Folio,
-                        ["Proveedor"] = o.RazonSocialProveedor ?? "",
+                        ["Proveedor"] = o.Proveedor?.RazonSocial ?? "",
                         ["Total"] = o.Total.ToString("C2"),
                         ["DiasEspera"] = ((int)(DateTime.UtcNow - o.FechaSolicitud).TotalDays).ToString()
                     };
@@ -314,7 +314,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     var dias = (int)(DateTime.UtcNow - o.FechaSolicitud).TotalDays;
                     sb.Append($"<tr style='border-top:1px solid #e5e7eb'>" +
                         $"<td style='padding:6px 10px'>{o.Folio}</td>" +
-                        $"<td style='padding:6px 10px'>{o.RazonSocialProveedor}</td>" +
+                        $"<td style='padding:6px 10px'>{o.Proveedor?.RazonSocial}</td>" +
                         $"<td style='padding:6px 10px;text-align:right'>{o.Total:C2}</td>" +
                         $"<td style='padding:6px 10px;text-align:right;color:{(dias > 3 ? "#dc2626" : "#374151")}'>{dias}d</td>" +
                         $"</tr>");

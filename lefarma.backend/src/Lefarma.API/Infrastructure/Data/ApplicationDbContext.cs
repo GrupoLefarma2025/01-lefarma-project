@@ -94,6 +94,11 @@ public class ApplicationDbContext : DbContext
         // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }
 
+        // DbSets - Comprobantes (CFDI / facturas)
+        public DbSet<Comprobante> Comprobantes { get; set; }
+        public DbSet<ComprobanteConcepto> ComprobantesConceptos { get; set; }
+        public DbSet<ComprobantePartida> ComprobantesPartidas { get; set; }
+
         // Configuración mediante Fluent API
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

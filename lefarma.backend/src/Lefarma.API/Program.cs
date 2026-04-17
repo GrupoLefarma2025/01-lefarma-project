@@ -34,6 +34,7 @@ using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Help.Services;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Archivos.Settings;
+using Lefarma.API.Features.Facturas;
 using Microsoft.Extensions.FileProviders;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
@@ -151,6 +152,10 @@ builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
 builder.Services.AddScoped<IPagoRepository, PagoRepository>();
 builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
+builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
+
+// Comprobantes / Facturas CFDI
+builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();

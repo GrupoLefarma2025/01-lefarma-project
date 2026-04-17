@@ -15,6 +15,7 @@ public class OrdenCompraRepository : BaseRepository<OrdenCompra>, IOrdenCompraRe
         public async Task<OrdenCompra?> GetWithPartidasAsync(int idOrden)
             => await _context.OrdenesCompra
                 .Include(o => o.Partidas)
+                .Include(o => o.Proveedor)
                 .Include(o => o.CentroCosto)
                 .Include(o => o.CuentaContable)
                 .FirstOrDefaultAsync(o => o.IdOrden == idOrden);

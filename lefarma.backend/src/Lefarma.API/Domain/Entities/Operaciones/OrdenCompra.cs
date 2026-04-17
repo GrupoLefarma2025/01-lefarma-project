@@ -17,7 +17,8 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public EstadoOC Estado { get; set; } = EstadoOC.Creada;
         public int? IdPasoActual { get; set; }  // FK lógica a config.workflow_pasos
 
-        // Proveedor
+        // Proveedor: FK opcional al catálogo + snapshot de datos en el momento de la orden
+        public int? IdProveedor { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string RazonSocialProveedor { get; set; } = null!;
         public string? RfcProveedor { get; set; }
@@ -32,6 +33,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int? IdCuentaContable { get; set; }
 
         // Navegación a catálogos (resueltos en queries)
+        public virtual Proveedor? Proveedor { get; set; }
         public virtual CentroCosto? CentroCosto { get; set; }
         public virtual CuentaContable? CuentaContable { get; set; }
 

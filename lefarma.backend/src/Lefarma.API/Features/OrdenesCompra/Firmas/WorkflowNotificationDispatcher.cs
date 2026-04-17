@@ -98,7 +98,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             {
                 ["Folio"] = orden.Folio,
                 ["Total"] = orden.Total.ToString("C2"),
-                ["Proveedor"] = orden.RazonSocialProveedor ?? "",
+                ["Proveedor"] = orden.Proveedor?.RazonSocial ?? "",
                 ["Solicitante"] = nombreCreador,
                 ["NombreCreador"] = nombreCreador,
                 ["NombreSiguiente"] = nombreSiguiente,

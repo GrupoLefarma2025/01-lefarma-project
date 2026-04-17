@@ -36,7 +36,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.CentroCosto).Include(o => o.CuentaContable).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -106,6 +106,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
+                    IdProveedor = p.IdProveedor,
+                    RequiereFactura = p.RequiereFactura,
+                    TipoComprobante = p.TipoComprobante,
                     Total = CalcularTotalPartida(p)
                 }).ToList();
 
@@ -142,8 +145,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdUsuarioCreador = idUsuario,
                     Estado = EstadoOC.Creada,
                     IdPasoActual = pasoInicio?.IdPaso,
+                    IdProveedor = request.IdProveedor,
                     SinDatosFiscales = request.SinDatosFiscales,
-                    RazonSocialProveedor = request.RazonSocialProveedor.Trim(),
+                    RazonSocialProveedor = request.RazonSocialProveedor,
                     RfcProveedor = request.RfcProveedor,
                     CodigoPostalProveedor = request.CodigoPostalProveedor,
                     IdRegimenFiscal = request.IdRegimenFiscal,
@@ -247,10 +251,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdFormaPago = o.IdFormaPago,
             Estado = o.Estado.ToString(),
             IdPasoActual = o.IdPasoActual,
+            IdProveedor = o.IdProveedor,
             SinDatosFiscales = o.SinDatosFiscales,
             RazonSocialProveedor = o.RazonSocialProveedor,
             RfcProveedor = o.RfcProveedor,
             CodigoPostalProveedor = o.CodigoPostalProveedor,
+            IdRegimenFiscal = o.IdRegimenFiscal,
             PersonaContacto = o.PersonaContacto,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,
@@ -279,7 +285,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 TotalRetenciones = p.TotalRetenciones,
                 OtrosImpuestos = p.OtrosImpuestos,
                 Deducible = p.Deducible,
-                Total = p.Total
+                Total = p.Total,
+                IdProveedor = p.IdProveedor,
+                RequiereFactura = p.RequiereFactura,
+                TipoComprobante = p.TipoComprobante,
+                CantidadFacturada = p.CantidadFacturada,
+                ImporteFacturado = p.ImporteFacturado,
+                EstadoFacturacion = p.EstadoFacturacion
             }).ToList()
         };
     }

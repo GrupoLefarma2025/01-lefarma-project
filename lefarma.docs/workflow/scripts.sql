@@ -405,15 +405,16 @@ CREATE TABLE operaciones.ordenes_compra (
     estado INT NOT NULL DEFAULT 1, -- Mapea al enum EstadoOC (1=Creada, 2=EnRevisionF2, etc.)
     id_paso_actual INT NULL, -- FK lógica a config.workflow_pasos
     
-    -- Datos del proveedor
-    sin_datos_fiscales BIT NOT NULL DEFAULT 0,
-    razon_social_proveedor VARCHAR(255) NOT NULL,
-    rfc_proveedor VARCHAR(13) NULL,
-    codigo_postal_proveedor VARCHAR(10) NULL,
-    id_regimen_fiscal INT NULL,
-    persona_contacto VARCHAR(150) NULL,
-    nota_forma_pago VARCHAR(500) NULL,
-    notas_generales VARCHAR(1000) NULL,
+    -- Proveedor (FK al catálogo + datos capturados en la orden)
+    id_proveedor                INT            NULL,
+    sin_datos_fiscales          BIT            NOT NULL DEFAULT 0,
+    razon_social_proveedor      VARCHAR(255)   NOT NULL,
+    rfc_proveedor               VARCHAR(13)    NULL,
+    codigo_postal_proveedor     VARCHAR(10)    NULL,
+    id_regimen_fiscal           INT            NULL,
+    persona_contacto            VARCHAR(150)   NULL,
+    nota_forma_pago             VARCHAR(500)   NULL,
+    notas_generales             VARCHAR(1000)  NULL,
     
     -- Campos asignados en Firma 3 (CxP - Polo)
     id_centro_costo INT NULL,
@@ -453,6 +454,16 @@ CREATE TABLE operaciones.ordenes_compra_partidas (
     otros_impuestos DECIMAL(18,2) NOT NULL DEFAULT 0,
     deducible BIT NOT NULL DEFAULT 1,
     total DECIMAL(18,2) NOT NULL,
+
+    -- Proveedor específico de la partida (puede diferir del proveedor principal)
+    id_proveedor INT NULL,
+
+    -- Facturación
+    requiere_factura     BIT            NOT NULL DEFAULT 1,
+    tipo_comprobante     VARCHAR(20)    NULL,          -- 'factura', 'ticket', etc.
+    cantidad_facturada   DECIMAL(18,3)  NULL,
+    importe_facturado    DECIMAL(18,2)  NULL,
+    estado_facturacion   TINYINT        NOT NULL DEFAULT 0, -- 0=Pendiente, 1=Parcial, 2=Completa
     
     CONSTRAINT FK_ordenes_compra_partidas_orden FOREIGN KEY (id_orden) 
         REFERENCES operaciones.ordenes_compra(id_orden) ON DELETE CASCADE,
@@ -466,6 +477,138 @@ CREATE INDEX IX_ordenes_compra_fecha_creacion ON operaciones.ordenes_compra (fec
 CREATE INDEX IX_ordenes_compra_empresa ON operaciones.ordenes_compra (id_empresa, id_sucursal);
 CREATE INDEX IX_ordenes_compra_usuario_creador ON operaciones.ordenes_compra (id_usuario_creador);
 CREATE INDEX IX_ordenes_compra_partidas_orden ON operaciones.ordenes_compra_partidas (id_orden);
+
+-- =============================================================================
+-- TABLAS: COMPROBANTES / FACTURAS CFDI
+-- Soporta CFDI (XML + PDF), comprobantes simples (ticket, nota, recibo)
+-- y comprobantes de pago (SPEI, transferencia, cheque, efectivo, tarjeta).
+-- La relación principal es siempre comprobante → partida via comprobantes_partidas.
+-- NUNCA comprobante → orden directa.
+-- Categoría: 'gasto' = facturas/comprobantes de gasto; 'pago' = comprobantes de pago.
+-- =============================================================================
+
+-- 1. CABECERA DE COMPROBANTE (CFDI o simple)
+CREATE TABLE operaciones.comprobantes (
+    id_comprobante      INT IDENTITY(1,1) PRIMARY KEY,
+
+    -- Referencias
+    id_empresa          INT NOT NULL,
+    id_usuario_subio    INT NOT NULL,
+    id_paso_workflow    INT NULL,            -- paso del workflow en que se subió
+
+    -- Categoría: 'gasto' = factura/ticket/nota; 'pago' = transferencia/cheque/SPEI
+    categoria           VARCHAR(10)  NOT NULL DEFAULT 'gasto',
+
+    -- Tipo
+    tipo_comprobante    VARCHAR(20)  NOT NULL, -- 'cfdi', 'ticket', 'nota', 'recibo', 'manual'
+    es_cfdi             BIT          NOT NULL DEFAULT 0,
+
+    -- Datos CFDI (solo cuando es_cfdi = 1)
+    uuid_cfdi           CHAR(36)     NULL,
+    version_cfdi        VARCHAR(5)   NULL,    -- '4.0'
+    serie               VARCHAR(25)  NULL,
+    folio_cfdi          VARCHAR(40)  NULL,
+    fecha_emision       DATETIME     NULL,
+    rfc_emisor          VARCHAR(13)  NULL,
+    nombre_emisor       VARCHAR(255) NULL,
+    rfc_receptor        VARCHAR(13)  NULL,
+    nombre_receptor     VARCHAR(255) NULL,
+    uso_cfdi            VARCHAR(10)  NULL,    -- 'G01', 'G03', etc.
+    metodo_pago         VARCHAR(3)   NULL,    -- 'PUE', 'PPD'
+    forma_pago_cfdi     VARCHAR(3)   NULL,    -- '01'=Efectivo, '03'=Transferencia, etc.
+    moneda              VARCHAR(3)   NULL DEFAULT 'MXN',
+    tipo_cambio         DECIMAL(10,6) NULL DEFAULT 1,
+
+    -- Totales (CFDI o capturados manualmente)
+    subtotal            DECIMAL(18,2) NOT NULL DEFAULT 0,
+    descuento           DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_iva           DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total_retenciones   DECIMAL(18,2) NOT NULL DEFAULT 0,
+    total               DECIMAL(18,2) NOT NULL DEFAULT 0,
+
+    -- XML raw almacenado para parseo y auditoría (CFDI).
+    -- Los archivos físicos (XML, PDF, imágenes, fotos) se guardan en archivos.Archivos
+    -- con EntidadTipo = 'Comprobante' y EntidadId = id_comprobante, carpeta='comprobantes'.
+    -- El campo Metadata de archivos.Archivos distingue el tipo:
+    --   {"tipo":"xml_cfdi"} | {"tipo":"pdf_cfdi"} | {"tipo":"imagen_comprobante"}
+    --   {"tipo":"comprobante_pago","subtipo":"spei","monto":1000,"paso":7,"idOrdenCompra":17}
+    xml_original        NVARCHAR(MAX) NULL,
+
+    -- Campos exclusivos de categoria='pago' (transferencia, SPEI, cheque, etc.)
+    referencia_pago     VARCHAR(100) NULL,   -- folio/número de operación
+    fecha_pago          DATETIME     NULL,   -- fecha en que se realizó el pago
+    monto_pago          DECIMAL(18,2) NULL,  -- monto pagado (iguala campo total para pagos)
+
+    -- Estado asignación: 0=Pendiente, 1=Parcial, 2=Aplicado, 3=Rechazado
+    estado              TINYINT      NOT NULL DEFAULT 0,
+
+    -- Auditoría
+    fecha_creacion      DATETIME     NOT NULL DEFAULT GETDATE(),
+    fecha_modificacion  DATETIME     NULL
+);
+
+-- 2. CONCEPTOS DEL XML CFDI
+--    Solo se puebla cuando es_cfdi = 1. Un comprobante puede tener N conceptos.
+CREATE TABLE operaciones.comprobantes_conceptos (
+    id_concepto         INT IDENTITY(1,1) PRIMARY KEY,
+    id_comprobante      INT          NOT NULL,
+    numero_concepto     INT          NOT NULL,       -- secuencia 1, 2, 3…
+    clave_prod_serv     VARCHAR(10)  NULL,            -- ClaveProdServ SAT
+    clave_unidad        VARCHAR(10)  NULL,            -- ClaveUnidad SAT
+    descripcion         VARCHAR(1000) NOT NULL,
+    cantidad            DECIMAL(18,6) NOT NULL,
+    valor_unitario      DECIMAL(18,6) NOT NULL,
+    descuento           DECIMAL(18,2) NOT NULL DEFAULT 0,
+    importe             DECIMAL(18,2) NOT NULL,
+    tasa_iva            DECIMAL(5,4)  NULL,           -- 0.16, 0.08, 0.00
+    importe_iva         DECIMAL(18,2) NULL,
+    -- Acumulados de asignación (actualizados por el servicio al asignar partidas)
+    cantidad_asignada   DECIMAL(18,6) NOT NULL DEFAULT 0,
+    importe_asignado    DECIMAL(18,2) NOT NULL DEFAULT 0,
+
+    CONSTRAINT FK_conceptos_comprobante FOREIGN KEY (id_comprobante)
+        REFERENCES operaciones.comprobantes(id_comprobante) ON DELETE CASCADE,
+    CONSTRAINT UQ_concepto_por_comprobante UNIQUE (id_comprobante, numero_concepto)
+);
+
+-- 3. TABLA PUENTE: COMPROBANTE ↔ PARTIDA DE OC
+--    Relación central del sistema. id_concepto es NULL para comprobantes sin CFDI.
+CREATE TABLE operaciones.comprobantes_partidas (
+    id_asignacion       INT IDENTITY(1,1) PRIMARY KEY,
+    id_comprobante      INT          NOT NULL,
+    id_concepto         INT          NULL,           -- NULL para comprobantes sin CFDI
+    id_partida          INT          NOT NULL,       -- ordenes_compra_partidas.id_partida
+    id_usuario_asigno   INT          NOT NULL,
+    id_paso_workflow    INT          NULL,
+
+    -- Cantidades e importes de esta asignación específica
+    cantidad_asignada   DECIMAL(18,6) NOT NULL,
+    importe_asignado    DECIMAL(18,2) NOT NULL,
+
+    notas               VARCHAR(500) NULL,
+    fecha_asignacion    DATETIME     NOT NULL DEFAULT GETDATE(),
+
+    CONSTRAINT FK_asignacion_comprobante FOREIGN KEY (id_comprobante)
+        REFERENCES operaciones.comprobantes(id_comprobante),
+    CONSTRAINT FK_asignacion_concepto FOREIGN KEY (id_concepto)
+        REFERENCES operaciones.comprobantes_conceptos(id_concepto),
+    CONSTRAINT FK_asignacion_partida FOREIGN KEY (id_partida)
+        REFERENCES operaciones.ordenes_compra_partidas(id_partida)
+);
+
+-- ÍNDICES COMPROBANTES
+-- UUID único solo para registros CFDI (índice filtrado)
+CREATE UNIQUE INDEX UX_comprobantes_uuid
+    ON operaciones.comprobantes(uuid_cfdi)
+    WHERE uuid_cfdi IS NOT NULL;
+CREATE INDEX IX_comprobantes_empresa_fecha
+    ON operaciones.comprobantes(id_empresa, fecha_creacion);
+CREATE INDEX IX_comprobantes_conceptos_comprobante
+    ON operaciones.comprobantes_conceptos(id_comprobante);
+CREATE INDEX IX_comprobantes_partidas_partida
+    ON operaciones.comprobantes_partidas(id_partida);
+CREATE INDEX IX_comprobantes_partidas_comprobante
+    ON operaciones.comprobantes_partidas(id_comprobante);
 
 -- =============================================================================
 -- STORED PROCEDURE: config.sp_procesar_recordatorios
