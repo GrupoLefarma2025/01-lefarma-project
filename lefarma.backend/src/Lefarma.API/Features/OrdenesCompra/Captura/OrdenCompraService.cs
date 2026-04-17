@@ -32,7 +32,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _context = context;
         }
 
-        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario)
+        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, bool puedeVerTodas)
         {
             try
             {
@@ -41,6 +41,23 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
                 if (query.Estado.HasValue) q = q.Where(o => o.Estado == query.Estado.Value);
+
+                // Si NO tiene el permiso de ver todas, filtrar por usuario
+                if (!puedeVerTodas)
+                {
+                    // Obtener los pasos del workflow donde el usuario es participante directo
+                    var pasosParticipante = await _context.WorkflowParticipantes
+                        .Where(p => p.IdUsuario == idUsuario && p.Activo)
+                        .Select(p => p.IdPaso)
+                        .ToListAsync();
+
+                    q = q.Where(o =>
+                        o.IdUsuarioCreador == idUsuario ||
+                        (pasosParticipante.Contains(o.IdPasoActual ?? 0) &&
+                         o.Estado != EstadoOC.Creada &&
+                         o.Estado != EstadoOC.Rechazada &&
+                         o.Estado != EstadoOC.Cancelada));
+                }
 
                 q = query.OrderBy?.ToLower() switch
                 {
