@@ -1,4 +1,4 @@
-﻿using ErrorOr;
+using ErrorOr;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
@@ -124,6 +124,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
                     IdProveedor = p.IdProveedor,
+                    IdsCuentasBancarias = p.IdsCuentasBancarias,
                     RequiereFactura = p.RequiereFactura,
                     TipoComprobante = p.TipoComprobante,
                     Total = CalcularTotalPartida(p)
@@ -158,17 +159,14 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdSucursal = request.IdSucursal,
                     IdArea = request.IdArea,
                     IdTipoGasto = request.IdTipoGasto,
-                    IdFormaPago = request.IdFormaPago,
                     IdUsuarioCreador = idUsuario,
                     Estado = EstadoOC.Creada,
                     IdPasoActual = pasoInicio?.IdPaso,
                     IdProveedor = request.IdProveedor,
+                    IdsCuentasBancarias = request.IdsCuentasBancarias != null
+                        ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
+                        : null,
                     SinDatosFiscales = request.SinDatosFiscales,
-                    RazonSocialProveedor = request.RazonSocialProveedor,
-                    RfcProveedor = request.RfcProveedor,
-                    CodigoPostalProveedor = request.CodigoPostalProveedor,
-                    IdRegimenFiscal = request.IdRegimenFiscal,
-                    PersonaContacto = request.PersonaContacto,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
                     FechaSolicitud = DateTime.UtcNow,
@@ -270,15 +268,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdSucursal = request.IdSucursal;
                 orden.IdArea = request.IdArea;
                 orden.IdTipoGasto = request.IdTipoGasto;
-                orden.IdFormaPago = request.IdFormaPago;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
+                orden.IdsCuentasBancarias = request.IdsCuentasBancarias != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
+                    : null;
                 orden.SinDatosFiscales = request.SinDatosFiscales;
-                orden.RazonSocialProveedor = request.RazonSocialProveedor;
-                orden.RfcProveedor = request.RfcProveedor;
-                orden.CodigoPostalProveedor = request.CodigoPostalProveedor;
-                orden.IdRegimenFiscal = request.IdRegimenFiscal;
-                orden.PersonaContacto = request.PersonaContacto;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
 
@@ -298,6 +293,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
                     IdProveedor = p.IdProveedor,
+                    IdsCuentasBancarias = p.IdsCuentasBancarias,
                     RequiereFactura = p.RequiereFactura,
                     TipoComprobante = p.TipoComprobante,
                     Total = CalcularTotalPartida(p)
@@ -339,16 +335,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdSucursal = o.IdSucursal,
             IdArea = o.IdArea,
             IdTipoGasto = o.IdTipoGasto,
-            IdFormaPago = o.IdFormaPago,
+            IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<List<int>>(o.IdsCuentasBancarias),
             Estado = o.Estado.ToString(),
             IdPasoActual = o.IdPasoActual,
             IdProveedor = o.IdProveedor,
             SinDatosFiscales = o.SinDatosFiscales,
-            RazonSocialProveedor = o.RazonSocialProveedor,
-            RfcProveedor = o.RfcProveedor,
-            CodigoPostalProveedor = o.CodigoPostalProveedor,
-            IdRegimenFiscal = o.IdRegimenFiscal,
-            PersonaContacto = o.PersonaContacto,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,
             IdCentroCosto = o.IdCentroCosto,
@@ -378,6 +371,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 Deducible = p.Deducible,
                 Total = p.Total,
                 IdProveedor = p.IdProveedor,
+                IdsCuentasBancarias = p.IdsCuentasBancarias,
                 RequiereFactura = p.RequiereFactura,
                 TipoComprobante = p.TipoComprobante,
                 CantidadFacturada = p.CantidadFacturada,
