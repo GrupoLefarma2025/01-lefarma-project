@@ -2149,16 +2149,14 @@ export default function AutorizacionesOC() {
                         )}
 
                         {/* Botón agregar */}
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-1.5 border-dashed"
                           onClick={() => setIsSubirComprobanteOpen(true)}
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
                         >
-                          <Receipt className="h-3.5 w-3.5" />
-                          {comprobantesGasto.length > 0 ? 'Agregar otra factura CFDI' : 'Subir Factura CFDI (XML + PDF)'}
-                        </Button>
+                          <Receipt className="h-4 w-4 shrink-0" />
+                          <span>{comprobantesGasto.length > 0 ? 'Agregar otro comprobante de gasto' : 'Subir comprobante de gasto (factura, ticket, recibo...)'}</span>
+                        </button>
                       </div>
                     );
                   }
@@ -2213,7 +2211,7 @@ export default function AutorizacionesOC() {
                         className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
                       >
                         <Upload className="h-4 w-4 shrink-0" />
-                        <span>{comprobantesP.length > 0 ? 'Agregar otro pago' : 'Registrar comprobante de pago'}</span>
+                        <span>{comprobantesP.length > 0 ? 'Agregar otro comprobante de pago' : 'Registrar comprobante de pago (SPEI, cheque, transferencia...)'}</span>
                       </button>
                     </div>
                   );

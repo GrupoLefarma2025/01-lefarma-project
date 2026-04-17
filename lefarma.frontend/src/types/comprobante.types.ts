@@ -67,6 +67,11 @@ export interface CfdiPreviewResponse {
   totalRetenciones: number;
   total: number;
   conceptos: CfdiConceptoPreviewDto[];
+  // Validación SAT
+  satContactado?: boolean | null;
+  satEstado?: string | null;       // "Vigente" | "Cancelado" | "No Encontrado"
+  satCodigoEstatus?: string | null;
+  satCancelacion?: string | null;
 }
 
 // ─── Partidas pendientes ───────────────────────────────────────────────────────

@@ -105,6 +105,10 @@ builder.Host.UseSerilog();
 
 // HttpClientFactory for external API calls
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("sat", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+});
 
 // DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -155,6 +159,8 @@ builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
 // Comprobantes / Facturas CFDI
+builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
+                               Lefarma.API.Features.Facturas.SatValidation.SatValidationService>();
 builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
