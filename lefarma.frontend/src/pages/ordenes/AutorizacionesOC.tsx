@@ -721,9 +721,7 @@ export default function AutorizacionesOC() {
       const q = search.trim().toLowerCase();
       const matchSearch =
         q.length === 0 ||
-        o.folio.toLowerCase().includes(q) ||
-        o.razonSocialProveedor.toLowerCase().includes(q) ||
-        (o.personaContacto || '').toLowerCase().includes(q);
+        o.folio.toLowerCase().includes(q);
       return matchEstado && matchSearch;
     });
   }, [ordenes, estadoFilter, search]);
@@ -735,7 +733,7 @@ export default function AutorizacionesOC() {
       cell: ({ row }) => (
         <div className="flex flex-col">
           <span className="font-medium">{row.original.folio}</span>
-          <span className="text-xs text-muted-foreground">{row.original.razonSocialProveedor}</span>
+          <span className="text-xs text-muted-foreground">Proveedor #{row.original.idProveedor || 'N/A'}</span>
         </div>
       ),
     },
@@ -845,7 +843,7 @@ export default function AutorizacionesOC() {
             onRefresh={fetchOrdenes}
             filterConfig={{
               tableId: 'autorizaciones-oc',
-              searchableColumns: ['folio', 'razonSocialProveedor', 'personaContacto'],
+              searchableColumns: ['folio'],
               defaultSearchColumns: ['folio'],
             }}
             onRowClick={(row) => setSelectedId((row as OrdenCompraResponse).idOrden)}
@@ -884,7 +882,7 @@ export default function AutorizacionesOC() {
                         <div>
                           <p className="font-semibold">{selectedOrden.folio}</p>
                           <p className="text-xs text-muted-foreground">
-                            Proveedor: {selectedOrden.razonSocialProveedor}
+                            Proveedor ID: {selectedOrden.idProveedor || 'Sin dato'}
                           </p>
                         </div>
                         <Badge
@@ -955,16 +953,8 @@ export default function AutorizacionesOC() {
                     >
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div className="rounded-md border bg-background px-2 py-1.5">
-                          <p className="text-muted-foreground">RFC proveedor</p>
-                          <p className="font-medium">{selectedOrden.rfcProveedor || 'Sin dato'}</p>
-                        </div>
-                        <div className="rounded-md border bg-background px-2 py-1.5">
-                          <p className="text-muted-foreground">C.P. proveedor</p>
-                          <p className="font-medium">{selectedOrden.codigoPostalProveedor || 'Sin dato'}</p>
-                        </div>
-                        <div className="rounded-md border bg-background px-2 py-1.5">
-                          <p className="text-muted-foreground">Contacto</p>
-                          <p className="font-medium">{selectedOrden.personaContacto || 'Sin dato'}</p>
+                          <p className="text-muted-foreground">ID Proveedor</p>
+                          <p className="font-medium">{selectedOrden.idProveedor || 'Sin dato'}</p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Fiscales</p>

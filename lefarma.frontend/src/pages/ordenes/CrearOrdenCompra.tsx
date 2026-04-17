@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -77,6 +77,7 @@ import type {
   Gasto,
   Medida,
   TipoImpuesto,
+  ProveedorCuentaBancaria,
 } from '@/types/catalogo.types';
 
 interface Proveedor {
@@ -93,6 +94,7 @@ interface Proveedor {
     contactoTelefono?: string;
     contactoEmail?: string;
   };
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
 
 const partidaSchema = z.object({
@@ -105,9 +107,10 @@ const partidaSchema = z.object({
   porcentajeIva: z.number().min(0).max(100),
   totalRetenciones: z.number().min(0),
   otrosImpuestos: z.number().min(0),
-  deducible: z.boolean(),
   requiereFactura: z.boolean(),
-  proveedorPartida: z.string().optional(),
+  deducible: z.boolean(),
+  idProveedor: z.number().optional().nullable(),
+  idsCuentasBancarias: z.array(z.number()).optional().nullable(),
 });
 
 const ordenCompraSchema = z
@@ -116,62 +119,57 @@ const ordenCompraSchema = z
     idSucursal: z.number().positive('Seleccione una sucursal'),
     idArea: z.number().positive('Seleccione un área'),
     idTipoGasto: z.number().positive('Seleccione un tipo de gasto'),
-    idFormaPago: z.number().positive('Seleccione una forma de pago'),
     fechaLimitePago: z.string().min(1, 'La fecha es requerida'),
     sinDatosFiscales: z.boolean(),
-    razonSocialProveedor: z.string().min(1, 'La razón social es requerida').max(255),
-    rfcProveedor: z.string(),
-    codigoPostalProveedor: z.string(),
-    idRegimenFiscal: z.number(),
-    usoCFDI: z.string().optional(),
-    personaContacto: z.string(),
-    notaFormaPago: z.string(),
-    notasGenerales: z.string(),
+    // FK al proveedor (proveedor a nivel orden)
+    idProveedor: z.number().optional().nullable(),
+    // Cuentas bancarias múltiples a nivel orden
+    idsCuentasBancarias: z.array(z.number()).optional().nullable(),
+    notaFormaPago: z.string().optional(),
+    notasGenerales: z.string().optional(),
     agregarProveedorPorPartida: z.boolean(),
     partidas: z.array(partidaSchema).min(1, 'Debe incluir al menos una partida'),
   })
   .superRefine((data, ctx) => {
-    if (!data.agregarProveedorPorPartida) {
-      // Validación a nivel orden cuando NO hay proveedores por partida
-      if (!data.sinDatosFiscales) {
-        if (!data.rfcProveedor || data.rfcProveedor.length === 0) {
+    // Validaciones de proveedor a nivel orden (cuando NO es por partida)
+    if (!data.agregarProveedorPorPartida && !data.sinDatosFiscales) {
+      if (!data.idProveedor || data.idProveedor === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Seleccione un proveedor para la orden',
+          path: ['idProveedor'],
+        });
+      }
+      // Si hay proveedor seleccionado, al menos una cuenta bancaria es requerida
+      if (data.idProveedor && data.idProveedor > 0) {
+        if (!data.idsCuentasBancarias || data.idsCuentasBancarias.length === 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: 'El RFC es requerido',
-            path: ['rfcProveedor'],
-          });
-        }
-        if (!data.codigoPostalProveedor || data.codigoPostalProveedor.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'El código postal es requerido',
-            path: ['codigoPostalProveedor'],
-          });
-        }
-        if (!data.idRegimenFiscal || data.idRegimenFiscal === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'El régimen fiscal es requerido',
-            path: ['idRegimenFiscal'],
-          });
-        }
-        if (!data.usoCFDI || data.usoCFDI.length === 0) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'El uso del CFDI es requerido',
-            path: ['usoCFDI'],
+            message: 'Seleccione al menos una cuenta bancaria del proveedor',
+            path: ['idsCuentasBancarias'],
           });
         }
       }
-    } else {
-      // Validación por partida cuando SÍ hay proveedores por partida
+    }
+    // Validaciones de proveedor por partida (cuando ES por partida)
+    if (data.agregarProveedorPorPartida) {
       data.partidas.forEach((partida, idx) => {
-        if (!partida.proveedorPartida || partida.proveedorPartida.trim().length === 0) {
+        if (!partida.idProveedor || partida.idProveedor === 0) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message: 'El proveedor por partida es requerido',
-            path: ['partidas', idx, 'proveedorPartida'],
+            path: ['partidas', idx, 'idProveedor'],
           });
+        }
+        // Cuando hay proveedor por partida, al menos una cuenta bancaria es requerida
+        if (partida.idProveedor && partida.idProveedor > 0) {
+          if (!partida.idsCuentasBancarias || partida.idsCuentasBancarias.length === 0) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: 'Seleccione al menos una cuenta bancaria para esta partida',
+              path: ['partidas', idx, 'idsCuentasBancarias'],
+            });
+          }
         }
       });
     }
@@ -196,9 +194,10 @@ const emptyPartida: PartidaFormValues = {
   porcentajeIva: 16,
   totalRetenciones: 0,
   otrosImpuestos: 0,
-  deducible: true,
   requiereFactura: true,
-  proveedorPartida: '',
+  deducible: false,
+  idProveedor: undefined,
+  idsCuentasBancarias: [],
 };
 const fmt = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
@@ -448,15 +447,10 @@ export default function CrearOrdenCompra() {
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       idTipoGasto: 0,
-      idFormaPago: 0,
       fechaLimitePago: '',
       sinDatosFiscales: false,
-      razonSocialProveedor: '',
-      rfcProveedor: '',
-      codigoPostalProveedor: '',
-      idRegimenFiscal: 0,
-      usoCFDI: '',
-      personaContacto: '',
+      idProveedor: 0,
+      idsCuentasBancarias: [],
       notaFormaPago: '',
       notasGenerales: '',
       agregarProveedorPorPartida: false,
@@ -489,16 +483,20 @@ export default function CrearOrdenCompra() {
   const agregarProveedorPorPartida = form.watch('agregarProveedorPorPartida');
   useEffect(() => {
     if (sinDatosFiscales) {
-      form.setValue('rfcProveedor', '');
-      form.setValue('codigoPostalProveedor', '');
-      form.setValue('idRegimenFiscal', 0);
-      form.setValue('usoCFDI', '');
+      // Limpiar proveedor y cuentas cuando se activa sinDatosFiscales
+      form.setValue('idProveedor', null);
+      setSelectedProveedorId(0);
+      setSelectedCuentasBancariasIds([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sinDatosFiscales]);
   useEffect(() => {
     if (agregarProveedorPorPartida) {
+      form.setValue('idProveedor', null);
       form.setValue('sinDatosFiscales', false);
+      setSelectedProveedorId(0);
+      setCuentasBancarias([]);
+      setSelectedCuentasBancariasIds([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agregarProveedorPorPartida]);
@@ -647,42 +645,22 @@ export default function CrearOrdenCompra() {
   };
 
   const [selectedProveedorId, setSelectedProveedorId] = useState(0);
+  const [selectedCuentasBancariasIds, setSelectedCuentasBancariasIds] = useState<number[]>([]);
+  const [cuentasBancarias, setCuentasBancarias] = useState<ProveedorCuentaBancaria[]>([]);
 
-  const seleccionarProveedor = (proveedor: Proveedor) => {
-    form.setValue('razonSocialProveedor', proveedor.razonSocial);
-    form.setValue('rfcProveedor', proveedor.rfc || '');
-    form.setValue('codigoPostalProveedor', proveedor.codigoPostal || '');
-    form.setValue('idRegimenFiscal', proveedor.regimenFiscalId || 0);
-    form.setValue('usoCFDI', proveedor.usoCfdi || '');
-    form.setValue('personaContacto', proveedor.detalle?.personaContactoNombre || '');
+  const seleccionarProveedor = (proveedor: Proveedor & { cuentasFormaPago?: ProveedorCuentaBancaria[] }) => {
+    form.setValue('idProveedor', proveedor.idProveedor);
     form.setValue('sinDatosFiscales', proveedor.sinDatosFiscales || false);
     setSelectedProveedorId(proveedor.idProveedor);
     setProveedores([]);
     setProveedorNoExiste(false);
-  };
 
-  const validarProveedorExistente = async (): Promise<number | null> => {
-    const rfc = form.getValues('rfcProveedor');
-    if (!rfc || rfc.length < 10) return null;
-
-    try {
-      const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores', {
-        params: { rfc: rfc },
-      });
-
-      if (response.data.success && response.data.data && response.data.data.length > 0) {
-        const proveedor = response.data.data[0];
-        if (proveedor.razonSocial === form.getValues('razonSocialProveedor')) {
-          return proveedor.idProveedor;
-        }
-      }
-
-      setProveedorNoExiste(true);
-      return 0;
-    } catch (err) {
-      console.error('Error al validar proveedor:', err);
-      return null;
+    if (proveedor.cuentasFormaPago && proveedor.cuentasFormaPago.length > 0) {
+      setCuentasBancarias(proveedor.cuentasFormaPago.filter((c) => c.activo));
+    } else {
+      setCuentasBancarias([]);
     }
+    setSelectedCuentasBancariasIds([]);
   };
   useEffect(() => {
     if (catalogFetched.current) return;
@@ -704,15 +682,10 @@ export default function CrearOrdenCompra() {
             idSucursal: orden.idSucursal,
             idArea: orden.idArea,
             idTipoGasto: orden.idTipoGasto,
-            idFormaPago: orden.idFormaPago,
             fechaLimitePago: orden.fechaLimitePago.split('T')[0],
             sinDatosFiscales: orden.sinDatosFiscales,
-            razonSocialProveedor: orden.razonSocialProveedor,
-            rfcProveedor: orden.rfcProveedor || '',
-            codigoPostalProveedor: orden.codigoPostalProveedor || '',
-            idRegimenFiscal: orden.idRegimenFiscal || 0,
-            usoCFDI: '',
-            personaContacto: orden.personaContacto || '',
+            idProveedor: orden.idProveedor || 0,
+            idsCuentasBancarias: orden.idsCuentasBancarias || [],
             notaFormaPago: orden.notaFormaPago || '',
             notasGenerales: orden.notasGenerales || '',
             agregarProveedorPorPartida: false,
@@ -726,11 +699,16 @@ export default function CrearOrdenCompra() {
               porcentajeIva: Number(p.porcentajeIva),
               totalRetenciones: Number(p.totalRetenciones),
               otrosImpuestos: Number(p.otrosImpuestos),
-              deducible: p.deducible,
               requiereFactura: p.requiereFactura,
-              proveedorPartida: '',
+              deducible: p.deducible ?? false,
+              idProveedor: p.idProveedor || undefined,
+              idsCuentasBancarias: p.idsCuentasBancarias
+                ? (JSON.parse(p.idsCuentasBancarias) as number[])
+                : [],
             })) : [emptyPartida],
           };
+          setSelectedProveedorId(orden.idProveedor || 0);
+          setSelectedCuentasBancariasIds(orden.idsCuentasBancarias || []);
           form.reset(mapped);
         }
       } catch (error) {
@@ -745,8 +723,15 @@ export default function CrearOrdenCompra() {
   }, [isEditing, id, loadingCatalogs]);
 
   const handleSave = async (values: FormValues) => {
+    console.log('🔵 [handleSave] ===== INICIO handleSave =====');
+    console.log('🔵 [handleSave] Values recibidos del form:', JSON.stringify(values, null, 2));
+    console.log('🔵 [handleSave] selectedProveedorId:', selectedProveedorId);
+    console.log('🔵 [handleSave] isEditing:', isEditing);
+    console.log('🔵 [handleSave] id (URL):', id);
+    
     setIsSaving(true);
     try {
+      console.log('🔵 [handleSave] Validando fecha límite...');
       const fechaLimite = new Date(values.fechaLimitePago);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -755,46 +740,41 @@ export default function CrearOrdenCompra() {
         setIsSaving(false);
         return;
       }
-      if (!values.sinDatosFiscales && values.rfcProveedor) {
-        if (values.rfcProveedor.length !== 12 && values.rfcProveedor.length !== 13) {
-          toast.error('El RFC debe tener 12 o 13 caracteres.');
-          setIsSaving(false);
-          return;
-        }
-      }
 
       // Si agregarProveedorPorPartida está activo, no necesita proveedor a nivel orden
       if (values.agregarProveedorPorPartida) {
-        await guardarOrden(values, 0);
+        console.log('🔵 [handleSave] agregarProveedorPorPartida=true → guardarOrden');
+        await guardarOrden(values);
         return;
       }
 
       // Si ya tenemos el ID del proveedor (seleccionado del catálogo), proceder directamente
       if (selectedProveedorId > 0) {
-        await guardarOrden(values, selectedProveedorId);
+        console.log('🔵 [handleSave] selectedProveedorId > 0 → guardarOrden con idProveedor:', selectedProveedorId);
+        // Actualizar el values con el selectedProveedorId antes de guardar
+        values.idProveedor = selectedProveedorId;
+        await guardarOrden(values);
         return;
       }
 
-      // Buscar proveedor por RFC
-      const proveedorId = await validarProveedorExistente();
-      if (proveedorId === null) {
-        // Sin RFC o error de búsqueda — mostrar diálogo para crear nuevo
-        setValuesPendientes(values);
-        setMostrarDialogoProveedor(true);
-        setIsSaving(false);
+      // Si el form ya tiene un idProveedor (cargado desde BD o establecido de otra forma)
+      if (values.idProveedor && values.idProveedor > 0) {
+        console.log('🔵 [handleSave] values.idProveedor > 0 → guardarOrden con:', values.idProveedor);
+        await guardarOrden(values);
         return;
       }
-      if (proveedorId === 0) {
-        // No encontrado — mostrar diálogo para crear nuevo
-        setValuesPendientes(values);
-        setMostrarDialogoProveedor(true);
+
+      // Sin proveedor seleccionado y no es sinDatosFiscales
+      if (!values.sinDatosFiscales) {
+        toast.error('Seleccione un proveedor o marque "Sin Datos Fiscales"');
         setIsSaving(false);
         return;
       }
 
-      // Encontrado en el catálogo
-      await guardarOrden(values, proveedorId);
+      // Sin datos fiscales - guardar sin proveedor
+      await guardarOrden(values);
     } catch (error) {
+      console.error('🔴 [handleSave] ERROR:', error);
       const apiError = error as { errors?: Array<{ description: string }>; message?: string };
       const errs = apiError.errors ?? [];
       if (errs.length > 0) {
@@ -809,25 +789,25 @@ export default function CrearOrdenCompra() {
     }
   };
 
-  const guardarOrden = async (values: FormValues, idProveedor: number) => {
+  const guardarOrden = async (values: FormValues) => {
+    console.log('🟢 [guardarOrden] ===== INICIO guardarOrden =====');
+    console.log('🟢 [guardarOrden] isEditing:', isEditing);
+    console.log('🟢 [guardarOrden] selectedCuentasBancariasIds:', selectedCuentasBancariasIds);
+    
     setIsSaving(true);
     try {
+      console.log('🟢 [guardarOrden] Construyendo payload...');
       const payload: CreateOrdenCompraRequest = {
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
         idArea: values.idArea,
         idTipoGasto: values.idTipoGasto,
-        idFormaPago: values.idFormaPago,
         fechaLimitePago: values.fechaLimitePago,
-        idProveedor: idProveedor > 0 ? idProveedor : null,
+        idProveedor: values.idProveedor && values.idProveedor > 0 ? values.idProveedor : null,
         sinDatosFiscales: values.sinDatosFiscales,
-        razonSocialProveedor: values.razonSocialProveedor,
-        rfcProveedor: values.rfcProveedor || null,
-        codigoPostalProveedor: values.codigoPostalProveedor || null,
-        idRegimenFiscal: values.idRegimenFiscal || null,
-        personaContacto: values.personaContacto || null,
         notaFormaPago: values.notaFormaPago || null,
         notasGenerales: values.notasGenerales || null,
+        idsCuentasBancarias: selectedCuentasBancariasIds.length > 0 ? selectedCuentasBancariasIds : null,
         partidas: values.partidas.map((p) => ({
           descripcion: p.descripcion,
           cantidad: p.cantidad,
@@ -837,21 +817,34 @@ export default function CrearOrdenCompra() {
           porcentajeIva: p.porcentajeIva,
           totalRetenciones: p.totalRetenciones,
           otrosImpuestos: p.otrosImpuestos,
-          deducible: p.deducible,
           requiereFactura: p.requiereFactura,
-          proveedorPartida: p.proveedorPartida || null,
+          deducible: p.deducible ?? false,
+          idProveedor: p.idProveedor || null,
+          idsCuentasBancarias: p.idsCuentasBancarias && p.idsCuentasBancarias.length > 0
+            ? JSON.stringify(p.idsCuentasBancarias)
+            : null,
         })),
       };
+      
+      console.log('🟢 [guardarOrden] Payload construido:', JSON.stringify(payload, null, 2));
+      console.log('🟢 [guardarOrden] Haciendo request API:', isEditing ? `PUT /ordenes/${id}` : 'POST /ordenes');
+      
       const response = isEditing
         ? await API.put<ApiResponse<void>>(`/ordenes/${id}`, payload)
         : await API.post<ApiResponse<void>>('/ordenes', payload);
+      
+      console.log('🟢 [guardarOrden] Response recibido:', JSON.stringify(response.data, null, 2));
+      
       if (response.data.success) {
+        console.log('🟢 [guardarOrden] ✅ Éxito - navigate a /ordenes/autorizaciones');
         toast.success(isEditing ? 'Orden de compra actualizada correctamente.' : 'Orden de compra creada correctamente.');
         navigate('/ordenes/autorizaciones');
       } else {
+        console.warn('🟡 [guardarOrden] ⚠️ Response success=false:', response.data.message);
         toast.error(response.data.message ?? 'Error al crear la orden de compra');
       }
     } catch (error) {
+      console.error('🔴 [guardarOrden] ERROR en API:', error);
       const apiError = error as { errors?: Array<{ description: string }>; message?: string };
       const errs = apiError.errors ?? [];
       if (errs.length > 0) {
@@ -867,11 +860,18 @@ export default function CrearOrdenCompra() {
   };
 
   const confirmarGuardarProveedorNuevo = async () => {
+    console.log('🟠 [confirmarGuardarProveedorNuevo] ===== INICIO confirmarGuardarProveedorNuevo =====');
+    console.log('🟠 [confirmarGuardarProveedorNuevo] valuesPendientes:', JSON.stringify(valuesPendientes, null, 2));
+    
     setMostrarDialogoProveedor(false);
-    if (!valuesPendientes) return;
+    if (!valuesPendientes) {
+      console.warn('🟠 [confirmarGuardarProveedorNuevo] ❌ valuesPendientes es null!');
+      return;
+    }
 
     setIsSaving(true);
     try {
+      console.log('🟠 [confirmarGuardarProveedorNuevo] Creando proveedor...');
       const createProveedorPayload = {
         razonSocial: valuesPendientes.razonSocialProveedor,
         rfc: valuesPendientes.rfcProveedor || null,
@@ -881,15 +881,21 @@ export default function CrearOrdenCompra() {
         sinDatosFiscales: valuesPendientes.sinDatosFiscales,
       };
       const provResponse = await API.post<ApiResponse<Proveedor>>('/catalogos/Proveedores', createProveedorPayload);
+      console.log('🟠 [confirmarGuardarProveedorNuevo] Response crear proveedor:', JSON.stringify(provResponse.data, null, 2));
+      
       if (!provResponse.data.success || !provResponse.data.data) {
+        console.error('🟠 [confirmarGuardarProveedorNuevo] ❌ Error al crear proveedor:', provResponse.data.message);
         toast.error(provResponse.data.message ?? 'Error al registrar el proveedor');
         setIsSaving(false);
         return;
       }
       const newProveedorId = provResponse.data.data.idProveedor;
+      console.log('🟠 [confirmarGuardarProveedorNuevo] ✅ Proveedor creado con id:', newProveedorId);
       setSelectedProveedorId(newProveedorId);
-      await guardarOrden(valuesPendientes, newProveedorId);
+      valuesPendientes.idProveedor = newProveedorId;
+      await guardarOrden(valuesPendientes);
     } catch (error) {
+      console.error('🟠 [confirmarGuardarProveedorNuevo] 🔴 ERROR:', error);
       const apiError = error as { errors?: Array<{ description: string }>; message?: string };
       toast.error(apiError.message ?? 'Error al registrar el proveedor');
       setIsSaving(false);
@@ -1038,7 +1044,7 @@ export default function CrearOrdenCompra() {
                   control={form.control}
                   name="sinDatosFiscales"
                   render={({ field }) => (
-                    <FormItem className="bg-muted/30 flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormItem className="bg-muted/30 flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4 hidden">
                       <FormControl>
                         <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                       </FormControl>
@@ -1119,12 +1125,6 @@ export default function CrearOrdenCompra() {
                               setBuscado(false);
                               setSelectedIndex(0);
                             }
-                          } else if (busqueda.length > 0) {
-                            field.onChange(busqueda);
-                            setOpen(false);
-                            setBusqueda('');
-                            setBuscado(false);
-                            setSelectedIndex(0);
                           }
                         }
                       };
@@ -1182,51 +1182,11 @@ export default function CrearOrdenCompra() {
                                       Buscando...
                                     </div>
                                   ) : buscado && proveedores.length === 0 ? (
-                                    <CommandGroup heading="Nuevo proveedor">
-                                      <CommandItem
-                                        value="__nuevo__"
-                                        onSelect={() => {
-                                          field.onChange(busqueda);
-                                          setOpen(false);
-                                          setBusqueda('');
-                                          setBuscado(false);
-                                          setSelectedIndex(0);
-                                        }}
-                                        className="flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100"
-                                      >
-                                        <span className="font-medium text-primary">
-                                          + Usar "{busqueda}"
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          Se creará como proveedor nuevo
-                                        </span>
-                                      </CommandItem>
-                                    </CommandGroup>
+                                    <div className="py-4 text-center text-sm text-muted-foreground">
+                                      No se encontraron proveedores
+                                    </div>
                                   ) : proveedores.length > 0 ? (
                                     <>
-                                      <CommandGroup heading="Ocupar:">
-                                        <CommandItem
-                                          value="__nuevo__"
-                                          onSelect={() => {
-                                            field.onChange(busqueda);
-                                            setOpen(false);
-                                            setBusqueda('');
-                                            setBuscado(false);
-                                            setSelectedIndex(0);
-                                          }}
-                                          className={cn(
-                                            'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100 hover:shadow-sm',
-                                            selectedIndex === 0 && 'bg-slate-100'
-                                          )}
-                                        >
-                                          <span className="hover:text-primary/80 font-medium text-primary transition-colors">
-                                            + Usar "{busqueda}"
-                                          </span>
-                                          <span className="text-xs text-muted-foreground">
-                                            Crear como proveedor nuevo
-                                          </span>
-                                        </CommandItem>
-                                      </CommandGroup>
                                       <CommandGroup heading="Proveedores encontrados">
                                         {proveedores.map((proveedor, index) => (
                                           <CommandItem
@@ -1259,314 +1219,62 @@ export default function CrearOrdenCompra() {
                               </Command>
                             </PopoverContent>
                           </Popover>
-                          <FormDescription className="text-xs">
-                            Escribe para buscar un proveedor existente o crea uno nuevo
-                          </FormDescription>
+<FormDescription className="text-xs">
+                                    Busca y selecciona un proveedor existente
+                                  </FormDescription>
                           <FormMessage />
                         </FormItem>
                       );
                     }}
                   />
-                </div>
-              </FormSection>
-              )}
-
-              {!agregarProveedorPorPartida && !sinDatosFiscales && (
-                <FormSection icon={FileText} title="Datos Fiscales">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <FormField
-                      control={form.control}
-                      name="rfcProveedor"
-                      render={({ field }) => {
-                        const [open, setOpen] = useState(false);
-                        const [busquedaRfc, setBusquedaRfc] = useState('');
-                        const [buscadoRfc, setBuscadoRfc] = useState(false);
-                        const [selectedIndexRfc, setSelectedIndexRfc] = useState(0);
-
-                        const handleBuscarRfc = (valor: string) => {
-                          setBusquedaRfc(valor);
-                          setBuscadoRfc(false);
-                          setSelectedIndexRfc(0);
-                          if (valor.length >= 1) {
-                            setBuscadoRfc(true);
-                            buscarProveedores(valor, 'rfc');
-                          }
-                        };
-
-                        const handleKeyDownRfc = (e: React.KeyboardEvent) => {
-                          if (e.key === 'ArrowDown') {
-                            e.preventDefault();
-                            const totalOptions =
-                              proveedores.length + (busquedaRfc.length > 0 ? 1 : 0);
-                            setSelectedIndexRfc((prev) => (prev + 1) % totalOptions);
-                          } else if (e.key === 'ArrowUp') {
-                            e.preventDefault();
-                            const totalOptions =
-                              proveedores.length + (busquedaRfc.length > 0 ? 1 : 0);
-                            setSelectedIndexRfc((prev) => (prev - 1 + totalOptions) % totalOptions);
-                          } else if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (selectedIndexRfc < proveedores.length && proveedores.length > 0) {
-                              const proveedor = proveedores[selectedIndexRfc];
-                              if (proveedor) {
-                                seleccionarProveedor(proveedor);
-                                setOpen(false);
-                                setBusquedaRfc('');
-                                setBuscadoRfc(false);
-                                setSelectedIndexRfc(0);
-                              }
-                            } else if (busquedaRfc.length > 0) {
-                              field.onChange(busquedaRfc.toUpperCase());
-                              setOpen(false);
-                              setBusquedaRfc('');
-                              setBuscadoRfc(false);
-                              setSelectedIndexRfc(0);
-                            }
-                          }
-                        };
-
-                        return (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>Buscar por RFC *</FormLabel>
-                            <Popover
-                              open={open}
-                              onOpenChange={(isOpen) => {
-                                setOpen(isOpen);
-                                if (isOpen) {
-                                  setBusquedaRfc('');
-                                  setBuscadoRfc(false);
-                                  setSelectedIndexRfc(0);
-                                  setProveedores([]);
-                                }
-                              }}
-                            >
-                              <PopoverTrigger asChild>
-                                <FormControl>
-                                  <Button
-                                    variant="outline"
-                                    role="combobox"
-                                    aria-expanded={open}
-                                    className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
-                                  >
-                                    <span className={cn('truncate', !field.value && 'text-muted-foreground')}>
-                                      {field.value || 'Escribe para buscar...'}
-                                    </span>
-                                    <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
-                                  </Button>
-                                </FormControl>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-[400px] p-0" align="start">
-                                <Command
-                                  shouldFilter={false}
-                                  className="rounded-lg border shadow-md"
-                                >
-                                  <div className="flex items-center border-b bg-slate-50 px-3 py-2">
-                                    <Search className="mr-2 h-4 w-4 text-slate-400" />
-                                    <CommandInput
-                                      placeholder="Escribe RFC para buscar..."
-                                      value={busquedaRfc}
-                                      onValueChange={handleBuscarRfc}
-                                      onKeyDown={handleKeyDownRfc}
-                                      className="flex-1 bg-transparent outline-none placeholder:text-slate-400"
-                                    />
-                                  </div>
-                                  <CommandList className="max-h-[300px] overflow-auto">
-                                    {busquedaRfc.length === 0 ? (
-                                      <div className="py-4 text-center text-sm text-muted-foreground">
-                                        Escribe para buscar proveedores
-                                      </div>
-                                    ) : buscandoProveedor ? (
-                                      <div className="py-4 text-center text-sm text-muted-foreground">
-                                        <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
-                                        Buscando...
-                                      </div>
-                                    ) : buscadoRfc && proveedores.length === 0 ? (
-                                      <CommandGroup heading="Nuevo proveedor">
-                                        <CommandItem
-                                          value="__nuevo__"
-                                          onSelect={() => {
-                                            field.onChange(busquedaRfc.toUpperCase());
-                                            setOpen(false);
-                                            setBusquedaRfc('');
-                                            setBuscadoRfc(false);
-                                            setSelectedIndexRfc(0);
-                                          }}
-                                          className="flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100"
-                                        >
-                                          <span className="font-medium text-primary">
-                                            + Usar "{busquedaRfc.toUpperCase()}"
-                                          </span>
-                                          <span className="text-xs text-muted-foreground">
-                                            Se creará como proveedor nuevo
-                                          </span>
-                                        </CommandItem>
-                                      </CommandGroup>
-                                    ) : proveedores.length > 0 ? (
-                                      <>
-                                        <CommandGroup heading="Ocupar:">
-                                          <CommandItem
-                                            value="__nuevo__"
-                                            onSelect={() => {
-                                              field.onChange(busquedaRfc.toUpperCase());
-                                              setOpen(false);
-                                              setBusquedaRfc('');
-                                              setBuscadoRfc(false);
-                                              setSelectedIndexRfc(0);
-                                            }}
-                                            className={cn(
-                                              'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100 hover:shadow-sm',
-                                              selectedIndexRfc === 0 && 'bg-slate-100'
-                                            )}
-                                          >
-                                            <span className="hover:text-primary/80 font-medium text-primary transition-colors">
-                                              + Usar "{busquedaRfc.toUpperCase()}"
-                                            </span>
-                                            <span className="text-xs text-muted-foreground">
-                                              Crear como proveedor nuevo
-                                            </span>
-                                          </CommandItem>
-                                        </CommandGroup>
-                                        <CommandGroup heading="Proveedores encontrados">
-                                          {proveedores.map((proveedor, index) => (
-                                            <CommandItem
-                                              key={proveedor.idProveedor}
-                                              value={String(proveedor.idProveedor)}
-                                              onSelect={() => {
-                                                seleccionarProveedor(proveedor);
-                                                setOpen(false);
-                                                setBusquedaRfc('');
-                                                setBuscadoRfc(false);
-                                                setSelectedIndexRfc(0);
-                                              }}
-                                              className={cn(
-                                                'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100 hover:shadow-sm',
-                                                index + 1 === selectedIndexRfc && 'bg-slate-100'
-                                              )}
-                                            >
-                                              <span className="font-medium">
-                                                {proveedor.rfc}
-                                              </span>
-                                              <span className="text-xs text-muted-foreground">
-                                                {proveedor.razonSocial}
-                                              </span>
-                                            </CommandItem>
-                                          ))}
-                                        </CommandGroup>
-                                      </>
-                                    ) : null}
-                                  </CommandList>
-                                </Command>
-                              </PopoverContent>
-                            </Popover>
-                            <FormDescription className="text-xs">
-                              Escribe para buscar un proveedor existente o crea uno nuevo
-                            </FormDescription>
-                            <FormMessage />
-                          </FormItem>
-                        );
-                      }}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="codigoPostalProveedor"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Código Postal *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="00000" maxLength={5} {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="idRegimenFiscal"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Régimen Fiscal *</FormLabel>
-                          <Select
-                            onValueChange={(val) => field.onChange(Number(val))}
-                            value={field.value ? String(field.value) : ''}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona régimen fiscal..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {regimenesFiscales.map((r) => (
-                                <SelectItem
-                                  key={r.idRegimenFiscal}
-                                  value={String(r.idRegimenFiscal)}
-                                >
-                                  {r.clave} - {r.descripcion}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="usoCFDI"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Uso del CFDI *</FormLabel>
-                          <Select
-                            onValueChange={(val) => field.onChange(val)}
-                            value={field.value || ''}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona uso del CFDI..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="G01">G01 - Adquisición de mercancías</SelectItem>
-                              <SelectItem value="G02">
-                                G02 - Devoluciones, descuentos o bonificaciones
-                              </SelectItem>
-                              <SelectItem value="G03">G03 - Gastos en general</SelectItem>
-                              <SelectItem value="I01">I01 - Construcciones</SelectItem>
-                              <SelectItem value="I02">
-                                I02 - Mobiliario y equipo de oficina
-                              </SelectItem>
-                              <SelectItem value="I03">I03 - Equipo de transporte</SelectItem>
-                              <SelectItem value="I04">I04 - Equipo de cómputo</SelectItem>
-                              <SelectItem value="D01">D01 - Honorarios médicos</SelectItem>
-                              <SelectItem value="D02">
-                                D02 - Gastos médicos por incapacidad
-                              </SelectItem>
-                              <SelectItem value="S01">S01 - Sin efectos fiscales</SelectItem>
-                              <SelectItem value="P01">P01 - Por definir</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormDescription className="text-xs">
-                            Cómo debe facturarte el proveedor
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </FormSection>
-              )}
-
-              {!agregarProveedorPorPartida && (
-                <FormSection icon={User} title="Contacto">
-                <div className="grid grid-cols-1 gap-4">
                   <FormField
                     control={form.control}
-                    name="personaContacto"
+                    name="idsCuentasBancarias"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Persona de Contacto</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nombre de quien atiende esta orden" {...field} />
-                        </FormControl>
+                        <FormLabel>Cuentas Bancarias</FormLabel>
+                        <div className="space-y-2 rounded-md border p-3">
+                          {cuentasBancarias.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              {selectedProveedorId > 0
+                                ? 'Este proveedor no tiene cuentas bancarias activas'
+                                : 'Seleccione primero un proveedor'}
+                            </p>
+                          ) : (
+                            cuentasBancarias.map((cuenta) => {
+                              const isChecked = selectedCuentasBancariasIds.includes(cuenta.idCuen);
+                              return (
+                                <div key={cuenta.idCuen} className="flex items-center space-x-3">
+                                  <Checkbox
+                                    checked={isChecked}
+                                    onCheckedChange={(checked) => {
+                                      const newSelected = checked
+                                        ? [...selectedCuentasBancariasIds, cuenta.idCuen]
+                                        : selectedCuentasBancariasIds.filter((id) => id !== cuenta.idCuen);
+                                      setSelectedCuentasBancariasIds(newSelected);
+                                      field.onChange(newSelected.length > 0 ? newSelected : null);
+                                    }}
+                                    id={`cuenta-header-${cuenta.idCuen}`}
+                                  />
+                                  <label
+                                    htmlFor={`cuenta-header-${cuenta.idCuen}`}
+                                    className="flex flex-1 cursor-pointer items-center justify-between text-sm"
+                                  >
+                                    <span className="font-medium">
+                                      {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {cuenta.formaPagoNombre || ''}
+                                    </span>
+                                  </label>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                        <FormDescription className="text-xs">
+                          Seleccione una o más cuentas bancarias del proveedor para realizar el pago
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1574,6 +1282,8 @@ export default function CrearOrdenCompra() {
                 </div>
               </FormSection>
               )}
+
+
             </CardContent>
           </Card>
           <Card>
@@ -1604,33 +1314,6 @@ export default function CrearOrdenCompra() {
                           {tiposGasto.map((g) => (
                             <SelectItem key={g.idGasto} value={String(g.idGasto)}>
                               {g.nombre}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="idFormaPago"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Forma de Pago *</FormLabel>
-                      <Select
-                        onValueChange={(val) => field.onChange(Number(val))}
-                        value={field.value ? String(field.value) : ''}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecciona forma de pago..." />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {formasPago.map((fp) => (
-                            <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
-                              {fp.nombre}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1958,18 +1641,6 @@ export default function CrearOrdenCompra() {
                         />
                         <FormField
                           control={form.control}
-                          name={`partidas.${index}.deducible`}
-                          render={({ field }) => (
-                            <FormItem className="col-span-2 flex h-full items-center justify-end gap-2 pb-2 md:col-span-1 md:flex-col md:items-start md:justify-start md:pb-0">
-                              <FormLabel className="!mt-0 md:mt-2">Deducible</FormLabel>
-                              <FormControl>
-                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
                           name={`partidas.${index}.requiereFactura`}
                           render={({ field }) => (
                             <FormItem className="col-span-2 flex h-full items-center justify-end gap-2 pb-2 md:col-span-1 md:flex-col md:items-start md:justify-start md:pb-0">
@@ -1991,7 +1662,7 @@ export default function CrearOrdenCompra() {
                           </div>
                           <FormField
                             control={form.control}
-                            name={`partidas.${index}.proveedorPartida`}
+                            name={`partidas.${index}.idProveedor`}
                             render={({ field }) => {
                               const [open, setOpen] = useState(false);
                               const [busqueda, setBusqueda] = useState('');
@@ -2009,27 +1680,31 @@ export default function CrearOrdenCompra() {
                               const handleKeyDown = (e: React.KeyboardEvent) => {
                                 if (e.key === 'ArrowDown') {
                                   e.preventDefault();
-                                  const total = partidaProveedores.length + (busqueda.length > 0 ? 1 : 0);
-                                  setSelectedIndex((prev) => (prev + 1) % total);
+                                  const total = partidaProveedores.length;
+                                  if (total > 0) {
+                                    setSelectedIndex((prev) => (prev + 1) % total);
+                                  }
                                 } else if (e.key === 'ArrowUp') {
                                   e.preventDefault();
-                                  const total = partidaProveedores.length + (busqueda.length > 0 ? 1 : 0);
-                                  setSelectedIndex((prev) => (prev - 1 + total) % total);
+                                  const total = partidaProveedores.length;
+                                  if (total > 0) {
+                                    setSelectedIndex((prev) => (prev - 1 + total) % total);
+                                  }
                                 } else if (e.key === 'Enter') {
                                   e.preventDefault();
                                   if (selectedIndex < partidaProveedores.length && partidaProveedores.length > 0) {
-                                    field.onChange(partidaProveedores[selectedIndex].razonSocial);
-                                    setOpen(false);
-                                    setBusqueda('');
-                                    setBuscado(false);
-                                  } else if (busqueda.length > 0) {
-                                    field.onChange(busqueda);
+                                    const prov = partidaProveedores[selectedIndex];
+                                    field.onChange(prov.idProveedor);
+                                    form.setValue(`partidas.${index}.idsCuentasBancarias`, []);
                                     setOpen(false);
                                     setBusqueda('');
                                     setBuscado(false);
                                   }
                                 }
                               };
+
+                              const selectedProveedorPartidaId = field.value;
+                              const selectedProv = proveedores.find((pr) => pr.idProveedor === selectedProveedorPartidaId);
 
                               return (
                                 <FormItem className="flex flex-col">
@@ -2043,7 +1718,7 @@ export default function CrearOrdenCompra() {
                                           className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
                                         >
                                           <span className={cn('truncate', !field.value && 'text-muted-foreground')}>
-                                            {field.value || 'Seleccionar o buscar proveedor...'}
+                                            {selectedProv ? selectedProv.razonSocial : 'Seleccionar o buscar proveedor...'}
                                           </span>
                                           <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
                                         </Button>
@@ -2075,18 +1750,18 @@ export default function CrearOrdenCompra() {
                                               Escribe para buscar proveedores
                                             </div>
                                           ) : partidaProveedores.length > 0 ? (
-                                            <>
                                               <CommandGroup heading="Proveedores">
                                                 {partidaProveedores.map((prov, idx) => (
                                                   <CommandItem
                                                     key={prov.idProveedor}
                                                     value={String(prov.idProveedor)}
-                                                    onSelect={() => {
-                                                      field.onChange(prov.razonSocial);
-                                                      setOpen(false);
-                                                      setBusqueda('');
-                                                      setBuscado(false);
-                                                    }}
+                                                onSelect={() => {
+                                                  field.onChange(prov.idProveedor);
+                                                  form.setValue(`partidas.${index}.idsCuentasBancarias`, []);
+                                                  setOpen(false);
+                                                  setBusqueda('');
+                                                  setBuscado(false);
+                                                }}
                                                     className={cn(
                                                       'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100',
                                                       idx === selectedIndex && 'bg-slate-100'
@@ -2099,41 +1774,78 @@ export default function CrearOrdenCompra() {
                                                   </CommandItem>
                                                 ))}
                                               </CommandGroup>
-                                              <CommandItem
-                                                value="__nuevo__"
-                                                onSelect={() => {
-                                                  field.onChange(busqueda);
-                                                  setOpen(false);
-                                                  setBusqueda('');
-                                                  setBuscado(false);
-                                                }}
-                                                className="flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100"
-                                              >
-                                                <span className="font-medium text-primary">
-                                                  + Usar "{busqueda}"
-                                                </span>
-                                              </CommandItem>
-                                            </>
-                                          ) : (
-                                            <CommandItem
-                                              value="__nuevo__"
-                                              onSelect={() => {
-                                                field.onChange(busqueda);
-                                                setOpen(false);
-                                                setBusqueda('');
-                                                setBuscado(false);
-                                              }}
-                                              className="flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100"
-                                            >
-                                              <span className="font-medium text-primary">
-                                                + Usar "{busqueda}"
-                                              </span>
-                                            </CommandItem>
-                                          )}
+                                            ) : (
+                                              <div className="py-4 text-center text-sm text-muted-foreground">
+                                                No se encontraron proveedores
+                                              </div>
+                                            )}
                                         </CommandList>
                                       </Command>
                                     </PopoverContent>
                                   </Popover>
+                                  <FormMessage />
+                                </FormItem>
+                              );
+                            }}
+                          />
+                          <FormField
+                            control={form.control}
+                            name={`partidas.${index}.idsCuentasBancarias`}
+                            render={({ field }) => {
+                              const selectedProveedorPartidaId = useWatch({
+                                control: form.control,
+                                name: `partidas.${index}.idProveedor`,
+                              });
+                              const partidaCuentasBancarias = useMemo(() => {
+                                if (!selectedProveedorPartidaId) return [];
+                                const prov = proveedores.find((p) => p.idProveedor === selectedProveedorPartidaId);
+                                if (!prov?.cuentasFormaPago) return [];
+                                return prov.cuentasFormaPago.filter((c: ProveedorCuentaBancaria) => c.activo);
+                              }, [selectedProveedorPartidaId, proveedores]);
+
+                              const selectedCuentasIds = field.value || [];
+
+                              return (
+                                <FormItem>
+                                  <FormLabel>Cuentas Bancarias del Proveedor</FormLabel>
+                                  <div className="space-y-2 rounded-md border p-3">
+                                    {partidaCuentasBancarias.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground">
+                                        {!selectedProveedorPartidaId
+                                          ? 'Seleccione primero un proveedor'
+                                          : 'Este proveedor no tiene cuentas bancarias activas'}
+                                      </p>
+                                    ) : (
+                                      partidaCuentasBancarias.map((cuenta) => {
+                                        const isChecked = selectedCuentasIds.includes(cuenta.idCuen);
+                                        return (
+                                          <div key={cuenta.idCuen} className="flex items-center space-x-3">
+                                            <Checkbox
+                                              checked={isChecked}
+                                              onCheckedChange={(checked) => {
+                                                const newSelected = checked
+                                                  ? [...selectedCuentasIds, cuenta.idCuen]
+                                                  : selectedCuentasIds.filter((id) => id !== cuenta.idCuen);
+                                                field.onChange(newSelected.length > 0 ? newSelected : null);
+                                              }}
+                                              id={`cuenta-partida-${index}-${cuenta.idCuen}`}
+                                            />
+                                            <label
+                                              htmlFor={`cuenta-partida-${index}-${cuenta.idCuen}`}
+                                              className="flex flex-1 cursor-pointer items-center justify-between text-sm"
+                                            >
+                                              <span className="font-medium">
+                                                {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
+                                              </span>
+                                              <span className="text-xs text-muted-foreground">
+                                                {cuenta.formaPagoNombre || ''}
+                                              </span>
+                                            </label>
+                                          </div>
+                                        );
+                                      })
+                                    )}
+                                  </div>
                                   <FormMessage />
                                 </FormItem>
                               );
@@ -2264,7 +1976,19 @@ export default function CrearOrdenCompra() {
             <Button
               type="button"
               disabled={isSaving}
-              onClick={form.handleSubmit(handleSave)}
+              onClick={() => {
+                console.log('🔵 [BOTON GUARDAR] ===== CLICK EN BOTON GUARDAR ORDEN =====');
+                console.log('🔵 [BOTON GUARDAR] isSaving:', isSaving);
+                form.handleSubmit(
+                  (values) => {
+                    console.log('🔵 [BOTON GUARDAR] ✅ Validación PASÓ, llamando handleSave...');
+                    handleSave(values);
+                  },
+                  (errors) => {
+                    console.log('🔴 [BOTON GUARDAR] ❌ Validación FALLÓ:', JSON.stringify(errors, null, 2));
+                  }
+                )();
+              }}
               size="lg"
             >
               {isSaving ? (

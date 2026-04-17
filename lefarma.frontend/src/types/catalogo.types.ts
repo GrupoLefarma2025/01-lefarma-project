@@ -1,4 +1,4 @@
-﻿// ─── Empresa ─────────────────────────────────────────────────────────────────
+// ─── Empresa ─────────────────────────────────────────────────────────────────
 
 
 export interface Empresa {
@@ -136,4 +136,31 @@ export interface Gasto {
   fechaCreacion: string;
   fechaModificacion?: string;
   unidadesMedida?: UnidadMedida[];
+}
+
+// ─── Banco ────────────────────────────────────────────────────────────────────
+
+export interface Banco {
+  idBanco: number;
+  nombre: string;
+  clave: string;
+  codigoSwift?: string;
+  activo: boolean;
+}
+
+// ─── Proveedor Cuenta Bancaria ────────────────────────────────────────────────
+
+export interface ProveedorCuentaBancaria {
+  idCuen: number;
+  idProveedor: number;
+  idFormaPago: number;
+  formaPagoNombre?: string;
+  idBanco?: number;
+  bancoNombre?: string;
+  numeroCuenta?: string;
+  clabe?: string;
+  numeroTarjeta?: string;
+  beneficiario?: string;
+  correoNotificacion?: string;
+  activo: boolean;
 }

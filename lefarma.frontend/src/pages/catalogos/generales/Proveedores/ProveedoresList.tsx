@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { resetConfig } from '@/lib/tableConfigStorage';
@@ -51,6 +51,10 @@ const proveedorSchema = z.object({
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   usoCfdi: z.string().optional(),
+  personaContactoNombre: z.string().optional(),
+  contactoTelefono: z.string().optional(),
+  contactoEmail: z.string().optional(),
+  comentario: z.string().optional(),
 });
 
 interface ProveedorMetadata {
@@ -167,6 +171,10 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
+      personaContactoNombre: '',
+      contactoTelefono: '',
+      contactoEmail: '',
+      comentario: '',
     },
   });
 
@@ -240,6 +248,10 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
+      personaContactoNombre: '',
+      contactoTelefono: '',
+      contactoEmail: '',
+      comentario: '',
     });
     setCuentasFormaPago([]);
     setIsEditing(false);
@@ -256,6 +268,10 @@ export default function ProveedoresList() {
         codigoPostal: proveedor.codigoPostal || '',
         regimenFiscalId: proveedor.regimenFiscalId,
         usoCfdi: proveedor.usoCfdi || '',
+        personaContactoNombre: proveedor.detalle?.personaContactoNombre || '',
+        contactoTelefono: proveedor.detalle?.contactoTelefono || '',
+        contactoEmail: proveedor.detalle?.contactoEmail || '',
+        comentario: proveedor.detalle?.comentario || '',
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
       setIsEditing(true);
@@ -266,9 +282,17 @@ export default function ProveedoresList() {
   const handleSaveProveedor = async (values: ProveedorFormValues) => {
     setIsSaving(true);
     try {
-      const payload: ProveedorRequest & { cuentasFormaPago: ProveedorFormaPagoCuenta[] } = {
+      const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...proveedorData } = values;
+      const detalle = {
+        personaContactoNombre: personaContactoNombre || null,
+        contactoTelefono: contactoTelefono || null,
+        contactoEmail: contactoEmail || null,
+        comentario: comentario || null,
+      };
+      const payload = {
         idProveedor: proveedorId,
-        ...values,
+        ...proveedorData,
+        detalle: (personaContactoNombre || contactoTelefono || contactoEmail || comentario) ? detalle : null,
         cuentasFormaPago,
       };
 
@@ -687,6 +711,67 @@ export default function ProveedoresList() {
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wide">Datos de Contacto</h4>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="personaContactoNombre"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Persona de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre de la persona de contacto" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactoTelefono"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Teléfono de contacto" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactoEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Email de contacto" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="comentario"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Comentario</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Comentario adicional" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             {/* Cuentas Forma de Pago */}

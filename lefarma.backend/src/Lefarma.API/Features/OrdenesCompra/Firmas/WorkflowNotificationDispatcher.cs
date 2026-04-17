@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas;
 
-// @lat: [[notificaciones#Workflow Notification Dispatcher]]
+// @lat: [[lat.md\workflow#Workflow de Órdenes de Compra#Notificaciones#Workflow Notification Dispatcher]]
 public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 {
     private readonly INotificationService _notificationService;

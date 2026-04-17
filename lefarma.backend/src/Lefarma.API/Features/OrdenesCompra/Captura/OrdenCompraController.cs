@@ -21,6 +21,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
+        private bool TienePermiso(string permiso) =>
+            User.Claims.Any(c => c.Type == "permission" && c.Value == permiso);
+
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener ordenes de compra con filtros")]
         public async Task<IActionResult> GetAll(OrdenCompraRequest? query)
@@ -29,7 +32,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             {
                 query = new OrdenCompraRequest();
             }
-            var result = await _service.GetAllAsync(query, GetUserId());
+            var puedeVerTodas = TienePermiso("orden_compra.puede_ver_todas_las_ordenes");
+            var result = await _service.GetAllAsync(query, GetUserId(), puedeVerTodas);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
             { Success = true, Message = "�rdenes obtenidas exitosamente.", Data = data }));
         }
