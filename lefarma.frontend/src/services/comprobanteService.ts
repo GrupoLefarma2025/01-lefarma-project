@@ -76,9 +76,9 @@ export const comprobanteService = {
     return res.data.data!;
   },
 
-  async getPartidasPendientes(idOrden: number): Promise<PartidaPendienteResponse[]> {
+  async getPartidasPendientes(idOrden: number, categoria: string = 'gasto'): Promise<PartidaPendienteResponse[]> {
     const res = await API.get<ApiResponse<PartidaPendienteResponse[]>>(
-      `${BASE}/partidas-pendientes?idOrden=${idOrden}`
+      `${BASE}/partidas-pendientes?idOrden=${idOrden}&categoria=${categoria}`
     );
     return res.data.data ?? [];
   },

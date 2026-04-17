@@ -107,9 +107,9 @@ public class ComprobanteController : ControllerBase
     /// </summary>
     [HttpGet("partidas-pendientes")]
     [SwaggerOperation(Summary = "Partidas pendientes de facturación de una orden")]
-    public async Task<IActionResult> GetPartidasPendientes([FromQuery] int idOrden, CancellationToken ct)
+    public async Task<IActionResult> GetPartidasPendientes([FromQuery] int idOrden, [FromQuery] string categoria = "gasto", CancellationToken ct = default)
     {
-        var result = await _service.GetPartidasPendientesAsync(idOrden, ct);
+        var result = await _service.GetPartidasPendientesAsync(idOrden, categoria, ct);
         return result.ToActionResult(this, data => Ok(new ApiResponse<List<PartidaPendienteResponse>>
         {
             Success = true, Message = "Partidas pendientes obtenidas", Data = data

@@ -263,6 +263,7 @@ export default function AutorizacionesOC() {
 
   // Facturación tab state
   const [partidasPendientes, setPartidasPendientes] = useState<PartidaPendienteResponse[]>([]);
+  const [partidasPendientesPago, setPartidasPendientesPago] = useState<PartidaPendienteResponse[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(false);
   const [isSubirComprobanteOpen, setIsSubirComprobanteOpen] = useState(false);
   const [isSubirComprobantePagoOpen, setIsSubirComprobantePagoOpen] = useState<string | null>(null);
@@ -335,10 +336,15 @@ export default function AutorizacionesOC() {
   const fetchPartidasPendientes = async (idOrden: number) => {
     try {
       setLoadingFacturacion(true);
-      const data = await comprobanteService.getPartidasPendientes(idOrden);
-      setPartidasPendientes(data);
+      const [gasto, pago] = await Promise.all([
+        comprobanteService.getPartidasPendientes(idOrden, 'gasto'),
+        comprobanteService.getPartidasPendientes(idOrden, 'pago'),
+      ]);
+      setPartidasPendientes(gasto);
+      setPartidasPendientesPago(pago);
     } catch {
       setPartidasPendientes([]);
+      setPartidasPendientesPago([]);
     } finally {
       setLoadingFacturacion(false);
     }
@@ -2224,7 +2230,7 @@ export default function AutorizacionesOC() {
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
           totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
-          partidasPendientes={partidasPendientes}
+          partidasPendientes={partidasPendientesPago}
           onComprobanteSubido={(c) => {
             const key = isSubirComprobantePagoOpen;
             setComprobantesWorkflow((prev) => ({
