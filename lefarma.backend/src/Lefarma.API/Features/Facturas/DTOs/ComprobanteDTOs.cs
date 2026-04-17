@@ -84,7 +84,12 @@ public record CfdiPreviewResponse(
     decimal TotalIva,
     decimal TotalRetenciones,
     decimal Total,
-    List<CfdiConceptoPreviewDto> Conceptos
+    List<CfdiConceptoPreviewDto> Conceptos,
+    // Validación SAT (solo cuando se consulta con idOrden; null si solo se parseó el XML)
+    bool?   SatContactado    = null,   // true si el SAT respondió
+    string? SatEstado        = null,   // "Vigente" | "Cancelado" | "No Encontrado"
+    string? SatCodigoEstatus = null,   // Descripción del código S/N
+    string? SatCancelacion   = null    // Estado de cancelación (null si Vigente)
 );
 
 public record CfdiConceptoPreviewDto(

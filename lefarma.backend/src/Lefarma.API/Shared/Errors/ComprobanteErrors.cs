@@ -29,5 +29,13 @@ public static partial class Errors
 
         public static Error PartidaNotFound(int idPartida) => Error.NotFound(
             "Comprobante.PartidaNotFound", $"La partida {idPartida} no fue encontrada");
+
+        public static Error SatNoVigente(string estado) => Error.Validation(
+            "Comprobante.SatNoVigente",
+            $"El CFDI no puede ser registrado. Estado SAT: {estado}. Solo se aceptan CFDIs con estado Vigente.");
+
+        public static Error SatNoDisponible => Error.Failure(
+            "Comprobante.SatNoDisponible",
+            "No fue posible validar el CFDI con el SAT. Verifique su conexión a internet o intente nuevamente.");
     }
 }

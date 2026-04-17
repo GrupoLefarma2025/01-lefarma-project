@@ -5,6 +5,7 @@ using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Facturas.DTOs;
 using Lefarma.API.Features.Facturas.Parsing;
+using Lefarma.API.Features.Facturas.SatValidation;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
@@ -26,31 +27,49 @@ public class ComprobanteService : IComprobanteService
     private readonly ApplicationDbContext _db;
     private readonly IComprobanteRepository _repo;
     private readonly IArchivoService _archivoService;
+    private readonly ISatValidationService _sat;
     private readonly ILogger<ComprobanteService> _logger;
 
     public ComprobanteService(
         ApplicationDbContext db,
         IComprobanteRepository repo,
         IArchivoService archivoService,
+        ISatValidationService sat,
         ILogger<ComprobanteService> logger)
     {
         _db = db;
         _repo = repo;
         _archivoService = archivoService;
+        _sat = sat;
         _logger = logger;
     }
 
-    public Task<ErrorOr<CfdiPreviewResponse>> ParsearXmlAsync(string xmlContent)
+    public async Task<ErrorOr<CfdiPreviewResponse>> ParsearXmlAsync(string xmlContent)
     {
+        CfdiPreviewResponse preview;
         try
         {
-            var preview = CfdiParser.Parse(xmlContent);
-            return Task.FromResult<ErrorOr<CfdiPreviewResponse>>(preview);
+            preview = CfdiParser.Parse(xmlContent);
         }
         catch (FormatException)
         {
-            return Task.FromResult<ErrorOr<CfdiPreviewResponse>>(Errors.Comprobante.XmlInvalido);
+            return Errors.Comprobante.XmlInvalido;
         }
+
+        // Consultar estado en el SAT si el CFDI tiene los campos mínimos
+        if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
+        {
+            var sat = await _sat.ValidarAsync(preview.Uuid, preview.RfcEmisor, preview.RfcReceptor, preview.Total);
+            preview = preview with
+            {
+                SatContactado    = sat.Contactado,
+                SatEstado        = sat.Estado,
+                SatCodigoEstatus = sat.CodigoEstatus,
+                SatCancelacion   = sat.EstatusCancelacion,
+            };
+        }
+
+        return preview;
     }
 
     public async Task<ErrorOr<ComprobanteResponse>> SubirAsync(
@@ -76,6 +95,16 @@ public class ComprobanteService : IComprobanteService
 
             if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
                 return Errors.Comprobante.UuidDuplicado;
+
+            // Validación obligatoria con el SAT
+            if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
+            {
+                var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
+                if (!sat.Contactado)
+                    return Errors.Comprobante.SatNoDisponible;
+                if (!sat.EsVigente)
+                    return Errors.Comprobante.SatNoVigente(sat.Estado ?? "Desconocido");
+            }
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
