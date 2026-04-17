@@ -18,7 +18,7 @@ public interface IComprobanteService
 
     Task<ErrorOr<List<ComprobanteConceptoResponse>>> GetConceptosAsync(int idComprobante, CancellationToken ct = default);
 
-    Task<ErrorOr<List<PartidaPendienteResponse>>> GetPartidasPendientesAsync(int idOrden, CancellationToken ct = default);
+    Task<ErrorOr<List<PartidaPendienteResponse>>> GetPartidasPendientesAsync(int idOrden, string categoria = "gasto", CancellationToken ct = default);
 
     Task<ErrorOr<ComprobanteResponse>> AsignarPartidasAsync(
         int idComprobante,

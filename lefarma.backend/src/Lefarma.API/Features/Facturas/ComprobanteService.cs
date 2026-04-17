@@ -227,14 +227,54 @@ public class ComprobanteService : IComprobanteService
         return c.Conceptos.Select(MapConcepto).ToList();
     }
 
-    public async Task<ErrorOr<List<PartidaPendienteResponse>>> GetPartidasPendientesAsync(int idOrden, CancellationToken ct = default)
+    public async Task<ErrorOr<List<PartidaPendienteResponse>>> GetPartidasPendientesAsync(int idOrden, string categoria = "gasto", CancellationToken ct = default)
     {
-        var partidas = await _db.OrdenesCompraPartidas
+        if (categoria == "pago")
+        {
+            // Para comprobantes de pago: mostrar TODAS las partidas de la orden.
+            // El importe pendiente se calcula en base a los pagos ya asignados (independiente de facturación).
+            var partidas = await _db.OrdenesCompraPartidas
+                .Include(p => p.Orden)
+                .Where(p => p.IdOrden == idOrden)
+                .ToListAsync(ct);
+
+            var idPartidas = partidas.Select(p => p.IdPartida).ToList();
+            var pagadoPorPartida = await _db.ComprobantesPartidas
+                .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Comprobante!.Categoria == "pago")
+                .GroupBy(cp => cp.IdPartida)
+                .Select(g => new { IdPartida = g.Key, ImportePagado = g.Sum(cp => cp.ImporteAsignado) })
+                .ToDictionaryAsync(x => x.IdPartida, x => x.ImportePagado, ct);
+
+            return partidas
+                .Select(p =>
+                {
+                    var importePagado = pagadoPorPartida.TryGetValue(p.IdPartida, out var pag) ? pag : 0m;
+                    var importePendiente = Math.Max(0m, p.Total - importePagado);
+                    return new PartidaPendienteResponse(
+                        IdPartida:          p.IdPartida,
+                        NumeroPartida:      p.NumeroPartida,
+                        DescripcionPartida: p.Descripcion,
+                        FolioOrden:         p.Orden?.Folio ?? "",
+                        Cantidad:           p.Cantidad,
+                        PrecioUnitario:     p.PrecioUnitario,
+                        CantidadFacturada:  0m,
+                        ImporteFacturado:   importePagado,
+                        CantidadPendiente:  importePendiente > 0 ? p.Cantidad : 0m,
+                        ImportePendiente:   importePendiente,
+                        EstadoFacturacion:  importePendiente <= 0 ? 2 : (importePagado > 0 ? 1 : 0)
+                    );
+                })
+                .Where(p => p.ImportePendiente > 0)
+                .ToList();
+        }
+
+        // Gasto: filtrar por RequiereFactura y EstadoFacturacion < 2
+        var gastoPartidas = await _db.OrdenesCompraPartidas
             .Include(p => p.Orden)
             .Where(p => p.IdOrden == idOrden && p.RequiereFactura && p.EstadoFacturacion < 2)
             .ToListAsync(ct);
 
-        return partidas.Select(p =>
+        return gastoPartidas.Select(p =>
         {
             var cantFacturada  = p.CantidadFacturada ?? 0m;
             var importeFacturado = p.ImporteFacturado ?? 0m;
@@ -273,18 +313,33 @@ public class ComprobanteService : IComprobanteService
 
             if (partida is null) return Errors.Comprobante.PartidaNotFound(item.IdPartida);
 
-            var importePendientePartida = partida.Total - (partida.ImporteFacturado ?? 0m);
-
-            // Para CFDI: validar también cantidad
-            if (comprobante.EsCfdi)
+            if (comprobante.Categoria == "pago")
             {
-                var cantPendientePartida = partida.Cantidad - (partida.CantidadFacturada ?? 0m);
-                if (item.CantidadAsignada > cantPendientePartida + Tolerancia)
-                    return Errors.Comprobante.SobreCantidad(item.IdPartida);
+                // Para pagos: validar contra el total pagado en esta partida (independiente de facturación)
+                var importeYaPagado = await _db.ComprobantesPartidas
+                    .Where(cp => cp.IdPartida == item.IdPartida
+                              && cp.IdComprobante != idComprobante
+                              && cp.Comprobante!.Categoria == "pago")
+                    .SumAsync(cp => cp.ImporteAsignado, ct);
+                var importePendientePago = partida.Total - importeYaPagado;
+                if (item.ImporteAsignado > importePendientePago + Tolerancia)
+                    return Errors.Comprobante.SobreImporte(item.IdPartida);
             }
+            else
+            {
+                var importePendientePartida = partida.Total - (partida.ImporteFacturado ?? 0m);
 
-            if (item.ImporteAsignado > importePendientePartida + Tolerancia)
-                return Errors.Comprobante.SobreImporte(item.IdPartida);
+                // Para CFDI: validar también cantidad
+                if (comprobante.EsCfdi)
+                {
+                    var cantPendientePartida = partida.Cantidad - (partida.CantidadFacturada ?? 0m);
+                    if (item.CantidadAsignada > cantPendientePartida + Tolerancia)
+                        return Errors.Comprobante.SobreCantidad(item.IdPartida);
+                }
+
+                if (item.ImporteAsignado > importePendientePartida + Tolerancia)
+                    return Errors.Comprobante.SobreImporte(item.IdPartida);
+            }
 
             if (item.IdConcepto.HasValue)
             {
@@ -329,7 +384,8 @@ public class ComprobanteService : IComprobanteService
                 }
 
                 // Actualizar acumulados en partida
-                // Para CFDI: acumular cantidad + importe. Para pagos: solo importe.
+                // Para CFDI: acumular cantidad + importe (facturación).
+                // Para pagos: NO tocar ImporteFacturado (ese campo es de facturación/gasto, no de pagos).
                 if (comprobante.EsCfdi)
                 {
                     await _db.OrdenesCompraPartidas
@@ -340,19 +396,21 @@ public class ComprobanteService : IComprobanteService
                             .SetProperty(p => p.ImporteFacturado,
                                 p => (p.ImporteFacturado ?? 0m) + item.ImporteAsignado),
                             ct);
+                    // Recalcular estado_facturacion de la partida
+                    await RecalcularEstadoPartidaAsync(item.IdPartida, ct);
                 }
-                else
+                else if (comprobante.Categoria != "pago")
                 {
+                    // Comprobante de gasto sin CFDI (ticket, nota, recibo): actualizar importe
                     await _db.OrdenesCompraPartidas
                         .Where(p => p.IdPartida == item.IdPartida)
                         .ExecuteUpdateAsync(s => s
                             .SetProperty(p => p.ImporteFacturado,
                                 p => (p.ImporteFacturado ?? 0m) + item.ImporteAsignado),
                             ct);
+                    await RecalcularEstadoPartidaAsync(item.IdPartida, ct);
                 }
-
-                // Recalcular estado_facturacion de la partida
-                await RecalcularEstadoPartidaAsync(item.IdPartida, ct);
+                // Para comprobantes de pago: solo guardar la asignación, sin tocar facturación
             }
 
             // Actualizar estado del comprobante

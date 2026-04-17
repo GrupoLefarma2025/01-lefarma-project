@@ -169,9 +169,11 @@ export function SubirComprobantePagoModal({
             idPasoWorkflow
           );
           onComprobanteSubido(updated);
-        } catch {
-          // Si falla la asignación, igual se registró el comprobante
-          onComprobanteSubido(comprobanteSubido);
+        } catch (err: any) {
+          const data = err?.response?.data;
+          toast.error(data?.errors?.[0]?.description ?? data?.message ?? 'Error al asignar el pago a la partida');
+          setLoading(false);
+          return; // Stay in modal so user can fix
         } finally {
           setLoading(false);
         }
@@ -239,16 +241,17 @@ export function SubirComprobantePagoModal({
   // ── Metadata para FileUploader ────────────────────────────────────────────
 
   const metadataArchivo = comprobanteSubido ? {
-    modulo:       'ordenes_compra',
-    origen:       'workflow',
-    tipo:         'comprobante_pago',
-    idOrden:      idOrden,
-    subtipo:      tipoPago,
-    archivo:      'imagen',
-    monto:        comprobanteSubido.total,
-    paso:         idPasoWorkflow,
-    nombrePaso:   nombrePaso,
-    nombreAccion: nombreAccion,
+    modulo:         'ordenes_compra',
+    origen:         'workflow',
+    tipo:           'comprobante_pago',
+    idOrden:        idOrden,
+    idComprobante:  comprobanteSubido.idComprobante,
+    subtipo:        tipoPago,
+    archivo:        'imagen',
+    monto:          comprobanteSubido.total,
+    paso:           idPasoWorkflow,
+    nombrePaso:     nombrePaso,
+    nombreAccion:   nombreAccion,
   } : undefined;
 
   // ── Indicadores de paso ───────────────────────────────────────────────────
@@ -390,8 +393,8 @@ export function SubirComprobantePagoModal({
         <FileUploader
           inline
           open={true}
-          entidadTipo="Comprobante"
-          entidadId={comprobanteSubido.idComprobante}
+          entidadTipo="OrdenCompra"
+          entidadId={idOrden ?? 0}
           carpeta="comprobantes"
           metadata={metadataArchivo}
           tiposPermitidos={['.pdf', '.jpg', '.jpeg', '.png']}
