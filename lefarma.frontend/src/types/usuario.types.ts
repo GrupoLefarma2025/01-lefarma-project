@@ -1,7 +1,6 @@
 ﻿import { Rol } from './rol.types';
 import { Permiso } from './permiso.types';
 
-
 export interface UsuarioDetalle {
   idUsuario: number;
   idEmpresa: number;
@@ -43,8 +42,8 @@ export interface Usuario {
   esRobot: boolean;
   fechaCreacion: string;
   ultimoLogin?: string;
-  roles: any[]; // Define a simpler rol type if needed
-  permisosDirectos: any[];
+  roles: Rol[];
+  permisosDirectos: Permiso[];
   detalle?: UsuarioDetalle;
 }
 

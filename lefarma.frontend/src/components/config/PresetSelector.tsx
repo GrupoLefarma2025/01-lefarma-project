@@ -1,6 +1,5 @@
 ﻿import { useConfigStore } from '@/store/configStore';
 import { Target, BarChart3, Armchair, Accessibility } from 'lucide-react';
-import type { UIPresetId } from '@/types/config.types';
 
 
 const PRESET_OPTIONS = [
