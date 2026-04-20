@@ -635,7 +635,10 @@ export default function CrearOrdenCompra() {
 
     setBuscandoProveedor(true);
     try {
-      const params = tipo === 'razonSocial' ? { razonSocial: termino } : { rfc: termino };
+      const params = {
+        estatus: 2,
+        ...(tipo === 'razonSocial' ? { razonSocial: termino } : { rfc: termino }),
+      };
 
       const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores', {
         params,
