@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   Check,
   X,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +60,7 @@ const proveedorSchema = z.object({
 
 interface ProveedorMetadata {
   id_persona_subio?: number;
+  caratulaUrl?: string;
   [key: string]: unknown;
 }
 
@@ -67,6 +69,7 @@ interface ProveedorDetalle {
   contactoTelefono?: string;
   contactoEmail?: string;
   comentario?: string;
+  caratulaUrl?: string;
   metadata?: ProveedorMetadata;
 }
 
@@ -162,6 +165,9 @@ export default function ProveedoresList() {
   const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
   const [rejectMotivo, setRejectMotivo] = useState('');
   const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
+  const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -242,6 +248,8 @@ export default function ProveedoresList() {
 
   const handleNuevoProveedor = () => {
     setProveedorId(0);
+    setCaratulaFile(null);
+    setCaratulaPreview(null);
     form.reset({
       razonSocial: '',
       rfc: '',
@@ -256,6 +264,18 @@ export default function ProveedoresList() {
     setCuentasFormaPago([]);
     setIsEditing(false);
     setModalOpen(true);
+  };
+
+  const handleCaratulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCaratulaFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCaratulaPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleEditProveedor = (id: number) => {
@@ -274,6 +294,13 @@ export default function ProveedoresList() {
         comentario: proveedor.detalle?.comentario || '',
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
+      setCaratulaFile(null);
+      const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
+      const caratulaPath = proveedor.detalle?.caratulaUrl || null;
+      const caratulaFullUrl = caratulaPath
+        ? `${apiUrl}/media/archivos/caratulas/${caratulaPath.split('/').pop()}`
+        : null;
+      setCaratulaPreview(caratulaFullUrl);
       setIsEditing(true);
       setModalOpen(true);
     }
@@ -302,6 +329,22 @@ export default function ProveedoresList() {
 
       if (response.data.success) {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
+        const savedId = isEditing ? proveedorId : (response.data.data as any)?.idProveedor;
+
+        // Upload caratula file if present
+        if (caratulaFile && savedId) {
+          const formData = new FormData();
+          formData.append('file', caratulaFile);
+          try {
+            await API.post(`${ENDPOINT}/${savedId}/caratula`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            toast.success('Carátula subida correctamente.');
+          } catch (uploadError: any) {
+            toast.error(uploadError?.message ?? 'Error al subir la carátula');
+          }
+        }
+
         setModalOpen(false);
         await fetchProveedores();
       } else {
@@ -368,19 +411,39 @@ export default function ProveedoresList() {
     {
       accessorKey: 'razonSocial',
       header: 'Razón Social',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-muted p-2">
-            <Building className="h-4 w-4 text-foreground" />
+      cell: ({ row }) => {
+        const caratulaUrl = row.original.detalle?.caratulaUrl;
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const caratulaSrc = caratulaUrl ? `${apiUrl}/media/archivos/caratulas/` : null;
+        const filename = caratulaUrl ? caratulaUrl.split('/').pop() : null;
+        const fullSrc = caratulaSrc && filename ? `${caratulaSrc}${filename}` : null;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-muted p-2">
+              {fullSrc ? (
+                fullSrc.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                  <img
+                    src={fullSrc}
+                    alt="Carátula"
+                    className="h-8 w-8 object-cover rounded cursor-pointer hover:opacity-80"
+                    onClick={() => setFullscreenImage(fullSrc)}
+                  />
+                ) : (
+                  <FileText className="h-8 w-8 text-blue-600" />
+                )
+              ) : (
+                <Building className="h-4 w-4 text-foreground" />
+              )}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">{row.original.razonSocial}</span>
+              {row.original.rfc && (
+                <span className="text-xs text-muted-foreground font-mono">{row.original.rfc}</span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{row.original.razonSocial}</span>
-            {row.original.rfc && (
-              <span className="text-xs text-muted-foreground font-mono">{row.original.rfc}</span>
-            )}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       accessorKey: 'rfc',
@@ -771,6 +834,46 @@ export default function ProveedoresList() {
                     </FormItem>
                   )}
                 />
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Carátula (PDF o imagen)
+                  </label>
+                  <div className="space-y-2">
+                    <Input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={handleCaratulaChange}
+                      className="cursor-pointer"
+                    />
+                      {caratulaPreview && (
+                        <div className="mt-2 p-2 border rounded-md bg-gray-50">
+                          {caratulaFile?.type === 'application/pdf' || caratulaPreview.endsWith('.pdf') ? (
+                            <div className="flex items-center gap-2 text-sm text-blue-600">
+                              <FileText className="h-5 w-5" />
+                              <span>{caratulaFile?.name}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <img
+                                src={caratulaPreview}
+                                alt="Carátula"
+                                className="h-24 w-auto object-contain rounded cursor-pointer hover:opacity-80"
+                                onClick={() => setFullscreenImage(caratulaPreview)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setFullscreenImage(caratulaPreview)}
+                                className="text-xs text-blue-600 hover:underline text-left"
+                              >
+                                Ver tamaño completo
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                </div>
               </div>
             </div>
 
@@ -965,6 +1068,37 @@ export default function ProveedoresList() {
           </div>
         </div>
       </Modal>
+
+      {/* Fullscreen image viewer */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
+            <button
+              className="absolute top-2 right-2 text-white hover:text-gray-300 text-4xl font-bold z-10"
+              onClick={() => setFullscreenImage(null)}
+            >
+              ×
+            </button>
+            {fullscreenImage.toLowerCase().endsWith('.pdf') ? (
+              <iframe
+                src={fullscreenImage}
+                className="w-full h-full max-h-[85vh] rounded"
+                title="Carátula PDF"
+              />
+            ) : (
+              <img
+                src={fullscreenImage}
+                alt="Carátula"
+                className="max-w-full max-h-[90vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
