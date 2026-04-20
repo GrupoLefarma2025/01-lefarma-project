@@ -10,6 +10,7 @@ using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores;
@@ -19,18 +20,21 @@ public class ProveedorService : BaseService, IProveedorService
     private readonly IProveedorRepository _proveedorRepository;
     private readonly IRegimenFiscalRepository _regimenFiscalRepository;
     private readonly ILogger<ProveedorService> _logger;
+    private readonly IConfiguration _configuration;
     protected override string EntityName => "Proveedor";
 
     public ProveedorService(
         IProveedorRepository proveedorRepository,
         IRegimenFiscalRepository regimenFiscalRepository,
         IWideEventAccessor wideEventAccessor,
-        ILogger<ProveedorService> logger)
+        ILogger<ProveedorService> logger,
+        IConfiguration configuration)
         : base(wideEventAccessor)
     {
         _proveedorRepository = proveedorRepository;
         _regimenFiscalRepository = regimenFiscalRepository;
         _logger = logger;
+        _configuration = configuration;
     }
 
     public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(ProveedorRequest query)
@@ -39,8 +43,11 @@ public class ProveedorService : BaseService, IProveedorService
         {
             var baseQuery = _proveedorRepository.GetQueryable();
 
-            // IMPORTANTE: Solo proveedores autorizados (Aprobado = 2) para órdenes de compra
-            baseQuery = baseQuery.Where(p => p.Estatus == EstatusProveedor.Aprobado);
+            // Si se especifica estatus, filtrar por ese valor; si no,默认 a aprobado para órdenes de compra
+            if (query.Estatus.HasValue)
+                baseQuery = baseQuery.Where(p => p.Estatus == query.Estatus.Value);
+            else
+                baseQuery = baseQuery.Where(p => p.Estatus == EstatusProveedor.Aprobado);
 
             if (!string.IsNullOrWhiteSpace(query.RazonSocial))
                 baseQuery = baseQuery.Where(p => p.RazonSocial.Contains(query.RazonSocial));
@@ -161,6 +168,7 @@ public class ProveedorService : BaseService, IProveedorService
                     PersonaContactoNombre = request.Detalle.PersonaContactoNombre,
                     ContactoTelefono = request.Detalle.ContactoTelefono,
                     ContactoEmail = request.Detalle.ContactoEmail,
+                    CaratulaPath = request.Detalle.CaratulaUrl,
                     FechaCreacion = DateTime.UtcNow
                 } : null
             };
@@ -251,6 +259,8 @@ public class ProveedorService : BaseService, IProveedorService
                 proveedor.Detalle.PersonaContactoNombre = request.Detalle.PersonaContactoNombre;
                 proveedor.Detalle.ContactoTelefono = request.Detalle.ContactoTelefono;
                 proveedor.Detalle.ContactoEmail = request.Detalle.ContactoEmail;
+                if (request.Detalle.CaratulaUrl != null)
+                    proveedor.Detalle.CaratulaPath = request.Detalle.CaratulaUrl;
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
             }
 
@@ -407,6 +417,93 @@ public class ProveedorService : BaseService, IProveedorService
         {
             EnrichWideEvent(action: "Rechazar", entityId: id, error: ex.GetDetailedMessage());
             return CommonErrors.DatabaseError("rechazar el proveedor");
+        }
+    }
+
+    public async Task<ErrorOr<bool>> UpdateCaratulaAsync(int id, string caratulaPath)
+    {
+        try
+        {
+            // Validate caratulaPath to prevent path traversal attacks
+            if (string.IsNullOrWhiteSpace(caratulaPath) || caratulaPath.Contains("..") || caratulaPath.Contains("\\"))
+            {
+                EnrichWideEvent(action: "UpdateCaratula", entityId: id, error: "Ruta de caratula invalida");
+                return Error.Validation("La ruta de la caratula contiene caracteres invalidos");
+            }
+
+            var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(id);
+            if (proveedor == null)
+            {
+                EnrichWideEvent(action: "UpdateCaratula", entityId: id, notFound: true);
+                return CommonErrors.NotFound("proveedor", id.ToString());
+            }
+
+            if (proveedor.Detalle == null)
+            {
+                EnrichWideEvent(action: "UpdateCaratula", entityId: id, error: "El proveedor no tiene detalle");
+                return Error.Conflict("El proveedor no tiene detalle");
+            }
+
+            proveedor.Detalle.CaratulaPath = caratulaPath;
+            proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
+
+            await _proveedorRepository.UpdateAsync(proveedor);
+
+            EnrichWideEvent(action: "UpdateCaratula", entityId: id, nombre: proveedor.RazonSocial);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "UpdateCaratula", entityId: id, error: ex.GetDetailedMessage());
+            return CommonErrors.DatabaseError("actualizar la caratula del proveedor");
+        }
+    }
+
+    public async Task<ErrorOr<bool>> DeleteCaratulaAsync(int id)
+    {
+        try
+        {
+            var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(id);
+            if (proveedor == null)
+            {
+                EnrichWideEvent(action: "DeleteCaratula", entityId: id, notFound: true);
+                return CommonErrors.NotFound("proveedor", id.ToString());
+            }
+
+            if (proveedor.Detalle == null || string.IsNullOrEmpty(proveedor.Detalle.CaratulaPath))
+            {
+                EnrichWideEvent(action: "DeleteCaratula", entityId: id, error: "No existe caratula");
+                return Error.Conflict("No existe caratula para eliminar");
+            }
+
+            var basePath = _configuration["Archivos:BasePath"] ?? _configuration["ArchivosBasePath"] ?? "";
+            var fullPath = Path.GetFullPath(Path.Combine(basePath, proveedor.Detalle.CaratulaPath));
+
+            // Validate that the resolved fullPath is within the basePath to prevent path traversal
+            var resolvedBasePath = Path.GetFullPath(basePath);
+            if (!fullPath.StartsWith(resolvedBasePath))
+            {
+                EnrichWideEvent(action: "DeleteCaratula", entityId: id, error: "Ruta de caratula invalida");
+                return Error.Validation("La ruta de la caratula esta fuera del directorio permitido");
+            }
+
+            if (File.Exists(fullPath))
+            {
+                File.Delete(fullPath);
+            }
+
+            proveedor.Detalle.CaratulaPath = null;
+            proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
+
+            await _proveedorRepository.UpdateAsync(proveedor);
+
+            EnrichWideEvent(action: "DeleteCaratula", entityId: id, nombre: proveedor.RazonSocial);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "DeleteCaratula", entityId: id, error: ex.GetDetailedMessage());
+            return CommonErrors.DatabaseError("eliminar la caratula del proveedor");
         }
     }
 }

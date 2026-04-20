@@ -10,6 +10,7 @@ public class ProveedorDetalle
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaPath { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaModificacion { get; set; }
 

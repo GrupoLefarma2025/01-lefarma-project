@@ -28,6 +28,7 @@ public class ProveedorDetalleResponse
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
 }
 
 public class CreateProveedorRequest
@@ -48,6 +49,7 @@ public class CreateProveedorDetalleRequest
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
 }
 
 public class CreateProveedorFormaPagoCuentaRequest
@@ -80,6 +82,7 @@ public class UpdateProveedorDetalleRequest
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
 }
 
 public class ProveedorFormaPagoCuentaResponse
@@ -102,6 +105,7 @@ public class ProveedorRequest
 {
     public string? RazonSocial { get; set; }
     public string? RFC { get; set; }
+    public int? Estatus { get; set; }
     public string? OrderBy { get; set; }
     public string? OrderDirection { get; set; }
 }

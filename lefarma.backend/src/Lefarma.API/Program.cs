@@ -474,6 +474,18 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Static files for archivos (caratulas, etc.)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(app.Environment.WebRootPath, "media", "archivos")),
+    RequestPath = "/media/archivos",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+    }
+});
+
 // Dev Token middleware for testing (Development only)
 if (app.Environment.IsDevelopment())
 {
