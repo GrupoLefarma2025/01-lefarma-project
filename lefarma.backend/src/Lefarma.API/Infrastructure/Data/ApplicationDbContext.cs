@@ -56,6 +56,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<Proveedor> Proveedores { get; set; }
         public DbSet<ProveedorDetalle> ProveedoresDetalle { get; set; }
         public DbSet<ProveedorFormaPagoCuenta> ProveedoresFormasPagoCuentas { get; set; }
+        public DbSet<StagingProveedor> StagingProveedores { get; set; }
+        public DbSet<StagingProveedorDetalle> StagingProveedoresDetalle { get; set; }
+        public DbSet<StagingProveedorFormaPagoCuenta> StagingProveedoresFormasPagoCuentas { get; set; }
         public DbSet<CentroCosto> CentrosCosto { get; set; }
         public DbSet<CuentaContable> CuentasContables { get; set; }
         public DbSet<EstatusOrden> EstatusOrden { get; set; }
