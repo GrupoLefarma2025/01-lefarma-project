@@ -656,7 +656,9 @@ export default function CrearOrdenCompra() {
   const cargarTodosProveedores = async () => {
     setBuscandoProveedor(true);
     try {
-      const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores');
+      const response = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores', {
+        params: { estatus: 2 },
+      });
       if (response.data.success) {
         const data = response.data.data || [];
         setAllProveedores(data);
