@@ -1,0 +1,14 @@
+connections:
+  Lefarma:
+    name: Lefarma
+    server: 192.168.4.2
+    database: Lefarma
+    username: coreapi
+    password: TU_PASSWORD_AQUI
+
+  Asokam:
+    name: Asokam
+    server: 192.168.4.2
+    database: Asokam
+    username: coreapi
+    password: TU_PASSWORD_AQUI
