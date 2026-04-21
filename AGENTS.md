@@ -31,14 +31,13 @@ dotnet test Lefarma.Tests/              # Specific test project
 ```
 
 ### Database (`lefarma.database/`)
+> ⚠️ **DO NOT RUN dotnet ef migrations** — Project uses manual SQL scripts in `lefarma.database/` (`000_`, `001_`, `002_`...). EF migrations will break schema consistency.
 - Scripts are numbered sequentially (`000_`, `001_`, `002_`...)
 - Two databases: **Lefarma** (main) and **Asokam** (legacy)
 
-## Architecture Notes
-
 ### Backend
 - **.NET 10** with Clean Architecture pattern
-- **EF Core** with SQL Server (connection: `192.168.4.2`)
+- **SQL Server** database (connection: `192.168.4.2`)
 - **JWT Bearer auth** with LDAP/ActiveDirectory integration
 - **Serilog** JSON logging to `logs/wide-events-*.json`
 - **Swagger** enabled at `/swagger/v1/swagger.json`
@@ -131,11 +130,10 @@ Test projects:
 ## Common Pitfalls
 
 1. **Don't assume backend starts on same port as frontend** - Backend runs on 5174, frontend on 5173 with proxy
-2. **Don't forget to run migrations** - EF Core migrations not auto-applied
-3. **JWT validation is strict** - `ClockSkew = TimeSpan.Zero` means no tolerance for clock drift
-4. **CORS origins must include your dev URL** - Check `appsettings.json` if you get CORS errors
-5. **Serilog logs to JSON file** - Not plain text; use a JSON viewer for logs
-6. **DevToken is hardcoded** - Never enable in production
+2. **JWT validation is strict** - `ClockSkew = TimeSpan.Zero` means no tolerance for clock drift
+3. **CORS origins must include your dev URL** - Check `appsettings.json` if you get CORS errors
+4. **Serilog logs to JSON file** - Not plain text; use a JSON viewer for logs
+5. **DevToken is hardcoded** - Never enable in production
 
 ## Secrets (Development Only)
 - DB Password: `L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!`
