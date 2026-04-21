@@ -35,6 +35,10 @@ public class ProveedorDetalleConfiguration : IEntityTypeConfiguration<ProveedorD
             .HasColumnName("comentario")
             .HasColumnType("nvarchar(max)");
 
+        builder.Property(e => e.CaratulaPath)
+            .HasColumnName("caratula_path")
+            .HasMaxLength(500);
+
         builder.Property(e => e.FechaCreacion)
             .HasColumnName("fecha_creacion")
             .IsRequired()

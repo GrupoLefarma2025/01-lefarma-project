@@ -36,7 +36,8 @@ public static class ProveedorExtensions
             PersonaContactoNombre = entity.PersonaContactoNombre,
             ContactoTelefono = entity.ContactoTelefono,
             ContactoEmail = entity.ContactoEmail,
-            Comentario = entity.Comentario
+            Comentario = entity.Comentario,
+            CaratulaUrl = entity.CaratulaPath
         };
     }
 
