@@ -17,6 +17,7 @@ public class ProveedorResponse
     public DateTime? FechaModificacion { get; set; }
 
     public ProveedorDetalleResponse? Detalle { get; set; }
+    public List<ProveedorFormaPagoCuentaResponse> CuentasFormaPago { get; set; } = new();
 }
 
 public class ProveedorDetalleResponse
@@ -27,6 +28,7 @@ public class ProveedorDetalleResponse
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
 }
 
 public class CreateProveedorRequest
@@ -38,6 +40,7 @@ public class CreateProveedorRequest
     public string? UsoCfdi { get; set; }
     public bool SinDatosFiscales { get; set; }
     public CreateProveedorDetalleRequest? Detalle { get; set; }
+    public List<CreateProveedorFormaPagoCuentaRequest>? CuentasFormaPago { get; set; }
 }
 
 public class CreateProveedorDetalleRequest
@@ -46,6 +49,18 @@ public class CreateProveedorDetalleRequest
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
+}
+
+public class CreateProveedorFormaPagoCuentaRequest
+{
+    public int IdFormaPago { get; set; }
+    public int? IdBanco { get; set; }
+    public string? NumeroCuenta { get; set; }
+    public string? Clabe { get; set; }
+    public string? NumeroTarjeta { get; set; }
+    public string? Beneficiario { get; set; }
+    public string? CorreoNotificacion { get; set; }
 }
 
 public class UpdateProveedorRequest
@@ -58,6 +73,7 @@ public class UpdateProveedorRequest
     public string? UsoCfdi { get; set; }
     public bool SinDatosFiscales { get; set; }
     public UpdateProveedorDetalleRequest? Detalle { get; set; }
+    public List<CreateProveedorFormaPagoCuentaRequest>? CuentasFormaPago { get; set; }
 }
 
 public class UpdateProveedorDetalleRequest
@@ -66,12 +82,30 @@ public class UpdateProveedorDetalleRequest
     public string? ContactoTelefono { get; set; }
     public string? ContactoEmail { get; set; }
     public string? Comentario { get; set; }
+    public string? CaratulaUrl { get; set; }
+}
+
+public class ProveedorFormaPagoCuentaResponse
+{
+    public int IdCuen { get; set; }
+    public int IdProveedor { get; set; }
+    public int IdFormaPago { get; set; }
+    public string? FormaPagoNombre { get; set; }
+    public int? IdBanco { get; set; }
+    public string? BancoNombre { get; set; }
+    public string? NumeroCuenta { get; set; }
+    public string? Clabe { get; set; }
+    public string? NumeroTarjeta { get; set; }
+    public string? Beneficiario { get; set; }
+    public string? CorreoNotificacion { get; set; }
+    public bool Activo { get; set; }
 }
 
 public class ProveedorRequest
 {
     public string? RazonSocial { get; set; }
     public string? RFC { get; set; }
+    public int? Estatus { get; set; }
     public string? OrderBy { get; set; }
     public string? OrderDirection { get; set; }
 }
@@ -81,12 +115,66 @@ public static class EstatusProveedor
     public const int Nuevo = 1;
     public const int Aprobado = 2;
     public const int Rechazado = 3;
+    public const int EditadoPendiente = 4;
 
     public static string GetDescripcion(int estatus) => estatus switch
     {
         Nuevo => "Nuevo",
         Aprobado => "Aprobado",
         Rechazado => "Rechazado",
+        EditadoPendiente => "Edición Pendiente",
         _ => "Desconocido"
     };
+}
+
+public class CampoDiff
+{
+    public string Campo { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string? ValorAnterior { get; set; }
+    public string? ValorNuevo { get; set; }
+}
+
+public class StagingProveedorResponse
+{
+    public int IdStaging { get; set; }
+    public int IdProveedor { get; set; }
+    public string RazonSocial { get; set; } = string.Empty;
+    public string? RazonSocialNormalizada { get; set; }
+    public string? RFC { get; set; }
+    public string? CodigoPostal { get; set; }
+    public int? RegimenFiscalId { get; set; }
+    public string? RegimenFiscalNombre { get; set; }
+    public string? UsoCfdi { get; set; }
+    public bool SinDatosFiscales { get; set; }
+    public DateTime FechaStaging { get; set; }
+    public int? EditadoPor { get; set; }
+    public StagingProveedorDetalleResponse? Detalle { get; set; }
+    public List<StagingProveedorFormaPagoCuentaResponse> CuentasFormaPago { get; set; } = new();
+    public List<CampoDiff> Diferencias { get; set; } = new();
+}
+
+public class StagingProveedorDetalleResponse
+{
+    public int IdStagingDetalle { get; set; }
+    public string? PersonaContactoNombre { get; set; }
+    public string? ContactoTelefono { get; set; }
+    public string? ContactoEmail { get; set; }
+    public string? Comentario { get; set; }
+    public string? CaratulaPath { get; set; }
+}
+
+public class StagingProveedorFormaPagoCuentaResponse
+{
+    public int IdStagingCuenta { get; set; }
+    public int IdFormaPago { get; set; }
+    public string? FormaPagoNombre { get; set; }
+    public int? IdBanco { get; set; }
+    public string? BancoNombre { get; set; }
+    public string? NumeroCuenta { get; set; }
+    public string? Clabe { get; set; }
+    public string? NumeroTarjeta { get; set; }
+    public string? Beneficiario { get; set; }
+    public string? CorreoNotificacion { get; set; }
+    public bool Activo { get; set; }
 }

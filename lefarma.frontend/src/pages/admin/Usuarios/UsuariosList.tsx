@@ -56,7 +56,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { MultiSelect } from '@/components/ui/multi-select';
 
-// @lat: [[usuarios#RolesSection]]
 const RolesSection = memo(function RolesSection({
   rolesIds,
   roles,
@@ -103,7 +102,6 @@ const RolesSection = memo(function RolesSection({
   );
 });
 
-// @lat: [[usuarios#PermisosSection]]
 const PermisosSection = memo(function PermisosSection({
   permisosIds,
   permisosPorCategoria,

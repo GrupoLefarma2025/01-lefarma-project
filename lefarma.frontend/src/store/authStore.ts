@@ -254,6 +254,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const firmaPath = response.data.data?.detalle?.firmaPath;
       set({ hasFirma: !!firmaPath });
     } catch {
+      // Signature check is best-effort; don't block initialization
     }
   },
 
@@ -271,8 +272,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const area = authService.getArea();
 
     if (token && user) {
-      const isAuthenticated = Boolean(empresa && sucursal && area);
-
       set({
         token,
         user,

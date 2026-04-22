@@ -26,6 +26,38 @@ public class FirmarRequest
         public string ClaseEstetica { get; set; } = string.Empty; // Para el color del bot�n en el frontend
     }
 
+    public class AccionHandlerMetadataResponse
+    {
+        public int IdHandler { get; set; }
+        public string HandlerKey { get; set; } = string.Empty;
+        public bool Requerido { get; set; } = true;
+        public string? ConfiguracionJson { get; set; }
+        public int OrdenEjecucion { get; set; }
+    }
+
+    public class WorkflowCampoMetadataResponse
+    {
+        public int IdWorkflowCampo { get; set; }
+        public string NombreTecnico { get; set; } = string.Empty;
+        public string EtiquetaUsuario { get; set; } = string.Empty;
+        public string TipoControl { get; set; } = string.Empty;
+        public string? SourceCatalog { get; set; }
+    }
+
+    public class AccionMetadataResponse
+    {
+        public int IdOrden { get; set; }
+        public int IdAccion { get; set; }
+        public string NombreAccion { get; set; } = string.Empty;
+        public string TipoAccion { get; set; } = string.Empty;
+        public bool RequiereComentario { get; set; }
+        public bool RequiereAdjunto { get; set; }
+        public bool PermiteAdjunto { get; set; }
+        public List<AccionHandlerMetadataResponse> Handlers { get; set; } = new();
+        public List<WorkflowCampoMetadataResponse> CamposWorkflow { get; set; } = new();
+        public List<string> CamposRequeridos { get; set; } = new();
+    }
+
     public class HistorialWorkflowItemResponse
     {
         public int IdEvento { get; set; }

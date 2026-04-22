@@ -6,4 +6,5 @@ namespace Lefarma.API.Domain.Interfaces.Catalogos;
 public interface IProveedorRepository : IBaseRepository<Proveedor>
 {
     Task<Proveedor?> GetByIdWithDetailsAsync(int id);
+    void RemoveCuenta(ProveedorFormaPagoCuenta cuenta);
 }

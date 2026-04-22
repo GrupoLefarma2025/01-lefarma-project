@@ -16,13 +16,13 @@ public class WorkflowPasoConfiguration : IEntityTypeConfiguration<WorkflowPaso>
             builder.Property(p => p.CodigoEstado).HasColumnName("codigo_estado").HasMaxLength(50);
             builder.HasIndex(p => p.CodigoEstado).IsUnique().HasFilter("[codigo_estado] IS NOT NULL");
             builder.Property(p => p.DescripcionAyuda).HasColumnName("descripcion_ayuda").HasMaxLength(255);
-            builder.Property(p => p.HandlerKey).HasColumnName("handler_key").HasMaxLength(50);
             builder.Property(p => p.EsInicio).HasColumnName("es_inicio").HasDefaultValue(false);
             builder.Property(p => p.EsFinal).HasColumnName("es_final").HasDefaultValue(false);
             builder.Property(p => p.Activo).HasColumnName("activo").HasDefaultValue(true);
             builder.Property(p => p.RequiereFirma).HasColumnName("requiere_firma").HasDefaultValue(false);
             builder.Property(p => p.RequiereComentario).HasColumnName("requiere_comentario").HasDefaultValue(false);
             builder.Property(p => p.RequiereAdjunto).HasColumnName("requiere_adjunto").HasDefaultValue(false);
+            builder.Property(p => p.PermiteAdjunto).HasColumnName("permite_adjunto").HasDefaultValue(true);
 
             builder.HasMany(p => p.AccionesOrigen).WithOne(a => a.PasoOrigen).HasForeignKey(a => a.IdPasoOrigen).OnDelete(DeleteBehavior.Restrict);
             builder.HasMany(p => p.Condiciones).WithOne(c => c.Paso).HasForeignKey(c => c.IdPaso).OnDelete(DeleteBehavior.Cascade);

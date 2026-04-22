@@ -22,6 +22,7 @@ export interface ArchivoListItem {
   extension: string;
   tipoMime: string;
   tamanoBytes: number;
+  metadata?: unknown;
   fechaCreacion: string;
   activo: boolean;
 }

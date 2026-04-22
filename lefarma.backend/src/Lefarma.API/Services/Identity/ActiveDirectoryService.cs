@@ -1,8 +1,11 @@
 using System.DirectoryServices.Protocols;
 using System.Net;
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Services.Identity.Models;
 using Lefarma.API.Shared.Errors;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -15,14 +18,17 @@ public class ActiveDirectoryService : IActiveDirectoryService
 {
     private readonly LdapOptions _options;
     private readonly ILogger<ActiveDirectoryService> _logger;
+    private readonly AsokamDbContext _db;
     private readonly IReadOnlyDictionary<string, LdapDomainOptions> _domainsByCode;
 
     public ActiveDirectoryService(
         IOptions<LdapOptions> options,
-        ILogger<ActiveDirectoryService> logger)
+        ILogger<ActiveDirectoryService> logger,
+        AsokamDbContext db)
     {
         _options = options.Value;
         _logger = logger;
+        _db = db;
         _domainsByCode = _options.Domains
             .GroupBy(d => d.DomainName.ToLowerInvariant())
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
@@ -34,12 +40,12 @@ public class ActiveDirectoryService : IActiveDirectoryService
         return _options.Domains.AsReadOnly();
     }
 
-    /// <inheritdoc />
-    public LdapDomainOptions? GetDomainConfig(string domainName)
+    // @lat: [[lat.md\auth#Auth#Active Directory]]
+    public async Task<DominioConfig?> GetDominioConfigByDominioAsync(string dominio, CancellationToken cancellationToken = default)
     {
-        return _domainsByCode.TryGetValue(domainName.ToLowerInvariant(), out var config)
-            ? config
-            : null;
+        return await _db.DominioConfigs
+            .AsNoTracking()
+            .FirstOrDefaultAsync(dc => dc.Dominio == dominio, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -59,7 +65,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
             return CommonErrors.Validation("password", "La contrasena es requerida");
         }
 
-        var domainConfig = GetDomainConfig(domain);
+        var domainConfig = await GetDominioConfigByDominioAsync(domain, cancellationToken);
         if (domainConfig == null)
         {
             _logger.LogWarning("Dominio no configurado: {Domain}", domain);
@@ -128,7 +134,7 @@ public class ActiveDirectoryService : IActiveDirectoryService
     private bool ValidateCredentialsInternalAsync(
         string username,
         string password,
-        LdapDomainOptions domainConfig)
+        DominioConfig domainConfig)
     {
         // Build the base DN for the domain
         // Example: domain "asokam" with BaseDn "com.mx" -> DC=asokam,DC=com,DC=mx
@@ -136,29 +142,30 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
         _logger.LogInformation(
             "ValidateCredentialsAsync: Server={Server}:{Port}, Domain={Domain}, User={User}, BaseDN={BaseDN}",
-            domainConfig.Server, domainConfig.Port, domainConfig.DomainName, username, domainBaseDn);
+            domainConfig.Servidor, domainConfig.Puerto, domainConfig.Dominio, username, domainBaseDn);
 
         try
         {
             using var connection = new LdapConnection(
-                new LdapDirectoryIdentifier(domainConfig.Server, domainConfig.Port));
+                new LdapDirectoryIdentifier(domainConfig.Servidor, domainConfig.Puerto));
 
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.SecureSocketLayer = false;
             connection.AuthType = AuthType.Basic;
 
             // Configure timeouts to prevent blocking
-            connection.Timeout = TimeSpan.FromSeconds(domainConfig.TimeoutSeconds);
-            connection.SessionOptions.SendTimeout = TimeSpan.FromSeconds(domainConfig.TimeoutSeconds);
+            var timeoutSeconds = 30;
+            connection.Timeout = TimeSpan.FromSeconds(timeoutSeconds);
+            connection.SessionOptions.SendTimeout = TimeSpan.FromSeconds(timeoutSeconds);
             connection.SessionOptions.TcpKeepAlive = false;
 
             // Build the User Principal Name (UPN)
             // Format: username@domain.basedn (e.g., usuario@asokam.com.mx)
-            var userPrincipalName = $"{username}@{domainConfig.DomainName.ToLowerInvariant()}.{domainConfig.BaseDn}";
+            var userPrincipalName = $"{username}@{domainConfig.Dominio.ToLowerInvariant()}.{domainConfig.BaseDn}";
             var credential = new NetworkCredential(userPrincipalName, password);
 
             _logger.LogDebug("Intentando bind LDAP con UPN: {UPN} en {Server}:{Port}",
-                userPrincipalName, domainConfig.Server, domainConfig.Port);
+                userPrincipalName, domainConfig.Servidor, domainConfig.Puerto);
 
             connection.Bind(credential);
 
@@ -167,21 +174,21 @@ public class ActiveDirectoryService : IActiveDirectoryService
             // Bind successful - authentication complete
             _logger.LogInformation(
                 "Autenticacion exitosa para usuario {Username} en servidor {Server}:{Port}",
-                username, domainConfig.Server, domainConfig.Port);
+                username, domainConfig.Servidor, domainConfig.Puerto);
             return true;
         }
         catch (LdapException ex)
         {
             _logger.LogWarning(
                 "Fallo de autenticacion LDAP para usuario {Username} en servidor {Server}:{Port} - {Error}",
-                username, domainConfig.Server, domainConfig.Port, ex.Message);
+                username, domainConfig.Servidor, domainConfig.Puerto, ex.Message);
             return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
                 "Error inesperado al autenticar usuario {Username} en servidor {Server}:{Port}",
-                username, domainConfig.Server, domainConfig.Port);
+                username, domainConfig.Servidor, domainConfig.Puerto);
             return false;
         }
     }
@@ -190,10 +197,10 @@ public class ActiveDirectoryService : IActiveDirectoryService
     /// Builds the base DN from domain configuration.
     /// Example: domain "asokam" with BaseDn "com.mx" -> DC=asokam,DC=com,DC=mx
     /// </summary>
-    private static string BuildBaseDn(LdapDomainOptions config)
+    private static string BuildBaseDn(DominioConfig config)
     {
-        var parts = new List<string> { $"DC={config.DomainName.ToLowerInvariant()}" };
-        parts.AddRange(config.BaseDn.Split('.').Select(p => $"DC={p.ToLowerInvariant()}"));
+        var parts = new List<string> { $"DC={config.Dominio.ToLowerInvariant()}" };
+        parts.AddRange(config.BaseDn!.Split('.').Select(p => $"DC={p.ToLowerInvariant()}"));
         return string.Join(",", parts);
     }
 

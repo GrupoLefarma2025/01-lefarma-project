@@ -1,7 +1,9 @@
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -14,13 +16,15 @@ public class WorkflowService : BaseService, IWorkflowService
     {
         private readonly IWorkflowRepository _repo;
         private readonly ApplicationDbContext _context;
+        private readonly INotificationService _notificationService;
         protected override string EntityName => "Workflow";
 
-        public WorkflowService(IWorkflowRepository repo, ApplicationDbContext context, IWideEventAccessor wideEventAccessor)
+        public WorkflowService(IWorkflowRepository repo, ApplicationDbContext context, IWideEventAccessor wideEventAccessor, INotificationService notificationService)
             : base(wideEventAccessor)
         {
             _repo = repo;
             _context = context;
+            _notificationService = notificationService;
         }
 
         public async Task<ErrorOr<IEnumerable<WorkflowResponse>>> GetAllAsync(WorkflowRequest query)
@@ -28,7 +32,9 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var q = _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones)
+                    .Include(w => w.Campos)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
                     .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
                     .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .AsQueryable();
@@ -61,7 +67,9 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var item = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones)
+                    .Include(w => w.Campos)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
                     .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
                     .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == id);
@@ -190,7 +198,7 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
                 if (workflow == null)
@@ -235,15 +243,13 @@ public class WorkflowService : BaseService, IWorkflowService
                 paso.Orden = request.Orden;
                 paso.CodigoEstado = request.CodigoEstado;
                 paso.DescripcionAyuda = request.DescripcionAyuda;
-                paso.HandlerKey = request.HandlerKey;
                 paso.EsInicio = request.EsInicio;
                 paso.EsFinal = request.EsFinal;
                 paso.Activo = request.Activo;
                 paso.RequiereFirma = request.RequiereFirma;
                 paso.RequiereComentario = request.RequiereComentario;
                 paso.RequiereAdjunto = request.RequiereAdjunto;
-
-                await _repo.UpdateAsync(workflow);
+                paso.PermiteAdjunto = request.PermiteAdjunto;
 
                 var response = new WorkflowPasoResponse
                 {
@@ -252,13 +258,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     NombrePaso = paso.NombrePaso,
                     CodigoEstado = paso.CodigoEstado,
                     DescripcionAyuda = paso.DescripcionAyuda,
-                    HandlerKey = paso.HandlerKey,
                     EsInicio = paso.EsInicio,
                     EsFinal = paso.EsFinal,
                     Activo = paso.Activo,
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto,
                     Acciones = paso.AccionesOrigen.Select(a => new WorkflowAccionResponse
                     {
                         IdAccion = a.IdAccion,
@@ -285,7 +291,7 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
                 if (workflow == null)
@@ -307,13 +313,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     NombrePaso = request.NombrePaso,
                     CodigoEstado = request.CodigoEstado,
                     DescripcionAyuda = request.DescripcionAyuda,
-                    HandlerKey = request.HandlerKey,
                     EsInicio = request.EsInicio,
                     EsFinal = request.EsFinal,
                     Activo = request.Activo,
                     RequiereFirma = request.RequiereFirma,
                     RequiereComentario = request.RequiereComentario,
-                    RequiereAdjunto = request.RequiereAdjunto
+                    RequiereAdjunto = request.RequiereAdjunto,
+                    PermiteAdjunto = request.PermiteAdjunto
                 };
 
                 workflow.Pasos.Add(paso);
@@ -332,13 +338,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     NombrePaso = paso.NombrePaso,
                     CodigoEstado = paso.CodigoEstado,
                     DescripcionAyuda = paso.DescripcionAyuda,
-                    HandlerKey = paso.HandlerKey,
                     EsInicio = paso.EsInicio,
                     EsFinal = paso.EsFinal,
                     Activo = paso.Activo,
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
                     RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto,
                     Acciones = new List<WorkflowAccionResponse>()
                 };
             }
@@ -372,13 +378,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     Orden = paso.Orden,
                     CodigoEstado = paso.CodigoEstado,
                     DescripcionAyuda = paso.DescripcionAyuda,
-                    HandlerKey = paso.HandlerKey,
                     EsInicio = paso.EsInicio,
                     EsFinal = paso.EsFinal,
                     Activo = false,
                     RequiereFirma = paso.RequiereFirma,
                     RequiereComentario = paso.RequiereComentario,
-                    RequiereAdjunto = paso.RequiereAdjunto
+                    RequiereAdjunto = paso.RequiereAdjunto,
+                    PermiteAdjunto = paso.PermiteAdjunto
                 };
 
                 var inactivarResult = await UpdatePasoAsync(idWorkflow, idPaso, updateRequest);
@@ -405,7 +411,7 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
                 if (workflow == null)
@@ -445,7 +451,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     TipoAccion = accion.TipoAccion,
                     ClaseEstetica = accion.ClaseEstetica,
                     IdPasoDestino = accion.IdPasoDestino,
-                    Activo = accion.Activo
+                    Activo = accion.Activo,
+                    Handlers = new List<WorkflowAccionHandlerResponse>()
                 };
 
                 EnrichWideEvent("CreateAccion", entityId: accion.IdAccion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -503,7 +510,30 @@ public class WorkflowService : BaseService, IWorkflowService
                     TipoAccion = accion.TipoAccion,
                     ClaseEstetica = accion.ClaseEstetica,
                     IdPasoDestino = accion.IdPasoDestino,
-                    Activo = accion.Activo
+                    Activo = accion.Activo,
+                    Handlers = accion.AccionHandlers
+                        .Where(h => h.Activo)
+                        .OrderBy(h => h.OrdenEjecucion)
+                        .Select(h => new WorkflowAccionHandlerResponse
+                        {
+                            IdHandler = h.IdHandler,
+                            HandlerKey = h.HandlerKey,
+                            ConfiguracionJson = h.ConfiguracionJson,
+                            OrdenEjecucion = h.OrdenEjecucion,
+                            Activo = h.Activo,
+                            IdWorkflowCampo = h.IdWorkflowCampo,
+                            Campo = h.Campo != null ? new WorkflowCampoResponse
+                            {
+                                IdWorkflowCampo = h.Campo.IdWorkflowCampo,
+                                IdWorkflow = h.Campo.IdWorkflow,
+                                NombreTecnico = h.Campo.NombreTecnico,
+                                EtiquetaUsuario = h.Campo.EtiquetaUsuario,
+                                TipoControl = h.Campo.TipoControl,
+                                SourceCatalog = h.Campo.SourceCatalog,
+                                Activo = h.Campo.Activo
+                            } : null
+                        })
+                        .ToList()
                 };
 
                 EnrichWideEvent("UpdateAccion", entityId: idAccion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
@@ -557,6 +587,137 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 EnrichWideEvent("DeleteAccion", entityId: idWorkflow, exception: ex);
                 return CommonErrors.DatabaseError("eliminar acci�n");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowAccionHandlerResponse>> CreateAccionHandlerAsync(int idWorkflow, int idAccion, CreateAccionHandlerRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                    .ThenInclude(a => a.AccionHandlers)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var accion = workflow.Pasos.SelectMany(p => p.AccionesOrigen).FirstOrDefault(a => a.IdAccion == idAccion);
+                if (accion == null)
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
+                if (!accion.Activo)
+                    return CommonErrors.Conflict("accion", "No se pueden configurar handlers en una acción inactiva.");
+
+                var handler = new WorkflowAccionHandler
+                {
+                    IdAccion = idAccion,
+                    HandlerKey = request.HandlerKey.Trim(),
+                    ConfiguracionJson = request.ConfiguracionJson,
+                    OrdenEjecucion = request.OrdenEjecucion,
+                    IdWorkflowCampo = request.IdWorkflowCampo,
+                    Activo = request.Activo
+                };
+
+                accion.AccionHandlers.Add(handler);
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("CreateAccionHandler", entityId: handler.IdHandler, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
+                return new WorkflowAccionHandlerResponse
+                {
+                    IdHandler = handler.IdHandler,
+                    HandlerKey = handler.HandlerKey,
+                    ConfiguracionJson = handler.ConfiguracionJson,
+                    OrdenEjecucion = handler.OrdenEjecucion,
+                    IdWorkflowCampo = handler.IdWorkflowCampo,
+                    Activo = handler.Activo
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("CreateAccionHandler", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("crear handler de acción");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowAccionHandlerResponse>> UpdateAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler, UpdateAccionHandlerRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                    .ThenInclude(a => a.AccionHandlers)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var accion = workflow.Pasos.SelectMany(p => p.AccionesOrigen).FirstOrDefault(a => a.IdAccion == idAccion);
+                if (accion == null)
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
+
+                var handler = accion.AccionHandlers.FirstOrDefault(h => h.IdHandler == idHandler);
+                if (handler == null)
+                    return CommonErrors.NotFound("Handler", idHandler.ToString());
+
+                handler.HandlerKey = request.HandlerKey.Trim();
+                handler.ConfiguracionJson = request.ConfiguracionJson;
+                handler.OrdenEjecucion = request.OrdenEjecucion;
+                handler.IdWorkflowCampo = request.IdWorkflowCampo;
+                handler.Activo = request.Activo;
+
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("UpdateAccionHandler", entityId: idHandler, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
+                return new WorkflowAccionHandlerResponse
+                {
+                    IdHandler = handler.IdHandler,
+                    HandlerKey = handler.HandlerKey,
+                    ConfiguracionJson = handler.ConfiguracionJson,
+                    OrdenEjecucion = handler.OrdenEjecucion,
+                    IdWorkflowCampo = handler.IdWorkflowCampo,
+                    Activo = handler.Activo
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("UpdateAccionHandler", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("actualizar handler de acción");
+            }
+        }
+
+        public async Task<ErrorOr<bool>> DeleteAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                    .ThenInclude(a => a.AccionHandlers)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var accion = workflow.Pasos.SelectMany(p => p.AccionesOrigen).FirstOrDefault(a => a.IdAccion == idAccion);
+                if (accion == null)
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
+
+                var handler = accion.AccionHandlers.FirstOrDefault(h => h.IdHandler == idHandler);
+                if (handler == null)
+                    return CommonErrors.NotFound("Handler", idHandler.ToString());
+
+                handler.Activo = false;
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("DeleteAccionHandler", entityId: idHandler, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("DeleteAccionHandler", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("eliminar handler de acción");
             }
         }
 
@@ -915,15 +1076,24 @@ public class WorkflowService : BaseService, IWorkflowService
                 {
                     IdAccion = idAccion,
                     IdPasoDestino = request.IdPasoDestino,
+                    IdTipoNotificacion = request.IdTipoNotificacion,
                     EnviarEmail = request.EnviarEmail,
                     EnviarWhatsapp = request.EnviarWhatsapp,
                     EnviarTelegram = request.EnviarTelegram,
                     AvisarAlCreador = request.AvisarAlCreador,
                     AvisarAlSiguiente = request.AvisarAlSiguiente,
                     AvisarAlAnterior = request.AvisarAlAnterior,
+                    AvisarAAutorizadoresPrevios = request.AvisarAAutorizadoresPrevios,
+                    IncluirPartidas = request.IncluirPartidas,
                     Activo = request.Activo,
-                    AsuntoTemplate = request.AsuntoTemplate,
-                    CuerpoTemplate = request.CuerpoTemplate
+                    Canales = request.Canales.Select(c => new Domain.Entities.Config.WorkflowNotificacionCanal
+                    {
+                        CodigoCanal = c.CodigoCanal,
+                        AsuntoTemplate = c.AsuntoTemplate,
+                        CuerpoTemplate = c.CuerpoTemplate,
+                        ListadoRowHtml = c.ListadoRowHtml,
+                        Activo = c.Activo
+                    }).ToList()
                 };
 
                 accion.Notificaciones.Add(notificacion);
@@ -934,18 +1104,28 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdNotificacion = notificacion.IdNotificacion,
                     IdAccion = notificacion.IdAccion,
                     IdPasoDestino = notificacion.IdPasoDestino,
+                    IdTipoNotificacion = notificacion.IdTipoNotificacion,
                     EnviarEmail = notificacion.EnviarEmail,
                     EnviarWhatsapp = notificacion.EnviarWhatsapp,
                     EnviarTelegram = notificacion.EnviarTelegram,
                     AvisarAlCreador = notificacion.AvisarAlCreador,
                     AvisarAlSiguiente = notificacion.AvisarAlSiguiente,
                     AvisarAlAnterior = notificacion.AvisarAlAnterior,
+                    AvisarAAutorizadoresPrevios = notificacion.AvisarAAutorizadoresPrevios,
+                    IncluirPartidas = notificacion.IncluirPartidas,
                     Activo = notificacion.Activo,
-                    AsuntoTemplate = notificacion.AsuntoTemplate,
-                    CuerpoTemplate = notificacion.CuerpoTemplate
+                    Canales = notificacion.Canales.Select(c => new WorkflowNotificacionCanalDto
+                    {
+                        IdNotificacionCanal = c.IdNotificacionCanal,
+                        CodigoCanal = c.CodigoCanal,
+                        AsuntoTemplate = c.AsuntoTemplate,
+                        CuerpoTemplate = c.CuerpoTemplate,
+                        ListadoRowHtml = c.ListadoRowHtml,
+                        Activo = c.Activo
+                    }).ToList()
                 };
 
-                EnrichWideEvent("CreateNotificacion", entityId: notificacion.IdNotificacion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
+                EnrichWideEvent("CreateNotificacion",entityId: notificacion.IdNotificacion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
                 return response;
             }
             catch (Exception ex)
@@ -963,6 +1143,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
                     .ThenInclude(a => a.Notificaciones)
+                    .ThenInclude(n => n.Canales)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
                 
                 if (workflow == null)
@@ -994,12 +1175,43 @@ public class WorkflowService : BaseService, IWorkflowService
                 notificacion.EnviarWhatsapp = request.EnviarWhatsapp;
                 notificacion.EnviarTelegram = request.EnviarTelegram;
                 notificacion.IdPasoDestino = request.IdPasoDestino;
+                notificacion.IdTipoNotificacion = request.IdTipoNotificacion;
                 notificacion.AvisarAlCreador = request.AvisarAlCreador;
                 notificacion.AvisarAlSiguiente = request.AvisarAlSiguiente;
                 notificacion.AvisarAlAnterior = request.AvisarAlAnterior;
+                notificacion.AvisarAAutorizadoresPrevios = request.AvisarAAutorizadoresPrevios;
+                notificacion.IncluirPartidas = request.IncluirPartidas;
                 notificacion.Activo = request.Activo;
-                notificacion.AsuntoTemplate = request.AsuntoTemplate;
-                notificacion.CuerpoTemplate = request.CuerpoTemplate;
+
+                // Upsert canales
+                var codigosEnRequest = request.Canales.Select(c => c.CodigoCanal).ToHashSet();
+                var canalesAEliminar = notificacion.Canales
+                    .Where(c => !codigosEnRequest.Contains(c.CodigoCanal))
+                    .ToList();
+                _context.WorkflowNotificacionCanales.RemoveRange(canalesAEliminar);
+
+                foreach (var canalDto in request.Canales)
+                {
+                    var existing = notificacion.Canales.FirstOrDefault(c => c.CodigoCanal == canalDto.CodigoCanal);
+                    if (existing != null)
+                    {
+                        existing.AsuntoTemplate = canalDto.AsuntoTemplate;
+                        existing.CuerpoTemplate = canalDto.CuerpoTemplate;
+                        existing.ListadoRowHtml = canalDto.ListadoRowHtml;
+                        existing.Activo = canalDto.Activo;
+                    }
+                    else
+                    {
+                        notificacion.Canales.Add(new Domain.Entities.Config.WorkflowNotificacionCanal
+                        {
+                            CodigoCanal = canalDto.CodigoCanal,
+                            AsuntoTemplate = canalDto.AsuntoTemplate,
+                            CuerpoTemplate = canalDto.CuerpoTemplate,
+                            ListadoRowHtml = canalDto.ListadoRowHtml,
+                            Activo = canalDto.Activo
+                        });
+                    }
+                }
 
                 await _repo.UpdateAsync(workflow);
 
@@ -1008,18 +1220,28 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdNotificacion = notificacion.IdNotificacion,
                     IdAccion = notificacion.IdAccion,
                     IdPasoDestino = notificacion.IdPasoDestino,
+                    IdTipoNotificacion = notificacion.IdTipoNotificacion,
                     EnviarEmail = notificacion.EnviarEmail,
                     EnviarWhatsapp = notificacion.EnviarWhatsapp,
                     EnviarTelegram = notificacion.EnviarTelegram,
                     AvisarAlCreador = notificacion.AvisarAlCreador,
                     AvisarAlSiguiente = notificacion.AvisarAlSiguiente,
                     AvisarAlAnterior = notificacion.AvisarAlAnterior,
+                    AvisarAAutorizadoresPrevios = notificacion.AvisarAAutorizadoresPrevios,
+                    IncluirPartidas = notificacion.IncluirPartidas,
                     Activo = notificacion.Activo,
-                    AsuntoTemplate = notificacion.AsuntoTemplate,
-                    CuerpoTemplate = notificacion.CuerpoTemplate
+                    Canales = notificacion.Canales.Select(c => new WorkflowNotificacionCanalDto
+                    {
+                        IdNotificacionCanal = c.IdNotificacionCanal,
+                        CodigoCanal = c.CodigoCanal,
+                        AsuntoTemplate = c.AsuntoTemplate,
+                        CuerpoTemplate = c.CuerpoTemplate,
+                        ListadoRowHtml = c.ListadoRowHtml,
+                        Activo = c.Activo
+                    }).ToList()
                 };
 
-                EnrichWideEvent("UpdateNotificacion", entityId: idNotificacion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
+                EnrichWideEvent("UpdateNotificacion",entityId: idNotificacion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
                 return response;
             }
             catch (Exception ex)
@@ -1074,6 +1296,129 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
+        public async Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(int idWorkflow, CreateWorkflowCampoRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Campos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                if (workflow.Campos.Any(c => c.NombreTecnico == request.NombreTecnico))
+                    return CommonErrors.AlreadyExists("campo", "nombre_tecnico", request.NombreTecnico);
+
+                var campo = new WorkflowCampo
+                {
+                    IdWorkflow = idWorkflow,
+                    NombreTecnico = request.NombreTecnico.Trim(),
+                    EtiquetaUsuario = request.EtiquetaUsuario.Trim(),
+                    TipoControl = request.TipoControl.Trim(),
+                    SourceCatalog = request.SourceCatalog,
+                    PropiedadEntidad = request.PropiedadEntidad?.Trim(),
+                    ValidarFiscal = request.ValidarFiscal,
+                    Activo = request.Activo
+                };
+
+                workflow.Campos.Add(campo);
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("CreateCampo", entityId: campo.IdWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                return new WorkflowCampoResponse
+                {
+                    IdWorkflowCampo = campo.IdWorkflowCampo,
+                    IdWorkflow = campo.IdWorkflow,
+                    NombreTecnico = campo.NombreTecnico,
+                    EtiquetaUsuario = campo.EtiquetaUsuario,
+                    TipoControl = campo.TipoControl,
+                    SourceCatalog = campo.SourceCatalog,
+                    PropiedadEntidad = campo.PropiedadEntidad,
+                    ValidarFiscal = campo.ValidarFiscal,
+                    Activo = campo.Activo
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("CreateCampo", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("crear campo de workflow");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflow, int idWorkflowCampo, UpdateWorkflowCampoRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Campos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var campo = workflow.Campos.FirstOrDefault(c => c.IdWorkflowCampo == idWorkflowCampo);
+                if (campo == null)
+                    return CommonErrors.NotFound("campo", idWorkflowCampo.ToString());
+
+                campo.NombreTecnico = request.NombreTecnico.Trim();
+                campo.EtiquetaUsuario = request.EtiquetaUsuario.Trim();
+                campo.TipoControl = request.TipoControl.Trim();
+                campo.SourceCatalog = request.SourceCatalog;
+                campo.PropiedadEntidad = request.PropiedadEntidad?.Trim();
+                campo.ValidarFiscal = request.ValidarFiscal;
+                campo.Activo = request.Activo;
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("UpdateCampo", entityId: idWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                return new WorkflowCampoResponse
+                {
+                    IdWorkflowCampo = campo.IdWorkflowCampo,
+                    IdWorkflow = campo.IdWorkflow,
+                    NombreTecnico = campo.NombreTecnico,
+                    EtiquetaUsuario = campo.EtiquetaUsuario,
+                    TipoControl = campo.TipoControl,
+                    SourceCatalog = campo.SourceCatalog,
+                    PropiedadEntidad = campo.PropiedadEntidad,
+                    ValidarFiscal = campo.ValidarFiscal,
+                    Activo = campo.Activo
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("UpdateCampo", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("actualizar campo de workflow");
+            }
+        }
+
+        public async Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable()
+                    .Include(w => w.Campos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var campo = workflow.Campos.FirstOrDefault(c => c.IdWorkflowCampo == idWorkflowCampo);
+                if (campo == null)
+                    return CommonErrors.NotFound("campo", idWorkflowCampo.ToString());
+
+                campo.Activo = false;
+                await _repo.UpdateAsync(workflow);
+
+                EnrichWideEvent("DeleteCampo", entityId: idWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                return true;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("DeleteCampo", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("eliminar campo de workflow");
+            }
+        }
+
         private static WorkflowResponse ToResponse(Workflow w) => new()
         {
             IdWorkflow = w.IdWorkflow,
@@ -1083,6 +1428,21 @@ public class WorkflowService : BaseService, IWorkflowService
             Version = w.Version,
             Activo = w.Activo,
             FechaCreacion = w.FechaCreacion,
+            Campos = w.Campos
+                .Where(c => c.Activo)
+                .OrderBy(c => c.EtiquetaUsuario)
+                .Select(c => new WorkflowCampoResponse
+                {
+                    IdWorkflowCampo = c.IdWorkflowCampo,
+                    IdWorkflow = c.IdWorkflow,
+                    NombreTecnico = c.NombreTecnico,
+                    EtiquetaUsuario = c.EtiquetaUsuario,
+                    TipoControl = c.TipoControl,
+                    SourceCatalog = c.SourceCatalog,
+                    PropiedadEntidad = c.PropiedadEntidad,
+                    ValidarFiscal = c.ValidarFiscal,
+                    Activo = c.Activo
+                }).ToList(),
                 Pasos = w.Pasos.Where(p => p.Activo).OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
                 {
                 IdPaso = p.IdPaso,
@@ -1090,13 +1450,13 @@ public class WorkflowService : BaseService, IWorkflowService
                 NombrePaso = p.NombrePaso,
                 CodigoEstado = p.CodigoEstado,
                 DescripcionAyuda = p.DescripcionAyuda,
-                HandlerKey = p.HandlerKey,
                 EsInicio = p.EsInicio,
                 EsFinal = p.EsFinal,
                 Activo = p.Activo,
                 RequiereFirma = p.RequiereFirma,
                 RequiereComentario = p.RequiereComentario,
                 RequiereAdjunto = p.RequiereAdjunto,
+                PermiteAdjunto = p.PermiteAdjunto,
                 Acciones = p.AccionesOrigen.Where(a => a.Activo).Select(a => new WorkflowAccionResponse
                 {
                     IdAccion = a.IdAccion,
@@ -1105,20 +1465,51 @@ public class WorkflowService : BaseService, IWorkflowService
                     ClaseEstetica = a.ClaseEstetica,
                     IdPasoDestino = a.IdPasoDestino,
                     Activo = a.Activo,
+                    Handlers = a.AccionHandlers.Where(h => h.Activo).OrderBy(h => h.OrdenEjecucion).Select(h => new WorkflowAccionHandlerResponse
+                    {
+                        IdHandler = h.IdHandler,
+                        HandlerKey = h.HandlerKey,
+                        ConfiguracionJson = h.ConfiguracionJson,
+                        OrdenEjecucion = h.OrdenEjecucion,
+                        Activo = h.Activo,
+                        IdWorkflowCampo = h.IdWorkflowCampo,
+                        Campo = h.Campo != null ? new WorkflowCampoResponse
+                        {
+                            IdWorkflowCampo = h.Campo.IdWorkflowCampo,
+                            IdWorkflow = h.Campo.IdWorkflow,
+                            NombreTecnico = h.Campo.NombreTecnico,
+                            EtiquetaUsuario = h.Campo.EtiquetaUsuario,
+                            TipoControl = h.Campo.TipoControl,
+                            SourceCatalog = h.Campo.SourceCatalog,
+                            PropiedadEntidad = h.Campo.PropiedadEntidad,
+                            ValidarFiscal = h.Campo.ValidarFiscal,
+                            Activo = h.Campo.Activo
+                        } : null
+                    }).ToList(),
                     Notificaciones = a.Notificaciones.Where(n => n.Activo).Select(n => new NotificacionResponse
                     {
                         IdNotificacion = n.IdNotificacion,
                         IdAccion = n.IdAccion,
                         IdPasoDestino = n.IdPasoDestino,
+                        IdTipoNotificacion = n.IdTipoNotificacion,
                         EnviarEmail = n.EnviarEmail,
                         EnviarWhatsapp = n.EnviarWhatsapp,
                         EnviarTelegram = n.EnviarTelegram,
                         AvisarAlCreador = n.AvisarAlCreador,
                         AvisarAlSiguiente = n.AvisarAlSiguiente,
                         AvisarAlAnterior = n.AvisarAlAnterior,
+                        AvisarAAutorizadoresPrevios = n.AvisarAAutorizadoresPrevios,
+                        IncluirPartidas = n.IncluirPartidas,
                         Activo = n.Activo,
-                        AsuntoTemplate = n.AsuntoTemplate ?? string.Empty,
-                        CuerpoTemplate = n.CuerpoTemplate ?? string.Empty
+                        Canales = n.Canales.Select(c => new WorkflowNotificacionCanalDto
+                        {
+                            IdNotificacionCanal = c.IdNotificacionCanal,
+                            CodigoCanal = c.CodigoCanal,
+                            AsuntoTemplate = c.AsuntoTemplate,
+                            CuerpoTemplate = c.CuerpoTemplate,
+                            ListadoRowHtml = c.ListadoRowHtml,
+                            Activo = c.Activo
+                        }).ToList()
                     }).ToList()
                 }).ToList(),
                 Condiciones = p.Condiciones.Where(c => c.Activo).Select(c => new CondicionResponse
@@ -1149,5 +1540,464 @@ public class WorkflowService : BaseService, IWorkflowService
                     .SelectMany(a => a.Notificaciones).Count(n => n.Activo)
             }
         };
+
+        public async Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync(int idWorkflow)
+        {
+            try
+            {
+                var templates = await _repo.GetCanalTemplatesAsync(idWorkflow);
+                return templates.Select(t => new WorkflowCanalTemplateResponse
+                {
+                    IdTemplate = t.IdTemplate,
+                    IdWorkflow = t.IdWorkflow,
+                    CodigoCanal = t.CodigoCanal,
+                    Nombre = t.Nombre,
+                    LayoutHtml = t.LayoutHtml,
+                    Activo = t.Activo,
+                    FechaModificacion = t.FechaModificacion
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetCanalTemplates", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("obtener las plantillas de canal");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(int idWorkflow, CreateCanalTemplateRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable().FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var codigoCanal = request.CodigoCanal.ToLowerInvariant();
+                var existing = await _repo.GetCanalTemplateAsync(idWorkflow, codigoCanal);
+                if (existing != null)
+                    return Error.Conflict("CanalTemplate.AlreadyExists", $"Ya existe una plantilla para el canal '{codigoCanal}' en este workflow.");
+
+                var template = new WorkflowCanalTemplate
+                {
+                    IdWorkflow = idWorkflow,
+                    CodigoCanal = codigoCanal,
+                    Nombre = request.Nombre,
+                    LayoutHtml = request.LayoutHtml,
+                    Activo = request.Activo,
+                    FechaModificacion = DateTime.UtcNow
+                };
+                _context.WorkflowCanalTemplates.Add(template);
+                await _context.SaveChangesAsync();
+                return new WorkflowCanalTemplateResponse
+                {
+                    IdTemplate = template.IdTemplate,
+                    IdWorkflow = template.IdWorkflow,
+                    CodigoCanal = template.CodigoCanal,
+                    Nombre = template.Nombre,
+                    LayoutHtml = template.LayoutHtml,
+                    Activo = template.Activo,
+                    FechaModificacion = template.FechaModificacion
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("CreateCanalTemplate", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("crear la plantilla de canal");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(int idWorkflow, string codigoCanal, UpsertCanalTemplateRequest request)
+        {
+            try
+            {
+                var workflow = await _repo.GetQueryable().FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                if (workflow == null)
+                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+
+                var existing = await _repo.GetCanalTemplateAsync(idWorkflow, codigoCanal);
+                if (existing != null)
+                {
+                    existing.Nombre = request.Nombre;
+                    existing.LayoutHtml = request.LayoutHtml;
+                    existing.Activo = request.Activo;
+                    existing.FechaModificacion = DateTime.UtcNow;
+                    _context.WorkflowCanalTemplates.Update(existing);
+                    await _context.SaveChangesAsync();
+                    return new WorkflowCanalTemplateResponse
+                    {
+                        IdTemplate = existing.IdTemplate,
+                        IdWorkflow = existing.IdWorkflow,
+                        CodigoCanal = existing.CodigoCanal,
+                        Nombre = existing.Nombre,
+                        LayoutHtml = existing.LayoutHtml,
+                        Activo = existing.Activo,
+                        FechaModificacion = existing.FechaModificacion
+                    };
+                }
+
+                var template = new WorkflowCanalTemplate
+                {
+                    IdWorkflow = idWorkflow,
+                    CodigoCanal = codigoCanal.ToLowerInvariant(),
+                    Nombre = request.Nombre,
+                    LayoutHtml = request.LayoutHtml,
+                    Activo = request.Activo,
+                    FechaModificacion = DateTime.UtcNow
+                };
+                _context.WorkflowCanalTemplates.Add(template);
+                await _context.SaveChangesAsync();
+                return new WorkflowCanalTemplateResponse
+                {
+                    IdTemplate = template.IdTemplate,
+                    IdWorkflow = template.IdWorkflow,
+                    CodigoCanal = template.CodigoCanal,
+                    Nombre = template.Nombre,
+                    LayoutHtml = template.LayoutHtml,
+                    Activo = template.Activo,
+                    FechaModificacion = template.FechaModificacion
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("UpsertCanalTemplate", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("guardar la plantilla de canal");
+            }
+        }
+        public async Task<ErrorOr<IEnumerable<WorkflowTipoNotificacionResponse>>> GetTiposNotificacionAsync()
+        {
+            try
+            {
+                var tipos = await _context.WorkflowTiposNotificacion
+                    .Where(t => t.Activo)
+                    .OrderBy(t => t.IdTipo)
+                    .Select(t => new WorkflowTipoNotificacionResponse
+                    {
+                        IdTipo = t.IdTipo,
+                        Codigo = t.Codigo,
+                        Nombre = t.Nombre,
+                        ColorTema = t.ColorTema,
+                        ColorClaro = t.ColorClaro,
+                        Icono = t.Icono,
+                        Activo = t.Activo
+                    })
+                    .ToListAsync();
+                return tipos;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetTiposNotificacion", exception: ex);
+                return CommonErrors.DatabaseError("obtener tipos de notificacion");
+            }
+        }
+
+        public async Task<ErrorOr<IEnumerable<WorkflowNotificacionesPlantillaResponse>>> GetPlantillasBaseAsync(string? tipoNotificacion, string? canal)
+        {
+            try
+            {
+                var query = _context.WorkflowNotificacionesPlantillas
+                    .Where(p => p.Activo);
+
+                if (!string.IsNullOrEmpty(tipoNotificacion))
+                    query = query.Where(p => p.CodigoTipoNotificacion == null || p.CodigoTipoNotificacion == tipoNotificacion);
+
+                if (!string.IsNullOrEmpty(canal))
+                    query = query.Where(p => p.CodigoCanal == canal);
+
+                var result = await query
+                    .OrderBy(p => p.CodigoTipoNotificacion)
+                    .ThenBy(p => p.Nombre)
+                    .Select(p => new WorkflowNotificacionesPlantillaResponse
+                    {
+                        IdPlantilla = p.IdPlantilla,
+                        Nombre = p.Nombre,
+                        CodigoTipoNotificacion = p.CodigoTipoNotificacion,
+                        CodigoCanal = p.CodigoCanal,
+                        AsuntoTemplate = p.AsuntoTemplate,
+                        CuerpoTemplate = p.CuerpoTemplate,
+                        ListadoRowHtml = p.ListadoRowHtml,
+                        Activo = p.Activo
+                    })
+                    .ToListAsync();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetPlantillasBase", exception: ex);
+                return CommonErrors.DatabaseError("obtener plantillas base");
+            }
+        }
+
+        // ============================================================================
+        // Recordatorios
+        // ============================================================================
+
+        private static WorkflowRecordatorioResponse ToRecordatorioResponse(Domain.Entities.Config.WorkflowRecordatorio r) => new()
+        {
+            IdRecordatorio = r.IdRecordatorio,
+            IdWorkflow = r.IdWorkflow,
+            IdPaso = r.IdPaso,
+            Nombre = r.Nombre,
+            Activo = r.Activo,
+            TipoTrigger = r.TipoTrigger,
+            HoraEnvio = r.HoraEnvio,
+            DiasSemana = r.DiasSemana,
+            IntervaloHoras = r.IntervaloHoras,
+            FechaEspecifica = r.FechaEspecifica,
+            MinOrdenesPendientes = r.MinOrdenesPendientes,
+            MinDiasEnPaso = r.MinDiasEnPaso,
+            MontoMinimo = r.MontoMinimo,
+            MontoMaximo = r.MontoMaximo,
+            EscalarAJerarquia = r.EscalarAJerarquia,
+            DiasParaEscalar = r.DiasParaEscalar,
+            EnviarAlResponsable = r.EnviarAlResponsable,
+            EnviarEmail = r.EnviarEmail,
+            EnviarWhatsapp = r.EnviarWhatsapp,
+            EnviarTelegram = r.EnviarTelegram,
+            FechaCreacion = r.FechaCreacion,
+            Canales = r.Canales.Select(c => new WorkflowRecordatorioCanalDto
+            {
+                IdRecordatorioCanal = c.IdRecordatorioCanal,
+                CodigoCanal = c.CodigoCanal,
+                AsuntoTemplate = c.AsuntoTemplate,
+                CuerpoTemplate = c.CuerpoTemplate,
+                ListadoRowHtml = c.ListadoRowHtml,
+                Activo = c.Activo
+            }).ToList()
+        };
+
+        public async Task<ErrorOr<IEnumerable<WorkflowRecordatorioResponse>>> GetRecordatoriosAsync(int idWorkflow)
+        {
+            try
+            {
+                var lista = await _context.WorkflowRecordatorios
+                    .Where(r => r.IdWorkflow == idWorkflow)
+                    .Include(r => r.Canales)
+                    .OrderBy(r => r.IdRecordatorio)
+                    .ToListAsync();
+                return lista.Select(ToRecordatorioResponse).ToList();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetRecordatorios", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("obtener recordatorios");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowRecordatorioResponse>> CreateRecordatorioAsync(int idWorkflow, CreateRecordatorioRequest request)
+        {
+            try
+            {
+                var existe = await _context.Workflows.AnyAsync(w => w.IdWorkflow == idWorkflow);
+                if (!existe)
+                    return Error.NotFound("Workflow.NotFound", $"No se encontró el workflow {idWorkflow}.");
+
+                var recordatorio = new WorkflowRecordatorio
+                {
+                    IdWorkflow = idWorkflow,
+                    IdPaso = request.IdPaso,
+                    Nombre = request.Nombre,
+                    Activo = request.Activo,
+                    TipoTrigger = request.TipoTrigger,
+                    HoraEnvio = request.HoraEnvio,
+                    DiasSemana = request.DiasSemana,
+                    IntervaloHoras = request.IntervaloHoras,
+                    FechaEspecifica = request.FechaEspecifica,
+                    MinOrdenesPendientes = request.MinOrdenesPendientes,
+                    MinDiasEnPaso = request.MinDiasEnPaso,
+                    MontoMinimo = request.MontoMinimo,
+                    MontoMaximo = request.MontoMaximo,
+                    EscalarAJerarquia = request.EscalarAJerarquia,
+                    DiasParaEscalar = request.DiasParaEscalar,
+                    EnviarAlResponsable = request.EnviarAlResponsable,
+                    EnviarEmail = request.EnviarEmail,
+                    EnviarWhatsapp = request.EnviarWhatsapp,
+                    EnviarTelegram = request.EnviarTelegram,
+                    FechaCreacion = DateTime.UtcNow,
+                    Canales = request.Canales.Select(c => new Domain.Entities.Config.WorkflowRecordatorioCanal
+                    {
+                        CodigoCanal = c.CodigoCanal,
+                        AsuntoTemplate = c.AsuntoTemplate,
+                        CuerpoTemplate = c.CuerpoTemplate,
+                        ListadoRowHtml = c.ListadoRowHtml,
+                        Activo = c.Activo
+                    }).ToList()
+                };
+
+                _context.WorkflowRecordatorios.Add(recordatorio);
+                await _context.SaveChangesAsync();
+                return ToRecordatorioResponse(recordatorio);
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("CreateRecordatorio", entityId: idWorkflow, exception: ex);
+                return CommonErrors.DatabaseError("crear recordatorio");
+            }
+        }
+
+        public async Task<ErrorOr<WorkflowRecordatorioResponse>> UpdateRecordatorioAsync(int idWorkflow, int idRecordatorio, UpdateRecordatorioRequest request)
+        {
+            try
+            {
+                var recordatorio = await _context.WorkflowRecordatorios
+                    .Include(r => r.Canales)
+                    .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
+
+                if (recordatorio is null)
+                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+
+                recordatorio.IdPaso = request.IdPaso;
+                recordatorio.Nombre = request.Nombre;
+                recordatorio.Activo = request.Activo;
+                recordatorio.TipoTrigger = request.TipoTrigger;
+                recordatorio.HoraEnvio = request.HoraEnvio;
+                recordatorio.DiasSemana = request.DiasSemana;
+                recordatorio.IntervaloHoras = request.IntervaloHoras;
+                recordatorio.FechaEspecifica = request.FechaEspecifica;
+                recordatorio.MinOrdenesPendientes = request.MinOrdenesPendientes;
+                recordatorio.MinDiasEnPaso = request.MinDiasEnPaso;
+                recordatorio.MontoMinimo = request.MontoMinimo;
+                recordatorio.MontoMaximo = request.MontoMaximo;
+                recordatorio.EscalarAJerarquia = request.EscalarAJerarquia;
+                recordatorio.DiasParaEscalar = request.DiasParaEscalar;
+                recordatorio.EnviarAlResponsable = request.EnviarAlResponsable;
+                recordatorio.EnviarEmail = request.EnviarEmail;
+                recordatorio.EnviarWhatsapp = request.EnviarWhatsapp;
+                recordatorio.EnviarTelegram = request.EnviarTelegram;
+
+                // Upsert canales: eliminar los que ya no vienen, actualizar o insertar los nuevos
+                var codigosEnRequest = request.Canales.Select(c => c.CodigoCanal).ToHashSet();
+                var canalesAEliminar = recordatorio.Canales
+                    .Where(c => !codigosEnRequest.Contains(c.CodigoCanal))
+                    .ToList();
+                _context.WorkflowRecordatorioCanales.RemoveRange(canalesAEliminar);
+
+                foreach (var canalDto in request.Canales)
+                {
+                    var existing = recordatorio.Canales.FirstOrDefault(c => c.CodigoCanal == canalDto.CodigoCanal);
+                    if (existing != null)
+                    {
+                        existing.AsuntoTemplate = canalDto.AsuntoTemplate;
+                        existing.CuerpoTemplate = canalDto.CuerpoTemplate;
+                        existing.ListadoRowHtml = canalDto.ListadoRowHtml;
+                        existing.Activo = canalDto.Activo;
+                    }
+                    else
+                    {
+                        recordatorio.Canales.Add(new Domain.Entities.Config.WorkflowRecordatorioCanal
+                        {
+                            CodigoCanal = canalDto.CodigoCanal,
+                            AsuntoTemplate = canalDto.AsuntoTemplate,
+                            CuerpoTemplate = canalDto.CuerpoTemplate,
+                            ListadoRowHtml = canalDto.ListadoRowHtml,
+                            Activo = canalDto.Activo
+                        });
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return ToRecordatorioResponse(recordatorio);
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("UpdateRecordatorio", entityId: idRecordatorio, exception: ex);
+                return CommonErrors.DatabaseError("actualizar recordatorio");
+            }
+        }
+
+        public async Task<ErrorOr<bool>> DeleteRecordatorioAsync(int idWorkflow, int idRecordatorio)
+        {
+            try
+            {
+                var recordatorio = await _context.WorkflowRecordatorios
+                    .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
+
+                if (recordatorio is null)
+                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+
+                _context.WorkflowRecordatorios.Remove(recordatorio);
+                await _context.SaveChangesAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("DeleteRecordatorio", entityId: idRecordatorio, exception: ex);
+                return CommonErrors.DatabaseError("eliminar recordatorio");
+            }
+        }
+
+        public async Task<ErrorOr<bool>> TestRecordatorioAsync(int idWorkflow, int idRecordatorio, int idUsuarioActual)
+        {
+            try
+            {
+                var recordatorio = await _context.WorkflowRecordatorios
+                    .Include(r => r.Canales)
+                    .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
+
+                if (recordatorio is null)
+                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+
+                var ctx = new Dictionary<string, string>
+                {
+                    ["NombreResponsable"] = $"Usuario {idUsuarioActual}",
+                    ["CantidadPendientes"] = "1",
+                    ["DiasEspera"] = "0",
+                    ["ListadoPendientes"] = "<p>(prueba de recordatorio)</p>",
+                    ["Folio"] = "TEST",
+                    ["Total"] = "$0.00",
+                };
+
+                var canalInApp = recordatorio.Canales.FirstOrDefault(c => c.CodigoCanal == "in_app" && c.Activo);
+                var canalEmail = recordatorio.Canales.FirstOrDefault(c => c.CodigoCanal == "email" && c.Activo);
+
+                var asunto = Interpolate(canalInApp?.AsuntoTemplate ?? canalEmail?.AsuntoTemplate ?? "Recordatorio", ctx);
+                var cuerpo = Interpolate(canalInApp?.CuerpoTemplate ?? canalEmail?.CuerpoTemplate ?? "(sin contenido)", ctx);
+
+                var channels = new List<NotificationChannelRequest>
+                {
+                    new NotificationChannelRequest { ChannelType = "in-app", UserIds = new List<int> { idUsuarioActual } }
+                };
+                if (recordatorio.EnviarEmail && canalEmail != null)
+                    channels.Add(new NotificationChannelRequest { ChannelType = "email", UserIds = new List<int> { idUsuarioActual } });
+                if (recordatorio.EnviarTelegram)
+                    channels.Add(new NotificationChannelRequest { ChannelType = "telegram", UserIds = new List<int> { idUsuarioActual } });
+
+                await _notificationService.SendAsync(new SendNotificationRequest
+                {
+                    Title = asunto,
+                    Message = cuerpo,
+                    Type = "info",
+                    Priority = "normal",
+                    Category = "order",
+                    Channels = channels
+                });
+
+                var log = new WorkflowRecordatorioLog
+                {
+                    IdRecordatorio = idRecordatorio,
+                    IdUsuario = idUsuarioActual,
+                    OrdenesIncluidas = 0,
+                    FechaEnvio = DateTime.UtcNow,
+                    Canal = "test",
+                    Estado = "enviado"
+                };
+                _context.WorkflowRecordatorioLogs.Add(log);
+                await _context.SaveChangesAsync();
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("TestRecordatorio", entityId: idRecordatorio, exception: ex);
+                return CommonErrors.DatabaseError("probar recordatorio");
+            }
+        }
+
+        private static string Interpolate(string template, Dictionary<string, string> ctx)
+        {
+            foreach (var (key, value) in ctx)
+                template = template.Replace($"{{{{{key}}}}}", value, StringComparison.OrdinalIgnoreCase);
+            return template;
+        }
     }
 }

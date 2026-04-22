@@ -1,0 +1,6 @@
+-- =============================================================================
+-- ARCHIVO DEPRECADO
+-- Los cambios de esquema van en scripts.sql (DDL canónico).
+-- Los datos van en seed-data.sql (datos iniciales canónicos).
+-- Este archivo se mantiene solo como referencia histórica.
+-- =============================================================================

@@ -16,16 +16,12 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.IdSucursal).HasColumnName("id_sucursal");
             builder.Property(o => o.IdArea).HasColumnName("id_area");
             builder.Property(o => o.IdTipoGasto).HasColumnName("id_tipo_gasto");
-            builder.Property(o => o.IdFormaPago).HasColumnName("id_forma_pago");
             builder.Property(o => o.IdUsuarioCreador).HasColumnName("id_usuario_creador");
             builder.Property(o => o.Estado).HasColumnName("estado").HasConversion<int>();
             builder.Property(o => o.IdPasoActual).HasColumnName("id_paso_actual");
+            builder.Property(o => o.IdProveedor).HasColumnName("id_proveedor");
+            builder.Property(o => o.IdsCuentasBancarias).HasColumnName("ids_cuentas_bancarias").HasColumnType("nvarchar(max)");
             builder.Property(o => o.SinDatosFiscales).HasColumnName("sin_datos_fiscales").HasDefaultValue(false);
-            builder.Property(o => o.RazonSocialProveedor).HasColumnName("razon_social_proveedor").HasMaxLength(255).IsRequired();
-            builder.Property(o => o.RfcProveedor).HasColumnName("rfc_proveedor").HasMaxLength(13);
-            builder.Property(o => o.CodigoPostalProveedor).HasColumnName("codigo_postal_proveedor").HasMaxLength(5);
-            builder.Property(o => o.IdRegimenFiscal).HasColumnName("id_regimen_fiscal");
-            builder.Property(o => o.PersonaContacto).HasColumnName("persona_contacto").HasMaxLength(255);
             builder.Property(o => o.NotaFormaPago).HasColumnName("nota_forma_pago").HasMaxLength(500);
             builder.Property(o => o.NotasGenerales).HasColumnName("notas_generales").HasMaxLength(1000);
             builder.Property(o => o.IdCentroCosto).HasColumnName("id_centro_costo");
@@ -44,6 +40,22 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.Total).HasColumnName("total").HasColumnType("decimal(18,2)");
 
             builder.HasMany(o => o.Partidas).WithOne(p => p.Orden).HasForeignKey(p => p.IdOrden).OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasOne(o => o.Proveedor)
+                .WithMany()
+                .HasForeignKey(o => o.IdProveedor)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(o => o.CentroCosto)
+                .WithMany()
+                .HasForeignKey(o => o.IdCentroCosto)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(o => o.CuentaContable)
+                .WithMany()
+                .HasForeignKey(o => o.IdCuentaContable)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

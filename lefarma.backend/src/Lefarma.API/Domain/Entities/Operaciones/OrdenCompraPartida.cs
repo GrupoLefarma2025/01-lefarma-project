@@ -16,6 +16,18 @@ public class OrdenCompraPartida
         // ((PrecioUnitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones + OtrosImpuestos
         public decimal Total { get; set; }
 
+        // Proveedor específico de la partida (puede diferir del proveedor principal de la orden)
+        public int? IdProveedor { get; set; }
+        // Múltiples cuentas bancarias como JSON array, ej: "[1,2,3]"
+        public string? IdsCuentasBancarias { get; set; }
+
+        // Facturación
+        public bool RequiereFactura { get; set; } = true;
+        public string? TipoComprobante { get; set; }
+        public decimal? CantidadFacturada { get; set; }
+        public decimal? ImporteFacturado { get; set; }
+        public byte EstadoFacturacion { get; set; } = 0;
+
         public virtual OrdenCompra? Orden { get; set; }
     }
 }

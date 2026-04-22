@@ -18,6 +18,7 @@ public class WorkflowAccionConfiguration : IEntityTypeConfiguration<WorkflowAcci
             builder.Property(a => a.Activo).HasColumnName("activo").HasDefaultValue(true);
 
             builder.HasOne(a => a.PasoDestino).WithMany().HasForeignKey(a => a.IdPasoDestino).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
+            builder.HasMany(a => a.AccionHandlers).WithOne(h => h.Accion).HasForeignKey(h => h.IdAccion).OnDelete(DeleteBehavior.Cascade);
             builder.HasMany(a => a.Notificaciones).WithOne(n => n.Accion).HasForeignKey(n => n.IdAccion).OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -36,6 +36,10 @@ public class FormaPagoConfiguration : IEntityTypeConfiguration<FormaPago>
                 .HasColumnName("clave")
                 .HasMaxLength(50);
 
+            builder.Property(e => e.RequiereCuenta)
+                .HasColumnName("requiere_cuenta")
+                .HasDefaultValue(true);
+
             builder.Property(e => e.Activo)
                 .HasColumnName("activo")
                 .HasDefaultValue(true);

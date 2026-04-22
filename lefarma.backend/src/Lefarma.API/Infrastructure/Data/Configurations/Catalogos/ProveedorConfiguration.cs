@@ -66,6 +66,11 @@ public class ProveedorConfiguration : IEntityTypeConfiguration<Proveedor>
             .HasForeignKey(e => e.RegimenFiscalId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasMany(e => e.CuentasFormaPago)
+            .WithOne(c => c.Proveedor)
+            .HasForeignKey(c => c.IdProveedor)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne(e => e.Detalle)
             .WithOne(d => d.Proveedor)
             .HasForeignKey<ProveedorDetalle>(d => d.IdProveedor)

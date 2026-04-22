@@ -18,6 +18,7 @@ public class WorkflowConfiguration : IEntityTypeConfiguration<Workflow>
             builder.Property(w => w.Activo).HasColumnName("activo").HasDefaultValue(true);
             builder.Property(w => w.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
             builder.HasMany(w => w.Pasos).WithOne(p => p.Workflow).HasForeignKey(p => p.IdWorkflow).OnDelete(DeleteBehavior.Cascade);
+            builder.HasMany(w => w.Campos).WithOne(c => c.Workflow).HasForeignKey(c => c.IdWorkflow).OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

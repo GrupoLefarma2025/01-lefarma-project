@@ -88,6 +88,7 @@ const menuItems: SidebarMenuItem[] = [
     isCollapsible: true,
     items: [
       // { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] } },
+      { title: 'Usuarios', icon: Users, path: '/seguridad/usuarios', permission: { require: 'usuarios.ver_detalle' } },
       { title: 'Roles', icon: Users, path: '/seguridad/roles', permission: { require: 'usuarios.ver_detalle' } },
       { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
     ],
@@ -124,11 +125,6 @@ const menuItems: SidebarMenuItem[] = [
     title: 'Notificaciones',
     icon: Bell,
     path: '/notificaciones',
-  },
-  {
-    title: 'Autorizaciones OC',
-    icon: FileCheck2,
-    path: '/ordenes/autorizaciones',
   },
   {
     title: 'Workflows',

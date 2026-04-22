@@ -20,5 +20,7 @@ public class Proveedor
     [ForeignKey("RegimenFiscalId")]
     public virtual RegimenFiscal? RegimenFiscal { get; set; }
 
+    public virtual ICollection<ProveedorFormaPagoCuenta> CuentasFormaPago { get; set; } = new List<ProveedorFormaPagoCuenta>();
+
     public virtual ProveedorDetalle? Detalle { get; set; }
 }

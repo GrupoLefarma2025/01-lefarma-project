@@ -34,6 +34,14 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
+    // Let axios set Content-Type automatically for FormData (includes boundary)
+    // Remove Content-Type for requests without a body (GET, DELETE, HEAD)
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    } else if (!config.data && ['get', 'delete', 'head'].includes((config.method ?? '').toLowerCase())) {
+      delete config.headers['Content-Type'];
+    }
+
     return config;
   },
   (error: AxiosError) => {

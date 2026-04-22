@@ -33,9 +33,18 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowPaso> WorkflowPasos { get; set; }
         public DbSet<WorkflowParticipante> WorkflowParticipantes { get; set; }
         public DbSet<WorkflowAccion> WorkflowAcciones { get; set; }
+        public DbSet<WorkflowAccionHandler> WorkflowAccionHandlers { get; set; }
+        public DbSet<WorkflowCampo> WorkflowCampos { get; set; }
         public DbSet<WorkflowNotificacion> WorkflowNotificaciones { get; set; }
+        public DbSet<WorkflowCanalTemplate> WorkflowCanalTemplates { get; set; }
+        public DbSet<WorkflowTipoNotificacion> WorkflowTiposNotificacion { get; set; }
         public DbSet<WorkflowCondicion> WorkflowCondiciones { get; set; }
         public DbSet<WorkflowBitacora> WorkflowBitacoras { get; set; }
+        public DbSet<WorkflowRecordatorio> WorkflowRecordatorios { get; set; }
+        public DbSet<WorkflowRecordatorioLog> WorkflowRecordatorioLogs { get; set; }
+        public DbSet<WorkflowRecordatorioCanal> WorkflowRecordatorioCanales { get; set; }
+        public DbSet<WorkflowNotificacionCanal> WorkflowNotificacionCanales { get; set; }
+        public DbSet<WorkflowNotificacionesPlantillas> WorkflowNotificacionesPlantillas { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
@@ -46,6 +55,10 @@ public class ApplicationDbContext : DbContext
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }
         public DbSet<ProveedorDetalle> ProveedoresDetalle { get; set; }
+        public DbSet<ProveedorFormaPagoCuenta> ProveedoresFormasPagoCuentas { get; set; }
+        public DbSet<StagingProveedor> StagingProveedores { get; set; }
+        public DbSet<StagingProveedorDetalle> StagingProveedoresDetalle { get; set; }
+        public DbSet<StagingProveedorFormaPagoCuenta> StagingProveedoresFormasPagoCuentas { get; set; }
         public DbSet<CentroCosto> CentrosCosto { get; set; }
         public DbSet<CuentaContable> CuentasContables { get; set; }
         public DbSet<EstatusOrden> EstatusOrden { get; set; }
@@ -84,6 +97,11 @@ public class ApplicationDbContext : DbContext
 
         // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }
+
+        // DbSets - Comprobantes (CFDI / facturas)
+        public DbSet<Comprobante> Comprobantes { get; set; }
+        public DbSet<ComprobanteConcepto> ComprobantesConceptos { get; set; }
+        public DbSet<ComprobantePartida> ComprobantesPartidas { get; set; }
 
         // Configuración mediante Fluent API
         protected override void OnModelCreating(ModelBuilder modelBuilder)

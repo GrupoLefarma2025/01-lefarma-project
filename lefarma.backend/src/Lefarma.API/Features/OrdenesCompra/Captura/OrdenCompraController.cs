@@ -1,4 +1,4 @@
-using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+    using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
@@ -21,11 +21,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
 
+        private bool TienePermiso(string permiso) =>
+            User.Claims.Any(c => c.Type == "permission" && c.Value == permiso);
+
         [HttpGet]
-        [SwaggerOperation(Summary = "Obtener �rdenes de compra con filtros")]
-        public async Task<IActionResult> GetAll(OrdenCompraRequest query)
+        [SwaggerOperation(Summary = "Obtener ordenes de compra con filtros")]
+        public async Task<IActionResult> GetAll(OrdenCompraRequest? query)
         {
-            var result = await _service.GetAllAsync(query, GetUserId());
+            if(query == null)
+            {
+                query = new OrdenCompraRequest();
+            }
+            var puedeVerTodas = TienePermiso("orden_compra.puede_ver_todas_las_ordenes");
+            var result = await _service.GetAllAsync(query, GetUserId(), puedeVerTodas);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
             { Success = true, Message = "�rdenes obtenidas exitosamente.", Data = data }));
         }
@@ -42,7 +50,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         [HttpPost]
     //    [HasPermission(Permissions.OrdenesCompra.Create)]
         [SwaggerOperation(Summary = "Crear nueva orden de compra")]
-        public async Task<IActionResult> Create( CreateOrdenCompraRequest request)
+        public async Task<IActionResult> Create( CreateOrdenCompraRequest? request)
         {
             var result = await _service.CreateAsync(request, GetUserId());
             return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
@@ -58,6 +66,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             var result = await _service.DeleteAsync(id);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Orden eliminada exitosamente.", Data = null }));
+        }
+
+        [HttpPut("{id}")]
+        [SwaggerOperation(Summary = "Actualizar orden de compra")]
+        public async Task<IActionResult> Update(int id, [FromBody] CreateOrdenCompraRequest? request)
+        {
+            if (request == null)
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Datos requeridos" });
+
+            var result = await _service.UpdateAsync(id, request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
+            { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
     }
 }

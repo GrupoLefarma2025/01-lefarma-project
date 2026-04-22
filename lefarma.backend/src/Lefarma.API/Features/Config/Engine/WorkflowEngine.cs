@@ -1,18 +1,24 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
-
+using Microsoft.Extensions.DependencyInjection;
 namespace Lefarma.API.Features.Config.Engine
 {
-public class WorkflowEngine : IWorkflowEngine
+    public class WorkflowEngine : IWorkflowEngine
     {
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
+        private readonly IServiceProvider _serviceProvider;
 
-        public WorkflowEngine(IWorkflowRepository workflowRepo, ApplicationDbContext context)
+        public WorkflowEngine(
+            IWorkflowRepository workflowRepo,
+            ApplicationDbContext context,
+            IServiceProvider serviceProvider)
         {
             _workflowRepo = workflowRepo;
             _context = context;
+            _serviceProvider = serviceProvider;
         }
 
         public async Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext ctx)
@@ -21,14 +27,51 @@ public class WorkflowEngine : IWorkflowEngine
             if (workflow is null)
                 return new WorkflowEjecucionResult(false, $"Workflow '{ctx.CodigoProceso}' no encontrado.", null, null);
 
-            var accion = workflow.Pasos
-                .SelectMany(p => p.AccionesOrigen)
+            var pasoActual = workflow.Pasos
+                .FirstOrDefault(p => p.IdPaso == ctx.Orden.IdPasoActual && p.Activo);
+
+            if (pasoActual is null)
+                return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
+
+            if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
+                return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
+
+            var accion = pasoActual.AccionesOrigen
                 .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
 
             if (accion is null)
-                return new WorkflowEjecucionResult(false, "Acci�n no v�lida para el estado actual.", null, null);
+                return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
 
-            // Evaluar condiciones din�micas (ej: Total > 100,000 ? desviar a Firma 5)
+            var actionHandlers = accion.AccionHandlers
+                .Where(h => h.Activo)
+                .OrderBy(h => h.OrdenEjecucion)
+                .ToList();
+
+            if (actionHandlers.Any())
+            {
+                var handlerContext = new WorkflowHandlerContext(
+                    Orden: ctx.Orden,
+                    IdOrden: ctx.IdOrden,
+                    IdAccion: ctx.IdAccion,
+                    IdUsuario: ctx.IdUsuario,
+                    Comentario: ctx.Comentario,
+                    DatosAdicionales: ctx.DatosAdicionales);
+
+                foreach (var configured in actionHandlers)
+                {
+                    var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(configured.HandlerKey);
+                    if (actionHandler is null)
+                        return new WorkflowEjecucionResult(false, $"Handler '{configured.HandlerKey}' no está registrado.", null, null);
+
+                    var result = await actionHandler.ProcessAsync(
+                        handlerContext with { Handler = configured },
+                        configured.ConfiguracionJson);
+                    if (!result.Exitoso)
+                        return new WorkflowEjecucionResult(false, result.Error ?? $"Error en handler '{configured.HandlerKey}'.", null, null);
+                }
+            }
+
+            // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
             foreach (var condicion in accion.PasoOrigen!.Condiciones.Where(c => c.Activo))
             {
@@ -43,7 +86,7 @@ public class WorkflowEngine : IWorkflowEngine
                 ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value && p.Activo)
                 : null;
 
-            // Registrar en bit�cora inmutable la transici�n ejecutada
+            // Registrar en bitácora inmutable la transición ejecutada
             var snapshot = new Dictionary<string, object?>
             {
                 ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
@@ -84,8 +127,8 @@ public class WorkflowEngine : IWorkflowEngine
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
-            // Cuando el paso usa condiciones para enrutar la aprobaci�n (ej. Firma 4 por monto),
-            // se expone una sola acci�n "Autorizar" para evitar duplicados en UI.
+            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
+            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
             if (pasoActual?.Condiciones.Any() == true)
             {
                 var aprobaciones = acciones

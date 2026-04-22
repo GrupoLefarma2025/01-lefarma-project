@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-public class OrdenCompraService : BaseService, IOrdenCompraService
+    public class OrdenCompraService : BaseService, IOrdenCompraService
     {
         private readonly IOrdenCompraRepository _repo;
         private readonly IWorkflowRepository _workflowRepo;
@@ -32,15 +32,32 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
             _context = context;
         }
 
-        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario)
+        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, bool puedeVerTodas)
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
                 if (query.Estado.HasValue) q = q.Where(o => o.Estado == query.Estado.Value);
+
+                // Si NO tiene el permiso de ver todas, filtrar por usuario
+                if (!puedeVerTodas)
+                {
+                    // Obtener los pasos del workflow donde el usuario es participante directo
+                    var pasosParticipante = await _context.WorkflowParticipantes
+                        .Where(p => p.IdUsuario == idUsuario && p.Activo)
+                        .Select(p => p.IdPaso)
+                        .ToListAsync();
+
+                    q = q.Where(o =>
+                        o.IdUsuarioCreador == idUsuario ||
+                        (pasosParticipante.Contains(o.IdPasoActual ?? 0) &&
+                         o.Estado != EstadoOC.Creada &&
+                         o.Estado != EstadoOC.Rechazada &&
+                         o.Estado != EstadoOC.Cancelada));
+                }
 
                 q = query.OrderBy?.ToLower() switch
                 {
@@ -64,7 +81,7 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
             catch (Exception ex)
             {
                 EnrichWideEvent("GetAll", exception: ex);
-                return CommonErrors.DatabaseError("obtener las �rdenes de compra");
+                return CommonErrors.DatabaseError("obtener las órdenes de compra");
             }
         }
 
@@ -106,6 +123,10 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
+                    IdProveedor = p.IdProveedor,
+                    IdsCuentasBancarias = p.IdsCuentasBancarias,
+                    RequiereFactura = p.RequiereFactura,
+                    TipoComprobante = p.TipoComprobante,
                     Total = CalcularTotalPartida(p)
                 }).ToList();
 
@@ -129,7 +150,7 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                     .FirstOrDefault();
 
                 if (accionInicial is null)
-                    return CommonErrors.Conflict("Workflow", "El paso inicial no tiene acciones configuradas para registrar bit�cora.");
+                    return CommonErrors.Conflict("Workflow", "El paso inicial no tiene acciones configuradas para registrar bitácora.");
 
                 var orden = new OrdenCompra
                 {
@@ -138,16 +159,14 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                     IdSucursal = request.IdSucursal,
                     IdArea = request.IdArea,
                     IdTipoGasto = request.IdTipoGasto,
-                    IdFormaPago = request.IdFormaPago,
                     IdUsuarioCreador = idUsuario,
                     Estado = EstadoOC.Creada,
                     IdPasoActual = pasoInicio?.IdPaso,
+                    IdProveedor = request.IdProveedor,
+                    IdsCuentasBancarias = request.IdsCuentasBancarias != null
+                        ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
+                        : null,
                     SinDatosFiscales = request.SinDatosFiscales,
-                    RazonSocialProveedor = request.RazonSocialProveedor.Trim(),
-                    RfcProveedor = request.RfcProveedor,
-                    CodigoPostalProveedor = request.CodigoPostalProveedor,
-                    IdRegimenFiscal = request.IdRegimenFiscal,
-                    PersonaContacto = request.PersonaContacto,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
                     FechaSolicitud = DateTime.UtcNow,
@@ -175,7 +194,7 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                 {
                     IdOrden = result.IdOrden,
                     IdWorkflow = workflow.IdWorkflow,
-                    IdPaso = pasoInicio!.IdPaso,
+                    IdPaso = pasoInicio.IdPaso,
                     IdAccion = accionInicial.IdAccion,
                     IdUsuario = idUsuario,
                     Comentario = "Orden de compra creada",
@@ -214,7 +233,7 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                 }
 
                 if (orden.Estado != EstadoOC.Creada)
-                    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden eliminar �rdenes en estado Creada.");
+                    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden eliminar órdenes en estado Creada.");
 
                 var eliminado = await _repo.DeleteAsync(orden);
                 if (!eliminado)
@@ -233,6 +252,78 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
             }
         }
 
+        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario)
+        {
+            try
+            {
+                var orden = await _repo.GetWithPartidasAsync(id);
+                if (orden == null)
+                    return CommonErrors.NotFound("orden de compra", id.ToString());
+
+                if (orden.Estado != EstadoOC.Creada)
+                    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
+
+                // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
+                orden.IdEmpresa = request.IdEmpresa;
+                orden.IdSucursal = request.IdSucursal;
+                orden.IdArea = request.IdArea;
+                orden.IdTipoGasto = request.IdTipoGasto;
+                orden.FechaLimitePago = request.FechaLimitePago;
+                orden.IdProveedor = request.IdProveedor;
+                orden.IdsCuentasBancarias = request.IdsCuentasBancarias != null
+                    ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
+                    : null;
+                orden.SinDatosFiscales = request.SinDatosFiscales;
+                orden.NotaFormaPago = request.NotaFormaPago;
+                orden.NotasGenerales = request.NotasGenerales;
+
+                // Recrear partidas: remover existentes y crear nuevas
+                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
+                var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
+                {
+                    IdOrden = orden.IdOrden,
+                    NumeroPartida = i + 1,
+                    Descripcion = p.Descripcion.Trim(),
+                    Cantidad = p.Cantidad,
+                    IdUnidadMedida = p.IdUnidadMedida,
+                    PrecioUnitario = p.PrecioUnitario,
+                    Descuento = p.Descuento,
+                    PorcentajeIva = p.PorcentajeIva,
+                    TotalRetenciones = p.TotalRetenciones,
+                    OtrosImpuestos = p.OtrosImpuestos,
+                    Deducible = p.Deducible,
+                    IdProveedor = p.IdProveedor,
+                    IdsCuentasBancarias = p.IdsCuentasBancarias,
+                    RequiereFactura = p.RequiereFactura,
+                    TipoComprobante = p.TipoComprobante,
+                    Total = CalcularTotalPartida(p)
+                }).ToList();
+                orden.Partidas = partidas;
+
+                // Recalcular totales
+                orden.Subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
+                orden.TotalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
+                orden.TotalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+                orden.Total = partidas.Sum(p => p.Total);
+
+                await _context.SaveChangesAsync();
+
+                EnrichWideEvent("Update", entityId: orden.IdOrden, nombre: orden.Folio);
+                return ToResponse(orden);
+            }
+            catch (DbUpdateException ex)
+            {
+                EnrichWideEvent("Update", exception: ex);
+                return CommonErrors.DatabaseError("actualizar la orden de compra");
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("Update", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al actualizar la orden de compra.");
+            }
+        }
+
         private static decimal CalcularTotalPartida(CreatePartidaRequest p)
             => (p.PrecioUnitario * p.Cantidad - p.Descuento) * (1 + p.PorcentajeIva / 100) - p.TotalRetenciones + p.OtrosImpuestos;
 
@@ -244,18 +335,20 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
             IdSucursal = o.IdSucursal,
             IdArea = o.IdArea,
             IdTipoGasto = o.IdTipoGasto,
-            IdFormaPago = o.IdFormaPago,
+            IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<List<int>>(o.IdsCuentasBancarias),
             Estado = o.Estado.ToString(),
             IdPasoActual = o.IdPasoActual,
+            IdProveedor = o.IdProveedor,
             SinDatosFiscales = o.SinDatosFiscales,
-            RazonSocialProveedor = o.RazonSocialProveedor,
-            RfcProveedor = o.RfcProveedor,
-            CodigoPostalProveedor = o.CodigoPostalProveedor,
-            PersonaContacto = o.PersonaContacto,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,
             IdCentroCosto = o.IdCentroCosto,
+            CentroCostoNombre = o.CentroCosto?.Nombre,
             IdCuentaContable = o.IdCuentaContable,
+            CuentaContableNumero = o.CuentaContable?.Cuenta,
+            CuentaContableDescripcion = o.CuentaContable?.Descripcion,
             RequiereComprobacionPago = o.RequiereComprobacionPago,
             RequiereComprobacionGasto = o.RequiereComprobacionGasto,
             FechaSolicitud = o.FechaSolicitud,
@@ -276,7 +369,14 @@ public class OrdenCompraService : BaseService, IOrdenCompraService
                 TotalRetenciones = p.TotalRetenciones,
                 OtrosImpuestos = p.OtrosImpuestos,
                 Deducible = p.Deducible,
-                Total = p.Total
+                Total = p.Total,
+                IdProveedor = p.IdProveedor,
+                IdsCuentasBancarias = p.IdsCuentasBancarias,
+                RequiereFactura = p.RequiereFactura,
+                TipoComprobante = p.TipoComprobante,
+                CantidadFacturada = p.CantidadFacturada,
+                ImporteFacturado = p.ImporteFacturado,
+                EstadoFacturacion = p.EstadoFacturacion
             }).ToList()
         };
     }

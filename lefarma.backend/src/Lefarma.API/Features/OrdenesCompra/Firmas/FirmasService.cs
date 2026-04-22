@@ -3,23 +3,23 @@ using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
-using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
-public class FirmasService : BaseService, IFirmasService
+    public class FirmasService : BaseService, IFirmasService
     {
         private readonly IOrdenCompraRepository _ordenRepo;
         private readonly IWorkflowEngine _engine;
-        private readonly IServiceProvider _serviceProvider;
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
+        private readonly IServiceScopeFactory _scopeFactory;
         protected override string EntityName => "Firma";
 
         private const string CODIGO_PROCESO = "ORDEN_COMPRA";
@@ -28,18 +28,18 @@ public class FirmasService : BaseService, IFirmasService
             IOrdenCompraRepository ordenRepo,
             IWorkflowEngine engine,
             IWorkflowRepository workflowRepo,
-            IServiceProvider serviceProvider,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
+            IServiceScopeFactory scopeFactory,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
             _ordenRepo = ordenRepo;
             _engine = engine;
             _workflowRepo = workflowRepo;
-            _serviceProvider = serviceProvider;
             _context = context;
             _asokamContext = asokamContext;
+            _scopeFactory = scopeFactory;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
@@ -54,35 +54,9 @@ public class FirmasService : BaseService, IFirmasService
                 }
 
                 if (orden.Estado is EstadoOC.Cerrada or EstadoOC.Cancelada)
-                    return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya est� cerrada o cancelada.");
+                    return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
-                // Cargar paso actual para verificar requisitos del paso
-                WorkflowPasoInfo? pasoActual = null;
                 var workflowConfig = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
-                if (orden.IdPasoActual.HasValue)
-                {
-                    var paso = workflowConfig?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value && p.Activo);
-                    if (paso is not null)
-                        pasoActual = new WorkflowPasoInfo(paso.RequiereComentario, paso.HandlerKey);
-                }
-
-                // Validar comentario obligatorio
-                if (pasoActual?.RequiereComentario == true && string.IsNullOrWhiteSpace(request.Comentario))
-                    return CommonErrors.Validation("Comentario", "El comentario es obligatorio en este paso.");
-
-                // Ejecutar step handler espec�fico (Firma3Handler, Firma4Handler, etc.)
-                if (!string.IsNullOrEmpty(pasoActual?.HandlerKey))
-                {
-                    var handler = _serviceProvider.GetKeyedService<IStepHandler>(pasoActual.HandlerKey);
-                    if (handler is not null)
-                    {
-                        var error = await handler.ValidarAsync(orden, request.DatosAdicionales);
-                        if (error is not null)
-                            return CommonErrors.Validation(pasoActual.HandlerKey, error);
-
-                        await handler.AplicarAsync(orden, request.DatosAdicionales);
-                    }
-                }
 
                 var estadoAnterior = orden.Estado.ToString();
 
@@ -96,13 +70,14 @@ public class FirmasService : BaseService, IFirmasService
                     IdOrden: idOrden,
                     IdAccion: request.IdAccion,
                     IdUsuario: idUsuario,
+                    Orden: orden,
                     Comentario: request.Comentario,
                     DatosAdicionales: datosAdicionales
                 );
 
                 var resultado = await _engine.EjecutarAccionAsync(ctx);
                 if (!resultado.Exitoso)
-                    return CommonErrors.Conflict("Workflow", resultado.Error ?? "Error en el motor de workflow.");
+                    return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
                 // Actualizar estado de la orden
                 if (TryMapEstado(resultado.NuevoCodigoEstado, out var nuevoEstado))
@@ -116,8 +91,26 @@ public class FirmasService : BaseService, IFirmasService
                 orden.FechaModificacion = DateTime.UtcNow;
                 await _ordenRepo.UpdateAsync(orden);
 
-                // Selecci�n de plantilla por destino: (id_accion + id_paso_destino) con fallback gen�rico.
+                // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
                 var notificacionSeleccionada = ResolveWorkflowNotification(workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
+
+                // Dispatch notificación como fire-and-forget con scope propio:
+                // los DbContext son scoped y el scope HTTP termina antes de que este task corra.
+                var notifSnapshot = notificacionSeleccionada;
+                var ordenId = orden.IdOrden;
+                var folioSnapshot = orden.Folio;
+                var pasoDestino = resultado.NuevoIdPaso;
+                var comentarioSnapshot = request.Comentario;
+                _ = Task.Run(async () =>
+                {
+                    using var scope = _scopeFactory.CreateScope();
+                    var dispatcher = scope.ServiceProvider.GetRequiredService<IWorkflowNotificationDispatcher>();
+                    // Necesitamos la orden completa: la recargamos dentro del scope nuevo
+                    var ordenRepo = scope.ServiceProvider.GetRequiredService<IOrdenCompraRepository>();
+                    var ordenFresh = await ordenRepo.GetWithPartidasAsync(ordenId);
+                    if (ordenFresh is null) return;
+                    await dispatcher.DispatchAsync(notifSnapshot, ordenFresh, pasoDestino, idUsuario, comentarioSnapshot);
+                });
 
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
                     additionalContext: new Dictionary<string, object>
@@ -125,8 +118,8 @@ public class FirmasService : BaseService, IFirmasService
                         ["estadoAnterior"] = estadoAnterior,
                         ["nuevoEstado"] = orden.Estado.ToString(),
                         ["idAccion"] = request.IdAccion,
-                        ["idPasoDestino"] = resultado.NuevoIdPaso ?? 0,
-                        ["idNotificacionSeleccionada"] = (object)(notificacionSeleccionada?.IdNotificacion ?? 0)
+                        ["idPasoDestino"] = resultado.NuevoIdPaso,
+                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
                     });
 
                 return new FirmarResponse
@@ -135,7 +128,7 @@ public class FirmasService : BaseService, IFirmasService
                     Folio = orden.Folio,
                     EstadoAnterior = estadoAnterior,
                     NuevoEstado = orden.Estado.ToString(),
-                    Mensaje = $"Acci�n ejecutada exitosamente. Estado: {orden.Estado}"
+                    Mensaje = $"Acción ejecutada exitosamente. Estado: {orden.Estado}"
                 };
             }
             catch (Exception ex)
@@ -165,6 +158,73 @@ public class FirmasService : BaseService, IFirmasService
             {
                 EnrichWideEvent("GetAcciones", entityId: idOrden, exception: ex);
                 return CommonErrors.DatabaseError("obtener las acciones disponibles");
+            }
+        }
+
+        public async Task<ErrorOr<AccionMetadataResponse>> GetAccionMetadataAsync(int idOrden, int idAccion, int idUsuario)
+        {
+            try
+            {
+                var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                if (orden is null)
+                    return CommonErrors.NotFound("orden de compra", idOrden.ToString());
+
+                var workflow = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
+                if (workflow is null)
+                    return CommonErrors.NotFound("workflow", CODIGO_PROCESO);
+
+                if (!orden.IdPasoActual.HasValue)
+                    return CommonErrors.Conflict("orden", "La orden no tiene paso actual configurado.");
+
+                var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value && p.Activo);
+                if (pasoActual is null)
+                    return CommonErrors.NotFound("paso actual", orden.IdPasoActual.Value.ToString());
+
+                var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == idAccion && a.Activo);
+                if (accion is null)
+                    return CommonErrors.NotFound("acción", idAccion.ToString());
+
+                var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
+                var campos = (await _workflowRepo.GetCamposByWorkflowAsync(workflow.IdWorkflow)).ToList();
+
+                // CamposRequeridos: nombres técnicos de campos vinculados a handlers requeridos activos
+                var camposRequeridos = handlers
+                    .Where(h => h.Requerido && h.Campo != null)
+                    .Select(h => h.Campo!.NombreTecnico)
+                    .ToList();
+
+                return new AccionMetadataResponse
+                {
+                    IdOrden = idOrden,
+                    IdAccion = accion.IdAccion,
+                    NombreAccion = accion.NombreAccion,
+                    TipoAccion = accion.TipoAccion,
+                    RequiereComentario = pasoActual.RequiereComentario,
+                    RequiereAdjunto = pasoActual.RequiereAdjunto,
+                    PermiteAdjunto = pasoActual.PermiteAdjunto,
+                    Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
+                    {
+                        IdHandler = h.IdHandler,
+                        HandlerKey = h.HandlerKey,
+                        Requerido = h.Requerido,
+                        ConfiguracionJson = h.ConfiguracionJson,
+                        OrdenEjecucion = h.OrdenEjecucion
+                    }).ToList(),
+                    CamposWorkflow = campos.Select(c => new WorkflowCampoMetadataResponse
+                    {
+                        IdWorkflowCampo = c.IdWorkflowCampo,
+                        NombreTecnico = c.NombreTecnico,
+                        EtiquetaUsuario = c.EtiquetaUsuario,
+                        TipoControl = c.TipoControl,
+                        SourceCatalog = c.SourceCatalog
+                    }).ToList(),
+                    CamposRequeridos = camposRequeridos.ToList()
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetAccionMetadata", entityId: idOrden, exception: ex, additionalContext: new Dictionary<string, object> { ["idAccion"] = idAccion });
+                return CommonErrors.DatabaseError("obtener metadatos de acción");
             }
         }
 
@@ -240,10 +300,10 @@ public class FirmasService : BaseService, IFirmasService
             return codigoEstado.Trim().ToUpperInvariant() switch
             {
                 "CREADA" => (estado = EstadoOC.Creada) == EstadoOC.Creada,
-                "EN_REVISION_F2" => (estado = EstadoOC.EnRevisionF2) == EstadoOC.EnRevisionF2,
-                "EN_REVISION_F3" => (estado = EstadoOC.EnRevisionF3) == EstadoOC.EnRevisionF3,
-                "EN_REVISION_F4" => (estado = EstadoOC.EnRevisionF4) == EstadoOC.EnRevisionF4,
-                "EN_REVISION_F5" => (estado = EstadoOC.EnRevisionF5) == EstadoOC.EnRevisionF5,
+                "EN_REVISION_F2" or "ENFIRMA1" or "ENFIRMA2" => (estado = EstadoOC.EnRevisionF2) == EstadoOC.EnRevisionF2,
+                "EN_REVISION_F3" or "ENFIRMA3" => (estado = EstadoOC.EnRevisionF3) == EstadoOC.EnRevisionF3,
+                "EN_REVISION_F4" or "ENFIRMA4" => (estado = EstadoOC.EnRevisionF4) == EstadoOC.EnRevisionF4,
+                "EN_REVISION_F5" or "ENFIRMA5" => (estado = EstadoOC.EnRevisionF5) == EstadoOC.EnRevisionF5,
                 "AUTORIZADA" => (estado = EstadoOC.Autorizada) == EstadoOC.Autorizada,
                 "EN_TESORERIA" => (estado = EstadoOC.EnTesoreria) == EstadoOC.EnTesoreria,
                 "PAGADA" => (estado = EstadoOC.Pagada) == EstadoOC.Pagada,
@@ -270,8 +330,5 @@ public class FirmasService : BaseService, IFirmasService
             return accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == idPasoDestino)
                 ?? accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == null);
         }
-
-        // Record auxiliar interno
-        private record WorkflowPasoInfo(bool RequiereComentario, string? HandlerKey);
     }
 }

@@ -1,146 +1,145 @@
-# Before starting work
+# Lefarma Project - Agent Instructions
 
-- Run `lat search` to find sections relevant to your task. Read them to understand the design intent before writing code.
-- Run `lat expand` on user prompts to expand any `[[refs]]` — this resolves section names to file locations and provides context.
+## Project Structure
 
-# Documentation Rules (MANDATORY)
-
-## What to document in lat.md/
-
-**ALWAYS create/update sections for:**
-- New features or modules
-- API endpoints and their behavior
-- Database schemas and relationships
-- Business logic and rules
-- Architecture decisions (ADRs)
-- Configuration and environment variables
-- Error handling patterns
-- Authentication/authorization flows
-- Third-party integrations
-
-## Documentation format
-
-Every section MUST have:
-1. **Leading paragraph** (≤250 chars) explaining what and why
-2. **Links to code** using `[[src/file.ts#function]]`
-3. **Backlinks in code** using `// @lat: [[section-id]]`
-
-Example:
-```markdown
-# Authentication
-
-Handles user login, logout, and session management via JWT tokens.
-
-## OAuth Flow
-
-Users authenticate via Google OAuth 2.0. See [[src/auth/oauth.ts#handleCallback]].
-
-[[src/auth/oauth.ts#exchangeCode]]
+```
+01-lefarma-project/
+├── lefarma.backend/          # .NET 10 Web API
+│   ├── src/Lefarma.API/      # Main API project
+│   └── tests/                # Unit, Integration, E2E tests
+├── lefarma.frontend/         # React 19 + Vite + TypeScript SPA
+├── lefarma.database/         # SQL Server migration scripts (.sql files)
+└── lefarma.docs/             # Documentation
 ```
 
-```typescript
-// @lat: [[auth#OAuth Flow]]
-export async function exchangeCode(code: string) { ... }
-```
+## Developer Commands
 
-# Post-task checklist (REQUIRED — do not skip)
-
-After EVERY task, before responding to the user:
-
-- [ ] **Document new code** — Create/update sections in `lat.md/` for any new functionality
-- [ ] **Add code refs** — Add `// @lat: [[section-id]]` comments in source files
-- [ ] **Run `lat check`** — All wiki links and code refs must pass
-- [ ] **Do not skip** — Task is NOT complete until documentation is updated
-
----
-
-# What is lat.md?
-
-This project uses [lat.md](https://www.npmjs.com/package/lat.md) to maintain a structured knowledge graph of its architecture, design decisions, and test specs in the `lat.md/` directory. It is a set of cross-linked markdown files that describe **what** this project does and **why** — the domain concepts, key design decisions, business logic, and test specifications. Use it to ground your work in the actual architecture rather than guessing.
-
-# Commands
-
+### Frontend (`lefarma.frontend/`)
 ```bash
-lat locate "Section Name"      # find a section by name (exact, fuzzy)
-lat refs "file#Section"        # find what references a section
-lat search "natural language"  # semantic search across all sections
-lat expand "user prompt text"  # expand [[refs]] to resolved locations
-lat check                      # validate all links and code refs
+npm run dev          # Start Vite dev server (port 5173)
+npm run build        # TypeScript compile + Vite build
+npm run lint         # ESLint check
+npm run format       # Prettier format
 ```
 
-Run `lat --help` when in doubt about available commands or options.
-
-If `lat search` fails because no API key is configured, explain to the user that semantic search requires a key provided via `LAT_LLM_KEY` (direct value), `LAT_LLM_KEY_FILE` (path to key file), or `LAT_LLM_KEY_HELPER` (command that prints the key). Supported key prefixes: `sk-...` (OpenAI) or `vck_...` (Vercel). If the user doesn't want to set it up, use `lat locate` for direct lookups instead.
-
-# Syntax primer
-
-- **Section ids**: `lat.md/path/to/file#Heading#SubHeading` — full form uses project-root-relative path (e.g. `lat.md/tests/search#RAG Replay Tests`). Short form uses bare file name when unique (e.g. `search#RAG Replay Tests`, `cli#search#Indexing`).
-- **Wiki links**: `[[target]]` or `[[target|alias]]` — cross-references between sections. Can also reference source code: `[[src/foo.ts#myFunction]]`.
-- **Source code links**: Wiki links in `lat.md/` files can reference functions, classes, constants, and methods in TypeScript/JavaScript/Python/Rust/Go/C files. Use the full path: `[[src/config.ts#getConfigDir]]`, `[[src/server.ts#App#listen]]` (class method), `[[lib/utils.py#parse_args]]`, `[[src/lib.rs#Greeter#greet]]` (Rust impl method), `[[src/app.go#Greeter#Greet]]` (Go method), `[[src/app.h#Greeter]]` (C struct). `lat check` validates these exist.
-- **Code refs**: `// @lat: [[section-id]]` (JS/TS/Rust/Go/C) or `# @lat: [[section-id]]` (Python) — ties source code to concepts
-
-# Test specs
-
-Key tests can be described as sections in `lat.md/` files (e.g. `tests.md`). Add frontmatter to require that every leaf section is referenced by a `// @lat:` or `# @lat:` comment in test code:
-
-```markdown
----
-lat:
-  require-code-mention: true
----
-# Tests
-
-Authentication and authorization test specifications.
-
-## User login
-
-Verify credential validation and error handling for the login endpoint.
-
-### Rejects expired tokens
-Tokens past their expiry timestamp are rejected with 401, even if otherwise valid.
-
-### Handles missing password
-Login request without a password field returns 400 with a descriptive error.
+### Backend (`lefarma.backend/`)
+```bash
+dotnet build         # Build solution
+dotnet test          # Run all tests
+dotnet test --filter "Category=Unit"    # Unit tests only
+dotnet test Lefarma.Tests/              # Specific test project
 ```
 
-Every section MUST have a description — at least one sentence explaining what the test verifies and why. Empty sections with just a heading are not acceptable. (This is a specific case of the general leading paragraph rule below.)
+### Database (`lefarma.database/`)
+- Scripts are numbered sequentially (`000_`, `001_`, `002_`...)
+- Two databases: **Lefarma** (main) and **Asokam** (legacy)
 
-Each test in code should reference its spec with exactly one comment placed next to the relevant test — not at the top of the file:
+## Architecture Notes
 
-```python
-# @lat: [[tests#User login#Rejects expired tokens]]
-def test_rejects_expired_tokens():
-    ...
+### Backend
+- **.NET 10** with Clean Architecture pattern
+- **EF Core** with SQL Server (connection: `192.168.4.2`)
+- **JWT Bearer auth** with LDAP/ActiveDirectory integration
+- **Serilog** JSON logging to `logs/wide-events-*.json`
+- **Swagger** enabled at `/swagger/v1/swagger.json`
+- **Workflow engine** for business process automation
+- **Notification dispatcher** (Email, Telegram, In-App)
+- **Help system** with TinyMCE rich text editor
 
-# @lat: [[tests#User login#Handles missing password]]
-def test_handles_missing_password():
-    ...
+### Frontend
+- **React 19** with Vite 7
+- **shadcn/ui** components (Radix UI primitives)
+- **React Router 7** (file-based routing via `AppRoutes.tsx`)
+- **Zustand** for state management
+- **React Hook Form + Zod** for forms
+- **TanStack Table** for data tables
+- **Recharts** for visualizations
+
+## Key Conventions
+
+### API Proxy (Vite Dev)
+Vite proxies `/api` → `http://localhost:5174`. The backend must run separately.
+
+### Backend Port
+The API typically runs on port **5174** (configured in `appsettings.Development.json`).
+
+### CORS
+Configured to allow `localhost:5173`, `localhost:3000`, and `http://192.168.4.2:8081`.
+
+### JWT Authentication
+- Uses symmetric security key (`JwtSettings.SecretKey`)
+- `ClockSkew = TimeSpan.Zero`
+- Supports refresh tokens (7 days expiry)
+
+### Authorization
+Role-based + Permission-based policies:
+- `AuthorizationPolicies.RequireAdministrator`, `RequireManager`, `RequireFinance`, etc.
+- `[HasPermission("x")]` attribute for granular control
+- Permissions auto-registered from `Permissions` constants
+
+### DevToken Middleware
+In Development, a `DevToken` middleware allows bypassing auth for testing:
+```json
+"DevToken": { "Value": "lefarma-dev-token-2024", "ImpersonateUserId": 1 }
 ```
 
-Do not duplicate refs. One `@lat:` comment per spec section, placed at the test that covers it. `lat check` will flag any spec section not covered by a code reference, and any code reference pointing to a nonexistent section.
-
-# Section structure
-
-Every section in `lat.md/` **must** have a leading paragraph — at least one sentence immediately after the heading, before any child headings or other block content. The first paragraph must be ≤250 characters (excluding `[[wiki link]]` content). This paragraph serves as the section's overview and is used in search results, command output, and RAG context — keeping it concise guarantees the section's essence is always captured.
-
-```markdown
-# Good Section
-
-Brief overview of what this section documents and why it matters.
-
-More detail can go in subsequent paragraphs, code blocks, or lists.
-
-## Child heading
-
-Details about this child topic.
+### Database Seeding
+Database seeder is **disabled** in Program.cs. Uncomment to seed:
+```csharp
+// if (app.Environment.IsDevelopment())
+// {
+//     using var scope = app.Services.CreateScope();
+//     var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
+//     await seeder.SeedAsync();
+// }
 ```
 
-```markdown
-# Bad Section
+## Testing
 
-## Child heading
+### Backend Test Stack
+- **xUnit** test framework
+- **Moq** for mocking
+- **FluentAssertions** for readable assertions
+- **Microsoft.AspNetCore.Mvc.Testing** for integration tests
+- **EF Core InMemory** for integration test databases
 
-Details about this child topic.
-```
+Test projects:
+- `Lefarma.UnitTests` - Unit tests
+- `Lefarma.Tests` - Integration tests
+- `Lefarma.IntegrationTests` - E2E-style tests
 
-The second example is invalid because `Bad Section` has no leading paragraph. `lat check` validates this rule and reports errors for missing or overly long leading paragraphs.
+## Important File Locations
+
+### Backend Entry Point
+`lefarma.backend/src/Lefarma.API/Program.cs`
+
+### Frontend Entry Point
+`lefarma.frontend/src/main.tsx`
+
+### Frontend Routes
+`lefarma.frontend/src/routes/AppRoutes.tsx`
+
+### Backend Controllers
+`lefarma.backend/src/Lefarma.API/Features/` (modular by domain)
+
+### Database Configurations
+`lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/`
+
+### EF Core DbContext
+`lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs`
+
+## Common Pitfalls
+
+1. **Don't assume backend starts on same port as frontend** - Backend runs on 5174, frontend on 5173 with proxy
+2. **Don't forget to run migrations** - EF Core migrations not auto-applied
+3. **JWT validation is strict** - `ClockSkew = TimeSpan.Zero` means no tolerance for clock drift
+4. **CORS origins must include your dev URL** - Check `appsettings.json` if you get CORS errors
+5. **Serilog logs to JSON file** - Not plain text; use a JSON viewer for logs
+6. **DevToken is hardcoded** - Never enable in production
+
+## Secrets (Development Only)
+- DB Password: `L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!`
+- JWT Secret: `tu-clave-secreta-super-segura-de-al-menos-32-caracteres-aqui`
+- SMTP Password: `Aut0r1z5c10n3s$$001`
+
+**WARNING**: These are development-only credentials. Never commit production secrets.

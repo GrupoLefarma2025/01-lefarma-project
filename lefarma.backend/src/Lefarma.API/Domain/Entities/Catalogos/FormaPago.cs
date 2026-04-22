@@ -7,8 +7,11 @@ public class FormaPago
         public string? Descripcion { get; set; }
         public string? DescripcionNormalizada { get; set; }
         public string? Clave { get; set; }
+        public bool RequiereCuenta { get; set; } = true;
         public bool Activo { get; set; } = true;
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
+
+        public virtual ICollection<ProveedorFormaPagoCuenta> ProveedorCuentas { get; set; } = new List<ProveedorFormaPagoCuenta>();
     }
 }

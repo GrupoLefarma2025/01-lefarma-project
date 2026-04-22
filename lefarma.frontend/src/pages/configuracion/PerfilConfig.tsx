@@ -185,7 +185,7 @@ export function PerfilConfig() {
       if (response.data.success && response.data.data) {
         const u = response.data.data;
         setUsuario(u);
-        const firmaPathValue = (u.detalle as any)?.firmaPath ?? null;
+        const firmaPathValue = u.detalle?.firmaPath ?? null;
         const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         const firmaUrl = firmaPathValue
           ? `${apiUrl}/media/archivos/${firmaPathValue}`
@@ -305,7 +305,7 @@ export function PerfilConfig() {
               <div className="space-y-3">
                 <div className="relative flex justify-center rounded-lg border bg-muted/30 p-4">
                   <img
-                    src={currentFirmaPreview!}
+                    src={currentFirmaPreview! + `?t=${Date.now()}`} // Cache busting
                     alt="Firma digital"
                     className="max-h-32 max-w-full object-contain"
                   />

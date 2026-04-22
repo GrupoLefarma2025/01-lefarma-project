@@ -22,7 +22,8 @@ public static class ProveedorExtensions
             CambioEstatusPor = entity.CambioEstatusPor,
             FechaRegistro = entity.FechaRegistro,
             FechaModificacion = entity.FechaModificacion,
-            Detalle = entity.Detalle?.ToResponse()
+            Detalle = entity.Detalle?.ToResponse(),
+            CuentasFormaPago = entity.CuentasFormaPago?.Select(c => c.ToResponse()).ToList() ?? new()
         };
     }
 
@@ -35,7 +36,27 @@ public static class ProveedorExtensions
             PersonaContactoNombre = entity.PersonaContactoNombre,
             ContactoTelefono = entity.ContactoTelefono,
             ContactoEmail = entity.ContactoEmail,
-            Comentario = entity.Comentario
+            Comentario = entity.Comentario,
+            CaratulaUrl = entity.CaratulaPath
+        };
+    }
+
+    public static ProveedorFormaPagoCuentaResponse ToResponse(this ProveedorFormaPagoCuenta entity)
+    {
+        return new ProveedorFormaPagoCuentaResponse
+        {
+            IdCuen = entity.IdCuen,
+            IdProveedor = entity.IdProveedor,
+            IdFormaPago = entity.IdFormaPago,
+            FormaPagoNombre = entity.FormaPago?.Nombre,
+            IdBanco = entity.IdBanco,
+            BancoNombre = entity.Banco?.Nombre,
+            NumeroCuenta = entity.NumeroCuenta,
+            Clabe = entity.Clabe,
+            NumeroTarjeta = entity.NumeroTarjeta,
+            Beneficiario = entity.Beneficiario,
+            CorreoNotificacion = entity.CorreoNotificacion,
+            Activo = entity.Activo
         };
     }
 }

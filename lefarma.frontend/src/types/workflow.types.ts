@@ -9,6 +9,7 @@ export interface Workflow {
   version: number;
   activo: boolean;
   fechaCreacion: string;
+  campos?: WorkflowCampo[];
 }
 
 // ─── WorkflowPaso ─────────────────────────────────────────────────────────────
@@ -20,7 +21,6 @@ export interface WorkflowPaso {
   nombrePaso: string;
   codigoEstado?: string; // 'EN_REVISION_F2', 'AUTORIZADA', etc.
   descripcionAyuda?: string;
-  handlerKey?: string; // 'Firma3Handler', 'Firma4Handler', etc.
   esInicio: boolean;
   esFinal: boolean;
   activo: boolean;
@@ -42,7 +42,28 @@ export interface WorkflowAccion {
   tipoAccion: 'APROBACION' | 'RECHAZO' | 'RETORNO' | 'CANCELACION';
   claseEstetica?: string; // 'success', 'danger', 'warning', 'primary'
   activo: boolean;
+  handlers?: WorkflowAccionHandler[];
   notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción
+}
+
+export interface WorkflowAccionHandler {
+  idHandler: number;
+  handlerKey: string;
+  configuracionJson?: string;
+  ordenEjecucion: number;
+  activo: boolean;
+}
+
+export interface WorkflowCampo {
+  idWorkflowCampo: number;
+  idWorkflow: number;
+  nombreTecnico: string;
+  etiquetaUsuario: string;
+  tipoControl: string;
+  sourceCatalog?: string;
+  propiedadEntidad?: string;
+  validarFiscal?: boolean;
+  activo: boolean;
 }
 
 // ─── WorkflowCondicion ────────────────────────────────────────────────────────
@@ -69,19 +90,30 @@ export interface WorkflowParticipante {
 
 // ─── WorkflowNotificacion ─────────────────────────────────────────────────────
 
+export interface WorkflowNotificacionCanal {
+  idNotificacionCanal?: number;
+  codigoCanal: string;
+  asuntoTemplate?: string;
+  cuerpoTemplate: string;
+  listadoRowHtml?: string;
+  activo: boolean;
+}
+
 export interface WorkflowNotificacion {
   idNotificacion: number;
   idAccion: number;
   idPasoDestino?: number;
+  idTipoNotificacion?: number;
   enviarEmail: boolean;
   enviarWhatsapp: boolean;
   enviarTelegram: boolean;
   avisarAlCreador: boolean;
   avisarAlSiguiente: boolean;
   avisarAlAnterior: boolean;
+  avisarAAutorizadoresPrevios: boolean;
+  incluirPartidas: boolean;
   activo: boolean;
-  asuntoTemplate?: string;
-  cuerpoTemplate: string;
+  canales?: WorkflowNotificacionCanal[];
 }
 
 // ─── WorkflowBitacora ─────────────────────────────────────────────────────────

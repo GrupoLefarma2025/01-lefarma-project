@@ -11,13 +11,8 @@ public class CreateOrdenCompraRequestValidator : AbstractValidator<CreateOrdenCo
             RuleFor(x => x.IdSucursal).GreaterThan(0);
             RuleFor(x => x.IdArea).GreaterThan(0);
             RuleFor(x => x.IdTipoGasto).GreaterThan(0);
-            RuleFor(x => x.IdFormaPago).GreaterThan(0);
             RuleFor(x => x.FechaLimitePago).GreaterThan(DateTime.Today)
-                .WithMessage("La fecha l�mite de pago debe ser futura.");
-            RuleFor(x => x.RazonSocialProveedor).NotEmpty().MaximumLength(255);
-            RuleFor(x => x.RfcProveedor)
-                .Length(12, 13).WithMessage("El RFC debe tener 12 o 13 caracteres.")
-                .When(x => !x.SinDatosFiscales && !string.IsNullOrEmpty(x.RfcProveedor));
+                .WithMessage("La fecha límite de pago debe ser futura.");
             RuleFor(x => x.Partidas).NotEmpty().WithMessage("Debe incluir al menos una partida.");
             RuleForEach(x => x.Partidas).SetValidator(new CreatePartidaRequestValidator());
         }

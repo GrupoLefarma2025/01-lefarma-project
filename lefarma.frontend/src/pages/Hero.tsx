@@ -71,9 +71,14 @@ export default function Hero() {
             alt="Grupo LeFarma"
             className="h-10 w-auto"
           />
-          <Button onClick={() => navigate('/login')} variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
-            Iniciar Sesión
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={() => navigate('/ayuda')} variant="ghost" className="text-muted-foreground hover:text-foreground">
+              Ayuda
+            </Button>
+            <Button onClick={() => navigate('/login')} variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+              Iniciar Sesión
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -134,6 +139,14 @@ export default function Hero() {
                 >
                   Iniciar Sesión
                   <ArrowRight className="h-5 w-5" />
+                </Button>
+                <Button 
+                  size="lg" 
+                  variant="outline"
+                  onClick={() => navigate('/ayuda')} 
+                  className="gap-2 text-base px-8 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                >
+                  Ayuda
                 </Button>
               </div>
             </div>

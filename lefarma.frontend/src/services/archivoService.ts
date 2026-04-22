@@ -21,9 +21,7 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/upload`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/upload`, formData);
     return data.data;
   },
 
@@ -34,9 +32,7 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/${id}/reemplazar`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/${id}/reemplazar`, formData);
     return data.data;
   },
 

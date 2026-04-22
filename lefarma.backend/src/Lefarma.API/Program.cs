@@ -34,6 +34,7 @@ using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Help.Services;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Archivos.Settings;
+using Lefarma.API.Features.Facturas;
 using Microsoft.Extensions.FileProviders;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
@@ -151,6 +152,10 @@ builder.Services.AddScoped<IWorkflowRepository, WorkflowRepository>();
 builder.Services.AddScoped<IOrdenCompraRepository, OrdenCompraRepository>();
 builder.Services.AddScoped<IPagoRepository, PagoRepository>();
 builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
+builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
+
+// Comprobantes / Facturas CFDI
+builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
@@ -159,12 +164,12 @@ builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IFirmasService, FirmasService>();
+builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
+builder.Services.AddScoped<WorkflowReminderService>();
 
-// Step Handlers (keyed por HandlerKey configurado en workflow_pasos)
-builder.Services.AddKeyedScoped<IStepHandler, Firma3Handler>("Firma3Handler");
-builder.Services.AddKeyedScoped<IStepHandler, Firma4Handler>("Firma4Handler");
-builder.Services.AddKeyedScoped<IStepHandler, Firma5Handler>("Firma5Handler");
-builder.Services.AddKeyedScoped<IStepHandler, ComprobacionHandler>("ComprobacionHandler");
+// Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
@@ -463,6 +468,18 @@ app.UseStaticFiles(new StaticFileOptions
     FileProvider = new PhysicalFileProvider(
         Path.Combine(app.Environment.WebRootPath, "media")),
     RequestPath = "/api/media",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+    }
+});
+
+// Static files for archivos (caratulas, etc.)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(
+        Path.Combine(app.Environment.WebRootPath, "media", "archivos")),
+    RequestPath = "/media/archivos",
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");

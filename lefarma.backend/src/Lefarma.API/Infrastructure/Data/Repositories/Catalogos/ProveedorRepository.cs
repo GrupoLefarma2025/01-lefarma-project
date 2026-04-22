@@ -18,6 +18,15 @@ public class ProveedorRepository : BaseRepository<Proveedor>, IProveedorReposito
         return await _context.Set<Proveedor>()
             .Include(p => p.RegimenFiscal!)
             .Include(p => p.Detalle)
+            .Include(p => p.CuentasFormaPago)
+                .ThenInclude(c => c.FormaPago)
+            .Include(p => p.CuentasFormaPago)
+                .ThenInclude(c => c.Banco)
             .FirstOrDefaultAsync(p => p.IdProveedor == id);
+    }
+
+    public void RemoveCuenta(ProveedorFormaPagoCuenta cuenta)
+    {
+        _context.Set<ProveedorFormaPagoCuenta>().Remove(cuenta);
     }
 }

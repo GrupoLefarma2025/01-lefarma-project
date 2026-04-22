@@ -17,10 +17,12 @@ namespace Lefarma.API.Features.Catalogos;
 public class ProveedoresController : ControllerBase
 {
     private readonly IProveedorService _proveedorService;
+    private readonly IConfiguration _configuration;
 
-    public ProveedoresController(IProveedorService proveedorService)
+    public ProveedoresController(IProveedorService proveedorService, IConfiguration configuration)
     {
         _proveedorService = proveedorService;
+        _configuration = configuration;
     }
 
     private int GetUserId() =>
@@ -137,15 +139,134 @@ public class ProveedoresController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
-
         var result = await _proveedorService.RechazarAsync(id, request.Motivo, GetUserId());
 
         return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
         {
             Success = true,
             Message = "Proveedor rechazado exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/caratula")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10_000_000)]
+    [SwaggerOperation(Summary = "Subir caratula de proveedor", Description = "Sube una imagen de caratula para un proveedor existente")]
+    public async Task<IActionResult> UploadCaratula(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id,
+        [SwaggerRequestBody(Description = "Archivo de imagen para la caratula", Required = true)] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No se proporciono ningun archivo",
+                Data = null
+            });
+        }
+
+        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solo se permiten archivos de imagen (jpg, jpeg, png, gif, webp) o PDF",
+                Data = null
+            });
+        }
+
+        var basePath = _configuration["ArchivosSettings:BasePath"] ?? "wwwroot/media/archivos";
+        var fileName = $"caratula_proveedor_{id}_{Guid.NewGuid()}{extension}";
+        var relativePath = Path.Combine("caratulas", fileName);
+        var fullDir = Path.GetFullPath(Path.Combine(basePath, "caratulas"));
+        var fullPath = Path.Combine(fullDir, fileName);
+
+        if (!Directory.Exists(fullDir))
+        {
+            Directory.CreateDirectory(fullDir);
+        }
+
+        await using (var stream = new FileStream(fullPath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        var result = await _proveedorService.UpdateCaratulaAsync(id, relativePath);
+
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<CaratulaUploadResponse>
+        {
+            Success = true,
+            Message = "Caratula subida exitosamente",
+            Data = new CaratulaUploadResponse
+            {
+                FileName = fileName,
+                Url = $"/media/archivos/{relativePath.Replace("\\", "/")}",
+                ContentType = file.ContentType,
+                Size = file.Length
+            }
+        }));
+    }
+
+    [HttpDelete("{id}/caratula")]
+    [SwaggerOperation(Summary = "Eliminar caratula de proveedor", Description = "Elimina la imagen de caratula de un proveedor existente")]
+    public async Task<IActionResult> DeleteCaratula(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.DeleteCaratulaAsync(id);
+
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Caratula eliminada exitosamente",
+            Data = null
+        }));
+    }
+
+    [HttpGet("{id}/staging")]
+    [SwaggerOperation(Summary = "Obtener staging de proveedor", Description = "Retorna los datos staging (edición pendiente) de un proveedor con diff de cambios")]
+    public async Task<IActionResult> GetStaging(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.GetStagingByProveedorIdAsync(id);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<StagingProveedorResponse>
+        {
+            Success = true,
+            Message = "Staging obtenido exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/autorizar-edicion")]
+    [SwaggerOperation(Summary = "Autorizar edición de proveedor", Description = "Aplica los cambios del staging al registro original y elimina el staging")]
+    public async Task<IActionResult> AutorizarEdicion(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.AutorizarEdicionAsync(id, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Edición de proveedor autorizada exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/rechazar-edicion")]
+    [SwaggerOperation(Summary = "Rechazar edición de proveedor", Description = "Elimina el staging y restaura el estatus del proveedor a aprobado")]
+    public async Task<IActionResult> RechazarEdicion(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.RechazarEdicionAsync(id, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Edición de proveedor rechazada.",
             Data = data
         }));
     }

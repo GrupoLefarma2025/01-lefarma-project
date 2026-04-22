@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { resetConfig } from '@/lib/tableConfigStorage';
@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   Check,
   X,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +43,8 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
+const FORMAS_PAGO_ENDPOINT = '/catalogos/FormasPago';
+const BANCOS_ENDPOINT = '/catalogos/Bancos';
 
 const proveedorSchema = z.object({
   razonSocial: z.string().min(3, 'La razón social debe tener al menos 3 caracteres'),
@@ -49,10 +52,15 @@ const proveedorSchema = z.object({
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   usoCfdi: z.string().optional(),
+  personaContactoNombre: z.string().optional(),
+  contactoTelefono: z.string().optional(),
+  contactoEmail: z.string().optional(),
+  comentario: z.string().optional(),
 });
 
 interface ProveedorMetadata {
   id_persona_subio?: number;
+  caratulaUrl?: string;
   [key: string]: unknown;
 }
 
@@ -61,6 +69,7 @@ interface ProveedorDetalle {
   contactoTelefono?: string;
   contactoEmail?: string;
   comentario?: string;
+  caratulaUrl?: string;
   metadata?: ProveedorMetadata;
 }
 
@@ -77,6 +86,7 @@ interface Proveedor {
   estatus: number;
   cambioEstatusPor?: number;
   detalle?: ProveedorDetalle;
+  cuentasFormaPago?: ProveedorFormaPagoCuenta[];
 }
 
 const ESTATUS = {
@@ -106,6 +116,37 @@ interface RegimenFiscal {
   activo: boolean;
 }
 
+interface FormaPago {
+  idFormaPago: number;
+  nombre: string;
+  descripcion?: string;
+  clave?: string;
+  activo: boolean;
+  requiereCuenta?: boolean;
+}
+
+interface ProveedorFormaPagoCuenta {
+  idCuen?: number;
+  idProveedor?: number;
+  idFormaPago: number;
+  formaPagoNombre?: string;
+  idBanco?: number;
+  bancoNombre?: string;
+  numeroCuenta?: string;
+  clabe?: string;
+  numeroTarjeta?: string;
+  beneficiario?: string;
+  correoNotificacion?: string;
+  activo?: boolean;
+}
+
+interface Banco {
+  idBanco: number;
+  nombre: string;
+  clave?: string;
+  codigoSwift?: string;
+}
+
 type ProveedorFormValues = z.infer<typeof proveedorSchema>;
 type ProveedorRequest = ProveedorFormValues & { idProveedor: number };
 
@@ -113,6 +154,8 @@ export default function ProveedoresList() {
   usePageTitle('Proveedores', 'Catálogo de proveedores CxP');
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
   const [regimenesFiscales, setRegimenesFiscales] = useState<RegimenFiscal[]>([]);
+  const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
+  const [bancos, setBancos] = useState<Banco[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -121,6 +164,10 @@ export default function ProveedoresList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
   const [rejectMotivo, setRejectMotivo] = useState('');
+  const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
+  const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -130,6 +177,10 @@ export default function ProveedoresList() {
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
+      personaContactoNombre: '',
+      contactoTelefono: '',
+      contactoEmail: '',
+      comentario: '',
     },
   });
 
@@ -164,24 +215,67 @@ export default function ProveedoresList() {
     }
   };
 
+  const fetchFormasPago = async () => {
+    try {
+      const response = await API.get<ApiResponse<FormaPago[]>>(FORMAS_PAGO_ENDPOINT);
+      if (response.data.success) {
+        setFormasPago(response.data.data || []);
+      }
+    } catch {
+      // silencioso — el select quedará vacío
+    }
+  };
+
+  const fetchBancos = async () => {
+    try {
+      const response = await API.get<ApiResponse<Banco[]>>(BANCOS_ENDPOINT);
+      if (response.data.success) {
+        setBancos(response.data.data || []);
+      }
+    } catch {
+      // silencioso — el select quedará vacío
+    }
+  };
+
   useEffect(() => {
     fetchProveedores();
     fetchRegimenesFiscales();
+    fetchFormasPago();
+    fetchBancos();
     // Reset table config to show all columns including new ones (Contacto, Comentario, Estatus)
     resetConfig('proveedores');
   }, []);
 
   const handleNuevoProveedor = () => {
     setProveedorId(0);
+    setCaratulaFile(null);
+    setCaratulaPreview(null);
     form.reset({
       razonSocial: '',
       rfc: '',
       codigoPostal: '',
       regimenFiscalId: undefined,
       usoCfdi: '',
+      personaContactoNombre: '',
+      contactoTelefono: '',
+      contactoEmail: '',
+      comentario: '',
     });
+    setCuentasFormaPago([]);
     setIsEditing(false);
     setModalOpen(true);
+  };
+
+  const handleCaratulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setCaratulaFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCaratulaPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleEditProveedor = (id: number) => {
@@ -194,7 +288,19 @@ export default function ProveedoresList() {
         codigoPostal: proveedor.codigoPostal || '',
         regimenFiscalId: proveedor.regimenFiscalId,
         usoCfdi: proveedor.usoCfdi || '',
+        personaContactoNombre: proveedor.detalle?.personaContactoNombre || '',
+        contactoTelefono: proveedor.detalle?.contactoTelefono || '',
+        contactoEmail: proveedor.detalle?.contactoEmail || '',
+        comentario: proveedor.detalle?.comentario || '',
       });
+      setCuentasFormaPago(proveedor.cuentasFormaPago || []);
+      setCaratulaFile(null);
+      const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
+      const caratulaPath = proveedor.detalle?.caratulaUrl || null;
+      const caratulaFullUrl = caratulaPath
+        ? `${apiUrl}/media/archivos/caratulas/${caratulaPath.split('/').pop()}`
+        : null;
+      setCaratulaPreview(caratulaFullUrl);
       setIsEditing(true);
       setModalOpen(true);
     }
@@ -203,7 +309,19 @@ export default function ProveedoresList() {
   const handleSaveProveedor = async (values: ProveedorFormValues) => {
     setIsSaving(true);
     try {
-      const payload: ProveedorRequest = { idProveedor: proveedorId, ...values };
+      const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...proveedorData } = values;
+      const detalle = {
+        personaContactoNombre: personaContactoNombre || null,
+        contactoTelefono: contactoTelefono || null,
+        contactoEmail: contactoEmail || null,
+        comentario: comentario || null,
+      };
+      const payload = {
+        idProveedor: proveedorId,
+        ...proveedorData,
+        detalle: (personaContactoNombre || contactoTelefono || contactoEmail || comentario) ? detalle : null,
+        cuentasFormaPago,
+      };
 
       const response = isEditing
         ? await API.put(`${ENDPOINT}/${proveedorId}`, payload)
@@ -211,6 +329,22 @@ export default function ProveedoresList() {
 
       if (response.data.success) {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
+        const savedId = isEditing ? proveedorId : (response.data.data as any)?.idProveedor;
+
+        // Upload caratula file if present
+        if (caratulaFile && savedId) {
+          const formData = new FormData();
+          formData.append('file', caratulaFile);
+          try {
+            await API.post(`${ENDPOINT}/${savedId}/caratula`, formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            toast.success('Carátula subida correctamente.');
+          } catch (uploadError: any) {
+            toast.error(uploadError?.message ?? 'Error al subir la carátula');
+          }
+        }
+
         setModalOpen(false);
         await fetchProveedores();
       } else {
@@ -277,19 +411,39 @@ export default function ProveedoresList() {
     {
       accessorKey: 'razonSocial',
       header: 'Razón Social',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-muted p-2">
-            <Building className="h-4 w-4 text-foreground" />
+      cell: ({ row }) => {
+        const caratulaUrl = row.original.detalle?.caratulaUrl;
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const caratulaSrc = caratulaUrl ? `${apiUrl}/media/archivos/caratulas/` : null;
+        const filename = caratulaUrl ? caratulaUrl.split('/').pop() : null;
+        const fullSrc = caratulaSrc && filename ? `${caratulaSrc}${filename}` : null;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-muted p-2">
+              {fullSrc ? (
+                fullSrc.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                  <img
+                    src={fullSrc}
+                    alt="Carátula"
+                    className="h-8 w-8 object-cover rounded cursor-pointer hover:opacity-80"
+                    onClick={() => setFullscreenImage(fullSrc)}
+                  />
+                ) : (
+                  <FileText className="h-8 w-8 text-blue-600" />
+                )
+              ) : (
+                <Building className="h-4 w-4 text-foreground" />
+              )}
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">{row.original.razonSocial}</span>
+              {row.original.rfc && (
+                <span className="text-xs text-muted-foreground font-mono">{row.original.rfc}</span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">{row.original.razonSocial}</span>
-            {row.original.rfc && (
-              <span className="text-xs text-muted-foreground font-mono">{row.original.rfc}</span>
-            )}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       accessorKey: 'rfc',
@@ -311,6 +465,15 @@ export default function ProveedoresList() {
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">{row.original.regimenFiscalDescripcion || '—'}</span>
       ),
+    },
+    {
+      id: 'cuentas',
+      header: 'Ctas',
+      cell: ({ row }) => {
+        const count = row.original.cuentasFormaPago?.length ?? 0;
+        if (count === 0) return <span className="text-xs text-muted-foreground">—</span>;
+        return <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">{count}</Badge>;
+      },
     },
     {
       id: 'detalle',
@@ -612,6 +775,247 @@ export default function ProveedoresList() {
                 )}
               />
             </div>
+
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium mb-3 text-muted-foreground uppercase tracking-wide">Datos de Contacto</h4>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="personaContactoNombre"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Persona de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Nombre de la persona de contacto" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactoTelefono"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Teléfono de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Teléfono de contacto" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactoEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email de Contacto</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Email de contacto" type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="comentario"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Comentario</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Comentario adicional" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    Carátula (PDF o imagen)
+                  </label>
+                  <div className="space-y-2">
+                    <Input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={handleCaratulaChange}
+                      className="cursor-pointer"
+                    />
+                      {caratulaPreview && (
+                        <div className="mt-2 p-2 border rounded-md bg-gray-50">
+                          {caratulaFile?.type === 'application/pdf' || caratulaPreview.endsWith('.pdf') ? (
+                            <div className="flex items-center gap-2 text-sm text-blue-600">
+                              <FileText className="h-5 w-5" />
+                              <span>{caratulaFile?.name}</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              <img
+                                src={caratulaPreview}
+                                alt="Carátula"
+                                className="h-24 w-auto object-contain rounded cursor-pointer hover:opacity-80"
+                                onClick={() => setFullscreenImage(caratulaPreview)}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setFullscreenImage(caratulaPreview)}
+                                className="text-xs text-blue-600 hover:underline text-left"
+                              >
+                                Ver tamaño completo
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cuentas Forma de Pago */}
+            <div className="space-y-3 pt-2 border-t mt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Cuentas Bancarias</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setCuentasFormaPago((prev) => [
+                      ...prev,
+                      { idCuen: 0, idFormaPago: 0, activo: true },
+                    ]);
+                  }}
+                >
+                  <Plus className="mr-1 h-3 w-3" /> Agregar Cuenta
+                </Button>
+              </div>
+
+              {cuentasFormaPago.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-2">
+                  Sin cuentas registradas. Usa "Agregar Cuenta" para añadir cuentas bancarias.
+                </p>
+              ) : (
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {cuentasFormaPago.map((cuenta, index) => (
+                    <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 border rounded-lg bg-gray-50/50">
+                      {/* Forma de Pago */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Forma de Pago</label>
+                        <Select
+                          value={String(cuenta.idFormaPago || '')}
+                          onValueChange={(val) => {
+                            const updated = [...cuentasFormaPago];
+                            updated[index].idFormaPago = Number(val);
+                            updated[index].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
+                            setCuentasFormaPago(updated);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Forma" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {formasPago.map((fp) => (
+                              <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
+                                {fp.clave ? `${fp.clave} - ${fp.nombre}` : fp.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Banco */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Banco</label>
+                        <Select
+                          value={String(cuenta.idBanco || '')}
+                          onValueChange={(val) => {
+                            const updated = [...cuentasFormaPago];
+                            updated[index].idBanco = Number(val);
+                            updated[index].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
+                            setCuentasFormaPago(updated);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs">
+                            <SelectValue placeholder="Banco" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {bancos.map((b) => (
+                              <SelectItem key={b.idBanco} value={String(b.idBanco)}>
+                                {b.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Número de Cuenta */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">No. Cuenta</label>
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="****1234"
+                          value={cuenta.numeroCuenta || ''}
+                          onChange={(e) => {
+                            const updated = [...cuentasFormaPago];
+                            updated[index].numeroCuenta = e.target.value;
+                            setCuentasFormaPago(updated);
+                          }}
+                        />
+                      </div>
+
+                      {/* CLABE */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">CLABE</label>
+                        <Input
+                          className="h-8 text-xs"
+                          placeholder="CLABE 18 dígitos"
+                          value={cuenta.clabe || ''}
+                          onChange={(e) => {
+                            const updated = [...cuentasFormaPago];
+                            updated[index].clabe = e.target.value;
+                            setCuentasFormaPago(updated);
+                          }}
+                        />
+                      </div>
+
+                      {/* Beneficiario */}
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Beneficiario</label>
+                        <div className="flex gap-1">
+                          <Input
+                            className="h-8 text-xs flex-1"
+                            placeholder="Nombre"
+                            value={cuenta.beneficiario || ''}
+                            onChange={(e) => {
+                              const updated = [...cuentasFormaPago];
+                              updated[index].beneficiario = e.target.value;
+                              setCuentasFormaPago(updated);
+                            }}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => {
+                              setCuentasFormaPago((prev) => prev.filter((_, i) => i !== index));
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </form>
         </Form>
       </Modal>
@@ -664,6 +1068,37 @@ export default function ProveedoresList() {
           </div>
         </div>
       </Modal>
+
+      {/* Fullscreen image viewer */}
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
+            <button
+              className="absolute top-2 right-2 text-white hover:text-gray-300 text-4xl font-bold z-10"
+              onClick={() => setFullscreenImage(null)}
+            >
+              ×
+            </button>
+            {fullscreenImage.toLowerCase().endsWith('.pdf') ? (
+              <iframe
+                src={fullscreenImage}
+                className="w-full h-full max-h-[85vh] rounded"
+                title="Carátula PDF"
+              />
+            ) : (
+              <img
+                src={fullscreenImage}
+                alt="Carátula"
+                className="max-w-full max-h-[90vh] object-contain"
+                onClick={(e) => e.stopPropagation()}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

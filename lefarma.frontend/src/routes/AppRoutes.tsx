@@ -36,6 +36,7 @@ import PublicHelpList from '@/pages/help/PublicHelpList';
 import HelpView from '@/pages/help/HelpView';
 import HelpEditor from '@/pages/help/HelpEditor';
 import NotFound from '@/pages/NotFound';
+import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 
 export const AppRoutes = () => {
   return (
@@ -50,7 +51,7 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          {/* <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} /> */}
+          <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} />
           <Route
             path="/seguridad/roles"
             element={
@@ -76,6 +77,7 @@ export const AppRoutes = () => {
           <Route path="/configuracion" element={<ConfiguracionGeneral />} />
           <Route path="/workflows" element={<WorkflowsList />} />
           <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+          <Route path="/ordenes/editar/:id" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/perfil" element={<Perfil />} />

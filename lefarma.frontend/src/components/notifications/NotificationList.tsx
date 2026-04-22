@@ -335,9 +335,10 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
                           )}
                         </div>
 
-                        <p className="text-sm text-muted-foreground mb-2">
-                          {message}
-                        </p>
+                        <p
+                          className="text-sm text-muted-foreground mb-2"
+                          dangerouslySetInnerHTML={{ __html: message }}
+                        />
 
                         <div className="flex items-center gap-2 flex-wrap">
                           <PriorityBadge priority={priority as NotificationPriority} />

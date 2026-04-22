@@ -43,6 +43,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
         }
 
+        [HttpGet("{id}/acciones/{idAccion}/metadata")]
+        [SwaggerOperation(Summary = "Obtener metadatos de una acción para construir modal dinámico")]
+        public async Task<IActionResult> GetAccionMetadata(int id, int idAccion)
+        {
+            var result = await _service.GetAccionMetadataAsync(id, idAccion, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<AccionMetadataResponse>
+            { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
+        }
+
         [HttpGet("{id}/historial-workflow")]
         [SwaggerOperation(Summary = "Obtener historial de transiciones del workflow para una orden")]
         public async Task<IActionResult> GetHistorialWorkflow(int id)

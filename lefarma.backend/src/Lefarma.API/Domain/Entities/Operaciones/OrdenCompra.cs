@@ -1,5 +1,8 @@
-namespace Lefarma.API.Domain.Entities.Operaciones {
-public class OrdenCompra
+using Lefarma.API.Domain.Entities.Catalogos;
+
+namespace Lefarma.API.Domain.Entities.Operaciones
+{
+    public class OrdenCompra
     {
         public int IdOrden { get; set; }
         public string Folio { get; set; } = null!;  // OC-2026-00001
@@ -8,25 +11,27 @@ public class OrdenCompra
         public int IdSucursal { get; set; }
         public int IdArea { get; set; }
         public int IdTipoGasto { get; set; }
-        public int IdFormaPago { get; set; }
         public int IdUsuarioCreador { get; set; }
 
         public EstadoOC Estado { get; set; } = EstadoOC.Creada;
-        public int? IdPasoActual { get; set; }  // FK lógica a config.workflow_pasos
+        public int? IdPasoActual { get; set; }
 
-        // Proveedor
+        // Proveedor: FK opcional al catálogo
+        public int? IdProveedor { get; set; }
+        // Múltiples cuentas bancarias como JSON array, ej: "[1,2,3]"
+        public string? IdsCuentasBancarias { get; set; }
         public bool SinDatosFiscales { get; set; }
-        public string RazonSocialProveedor { get; set; } = null!;
-        public string? RfcProveedor { get; set; }
-        public string? CodigoPostalProveedor { get; set; }
-        public int? IdRegimenFiscal { get; set; }
-        public string? PersonaContacto { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
 
         // Asignado en Firma 3 - CxP
         public int? IdCentroCosto { get; set; }
         public int? IdCuentaContable { get; set; }
+
+        // Navegación a catálogos (resueltos en queries)
+        public virtual Proveedor? Proveedor { get; set; }
+        public virtual CentroCosto? CentroCosto { get; set; }
+        public virtual CuentaContable? CuentaContable { get; set; }
 
         // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;
