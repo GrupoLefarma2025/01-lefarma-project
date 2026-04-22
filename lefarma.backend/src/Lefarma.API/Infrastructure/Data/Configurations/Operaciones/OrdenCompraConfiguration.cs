@@ -56,6 +56,18 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
                 .WithMany()
                 .HasForeignKey(o => o.IdCuentaContable)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(o => o.IdMoneda).HasColumnName("id_moneda");
+            builder.Property(o => o.TipoCambioAplicado)
+                .HasColumnName("tipo_cambio_aplicado")
+                .HasPrecision(18, 6)
+                .HasDefaultValue(1m);
+
+            builder.HasOne(o => o.Moneda)
+                .WithMany()
+                .HasForeignKey(o => o.IdMoneda)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

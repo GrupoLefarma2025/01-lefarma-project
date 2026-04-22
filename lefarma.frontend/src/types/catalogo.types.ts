@@ -1,6 +1,5 @@
 // ─── Empresa ─────────────────────────────────────────────────────────────────
 
-
 export interface Empresa {
   idEmpresa: number;
   nombre: string;
@@ -162,5 +161,18 @@ export interface ProveedorCuentaBancaria {
   numeroTarjeta?: string;
   beneficiario?: string;
   correoNotificacion?: string;
+  activo: boolean;
+}
+
+// ─── Moneda ───────────────────────────────────────────────────────────────────
+
+export interface Moneda {
+  idMoneda: number;
+  codigo: string;
+  nombre: string;
+  simbolo: string;
+  locale: string;
+  tipoCambio: number;
+  esDefault: boolean;
   activo: boolean;
 }

@@ -51,6 +51,10 @@ export interface OrdenCompraResponse {
   subtotal: number;
   totalIva: number;
   total: number;
+  idMoneda?: number | null;
+  monedaCodigo?: string | null;
+  monedaSimbolo?: string | null;
+  tipoCambioAplicado: number;
   partidas: OrdenCompraPartidaResponse[];
 }
 
@@ -86,6 +90,8 @@ export interface CreateOrdenCompraRequest {
   sinDatosFiscales: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
+  idMoneda?: number | null;
+  tipoCambioAplicado?: number;
   partidas: CreatePartidaRequest[];
 }
 

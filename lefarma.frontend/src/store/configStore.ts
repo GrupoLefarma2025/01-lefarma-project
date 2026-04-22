@@ -51,7 +51,7 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   maxFileSize: 10, // 10 MB
   allowedFileTypes: ['.pdf', '.xlsx', '.xls', '.jpg', '.jpeg', '.png', '.doc', '.docx'],
 
-  defaultCurrency: 'LPS',
+  defaultCurrency: 'MXN',
   defaultDateFormat: 'DD/MM/YYYY',
   defaultTimeFormat: '24h',
   defaultPageSize: 20,

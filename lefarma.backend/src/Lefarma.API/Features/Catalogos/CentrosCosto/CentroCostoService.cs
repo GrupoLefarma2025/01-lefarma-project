@@ -119,6 +119,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
                     NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
                     Descripcion = request.Descripcion,
                     DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
+                    LimitePresupuesto = request.LimitePresupuesto,
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
                 };
@@ -161,6 +162,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
                 centroCosto.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
                 centroCosto.Descripcion = request.Descripcion;
                 centroCosto.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
+                centroCosto.LimitePresupuesto = request.LimitePresupuesto;
                 centroCosto.Activo = request.Activo;
                 centroCosto.FechaModificacion = DateTime.UtcNow;
 

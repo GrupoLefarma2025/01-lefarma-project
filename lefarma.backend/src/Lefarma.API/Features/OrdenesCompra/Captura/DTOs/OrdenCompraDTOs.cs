@@ -29,6 +29,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal Subtotal { get; set; }
         public decimal TotalIva { get; set; }
         public decimal Total { get; set; }
+        public int? IdMoneda { get; set; }
+        public string? MonedaCodigo { get; set; }
+        public string? MonedaSimbolo { get; set; }
+        public decimal TipoCambioAplicado { get; set; }
         public List<OrdenCompraPartidaResponse> Partidas { get; set; } = new();
     }
 
@@ -54,6 +58,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public int? IdMoneda { get; set; }
+        public decimal TipoCambioAplicado { get; set; } = 1m;
         public required List<CreatePartidaRequest> Partidas { get; set; }
     }
 

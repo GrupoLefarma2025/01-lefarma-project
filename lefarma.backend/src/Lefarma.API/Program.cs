@@ -185,10 +185,14 @@ builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 builder.Services.AddScoped<IMedioPagoService, MedioPagoService>();
+builder.Services.AddScoped<Lefarma.API.Features.Catalogos.Monedas.IMonedaService, Lefarma.API.Features.Catalogos.Monedas.MonedaService>();
 builder.Services.AddScoped<IFormaPagoService, FormaPagoService>();
 builder.Services.AddScoped<IBancoService, BancoService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Usuarios.IUsuarioCatalogService, Lefarma.API.Features.Auth.Usuarios.UsuarioCatalogService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Roles.IRolCatalogService, Lefarma.API.Features.Auth.Roles.RolCatalogService>();
+
+// Dashboard
+builder.Services.AddScoped<Lefarma.API.Features.Dashboard.IDashboardService, Lefarma.API.Features.Dashboard.DashboardService>();
 
 // Catálogos Faltantes
 builder.Services.AddScoped<ICentroCostoService, CentroCostoService>();

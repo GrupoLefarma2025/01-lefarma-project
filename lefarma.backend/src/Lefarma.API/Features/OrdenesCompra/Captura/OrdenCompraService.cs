@@ -36,7 +36,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Moneda).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -176,6 +176,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     SinDatosFiscales = request.SinDatosFiscales,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
+                    IdMoneda = request.IdMoneda,
+                    TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m,
                     FechaSolicitud = DateTime.UtcNow,
                     FechaLimitePago = request.FechaLimitePago,
                     FechaCreacion = DateTime.UtcNow,
@@ -283,6 +285,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.SinDatosFiscales = request.SinDatosFiscales;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
+                orden.IdMoneda = request.IdMoneda;
+                orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
 
                 // Recrear partidas: remover existentes y crear nuevas
                 _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
@@ -363,6 +367,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             Subtotal = o.Subtotal,
             TotalIva = o.TotalIva,
             Total = o.Total,
+            IdMoneda = o.IdMoneda,
+            MonedaCodigo = o.Moneda?.Codigo,
+            MonedaSimbolo = o.Moneda?.Simbolo,
+            TipoCambioAplicado = o.TipoCambioAplicado,
             Partidas = o.Partidas.OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
             {
                 IdPartida = p.IdPartida,

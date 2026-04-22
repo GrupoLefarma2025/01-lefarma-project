@@ -7,6 +7,7 @@ namespace Lefarma.API.Features.Catalogos.CentrosCosto.DTOs
         public string NombreNormalizado { get; set; } = string.Empty;
         public string? Descripcion { get; set; }
         public string? DescripcionNormalizada { get; set; }
+        public decimal? LimitePresupuesto { get; set; }
         public bool Activo { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
@@ -16,6 +17,7 @@ namespace Lefarma.API.Features.Catalogos.CentrosCosto.DTOs
     {
         public required string Nombre { get; set; } = null!;
         public string? Descripcion { get; set; }
+        public decimal? LimitePresupuesto { get; set; }
         public bool Activo { get; set; } = true;
     }
 
@@ -24,6 +26,7 @@ namespace Lefarma.API.Features.Catalogos.CentrosCosto.DTOs
         public required int IdCentroCosto { get; set; }
         public required string Nombre { get; set; } = null!;
         public string? Descripcion { get; set; }
+        public decimal? LimitePresupuesto { get; set; }
         public bool Activo { get; set; }
     }
 

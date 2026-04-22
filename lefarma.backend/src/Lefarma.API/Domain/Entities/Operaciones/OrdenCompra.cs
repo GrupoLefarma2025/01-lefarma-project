@@ -28,10 +28,15 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int? IdCentroCosto { get; set; }
         public int? IdCuentaContable { get; set; }
 
+        // Moneda de la orden
+        public int? IdMoneda { get; set; }
+        public decimal TipoCambioAplicado { get; set; } = 1m;  // congelado al momento de crear
+
         // Navegación a catálogos (resueltos en queries)
         public virtual Proveedor? Proveedor { get; set; }
         public virtual CentroCosto? CentroCosto { get; set; }
         public virtual CuentaContable? CuentaContable { get; set; }
+        public virtual Moneda? Moneda { get; set; }
 
         // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;

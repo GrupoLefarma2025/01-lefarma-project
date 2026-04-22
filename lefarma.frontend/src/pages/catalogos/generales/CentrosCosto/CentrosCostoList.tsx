@@ -29,6 +29,7 @@ const ENDPOINT = '/catalogos/CentrosCosto';
 const centroCostoSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   descripcion: z.string().optional().or(z.literal('')),
+  limitePresupuesto: z.number().nonnegative('El límite no puede ser negativo').optional(),
   activo: z.boolean(),
 });
 
@@ -38,6 +39,7 @@ interface CentroCosto {
   nombreNormalizado?: string;
   descripcion?: string;
   descripcionNormalizada?: string;
+  limitePresupuesto?: number;
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
@@ -61,6 +63,7 @@ export default function CentrosCostoList() {
     defaultValues: {
       nombre: '',
       descripcion: '',
+      limitePresupuesto: undefined,
       activo: true,
     },
   });
@@ -91,7 +94,7 @@ export default function CentrosCostoList() {
 
   const handleNuevoCentroCosto = () => {
     setCentroCostoId(0);
-    form.reset({ nombre: '', descripcion: '', activo: true });
+    form.reset({ nombre: '', descripcion: '', limitePresupuesto: undefined, activo: true });
     setIsEditing(false);
     setModalOpen(true);
   };
@@ -103,6 +106,7 @@ export default function CentrosCostoList() {
       form.reset({
         nombre: centroCosto.nombre,
         descripcion: centroCosto.descripcion || '',
+        limitePresupuesto: centroCosto.limitePresupuesto ?? undefined,
         activo: centroCosto.activo,
       });
       setIsEditing(true);
@@ -184,6 +188,17 @@ export default function CentrosCostoList() {
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.descripcion || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'limitePresupuesto',
+      header: 'Límite de Presupuesto',
+      cell: ({ row }) => (
+        <span className="text-sm tabular-nums">
+          {row.original.limitePresupuesto != null
+            ? row.original.limitePresupuesto.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+            : <span className="text-muted-foreground">—</span>}
         </span>
       ),
     },
@@ -321,6 +336,30 @@ export default function CentrosCostoList() {
                     <FormControl>
                       <Input placeholder="Descripción breve" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="limitePresupuesto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Límite de Presupuesto</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Ej. 50000.00 (opcional)"
+                        value={field.value ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          field.onChange(val === '' ? undefined : parseFloat(val));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>Monto máximo asignado a este centro de costo.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
