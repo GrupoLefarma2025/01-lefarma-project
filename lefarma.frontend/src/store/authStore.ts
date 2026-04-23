@@ -254,6 +254,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const firmaPath = response.data.data?.detalle?.firmaPath;
       set({ hasFirma: !!firmaPath });
     } catch {
+      set({ hasFirma: false })
     }
   },
 
@@ -287,9 +288,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         displayName: null,
         pendingUsername: null,
         empresas: [],
-      sucursales: [],
-      areas: [],
-      hasFirma: null,
+        sucursales: [],
+        areas: [],
+        hasFirma: null,
     });
       useConfigStore.getState().updatePerfil({
         nombre: user.nombre || '',

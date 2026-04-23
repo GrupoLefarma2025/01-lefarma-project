@@ -43,8 +43,8 @@ export interface Usuario {
   esRobot: boolean;
   fechaCreacion: string;
   ultimoLogin?: string;
-  roles: any[]; // Define a simpler rol type if needed
-  permisosDirectos: any[];
+  roles: Rol[];
+  permisosDirectos: Permiso[];
   detalle?: UsuarioDetalle;
 }
 

@@ -34,12 +34,6 @@ public class AdminService : BaseService, IAdminService
         {
             var usuarios = await _repository.GetAllUsuariosAsync();
 
-            if (!usuarios.Any())
-            {
-                EnrichWideEvent(action: "GetAllUsuarios", count: 0);
-                return CommonErrors.NotFound("Usuarios");
-            }
-
             // Obtener detalles de usuarios
             var usuariosIds = usuarios.Select(u => u.IdUsuario).ToList();
             var detallesLista = await _repository.GetUsuariosDetalleAsync(usuariosIds);
@@ -258,12 +252,6 @@ public class AdminService : BaseService, IAdminService
         try
         {
             var roles = await _repository.GetAllRolesAsync();
-
-            if (!roles.Any())
-            {
-                EnrichWideEvent(action: "GetAllRoles", count: 0);
-                return CommonErrors.NotFound("Roles");
-            }
 
             var response = roles.Select(r => r.ToResponse()).ToList();
 
@@ -502,12 +490,6 @@ public class AdminService : BaseService, IAdminService
         try
         {
             var permisos = await _repository.GetAllPermisosAsync();
-
-            if (!permisos.Any())
-            {
-                EnrichWideEvent(action: "GetAllPermisos", count: 0);
-                return CommonErrors.NotFound("Permisos");
-            }
 
             var response = permisos.Select(p => p.ToResponse()).ToList();
 

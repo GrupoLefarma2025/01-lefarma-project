@@ -9,7 +9,6 @@ import BlockedPage from '@/pages/auth/BlockedPage';
 import Dashboard from '@/pages/Dashboard';
 import RolesList from '@/pages/admin/Roles/RolesList';
 import PermisosList from '@/pages/admin/Permisos/PermisosList';
-// import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
 import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
 import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';

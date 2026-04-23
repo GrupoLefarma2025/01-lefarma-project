@@ -45,11 +45,6 @@ public class WorkflowService : BaseService, IWorkflowService
                     q = q.Where(w => w.Activo == query.Activo.Value);
 
                 var items = await q.OrderBy(w => w.Nombre).ToListAsync();
-                if (!items.Any())
-                {
-                    EnrichWideEvent("GetAll", count: 0);
-                    return CommonErrors.NotFound("Workflows");
-                }
 
                 var response = items.Select(ToResponse).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);

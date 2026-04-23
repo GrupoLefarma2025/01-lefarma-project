@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -26,6 +26,7 @@ import type {
   AsignacionItemRequest,
 } from '@/types/comprobante.types';
 import type { Archivo } from '@/types/archivo.types';
+import { toApiError } from '@/utils/errors';
 
 interface Props {
   open: boolean;
@@ -137,8 +138,9 @@ export function SubirComprobantePagoModal({
       });
       setComprobanteSubido(comp);
       setStep('archivo');
-    } catch (err: any) {
-      toast.error(err?.errors?.[0]?.description ?? err?.message ?? 'Error al crear comprobante');
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante');
     } finally {
       setLoading(false);
     }
@@ -168,8 +170,9 @@ export function SubirComprobantePagoModal({
             idPasoWorkflow
           );
           onComprobanteSubido(updated);
-        } catch (err: any) {
-          toast.error(err?.errors?.[0]?.description ?? err?.message ?? 'Error al asignar el pago a la partida');
+        } catch (error: unknown) {
+          const apiErr = toApiError(error);
+          toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar el pago a la partida');
           setLoading(false);
           return; // Stay in modal so user can fix
         } finally {
@@ -222,8 +225,9 @@ export function SubirComprobantePagoModal({
       );
       onComprobanteSubido(updated);
       handleClose();
-    } catch (err: any) {
-      toast.error(err?.errors?.[0]?.description ?? err?.message ?? 'Error al asignar partidas');
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
     } finally {
       setLoading(false);
     }

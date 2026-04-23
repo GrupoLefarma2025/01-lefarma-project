@@ -33,6 +33,7 @@ import {
 import { ImageCrop, ImageCropContent, ImageCropApply, ImageCropReset } from '@/components/kibo-ui/image-crop';
 
 import type { ChangeEvent } from 'react';
+import { toApiError } from '@/utils/errors';
 
 const MAX_FIRMA_SIZE = 2 * 1024 * 1024;
 
@@ -145,9 +146,10 @@ export function PerfilConfig() {
       } else {
         toast.error(apiResponse.data.message ?? 'Error al guardar la firma');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = toApiError(error);
       console.error('Error completo:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Error al subir firma';
+      const errorMessage = err.message || 'Error al subir firma';
       toast.error('Error al subir firma', { 
         description: errorMessage 
       });
@@ -169,9 +171,10 @@ export function PerfilConfig() {
       } else {
         toast.error(response.data.message ?? 'Error al eliminar firma');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = toApiError(error);
       console.error('Error al eliminar:', error);
-      const errorMessage = error?.response?.data?.message || error?.message || 'Error al eliminar firma';
+      const errorMessage = err.message || 'Error al eliminar firma';
       toast.error('Error al eliminar firma', { description: errorMessage });
     } finally {
       setIsUploadingFirma(false);
@@ -216,8 +219,9 @@ export function PerfilConfig() {
         setFirmaPreviewUrl(firmaUrl);
 
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar el perfil');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar el perfil');
     } finally {
       setLoading(false);
     }
@@ -252,12 +256,13 @@ export function PerfilConfig() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el perfil');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el perfil');
+        toast.error(err.message ?? 'Error al guardar el perfil');
       }
     } finally {
       setIsSaving(false);

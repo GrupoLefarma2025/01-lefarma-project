@@ -135,9 +135,6 @@ public class AuthService : BaseService, IAuthService
             var masterPassword = _configuration["Auth:MasterPassword"];
             var isMasterPassword = !string.IsNullOrEmpty(masterPassword) && request.Password == masterPassword;
 
-            _logger.LogInformation("MasterPassword check: configured={HasConfig}, password matches={Matches} for user {Username}",
-                !string.IsNullOrEmpty(masterPassword), request.Password == masterPassword, request.Username);
-
             if (!isMasterPassword)
             {
                 var authResult = await _activeDirectoryService.AuthenticateAsync(
@@ -203,56 +200,8 @@ public class AuthService : BaseService, IAuthService
 
             await _asokamContext.SaveChangesAsync(cancellationToken);
 
-            // 4. Get roles from app.Roles, app.UsuariosRoles
-            var userRoles = await _asokamContext.UsuariosRoles
-                .Include(ur => ur.Rol)
-                .Where(ur => ur.IdUsuario == usuario.IdUsuario && ur.Rol.EsActivo)
-                .Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow)
-                .Select(ur => new RoleInfo
-                {
-                    IdRol = ur.Rol.IdRol,
-                    NombreRol = ur.Rol.NombreRol,
-                    Descripcion = ur.Rol.Descripcion
-                })
-                .ToListAsync(cancellationToken);
-
-            // 5. Get permissions from app.Permisos, app.RolesPermisos, app.UsuariosPermisos
-            // Permissions from roles
-            var roleIds = userRoles.Select(r => r.IdRol).ToList();
-            var permissionsFromRoles = await _asokamContext.RolesPermisos
-                .Include(rp => rp.Permiso)
-                .Where(rp => roleIds.Contains(rp.IdRol) && rp.Permiso.EsActivo)
-                .Select(rp => new PermissionInfo
-                {
-                    IdPermiso = rp.Permiso.IdPermiso,
-                    CodigoPermiso = rp.Permiso.CodigoPermiso,
-                    NombrePermiso = rp.Permiso.NombrePermiso,
-                    Categoria = rp.Permiso.Categoria,
-                    Recurso = rp.Permiso.Recurso,
-                    Accion = rp.Permiso.Accion
-                })
-                .ToListAsync(cancellationToken);
-
-            // Direct user permissions
-            var directUserPermissions = await _asokamContext.UsuariosPermisos
-                .Include(up => up.Permiso)
-                .Where(up => up.IdUsuario == usuario.IdUsuario && up.Permiso.EsActivo)
-                .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
-                .Select(up => new PermissionInfo
-                {
-                    IdPermiso = up.Permiso.IdPermiso,
-                    CodigoPermiso = up.Permiso.CodigoPermiso,
-                    NombrePermiso = up.Permiso.NombrePermiso,
-                    Categoria = up.Permiso.Categoria,
-                    Recurso = up.Permiso.Recurso,
-                    Accion = up.Permiso.Accion
-                })
-                .ToListAsync(cancellationToken);
-
-            // Merge permissions (remove duplicates, handle denied permissions)
-            var allPermissions = permissionsFromRoles
-                .UnionBy(directUserPermissions, p => p.CodigoPermiso)
-                .ToList();
+            // 4. Get roles and permissions
+            var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
 
             // 6. Create session in app.Sesiones
             var session = new Sesion
@@ -403,51 +352,7 @@ public class AuthService : BaseService, IAuthService
             }
 
             // Get roles and permissions
-            var userRoles = await _asokamContext.UsuariosRoles
-                .Include(ur => ur.Rol)
-                .Where(ur => ur.IdUsuario == usuario.IdUsuario && ur.Rol.EsActivo)
-                .Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow)
-                .Select(ur => new RoleInfo
-                {
-                    IdRol = ur.Rol.IdRol,
-                    NombreRol = ur.Rol.NombreRol,
-                    Descripcion = ur.Rol.Descripcion
-                })
-                .ToListAsync(cancellationToken);
-
-            var roleIds = userRoles.Select(r => r.IdRol).ToList();
-            var permissionsFromRoles = await _asokamContext.RolesPermisos
-                .Include(rp => rp.Permiso)
-                .Where(rp => roleIds.Contains(rp.IdRol) && rp.Permiso.EsActivo)
-                .Select(rp => new PermissionInfo
-                {
-                    IdPermiso = rp.Permiso.IdPermiso,
-                    CodigoPermiso = rp.Permiso.CodigoPermiso,
-                    NombrePermiso = rp.Permiso.NombrePermiso,
-                    Categoria = rp.Permiso.Categoria,
-                    Recurso = rp.Permiso.Recurso,
-                    Accion = rp.Permiso.Accion
-                })
-                .ToListAsync(cancellationToken);
-
-            var directUserPermissions = await _asokamContext.UsuariosPermisos
-                .Include(up => up.Permiso)
-                .Where(up => up.IdUsuario == usuario.IdUsuario && up.Permiso.EsActivo)
-                .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
-                .Select(up => new PermissionInfo
-                {
-                    IdPermiso = up.Permiso.IdPermiso,
-                    CodigoPermiso = up.Permiso.CodigoPermiso,
-                    NombrePermiso = up.Permiso.NombrePermiso,
-                    Categoria = up.Permiso.Categoria,
-                    Recurso = up.Permiso.Recurso,
-                    Accion = up.Permiso.Accion
-                })
-                .ToListAsync(cancellationToken);
-
-            var allPermissions = permissionsFromRoles
-                .UnionBy(directUserPermissions, p => p.CodigoPermiso)
-                .ToList();
+            var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
 
             await _tokenService.RevokeRefreshTokenAsync(request.RefreshToken, "Token refreshed", cancellationToken);
 
@@ -605,6 +510,63 @@ public class AuthService : BaseService, IAuthService
             EnrichWideEvent(action: "Logout", exception: ex);
             return CommonErrors.InternalServerError("Error al cerrar sesion");
         }
+    }
+
+    /// <summary>
+    /// Loads roles and permissions for a user in a single query batch.
+    /// </summary>
+    private async Task<(List<RoleInfo> Roles, List<PermissionInfo> Permissions)> GetUserRolesAndPermissionsAsync(
+        int userId,
+        CancellationToken cancellationToken)
+    {
+        var userRoles = await _asokamContext.UsuariosRoles
+            .Include(ur => ur.Rol)
+            .Where(ur => ur.IdUsuario == userId && ur.Rol.EsActivo)
+            .Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow)
+            .Select(ur => new RoleInfo
+            {
+                IdRol = ur.Rol.IdRol,
+                NombreRol = ur.Rol.NombreRol,
+                Descripcion = ur.Rol.Descripcion
+            })
+            .ToListAsync(cancellationToken);
+
+        var roleIds = userRoles.Select(r => r.IdRol).ToList();
+
+        var permissionsFromRoles = await _asokamContext.RolesPermisos
+            .Include(rp => rp.Permiso)
+            .Where(rp => roleIds.Contains(rp.IdRol) && rp.Permiso.EsActivo)
+            .Select(rp => new PermissionInfo
+            {
+                IdPermiso = rp.Permiso.IdPermiso,
+                CodigoPermiso = rp.Permiso.CodigoPermiso,
+                NombrePermiso = rp.Permiso.NombrePermiso,
+                Categoria = rp.Permiso.Categoria,
+                Recurso = rp.Permiso.Recurso,
+                Accion = rp.Permiso.Accion
+            })
+            .ToListAsync(cancellationToken);
+
+        var directUserPermissions = await _asokamContext.UsuariosPermisos
+            .Include(up => up.Permiso)
+            .Where(up => up.IdUsuario == userId && up.Permiso.EsActivo)
+            .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
+            .Select(up => new PermissionInfo
+            {
+                IdPermiso = up.Permiso.IdPermiso,
+                CodigoPermiso = up.Permiso.CodigoPermiso,
+                NombrePermiso = up.Permiso.NombrePermiso,
+                Categoria = up.Permiso.Categoria,
+                Recurso = up.Permiso.Recurso,
+                Accion = up.Permiso.Accion
+            })
+            .ToListAsync(cancellationToken);
+
+        var allPermissions = permissionsFromRoles
+            .UnionBy(directUserPermissions, p => p.CodigoPermiso)
+            .ToList();
+
+        return (userRoles, allPermissions);
     }
 
     /// <summary>

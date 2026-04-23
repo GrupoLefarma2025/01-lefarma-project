@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import {
@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Medidas';
 const UNIDADES_ENDPOINT = '/catalogos/UnidadesMedida';
@@ -115,8 +116,9 @@ export default function MedidasList() {
       if (response.data.success) {
         setMedidas(response.data.data || []);
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar las medidas');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las medidas');
     }
     // } finally {
     //   // setLoading(false);
@@ -129,8 +131,9 @@ export default function MedidasList() {
       if (response.data.success) {
         setUnidadesMedida(response.data.data || []);
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar las unidades de medida');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las unidades de medida');
     }
   };
 
@@ -171,8 +174,9 @@ export default function MedidasList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar');
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al guardar la medida');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al guardar la medida');
     } finally {
       setIsSaving(false);
     }
@@ -186,8 +190,9 @@ export default function MedidasList() {
         toast.success('Medida eliminada');
         fetchMedidas();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar');
     }
   };
 
@@ -244,8 +249,9 @@ export default function MedidasList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar');
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al guardar la unidad');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al guardar la unidad');
     } finally {
       setIsSavingUnidad(false);
     }
@@ -260,8 +266,9 @@ export default function MedidasList() {
         await fetchUnidadesMedida();
         await fetchMedidas();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar');
     }
   };
 
@@ -294,7 +301,8 @@ export default function MedidasList() {
       } else {
         toast.error(response.data.message ?? 'Error al reasignar');
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = toApiError(error);
       toast.error('Error al reasignar la unidad');
     } finally {
       setIsSavingUnidad(false);

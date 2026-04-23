@@ -19,6 +19,7 @@ import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { useHelpStore } from '@/store/helpStore';
 import { helpService } from '@/services/helpService';
 import type { HelpArticle } from '@/types/help.types';
+import { toApiError } from '@/utils/errors';
 
 
 export default function HelpList() {
@@ -141,8 +142,9 @@ export default function HelpList() {
       } else {
         fetchForUser();
       }
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar el contenido de ayuda');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar el contenido de ayuda');
     }finally {
       setIsSaving(false);
     }

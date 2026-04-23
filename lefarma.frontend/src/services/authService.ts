@@ -132,7 +132,6 @@ export const authService = {
     try{
     const response = await API.get<ApiResponse<Empresa[]>>('/catalogos/empresas');
     return response.data.data;
-    console.log('Empresas obtenidas:', response.data.data);
     }
     catch(error){
       console.error('Error al obtener empresas:', error);

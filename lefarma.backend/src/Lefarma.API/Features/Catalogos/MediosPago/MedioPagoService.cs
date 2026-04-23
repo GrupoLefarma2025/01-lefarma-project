@@ -33,13 +33,8 @@ public class MedioPagoService : BaseService, IMedioPagoService
             try
             {
                 var result = await _medioPagoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("MedioPago");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(m => !string.IsNullOrWhiteSpace(m.Nombre))
                     .Select(m => m.ToResponse())
                     .OrderBy(m => m.Nombre)

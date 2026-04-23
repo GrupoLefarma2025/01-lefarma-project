@@ -157,7 +157,7 @@ public class NotificationService : INotificationService
                 channelResults[channelRequest.ChannelType] = new ChannelResult
                 {
                     Success = false,
-                    Message = $"Error: {ex.Message}"
+                    Message = "Error al procesar el canal de notificación."
                 };
 
                 // Create failed channel record
@@ -203,21 +203,24 @@ public class NotificationService : INotificationService
     {
         _logger.LogInformation("Sending bulk notification to {UserCount} users", request.UserIds.Count);
 
-        // For bulk, we create individual notifications for each user
-        // This allows for better tracking and personalization
+        const int MaxConcurrency = 10;
+        using var semaphore = new SemaphoreSlim(MaxConcurrency);
 
-        var results = new Dictionary<string, ChannelResult>();
-        int successCount = 0;
-        int firstNotificationId = 0;
-
-        foreach (var userId in request.UserIds)
+        var tasks = request.UserIds.Select(async userId =>
         {
+            await semaphore.WaitAsync(ct);
             try
             {
-                // Create a personalized request for this user
+                // Deep-copy channels per user to avoid concurrent mutation of shared objects
                 var userRequest = new SendNotificationRequest
                 {
-                    Channels = request.Channels,
+                    Channels = request.Channels.Select(c => new NotificationChannelRequest
+                    {
+                        ChannelType = c.ChannelType,
+                        UserIds = c.UserIds,
+                        RoleNames = c.RoleNames,
+                        ChannelSpecificData = new Dictionary<string, object>(c.ChannelSpecificData ?? []) { ["userId"] = userId }
+                    }).ToList(),
                     Title = request.Title,
                     Message = request.Message,
                     Type = request.Type,
@@ -229,48 +232,50 @@ public class NotificationService : INotificationService
                     ExpiresAt = request.ExpiresAt
                 };
 
-                // Add userId to channel data for personalization
-                foreach (var channel in userRequest.Channels)
-                {
-                    channel.ChannelSpecificData ??= new Dictionary<string, object>();
-                    channel.ChannelSpecificData["userId"] = userId;
-                }
-
-                var response = await SendAsync(userRequest, ct);
-
-                if (firstNotificationId == 0)
-                {
-                    firstNotificationId = response.NotificationId;
-                }
-
-                successCount++;
-
-                // Aggregate results
-                foreach (var kvp in response.ChannelResults)
-                {
-                    if (!results.ContainsKey(kvp.Key))
-                    {
-                        results[kvp.Key] = new ChannelResult
-                        {
-                            Success = true,
-                            SentRecipients = new List<string>(),
-                            FailedRecipients = new List<string>()
-                        };
-                    }
-
-                    if (kvp.Value.Success)
-                    {
-                        results[kvp.Key].SentRecipients?.AddAll(kvp.Value.SentRecipients ?? new List<string>());
-                    }
-                    else
-                    {
-                        results[kvp.Key].FailedRecipients?.AddAll(kvp.Value.FailedRecipients ?? new List<string>());
-                    }
-                }
+                return (Response: await SendAsync(userRequest, ct), Error: (Exception?)null);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error sending bulk notification to user {UserId}", userId);
+                return (Response: (SendNotificationResponse?)null, Error: ex);
+            }
+            finally
+            {
+                semaphore.Release();
+            }
+        }).ToList();
+
+        var taskResults = await Task.WhenAll(tasks);
+
+        // Aggregate results sequentially after all tasks complete (no concurrent mutation needed)
+        var results = new Dictionary<string, ChannelResult>();
+        int successCount = 0;
+        int firstNotificationId = 0;
+
+        foreach (var (response, _) in taskResults)
+        {
+            if (response == null) continue;
+
+            successCount++;
+            if (firstNotificationId == 0)
+                firstNotificationId = response.NotificationId;
+
+            foreach (var kvp in response.ChannelResults)
+            {
+                if (!results.ContainsKey(kvp.Key))
+                {
+                    results[kvp.Key] = new ChannelResult
+                    {
+                        Success = true,
+                        SentRecipients = new List<string>(),
+                        FailedRecipients = new List<string>()
+                    };
+                }
+
+                if (kvp.Value.Success)
+                    results[kvp.Key].SentRecipients?.AddAll(kvp.Value.SentRecipients ?? []);
+                else
+                    results[kvp.Key].FailedRecipients?.AddAll(kvp.Value.FailedRecipients ?? []);
             }
         }
 
