@@ -21,7 +21,7 @@ import {
   FormMessage,
   FormDescription,
 } from '@/components/ui/form';
-import { User, Mail, Phone, Bell, Loader2, Smartphone, PenLine, Upload, Trash2, ImagePlus, X, Crop, RotateCcwIcon } from 'lucide-react';
+import { /* User, */ /* Mail, */ Phone, Bell, Loader2, Smartphone, PenLine, Upload, /* Trash2, */ ImagePlus, /* X, */ Crop, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import {

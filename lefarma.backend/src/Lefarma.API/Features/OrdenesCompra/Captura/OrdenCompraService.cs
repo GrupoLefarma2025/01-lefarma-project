@@ -36,13 +36,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable()
-                    .Include(o => o.Partidas)
-                    .Include(o => o.Proveedor)
-                    .Include(o => o.CentroCosto)
-                    .Include(o => o.CuentaContable)
-                    .Include(o => o.Moneda)
-                    .AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -343,8 +337,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdOrden = o.IdOrden,
             Folio = o.Folio,
             IdEmpresa = o.IdEmpresa,
+            EmpresaNombre = o.Empresa?.NombreNormalizado ?? o.Empresa?.Nombre,
             IdSucursal = o.IdSucursal,
+            SucursalNombre = o.Sucursal?.NombreNormalizado ?? o.Sucursal?.Nombre,
             IdArea = o.IdArea,
+            AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
             IdTipoGasto = o.IdTipoGasto,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null

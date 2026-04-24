@@ -1,5 +1,4 @@
-﻿// Tipos de notificación
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
 
 export type TipoNotificacion = 'in-app' | 'email' | 'telegram' | 'whatsapp';
 
@@ -29,7 +28,7 @@ export interface UIPreset {
   id: UIPresetId;
   nombre: string;
   descripcion: string;
-  icono: LucideIcon;
+  icono: ComponentType<{ className?: string }>;
   config: {
     visual: VisualPreferences;
     componentes: ComponentPreferences;

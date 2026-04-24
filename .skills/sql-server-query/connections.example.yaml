@@ -1,0 +1,14 @@
+connections:
+  Lefarma:
+    name: Lefarma
+    server: 192.168.4.2
+    database: Lefarma
+    username: coreapi
+    password: L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!
+
+  Asokam:
+    name: Asokam
+    server: 192.168.4.2
+    database: Asokam
+    username: coreapi
+    password: L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!

@@ -1,7 +1,6 @@
 ﻿import { Rol } from './rol.types';
 import { Permiso } from './permiso.types';
 
-
 export interface UsuarioDetalle {
   idUsuario: number;
   idEmpresa: number;

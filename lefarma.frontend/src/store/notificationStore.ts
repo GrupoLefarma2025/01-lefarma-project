@@ -5,12 +5,11 @@
 
 
 import { create } from 'zustand';
-import { devtools, persist } from 'zustand/middleware';
+import { devtools } from 'zustand/middleware';
 import {
   NotificationUiState,
   UserNotification,
   NotificationFilter,
-  NotificationChannelType,
   SendNotificationRequest,
 } from '@/types/notification.types';
 import { notificationService } from '@/services/notificationService';

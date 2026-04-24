@@ -8,10 +8,10 @@ import {
   Trash2, 
   Search, 
   Loader2, 
-  RefreshCcw, 
+  // RefreshCcw, // @typescript-eslint/no-unused-vars
   GitBranch,
   Eye,
-  BarChart3
+  // BarChart3, // @typescript-eslint/no-unused-vars
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
