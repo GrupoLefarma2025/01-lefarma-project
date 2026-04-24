@@ -335,109 +335,121 @@ public class ProveedorService : BaseService, IProveedorService
     /// </summary>
     private async Task<ErrorOr<ProveedorResponse>> GuardarEnStagingAsync(Proveedor proveedor, UpdateProveedorRequest request, int id)
     {
-        // Buscar staging existente para este proveedor
-        var stagingExistente = await _dbContext.StagingProveedores
-            .Include(s => s.Detalle)
-            .Include(s => s.CuentasFormaPago)
-            .FirstOrDefaultAsync(s => s.IdProveedor == id);
-
-        StagingProveedor staging;
-
-        if (stagingExistente != null)
+        try
         {
-            // Actualizar staging existente
-            staging = stagingExistente;
-        }
-        else
-        {
-            // Crear nuevo staging
-            staging = new StagingProveedor
+            // Buscar staging existente para este proveedor
+            var stagingExistente = await _dbContext.StagingProveedores
+                .Include(s => s.Detalle)
+                .Include(s => s.CuentasFormaPago)
+                .FirstOrDefaultAsync(s => s.IdProveedor == id);
+
+            StagingProveedor staging;
+
+            if (stagingExistente != null)
             {
-                IdProveedor = id,
-                RazonSocial = request.RazonSocial,
-                RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
-                RFC = request.RFC,
-                CodigoPostal = request.CodigoPostal,
-                RegimenFiscalId = request.RegimenFiscalId,
-                UsoCfdi = request.UsoCfdi,
-                SinDatosFiscales = request.SinDatosFiscales,
-                FechaStaging = DateTime.UtcNow,
-                Estatus = EstatusProveedor.EditadoPendiente
-            };
-            _dbContext.StagingProveedores.Add(staging);
-        }
-
-        // Copiar datos del request al staging (para staging existente)
-        staging.RazonSocial = request.RazonSocial;
-        staging.RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial);
-        staging.RFC = request.RFC;
-        staging.CodigoPostal = request.CodigoPostal;
-        staging.RegimenFiscalId = request.RegimenFiscalId;
-        staging.UsoCfdi = request.UsoCfdi;
-        staging.SinDatosFiscales = request.SinDatosFiscales;
-        staging.FechaModificacion = DateTime.UtcNow;
-        staging.Estatus = EstatusProveedor.EditadoPendiente;
-
-        // Detalle
-        if (request.Detalle != null)
-        {
-            StagingProveedorDetalle detalleStaging;
-            if (staging.Detalle != null)
-            {
-                detalleStaging = staging.Detalle;
+                // Actualizar staging existente
+                staging = stagingExistente;
             }
             else
             {
-                detalleStaging = new StagingProveedorDetalle
+                // Crear nuevo staging
+                staging = new StagingProveedor
                 {
-                    IdStaging = staging.IdStaging,
-                    IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
-                    FechaCreacion = DateTime.UtcNow
+                    IdProveedor = id,
+                    RazonSocial = request.RazonSocial,
+                    RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
+                    RFC = request.RFC,
+                    CodigoPostal = request.CodigoPostal,
+                    RegimenFiscalId = request.RegimenFiscalId,
+                    UsoCfdi = request.UsoCfdi,
+                    SinDatosFiscales = request.SinDatosFiscales,
+                    FechaStaging = DateTime.UtcNow,
+                    Estatus = EstatusProveedor.EditadoPendiente
                 };
-                _dbContext.StagingProveedoresDetalle.Add(detalleStaging);
+                _dbContext.StagingProveedores.Add(staging);
             }
 
-            detalleStaging.PersonaContactoNombre = request.Detalle.PersonaContactoNombre;
-            detalleStaging.ContactoTelefono = request.Detalle.ContactoTelefono;
-            detalleStaging.ContactoEmail = request.Detalle.ContactoEmail;
-            detalleStaging.Comentario = request.Detalle.Comentario;
-            if (request.Detalle.CaratulaUrl != null)
-                detalleStaging.CaratulaPath = request.Detalle.CaratulaUrl;
-            detalleStaging.FechaModificacion = DateTime.UtcNow;
-        }
+            // Copiar datos del request al staging (para staging existente)
+            staging.RazonSocial = request.RazonSocial;
+            staging.RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial);
+            staging.RFC = request.RFC;
+            staging.CodigoPostal = request.CodigoPostal;
+            staging.RegimenFiscalId = request.RegimenFiscalId;
+            staging.UsoCfdi = request.UsoCfdi;
+            staging.SinDatosFiscales = request.SinDatosFiscales;
+            staging.FechaModificacion = DateTime.UtcNow;
+            staging.Estatus = EstatusProveedor.EditadoPendiente;
 
-        // Cuentas
-        if (request.CuentasFormaPago != null)
-        {
-            var cuentasExistentes = staging.CuentasFormaPago.ToList();
-            _dbContext.StagingProveedoresFormasPagoCuentas.RemoveRange(cuentasExistentes);
-
-            foreach (var cuenta in request.CuentasFormaPago)
+            // Detalle
+            if (request.Detalle != null)
             {
-                staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
+                StagingProveedorDetalle detalleStaging;
+                if (staging.Detalle != null)
                 {
-                    IdStaging = staging.IdStaging,
-                    IdFormaPago = cuenta.IdFormaPago,
-                    IdBanco = cuenta.IdBanco,
-                    NumeroCuenta = cuenta.NumeroCuenta,
-                    Clabe = cuenta.Clabe,
-                    NumeroTarjeta = cuenta.NumeroTarjeta,
-                    Beneficiario = cuenta.Beneficiario,
-                    CorreoNotificacion = cuenta.CorreoNotificacion,
-                    Activo = true
-                });
+                    detalleStaging = staging.Detalle;
+                }
+                else
+                {
+                    detalleStaging = new StagingProveedorDetalle
+                    {
+                        IdStaging = staging.IdStaging,
+                        IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
+                        FechaCreacion = DateTime.UtcNow
+                    };
+                    _dbContext.StagingProveedoresDetalle.Add(detalleStaging);
+                }
+
+                detalleStaging.PersonaContactoNombre = request.Detalle.PersonaContactoNombre;
+                detalleStaging.ContactoTelefono = request.Detalle.ContactoTelefono;
+                detalleStaging.ContactoEmail = request.Detalle.ContactoEmail;
+                detalleStaging.Comentario = request.Detalle.Comentario;
+                if (request.Detalle.CaratulaUrl != null)
+                    detalleStaging.CaratulaPath = request.Detalle.CaratulaUrl;
+                detalleStaging.FechaModificacion = DateTime.UtcNow;
             }
+
+            // Cuentas
+            if (request.CuentasFormaPago != null)
+            {
+                var cuentasExistentes = staging.CuentasFormaPago.ToList();
+                _dbContext.StagingProveedoresFormasPagoCuentas.RemoveRange(cuentasExistentes);
+                staging.CuentasFormaPago.Clear();
+
+                foreach (var cuenta in request.CuentasFormaPago)
+                {
+                    var stagingCuenta = new StagingProveedorFormaPagoCuenta
+                    {
+                        IdFormaPago = cuenta.IdFormaPago,
+                        IdBanco = cuenta.IdBanco,
+                        NumeroCuenta = cuenta.NumeroCuenta,
+                        Clabe = cuenta.Clabe,
+                        NumeroTarjeta = cuenta.NumeroTarjeta,
+                        Beneficiario = cuenta.Beneficiario,
+                        CorreoNotificacion = cuenta.CorreoNotificacion,
+                        Activo = true
+                    };
+
+                    stagingCuenta.StagingProveedor = staging;
+                    staging.CuentasFormaPago.Add(stagingCuenta);
+                }
+            }
+
+            // Vincular proveedor original al staging y cambiar estatus a EditadoPendiente
+            proveedor.Estatus = EstatusProveedor.EditadoPendiente;
+            proveedor.FechaModificacion = DateTime.UtcNow;
+
+            await _dbContext.SaveChangesAsync();
+
+            var result = await _proveedorRepository.GetByIdWithDetailsAsync(id);
+            EnrichWideEvent(action: "Update → Staging", entityId: id, nombre: result?.RazonSocial);
+            return result!.ToResponse();
+        }catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+            return CommonErrors.InternalServerError("Error inesperado al guardar los cambios en staging para el proveedor.");
+
         }
-
-        // Vincular proveedor original al staging y cambiar estatus a EditadoPendiente
-        proveedor.Estatus = EstatusProveedor.EditadoPendiente;
-        proveedor.FechaModificacion = DateTime.UtcNow;
-
-        await _dbContext.SaveChangesAsync();
-
-        var result = await _proveedorRepository.GetByIdWithDetailsAsync(id);
-        EnrichWideEvent(action: "Update → Staging", entityId: id, nombre: result?.RazonSocial);
-        return result!.ToResponse();
+        
     }
 
     public async Task<ErrorOr<bool>> DeleteAsync(int id)
@@ -879,6 +891,30 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (original.Detalle.Comentario != staging.Detalle.Comentario)
                 diffs.Add(new CampoDiff { Campo = "Comentario", Label = "Comentario", ValorAnterior = original.Detalle.Comentario, ValorNuevo = staging.Detalle.Comentario });
+        }
+
+        var originalCuentas = original.CuentasFormaPago.OrderBy(c => c.IdCuen).ToList();
+        var stagingCuentas = staging.CuentasFormaPago.OrderBy(c => c.IdStagingCuenta).ToList();
+
+        if (originalCuentas.Count != stagingCuentas.Count)
+        {
+            diffs.Add(new CampoDiff { Campo = "CuentasFormaPago", Label = "Cuentas Bancarias", ValorAnterior = $"{originalCuentas.Count} cuenta(s)", ValorNuevo = $"{stagingCuentas.Count} cuenta(s)" });
+        }
+        else
+        {
+            for (int i = 0; i < originalCuentas.Count; i++)
+            {
+                var orig = originalCuentas[i];
+                var stag = stagingCuentas[i];
+                if (orig.NumeroCuenta != stag.NumeroCuenta)
+                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].NumeroCuenta", Label = $"Cuenta {i + 1} - Número", ValorAnterior = orig.NumeroCuenta, ValorNuevo = stag.NumeroCuenta });
+                if (orig.Clabe != stag.Clabe)
+                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].Clabe", Label = $"Cuenta {i + 1} - CLABE", ValorAnterior = orig.Clabe, ValorNuevo = stag.Clabe });
+                if (orig.NumeroTarjeta != stag.NumeroTarjeta)
+                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].NumeroTarjeta", Label = $"Cuenta {i + 1} - Tarjeta", ValorAnterior = orig.NumeroTarjeta, ValorNuevo = stag.NumeroTarjeta });
+                if (orig.Beneficiario != stag.Beneficiario)
+                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].Beneficiario", Label = $"Cuenta {i + 1} - Beneficiario", ValorAnterior = orig.Beneficiario, ValorNuevo = stag.Beneficiario });
+            }
         }
 
         return diffs;
