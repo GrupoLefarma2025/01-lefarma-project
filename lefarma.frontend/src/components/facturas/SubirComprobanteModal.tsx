@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,7 @@ import type {
   PartidaPendienteResponse,
   AsignacionItemRequest,
 } from '@/types/comprobante.types';
+import { toApiError } from '@/utils/errors';
 
 interface Props {
   open: boolean;
@@ -203,21 +204,9 @@ export function SubirComprobanteModal({
       );
 
       setStep('asignar');
-    } catch (err: any) {
-      const responseData = err?.response?.data;
-      let errorMessage = 'Error al subir comprobante';
-      
-      if (responseData?.errors?.length > 0) {
-        const firstError = responseData.errors[0];
-        errorMessage = firstError?.description || firstError?.code || responseData.message || 'Error al subir comprobante';
-      } else if (responseData?.message) {
-        errorMessage = responseData.message;
-      } else if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      const errorMessage = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al subir comprobante';
       setSubmitError(errorMessage);
     } finally {
       setLoading(false);
@@ -253,10 +242,10 @@ export function SubirComprobanteModal({
       );
       onComprobanteSubido(updated);
       handleClose();
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
       // Show most specific error: first item in errors[] > message > fallback
-      const detail = data?.errors?.[0]?.description ?? data?.message ?? 'Error al asignar partidas';
+      const detail = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas';
       toast.error(detail);
     } finally {
       setLoading(false);

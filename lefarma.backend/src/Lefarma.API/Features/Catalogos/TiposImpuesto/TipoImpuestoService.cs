@@ -34,13 +34,8 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
             try
             {
                 var result = await _tipoImpuestoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("TiposImpuesto");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(t => !string.IsNullOrWhiteSpace(t.Nombre))
                     .Select(t => t.ToResponse())
                     .OrderBy(t => t.Nombre)

@@ -127,7 +127,6 @@ export const useConfigStore = create<ConfigState>()(
 
         // Aplicar tema inmediatamente
         const htmlElement = document.documentElement;
-        const root = window;
 
         if (tema === 'dark') {
           htmlElement.classList.add('dark');
@@ -138,7 +137,7 @@ export const useConfigStore = create<ConfigState>()(
         } else {
           // system
           localStorage.removeItem('theme');
-          const prefersDark = root.matchMedia('(prefers-color-scheme: dark)').matches;
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (prefersDark) {
             htmlElement.classList.add('dark');
           } else {

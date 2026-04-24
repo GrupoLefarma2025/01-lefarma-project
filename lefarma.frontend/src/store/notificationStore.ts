@@ -78,17 +78,21 @@ export const useNotificationStore = create<NotificationState>()(
             }
           } else {
             // Ya existe con el mismo estado, no hacer nada
-            console.log('[notificationStore] Notification already exists with same state, no update needed');
+            if (import.meta.env.DEV) {
+              console.debug('[notificationStore] Notification already exists with same state, no update needed');
+            }
           }
         } else {
           // Nueva notificación - agregarla al inicio
           const newNotifications = [notification, ...notifications];
           const newUnreadCount = notification.isRead ? unreadCount : unreadCount + 1;
 
-          console.log('[notificationStore] Adding NEW notification via SSE:', {
-            newCount: newNotifications.length,
-            newUnread: newUnreadCount
-          });
+          if (import.meta.env.DEV) {
+            console.debug('[notificationStore] Adding NEW notification via SSE:', {
+              newCount: newNotifications.length,
+              newUnread: newUnreadCount,
+            });
+          }
 
           set({
             notifications: newNotifications,
@@ -250,7 +254,7 @@ export const useNotificationStore = create<NotificationState>()(
         }
 
         try {
-          const count = await notificationService.getUnreadCount(userId);
+          const count = await notificationService.getUnreadCount(effectiveUserId);
           set({ unreadCount: count });
         } catch (error) {
           console.error('Error refreshing unread count:', error);

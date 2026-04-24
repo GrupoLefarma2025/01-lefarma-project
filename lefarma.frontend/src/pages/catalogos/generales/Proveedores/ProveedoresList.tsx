@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { resetConfig } from '@/lib/tableConfigStorage';
@@ -41,6 +41,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -237,15 +238,10 @@ export default function ProveedoresList() {
       if (response.data.success) {
         setProveedores(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.statusCode === 404;
-      if (isNotFound) {
-        setProveedores([]);
-        toast.warning('No se encontraron proveedores en el sistema');
-      } else {
-        toast.error(error?.message ?? 'Error al cargar los proveedores');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los proveedores');
+    }finally {
       setLoading(false);
     }
   };
@@ -416,8 +412,9 @@ export default function ProveedoresList() {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             toast.success('Carátula subida correctamente.');
-          } catch (uploadError: any) {
-            toast.error(uploadError?.message ?? 'Error al subir la carátula');
+          } catch (uploadError: unknown) {
+            const err = toApiError(uploadError);
+            toast.error(err.message ?? 'Error al subir la carátula');
           }
         }
 
@@ -426,12 +423,13 @@ export default function ProveedoresList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el proveedor');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el proveedor');
+        toast.error(err.message ?? 'Error al guardar el proveedor');
       }
     } finally {
       setIsSaving(false);
@@ -446,8 +444,9 @@ export default function ProveedoresList() {
         toast.success('Proveedor eliminado correctamente');
         fetchProveedores();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el proveedor');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el proveedor');
     }
   };
 
@@ -457,8 +456,9 @@ export default function ProveedoresList() {
       await proveedorApi.autorizar(id);
       toast.success('Proveedor autorizado');
       await fetchProveedores();
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al autorizar proveedor');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al autorizar proveedor');
     }
   };
 
@@ -470,8 +470,9 @@ export default function ProveedoresList() {
       setRejectModal({ open: false, proveedorId: null });
       setRejectMotivo('');
       await fetchProveedores();
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al rechazar proveedor');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al rechazar proveedor');
     }
   };
 

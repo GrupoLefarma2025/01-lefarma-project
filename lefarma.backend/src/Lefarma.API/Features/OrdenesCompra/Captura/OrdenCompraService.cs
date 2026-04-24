@@ -75,11 +75,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 };
 
                 var items = await q.ToListAsync();
-                if (!items.Any())
-                {
-                    EnrichWideEvent("GetAll", count: 0);
-                    return CommonErrors.NotFound("OrdenesCompra");
-                }
 
                 var response = items.Select(ToResponse).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
@@ -113,7 +108,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
@@ -211,9 +206,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     FechaEvento = result.FechaCreacion
                 });
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Create", entityId: result.IdOrden, nombre: result.Folio,
+                EnrichWideEvent("Create",entityId: result.IdOrden, nombre: result.Folio,
                     additionalContext: new Dictionary<string, object> { ["total"] = result.Total });
 
                 return ToResponse(result);
@@ -261,7 +256,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
@@ -318,9 +313,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
                 orden.Total = partidas.Sum(p => p.Total);
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Update", entityId: orden.IdOrden, nombre: orden.Folio);
+                EnrichWideEvent("Update",entityId: orden.IdOrden, nombre: orden.Folio);
                 return ToResponse(orden);
             }
             catch (DbUpdateException ex)

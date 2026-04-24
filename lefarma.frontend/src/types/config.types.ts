@@ -1,7 +1,4 @@
-﻿import type { ComponentType } from 'react';
-
-// Tipos de notificación
-
+import type { ComponentType } from 'react';
 
 export type TipoNotificacion = 'in-app' | 'email' | 'telegram' | 'whatsapp';
 

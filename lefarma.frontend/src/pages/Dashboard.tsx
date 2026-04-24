@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { 
@@ -26,6 +26,7 @@ import { useCurrency } from '@/hooks/useCurrency';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
 import type { DashboardStatsResponse } from '@/types/dashboard.types';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/dashboard/stats';
 
@@ -89,8 +90,9 @@ export default function Dashboard() {
         if (response.data.success) {
           setStats(response.data.data);
         }
-      } catch (error: any) {
-        toast.error(error?.message ?? 'Error al cargar las estadísticas del dashboard');
+      } catch (error: unknown) {
+        const err = toApiError(error);
+        toast.error(err.message ?? 'Error al cargar las estadísticas del dashboard');
       } finally {
         setIsLoading(false);
       }

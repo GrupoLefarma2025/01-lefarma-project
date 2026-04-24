@@ -43,7 +43,7 @@ namespace Lefarma.API.Infrastructure.Filters
 
             // Obtener el validator correspondiente
             var validatorType = typeof(IValidator<>).MakeGenericType(requestType);
-            var validator = _serviceProvider.GetService(validatorType);
+            var validator = _serviceProvider.GetService(validatorType) as IValidator;
 
             if (validator == null)
             {
@@ -59,21 +59,8 @@ namespace Lefarma.API.Infrastructure.Filters
                 return;
             }
 
-            // Validar usando reflection
-            var validateMethod = validatorType.GetMethod(nameof(IValidator<object>.ValidateAsync));
-            var task = (Task?)validateMethod?.Invoke(validator, new[] { request, default(CancellationToken) });
-
-            if (task == null)
-            {
-                await next();
-                return;
-            }
-
-            await task.ConfigureAwait(false);
-
-            // Obtener el resultado de la validación
-            var resultProperty = task.GetType().GetProperty("Result");
-            var validationResult = resultProperty?.GetValue(task) as ValidationResult;
+            var validationContext = new ValidationContext<object>(request);
+            var validationResult = await validator.ValidateAsync(validationContext, CancellationToken.None);
 
             if (validationResult == null)
             {

@@ -33,13 +33,8 @@ public class BancoService : BaseService, IBancoService
             try
             {
                 var result = await _bancoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("Bancos");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(b => !string.IsNullOrWhiteSpace(b.Nombre))
                     .Select(b => b.ToResponse())
                     .OrderBy(b => b.Nombre)

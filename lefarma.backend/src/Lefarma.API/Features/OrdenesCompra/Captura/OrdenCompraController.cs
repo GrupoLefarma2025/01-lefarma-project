@@ -57,7 +57,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         [SwaggerOperation(Summary = "Crear nueva orden de compra")]
         public async Task<IActionResult> Create( CreateOrdenCompraRequest? request)
         {
-            var result = await _service.CreateAsync(request, GetUserId());
+            var result = await _service.CreateAsync(request, GetUserId(), HttpContext.RequestAborted);
             return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
                 new { id = data.IdOrden },
                 new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
@@ -80,7 +80,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             if (request == null)
                 return BadRequest(new ApiResponse<object> { Success = false, Message = "Datos requeridos" });
 
-            var result = await _service.UpdateAsync(id, request, GetUserId());
+            var result = await _service.UpdateAsync(id, request, GetUserId(), HttpContext.RequestAborted);
             return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
             { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
