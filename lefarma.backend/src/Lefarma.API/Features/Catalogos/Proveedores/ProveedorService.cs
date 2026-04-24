@@ -256,7 +256,8 @@ public class ProveedorService : BaseService, IProveedorService
                 }
             }
 
-            // Actualización directa para Nuevo, Rechazado, EditadoPendiente
+            // Actualización directa para Nuevo, Rechazado
+            // EditadoPendiente va a staging (el flujo correcto para proveedores aprobados)
             if (proveedor.Estatus == EstatusProveedor.EditadoPendiente)
             {
                 return await GuardarEnStagingAsync(proveedor, request, id);
@@ -276,6 +277,7 @@ public class ProveedorService : BaseService, IProveedorService
                 proveedor.Detalle.PersonaContactoNombre = request.Detalle.PersonaContactoNombre;
                 proveedor.Detalle.ContactoTelefono = request.Detalle.ContactoTelefono;
                 proveedor.Detalle.ContactoEmail = request.Detalle.ContactoEmail;
+                proveedor.Detalle.Comentario = request.Detalle.Comentario;
                 if (request.Detalle.CaratulaUrl != null)
                     proveedor.Detalle.CaratulaPath = request.Detalle.CaratulaUrl;
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
@@ -352,13 +354,20 @@ public class ProveedorService : BaseService, IProveedorService
             staging = new StagingProveedor
             {
                 IdProveedor = id,
-                FechaStaging = DateTime.UtcNow
+                RazonSocial = request.RazonSocial,
+                RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
+                RFC = request.RFC,
+                CodigoPostal = request.CodigoPostal,
+                RegimenFiscalId = request.RegimenFiscalId,
+                UsoCfdi = request.UsoCfdi,
+                SinDatosFiscales = request.SinDatosFiscales,
+                FechaStaging = DateTime.UtcNow,
+                Estatus = EstatusProveedor.EditadoPendiente
             };
             _dbContext.StagingProveedores.Add(staging);
-            await _dbContext.SaveChangesAsync();
         }
 
-        // Copiar datos del request al staging
+        // Copiar datos del request al staging (para staging existente)
         staging.RazonSocial = request.RazonSocial;
         staging.RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial);
         staging.RFC = request.RFC;
@@ -382,7 +391,8 @@ public class ProveedorService : BaseService, IProveedorService
                 detalleStaging = new StagingProveedorDetalle
                 {
                     IdStaging = staging.IdStaging,
-                    IdDetalle = proveedor.Detalle?.IdDetalle ?? 0
+                    IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
+                    FechaCreacion = DateTime.UtcNow
                 };
                 _dbContext.StagingProveedoresDetalle.Add(detalleStaging);
             }
@@ -639,7 +649,7 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (proveedor.Estatus != EstatusProveedor.EditadoPendiente)
             {
-                return CommonErrors.Conflict("Proveedor", "El proveedor no tiene ediciones pendientes por autorizar");
+                return Error.Conflict("El proveedor no tiene ediciones pendientes por autorizar");
             }
 
             var staging = await _dbContext.StagingProveedores
@@ -649,7 +659,7 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (staging == null)
             {
-                return CommonErrors.Conflict("Proveedor", "No se encontró el staging para este proveedor");
+                return Error.Conflict("No se encontró el staging para este proveedor");
             }
 
             // Aplicar cambios del staging al proveedor original
@@ -730,7 +740,7 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (proveedor.Estatus != EstatusProveedor.EditadoPendiente)
             {
-                return CommonErrors.Conflict("Proveedor", "El proveedor no tiene ediciones pendientes por rechazar");
+                return Error.Conflict("El proveedor no tiene ediciones pendientes por rechazar");
             }
 
             var staging = await _dbContext.StagingProveedores
@@ -738,7 +748,7 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (staging == null)
             {
-                return CommonErrors.Conflict("Proveedor", "No se encontró el staging para este proveedor");
+                return Error.Conflict("No se encontró el staging para este proveedor");
             }
 
             // Restaurar estatus original (aprobado) y desvincular staging
@@ -776,7 +786,7 @@ public class ProveedorService : BaseService, IProveedorService
 
             if (staging == null)
             {
-                return CommonErrors.NotFound("ProveedorStaging", idProveedor.ToString());
+                return CommonErrors.NotFound("staging de proveedor", idProveedor.ToString());
             }
 
             var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(idProveedor);

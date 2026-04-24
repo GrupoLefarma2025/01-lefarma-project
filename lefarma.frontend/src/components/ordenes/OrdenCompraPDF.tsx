@@ -2,37 +2,6 @@ import React, { useState } from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import logoImage from '@/assets/logo.png';
 
-function FirmaImagen({ firmaUrl }: { firmaUrl: string }) {
-  const [imgError, setImgError] = useState(false);
-
-  if (imgError) {
-    return (
-      <span style={{ fontSize: '7pt', color: '#9ca3af', position: 'absolute', bottom: '5px', left: '50%', transform: 'translateX(-50%)' }}>
-        sin firma
-      </span>
-    );
-  }
-
-  return (
-    <img
-      src={firmaUrl}
-      alt="Firma digital"
-      onError={() => setImgError(true)}
-      style={{
-        maxHeight: '45px',
-        maxWidth: '90%',
-        objectFit: 'contain',
-        position: 'absolute',
-        bottom: '2px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-      }}
-    />
-  );
-}
-
-// ─── Types ─────────────────────────────────────────────────────────────────
-
 interface HistorialWorkflowItem {
   idEvento: number;
   idPaso: number;
@@ -58,7 +27,7 @@ interface Props {
   firmasMap?: Map<number, string>;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmtDate(dateStr: string) {
   try {
@@ -72,277 +41,468 @@ function fmtDate(dateStr: string) {
   }
 }
 
-function fmtDateTime(dateStr: string) {
-  try {
-    return new Date(dateStr).toLocaleString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
 function fmtMoney(n: number) {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
+const DARK_BLUE = '#1a3a5c';
+const HEADER_BG = '#1a3a5c';
+const ROW_LABEL = '#2c5f8a';
+const BORDER = '#4a7aad';
+const WHITE = '#ffffff';
+const LIGHT_GRAY = '#f5f5f5';
+
+const s: Record<string, React.CSSProperties> = {
+  page: {
+    fontFamily: "'Arial', sans-serif",
+    fontSize: 9,
+    color: '#000',
+    background: WHITE,
+    padding: '20px 24px',
+    maxWidth: 820,
+    margin: '0 auto',
+    boxSizing: 'border-box',
+  },
+  headerRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  logoBox: {
+    width: 140,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  logoText: {
+    fontWeight: 900,
+    fontSize: 18,
+    color: DARK_BLUE,
+    letterSpacing: 1,
+    lineHeight: 1,
+  },
+  logoSubText: {
+    fontSize: 8,
+    color: DARK_BLUE,
+    letterSpacing: 2,
+    marginTop: 1,
+  },
+  logoTagline: {
+    fontSize: 8,
+    color: '#e74c3c',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  docTitle: {
+    flex: 1,
+    textAlign: 'center',
+    fontWeight: 700,
+    fontSize: 14,
+    letterSpacing: 2,
+    color: '#000',
+    textTransform: 'uppercase',
+  },
+  folioBox: {
+    width: 180,
+    border: `1px solid ${BORDER}`,
+    fontSize: 9,
+  },
+  folioRow: {
+    display: 'flex',
+    borderBottom: `1px solid ${BORDER}`,
+  },
+  folioLabelCell: {
+    background: HEADER_BG,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '2px 6px',
+    width: 110,
+    textAlign: 'right',
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  folioValueCell: {
+    padding: '2px 6px',
+    flex: 1,
+  },
+  sectionHeader: {
+    background: HEADER_BG,
+    color: WHITE,
+    fontWeight: 700,
+    textAlign: 'center',
+    padding: '3px 0',
+    fontSize: 9,
+    letterSpacing: 0.5,
+    border: `1px solid ${BORDER}`,
+    borderBottom: 'none',
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+    marginBottom: 0,
+  },
+  thBlue: {
+    background: ROW_LABEL,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    textAlign: 'left' as const,
+    fontSize: 8.5,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  tdLabel: {
+    background: ROW_LABEL,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    verticalAlign: 'top' as const,
+    whiteSpace: 'nowrap' as const,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  tdValue: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    verticalAlign: 'top' as const,
+  },
+  tdLink: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    color: '#1155cc',
+    textDecoration: 'underline',
+    verticalAlign: 'top' as const,
+  },
+  deliveryTh: {
+    background: HEADER_BG,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    textAlign: 'center' as const,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  deliveryTd: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    verticalAlign: 'top' as const,
+    textAlign: 'center' as const,
+  },
+  deliveryTdDesc: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    verticalAlign: 'top' as const,
+    textAlign: 'left' as const,
+  },
+  deliveryTdRight: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    verticalAlign: 'top' as const,
+    textAlign: 'right' as const,
+  },
+  emptyTd: {
+    padding: '3px 5px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+    height: 18,
+    textAlign: 'right' as const,
+    color: '#555',
+  },
+  bottomSection: {
+    display: 'flex',
+    gap: 0,
+    marginTop: 0,
+    border: `1px solid ${BORDER}`,
+    borderTop: 'none',
+  },
+  obsBox: {
+    flex: 1,
+    padding: '4px 6px',
+    borderRight: `1px solid ${BORDER}`,
+    fontSize: 8.5,
+  },
+  obsHeader: {
+    background: HEADER_BG,
+    color: WHITE,
+    fontWeight: 700,
+    textAlign: 'center' as const,
+    padding: '2px 4px',
+    marginBottom: 4,
+    fontSize: 8.5,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  totalsBox: {
+    width: 220,
+    fontSize: 8.5,
+  },
+  totalRow: {
+    display: 'flex',
+    borderBottom: `1px solid ${BORDER}`,
+  },
+  totalLabel: {
+    flex: 1,
+    textAlign: 'right' as const,
+    padding: '2px 6px',
+    fontWeight: 600,
+  },
+  totalValue: {
+    width: 80,
+    textAlign: 'right' as const,
+    padding: '2px 6px',
+    borderLeft: `1px solid ${BORDER}`,
+  },
+  totalValueBold: {
+    width: 80,
+    textAlign: 'right' as const,
+    padding: '2px 6px',
+    borderLeft: `1px solid ${BORDER}`,
+    fontWeight: 700,
+    fontSize: 9.5,
+  },
+  firmasTable: {
+    width: '70%',
+    borderCollapse: 'collapse' as const,
+    marginTop: 8,
+    marginLeft: 'auto',
+  },
+  firmaThRow: {
+    background: HEADER_BG,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  firmaTh: {
+    background: HEADER_BG,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '2px 4px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 7.5,
+    textAlign: 'left' as const,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  firmaRoleCell: {
+    background: ROW_LABEL,
+    color: WHITE,
+    fontWeight: 700,
+    padding: '2px 4px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 7.5,
+    width: 60,
+    printColorAdjust: 'exact' as const,
+    WebkitPrintColorAdjust: 'exact' as const,
+  },
+  firmaTd: {
+    padding: '2px 4px',
+    border: `1px solid ${BORDER}`,
+    fontSize: 7.5,
+    height: 14,
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    fontSize: 7.5,
+    color: '#333',
+  },
+};
+
+// ─── Logo ──────────────────────────────────────────────────────────────────────
+
+const Logo: React.FC = () => (
+  <div style={s.logoBox}>
+    <img
+      src={logoImage}
+      alt="Grupo Lefarma"
+      style={{ width: 120, height: 50, objectFit: 'contain' }}
+    />
+  </div>
+);
+
+// ─── Main Component ────────────────────────────────────────────────────────────
+
+const EMPTY_LINES = 7;
 
 export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap }: Props) {
-  const proveedores = proveedoresMap || new Map<number, ProveedorInfo>();
+  const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
+  const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
-  const now = new Date().toLocaleString('es-MX', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
-  const estadoBg =
-    orden.estado === 'Rechazada' || orden.estado === 'Cancelada'
-      ? '#fee2e2'
-      : orden.estado === 'Cerrada' || orden.estado === 'Pagada'
-        ? '#dcfce7'
-        : '#dbeafe';
-
-  const estadoColor =
-    orden.estado === 'Rechazada' || orden.estado === 'Cancelada'
-      ? '#991b1b'
-      : orden.estado === 'Cerrada' || orden.estado === 'Pagada'
-        ? '#166534'
-        : '#1e3a8a';
-
-  // Filtrar solo eventos de autorización/aprobación (no rechazos ni movimientos internos)
-  const firmas = historial.filter(h => {
+  const firmas = historial.filter((h) => {
     const accion = (h.nombreAccion || '').toLowerCase();
+    const paso = (h.nombrePaso || '').toLowerCase();
+    if (accion.includes('creada')) return false;
+    if (paso.includes('cxp') || paso.includes('cuentas por pagar')) return false;
     return accion.includes('autoriz') || accion.includes('aproba') || accion.includes('firm');
   });
 
+  const tieneFirma = firmas.some((f) => firmasMap?.get(f.idUsuario));
+
+  const fmt = (n: number) =>
+    n === 0
+      ? '0.00'
+      : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
-    <div id="orden-compra-pdf-print">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
-      <div className="pdf-header">
-        <div className="pdf-header-left">
-          <img 
-            src={logoImage} 
-            alt="Lefarma" 
-            style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
-          />
-          <div className="pdf-subtitle">Orden de Compra</div>
-        </div>
-        <div className="pdf-header-right">
-          <div className="pdf-report-title">Orden de Compra</div>
-          <div className="pdf-report-date">Generado: {now}</div>
+    <div id="orden-compra-pdf-print" style={s.page}>
+      {/* ── HEADER ── */}
+      <div style={s.headerRow}>
+        <Logo />
+        <div style={s.docTitle}>ORDEN DE COMPRA</div>
+        <div style={s.folioBox}>
+          <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>
+            <div style={s.folioLabelCell}>Folio</div>
+            <div style={s.folioValueCell}>{orden.folio ?? '-'}</div>
+          </div>
+          <div style={s.folioRow}>
+            <div style={s.folioLabelCell}>Fecha Elaboración</div>
+            <div style={s.folioValueCell}>
+              {orden.fechaSolicitud ? fmtDate(orden.fechaSolicitud) : '-'}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* ── Datos de la Orden ──────────────────────────────────────────── */}
-      <div className="pdf-section">
-        <div className="pdf-section-title">Datos de la Orden</div>
-        <div className="pdf-orden-grid">
-          <div className="pdf-field-group">
-            <div className="pdf-field">
-              <span className="pdf-label">Folio</span>
-              <span className="pdf-folio">{orden.folio}</span>
-            </div>
-            <div className="pdf-field">
-              <span className="pdf-label">Estado</span>
-              <span
-                className="pdf-badge"
-                style={{ backgroundColor: estadoBg, color: estadoColor }}
-              >
-                {orden.estado}
-              </span>
-            </div>
-          </div>
+      {/* ── DATOS DEL SOLICITANTE ── */}
+      <div style={s.sectionHeader}>Datos del solicitante</div>
+      <table style={s.table}>
+        <tbody>
+          <tr>
+            <td style={s.thBlue}>Empresa</td>
+            <td style={s.tdValue}>
+              {orden.empresaNombre?.toUpperCase() ?? orden.idEmpresa ?? '-'}
+            </td>
+            <td style={s.thBlue}>Sucursal</td>
+            <td style={s.tdValue}>
+              {orden.sucursalNombre?.toUpperCase() ?? orden.idSucursal ?? '-'}
+            </td>
+            <td style={s.thBlue}>Área</td>
+            <td style={s.tdValue}>{orden.areaNombre?.toUpperCase() ?? orden.idArea ?? '-'}</td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Nombre del solicitante</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Puesto</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Fecha máxima de pago</td>
+            <td style={s.tdValue}>
+              {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '-'}
+            </td>
+          </tr>
+        </tbody>
+      </table>
 
-          <div className="pdf-field-group">
-            <div className="pdf-field">
-              <span className="pdf-label">Fecha solicitud</span>
-              <span className="pdf-value">{fmtDate(orden.fechaSolicitud)}</span>
-            </div>
-            <div className="pdf-field">
-              <span className="pdf-label">Fecha límite pago</span>
-              <span className="pdf-value">{fmtDate(orden.fechaLimitePago)}</span>
-            </div>
-          </div>
+      {/* ── DATOS DEL PROVEEDOR ── */}
+      <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos del Proveedor</div>
+      <table style={s.table}>
+        <tbody>
+          <tr>
+            <td style={s.thBlue}>Nombre, Denominación o Razón social</td>
+            <td style={{ ...s.tdValue, width: '30%' }}>
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? '-')
+                : '-'}
+            </td>
+            <td style={s.thBlue}>Teléfono de contacto</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Correo electrónico</td>
+            <td style={s.tdLink}>-</td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Dirección</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Código postal</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Tipo de persona</td>
+            <td style={s.tdValue}>-</td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Régimen fiscal</td>
+            <td style={s.tdValue}>-</td>
+            <td style={s.thBlue}>Forma de pago</td>
+            <td style={s.tdValue}>{orden.notaFormaPago ?? '-'}</td>
+            <td style={s.thBlue}>¿Se obtendra factura?</td>
+            <td style={s.tdValue}>-</td>
+          </tr>
+        </tbody>
+      </table>
 
-          <div className="pdf-field-group">
-            <div className="pdf-field">
-              <span className="pdf-label">Centro costo</span>
-              <span className="pdf-value">
-                {orden.centroCostoNombre || (orden.idCentroCosto ? `#${orden.idCentroCosto}` : '-')}
-              </span>
-            </div>
-            <div className="pdf-field">
-              <span className="pdf-label">Cuenta contable</span>
-              <span className="pdf-value">
-                {orden.cuentaContableNumero
-                  ? `${orden.cuentaContableNumero}${orden.cuentaContableDescripcion ? ` — ${orden.cuentaContableDescripcion}` : ''}`
-                  : '-'}
-              </span>
-            </div>
-          </div>
+      {/* ── DATOS DE ENTREGA ── */}
+      <div style={{ ...s.sectionHeader, marginTop: 6 }}>Datos de entrega</div>
+      <table style={s.table}>
+        <thead>
+          <tr>
+            <th style={{ ...s.deliveryTh, width: '5%' }}>Cant.</th>
+            <th style={{ ...s.deliveryTh, width: '5%' }}>U.M.</th>
+            <th style={s.deliveryTh}>Descripción</th>
+            <th style={{ ...s.deliveryTh, width: '12%' }}>Precio Unitario S/IVA</th>
+            <th style={{ ...s.deliveryTh, width: '10%' }}>Importe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(orden.partidas ?? []).map((p, i) => (
+            <tr key={p.idPartida ?? i}>
+              <td style={s.deliveryTd}>{p.cantidad}</td>
+              <td style={s.deliveryTd}>{p.idUnidadMedida}</td>
+              <td style={s.deliveryTdDesc}>{p.descripcion}</td>
+              <td style={s.deliveryTdRight}>
+                {p.precioUnitario.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+              </td>
+              <td style={s.deliveryTdRight}>
+                {p.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+              </td>
+            </tr>
+          ))}
+          {Array.from({ length: emptyRows }).map((_, i) => (
+            <tr key={`empty-${i}`}>
+              <td style={{ ...s.emptyTd, textAlign: 'center' }}></td>
+              <td style={s.emptyTd}></td>
+              <td style={s.emptyTd}></td>
+              <td style={s.emptyTd}></td>
+              <td style={s.emptyTd}>0.00</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-          <div className="pdf-field-group">
-            <div className="pdf-field">
-              <span className="pdf-label">Subtotal</span>
-              <span className="pdf-value">{fmtMoney(orden.subtotal)}</span>
-            </div>
-            <div className="pdf-field">
-              <span className="pdf-label">IVA</span>
-              <span className="pdf-value">{fmtMoney(orden.totalIva)}</span>
-            </div>
-            <div className="pdf-field">
-              <span className="pdf-label">Total</span>
-              <span className="pdf-total-amount">{fmtMoney(orden.total)}</span>
-            </div>
-          </div>
+      {/* ── OBSERVACIONES + TOTALES ── */}
+      <div style={s.bottomSection}>
+        <div style={s.obsBox}>
+          <div style={s.obsHeader}>Observaciones</div>
+          <div style={{ fontSize: 8, lineHeight: 1.4 }}>{orden.notasGenerales ?? '-'}</div>
         </div>
-
-        {(orden.notasGenerales || orden.notaFormaPago) && (
-          <div style={{ display: 'flex', gap: '12px', marginTop: '8px', flexWrap: 'wrap' }}>
-            {orden.notasGenerales && (
-              <div className="pdf-notas" style={{ flex: 1 }}>
-                <span className="pdf-label">Notas generales</span>
-                <p>{orden.notasGenerales}</p>
+        <div style={s.totalsBox}>
+          {[
+            { label: 'Subtotal', value: orden.subtotal, bold: false },
+            { label: 'IVA', value: orden.totalIva, bold: false },
+            { label: 'Total', value: orden.total, bold: true },
+          ].map(({ label, value, bold }) => (
+            <div key={label} style={s.totalRow}>
+              <div style={{ ...s.totalLabel, fontWeight: bold ? 700 : 600 }}>{label}</div>
+              <div style={bold ? s.totalValueBold : s.totalValue}>
+                {value.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </div>
-            )}
-            {orden.notaFormaPago && (
-              <div className="pdf-notas" style={{ flex: 1 }}>
-                <span className="pdf-label">Nota forma de pago</span>
-                <p>{orden.notaFormaPago}</p>
-              </div>
-            )}
-          </div>
-        )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* ── Datos del Proveedor (solo si hay proveedor a nivel de orden) ── */}
-      {orden.idProveedor && (
-        <div className="pdf-section">
-          <div className="pdf-section-title">Datos del Proveedor</div>
-          <div className="pdf-orden-grid">
-            <div className="pdf-field-group">
-              {(() => {
-                const prov = proveedores.get(Number(orden.idProveedor));
-                return (
-                  <>
-                    <div className="pdf-field">
-                      <span className="pdf-label">Razón Social</span>
-                      <span className="pdf-value">{prov?.razonSocial || `-`}</span>
-                    </div>
-                    <div className="pdf-field">
-                      <span className="pdf-label">RFC</span>
-                      <span className="pdf-value">{prov?.rfc || `-`}</span>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-            <div className="pdf-field-group">
-              <div className="pdf-field">
-                <span className="pdf-label">Datos fiscales</span>
-                <span className="pdf-value">
-                  {orden.sinDatosFiscales ? 'Sin datos fiscales' : 'Con datos fiscales'}
-                </span>
-              </div>
-              {orden.idsCuentasBancarias && orden.idsCuentasBancarias.length > 0 && (
-                <div className="pdf-field">
-                  <span className="pdf-label">Cuentas bancarias</span>
-                  <span className="pdf-value">
-                    {orden.idsCuentasBancarias.join(', ')}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Partidas ──────────────────────────────────────────────────── */}
-      {orden.partidas && orden.partidas.length > 0 && (
-        <div className="pdf-section">
-          <div className="pdf-section-title">Partidas ({orden.partidas.length})</div>
-          <table className="pdf-table">
-            <thead>
-              <tr>
-                <th style={{ width: '32px' }}>#</th>
-                <th>Descripción</th>
-                <th className="pdf-num" style={{ width: '56px' }}>Cant.</th>
-                <th className="pdf-num" style={{ width: '100px' }}>P. Unitario</th>
-                <th className="pdf-num" style={{ width: '56px' }}>IVA</th>
-                <th className="pdf-num" style={{ width: '80px' }}>Descuento</th>
-                <th className="pdf-num" style={{ width: '100px' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orden.partidas.map((p) => (
-                <tr key={p.idPartida}>
-                  <td>{p.numeroPartida}</td>
-                  <td>
-                    <span className="pdf-value">{p.descripcion}</span>
-                    {p.deducible && (
-                      <span style={{ marginLeft: '6px', fontSize: '7pt', color: '#16a34a', fontWeight: 600 }}>DEDUCIBLE</span>
-                    )}
-                    {p.idProveedor && (
-                      <div style={{ marginTop: '4px', fontSize: '7.5pt', color: '#6b7280' }}>
-                        {(() => {
-                          const provId = Number(p.idProveedor);
-                          const prov = proveedores.get(provId);
-                          console.log(`[PDF Render] Partida ${p.numeroPartida} - proveedor ID: ${provId}, encontrado:`, prov);
-                          return (
-                            <>
-                              <span style={{ fontWeight: 600 }}>Proveedor:</span> {prov?.razonSocial || `#${p.idProveedor}`}
-                              {p.sinDatosFiscales !== undefined && (
-                                <span style={{ marginLeft: '8px' }}>
-                                  ({p.sinDatosFiscales ? 'Sin datos fiscales' : 'Con datos fiscales'})
-                                </span>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
-                    )}
-                  </td>
-                  <td className="pdf-num">{p.cantidad}</td>
-                  <td className="pdf-num">{fmtMoney(p.precioUnitario)}</td>
-                  <td className="pdf-num">{p.porcentajeIva}%</td>
-                  <td className="pdf-num">{fmtMoney(p.descuento)}</td>
-                  <td className="pdf-num pdf-total-amount">{fmtMoney(p.total)}</td>
-                </tr>
-              ))}
-              <tr style={{ background: '#f3f4f6', fontWeight: 700 }}>
-                <td colSpan={5} style={{ textAlign: 'right', paddingRight: '8pt' }}>
-                  <span className="pdf-label">Subtotal</span>
-                </td>
-                <td className="pdf-num" style={{ fontWeight: 700 }}>{fmtMoney(orden.subtotal)}</td>
-              </tr>
-              <tr style={{ background: '#f3f4f6', fontWeight: 700 }}>
-                <td colSpan={5} style={{ textAlign: 'right', paddingRight: '8pt' }}>
-                  <span className="pdf-label">IVA</span>
-                </td>
-                <td className="pdf-num" style={{ fontWeight: 700 }}>{fmtMoney(orden.totalIva)}</td>
-              </tr>
-              <tr style={{ background: '#1d4ed8', color: '#fff', fontWeight: 700 }}>
-                <td colSpan={5} style={{ textAlign: 'right', paddingRight: '8pt' }}>
-                  <span style={{ fontWeight: 700, fontSize: '10pt' }}>TOTAL</span>
-                </td>
-                <td className="pdf-num" style={{ fontWeight: 700, fontSize: '11pt', color: '#fff' }}>
-                  {fmtMoney(orden.total)}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* ── Firmas y Autorizaciones ────────────────────────────────────── */}
+      {/* ── FIRMAS ── */}
       {firmas.length > 0 && (
         <div className="pdf-section">
           <div className="pdf-section-title">Firmas y Autorizaciones</div>
@@ -350,33 +510,41 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
             {firmas.slice(1).map((firma) => {
               const firmaUrl = firmasMap?.get(firma.idUsuario);
               return (
-                <div key={firma.idEvento} className="pdf-firma-box">
-                  <div className="pdf-firma-line" style={{ position: 'relative', minHeight: '50px' }}>
-                    {firmaUrl ? (
-                      <FirmaImagen firmaUrl={firmaUrl} />
-                    ) : (
-                      <span style={{ fontSize: '7pt', color: '#9ca3af', position: 'absolute', bottom: '5px', left: '50%', transform: 'translateX(-50%)' }}>
-                        sin firma
-                      </span>
-                    )}
-                  </div>
-                  <div className="pdf-firma-nombre">{firma.nombreUsuario || `Usuario ${firma.idUsuario}`}</div>
-                  <div className="pdf-firma-fecha">{fmtDateTime(firma.fechaEvento)}</div>
-                  {firma.comentario && (
-                    <div className="pdf-firma-comentario">"{firma.comentario}"</div>
+                <tr key={f.idEvento}>
+                  <td style={s.firmaTd}>{f.nombrePaso ?? '-'}</td>
+                  <td style={s.firmaTd}>{f.nombreUsuario ?? `Usuario ${f.idUsuario}`}</td>
+                  {tieneFirma && (
+                    <td style={s.firmaTd}>
+                      {firmaUrl ? (
+                        <img
+                          src={firmaUrl}
+                          alt="Firma"
+                          style={{
+                            height: 30,
+                            width: 80,
+                            objectFit: 'cover',
+                            display: 'block',
+                            marginLeft: 'auto',
+                          }}
+                        />
+                      ) : null}
+                    </td>
                   )}
-                </div>
+                </tr>
               );
             })}
-          </div>
-        </div>
+          </tbody>
+        </table>
       )}
 
-      {/* ── Footer ────────────────────────────────────────────────────── */}
-      <div className="pdf-footer">
-        <span>Sistema Lefarma · Orden de Compra · Generado automáticamente · Confidencial</span>
-        <span>{orden.folio}</span>
-      </div>
+      {/* ── FOOTER ── */}
+      {/* <div style={s.footer}>
+        <span>LEF-AYF-FOR-009</span>
+        <span>Versión: 01 · Prohibida la reproducción no autorizada</span>
+        <span>Pág 1 de 1</span>
+      </div> */}
     </div>
   );
 }
+
+export default OrdenCompraPDF;
