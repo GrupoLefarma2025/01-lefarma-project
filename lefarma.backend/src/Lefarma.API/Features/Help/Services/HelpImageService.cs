@@ -69,14 +69,14 @@ public class HelpImageService : IHelpImageService
             if (!AllowedMimeTypes.Contains(contentType))
             {
                 _logger.LogWarning("Tipo de contenido no permitido: {ContentType}", contentType);
-                return Errors.HelpImage.InvalidContentType;
+                return CommonErrors.Validation("ImageContentType", "El tipo de archivo no es válido. Solo se permiten imágenes PNG, JPEG, GIF y WebP.");
             }
 
             // Validar tamaño del archivo
             if (stream.Length > MaxFileSizeBytes)
             {
                 _logger.LogWarning("Archivo demasiado grande: {Size} bytes. Máximo permitido: {MaxSize} bytes", stream.Length, MaxFileSizeBytes);
-                return Errors.HelpImage.FileTooLarge;
+                return CommonErrors.Validation("ImageFileTooLarge", "El archivo es demasiado grande. El tamaño máximo permitido es 5 MB.");
             }
 
             // Generar nombre de archivo único

@@ -137,13 +137,15 @@ public static class ResultExtensions
             return error.Code switch
             {
                 "Database.Error" => "No se pudo completar la operación en la base de datos.",
+                "InternalServerError" => "Se produjo un error inesperado en el servidor.",
                 var code when code.EndsWith(".NotFound") => "No se encontró el recurso solicitado.",
                 var code when code.EndsWith(".AlreadyExists") => "Ya existe un registro con los datos proporcionados.",
-                var code when code.EndsWith(".HasDependencies") => "No se puede eliminar el recurso porque tiene registros asociados.",  // ✅
+                var code when code.EndsWith(".HasDependencies") => "No se puede eliminar el recurso porque tiene registros asociados.",
                 var code when code.EndsWith(".ConcurrencyError") => "El recurso fue modificado por otro usuario. Recargue los datos.",
-                var code when code.EndsWith(".DeleteFailed") => "No se pudo eliminar el recurso.",  // ✅ Nuevo
+                var code when code.EndsWith(".DeleteFailed") => "No se pudo eliminar el recurso.",
+                var code when code.EndsWith(".Conflict") => "Existe un conflicto con la operación solicitada.",
+                var code when code.EndsWith(".Failure") => "No se pudo completar la operación.",
                 var code when code.StartsWith("Validation.") => "Los datos proporcionados no son válidos.",
-                "InternalServerError" => "Se produjo un error inesperado en el servidor.",
                 _ => error.Type switch
                 {
                     ErrorType.NotFound => "No se encontró el recurso solicitado.",

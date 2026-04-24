@@ -12,9 +12,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       className="toaster group"
       richColors
       closeButton
+      expand
       position="top-right"
       visibleToasts={5}
       invert={true}
+      style={{ zIndex: 9999 }}
       toastOptions={{
         classNames: {
           toast:

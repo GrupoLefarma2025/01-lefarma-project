@@ -244,10 +244,10 @@ public class ProfileService : BaseService, IProfileService
         {
             var extension = Path.GetExtension(fileName).ToLowerInvariant();
             if (extension != ".png" && extension != ".jpg" && extension != ".jpeg")
-                return Error.Validation("Firma.InvalidExtension", "Solo se permiten archivos PNG, JPG o JPEG");
+                return CommonErrors.Validation("Firma.Extension", "Solo se permiten archivos PNG, JPG o JPEG");
 
             if (file.Length > 2 * 1024 * 1024)
-                return Error.Validation("Firma.FileTooLarge", "El archivo no puede ex exceder 2 MB");
+                return CommonErrors.Validation("Firma.Tamaño", "El archivo no puede exceder 2 MB");
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
@@ -292,7 +292,7 @@ public class ProfileService : BaseService, IProfileService
                 .FirstOrDefaultAsync(ud => ud.IdUsuario == userId, cancellationToken);
 
             if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPath))
-                return Error.NotFound("Profile.FirmaNotFound", "No hay firma digital para eliminar");
+                return CommonErrors.NotFound("Firma");
 
             var oldPhysicalPath = Path.Combine(_env.WebRootPath, detalle.FirmaPath.TrimStart('/'));
             if (File.Exists(oldPhysicalPath))

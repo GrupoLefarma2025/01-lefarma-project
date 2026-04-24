@@ -32,6 +32,10 @@ public class CentroCostoConfiguration : IEntityTypeConfiguration<CentroCosto>
                 .HasColumnName("descripcion_normalizada")
                 .HasMaxLength(500);
 
+            builder.Property(e => e.LimitePresupuesto)
+                .HasColumnName("limite_presupuesto")
+                .HasColumnType("decimal(18,2)");
+
             builder.Property(e => e.Activo)
                 .HasColumnName("activo")
                 .HasDefaultValue(true);

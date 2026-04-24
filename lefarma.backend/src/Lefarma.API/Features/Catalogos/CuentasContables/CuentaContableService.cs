@@ -102,7 +102,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("cuenta contable", id.ToString());
+                    return CommonErrors.NotFound("CuentaContable", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -124,7 +124,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 if (existeCuenta)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Cuenta, duplicate: true);
-                    return CommonErrors.AlreadyExists("cuenta contable", "cuenta", request.Cuenta);
+                    return CommonErrors.AlreadyExists("CuentaContable", "cuenta", request.Cuenta);
                 }
 
                 if (request.CentroCostoId.HasValue)
@@ -133,7 +133,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                     if (!centroCostoExiste)
                     {
                         EnrichWideEvent(action: "Create", entityId: request.CentroCostoId.Value, notFound: true);
-                        return CommonErrors.NotFound("centro de costo", request.CentroCostoId.Value.ToString());
+                        return CommonErrors.NotFound("CentroCosto", request.CentroCostoId.Value.ToString());
                     }
                 }
 
@@ -174,14 +174,14 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 if (cuentaContable == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("cuenta contable", id.ToString());
+                    return CommonErrors.NotFound("CuentaContable", id.ToString());
                 }
 
                 var existeCuenta = await _cuentaContableRepository.ExistsAsync(c => c.Cuenta == request.Cuenta && c.IdCuentaContable != id);
                 if (existeCuenta)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Cuenta, duplicate: true);
-                    return CommonErrors.AlreadyExists("cuenta contable", "cuenta", request.Cuenta);
+                    return CommonErrors.AlreadyExists("CuentaContable", "cuenta", request.Cuenta);
                 }
 
                 if (request.CentroCostoId.HasValue)
@@ -190,7 +190,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                     if (!centroCostoExiste)
                     {
                         EnrichWideEvent(action: "Update", entityId: request.CentroCostoId.Value, notFound: true);
-                        return CommonErrors.NotFound("centro de costo", request.CentroCostoId.Value.ToString());
+                        return CommonErrors.NotFound("CentroCosto", request.CentroCostoId.Value.ToString());
                     }
                 }
 
@@ -211,7 +211,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
             catch (DbUpdateConcurrencyException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.ConcurrencyError("cuenta contable");
+                return CommonErrors.ConcurrencyError("CuentaContable");
             }
             catch (DbUpdateException ex)
             {
@@ -233,14 +233,14 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 if (cuentaContable == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("cuenta contable", id.ToString());
+                    return CommonErrors.NotFound("CuentaContable", id.ToString());
                 }
 
                 var eliminado = await _cuentaContableRepository.DeleteAsync(cuentaContable);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("cuenta contable");
+                    return CommonErrors.DeleteFailed("CuentaContable");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: cuentaContable.Cuenta + " - " + cuentaContable.Descripcion);
@@ -249,7 +249,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.DatabaseError($"eliminar la cuenta contable");
+                return CommonErrors.HasDependencies("CuentaContable");
             }
             catch (Exception ex)
             {

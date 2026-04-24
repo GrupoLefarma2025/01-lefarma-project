@@ -88,7 +88,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("centro de costo", id.ToString());
+                    return CommonErrors.NotFound("CentroCosto", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -110,7 +110,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("centro de costo", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("CentroCosto", "nombre", request.Nombre);
                 }
 
                 var newCentroCosto = new CentroCosto
@@ -119,6 +119,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
                     NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
                     Descripcion = request.Descripcion,
                     DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
+                    LimitePresupuesto = request.LimitePresupuesto,
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
                 };
@@ -147,20 +148,21 @@ public class CentroCostoService : BaseService, ICentroCostoService
                 if (centroCosto == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("centro de costo", id.ToString());
+                    return CommonErrors.NotFound("CentroCosto", id.ToString());
                 }
 
                 var existeNombre = await _centroCostoRepository.ExistsAsync(c => c.Nombre == request.Nombre && c.IdCentroCosto != id);
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("centro de costo", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("CentroCosto", "nombre", request.Nombre);
                 }
 
                 centroCosto.Nombre = request.Nombre;
                 centroCosto.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
                 centroCosto.Descripcion = request.Descripcion;
                 centroCosto.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
+                centroCosto.LimitePresupuesto = request.LimitePresupuesto;
                 centroCosto.Activo = request.Activo;
                 centroCosto.FechaModificacion = DateTime.UtcNow;
 
@@ -171,7 +173,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
             catch (DbUpdateConcurrencyException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.ConcurrencyError("centro de costo");
+                return CommonErrors.ConcurrencyError("CentroCosto");
             }
             catch (DbUpdateException ex)
             {
@@ -193,14 +195,14 @@ public class CentroCostoService : BaseService, ICentroCostoService
                 if (centroCosto == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("centro de costo", id.ToString());
+                    return CommonErrors.NotFound("CentroCosto", id.ToString());
                 }
 
                 var eliminado = await _centroCostoRepository.DeleteAsync(centroCosto);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("centro de costo");
+                    return CommonErrors.DeleteFailed("CentroCosto");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: centroCosto.Nombre);
@@ -209,7 +211,7 @@ public class CentroCostoService : BaseService, ICentroCostoService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.DatabaseError($"eliminar el centro de costo");
+                return CommonErrors.HasDependencies("CentroCosto");
             }
             catch (Exception ex)
             {

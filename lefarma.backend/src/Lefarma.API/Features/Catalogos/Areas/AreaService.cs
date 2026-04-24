@@ -230,7 +230,7 @@ public class AreaService : BaseService, IAreaService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar el area");
+                return CommonErrors.HasDependencies("Area");
             }
             catch (Exception ex)
             {

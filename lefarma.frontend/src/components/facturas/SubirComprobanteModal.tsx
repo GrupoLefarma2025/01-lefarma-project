@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -33,6 +33,7 @@ import type {
   PartidaPendienteResponse,
   AsignacionItemRequest,
 } from '@/types/comprobante.types';
+import { toApiError } from '@/utils/errors';
 
 interface Props {
   open: boolean;
@@ -203,27 +204,9 @@ export function SubirComprobanteModal({
       );
 
       setStep('asignar');
-    } catch (err: any) {
-      const responseData = err?.response?.data;
-      let errorMessage = 'Error al subir comprobante';
-      
-      if (responseData?.errors?.length > 0) {
-        const firstError = responseData.errors[0];
-        if (firstError?.description) {
-          errorMessage = firstError.description;
-        } else if (firstError?.code === 'Comprobante.UuidDuplicado') {
-          errorMessage = 'Ya existe una factura registrada con este UUID CFDI';
-        } else {
-          errorMessage = firstError?.code || responseData.message || 'Error al subir comprobante';
-        }
-      } else if (responseData?.message) {
-        errorMessage = responseData.message;
-      } else if (typeof err === 'string') {
-        errorMessage = err;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      const errorMessage = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al subir comprobante';
       setSubmitError(errorMessage);
     } finally {
       setLoading(false);
@@ -259,10 +242,10 @@ export function SubirComprobanteModal({
       );
       onComprobanteSubido(updated);
       handleClose();
-    } catch (err: any) {
-      const data = err?.response?.data;
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
       // Show most specific error: first item in errors[] > message > fallback
-      const detail = data?.errors?.[0]?.description ?? data?.message ?? 'Error al asignar partidas';
+      const detail = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas';
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -416,8 +399,25 @@ export function SubirComprobanteModal({
               {/* Preview CFDI */}
               {cfdiPreview && (
                 <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
-                  <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> CFDI válido
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> CFDI válido
+                    </div>
+                    {/* Badge estado SAT */}
+                    {cfdiPreview.satContactado === true && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
+                        ${cfdiPreview.satEstado === 'Vigente'
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                        {cfdiPreview.satEstado === 'Vigente' ? '✓' : '✗'} SAT: {cfdiPreview.satEstado}
+                      </span>
+                    )}
+                    {cfdiPreview.satContactado === false && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+                        ⚠ SAT no disponible
+                      </span>
+                    )}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
@@ -438,6 +438,15 @@ export function SubirComprobanteModal({
                       <p className="font-medium">{cfdiPreview.conceptos.length}</p>
                     </div>
                   </div>
+                  {/* Aviso si CFDI no vigente */}
+                  {cfdiPreview.satContactado === true && cfdiPreview.satEstado !== 'Vigente' && (
+                    <div className="flex items-start gap-1.5 rounded bg-red-50 dark:bg-red-950/30 p-2 text-red-700 dark:text-red-400">
+                      <span className="mt-0.5">⚠</span>
+                      <span>Este CFDI no podrá ser registrado porque su estado en el SAT es <strong>{cfdiPreview.satEstado}</strong>.
+                        {cfdiPreview.satCancelacion && ` (${cfdiPreview.satCancelacion})`}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

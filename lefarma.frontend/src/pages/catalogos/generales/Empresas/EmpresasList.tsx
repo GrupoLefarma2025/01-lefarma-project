@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, Store } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, /* Store, */ } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -24,6 +24,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 // Helper function to normalize text (remove accents and convert to lowercase)
 const normalizeText = (text: string): string => {
@@ -107,13 +108,9 @@ export default function EmpresasList() {
         setEmpresas(response.data.data || []);
       }
     } catch (error: unknown) {
-      const err = error as { message?: string; statusCode?: number };
-      if (err.statusCode === 404) {
-        setEmpresas([]);
-      } else {
-        toast.error(err.message ?? 'Error al cargar las empresas');
-      }
-    } finally {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las empresas');
+    }finally {
       setLoading(false);
     }
   };
@@ -171,12 +168,13 @@ export default function EmpresasList() {
       } else {
         toast.error(response.data.message ?? "Error al guardar la empresa");
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? "Error al guardar la empresa");
+        toast.error(err.message ?? "Error al guardar la empresa");
       }
     } finally {
       setIsSaving(false);

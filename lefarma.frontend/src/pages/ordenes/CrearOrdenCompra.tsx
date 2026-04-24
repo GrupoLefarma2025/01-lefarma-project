@@ -78,6 +78,7 @@ import type {
   Medida,
   TipoImpuesto,
   ProveedorCuentaBancaria,
+  Moneda,
 } from '@/types/catalogo.types';
 
 interface Proveedor {
@@ -120,6 +121,8 @@ const ordenCompraSchema = z
     idArea: z.number().positive('Seleccione un área'),
     idTipoGasto: z.number().positive('Seleccione un tipo de gasto'),
     fechaLimitePago: z.string().min(1, 'La fecha es requerida'),
+    idMoneda: z.number().optional().nullable(),
+    tipoCambioAplicado: z.number().optional(),
     sinDatosFiscales: z.boolean(),
     // FK al proveedor (proveedor a nivel orden)
     idProveedor: z.number().optional().nullable(),
@@ -429,6 +432,7 @@ export default function CrearOrdenCompra() {
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [tiposGasto, setTiposGasto] = useState<Gasto[]>([]);
+  const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [medidas, setMedidas] = useState<Medida[]>([]);
@@ -451,6 +455,8 @@ export default function CrearOrdenCompra() {
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       idTipoGasto: 0,
       fechaLimitePago: '',
+      idMoneda: null,
+      tipoCambioAplicado: 1,
       sinDatosFiscales: false,
       idProveedor: 0,
       razonSocialProveedor: '',
@@ -559,6 +565,22 @@ export default function CrearOrdenCompra() {
       .catch((err) => {
         console.warn('[fetchCatalogs] Error al cargar Gastos:', err);
         errors.push('Tipos de Gasto');
+      });
+
+    API.get<ApiResponse<Moneda[]>>('/catalogos/Monedas')
+      .then((res) => {
+        if (res.data.success) {
+          const lista = res.data.data || [];
+          setMonedas(lista);
+          const def = lista.find((m) => m.esDefault);
+          if (def) {
+            form.setValue('idMoneda', def.idMoneda);
+            form.setValue('tipoCambioAplicado', def.tipoCambio);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('[fetchCatalogs] Error al cargar Monedas:', err);
       });
 
     API.get<ApiResponse<FormaPago[]>>('/catalogos/FormasPago')
@@ -760,6 +782,8 @@ export default function CrearOrdenCompra() {
             idArea: orden.idArea,
             idTipoGasto: orden.idTipoGasto,
             fechaLimitePago: orden.fechaLimitePago.split('T')[0],
+            idMoneda: orden.idMoneda ?? null,
+            tipoCambioAplicado: orden.tipoCambioAplicado ?? 1,
             sinDatosFiscales: orden.sinDatosFiscales,
             idProveedor: orden.idProveedor || 0,
             razonSocialProveedor,
@@ -884,6 +908,8 @@ export default function CrearOrdenCompra() {
         idArea: values.idArea,
         idTipoGasto: values.idTipoGasto,
         fechaLimitePago: values.fechaLimitePago,
+        idMoneda: values.idMoneda ?? null,
+        tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
         idProveedor: values.idProveedor && values.idProveedor > 0 ? values.idProveedor : null,
         sinDatosFiscales: values.sinDatosFiscales,
         notaFormaPago: values.notaFormaPago || null,
@@ -1389,6 +1415,38 @@ export default function CrearOrdenCompra() {
                           {tiposGasto.map((g) => (
                             <SelectItem key={g.idGasto} value={String(g.idGasto)}>
                               {g.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="idMoneda"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Moneda</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          const id = Number(val);
+                          field.onChange(id || null);
+                          const m = monedas.find((x) => x.idMoneda === id);
+                          if (m) form.setValue('tipoCambioAplicado', m.tipoCambio);
+                        }}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona moneda..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {monedas.map((m) => (
+                            <SelectItem key={m.idMoneda} value={String(m.idMoneda)}>
+                              {m.codigo} – {m.nombre} ({m.simbolo})
                             </SelectItem>
                           ))}
                         </SelectContent>

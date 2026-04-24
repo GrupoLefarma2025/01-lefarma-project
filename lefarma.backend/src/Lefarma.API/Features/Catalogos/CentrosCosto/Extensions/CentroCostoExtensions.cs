@@ -14,6 +14,7 @@ namespace Lefarma.API.Features.Catalogos.CentrosCosto.Extensions
                 NombreNormalizado = entity.NombreNormalizado ?? string.Empty,
                 Descripcion = entity.Descripcion,
                 DescripcionNormalizada = entity.DescripcionNormalizada,
+                LimitePresupuesto = entity.LimitePresupuesto,
                 Activo = entity.Activo,
                 FechaCreacion = entity.FechaCreacion,
                 FechaModificacion = entity.FechaModificacion

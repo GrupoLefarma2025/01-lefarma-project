@@ -32,23 +32,30 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _context = context;
         }
 
-        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, bool puedeVerTodas)
+        public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
                 if (query.Estado.HasValue) q = q.Where(o => o.Estado == query.Estado.Value);
 
-                // Si NO tiene el permiso de ver todas, filtrar por usuario
+                // Si NO tiene el permiso de ver todas, filtrar por usuario/rol participante
                 if (!puedeVerTodas)
                 {
-                    // Obtener los pasos del workflow donde el usuario es participante directo
+                    var rolesLista = rolesUsuario.ToList();
+
+                    // Obtener los pasos del workflow donde el usuario es participante
+                    // ya sea directamente (id_usuario) o por rol (id_rol)
                     var pasosParticipante = await _context.WorkflowParticipantes
-                        .Where(p => p.IdUsuario == idUsuario && p.Activo)
+                        .Where(p => p.Activo && (
+                            p.IdUsuario == idUsuario ||
+                            (p.IdRol != null && rolesLista.Contains(p.IdRol.Value))
+                        ))
                         .Select(p => p.IdPaso)
+                        .Distinct()
                         .ToListAsync();
 
                     q = q.Where(o =>
@@ -68,11 +75,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 };
 
                 var items = await q.ToListAsync();
-                if (!items.Any())
-                {
-                    EnrichWideEvent("GetAll", count: 0);
-                    return CommonErrors.NotFound("OrdenesCompra");
-                }
 
                 var response = items.Select(ToResponse).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
@@ -93,7 +95,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (item is null)
                 {
                     EnrichWideEvent("GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("orden de compra", id.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
                 EnrichWideEvent("GetById", entityId: id, nombre: item.Folio);
@@ -106,7 +108,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
@@ -169,6 +171,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     SinDatosFiscales = request.SinDatosFiscales,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
+                    IdMoneda = request.IdMoneda,
+                    TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m,
                     FechaSolicitud = DateTime.UtcNow,
                     FechaLimitePago = request.FechaLimitePago,
                     FechaCreacion = DateTime.UtcNow,
@@ -202,9 +206,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     FechaEvento = result.FechaCreacion
                 });
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Create", entityId: result.IdOrden, nombre: result.Folio,
+                EnrichWideEvent("Create",entityId: result.IdOrden, nombre: result.Folio,
                     additionalContext: new Dictionary<string, object> { ["total"] = result.Total });
 
                 return ToResponse(result);
@@ -229,7 +233,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden is null)
                 {
                     EnrichWideEvent("Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("orden de compra", id.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
                 if (orden.Estado != EstadoOC.Creada)
@@ -239,7 +243,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (!eliminado)
                 {
                     EnrichWideEvent("Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("orden de compra");
+                    return CommonErrors.DeleteFailed("OrdenCompra");
                 }
 
                 EnrichWideEvent("Delete", entityId: id, nombre: orden.Folio);
@@ -252,13 +256,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
                 var orden = await _repo.GetWithPartidasAsync(id);
                 if (orden == null)
-                    return CommonErrors.NotFound("orden de compra", id.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", id.ToString());
 
                 if (orden.Estado != EstadoOC.Creada)
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
@@ -276,6 +280,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.SinDatosFiscales = request.SinDatosFiscales;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
+                orden.IdMoneda = request.IdMoneda;
+                orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
 
                 // Recrear partidas: remover existentes y crear nuevas
                 _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
@@ -307,9 +313,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
                 orden.Total = partidas.Sum(p => p.Total);
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Update", entityId: orden.IdOrden, nombre: orden.Folio);
+                EnrichWideEvent("Update",entityId: orden.IdOrden, nombre: orden.Folio);
                 return ToResponse(orden);
             }
             catch (DbUpdateException ex)
@@ -332,8 +338,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdOrden = o.IdOrden,
             Folio = o.Folio,
             IdEmpresa = o.IdEmpresa,
+            EmpresaNombre = o.Empresa?.NombreNormalizado ?? o.Empresa?.Nombre,
             IdSucursal = o.IdSucursal,
+            SucursalNombre = o.Sucursal?.NombreNormalizado ?? o.Sucursal?.Nombre,
             IdArea = o.IdArea,
+            AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
             IdTipoGasto = o.IdTipoGasto,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
@@ -356,6 +365,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             Subtotal = o.Subtotal,
             TotalIva = o.TotalIva,
             Total = o.Total,
+            IdMoneda = o.IdMoneda,
+            MonedaCodigo = o.Moneda?.Codigo,
+            MonedaSimbolo = o.Moneda?.Simbolo,
+            TipoCambioAplicado = o.TipoCambioAplicado,
             Partidas = o.Partidas.OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
             {
                 IdPartida = p.IdPartida,

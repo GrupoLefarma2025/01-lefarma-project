@@ -23,12 +23,14 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/CentrosCosto';
 
 const centroCostoSchema = z.object({
   nombre: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   descripcion: z.string().optional().or(z.literal('')),
+  limitePresupuesto: z.number().nonnegative('El límite no puede ser negativo').optional(),
   activo: z.boolean(),
 });
 
@@ -38,6 +40,7 @@ interface CentroCosto {
   nombreNormalizado?: string;
   descripcion?: string;
   descripcionNormalizada?: string;
+  limitePresupuesto?: number;
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
@@ -61,6 +64,7 @@ export default function CentrosCostoList() {
     defaultValues: {
       nombre: '',
       descripcion: '',
+      limitePresupuesto: undefined,
       activo: true,
     },
   });
@@ -72,15 +76,10 @@ export default function CentrosCostoList() {
       if (response.data.success) {
         setCentrosCosto(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'CentrosCosto.NotFound');
-      if (isNotFound) {
-        setCentrosCosto([]);
-        toast.warning('No se encontraron centros de costo en el sistema');
-      } else {
-        toast.error(error?.message ?? 'Error al cargar los centros de costo');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los centros de costo');
+    }finally {
       setLoading(false);
     }
   };
@@ -91,7 +90,7 @@ export default function CentrosCostoList() {
 
   const handleNuevoCentroCosto = () => {
     setCentroCostoId(0);
-    form.reset({ nombre: '', descripcion: '', activo: true });
+    form.reset({ nombre: '', descripcion: '', limitePresupuesto: undefined, activo: true });
     setIsEditing(false);
     setModalOpen(true);
   };
@@ -103,6 +102,7 @@ export default function CentrosCostoList() {
       form.reset({
         nombre: centroCosto.nombre,
         descripcion: centroCosto.descripcion || '',
+        limitePresupuesto: centroCosto.limitePresupuesto ?? undefined,
         activo: centroCosto.activo,
       });
       setIsEditing(true);
@@ -126,12 +126,13 @@ export default function CentrosCostoList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el centro de costo');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el centro de costo');
+        toast.error(err.message ?? 'Error al guardar el centro de costo');
       }
     } finally {
       setIsSaving(false);
@@ -146,8 +147,9 @@ export default function CentrosCostoList() {
         toast.success('Centro de costo eliminado correctamente');
         fetchCentrosCosto();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el centro de costo');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el centro de costo');
     }
   };
 
@@ -184,6 +186,17 @@ export default function CentrosCostoList() {
       cell: ({ row }) => (
         <span className="text-sm text-muted-foreground">
           {row.original.descripcion || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'limitePresupuesto',
+      header: 'Límite de Presupuesto',
+      cell: ({ row }) => (
+        <span className="text-sm tabular-nums">
+          {row.original.limitePresupuesto != null
+            ? row.original.limitePresupuesto.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })
+            : <span className="text-muted-foreground">—</span>}
         </span>
       ),
     },
@@ -321,6 +334,30 @@ export default function CentrosCostoList() {
                     <FormControl>
                       <Input placeholder="Descripción breve" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="limitePresupuesto"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Límite de Presupuesto</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        placeholder="Ej. 50000.00 (opcional)"
+                        value={field.value ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          field.onChange(val === '' ? undefined : parseFloat(val));
+                        }}
+                      />
+                    </FormControl>
+                    <FormDescription>Monto máximo asignado a este centro de costo.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

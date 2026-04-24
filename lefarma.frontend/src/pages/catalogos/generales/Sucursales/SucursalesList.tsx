@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Sucursales';
 const EMPRESAS_ENDPOINT = '/catalogos/Empresas';
@@ -98,14 +99,10 @@ export default function SucursalesList() {
       if (response.data.success) {
         setSucursales(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'Sucursales.NotFound');
-      if (isNotFound) {
-        setSucursales([]);
-      } else {
-        toast.error(error?.message ?? 'Error al cargar las sucursales');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las sucursales');
+    }finally {
       setLoading(false);
     }
   };
@@ -174,12 +171,13 @@ export default function SucursalesList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar la sucursal');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar la sucursal');
+        toast.error(err.message ?? 'Error al guardar la sucursal');
       }
     } finally {
       setIsSaving(false);
@@ -194,8 +192,9 @@ export default function SucursalesList() {
         toast.success('Sucursal eliminada correctamente');
         fetchSucursales();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar la sucursal');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar la sucursal');
     }
   };
 

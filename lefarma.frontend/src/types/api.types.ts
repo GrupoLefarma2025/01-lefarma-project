@@ -1,16 +1,21 @@
 ﻿// Tipos para respuestas de la API
 
+export interface ErrorDetail {
+  code: string;
+  description: string;
+  field?: string | null;
+}
 
 export interface ApiResponse<T> {
   data: T;
   message: string;
   success: boolean;
-  errors?: string[];
+  errors?: ErrorDetail[];
 }
 
 export interface ApiError {
   message: string;
-  errors?: Record<string, string[]>;
+  errors?: ErrorDetail[];
   statusCode: number;
 }
 

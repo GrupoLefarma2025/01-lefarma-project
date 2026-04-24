@@ -9,6 +9,7 @@ import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/EstatusOrden';
 
@@ -36,13 +37,14 @@ export default function EstatusOrdenList() {
       if (response.data.success) {
         setEstatus(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'EstatusOrden.NotFound');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const isNotFound = err.statusCode === 404;
       if (isNotFound) {
         setEstatus([]);
         toast.warning('No se encontraron estatus de orden en el sistema');
       } else {
-        toast.error(error?.message ?? 'Error al cargar los estatus de orden');
+        toast.error(err.message ?? 'Error al cargar los estatus de orden');
       }
     } finally {
       setLoading(false);

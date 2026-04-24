@@ -34,13 +34,8 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
             try
             {
                 var result = await _tipoImpuestoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("TiposImpuesto");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(t => !string.IsNullOrWhiteSpace(t.Nombre))
                     .Select(t => t.ToResponse())
                     .OrderBy(t => t.Nombre)
@@ -64,7 +59,7 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("tipo de impuesto", id.ToString());
+                    return CommonErrors.NotFound("TipoImpuesto", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -86,7 +81,7 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("tipo de impuesto", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("TipoImpuesto", "nombre", request.Nombre);
                 }
 
                 var tipoImpuesto = new TipoImpuesto
@@ -132,14 +127,14 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
                 if (tipoImpuesto == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("tipo de impuesto", id.ToString());
+                    return CommonErrors.NotFound("TipoImpuesto", id.ToString());
                 }
 
                 var existeNombre = await _tipoImpuestoRepository.ExistsAsync(t => t.Nombre == request.Nombre && t.IdTipoImpuesto != id);
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("tipo de impuesto", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("TipoImpuesto", "nombre", request.Nombre);
                 }
 
                 tipoImpuesto.Nombre = request.Nombre.Trim();
@@ -165,7 +160,7 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
                 }
 
                 EnrichWideEvent(action: "Update", entityId: id, error: errorMessage);
-                return CommonErrors.ConcurrencyError("tipo de impuesto");
+                return CommonErrors.ConcurrencyError("TipoImpuesto");
             }
             catch (DbUpdateException ex)
             {
@@ -194,14 +189,14 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
                 if (tipoImpuesto == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("tipo de impuesto", id.ToString());
+                    return CommonErrors.NotFound("TipoImpuesto", id.ToString());
                 }
 
                 var eliminado = await _tipoImpuestoRepository.DeleteAsync(tipoImpuesto);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("tipo de impuesto");
+                    return CommonErrors.DeleteFailed("TipoImpuesto");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: tipoImpuesto.Nombre);
@@ -210,7 +205,7 @@ namespace Lefarma.API.Features.Catalogos.TiposImpuesto
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.Message);
-                return CommonErrors.DatabaseError("eliminar el tipo de impuesto");
+                return CommonErrors.HasDependencies("TipoImpuesto");
             }
             catch (Exception ex)
             {

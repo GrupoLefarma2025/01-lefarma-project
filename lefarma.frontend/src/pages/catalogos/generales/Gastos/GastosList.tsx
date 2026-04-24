@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Receipt, Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
+import { Receipt, Plus, /* Pencil, */ /* Trash2, */ Search, Loader2, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -25,6 +25,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Gastos';
 const UNIDADES_ENDPOINT = '/catalogos/UnidadesMedida';
@@ -106,18 +107,14 @@ export default function GastosList() {
       if (response.data.success) {
         setGastos(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'Gastos.NotFound');
-      const isForbidden = error?.statusCode === 403;
-      if (isNotFound) {
-        setGastos([]);
-      } else if (isForbidden) {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      if (err.statusCode === 403) {
         toast.error('No tienes permisos para ver los gastos');
-        setGastos([]);
       } else {
-        toast.error(error?.message ?? 'Error al cargar los gastos');
+        toast.error(err.message ?? 'Error al cargar los gastos');
       }
-    } finally {
+    }finally {
       setLoading(false);
     }
   };
@@ -203,12 +200,13 @@ export default function GastosList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el gasto');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el gasto');
+        toast.error(err.message ?? 'Error al guardar el gasto');
       }
     } finally {
       setIsSaving(false);
@@ -223,8 +221,9 @@ export default function GastosList() {
         toast.success('Gasto eliminado correctamente');
         fetchGastos();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el gasto');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el gasto');
     }
   };
 

@@ -33,13 +33,8 @@ public class MedioPagoService : BaseService, IMedioPagoService
             try
             {
                 var result = await _medioPagoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("Medios de Pago");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(m => !string.IsNullOrWhiteSpace(m.Nombre))
                     .Select(m => m.ToResponse())
                     .OrderBy(m => m.Nombre)
@@ -63,7 +58,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("medio de pago", id.ToString());
+                    return CommonErrors.NotFound("MedioPago", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -85,7 +80,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("medio de pago", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("MedioPago", "nombre", request.Nombre);
                 }
 
                 var medioPago = new MedioPago
@@ -135,14 +130,14 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 if (medioPago == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("medio de pago", id.ToString());
+                    return CommonErrors.NotFound("MedioPago", id.ToString());
                 }
 
                 var existeNombre = await _medioPagoRepository.ExistsAsync(m => m.Nombre == request.Nombre && m.IdMedioPago != id);
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("medio de pago", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("MedioPago", "nombre", request.Nombre);
                 }
 
                 medioPago.Nombre = request.Nombre.Trim();
@@ -172,7 +167,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 }
 
                 EnrichWideEvent(action: "Update", nombre: request.Nombre, error: errorMessage);
-                return CommonErrors.ConcurrencyError("medio de pago");
+                return CommonErrors.ConcurrencyError("MedioPago");
             }
             catch (DbUpdateException ex)
             {
@@ -201,14 +196,14 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 if (medioPago == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("medio de pago", id.ToString());
+                    return CommonErrors.NotFound("MedioPago", id.ToString());
                 }
 
                 var eliminado = await _medioPagoRepository.DeleteAsync(medioPago);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("medio de pago");
+                    return CommonErrors.DeleteFailed("MedioPago");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: medioPago.Nombre);
@@ -217,7 +212,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.Message);
-                return CommonErrors.DatabaseError($"eliminar el medio de pago");
+                return CommonErrors.HasDependencies("MedioPago");
             }
             catch (Exception ex)
             {

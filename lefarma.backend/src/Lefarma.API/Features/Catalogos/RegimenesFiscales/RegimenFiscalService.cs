@@ -91,7 +91,7 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("régimen fiscal", id.ToString());
+                    return CommonErrors.NotFound("RegimenFiscal", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -113,7 +113,7 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
                 if (existeClave)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Clave, duplicate: true);
-                    return CommonErrors.AlreadyExists("régimen fiscal", "clave", request.Clave);
+                    return CommonErrors.AlreadyExists("RegimenFiscal", "clave", request.Clave);
                 }
 
                 var newRegimenFiscal = new RegimenFiscal
@@ -149,14 +149,14 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
                 if (regimenFiscal == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("régimen fiscal", id.ToString());
+                    return CommonErrors.NotFound("RegimenFiscal", id.ToString());
                 }
 
                 var existeClave = await _regimenFiscalRepository.ExistsAsync(r => r.Clave == request.Clave && r.IdRegimenFiscal != id);
                 if (existeClave)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Clave, duplicate: true);
-                    return CommonErrors.AlreadyExists("régimen fiscal", "clave", request.Clave);
+                    return CommonErrors.AlreadyExists("RegimenFiscal", "clave", request.Clave);
                 }
 
                 regimenFiscal.Clave = request.Clave;
@@ -171,7 +171,7 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
             catch (DbUpdateConcurrencyException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.ConcurrencyError("régimen fiscal");
+                return CommonErrors.ConcurrencyError("RegimenFiscal");
             }
             catch (DbUpdateException ex)
             {
@@ -193,14 +193,14 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
                 if (regimenFiscal == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("régimen fiscal", id.ToString());
+                    return CommonErrors.NotFound("RegimenFiscal", id.ToString());
                 }
 
                 var eliminado = await _regimenFiscalRepository.DeleteAsync(regimenFiscal);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("régimen fiscal");
+                    return CommonErrors.DeleteFailed("RegimenFiscal");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: regimenFiscal.Clave + " - " + regimenFiscal.Descripcion);
@@ -209,7 +209,7 @@ public class RegimenFiscalService : BaseService, IRegimenFiscalService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
-                return CommonErrors.DatabaseError($"eliminar el régimen fiscal");
+                return CommonErrors.HasDependencies("RegimenFiscal");
             }
             catch (Exception ex)
             {

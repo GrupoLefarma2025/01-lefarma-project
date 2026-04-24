@@ -96,7 +96,7 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("unidad de medida", id.ToString());
+                    return CommonErrors.NotFound("UnidadMedida", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -125,14 +125,14 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("unidad de medida", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("UnidadMedida", "nombre", request.Nombre);
                 }
 
                 var existeAbreviatura = await _unidadMedidaRepository.ExistsAsync(u => u.Abreviatura == request.Abreviatura);
                 if (existeAbreviatura)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Abreviatura, duplicate: true);
-                    return CommonErrors.AlreadyExists("unidad de medida", "abreviatura", request.Abreviatura);
+                    return CommonErrors.AlreadyExists("UnidadMedida", "abreviatura", request.Abreviatura);
                 }
 
                 var unidadMedida = new UnidadMedida
@@ -178,21 +178,21 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                 if (unidadMedida == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("unidad de medida", id.ToString());
+                    return CommonErrors.NotFound("UnidadMedida", id.ToString());
                 }
 
                 var existeNombre = await _unidadMedidaRepository.ExistsAsync(u => u.Nombre == request.Nombre && u.IdUnidadMedida != id);
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("unidad de medida", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("UnidadMedida", "nombre", request.Nombre);
                 }
 
                 var existeAbreviatura = await _unidadMedidaRepository.ExistsAsync(u => u.Abreviatura == request.Abreviatura && u.IdUnidadMedida != id);
                 if (existeAbreviatura)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Abreviatura, duplicate: true);
-                    return CommonErrors.AlreadyExists("unidad de medida", "abreviatura", request.Abreviatura);
+                    return CommonErrors.AlreadyExists("UnidadMedida", "abreviatura", request.Abreviatura);
                 }
 
                 unidadMedida.IdMedida = request.IdMedida;
@@ -211,7 +211,7 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
             catch (DbUpdateConcurrencyException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
-                return CommonErrors.ConcurrencyError("unidad de medida");
+                return CommonErrors.ConcurrencyError("UnidadMedida");
             }
             catch (DbUpdateException ex)
             {
@@ -233,14 +233,14 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                 if (unidadMedida == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound(" unidad de medida", id.ToString());
+                    return CommonErrors.NotFound("UnidadMedida", id.ToString());
                 }
 
                 var eliminado = await _unidadMedidaRepository.DeleteAsync(unidadMedida);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("unidad de medida");
+                    return CommonErrors.DeleteFailed("UnidadMedida");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: unidadMedida.Nombre);
@@ -249,7 +249,7 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar la unidad de medida");
+                return CommonErrors.HasDependencies("UnidadMedida");
             }
             catch (Exception ex)
             {

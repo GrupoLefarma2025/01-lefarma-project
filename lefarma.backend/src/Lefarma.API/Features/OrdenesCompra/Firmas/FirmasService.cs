@@ -50,7 +50,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden is null)
                 {
                     EnrichWideEvent("Firmar", entityId: idOrden, notFound: true);
-                    return CommonErrors.NotFound("orden de compra", idOrden.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
                 if (orden.Estado is EstadoOC.Cerrada or EstadoOC.Cancelada)
@@ -144,7 +144,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             {
                 var acciones = await _engine.GetAccionesDisponiblesAsync(CODIGO_PROCESO, idOrden, idUsuario);
                 if (!acciones.Any())
-                    return CommonErrors.NotFound("acciones disponibles");
+                    return CommonErrors.NotFound("Accion");
 
                 return acciones.Select(a => new AccionDisponibleResponse
                 {
@@ -167,7 +167,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             {
                 var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
                 if (orden is null)
-                    return CommonErrors.NotFound("orden de compra", idOrden.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
 
                 var workflow = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
                 if (workflow is null)
@@ -178,7 +178,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value && p.Activo);
                 if (pasoActual is null)
-                    return CommonErrors.NotFound("paso actual", orden.IdPasoActual.Value.ToString());
+                    return CommonErrors.NotFound("PasoWorkflow", orden.IdPasoActual.Value.ToString());
 
                 var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == idAccion && a.Activo);
                 if (accion is null)
@@ -236,7 +236,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden is null)
                 {
                     EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, notFound: true);
-                    return CommonErrors.NotFound("orden de compra", idOrden.ToString());
+                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
                 var historial = await _context.WorkflowBitacoras
@@ -262,7 +262,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!historial.Any())
                 {
                     EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, count: 0);
-                    return CommonErrors.NotFound("historial de workflow");
+                    return CommonErrors.NotFound("HistorialWorkflow");
                 }
 
                 var userIds = historial.Select(h => h.IdUsuario).Distinct().ToList();

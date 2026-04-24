@@ -11,13 +11,15 @@ public class OrdenCompraRepository : BaseRepository<OrdenCompra>, IOrdenCompraRe
         {
             _context = context;
         }
-
         public async Task<OrdenCompra?> GetWithPartidasAsync(int idOrden)
             => await _context.OrdenesCompra
                 .Include(o => o.Partidas)
                 .Include(o => o.Proveedor)
                 .Include(o => o.CentroCosto)
                 .Include(o => o.CuentaContable)
+                .Include(o => o.Empresa)
+                .Include(o => o.Sucursal)
+                .Include(o => o.Area)
                 .FirstOrDefaultAsync(o => o.IdOrden == idOrden);
 
         public async Task<ICollection<OrdenCompra>> GetByEstadoAsync(EstadoOC estado)

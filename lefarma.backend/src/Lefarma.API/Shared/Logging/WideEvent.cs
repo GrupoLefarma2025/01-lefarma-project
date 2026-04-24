@@ -18,6 +18,7 @@ public class WideEvent
     public string Method { get; set; } = string.Empty;
     public string Endpoint { get; set; } = string.Empty;
     public string? UserId { get; set; }
+    public string? UserName { get; set; }
     public string? UserSubscription { get; set; }
     public string? UserAgent { get; set; }
     public string? IpAddress { get; set; }

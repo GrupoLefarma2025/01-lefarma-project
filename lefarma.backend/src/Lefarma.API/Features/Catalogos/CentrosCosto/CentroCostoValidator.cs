@@ -17,12 +17,16 @@ public class CreateCentroCostoRequestValidator : AbstractValidator<CreateCentroC
                 .MinimumLength(3).WithMessage("La descripción debe contener al menos 3 caracteres")
                 .When(x => !string.IsNullOrWhiteSpace(x.Descripcion));
 
+            RuleFor(x => x.LimitePresupuesto)
+                .GreaterThanOrEqualTo(0).WithMessage("El límite de presupuesto no puede ser negativo")
+                .When(x => x.LimitePresupuesto.HasValue);
+
             RuleFor(x => x.Activo)
                 .NotNull().WithMessage("El valor de 'Activo' es obligatorio");
         }
     }
 
-    public class UpdateCentroCostoRequestValidator : AbstractValidator<UpdateCentroCostoRequest>
+    public class UpdateCentroCostoRequestValidator: AbstractValidator<UpdateCentroCostoRequest>
     {
         public UpdateCentroCostoRequestValidator()
         {
@@ -40,12 +44,16 @@ public class CreateCentroCostoRequestValidator : AbstractValidator<CreateCentroC
                 .MinimumLength(3).WithMessage("La descripción debe contener al menos 3 caracteres")
                 .When(x => !string.IsNullOrWhiteSpace(x.Descripcion));
 
+            RuleFor(x => x.LimitePresupuesto)
+                .GreaterThanOrEqualTo(0).WithMessage("El límite de presupuesto no puede ser negativo")
+                .When(x => x.LimitePresupuesto.HasValue);
+
             RuleFor(x => x.Activo)
                 .NotNull().WithMessage("El valor de 'Activo' es obligatorio");
         }
     }
 
-    public class CentroCostoRequestValidator : AbstractValidator<CentroCostoRequest>
+    public class CentroCostoRequestValidator: AbstractValidator<CentroCostoRequest>
     {
         public CentroCostoRequestValidator()
         {

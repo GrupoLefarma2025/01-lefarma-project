@@ -15,7 +15,8 @@ namespace Lefarma.API.Shared.Errors
 
         public static Error Validation(string field, string message) => Error.Validation(
             code: $"Validation.{field}",
-            description: message);
+            description: message,
+            metadata: new Dictionary<string, object> { ["field"] = field });
 
         public static Error AlreadyExists(string entityName, string field, string value) => Error.Conflict(
             code: $"{entityName}.AlreadyExists",
@@ -44,5 +45,9 @@ namespace Lefarma.API.Shared.Errors
         public static Error Conflict(string entityName, string reason) => Error.Conflict(
             code: $"{entityName}.Conflict",
             description: reason);
+
+        public static Error Failure(string entityName, string message) => Error.Failure(
+            code: $"{entityName}.Failure",
+            description: message);
     }
 }

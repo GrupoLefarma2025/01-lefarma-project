@@ -33,13 +33,8 @@ public class BancoService : BaseService, IBancoService
             try
             {
                 var result = await _bancoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("Bancos");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(b => !string.IsNullOrWhiteSpace(b.Nombre))
                     .Select(b => b.ToResponse())
                     .OrderBy(b => b.Nombre)
@@ -209,7 +204,7 @@ public class BancoService : BaseService, IBancoService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.Message);
-                return CommonErrors.DatabaseError("eliminar el banco");
+                return CommonErrors.HasDependencies("Banco");
             }
             catch (Exception ex)
             {

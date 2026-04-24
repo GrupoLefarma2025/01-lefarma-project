@@ -152,7 +152,7 @@ public class ProveedorService : BaseService, IProveedorService
                 if (!regimenFiscalExiste)
                 {
                     EnrichWideEvent(action: "Create", entityId: request.RegimenFiscalId.Value, notFound: true);
-                    return CommonErrors.NotFound("régimen fiscal", request.RegimenFiscalId.Value.ToString());
+                    return CommonErrors.NotFound("RegimenFiscal", request.RegimenFiscalId.Value.ToString());
                 }
             }
 
@@ -252,11 +252,12 @@ public class ProveedorService : BaseService, IProveedorService
                 if (!regimenFiscalExiste)
                 {
                     EnrichWideEvent(action: "Update", entityId: request.RegimenFiscalId.Value, notFound: true);
-                    return CommonErrors.NotFound("régimen fiscal", request.RegimenFiscalId.Value.ToString());
+                    return CommonErrors.NotFound("RegimenFiscal", request.RegimenFiscalId.Value.ToString());
                 }
             }
 
-            // Actualización directa para Nuevo, Rechazado, EditadoPendiente
+            // Actualización directa para Nuevo, Rechazado
+            // EditadoPendiente va a staging (el flujo correcto para proveedores aprobados)
             if (proveedor.Estatus == EstatusProveedor.EditadoPendiente)
             {
                 return await GuardarEnStagingAsync(proveedor, request, id);
@@ -276,6 +277,7 @@ public class ProveedorService : BaseService, IProveedorService
                 proveedor.Detalle.PersonaContactoNombre = request.Detalle.PersonaContactoNombre;
                 proveedor.Detalle.ContactoTelefono = request.Detalle.ContactoTelefono;
                 proveedor.Detalle.ContactoEmail = request.Detalle.ContactoEmail;
+                proveedor.Detalle.Comentario = request.Detalle.Comentario;
                 if (request.Detalle.CaratulaUrl != null)
                     proveedor.Detalle.CaratulaPath = request.Detalle.CaratulaUrl;
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
@@ -352,13 +354,20 @@ public class ProveedorService : BaseService, IProveedorService
             staging = new StagingProveedor
             {
                 IdProveedor = id,
-                FechaStaging = DateTime.UtcNow
+                RazonSocial = request.RazonSocial,
+                RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
+                RFC = request.RFC,
+                CodigoPostal = request.CodigoPostal,
+                RegimenFiscalId = request.RegimenFiscalId,
+                UsoCfdi = request.UsoCfdi,
+                SinDatosFiscales = request.SinDatosFiscales,
+                FechaStaging = DateTime.UtcNow,
+                Estatus = EstatusProveedor.EditadoPendiente
             };
             _dbContext.StagingProveedores.Add(staging);
-            await _dbContext.SaveChangesAsync();
         }
 
-        // Copiar datos del request al staging
+        // Copiar datos del request al staging (para staging existente)
         staging.RazonSocial = request.RazonSocial;
         staging.RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial);
         staging.RFC = request.RFC;
@@ -382,7 +391,8 @@ public class ProveedorService : BaseService, IProveedorService
                 detalleStaging = new StagingProveedorDetalle
                 {
                     IdStaging = staging.IdStaging,
-                    IdDetalle = proveedor.Detalle?.IdDetalle ?? 0
+                    IdDetalle = proveedor.Detalle?.IdDetalle ?? 0,
+                    FechaCreacion = DateTime.UtcNow
                 };
                 _dbContext.StagingProveedoresDetalle.Add(detalleStaging);
             }
@@ -454,7 +464,7 @@ public class ProveedorService : BaseService, IProveedorService
         catch (DbUpdateException ex)
         {
             EnrichWideEvent(action: "Delete", entityId: id, error: ex.GetDetailedMessage());
-            return CommonErrors.DatabaseError($"eliminar el proveedor");
+            return CommonErrors.HasDependencies("Proveedor");
         }
         catch (Exception ex)
         {
@@ -475,10 +485,10 @@ public class ProveedorService : BaseService, IProveedorService
             }
 
             if (proveedor.Estatus == EstatusProveedor.Aprobado)
-                return Error.Conflict("El proveedor ya está aprobado");
+                return CommonErrors.Conflict("Proveedor", "El proveedor ya está aprobado");
 
             if (proveedor.Estatus == EstatusProveedor.Rechazado)
-                return Error.Conflict("El proveedor está rechazado y no se puede aprobar");
+                return CommonErrors.Conflict("Proveedor", "El proveedor está rechazado y no se puede aprobar");
 
             proveedor.Estatus = EstatusProveedor.Aprobado;
             proveedor.CambioEstatusPor = idUsuario;
@@ -510,10 +520,10 @@ public class ProveedorService : BaseService, IProveedorService
             }
 
             if (proveedor.Estatus == EstatusProveedor.Rechazado)
-                return Error.Conflict("El proveedor ya está rechazado");
+                return CommonErrors.Conflict("Proveedor", "El proveedor ya está rechazado");
 
             if (proveedor.Estatus == EstatusProveedor.Aprobado)
-                return Error.Conflict("El proveedor está aprobado y no se puede rechazar");
+                return CommonErrors.Conflict("Proveedor", "El proveedor está aprobado y no se puede rechazar");
 
             proveedor.Estatus = EstatusProveedor.Rechazado;
             proveedor.CambioEstatusPor = idUsuario;
@@ -547,7 +557,7 @@ public class ProveedorService : BaseService, IProveedorService
             if (string.IsNullOrWhiteSpace(caratulaPath) || caratulaPath.Contains("..") || caratulaPath.Contains("\\"))
             {
                 EnrichWideEvent(action: "UpdateCaratula", entityId: id, error: "Ruta de caratula invalida");
-                return Error.Validation("La ruta de la caratula contiene caracteres invalidos");
+                return CommonErrors.Validation("CaratulaPath", "La ruta de la caratula contiene caracteres invalidos");
             }
 
             var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(id);
@@ -560,7 +570,7 @@ public class ProveedorService : BaseService, IProveedorService
             if (proveedor.Detalle == null)
             {
                 EnrichWideEvent(action: "UpdateCaratula", entityId: id, error: "El proveedor no tiene detalle");
-                return Error.Conflict("El proveedor no tiene detalle");
+                return CommonErrors.Conflict("Proveedor", "El proveedor no tiene detalle");
             }
 
             proveedor.Detalle.CaratulaPath = caratulaPath;
@@ -592,7 +602,7 @@ public class ProveedorService : BaseService, IProveedorService
             if (proveedor.Detalle == null || string.IsNullOrEmpty(proveedor.Detalle.CaratulaPath))
             {
                 EnrichWideEvent(action: "DeleteCaratula", entityId: id, error: "No existe caratula");
-                return Error.Conflict("No existe caratula para eliminar");
+                return CommonErrors.Conflict("Proveedor", "No existe caratula para eliminar");
             }
 
             var basePath = _configuration["Archivos:BasePath"] ?? _configuration["ArchivosBasePath"] ?? "";
@@ -603,7 +613,7 @@ public class ProveedorService : BaseService, IProveedorService
             if (!fullPath.StartsWith(resolvedBasePath))
             {
                 EnrichWideEvent(action: "DeleteCaratula", entityId: id, error: "Ruta de caratula invalida");
-                return Error.Validation("La ruta de la caratula esta fuera del directorio permitido");
+                return CommonErrors.Validation("CaratulaPath", "La ruta de la caratula esta fuera del directorio permitido");
             }
 
             if (File.Exists(fullPath))

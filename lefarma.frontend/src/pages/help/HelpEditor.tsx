@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import {
 import { helpService } from '@/services/helpService';
 import { useHelpStore } from '@/store/helpStore';
 import type { CreateHelpArticleRequest, UpdateHelpArticleRequest } from '@/types/help.types';
+import { toApiError } from '@/utils/errors';
 
 const EMPTY_LEXICAL_JSON = {
   root: {
@@ -120,10 +122,10 @@ export default function HelpEditor() {
         await helpService.create(formData);
       }
       navigate('/help');
-    } catch (error) {
-      console.error('Error saving article:', error);
-      alert(isEditMode ? 'Error al actualizar artículo' : 'Error al crear artículo');
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? (isEditMode ? 'Error al actualizar artículo' : 'Error al crear artículo'));
+    }finally {
       setIsLoading(false);
     }
   };

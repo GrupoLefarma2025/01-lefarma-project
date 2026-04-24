@@ -5,6 +5,7 @@ using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Facturas.DTOs;
 using Lefarma.API.Features.Facturas.Parsing;
+using Lefarma.API.Features.Facturas.SatValidation;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
@@ -26,31 +27,49 @@ public class ComprobanteService : IComprobanteService
     private readonly ApplicationDbContext _db;
     private readonly IComprobanteRepository _repo;
     private readonly IArchivoService _archivoService;
+    private readonly ISatValidationService _sat;
     private readonly ILogger<ComprobanteService> _logger;
 
     public ComprobanteService(
         ApplicationDbContext db,
         IComprobanteRepository repo,
         IArchivoService archivoService,
+        ISatValidationService sat,
         ILogger<ComprobanteService> logger)
     {
         _db = db;
         _repo = repo;
         _archivoService = archivoService;
+        _sat = sat;
         _logger = logger;
     }
 
-    public Task<ErrorOr<CfdiPreviewResponse>> ParsearXmlAsync(string xmlContent)
+    public async Task<ErrorOr<CfdiPreviewResponse>> ParsearXmlAsync(string xmlContent)
     {
+        CfdiPreviewResponse preview;
         try
         {
-            var preview = CfdiParser.Parse(xmlContent);
-            return Task.FromResult<ErrorOr<CfdiPreviewResponse>>(preview);
+            preview = CfdiParser.Parse(xmlContent);
         }
         catch (FormatException)
         {
-            return Task.FromResult<ErrorOr<CfdiPreviewResponse>>(Errors.Comprobante.XmlInvalido);
+            return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI válido o está malformado");
         }
+
+        // Consultar estado en el SAT si el CFDI tiene los campos mínimos
+        if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
+        {
+            var sat = await _sat.ValidarAsync(preview.Uuid, preview.RfcEmisor, preview.RfcReceptor, preview.Total);
+            preview = preview with
+            {
+                SatContactado    = sat.Contactado,
+                SatEstado        = sat.Estado,
+                SatCodigoEstatus = sat.CodigoEstatus,
+                SatCancelacion   = sat.EstatusCancelacion,
+            };
+        }
+
+        return preview;
     }
 
     public async Task<ErrorOr<ComprobanteResponse>> SubirAsync(
@@ -68,10 +87,20 @@ public class ComprobanteService : IComprobanteService
         if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
             try { cfdi = CfdiParser.Parse(xmlContent); }
-            catch (FormatException) { return Errors.Comprobante.XmlInvalido; }
+            catch (FormatException) { return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI válido o está malformado"); }
 
             if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
-                return Errors.Comprobante.UuidDuplicado;
+                return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
+
+            // Validación obligatoria con el SAT
+            if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
+            {
+                var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
+                if (!sat.Contactado)
+                    return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT. Verifique su conexión a internet o intente nuevamente.");
+                if (!sat.EsVigente)
+                    return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}. Solo se aceptan CFDIs con estado Vigente.");
+            }
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -215,14 +244,14 @@ public class ComprobanteService : IComprobanteService
     public async Task<ErrorOr<ComprobanteResponse>> GetByIdAsync(int idComprobante, CancellationToken ct = default)
     {
         var c = await _repo.GetWithConceptosAsync(idComprobante, ct);
-        if (c is null) return Errors.Comprobante.NotFound;
+        if (c is null) return CommonErrors.NotFound("Comprobante");
         return MapToResponse(c);
     }
 
     public async Task<ErrorOr<List<ComprobanteConceptoResponse>>> GetConceptosAsync(int idComprobante, CancellationToken ct = default)
     {
         var c = await _repo.GetWithConceptosAsync(idComprobante, ct);
-        if (c is null) return Errors.Comprobante.NotFound;
+        if (c is null) return CommonErrors.NotFound("Comprobante");
         return c.Conceptos.Select(MapConcepto).ToList();
     }
 
@@ -267,10 +296,10 @@ public class ComprobanteService : IComprobanteService
                 .ToList();
         }
 
-        // Gasto: filtrar por RequiereFactura y EstadoFacturacion < 2
+        // Gasto: todas las partidas con importe pendiente (sin filtrar por RequiereFactura)
         var gastoPartidas = await _db.OrdenesCompraPartidas
             .Include(p => p.Orden)
-            .Where(p => p.IdOrden == idOrden && p.RequiereFactura && p.EstadoFacturacion < 2)
+            .Where(p => p.IdOrden == idOrden && p.EstadoFacturacion < 2)
             .ToListAsync(ct);
 
         return gastoPartidas.Select(p =>
@@ -302,7 +331,7 @@ public class ComprobanteService : IComprobanteService
         CancellationToken ct = default)
     {
         var comprobante = await _repo.GetWithConceptosAsync(idComprobante, ct);
-        if (comprobante is null) return Errors.Comprobante.NotFound;
+        if (comprobante is null) return CommonErrors.NotFound("Comprobante");
 
         // Pre-validar
         foreach (var item in request.Asignaciones)
@@ -310,7 +339,7 @@ public class ComprobanteService : IComprobanteService
             var partida = await _db.OrdenesCompraPartidas
                 .FirstOrDefaultAsync(p => p.IdPartida == item.IdPartida, ct);
 
-            if (partida is null) return Errors.Comprobante.PartidaNotFound(item.IdPartida);
+            if (partida is null) return CommonErrors.NotFound("Partida", item.IdPartida.ToString());
 
             if (comprobante.Categoria == "pago")
             {
@@ -322,7 +351,7 @@ public class ComprobanteService : IComprobanteService
                     .SumAsync(cp => cp.ImporteAsignado, ct);
                 var importePendientePago = partida.Total - importeYaPagado;
                 if (item.ImporteAsignado > importePendientePago + Tolerancia)
-                    return Errors.Comprobante.SobreImporte(item.IdPartida);
+                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el importe pendiente en la partida {item.IdPartida}");
             }
             else
             {
@@ -333,11 +362,11 @@ public class ComprobanteService : IComprobanteService
                 {
                     var cantPendientePartida = partida.Cantidad - (partida.CantidadFacturada ?? 0m);
                     if (item.CantidadAsignada > cantPendientePartida + Tolerancia)
-                        return Errors.Comprobante.SobreCantidad(item.IdPartida);
+                        return CommonErrors.Validation("SobreCantidad", $"La cantidad asignada excede la cantidad pendiente en la partida {item.IdPartida}");
                 }
 
                 if (item.ImporteAsignado > importePendientePartida + Tolerancia)
-                    return Errors.Comprobante.SobreImporte(item.IdPartida);
+                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el importe pendiente en la partida {item.IdPartida}");
             }
 
             if (item.IdConcepto.HasValue)
@@ -345,11 +374,11 @@ public class ComprobanteService : IComprobanteService
                 var concepto = comprobante.Conceptos
                     .FirstOrDefault(c => c.IdConcepto == item.IdConcepto.Value);
 
-                if (concepto is null) return Errors.Comprobante.ConceptoNotFound(item.IdConcepto.Value);
+                if (concepto is null) return CommonErrors.NotFound("Concepto", item.IdConcepto.Value.ToString());
 
                 var cantPendienteConcepto = concepto.Cantidad - concepto.CantidadAsignada;
                 if (item.CantidadAsignada > cantPendienteConcepto + Tolerancia)
-                    return Errors.Comprobante.SobreConcepto(item.IdConcepto.Value);
+                    return CommonErrors.Validation("SobreConcepto", $"La cantidad asignada excede la cantidad pendiente del concepto {item.IdConcepto.Value}");
             }
         }
 
@@ -436,7 +465,7 @@ public class ComprobanteService : IComprobanteService
     {
         var partida = await _db.OrdenesCompraPartidas
             .FirstOrDefaultAsync(p => p.IdPartida == idPartida, ct);
-        if (partida is null) return Errors.Comprobante.PartidaNotFound(idPartida);
+        if (partida is null) return CommonErrors.NotFound("Partida", idPartida.ToString());
 
         var asignaciones = await _repo.GetAsignacionesByPartidaAsync(idPartida, ct);
 

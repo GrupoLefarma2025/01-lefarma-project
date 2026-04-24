@@ -33,13 +33,8 @@ public class FormaPagoService : BaseService, IFormaPagoService
             try
             {
                 var result = await _formaPagoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("FormasPago");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(e => e != null && e.Nombre != null && !string.IsNullOrWhiteSpace(e.Nombre))
                     .Select(e => e!.ToResponse())
                     .OrderBy(e => e.Nombre)
@@ -63,7 +58,7 @@ public class FormaPagoService : BaseService, IFormaPagoService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("forma de pago", id.ToString());
+                    return CommonErrors.NotFound("FormaPago", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -85,7 +80,7 @@ public class FormaPagoService : BaseService, IFormaPagoService
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("forma de pago", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("FormaPago", "nombre", request.Nombre);
                 }
 
                 var formaPago = new FormaPago
@@ -128,14 +123,14 @@ public class FormaPagoService : BaseService, IFormaPagoService
                 if (formaPago == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("forma de pago", id.ToString());
+                    return CommonErrors.NotFound("FormaPago", id.ToString());
                 }
 
                 var existeNombre = await _formaPagoRepository.ExistsAsync(s => s.Nombre == request.Nombre && s.IdFormaPago != id);
                 if (existeNombre)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
-                    return CommonErrors.AlreadyExists("forma de pago", "nombre", request.Nombre);
+                    return CommonErrors.AlreadyExists("FormaPago", "nombre", request.Nombre);
                 }
 
                 formaPago.Nombre = request.Nombre.Trim();
@@ -158,7 +153,7 @@ public class FormaPagoService : BaseService, IFormaPagoService
                     errorMessage += $" | Inner Exception: {ex.InnerException.Message}";
                 }
                 EnrichWideEvent(action: "Update", entityId: id, error: errorMessage);
-                return CommonErrors.ConcurrencyError("forma de pago");
+                return CommonErrors.ConcurrencyError("FormaPago");
             }
             catch (DbUpdateException ex)
             {
@@ -185,14 +180,14 @@ public class FormaPagoService : BaseService, IFormaPagoService
                 if (formaPago == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("forma de pago", id.ToString());
+                    return CommonErrors.NotFound("FormaPago", id.ToString());
                 }
 
                 var eliminado = await _formaPagoRepository.DeleteAsync(formaPago);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("forma de pago");
+                    return CommonErrors.DeleteFailed("FormaPago");
                 }
 
                 EnrichWideEvent(action: "Delete", entityId: id, nombre: formaPago.Nombre);
@@ -201,7 +196,7 @@ public class FormaPagoService : BaseService, IFormaPagoService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, error: ex.Message);
-                return CommonErrors.DatabaseError($"eliminar la forma de pago");
+                return CommonErrors.HasDependencies("FormaPago");
             }
             catch (Exception ex)
             {

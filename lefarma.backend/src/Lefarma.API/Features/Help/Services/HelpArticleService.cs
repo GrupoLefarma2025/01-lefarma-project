@@ -35,7 +35,7 @@ public class HelpArticleService : IHelpArticleService
             if (!articles.Any())
             {
                 _logger.LogInformation("No se encontraron artículos de ayuda");
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             var dtos = articles.Select(MapToDto).ToList();
@@ -139,7 +139,7 @@ public class HelpArticleService : IHelpArticleService
             if (article == null)
             {
                 _logger.LogWarning("Artículo de ayuda con ID {ArticleId} no encontrado", id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             _logger.LogInformation("Artículo de ayuda encontrado: {ArticleId} - {Titulo}", article.Id, article.Titulo);
@@ -196,7 +196,7 @@ public class HelpArticleService : IHelpArticleService
             if (article == null)
             {
                 _logger.LogWarning("Intento de actualizar artículo inexistente: {ArticleId}", request.Id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             article.Titulo = request.Titulo.Trim();
@@ -233,7 +233,7 @@ public class HelpArticleService : IHelpArticleService
             if (article == null)
             {
                 _logger.LogWarning("Intento de eliminar artículo inexistente: {ArticleId}", id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             await _helpArticleRepository.DeleteAsync(id, ct);

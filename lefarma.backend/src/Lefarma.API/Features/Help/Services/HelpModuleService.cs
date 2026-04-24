@@ -66,7 +66,7 @@ public class HelpModuleService : IHelpModuleService
             if (module == null)
             {
                 _logger.LogWarning("Módulo de ayuda con ID {Id} no encontrado", id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             return MapToDto(module);
@@ -88,7 +88,7 @@ public class HelpModuleService : IHelpModuleService
             if (existing != null)
             {
                 _logger.LogWarning("Ya existe un módulo con el nombre: {Nombre}", request.Nombre);
-                return Error.Conflict("HelpModule.Duplicate", $"Ya existe un módulo con el nombre '{request.Nombre}'");
+                return CommonErrors.AlreadyExists("HelpModule", "nombre", request.Nombre);
             }
 
             var module = new HelpModule
@@ -152,14 +152,14 @@ public class HelpModuleService : IHelpModuleService
             if (module == null)
             {
                 _logger.LogWarning("Módulo de ayuda con ID {Id} no encontrado", request.Id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             var existingWithNombre = await _repository.GetByNombreAsync(request.Nombre, ct);
             if (existingWithNombre != null && existingWithNombre.Id != request.Id)
             {
                 _logger.LogWarning("Ya existe otro módulo con el nombre: {Nombre}", request.Nombre);
-                return Error.Conflict("HelpModule.Duplicate", $"Ya existe un módulo con el nombre '{request.Nombre}'");
+                return CommonErrors.AlreadyExists("HelpModule", "nombre", request.Nombre);
             }
 
             module.Nombre = request.Nombre.Trim();
@@ -188,7 +188,7 @@ public class HelpModuleService : IHelpModuleService
             if (module == null)
             {
                 _logger.LogWarning("Módulo de ayuda con ID {Id} no encontrado", id);
-                return Errors.HelpArticle.NotFound;
+                return CommonErrors.NotFound("HelpArticle");
             }
 
             await _repository.DeleteAsync(id, ct);

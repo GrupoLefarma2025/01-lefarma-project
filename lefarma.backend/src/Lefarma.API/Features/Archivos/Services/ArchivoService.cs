@@ -35,11 +35,11 @@ public class ArchivoService : IArchivoService
         // Validar extensión
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         if (!_settings.ExtensionesPermitidas.Contains(extension))
-            return Errors.Archivo.InvalidContentType;
+            return CommonErrors.Validation("ContentType", "El tipo de archivo no está permitido");
 
         // Validar tamaño
         if (fileStream.Length > _settings.TamanoMaximoMB * 1024 * 1024)
-            return Errors.Archivo.FileTooLarge;
+            return CommonErrors.Validation("FileTooLarge", "El archivo excede el tamaño máximo permitido");
 
         // Generar nombre físico único
         var nombreFisico = $"{Guid.NewGuid()}{extension}";
@@ -91,7 +91,7 @@ public class ArchivoService : IArchivoService
         // Obtener archivo anterior
         var archivoAnterior = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivoAnterior == null)
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         // Inactivar archivo anterior
         archivoAnterior.Activo = false;
@@ -125,7 +125,7 @@ public class ArchivoService : IArchivoService
     {
         var archivo = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivo == null)
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         return MapToResponse(archivo);
     }
@@ -149,11 +149,11 @@ public class ArchivoService : IArchivoService
     {
         var archivo = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivo == null)
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         var ruta = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
         if (!File.Exists(ruta))
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         var stream = new FileStream(ruta, FileMode.Open, FileAccess.Read);
         return (stream, archivo.NombreOriginal, archivo.TipoMime);
@@ -165,11 +165,11 @@ public class ArchivoService : IArchivoService
     {
         var archivo = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivo == null)
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         var rutaOriginal = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);
         if (!File.Exists(rutaOriginal))
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         // Devolver el archivo original directamente
         var stream = new FileStream(rutaOriginal, FileMode.Open, FileAccess.Read);
@@ -180,7 +180,7 @@ public class ArchivoService : IArchivoService
     {
         var archivo = await _repository.GetByIdAsync(id, cancellationToken);
         if (archivo == null)
-            return Errors.Archivo.NotFound;
+            return CommonErrors.NotFound("Archivo");
 
         // Renombrar archivo físico
         var rutaActual = Path.Combine(_settings.BasePath, archivo.Carpeta, archivo.NombreFisico);

@@ -252,7 +252,7 @@ public class EmpresaService : BaseService, IEmpresaService
             {
                 //_logger.LogError(ex, "Error de base de datos al eliminar empresa: {EmpresaId}", id);
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar la empresa");
+                return CommonErrors.HasDependencies("Empresa");
             }
             catch (Exception ex)
             {

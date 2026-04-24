@@ -51,7 +51,7 @@ public class ErrorLogService(ApplicationDbContext context) : IErrorLogService
 
                 // Contexto de usuario
                 UserId = wideEvent.UserId,
-                NombreUsuario = null, // Podría enriquecerse con datos del user claims
+                NombreUsuario = wideEvent.UserName ?? wideEvent.UserId,
 
                 // Contexto de negocio del WideEvent
                 EntityName = wideEvent.EntityType,

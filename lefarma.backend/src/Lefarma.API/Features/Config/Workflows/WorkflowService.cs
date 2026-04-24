@@ -45,11 +45,6 @@ public class WorkflowService : BaseService, IWorkflowService
                     q = q.Where(w => w.Activo == query.Activo.Value);
 
                 var items = await q.OrderBy(w => w.Nombre).ToListAsync();
-                if (!items.Any())
-                {
-                    EnrichWideEvent("GetAll", count: 0);
-                    return CommonErrors.NotFound("Workflows");
-                }
 
                 var response = items.Select(ToResponse).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
@@ -184,7 +179,7 @@ public class WorkflowService : BaseService, IWorkflowService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent("Delete", entityId: id, exception: ex);
-                return CommonErrors.HasDependencies("workflow");
+                return CommonErrors.HasDependencies("Workflow");
             }
             catch (Exception ex)
             {
@@ -1575,7 +1570,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 var codigoCanal = request.CodigoCanal.ToLowerInvariant();
                 var existing = await _repo.GetCanalTemplateAsync(idWorkflow, codigoCanal);
                 if (existing != null)
-                    return Error.Conflict("CanalTemplate.AlreadyExists", $"Ya existe una plantilla para el canal '{codigoCanal}' en este workflow.");
+                    return CommonErrors.AlreadyExists("CanalTemplate", "canal", codigoCanal);
 
                 var template = new WorkflowCanalTemplate
                 {
@@ -1790,7 +1785,7 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 var existe = await _context.Workflows.AnyAsync(w => w.IdWorkflow == idWorkflow);
                 if (!existe)
-                    return Error.NotFound("Workflow.NotFound", $"No se encontró el workflow {idWorkflow}.");
+                    return CommonErrors.NotFound("Workflow", idWorkflow.ToString());
 
                 var recordatorio = new WorkflowRecordatorio
                 {
@@ -1844,7 +1839,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
 
                 if (recordatorio is null)
-                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+                    return CommonErrors.NotFound("Recordatorio", idRecordatorio.ToString());
 
                 recordatorio.IdPaso = request.IdPaso;
                 recordatorio.Nombre = request.Nombre;
@@ -1913,7 +1908,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
 
                 if (recordatorio is null)
-                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+                    return CommonErrors.NotFound("Recordatorio", idRecordatorio.ToString());
 
                 _context.WorkflowRecordatorios.Remove(recordatorio);
                 await _context.SaveChangesAsync();
@@ -1935,7 +1930,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     .FirstOrDefaultAsync(r => r.IdRecordatorio == idRecordatorio && r.IdWorkflow == idWorkflow);
 
                 if (recordatorio is null)
-                    return Error.NotFound("Recordatorio.NotFound", $"No se encontró el recordatorio {idRecordatorio}.");
+                    return CommonErrors.NotFound("Recordatorio", idRecordatorio.ToString());
 
                 var ctx = new Dictionary<string, string>
                 {

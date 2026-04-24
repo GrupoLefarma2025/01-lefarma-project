@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Areas';
 const EMPRESAS_ENDPOINT = '/catalogos/Empresas';
@@ -82,14 +83,10 @@ export default function AreasList() {
       if (response.data.success) {
         setAreas(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.errors?.some((e: any) => e.code === 'Areas.NotFound');
-      if (isNotFound) {
-        setAreas([]);
-      } else {
-        toast.error(error?.message ?? 'Error al cargar las áreas');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las áreas');
+    }finally {
       setLoading(false);
     }
   };
@@ -150,12 +147,13 @@ export default function AreasList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el área');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el área');
+        toast.error(err.message ?? 'Error al guardar el área');
       }
     } finally {
       setIsSaving(false);
@@ -170,8 +168,9 @@ export default function AreasList() {
         toast.success('Área eliminada correctamente');
         fetchAreas();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el área');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el área');
     }
   };
 

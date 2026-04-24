@@ -257,7 +257,7 @@ public class SucursalService : BaseService, ISucursalService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar la sucursal");
+                return CommonErrors.HasDependencies("Sucursal");
             }
             catch (Exception ex)
             {

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
@@ -62,6 +62,7 @@ import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobant
 import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
+import { toApiError } from '@/utils/errors';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -307,8 +308,9 @@ export default function AutorizacionesOC() {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes');
       const data = res.data.data || [];
       setOrdenes(data);
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar bandeja de órdenes');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar bandeja de órdenes');
     }
   }, []);
 
@@ -413,8 +415,9 @@ export default function AutorizacionesOC() {
 
       fetchArchivosOrden(idOrden);
       fetchPartidasPendientes(idOrden);
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar detalle de orden');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar detalle de orden');
     } finally {
       setLoadingDetail(false);
     }
@@ -683,18 +686,10 @@ export default function AutorizacionesOC() {
       toast.success(`Acción "${accionSeleccionada.nombreAccion}" ejecutada correctamente`);
       cerrarModalFirma();
       await Promise.all([fetchOrdenes(), fetchDetalle(selectedOrden.idOrden)]);
-    } catch (error: any) {
-      const responseData = error?.response?.data;
-      let errorMessage = 'No fue posible procesar la firma';
-      
-      if (responseData?.errors?.length > 0) {
-        errorMessage = responseData.errors[0].description || responseData.errors[0].code || responseData.message || errorMessage;
-      } else if (responseData?.message) {
-        errorMessage = responseData.message;
-      } else if (error?.message) {
-        errorMessage = error.message;
-      }
-      
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errorMessage =
+        err.errors?.[0]?.description ?? err.message ?? 'No fue posible procesar la firma';
       toast.error(errorMessage);
     } finally {
       setIsSubmittingFirma(false);
@@ -2210,16 +2205,14 @@ export default function AutorizacionesOC() {
                         )}
 
                         {/* Botón agregar */}
-                        <Button
+                        <button
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full gap-1.5 border-dashed"
                           onClick={() => setIsSubirComprobanteOpen(true)}
+                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
                         >
-                          <Receipt className="h-3.5 w-3.5" />
-                          {comprobantesGasto.length > 0 ? 'Agregar otra factura CFDI' : 'Subir Factura CFDI (XML + PDF)'}
-                        </Button>
+                          <Receipt className="h-4 w-4 shrink-0" />
+                          <span>{comprobantesGasto.length > 0 ? 'Agregar otro comprobante de gasto' : 'Subir comprobante de gasto (factura, ticket, recibo...)'}</span>
+                        </button>
                       </div>
                     );
                   }
@@ -2274,7 +2267,7 @@ export default function AutorizacionesOC() {
                         className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
                       >
                         <Upload className="h-4 w-4 shrink-0" />
-                        <span>{comprobantesP.length > 0 ? 'Agregar otro pago' : 'Registrar comprobante de pago'}</span>
+                        <span>{comprobantesP.length > 0 ? 'Agregar otro comprobante de pago' : 'Registrar comprobante de pago (SPEI, cheque, transferencia...)'}</span>
                       </button>
                     </div>
                   );

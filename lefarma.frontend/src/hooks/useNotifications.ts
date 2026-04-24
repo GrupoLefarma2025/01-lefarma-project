@@ -85,7 +85,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
     // Si hay demasiados reintentos seguidos, el token probablemente expiró
     // Hacer logout automático para limpiar la sesión
-    if (reconnectAttemptsRef.current > 3) {
+    if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
       const error = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.';
       setConnected(false);
       setError(error);
@@ -256,15 +256,6 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
     return () => {
       isMountedRef.current = false;
-      // No actualizar estado en cleanup - solo cerrar conexión
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
-        reconnectTimeoutRef.current = null;
-      }
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
     };
   }, []);
 

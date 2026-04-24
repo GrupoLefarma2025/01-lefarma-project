@@ -105,6 +105,10 @@ builder.Host.UseSerilog();
 
 // HttpClientFactory for external API calls
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("sat", c =>
+{
+    c.Timeout = TimeSpan.FromSeconds(15);
+});
 
 // DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -155,6 +159,8 @@ builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
 // Comprobantes / Facturas CFDI
+builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
+                               Lefarma.API.Features.Facturas.SatValidation.SatValidationService>();
 builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
@@ -179,10 +185,14 @@ builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
 builder.Services.AddScoped<IMedioPagoService, MedioPagoService>();
+builder.Services.AddScoped<Lefarma.API.Features.Catalogos.Monedas.IMonedaService, Lefarma.API.Features.Catalogos.Monedas.MonedaService>();
 builder.Services.AddScoped<IFormaPagoService, FormaPagoService>();
 builder.Services.AddScoped<IBancoService, BancoService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Usuarios.IUsuarioCatalogService, Lefarma.API.Features.Auth.Usuarios.UsuarioCatalogService>();
 builder.Services.AddScoped<Lefarma.API.Features.Auth.Roles.IRolCatalogService, Lefarma.API.Features.Auth.Roles.RolCatalogService>();
+
+// Dashboard
+builder.Services.AddScoped<Lefarma.API.Features.Dashboard.IDashboardService, Lefarma.API.Features.Dashboard.DashboardService>();
 
 // Catálogos Faltantes
 builder.Services.AddScoped<ICentroCostoService, CentroCostoService>();
@@ -194,6 +204,7 @@ builder.Services.AddScoped<ITipoImpuestoService, TipoImpuestoService>();
 
 // Logging Services
 builder.Services.AddScoped<IErrorLogService, ErrorLogService>();
+builder.Services.AddScoped<IBusinessAuditLogService, BusinessAuditLogService>();
 
 builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);

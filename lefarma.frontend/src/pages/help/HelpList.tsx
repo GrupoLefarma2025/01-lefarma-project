@@ -1,4 +1,5 @@
 ﻿import { useEffect, useState, useMemo } from 'react';
+import { toast } from 'sonner';
 import { FilePenLine, Save, FileText, Menu } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { HelpSidebar } from '@/components/help/HelpSidebar';
@@ -18,6 +19,7 @@ import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { useHelpStore } from '@/store/helpStore';
 import { helpService } from '@/services/helpService';
 import type { HelpArticle } from '@/types/help.types';
+import { toApiError } from '@/utils/errors';
 
 
 export default function HelpList() {
@@ -140,10 +142,10 @@ export default function HelpList() {
       } else {
         fetchForUser();
       }
-    } catch (error) {
-      console.error('Error saving help article:', error);
-      alert('Error al guardar el contenido de ayuda');
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar el contenido de ayuda');
+    }finally {
       setIsSaving(false);
     }
   };

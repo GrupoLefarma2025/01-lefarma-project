@@ -87,7 +87,7 @@ public class EstatusOrdenService : BaseService, IEstatusOrdenService
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("estatus de orden", id.ToString());
+                    return CommonErrors.NotFound("EstatusOrden", id.ToString());
                 }
 
                 var response = result.ToResponse();

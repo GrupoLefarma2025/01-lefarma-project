@@ -26,6 +26,7 @@ import { notificationService } from '@/services/notificationService';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import type { NotificationType, NotificationPriority, NotificationCategory, NotificationChannelType } from '@/types/notification.types';
+import { toApiError } from '@/utils/errors';
 
 export default function NotificationsPage() {
   usePageTitle('Notificaciones', 'Gestión de notificaciones del sistema');
@@ -71,10 +72,10 @@ export default function NotificationsPage() {
       // Limpiar selección después de enviar
       setSelectedUserIds([]);
       setSelectedRoleNames([]);
-    } catch (error) {
-      console.error('Error sending test notification:', error);
-      toast.error('Error al enviar notificación');
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al enviar notificación');
+    }finally {
       setIsSending(false);
     }
   };

@@ -238,7 +238,7 @@ public class GastoService : BaseService, IGastoService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar el gasto");
+                return CommonErrors.HasDependencies("Gasto");
             }
             catch (Exception ex)
             {

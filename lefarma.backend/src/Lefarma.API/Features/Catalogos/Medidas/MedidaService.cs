@@ -216,7 +216,7 @@ public class MedidaService : BaseService, IMedidaService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"eliminar la medida");
+                return CommonErrors.HasDependencies("Medida");
             }
             catch (Exception ex)
             {

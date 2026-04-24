@@ -2,6 +2,7 @@ using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Shared.Logging;
 using Serilog;
 using System.Diagnostics;
+using System.Security.Claims;
 
 namespace Lefarma.API.Infrastructure.Middleware;
 /// <summary>
@@ -61,7 +62,12 @@ public sealed class WideEventLoggingMiddleware(
             TraceId = parsedTraceId,
             Method = context.Request.Method,
             Endpoint = context.Request.Path.Value ?? "/",
-            UserId = context.User.FindFirst("sub")?.Value ?? context.User.FindFirst("userId")?.Value,
+            UserId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+                ?? context.User.FindFirst("sub")?.Value
+                ?? context.User.FindFirst("userId")?.Value,
+            UserName = context.User.FindFirstValue(ClaimTypes.Name)
+                ?? context.User.FindFirst("preferred_username")?.Value
+                ?? context.User.Identity?.Name,
             Timestamp = DateTime.UtcNow,
             Service = "Lefarma.API",
             Version = "1.0.0"
@@ -96,6 +102,14 @@ public sealed class WideEventLoggingMiddleware(
             // Leer el body AQUÍ (síncrono, el context todavía está activo en el pipeline)
             TryEnrichWithRequestBody(evt, context);
             SaveErrorToDatabase(evt, null);
+        }
+
+        // Para operaciones mutantes exitosas con entidad enriquecida → audit log
+        if (context.Response.StatusCode is >= 200 and < 300
+            && context.Request.Method is "POST" or "PUT" or "PATCH" or "DELETE"
+            && !string.IsNullOrEmpty(evt.EntityType))
+        {
+            SaveAuditToDatabase(evt);
         }
 
         // Emit ONE single log with the enriched WideEvent
@@ -147,6 +161,26 @@ public sealed class WideEventLoggingMiddleware(
         {
             // Ignorar errores al leer el body - nunca romper el flujo
         }
+    }
+
+    /// <summary>
+    /// Guarda un registro de auditoría de negocio de forma asíncrona (fire-and-forget)
+    /// </summary>
+    private void SaveAuditToDatabase(WideEvent evt)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var auditLogService = scope.ServiceProvider.GetRequiredService<IBusinessAuditLogService>();
+                await auditLogService.LogAsync(evt);
+            }
+            catch (Exception dbEx)
+            {
+                _serilogLogger.Error(dbEx, "Failed to persist BusinessAuditLog to database. RequestId: {RequestId}", evt.RequestId);
+            }
+        });
     }
 
     /// <summary>
