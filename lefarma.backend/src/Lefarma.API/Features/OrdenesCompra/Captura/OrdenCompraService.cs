@@ -47,8 +47,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 {
                     var rolesLista = rolesUsuario.ToList();
 
-                    // Obtener los pasos del workflow donde el usuario es participante
-                    // ya sea directamente (id_usuario) o por rol (id_rol)
+                    // Obtener los pasos del workflow donde el usuario es participante ya sea directamente (id_usuario) o por rol (id_rol)
                     var pasosParticipante = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && (
                             p.IdUsuario == idUsuario ||
