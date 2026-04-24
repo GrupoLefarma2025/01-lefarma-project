@@ -56,6 +56,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<Proveedor> Proveedores { get; set; }
         public DbSet<ProveedorDetalle> ProveedoresDetalle { get; set; }
         public DbSet<ProveedorFormaPagoCuenta> ProveedoresFormasPagoCuentas { get; set; }
+        public DbSet<StagingProveedor> StagingProveedores { get; set; }
+        public DbSet<StagingProveedorDetalle> StagingProveedoresDetalle { get; set; }
+        public DbSet<StagingProveedorFormaPagoCuenta> StagingProveedoresFormasPagoCuentas { get; set; }
         public DbSet<CentroCosto> CentrosCosto { get; set; }
         public DbSet<CuentaContable> CuentasContables { get; set; }
         public DbSet<EstatusOrden> EstatusOrden { get; set; }
@@ -109,8 +112,24 @@ public class ApplicationDbContext : DbContext
             // Encuentra y aplica TODAS las clases que implementen IEntityTypeConfiguration<T>
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // Mapeo
-            //modelBuilder.ApplyConfiguration(new EmpresaConfiguration());
+            // FK explícitas para OrdenCompra — evita shadow properties de EF Core
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Empresa)
+                .WithMany()
+                .HasForeignKey(o => o.IdEmpresa)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Sucursal)
+                .WithMany()
+                .HasForeignKey(o => o.IdSucursal)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Area)
+                .WithMany()
+                .HasForeignKey(o => o.IdArea)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

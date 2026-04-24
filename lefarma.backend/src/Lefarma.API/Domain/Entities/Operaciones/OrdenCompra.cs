@@ -32,6 +32,9 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public virtual Proveedor? Proveedor { get; set; }
         public virtual CentroCosto? CentroCosto { get; set; }
         public virtual CuentaContable? CuentaContable { get; set; }
+        public virtual Empresa? Empresa { get; set; }
+        public virtual Sucursal? Sucursal { get; set; }
+        public virtual Area? Area { get; set; }
 
         // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;

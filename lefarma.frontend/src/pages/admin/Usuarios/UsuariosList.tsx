@@ -15,8 +15,8 @@ import {
   Key,
   X,
   Plus,
-  Users,
-  UserCog,
+  /* Users, */ // @typescript-eslint/no-unused-vars
+  /* UserCog, */ // @typescript-eslint/no-unused-vars
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';

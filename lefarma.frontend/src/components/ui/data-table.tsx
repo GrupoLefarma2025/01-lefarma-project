@@ -12,7 +12,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { useState, useMemo, useEffect, useRef, useCallback, type ReactNode } from "react";
+import { useState, useMemo, useEffect, useCallback, type ReactNode } from "react";
 import {
   ArrowUpIcon,
   ArrowDownIcon,
@@ -162,7 +162,6 @@ export function DataTable<TData>({
     columnFilterConfigs,
     setColumnFilterConfig,
     saveConfig,
-    loadConfig,
   } = useTableFilters({
     tableId: filterConfig?.tableId || '',
     allColumns: columns,

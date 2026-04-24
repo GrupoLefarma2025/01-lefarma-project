@@ -28,8 +28,11 @@ export interface OrdenCompraResponse {
   idOrden: number;
   folio: string;
   idEmpresa: number;
+  empresaNombre?: string | null;
   idSucursal: number;
+  sucursalNombre?: string | null;
   idArea: number;
+  areaNombre?: string | null;
   idTipoGasto: number;
   estado: string;
   idPasoActual?: number | null;

@@ -21,7 +21,7 @@ interface HelpState {
   clearSelectedArticle: () => void;
 }
 
-export const useHelpStore = create<HelpState>((set, get) => ({
+export const useHelpStore = create<HelpState>((set) => ({
   articles: [],
   selectedArticle: null,
   selectedModule: '',
@@ -34,7 +34,7 @@ export const useHelpStore = create<HelpState>((set, get) => ({
     try {
       const articles = await helpService.getAll();
       set({ articles, isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar artículos', isLoading: false });
     }
   },
@@ -51,7 +51,7 @@ export const useHelpStore = create<HelpState>((set, get) => ({
         ? articles.filter(a => a.tipo === tipo || a.tipo === 'ambos')
         : articles;
       set({ articles: filtered, isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar artículos', isLoading: false });
     }
   },
@@ -61,7 +61,7 @@ export const useHelpStore = create<HelpState>((set, get) => ({
     try {
       const articles = await helpService.getByType(tipo);
       set({ articles, isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar artículos', isLoading: false });
     }
   },
@@ -71,7 +71,7 @@ export const useHelpStore = create<HelpState>((set, get) => ({
     try {
       const articles = await helpService.getForUser();
       set({ articles, selectedType: 'usuario', isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar artículos', isLoading: false });
     }
   },
@@ -81,7 +81,7 @@ export const useHelpStore = create<HelpState>((set, get) => ({
     try {
       const article = await helpService.getById(id);
       set({ selectedArticle: article, isLoading: false });
-    } catch (error) {
+    } catch {
       set({ error: 'Error al cargar artículo', isLoading: false });
     }
   },

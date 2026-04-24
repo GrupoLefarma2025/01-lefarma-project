@@ -225,4 +225,49 @@ public class ProveedoresController : ControllerBase
             Data = null
         }));
     }
+
+    [HttpGet("{id}/staging")]
+    [SwaggerOperation(Summary = "Obtener staging de proveedor", Description = "Retorna los datos staging (edición pendiente) de un proveedor con diff de cambios")]
+    public async Task<IActionResult> GetStaging(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.GetStagingByProveedorIdAsync(id);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<StagingProveedorResponse>
+        {
+            Success = true,
+            Message = "Staging obtenido exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/autorizar-edicion")]
+    [SwaggerOperation(Summary = "Autorizar edición de proveedor", Description = "Aplica los cambios del staging al registro original y elimina el staging")]
+    public async Task<IActionResult> AutorizarEdicion(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.AutorizarEdicionAsync(id, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Edición de proveedor autorizada exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpPost("{id}/rechazar-edicion")]
+    [SwaggerOperation(Summary = "Rechazar edición de proveedor", Description = "Elimina el staging y restaura el estatus del proveedor a aprobado")]
+    public async Task<IActionResult> RechazarEdicion(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        var result = await _proveedorService.RechazarEdicionAsync(id, GetUserId());
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ProveedorResponse>
+        {
+            Success = true,
+            Message = "Edición de proveedor rechazada.",
+            Data = data
+        }));
+    }
 }

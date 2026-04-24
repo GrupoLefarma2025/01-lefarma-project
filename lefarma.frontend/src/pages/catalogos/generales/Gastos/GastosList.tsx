@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Receipt, Plus, Pencil, Trash2, Search, Loader2, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
+import { Receipt, Plus, /* Pencil, */ /* Trash2, */ Search, Loader2, CheckCircle2, XCircle, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';

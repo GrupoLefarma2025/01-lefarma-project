@@ -385,23 +385,23 @@ export default function AutorizacionesOC() {
       const [ordenRes, accionesRes, historialRes] = await Promise.all([
         API.get<ApiResponse<OrdenCompraResponse>>(`/ordenes/${idOrden}`),
         API.get<ApiResponse<AccionDisponibleResponse[]>>(`/ordenes/${idOrden}/acciones`).catch(
-          () => ({ data: { data: [] } })
+          (): { data: { data: [] } } => ({ data: { data: [] } })
         ),
         API.get<ApiResponse<HistorialWorkflowItemResponse[]>>(
           `/ordenes/${idOrden}/historial-workflow`
-        ).catch(() => ({ data: { data: [] } })),
+        ).catch((): { data: { data: [] } } => ({ data: { data: [] } })),
       ]);
 
       const orden = ordenRes.data.data || null;
       setSelectedOrden(orden);
-      setAcciones((accionesRes as any).data?.data || []);
-      setHistorial((historialRes as any).data?.data || []);
+      setAcciones(accionesRes.data?.data || []);
+      setHistorial(historialRes.data?.data || []);
 
       if (orden) {
         cargarProveedoresOrden(orden);
       }
 
-      const historialData = (historialRes as any).data?.data || [];
+      const historialData = historialRes.data?.data || [];
       console.log('[Detalle] Historial data:', historialData);
       if (historialData.length > 0) {
         console.log('[Detalle] Llamando fetchFirmasUsuarios con', historialData.length, 'items');
