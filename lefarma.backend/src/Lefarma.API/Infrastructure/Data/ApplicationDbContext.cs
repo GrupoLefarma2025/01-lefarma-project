@@ -114,8 +114,24 @@ public class ApplicationDbContext : DbContext
             // Encuentra y aplica TODAS las clases que implementen IEntityTypeConfiguration<T>
             modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-            // Mapeo
-            //modelBuilder.ApplyConfiguration(new EmpresaConfiguration());
+            // FK explícitas para OrdenCompra — evita shadow properties de EF Core
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Empresa)
+                .WithMany()
+                .HasForeignKey(o => o.IdEmpresa)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Sucursal)
+                .WithMany()
+                .HasForeignKey(o => o.IdSucursal)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.Area)
+                .WithMany()
+                .HasForeignKey(o => o.IdArea)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

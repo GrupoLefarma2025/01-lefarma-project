@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
+﻿import { Fragment, useEffect, useMemo, useCallback, useRef, useState } from 'react';
 
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
@@ -62,6 +62,7 @@ import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobant
 import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
+import { toApiError } from '@/utils/errors';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -307,8 +308,9 @@ export default function AutorizacionesOC() {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes');
       const data = res.data.data || [];
       setOrdenes(data);
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar bandeja de órdenes');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar bandeja de órdenes');
     }
   }, []);
 
@@ -413,8 +415,9 @@ export default function AutorizacionesOC() {
 
       fetchArchivosOrden(idOrden);
       fetchPartidasPendientes(idOrden);
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar detalle de orden');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar detalle de orden');
     } finally {
       setLoadingDetail(false);
     }
@@ -683,11 +686,10 @@ export default function AutorizacionesOC() {
       toast.success(`Acción "${accionSeleccionada.nombreAccion}" ejecutada correctamente`);
       cerrarModalFirma();
       await Promise.all([fetchOrdenes(), fetchDetalle(selectedOrden.idOrden)]);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = toApiError(error);
       const errorMessage =
-        error?.errors?.[0]?.description ?? error?.message ?? 'No fue posible procesar la firma';
-      toast.error(errorMessage);
-      
+        err.errors?.[0]?.description ?? err.message ?? 'No fue posible procesar la firma';
       toast.error(errorMessage);
     } finally {
       setIsSubmittingFirma(false);

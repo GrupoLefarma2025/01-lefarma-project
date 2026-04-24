@@ -36,7 +36,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Moneda).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -47,8 +47,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 {
                     var rolesLista = rolesUsuario.ToList();
 
-                    // Obtener los pasos del workflow donde el usuario es participante
-                    // ya sea directamente (id_usuario) o por rol (id_rol)
+                    // Obtener los pasos del workflow donde el usuario es participante ya sea directamente (id_usuario) o por rol (id_rol)
                     var pasosParticipante = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && (
                             p.IdUsuario == idUsuario ||
@@ -75,11 +74,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 };
 
                 var items = await q.ToListAsync();
-                if (!items.Any())
-                {
-                    EnrichWideEvent("GetAll", count: 0);
-                    return CommonErrors.NotFound("OrdenesCompra");
-                }
 
                 var response = items.Select(ToResponse).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
@@ -113,7 +107,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
@@ -211,9 +205,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     FechaEvento = result.FechaCreacion
                 });
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Create", entityId: result.IdOrden, nombre: result.Folio,
+                EnrichWideEvent("Create",entityId: result.IdOrden, nombre: result.Folio,
                     additionalContext: new Dictionary<string, object> { ["total"] = result.Total });
 
                 return ToResponse(result);
@@ -261,7 +255,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario)
+        public async Task<ErrorOr<OrdenCompraResponse>> UpdateAsync(int id, CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
         {
             try
             {
@@ -318,9 +312,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
                 orden.Total = partidas.Sum(p => p.Total);
 
-                await _context.SaveChangesAsync();
+                await _context.SaveChangesAsync(ct);
 
-                EnrichWideEvent("Update", entityId: orden.IdOrden, nombre: orden.Folio);
+                EnrichWideEvent("Update",entityId: orden.IdOrden, nombre: orden.Folio);
                 return ToResponse(orden);
             }
             catch (DbUpdateException ex)
@@ -343,8 +337,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdOrden = o.IdOrden,
             Folio = o.Folio,
             IdEmpresa = o.IdEmpresa,
+            EmpresaNombre = o.Empresa?.NombreNormalizado ?? o.Empresa?.Nombre,
             IdSucursal = o.IdSucursal,
+            SucursalNombre = o.Sucursal?.NombreNormalizado ?? o.Sucursal?.Nombre,
             IdArea = o.IdArea,
+            AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
             IdTipoGasto = o.IdTipoGasto,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null

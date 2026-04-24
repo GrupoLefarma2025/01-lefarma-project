@@ -1,7 +1,4 @@
-﻿import type { ColumnDef } from '@tanstack/react-table';
-
-
-/**
+﻿/**
  * Supported filter types based on column data type
  */
 export type FilterType = 'text' | 'number' | 'boolean' | 'select' | 'date';
@@ -56,7 +53,7 @@ export interface ColumnFilterConfig {
 /**
  * Configuration passed to DataTable for filters
  */
-export interface FilterConfig<TData> {
+export interface FilterConfig {
   tableId: string;
   searchableColumns: string[]; // All columns that CAN be searched
   defaultSearchColumns?: string[]; // Default columns to search (subset of searchableColumns)

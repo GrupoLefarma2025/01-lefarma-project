@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { MapPin, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw } from 'lucide-react';
@@ -23,6 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/CentrosCosto';
 
@@ -75,15 +76,10 @@ export default function CentrosCostoList() {
       if (response.data.success) {
         setCentrosCosto(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.statusCode === 404;
-      if (isNotFound) {
-        setCentrosCosto([]);
-        toast.warning('No se encontraron centros de costo en el sistema');
-      } else {
-        toast.error(error?.message ?? 'Error al cargar los centros de costo');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los centros de costo');
+    }finally {
       setLoading(false);
     }
   };
@@ -130,12 +126,13 @@ export default function CentrosCostoList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el centro de costo');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el centro de costo');
+        toast.error(err.message ?? 'Error al guardar el centro de costo');
       }
     } finally {
       setIsSaving(false);
@@ -150,8 +147,9 @@ export default function CentrosCostoList() {
         toast.success('Centro de costo eliminado correctamente');
         fetchCentrosCosto();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el centro de costo');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el centro de costo');
     }
   };
 

@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Shield, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw, Users, Key, UserCog, UserMinus, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Shield, Plus, Pencil, Trash2, Search, Loader2, /* RefreshCcw, */ /* UserMinus, */ Users, Key, UserCog, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
@@ -27,6 +27,7 @@ import { MultiSelect } from '@/components/ui/multi-select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
+import { toApiError } from '@/utils/errors';
 
 
 const rolSchema = z.object({
@@ -225,8 +226,9 @@ export default function RolesList() {
       if (rRoles.data.success) setRoles(rRoles.data.data || []);
       if (rPermisos.data.success) setPermisos(rPermisos.data.data || []);
       if (rUsuarios.data.success) setUsuarios(rUsuarios.data.data || []);
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar los datos');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los datos');
     } finally {
       setLoading(false);
     }
@@ -334,8 +336,9 @@ export default function RolesList() {
       toast.success(isEditing ? "Rol actualizado" : "Rol creado");
       setIsModalOpen(false);
       fetchData();
-    } catch (error: any) {
-      toast.error(error?.message ?? "Error al guardar");
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? "Error al guardar");
     } finally {
       setIsSaving(false);
     }
@@ -349,8 +352,9 @@ export default function RolesList() {
         toast.success('Rol eliminado');
         fetchData();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar');
     }
   };
 

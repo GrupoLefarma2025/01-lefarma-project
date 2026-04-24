@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo } from '@/types/workflow.types';
+import { toApiError } from '@/utils/errors';
 
 interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
@@ -105,8 +106,9 @@ export default function WorkflowDiagram() {
       if (response.data.success && response.data.data) {
         setWorkflow(response.data.data);
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar el workflow');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar el workflow');
       navigate('/workflows');
     } finally {
       setLoading(false);
@@ -596,8 +598,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       } else {
         toast.error(isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso');
       }
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? (isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso'));
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? (isCreatingPaso ? 'Error al crear el paso' : 'Error al actualizar el paso'));
     }
   };
 
@@ -780,8 +783,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     requiereAdjunto: paso.requiereAdjunto
                                   });
                                   await onSave();
-                                } catch (error: any) {
-                                  toast.error(error?.message ?? `No se pudo ${accion} el paso`);
+                                } catch (error: unknown) {
+                                  const err = toApiError(error);
+                                  toast.error(err.message ?? `No se pudo ${accion} el paso`);
                                 }
                               }}
                             >
@@ -1038,8 +1042,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                           await API.delete(`/config/workflows/${workflow.idWorkflow}/acciones/${accion.idAccion}/handlers/${handler.idHandler}`);
                                           toast.success('Regla eliminada');
                                           await onSave();
-                                        } catch (error: any) {
-                                          toast.error(error?.message ?? 'No se pudo eliminar la regla');
+                                        } catch (error: unknown) {
+                                          const err = toApiError(error);
+                                          toast.error(err.message ?? 'No se pudo eliminar la regla');
                                         }
                                       }}
                                     >
@@ -1659,8 +1664,9 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
     setIsSaving(true);
     try {
       await onSave(formData);
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar el paso');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar el paso');
     } finally {
       setIsSaving(false);
     }
@@ -1992,8 +1998,9 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
       }
       await onSave();
       toast.success(accion ? 'Acción actualizada' : 'Acción creada');
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar la acción');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar la acción');
     } finally {
       setIsSaving(false);
     }
@@ -2040,8 +2047,9 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
                   toast.success(formData.activo ? 'Acción desactivada' : 'Acción activada');
                   await onSave();
                   setOpen(false);
-                } catch (error: any) {
-                  toast.error(error?.message ?? 'No se pudo cambiar estado de la acción');
+                } catch (error: unknown) {
+                  const err = toApiError(error);
+                  toast.error(err.message ?? 'No se pudo cambiar estado de la acción');
                 } finally {
                   setIsSaving(false);
                 }
@@ -2314,8 +2322,9 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
       toast.success(handler ? 'Regla actualizada' : 'Regla creada');
       setOpen(false);
       await onSave();
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al guardar la regla');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al guardar la regla');
     } finally {
       setIsSaving(false);
     }
@@ -2630,8 +2639,9 @@ function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: Cond
       }
       await onSave();
       toast.success(condicion ? 'Condición actualizada' : 'Condición creada');
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar la condición');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar la condición');
     } finally {
       setIsSaving(false);
     }
@@ -2681,8 +2691,9 @@ function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: Cond
                   toast.success(formData.activo ? 'Condición desactivada' : 'Condición activada');
                   await onSave();
                   setOpen(false);
-                } catch (error: any) {
-                  toast.error(error?.message ?? 'No se pudo cambiar estado de la condición');
+                } catch (error: unknown) {
+                  const err = toApiError(error);
+                  toast.error(err.message ?? 'No se pudo cambiar estado de la condición');
                 } finally {
                   setIsSaving(false);
                 }
@@ -2883,8 +2894,9 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
       }
       await onSave();
       toast.success(participante ? 'Participante actualizado' : 'Participante agregado');
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar el participante');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar el participante');
     } finally {
       setIsSaving(false);
     }
@@ -2922,8 +2934,9 @@ function ParticipanteEditModal({ workflow, participante, open, setOpen, onSave }
                   toast.success(formData.activo ? 'Participante desactivado' : 'Participante activado');
                   await onSave();
                   setOpen(false);
-                } catch (error: any) {
-                  toast.error(error?.message ?? 'No se pudo cambiar estado del participante');
+                } catch (error: unknown) {
+                  const err = toApiError(error);
+                  toast.error(err.message ?? 'No se pudo cambiar estado del participante');
                 } finally {
                   setIsSaving(false);
                 }
@@ -3151,8 +3164,9 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
       }
       await onSave();
       toast.success(notificacion ? 'Notificación actualizada' : 'Notificación creada');
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar la notificación');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar la notificación');
     } finally {
       setIsSaving(false);
     }
@@ -3203,8 +3217,9 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
                   toast.success(formData.activo ? 'Notificación desactivada' : 'Notificación activada');
                   await onSave();
                   setOpen(false);
-                } catch (error: any) {
-                  toast.error(error?.message ?? 'No se pudo cambiar estado de la notificación');
+                } catch (error: unknown) {
+                  const err = toApiError(error);
+                  toast.error(err.message ?? 'No se pudo cambiar estado de la notificación');
                 } finally {
                   setIsSaving(false);
                 }
@@ -3510,8 +3525,9 @@ function CanalTemplateEditModal({ workflow, template, open, setOpen, onSave }: C
         toast.success('Plantilla de canal guardada');
         await onSave(res.data?.data ?? { ...template, ...formData }, false);
       }
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? (isNew ? 'Error al crear la plantilla' : 'Error al guardar la plantilla');
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      const msg = apiErr.message ?? (isNew ? 'Error al crear la plantilla' : 'Error al guardar la plantilla');
       toast.error(msg);
     } finally {
       setSaving(false);
@@ -3710,8 +3726,9 @@ function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, onSave }
         toast.success('Recordatorio guardado');
         await onSave(res.data?.data ?? { ...recordatorio, ...payload }, false);
       }
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message ?? 'Error al guardar el recordatorio');
+    } catch (error: unknown) {
+      const apiErr = toApiError(error);
+      toast.error(apiErr.message ?? 'Error al guardar el recordatorio');
     } finally {
       setSaving(false);
     }

@@ -15,8 +15,8 @@ import {
   Key,
   X,
   Plus,
-  Users,
-  UserCog,
+  /* Users, */ // @typescript-eslint/no-unused-vars
+  /* UserCog, */ // @typescript-eslint/no-unused-vars
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
@@ -55,6 +55,7 @@ import { cn } from '@/lib/utils';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Card, CardContent } from '@/components/ui/card';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { toApiError } from '@/utils/errors';
 
 const RolesSection = memo(function RolesSection({
   rolesIds,
@@ -287,8 +288,9 @@ export default function UsuariosList() {
       if (response.data.success) {
         setUsuarios(response.data.data || []);
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al cargar los usuarios');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los usuarios');
     } finally {
       setLoading(false);
     }
@@ -367,12 +369,13 @@ export default function UsuariosList() {
       } else {
         toast.error(response.data.message ?? "Error al guardar los cambios");
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? "Error al guardar los cambios");
+        toast.error(err.message ?? "Error al guardar los cambios");
       }
     } finally {
       setIsSaving(false);

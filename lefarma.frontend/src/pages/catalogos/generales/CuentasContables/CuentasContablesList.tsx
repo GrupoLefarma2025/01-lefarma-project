@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { FileText, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw } from 'lucide-react';
@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/CuentasContables';
 const CENTROS_COSTO_ENDPOINT = '/catalogos/CentrosCosto';
@@ -97,15 +98,10 @@ export default function CuentasContablesList() {
       if (response.data.success) {
         setCuentas(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.statusCode === 404;
-      if (isNotFound) {
-        setCuentas([]);
-        toast.warning('No se encontraron cuentas contables en el sistema');
-      } else {
-        toast.error(error?.message ?? 'Error al cargar las cuentas contables');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar las cuentas contables');
+    }finally {
       setLoading(false);
     }
   };
@@ -175,12 +171,13 @@ export default function CuentasContablesList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar la cuenta contable');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar la cuenta contable');
+        toast.error(err.message ?? 'Error al guardar la cuenta contable');
       }
     } finally {
       setIsSaving(false);
@@ -195,8 +192,9 @@ export default function CuentasContablesList() {
         toast.success('Cuenta contable eliminada correctamente');
         fetchCuentas();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar la cuenta contable');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar la cuenta contable');
     }
   };
 

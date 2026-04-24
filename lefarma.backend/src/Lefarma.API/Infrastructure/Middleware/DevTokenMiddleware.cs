@@ -12,27 +12,23 @@ public sealed class DevTokenMiddleware
     private readonly RequestDelegate _next;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DevTokenMiddleware> _logger;
+    private readonly bool _isDevelopment;
 
     public DevTokenMiddleware(
         RequestDelegate next,
         IConfiguration configuration,
-        ILogger<DevTokenMiddleware> logger)
+        ILogger<DevTokenMiddleware> logger,
+        IHostEnvironment env)
     {
         _next = next;
         _configuration = configuration;
         _logger = logger;
+        _isDevelopment = env.IsDevelopment();
     }
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (!context.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
-        {
-            await _next(context);
-            return;
-        }
-
-        var env = context.RequestServices.GetRequiredService<IHostEnvironment>();
-        if (!env.IsDevelopment())
+        if (!_isDevelopment)
         {
             await _next(context);
             return;
@@ -62,9 +58,11 @@ public sealed class DevTokenMiddleware
 
         var db = context.RequestServices.GetRequiredService<AsokamDbContext>();
         var usuario = await db.Usuarios
-            .Include(u => u.UsuariosRoles)
+            .Include(u => u.UsuariosRoles.Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                 .ThenInclude(ur => ur.Rol)
-            .Include(u => u.UsuariosPermisos)
+                    .ThenInclude(r => r.RolesPermisos)
+                        .ThenInclude(rp => rp.Permiso)
+            .Include(u => u.UsuariosPermisos.Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow))
                 .ThenInclude(up => up.Permiso)
             .FirstOrDefaultAsync(u => u.IdUsuario == impersonateUserId);
 
@@ -82,31 +80,23 @@ public sealed class DevTokenMiddleware
             return;
         }
 
-        var roles = await db.UsuariosRoles
-            .Include(ur => ur.Rol)
-            .Where(ur => ur.IdUsuario == usuario.IdUsuario && ur.Rol.EsActivo)
-            .Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow)
-            .Select(ur => ur.Rol.NombreRol)
-            .ToListAsync();
+        var activeRoles = usuario.UsuariosRoles
+            .Where(ur => ur.Rol.EsActivo)
+            .Select(ur => ur.Rol)
+            .ToList();
 
-        var roleIds = await db.UsuariosRoles
-            .Where(ur => ur.IdUsuario == usuario.IdUsuario && ur.Rol.EsActivo)
-            .Where(ur => ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow)
-            .Select(ur => ur.Rol.IdRol)
-            .ToListAsync();
+        var roles = activeRoles
+            .Select(r => r.NombreRol)
+            .ToList();
 
-        var permissionsFromRoles = await db.RolesPermisos
-            .Include(rp => rp.Permiso)
-            .Where(rp => roleIds.Contains(rp.IdRol) && rp.Permiso.EsActivo)
-            .Select(rp => rp.Permiso.CodigoPermiso)
-            .ToListAsync();
+        var permissionsFromRoles = activeRoles
+            .SelectMany(r => r.RolesPermisos)
+            .Where(rp => rp.Permiso.EsActivo)
+            .Select(rp => rp.Permiso.CodigoPermiso);
 
-        var directPermissions = await db.UsuariosPermisos
-            .Include(up => up.Permiso)
-            .Where(up => up.IdUsuario == usuario.IdUsuario && up.Permiso.EsActivo)
-            .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
-            .Select(up => up.Permiso.CodigoPermiso)
-            .ToListAsync();
+        var directPermissions = usuario.UsuariosPermisos
+            .Where(up => up.Permiso.EsActivo)
+            .Select(up => up.Permiso.CodigoPermiso);
 
         var allPermissions = permissionsFromRoles
             .Union(directPermissions)

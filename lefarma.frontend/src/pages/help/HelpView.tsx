@@ -9,6 +9,7 @@ import TinyMceEditor from '@/components/help/TinyMceEditor';
 import TinyMceViewer from '@/components/help/TinyMceViewer';
 import { helpService } from '@/services/helpService';
 import type { UpdateHelpArticleRequest } from '@/types/help.types';
+import { toApiError } from '@/utils/errors';
 
 export default function HelpView() {
   const { id } = useParams<{ id: string }>();
@@ -50,8 +51,9 @@ export default function HelpView() {
       setIsEditing(false);
       // Refetch to get updated data
       await fetchArticleById(parseInt(id));
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? 'Error al guardar artículo');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al guardar artículo');
     }finally {
       setIsSaving(false);
     }

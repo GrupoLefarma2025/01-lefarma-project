@@ -33,13 +33,8 @@ public class FormaPagoService : BaseService, IFormaPagoService
             try
             {
                 var result = await _formaPagoRepository.GetAllAsync();
-                if (result == null || !result.Any())
-                {
-                    EnrichWideEvent(action: "GetAll", count: 0);
-                    return CommonErrors.NotFound("FormasPago");
-                }
 
-                var response = result
+                var response = (result ?? [])
                     .Where(e => e != null && e.Nombre != null && !string.IsNullOrWhiteSpace(e.Nombre))
                     .Select(e => e!.ToResponse())
                     .OrderBy(e => e.Nombre)

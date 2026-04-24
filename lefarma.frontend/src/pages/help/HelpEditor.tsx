@@ -16,6 +16,7 @@ import {
 import { helpService } from '@/services/helpService';
 import { useHelpStore } from '@/store/helpStore';
 import type { CreateHelpArticleRequest, UpdateHelpArticleRequest } from '@/types/help.types';
+import { toApiError } from '@/utils/errors';
 
 const EMPTY_LEXICAL_JSON = {
   root: {
@@ -121,8 +122,9 @@ export default function HelpEditor() {
         await helpService.create(formData);
       }
       navigate('/help');
-    } catch (error: any) {
-      toast.error(error?.errors?.[0]?.description ?? error?.message ?? (isEditMode ? 'Error al actualizar artículo' : 'Error al crear artículo'));
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? (isEditMode ? 'Error al actualizar artículo' : 'Error al crear artículo'));
     }finally {
       setIsLoading(false);
     }

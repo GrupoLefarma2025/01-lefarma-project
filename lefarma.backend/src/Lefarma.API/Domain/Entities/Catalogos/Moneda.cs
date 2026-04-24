@@ -3,7 +3,7 @@ namespace Lefarma.API.Domain.Entities.Catalogos
     public class Moneda
     {
         public int IdMoneda { get; set; }
-        public string Codigo { get; set; } = null!;        // ISO 4217: MXN, USD, HNL
+        public string Codigo { get; set; } = null!;        // MXN, USD, HNL
         public string Nombre { get; set; } = null!;        // "Peso Mexicano"
         public string Simbolo { get; set; } = null!;       // "$", "L", "€"
         public string Locale { get; set; } = null!;        // "es-MX", "en-US"

@@ -1,6 +1,6 @@
 ﻿import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ConfigState, UIConfig, PerfilConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
+import type { ConfigState, UIConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
 import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/types/config.types';
 import { UI_PRESETS } from '@/constants/uiPresets';
 import { useAuthStore } from './authStore';
@@ -127,7 +127,6 @@ export const useConfigStore = create<ConfigState>()(
 
         // Aplicar tema inmediatamente
         const htmlElement = document.documentElement;
-        const root = window;
 
         if (tema === 'dark') {
           htmlElement.classList.add('dark');
@@ -138,7 +137,7 @@ export const useConfigStore = create<ConfigState>()(
         } else {
           // system
           localStorage.removeItem('theme');
-          const prefersDark = root.matchMedia('(prefers-color-scheme: dark)').matches;
+          const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
           if (prefersDark) {
             htmlElement.classList.add('dark');
           } else {
@@ -273,26 +272,29 @@ export const useConfigStore = create<ConfigState>()(
         ui: state.ui,
         perfil: state.perfil,
       }), // No persistir sistema (se lee de env vars) ni globalConfig (vendría del backend)
-      merge: (persistedState, currentState) => ({
-        ...currentState,
-        ...(persistedState as Record<string, unknown>),
-        ui: {
-          ...currentState.ui,
-          ...(persistedState as any)?.ui,
-          componentes: {
-            ...currentState.ui.componentes,
-            ...(persistedState as any)?.ui?.componentes,
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as ConfigState;
+        return ({
+          ...currentState,
+          ...persisted,
+          ui: {
+            ...currentState.ui,
+            ...persisted.ui,
+            componentes: {
+              ...currentState.ui.componentes,
+              ...persisted.ui?.componentes,
+            },
+            visual: {
+              ...currentState.ui.visual,
+              ...persisted.ui?.visual,
+            },
           },
-          visual: {
-            ...currentState.ui.visual,
-            ...(persistedState as any)?.ui?.visual,
+          perfil: {
+            ...currentState.perfil,
+            ...persisted.perfil,
           },
-        },
-        perfil: {
-          ...currentState.perfil,
-          ...(persistedState as any)?.perfil,
-        },
-      }),
+        });
+      },
     }
   )
 );

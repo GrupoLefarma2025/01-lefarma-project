@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { resetConfig } from '@/lib/tableConfigStorage';
@@ -13,6 +13,7 @@ import {
   Check,
   X,
   FileText,
+  Eye,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,11 +41,15 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { toApiError } from '@/utils/errors';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
 const FORMAS_PAGO_ENDPOINT = '/catalogos/FormasPago';
 const BANCOS_ENDPOINT = '/catalogos/Bancos';
+const STAGING_ENDPOINT = (id: number) => `${ENDPOINT}/${id}/staging`;
+const AUTORIZAR_EDICION_ENDPOINT = (id: number) => `${ENDPOINT}/${id}/autorizar-edicion`;
+const RECHAZAR_EDICION_ENDPOINT = (id: number) => `${ENDPOINT}/${id}/rechazar-edicion`;
 
 const proveedorSchema = z.object({
   razonSocial: z.string().min(3, 'La razón social debe tener al menos 3 caracteres'),
@@ -93,6 +98,7 @@ const ESTATUS = {
   NUEVO: 1,
   APROBADO: 2,
   RECHAZADO: 3,
+  EDITADO_PENDIENTE: 4,
 } as const;
 
 const getEstatusLabel = (estatus: number) => {
@@ -103,6 +109,8 @@ const getEstatusLabel = (estatus: number) => {
       return 'Aprobado';
     case ESTATUS.RECHAZADO:
       return 'Rechazado';
+    case ESTATUS.EDITADO_PENDIENTE:
+      return 'Edición Pendiente';
     default:
       return 'Desconocido';
   }
@@ -140,6 +148,34 @@ interface ProveedorFormaPagoCuenta {
   activo?: boolean;
 }
 
+interface CampoDiff {
+  campo: string;
+  label: string;
+  valorAnterior: string | null;
+  valorNuevo: string | null;
+}
+
+interface StagingProveedorResponse {
+  idStaging: number;
+  idProveedor: number;
+  razonSocial: string;
+  rfc: string | null;
+  codigoPostal: string | null;
+  regimenFiscalId: number | null;
+  usoCfdi: string | null;
+  sinDatosFiscales: boolean;
+  fechaStaging: string;
+  editadoPor: number | null;
+  diferencias: CampoDiff[];
+  cuentasFormaPago: ProveedorFormaPagoCuenta[];
+}
+
+interface DiffModalState {
+  open: boolean;
+  stagingData: StagingProveedorResponse | null;
+  loading: boolean;
+}
+
 interface Banco {
   idBanco: number;
   nombre: string;
@@ -164,10 +200,21 @@ export default function ProveedoresList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
   const [rejectMotivo, setRejectMotivo] = useState('');
+  const [deleteCuentaModal, setDeleteCuentaModal] = useState(false);
+  const [deleteCuentaIndex, setDeleteCuentaIndex] = useState(-1);
   const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
   const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
   const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
+  // Valores originales al abrir el modal (para comparar cambios reales)
+  const [originalValues, setOriginalValues] = useState<Partial<{
+    regimenFiscalId: number | null;
+    usoCfdi: string | null;
+    rfc: string | null;
+    codigoPostal: string | null;
+    razonSocial: string;
+  }>>({});
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -191,15 +238,10 @@ export default function ProveedoresList() {
       if (response.data.success) {
         setProveedores(response.data.data || []);
       }
-    } catch (error: any) {
-      const isNotFound = error?.statusCode === 404;
-      if (isNotFound) {
-        setProveedores([]);
-        toast.warning('No se encontraron proveedores en el sistema');
-      } else {
-        toast.error(error?.message ?? 'Error al cargar los proveedores');
-      }
-    } finally {
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al cargar los proveedores');
+    }finally {
       setLoading(false);
     }
   };
@@ -250,6 +292,7 @@ export default function ProveedoresList() {
     setProveedorId(0);
     setCaratulaFile(null);
     setCaratulaPreview(null);
+    setOriginalValues({});
     form.reset({
       razonSocial: '',
       rfc: '',
@@ -282,6 +325,13 @@ export default function ProveedoresList() {
     const proveedor = proveedores.find((p) => p.idProveedor === id);
     if (proveedor) {
       setProveedorId(proveedor.idProveedor);
+      setOriginalValues({
+        regimenFiscalId: proveedor.regimenFiscalId ?? null,
+        usoCfdi: proveedor.usoCfdi ?? null,
+        rfc: proveedor.rfc ?? null,
+        codigoPostal: proveedor.codigoPostal ?? null,
+        razonSocial: proveedor.razonSocial,
+      });
       form.reset({
         razonSocial: proveedor.razonSocial,
         rfc: proveedor.rfc || '',
@@ -306,10 +356,32 @@ export default function ProveedoresList() {
     }
   };
 
-  const handleSaveProveedor = async (values: ProveedorFormValues) => {
+  const handleSaveProveedor = async (_values: ProveedorFormValues) => {
     setIsSaving(true);
     try {
-      const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...proveedorData } = values;
+      // Usar form.getValues() directamente para capturar los valores actuales del formulario,
+      // evitando problemas con Select components que pueden tener field.value desincronizado
+      const values = form.getValues();
+      const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...rest } = values;
+
+      // Fallback: si el form tiene undefined/NaN para campos críticos, usar los valores originales
+      // Esto evita que el staging grabe null cuando el usuario no tocó el campo
+      const regimenFiscalIdValue =
+        rest.regimenFiscalId != null && !isNaN(rest.regimenFiscalId as number)
+          ? rest.regimenFiscalId
+          : (isEditing ? originalValues.regimenFiscalId ?? null : null);
+
+      const usoCfdiValue =
+        rest.usoCfdi != null && rest.usoCfdi !== ''
+          ? rest.usoCfdi
+          : (isEditing ? originalValues.usoCfdi ?? null : null);
+
+      const proveedorData = {
+        ...rest,
+        regimenFiscalId: regimenFiscalIdValue,
+        usoCfdi: usoCfdiValue,
+      };
+
       const detalle = {
         personaContactoNombre: personaContactoNombre || null,
         contactoTelefono: contactoTelefono || null,
@@ -340,8 +412,9 @@ export default function ProveedoresList() {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             toast.success('Carátula subida correctamente.');
-          } catch (uploadError: any) {
-            toast.error(uploadError?.message ?? 'Error al subir la carátula');
+          } catch (uploadError: unknown) {
+            const err = toApiError(uploadError);
+            toast.error(err.message ?? 'Error al subir la carátula');
           }
         }
 
@@ -350,12 +423,13 @@ export default function ProveedoresList() {
       } else {
         toast.error(response.data.message ?? 'Error al guardar el proveedor');
       }
-    } catch (error: any) {
-      const errs: Array<{ description: string }> = error?.errors ?? [];
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      const errs: Array<{ description: string }> = err.errors ?? [];
       if (errs.length > 0) {
-        errs.forEach((e) => toast.error(error.message, { description: e.description }));
+        errs.forEach((e) => toast.error(err.message, { description: e.description }));
       } else {
-        toast.error(error?.message ?? 'Error al guardar el proveedor');
+        toast.error(err.message ?? 'Error al guardar el proveedor');
       }
     } finally {
       setIsSaving(false);
@@ -370,8 +444,9 @@ export default function ProveedoresList() {
         toast.success('Proveedor eliminado correctamente');
         fetchProveedores();
       }
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al eliminar el proveedor');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar el proveedor');
     }
   };
 
@@ -381,8 +456,9 @@ export default function ProveedoresList() {
       await proveedorApi.autorizar(id);
       toast.success('Proveedor autorizado');
       await fetchProveedores();
-    } catch (error: any) {
-      toast.error(error?.message ?? 'Error al autorizar proveedor');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al autorizar proveedor');
     }
   };
 
@@ -394,8 +470,50 @@ export default function ProveedoresList() {
       setRejectModal({ open: false, proveedorId: null });
       setRejectMotivo('');
       await fetchProveedores();
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al rechazar proveedor');
+    }
+  };
+
+  const handleVerDiff = async (idProveedor: number) => {
+    setDiffModal({ open: true, stagingData: null, loading: true });
+    try {
+      const response = await API.get<ApiResponse<StagingProveedorResponse>>(STAGING_ENDPOINT(idProveedor));
+      if (response.data.success) {
+        setDiffModal({ open: true, stagingData: response.data.data, loading: false });
+      } else {
+        toast.error('No se pudo cargar los cambios');
+        setDiffModal({ open: false, stagingData: null, loading: false });
+      }
+    } catch {
+      toast.error('Error al cargar los cambios pendientes');
+      setDiffModal({ open: false, stagingData: null, loading: false });
+    }
+  };
+
+  const handleAutorizarEdicion = async () => {
+    if (!diffModal.stagingData) return;
+    try {
+      await API.post(AUTORIZAR_EDICION_ENDPOINT(diffModal.stagingData.idProveedor));
+      toast.success('Cambios autorizados y aplicados correctamente');
+      setDiffModal({ open: false, stagingData: null, loading: false });
+      await fetchProveedores();
     } catch (error: any) {
-      toast.error(error?.message ?? 'Error al rechazar proveedor');
+      toast.error(error?.message ?? 'Error al autorizar los cambios');
+    }
+  };
+
+  const handleRechazarEdicion = async (id?: number) => {
+    const proveedorId = id ?? diffModal.stagingData?.idProveedor;
+    if (!proveedorId) return;
+    try {
+      await API.post(RECHAZAR_EDICION_ENDPOINT(proveedorId));
+      toast.success('Cambios rechazados. El proveedor vuelve a su estado anterior.');
+      setDiffModal({ open: false, stagingData: null, loading: false });
+      await fetchProveedores();
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Error al rechazar los cambios');
     }
   };
 
@@ -508,11 +626,14 @@ export default function ProveedoresList() {
         const isAprobado = estatus === ESTATUS.APROBADO;
         const isRechazado = estatus === ESTATUS.RECHAZADO;
         const isNuevo = estatus === ESTATUS.NUEVO;
+        const isEditadoPendiente = estatus === ESTATUS.EDITADO_PENDIENTE;
 
         const badgeClass = isAprobado
           ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50'
           : isRechazado
           ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
+          : isEditadoPendiente
+          ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-50'
           : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-50';
 
         return (
@@ -567,6 +688,28 @@ export default function ProveedoresList() {
                   variant="outline"
                   className="h-8 gap-1.5 text-red-600 border-red-600 hover:bg-red-50"
                   onClick={() => setRejectModal({ open: true, proveedorId: proveedor.idProveedor })}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Rechazar
+                </Button>
+              </>
+            )}
+            {proveedor.estatus === ESTATUS.EDITADO_PENDIENTE && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-purple-600 border-purple-600 hover:bg-purple-50"
+                  onClick={() => handleVerDiff(proveedor.idProveedor)}
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Ver Cambios
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 text-red-600 border-red-600 hover:bg-red-50"
+                  onClick={() => handleRechazarEdicion(proveedor.idProveedor)}
                 >
                   <X className="h-3.5 w-3.5" />
                   Rechazar
@@ -897,118 +1040,140 @@ export default function ProveedoresList() {
               </div>
 
               {cuentasFormaPago.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">
+                <p className="text-xs text-muted-foreground py-3 px-3 border border-dashed border-muted rounded-lg text-center">
                   Sin cuentas registradas. Usa "Agregar Cuenta" para añadir cuentas bancarias.
                 </p>
               ) : (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
+                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                   {cuentasFormaPago.map((cuenta, index) => (
-                    <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-2 p-3 border rounded-lg bg-gray-50/50">
-                      {/* Forma de Pago */}
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Forma de Pago</label>
-                        <Select
-                          value={String(cuenta.idFormaPago || '')}
-                          onValueChange={(val) => {
-                            const updated = [...cuentasFormaPago];
-                            updated[index].idFormaPago = Number(val);
-                            updated[index].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
-                            setCuentasFormaPago(updated);
+                    <div key={index} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
+                      {/* Header de la tarjeta */}
+                      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100/80 border-b border-gray-200">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
+                            {index + 1}
+                          </span>
+                          <span className="text-xs font-medium text-gray-700">
+                            {cuenta.formaPagoNombre || 'Forma de pago'}
+                            {cuenta.bancoNombre ? ` · ${cuenta.bancoNombre}` : ''}
+                          </span>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 gap-1 text-xs"
+                          onClick={() => {
+                            setDeleteCuentaIndex(index);
+                            setDeleteCuentaModal(true);
                           }}
                         >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Forma" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {formasPago.map((fp) => (
-                              <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
-                                {fp.clave ? `${fp.clave} - ${fp.nombre}` : fp.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span>Eliminar</span>
+                        </Button>
                       </div>
 
-                      {/* Banco */}
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Banco</label>
-                        <Select
-                          value={String(cuenta.idBanco || '')}
-                          onValueChange={(val) => {
-                            const updated = [...cuentasFormaPago];
-                            updated[index].idBanco = Number(val);
-                            updated[index].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
-                            setCuentasFormaPago(updated);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder="Banco" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {bancos.map((b) => (
-                              <SelectItem key={b.idBanco} value={String(b.idBanco)}>
-                                {b.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {/* Campos de la tarjeta */}
+                      <div className="p-4">
+                        {/* Fila 1: Forma de Pago + Banco */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                          {/* Forma de Pago */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago</label>
+                            <Select
+                              value={String(cuenta.idFormaPago || '')}
+                              onValueChange={(val) => {
+                                const updated = [...cuentasFormaPago];
+                                updated[index].idFormaPago = Number(val);
+                                updated[index].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
+                                setCuentasFormaPago(updated);
+                              }}
+                            >
+                              <SelectTrigger className="h-9 text-sm bg-white">
+                                <SelectValue placeholder="Selecciona forma de pago..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {formasPago.map((fp) => (
+                                  <SelectItem key={fp.idFormaPago} value={String(fp.idFormaPago)}>
+                                    {fp.clave ? `${fp.clave} - ${fp.nombre}` : fp.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      {/* Número de Cuenta */}
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">No. Cuenta</label>
-                        <Input
-                          className="h-8 text-xs"
-                          placeholder="****1234"
-                          value={cuenta.numeroCuenta || ''}
-                          onChange={(e) => {
-                            const updated = [...cuentasFormaPago];
-                            updated[index].numeroCuenta = e.target.value;
-                            setCuentasFormaPago(updated);
-                          }}
-                        />
-                      </div>
+                          {/* Banco */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco</label>
+                            <Select
+                              value={String(cuenta.idBanco || '')}
+                              onValueChange={(val) => {
+                                const updated = [...cuentasFormaPago];
+                                updated[index].idBanco = Number(val);
+                                updated[index].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
+                                setCuentasFormaPago(updated);
+                              }}
+                            >
+                              <SelectTrigger className="h-9 text-sm bg-white">
+                                <SelectValue placeholder="Selecciona banco..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {bancos.map((b) => (
+                                  <SelectItem key={b.idBanco} value={String(b.idBanco)}>
+                                    {b.nombre}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
 
-                      {/* CLABE */}
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">CLABE</label>
-                        <Input
-                          className="h-8 text-xs"
-                          placeholder="CLABE 18 dígitos"
-                          value={cuenta.clabe || ''}
-                          onChange={(e) => {
-                            const updated = [...cuentasFormaPago];
-                            updated[index].clabe = e.target.value;
-                            setCuentasFormaPago(updated);
-                          }}
-                        />
-                      </div>
+                        {/* Fila 2: Número de Cuenta + CLABE + Beneficiario */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {/* Número de Cuenta */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta</label>
+                            <Input
+                              className="h-9 text-sm bg-white"
+                              placeholder="****1234"
+                              value={cuenta.numeroCuenta || ''}
+                              onChange={(e) => {
+                                const updated = [...cuentasFormaPago];
+                                updated[index].numeroCuenta = e.target.value;
+                                setCuentasFormaPago(updated);
+                              }}
+                            />
+                          </div>
 
-                      {/* Beneficiario */}
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Beneficiario</label>
-                        <div className="flex gap-1">
-                          <Input
-                            className="h-8 text-xs flex-1"
-                            placeholder="Nombre"
-                            value={cuenta.beneficiario || ''}
-                            onChange={(e) => {
-                              const updated = [...cuentasFormaPago];
-                              updated[index].beneficiario = e.target.value;
-                              setCuentasFormaPago(updated);
-                            }}
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => {
-                              setCuentasFormaPago((prev) => prev.filter((_, i) => i !== index));
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          {/* CLABE */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria</label>
+                            <Input
+                              className="h-9 text-sm bg-white"
+                              placeholder="18 dígitos"
+                              value={cuenta.clabe || ''}
+                              onChange={(e) => {
+                                const updated = [...cuentasFormaPago];
+                                updated[index].clabe = e.target.value;
+                                setCuentasFormaPago(updated);
+                              }}
+                            />
+                          </div>
+
+                          {/* Beneficiario */}
+                          <div className="space-y-1">
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario</label>
+                            <Input
+                              className="h-9 text-sm bg-white"
+                              placeholder="Nombre del beneficiario"
+                              value={cuenta.beneficiario || ''}
+                              onChange={(e) => {
+                                const updated = [...cuentasFormaPago];
+                                updated[index].beneficiario = e.target.value;
+                                setCuentasFormaPago(updated);
+                              }}
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1018,6 +1183,35 @@ export default function ProveedoresList() {
             </div>
           </form>
         </Form>
+      </Modal>
+
+      {/* Modal confirmación eliminar cuenta */}
+      <Modal
+        id="modal-delete-cuenta"
+        open={deleteCuentaModal}
+        setOpen={(open) => { if (!open) { setDeleteCuentaModal(false); setDeleteCuentaIndex(-1); } }}
+        title="Eliminar Cuenta"
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => { setDeleteCuentaModal(false); setDeleteCuentaIndex(-1); }}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="destructive" onClick={() => {
+              if (deleteCuentaIndex >= 0) {
+                setCuentasFormaPago((prev) => prev.filter((_, i) => i !== deleteCuentaIndex));
+              }
+              setDeleteCuentaModal(false);
+              setDeleteCuentaIndex(-1);
+            }}>
+              Eliminar Cuenta
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted-foreground">
+          ¿Estás seguro de eliminar esta cuenta bancaria? Esta acción no se puede deshacer.
+        </p>
       </Modal>
 
       <Modal
@@ -1067,6 +1261,76 @@ export default function ProveedoresList() {
             />
           </div>
         </div>
+      </Modal>
+
+      {/* Diff Modal - Cambios Pendientes de Edición */}
+      <Modal
+        id="modal-diff"
+        open={diffModal.open}
+        setOpen={(open) => setDiffModal((prev) => ({ ...prev, open }))}
+        title="Cambios Pendientes de Autorizar"
+        size="lg"
+        footer={
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setDiffModal((prev) => ({ ...prev, open: false }))}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="outline" className="text-red-600 border-red-600 hover:bg-red-50" onClick={() => handleRechazarEdicion()}>
+              <X className="mr-2 h-4 w-4" />
+              Rechazar Cambios
+            </Button>
+            <Button type="button" className="bg-purple-600 hover:bg-purple-700" onClick={handleAutorizarEdicion}>
+              <Check className="mr-2 h-4 w-4" />
+              Autorizar Cambios
+            </Button>
+          </div>
+        }
+      >
+        {diffModal.loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            <span className="ml-2 text-sm text-muted-foreground">Cargando cambios...</span>
+          </div>
+        ) : diffModal.stagingData ? (
+          <div className="space-y-4">
+            {diffModal.stagingData.diferencias.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No hay diferencias detectadas.</p>
+            ) : (
+              <div className="border rounded-md overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-muted-foreground">Campo</th>
+                      <th className="text-left px-4 py-2 font-medium text-red-600">Valor Anterior</th>
+                      <th className="text-left px-4 py-2 font-medium text-green-600">Valor Nuevo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {diffModal.stagingData.diferencias.map((diff, idx) => (
+                      <tr key={idx} className="hover:bg-muted/50">
+                        <td className="px-4 py-2 font-medium">{diff.label}</td>
+                        <td className="px-4 py-2 text-red-600 bg-red-50">
+                          {diff.valorAnterior ?? <span className="text-muted-foreground italic">vacío</span>}
+                        </td>
+                        <td className="px-4 py-2 text-green-600 bg-green-50">
+                          {diff.valorNuevo ?? <span className="text-muted-foreground italic">vacío</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div className="flex items-center gap-3 p-3 bg-purple-50 border border-purple-200 rounded-md">
+              <Check className="h-4 w-4 text-purple-600" />
+              <span className="text-sm text-purple-700">
+                ¿Autorizar estos cambios? Se aplicarán al proveedor y se actualizará su información.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground text-center py-4">No hay datos de cambios disponibles.</p>
+        )}
       </Modal>
 
       {/* Fullscreen image viewer */}

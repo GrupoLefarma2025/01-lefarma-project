@@ -7,8 +7,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdOrden { get; set; }
         public string Folio { get; set; } = string.Empty;
         public int IdEmpresa { get; set; }
+        public string? EmpresaNombre { get; set; }
         public int IdSucursal { get; set; }
+        public string? SucursalNombre { get; set; }
         public int IdArea { get; set; }
+        public string? AreaNombre { get; set; }
         public int IdTipoGasto { get; set; }
         public int? IdProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }

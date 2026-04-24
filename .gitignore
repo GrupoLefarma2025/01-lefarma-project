@@ -51,6 +51,9 @@ test-results/
 *.db
 *.sqlite
 
+# SQL Server connections (private)
+.skills/sql-server-query/connections.yaml
+
 # Entity Framework
 **/Migrations/
 
