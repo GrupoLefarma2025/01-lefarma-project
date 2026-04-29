@@ -188,8 +188,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         hasFirma: null,
       });
 
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login';
+    if (window.location.pathname !== '/') {
+      window.location.href = '/';
     }
   },
 
