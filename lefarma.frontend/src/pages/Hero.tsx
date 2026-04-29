@@ -1,61 +1,44 @@
 ﻿import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
-import {
-  Package,
-  BarChart3,
-  Users,
-  Shield,
-  Globe,
-  ArrowRight,
-  Sparkles,
-  Calendar,
-} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Package, BarChart3, Users, Shield, Globe, ArrowRight, Pill, Calendar } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
 const novedades = [
   {
     id: 1,
-    icon: Package,
-    title: 'Control de Inventarios',
-    description: 'Monitoreo en tiempo real de stock',
-    category: 'Operaciones',
-    date: 'Mar 2026',
+    icon: BarChart3,
+    title: 'Reportes de Gastos',
+    description: 'Visualiza métricas y gráficos en tiempo real',
+    category: 'Finanzas',
   },
   {
     id: 2,
-    icon: BarChart3,
-    title: 'Reportes Dinámicos',
-    description: 'Dashboards interactivos y personalizados',
-    category: 'Análisis',
-    date: 'Feb 2026',
+    icon: Users,
+    title: 'Gestión de Usuarios',
+    description: 'Control de accesos con roles y permisos',
+    category: 'Administración',
   },
   {
     id: 3,
-    icon: Users,
-    title: 'Gestión de Usuarios',
-    description: 'Roles y permisos granulares',
-    category: 'Administración',
-    date: 'Ene 2026',
+    icon: Shield,
+    title: 'Seguridad LDAP',
+    description: 'Autenticación integrada con Active Directory',
+    category: 'Seguridad',
   },
   {
     id: 4,
-    icon: Shield,
-    title: 'Seguridad Mejorada',
-    description: 'Autenticación con Active Directory',
-    category: 'Seguridad',
-    date: 'Dic 2025',
+    icon: Globe,
+    title: 'Multi-Empresa',
+    description: 'Administra varias empresas y sucursales',
+    category: 'Plataforma',
   },
   {
     id: 5,
-    icon: Globe,
-    title: 'Multi-Empresa',
-    description: 'Una plataforma, múltiples empresas',
-    category: 'Plataforma',
-    date: 'Nov 2025',
+    icon: Package,
+    title: 'Control de Inventarios',
+    description: 'Gestión de stock e insumos médicos',
+    category: 'Operaciones',
   },
 ];
 
@@ -64,87 +47,89 @@ export default function Hero() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background border-b border-border">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <img
-            src={logoEstatico}
-            alt="Grupo LeFarma"
-            className="h-10 w-auto"
-          />
+      <header className="fixed left-0 right-0 top-0 z-50 border-b border-border bg-background">
+        <div className="container mx-auto flex items-center justify-between px-4 py-4">
+          <img src={logoEstatico} alt="Grupo LeFarma" className="h-10 w-auto" />
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigate('/ayuda')} variant="ghost" className="text-muted-foreground hover:text-foreground">
+            <Button
+              onClick={() => navigate('/ayuda')}
+              variant="ghost"
+              className="text-muted-foreground hover:text-foreground"
+            >
               Ayuda
             </Button>
-            <Button onClick={() => navigate('/login')} variant="outline" className="border-primary text-primary hover:bg-primary hover:text-primary-foreground">
+            <Button
+              onClick={() => navigate('/login')}
+              variant="outline"
+              className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            >
               Iniciar Sesión
             </Button>
           </div>
         </div>
       </header>
 
-      <section className="pt-20 min-h-screen flex items-center">
+      <section className="flex min-h-screen items-center pt-20">
         <div className="container mx-auto px-4">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+          <div className="grid items-center gap-8 lg:grid-cols-2 lg:gap-12">
             <div className="order-2 lg:order-1">
-              <div className="relative aspect-square max-w-md mx-auto lg:max-w-none">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-transparent rounded-3xl" />
-                
+              <div className="relative mx-auto aspect-square max-w-md lg:max-w-none">
+                <div className="from-primary/20 via-primary/10 absolute inset-0 rounded-3xl bg-gradient-to-br to-transparent" />
+
                 <div className="absolute inset-0 opacity-30">
-                  <div className="absolute top-8 left-8 w-24 h-24 border-2 border-primary/40 rounded-2xl rotate-12" />
-                  <div className="absolute bottom-12 right-12 w-32 h-32 border border-primary/30 rounded-full" />
-                  <div className="absolute top-1/3 right-8 w-16 h-16 bg-primary/20 rounded-xl -rotate-6" />
+                  <div className="border-primary/40 absolute left-8 top-8 h-24 w-24 rotate-12 rounded-2xl border-2" />
+                  <div className="border-primary/30 absolute bottom-12 right-12 h-32 w-32 rounded-full border" />
+                  <div className="bg-primary/20 absolute right-8 top-1/3 h-16 w-16 -rotate-6 rounded-xl" />
                 </div>
 
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="relative">
-                    <div className="w-48 h-48 lg:w-64 lg:h-64 bg-card rounded-3xl shadow-2xl border border-border flex items-center justify-center overflow-hidden">
+                    <div className="flex h-48 w-48 items-center justify-center overflow-hidden rounded-3xl border border-border bg-card shadow-2xl lg:h-64 lg:w-64">
                       <img
                         src={logoEstatico}
-                        alt="Grupo LeFarma"
-                        className="w-3/4 h-auto object-contain"
+                        alt="Grupo Lefarma"
+                        className="h-auto w-3/4 object-contain"
                       />
                     </div>
-                    <div className="absolute -top-4 -right-4 w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-lg">
-                      <Sparkles className="w-6 h-6 text-primary-foreground" />
+                    <div className="absolute -right-4 -top-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-lg">
+                      <Pill className="h-6 w-6 text-primary-foreground" />
                     </div>
-                    <div className="absolute -bottom-3 -left-3 w-10 h-10 bg-muted rounded-lg flex items-center justify-center border border-border">
-                      <Package className="w-5 h-5 text-primary" />
+                    <div className="absolute -bottom-3 -left-3 flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted">
+                      <Package className="h-5 w-5 text-primary" />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="order-1 lg:order-2 text-center lg:text-left">
+            <div className="order-1 text-center lg:order-2 lg:text-left">
               <p className="text-sm text-muted-foreground mb-3 flex items-center justify-center lg:justify-start gap-2">
-                <Sparkles className="w-4 h-4 text-primary" />
-                Bienvenido a Grupolefarma
+                <Pill className="w-4 h-4 text-primary" />
+                Portal Interno - Grupo LeFarma
               </p>
-              
+
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 leading-tight">
-                Sistema de Gestión
-                <br />
-                <span className="text-primary">Farmacéutica</span>
+                Control de Gastos
               </h1>
-              
+
               <p className="text-lg text-muted-foreground mb-8 max-w-lg mx-auto lg:mx-0">
-                La plataforma integral para la gestión de tu farmacéutica.
+                Plataforma interna para la gestión de gastos del grupo LeFarma.
               </p>
-              
-              <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
-                <Button 
-                  size="lg" 
-                  onClick={() => navigate('/login')} 
-                  className="gap-2 text-base px-8"
+
+              <div className="flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">
+                <Button
+                  size="lg"
+                  onClick={() => navigate('/login')}
+                  className="gap-2 px-8 text-base"
                 >
                   Iniciar Sesión
                   <ArrowRight className="h-5 w-5" />
                 </Button>
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   variant="outline"
-                  onClick={() => navigate('/ayuda')} 
-                  className="gap-2 text-base px-8 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                  onClick={() => navigate('/ayuda')}
+                  className="gap-2 border-primary px-8 text-base text-primary hover:bg-primary hover:text-primary-foreground"
                 >
                   Ayuda
                 </Button>
@@ -154,46 +139,41 @@ export default function Hero() {
         </div>
       </section>
 
-      <section className="py-16 border-t border-border">
-        <div className="container mx-auto px-4 mb-8">
-          <h2 className="text-2xl font-bold text-foreground flex items-center gap-3">
-            <Calendar className="w-6 h-6 text-primary" />
+      <section className="border-t border-border py-16">
+        <div className="container mx-auto mb-8 px-4">
+          <h2 className="flex items-center gap-3 text-2xl font-bold text-foreground">
+            <Calendar className="h-6 w-6 text-primary" />
             Novedades del Sistema
           </h2>
-          <p className="text-muted-foreground mt-2">
-            Explora las últimas actualizaciones y mejoras
+          <p className="mt-2 text-muted-foreground">
+            Explora las últimas actualizaciones y mejoras del sistema
           </p>
         </div>
 
         <div className="relative">
-          <div className="overflow-x-auto scrollbar-hide pb-4">
-            <div className="flex gap-4 px-4 container mx-auto">
+          <div className="scrollbar-hide overflow-x-auto pb-4">
+            <div className="container mx-auto flex gap-4 px-4">
               {novedades.map((item) => {
                 const Icon = item.icon;
                 return (
                   <Card
                     key={item.id}
-                    className="min-w-[280px] flex-shrink-0 bg-card hover:bg-card/80 transition-colors cursor-pointer group"
+                    className="hover:bg-card/80 group min-w-[280px] flex-shrink-0 cursor-pointer bg-card transition-colors"
                   >
                     <CardContent className="p-5">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      <div className="mb-3 flex items-start justify-between">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                           <Icon className="h-5 w-5 text-primary" />
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          {item.date}
-                        </span>
                       </div>
-                      
-                      <h3 className="font-semibold text-foreground mb-1">
-                        {item.title}
-                      </h3>
-                      
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-1">
+
+                      <h3 className="mb-1 font-semibold text-foreground">{item.title}</h3>
+
+                      <p className="mb-3 line-clamp-1 text-sm text-muted-foreground">
                         {item.description}
                       </p>
-                      
-                      <span className="inline-block text-xs px-2 py-1 bg-muted rounded-md text-muted-foreground">
+
+                      <span className="inline-block rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
                         {item.category}
                       </span>
                     </CardContent>
@@ -202,12 +182,12 @@ export default function Hero() {
               })}
             </div>
           </div>
-          
-          <div className="flex justify-center gap-1 mt-4">
+
+          <div className="mt-4 flex justify-center gap-1">
             {novedades.map((_, index) => (
               <div
                 key={index}
-                className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30 first:bg-primary"
+                className="bg-muted-foreground/30 h-1.5 w-1.5 rounded-full first:bg-primary"
               />
             ))}
           </div>
@@ -219,7 +199,7 @@ export default function Hero() {
           <p className="text-sm text-muted-foreground">
             Grupo LeFarma © {new Date().getFullYear()} - Da Salud
           </p>
-          <p className="text-xs text-muted-foreground/60 mt-1">
+          <p className="text-muted-foreground/60 mt-1 text-xs">
             Versión {import.meta.env.VITE_APP_VERSION || '1.0.0'}
           </p>
         </div>
