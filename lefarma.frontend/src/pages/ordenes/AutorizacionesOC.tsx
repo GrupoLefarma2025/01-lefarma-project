@@ -54,6 +54,7 @@ import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
+import type { WorkflowEstado } from '@/types/workflow.types';
 import type { PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
@@ -66,9 +67,37 @@ import { toApiError } from '@/utils/errors';
 
 interface AccionDisponibleResponse {
   idAccion: number;
-  nombreAccion: string;
-  tipoAccion: string;
-  claseEstetica: string;
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
+  
+  // Requisitos del paso
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto: boolean;
+  
+  // Handlers y campos para modal dinámico
+  handlers: AccionHandlerResponse[];
+  camposWorkflow: WorkflowCampoResponse[];
+  camposRequeridos: string[];
+}
+
+interface AccionHandlerResponse {
+  idHandler: number;
+  handlerKey: string;
+  requerido: boolean;
+  configuracionJson?: string | null;
+  ordenEjecucion: number;
+  campo?: WorkflowCampoResponse | null;
+}
+
+interface WorkflowCampoResponse {
+  idWorkflowCampo: number;
+  nombreTecnico: string;
+  etiquetaUsuario: string;
+  tipoControl: string;
+  sourceCatalog?: string | null;
 }
 
 interface HistorialWorkflowItemResponse {
@@ -105,7 +134,10 @@ interface WorkflowHandlerConfig {
 interface WorkflowAccionConfig {
   idAccion: number;
   nombreAccion: string;
-  tipoAccion: string;
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
   handlers: WorkflowHandlerConfig[];
 }
 
@@ -157,60 +189,38 @@ interface WorkflowConfigResponse {
   campos: WorkflowCampoConfig[];
 }
 
-const ESTADO_BADGE: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  Creada: 'outline',
-  EnRevisionF2: 'secondary',
-  EnRevisionF3: 'secondary',
-  EnRevisionF4: 'secondary',
-  EnRevisionF5: 'secondary',
-  Autorizada: 'default',
-  EnTesoreria: 'default',
-  Pagada: 'default',
-  EnComprobacion: 'outline',
-  Cerrada: 'default',
-  Rechazada: 'destructive',
-  Cancelada: 'outline',
-};
+interface WorkflowFlowResponse {
+  idWorkflow: number;
+  nombre: string;
+  codigoProceso: string;
+  version: number;
+  activo: boolean;
+  pasos: WorkflowPasoFlowResponse[];
+}
 
-const ESTADO_LABEL: Record<string, string> = {
-  Creada: 'Creada',
-  EnRevisionF2: 'En revisión - Firma 2',
-  EnRevisionF3: 'En revisión - Firma 3',
-  EnRevisionF4: 'En revisión - Firma 4',
-  EnRevisionF5: 'En revisión - Firma 5',
-  Autorizada: 'Autorizada',
-  EnTesoreria: 'En tesorería',
-  Pagada: 'Pagada',
-  EnComprobacion: 'En comprobación',
-  Cerrada: 'Cerrada',
-  Rechazada: 'Rechazada',
-  Cancelada: 'Cancelada',
-};
-
-const ESTADO_BADGE_CLASS: Record<string, string> = {
-  Creada: 'border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/40',
-  EnRevisionF2: 'border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30',
-  EnRevisionF3: 'border-indigo-300 text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30',
-  EnRevisionF4: 'border-violet-300 text-violet-700 bg-violet-50 dark:bg-violet-950/30',
-  EnRevisionF5: 'border-fuchsia-300 text-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-950/30',
-  Autorizada: 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30',
-  EnTesoreria: 'border-cyan-300 text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30',
-  Pagada: 'border-teal-300 text-teal-700 bg-teal-50 dark:bg-teal-950/30',
-  EnComprobacion: 'border-amber-300 text-amber-800 bg-amber-50 dark:bg-amber-950/30',
-  Cerrada: 'border-green-400 text-green-800 bg-green-100 dark:bg-green-950/40',
-  Rechazada: 'border-red-400 text-red-800 bg-red-100 dark:bg-red-950/40',
-  Cancelada: 'border-zinc-400 text-zinc-700 bg-zinc-100 dark:bg-zinc-900/50',
-};
+interface WorkflowPasoFlowResponse {
+  idPaso: number;
+  orden: number;
+  nombrePaso: string;
+  idEstado?: number;
+  descripcionAyuda?: string | null;
+  esInicio: boolean;
+  esFinal: boolean;
+  activo: boolean;
+  requiereFirma: boolean;
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto: boolean;
+}
 
 type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string };
 
-function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFormItem[] {
-  if (!accionConfig) return [];
+function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoFormItem[] {
+  if (!accion) return [];
   const result: CampoFormItem[] = [];
   const seen = new Set<string>();
 
-  const handlers = [...(accionConfig.handlers || [])]
-    .filter((h) => h.activo)
+  const handlers = [...(accion.handlers || [])]
     .sort((a, b) => a.ordenEjecucion - b.ordenEjecucion);
 
   for (const handler of handlers) {
@@ -220,7 +230,18 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
+          result.push({ 
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: handler.campo.tipoControl,
+              sourceCatalog: handler.campo.sourceCatalog,
+              activo: true
+            }, 
+            requerido: handler.requerido, 
+            inputKey 
+          });
         }
       }
 
@@ -229,7 +250,18 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
+          result.push({ 
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: handler.campo.tipoControl,
+              sourceCatalog: handler.campo.sourceCatalog,
+              activo: true
+            }, 
+            requerido: handler.requerido, 
+            inputKey 
+          });
         }
       }
     } catch {
@@ -250,11 +282,8 @@ export default function AutorizacionesOC() {
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompraResponse | null>(null);
   const [acciones, setAcciones] = useState<AccionDisponibleResponse[]>([]);
   const [historial, setHistorial] = useState<HistorialWorkflowItemResponse[]>([]);
-  const [pasosWorkflow, setPasosWorkflow] = useState<WorkflowPasoConfig[]>([]);
-  const [workflowCampos, setWorkflowCampos] = useState<WorkflowCampoConfig[]>([]);
-  const [accionesConfig, setAccionesConfig] = useState<Map<number, WorkflowAccionConfig>>(
-    new Map()
-  );
+  const [workflowsMap, setWorkflowsMap] = useState<Map<number, WorkflowFlowResponse>>(new Map());
+  const [pasosWorkflow, setPasosWorkflow] = useState<WorkflowPasoFlowResponse[]>([]);
   const [expandedPasoId, setExpandedPasoId] = useState<number | null>(null);
   const [expandedPartidaId, setExpandedPartidaId] = useState<number | null>(null);
   const pasosContainerRef = useRef<HTMLDivElement | null>(null);
@@ -293,13 +322,18 @@ export default function AutorizacionesOC() {
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
+  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
 
   const estados = useMemo(() => {
-    const values = Array.from(new Set(ordenes.map((o) => o.estado))).sort();
-    return ['all', ...values];
+    const values = Array.from(new Set(ordenes.map((o) => o.idEstado))).sort((a, b) => a - b);
+    return ['all', ...values.map(String)];
   }, [ordenes]);
 
-  const getEstadoLabel = (estado: string) => ESTADO_LABEL[estado] || estado;
+  const getEstadoInfo = (idEstado: number | null | undefined) => {
+    if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
+    const e = workflowEstados.find((est) => est.idEstado === idEstado);
+    return { nombre: e?.nombre ?? `Estado ${idEstado}`, color: e?.colorHex ?? '#94a3b8' };
+  };
   const formatCurrency = (value: number) =>
     value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
@@ -404,12 +438,10 @@ export default function AutorizacionesOC() {
       }
 
       const historialData = historialRes.data?.data || [];
-      console.log('[Detalle] Historial data:', historialData);
+      console.log(`Bitacora de oriden ${idOrden} :`, historialData);
       if (historialData.length > 0) {
-        console.log('[Detalle] Llamando fetchFirmasUsuarios con', historialData.length, 'items');
         await fetchFirmasUsuarios(historialData);
       } else {
-        console.log('[Detalle] Historial vacío, limpiando firmasMap');
         setFirmasMap(new Map());
       }
 
@@ -456,39 +488,50 @@ export default function AutorizacionesOC() {
     }
   };
 
-  const fetchPasosWorkflow = async () => {
+  const fetchAllWorkflowsFlow = async () => {
     try {
-      const listRes = await API.get<ApiResponse<WorkflowListItem[]>>('/config/workflows');
-      const workflows = listRes.data.data || [];
-      const workflowOc = workflows.find((w) => w.codigoProceso === 'ORDEN_COMPRA');
-      if (!workflowOc) return;
-
-      const detailRes = await API.get<ApiResponse<WorkflowConfigResponse>>(
-        `/config/workflows/${workflowOc.idWorkflow}`
-      );
-      const data = detailRes.data.data;
-      if (!data) return;
-
-      const pasos = (data.pasos || []).slice().sort((a, b) => a.orden - b.orden);
-      setPasosWorkflow(pasos);
-      setWorkflowCampos((data.campos || []).filter((c) => c.activo));
-
-      // Build idAccion → WorkflowAccionConfig map for fast lookup
-      const map = new Map<number, WorkflowAccionConfig>();
-      for (const paso of pasos) {
-        for (const accion of paso.acciones || []) {
-          map.set(accion.idAccion, accion);
+      const res = await API.get<ApiResponse<WorkflowFlowResponse[]>>('/config/workflows/flow');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, WorkflowFlowResponse>();
+        for (const w of res.data.data) {
+          map.set(w.idWorkflow, w);
         }
+        setWorkflowsMap(map);
       }
-      setAccionesConfig(map);
     } catch {
+      setWorkflowsMap(new Map());
+    }
+  };
+
+  const applyWorkflowToState = (idWorkflow?: number | null) => {
+    if (!idWorkflow) {
+      setPasosWorkflow([]);
+      return;
+    }
+    const workflow = workflowsMap.get(idWorkflow);
+    if (workflow) {
+      const pasos = (workflow.pasos || []).filter(p => p.activo).sort((a, b) => a.orden - b.orden);
+      setPasosWorkflow(pasos);
+    } else {
       setPasosWorkflow([]);
     }
   };
 
+  const fetchEstados = async () => {
+    try {
+      const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
+      if (res.data?.success) {
+        setWorkflowEstados(res.data.data || []);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
   useEffect(() => {
+    fetchEstados(); 
     fetchOrdenes();
-    fetchPasosWorkflow();
+    fetchAllWorkflowsFlow();
   }, []);
 
   useEffect(() => {
@@ -496,18 +539,23 @@ export default function AutorizacionesOC() {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!selectedOrden) return;
+    if (!selectedOrden) {
+      setPasosWorkflow([]);
+      return;
+    }
     setExpandedPasoId(selectedOrden.idPasoActual ?? null);
     setExpandedPartidaId(selectedOrden.partidas[0]?.idPartida ?? null);
-  }, [selectedOrden]);
+    if (selectedOrden.idWorkflow) {
+      applyWorkflowToState(selectedOrden.idWorkflow);
+    }
+  }, [selectedOrden, workflowsMap]);
 
   const abrirModalFirma = (accion: AccionDisponibleResponse) => {
     setAccionSeleccionada(accion);
     setComentarioFirma('');
 
     // Pre-populate campos with existing values from the order
-    const accionCfg = accionesConfig.get(accion.idAccion) ?? null;
-    const campos = getCamposParaAccion(accionCfg);
+    const campos = getCamposParaAccion(accion);
     const initialValues: Record<string, unknown> = {};
     if (selectedOrden) {
       const ordenAny = selectedOrden as unknown as Record<string, unknown>;
@@ -591,8 +639,8 @@ export default function AutorizacionesOC() {
     setComprobantesWorkflow({});
   };
 
-  const esRechazo = accionSeleccionada?.tipoAccion === 'RECHAZO';
-  const esRetorno = accionSeleccionada?.tipoAccion === 'RETORNO';
+  const esRechazo = accionSeleccionada?.tipoAccionCodigo === 'RECHAZAR' || accionSeleccionada?.tipoAccionCodigo === 'CANCELAR' ;
+  const esRetorno = accionSeleccionada?.tipoAccionCodigo === 'DEVOLVER';
   const colorAccion = esRechazo
     ? 'text-red-600'
     : esRetorno
@@ -605,12 +653,9 @@ export default function AutorizacionesOC() {
       : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800';
 
   // Dynamic campos for the modal based on the selected action's handlers
-  const accionConfig = accionSeleccionada
-    ? (accionesConfig.get(accionSeleccionada.idAccion) ?? null)
-    : null;
   const camposParaAccion = useMemo(
-    () => getCamposParaAccion(accionConfig),
-    [accionConfig, workflowCampos]
+    () => getCamposParaAccion(accionSeleccionada),
+    [accionSeleccionada]
   );
 
   const enviarFirma = async () => {
@@ -670,8 +715,8 @@ export default function AutorizacionesOC() {
         return;
       }
 
-      // Validate requiereAdjunto from paso config
-      if (currentPaso?.requiereAdjunto && adjuntosLibres.length === 0) {
+      // Validate requiereAdjunto from action config
+      if (accionSeleccionada?.requiereAdjunto && adjuntosLibres.length === 0) {
         toast.error('Debes adjuntar al menos un documento para esta acción');
         setIsSubmittingFirma(false);
         return;
@@ -683,7 +728,7 @@ export default function AutorizacionesOC() {
         datosAdicionales: Object.keys(datosAdicionales).length > 0 ? datosAdicionales : null,
       });
 
-      toast.success(`Acción "${accionSeleccionada.nombreAccion}" ejecutada correctamente`);
+      toast.success(`Acción "${accionSeleccionada.tipoAccionNombre}" ejecutada correctamente`);
       cerrarModalFirma();
       await Promise.all([fetchOrdenes(), fetchDetalle(selectedOrden.idOrden)]);
     } catch (error: unknown) {
@@ -697,7 +742,7 @@ export default function AutorizacionesOC() {
   };
 
   const textoBotonConfirmar = accionSeleccionada
-    ? `Confirmar ${accionSeleccionada.nombreAccion.toLowerCase()}`
+    ? `Confirmar ${accionSeleccionada.tipoAccionNombre?.toLowerCase()}`
     : 'Confirmar';
 
   const pasosMap = useMemo(
@@ -725,7 +770,7 @@ export default function AutorizacionesOC() {
       actionName.includes('enviar') ||
       actionName.includes('marcar')
     )
-      return 'aprobacion';
+      return 'autorizacion';
     return 'otro';
   };
 
@@ -749,7 +794,7 @@ export default function AutorizacionesOC() {
       const isActual = selectedOrden?.idPasoActual === paso.idPaso;
       const isRechazado = !isActual && tipoUltimoEvento === 'rechazo';
       const isDevuelto = !isActual && tipoUltimoEvento === 'retorno';
-      const isCompletado = !isActual && tipoUltimoEvento === 'aprobacion';
+      const isCompletado = !isActual && tipoUltimoEvento === 'autorizacion';
       const isOmitido =
         !isActual &&
         !isCompletado &&
@@ -847,7 +892,7 @@ export default function AutorizacionesOC() {
 
   const filtered = useMemo(() => {
     return ordenes.filter((o) => {
-      const matchEstado = estadoFilter === 'all' || o.estado === estadoFilter;
+      const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
       const q = search.trim().toLowerCase();
       const matchSearch =
         q.length === 0 ||
@@ -865,18 +910,6 @@ export default function AutorizacionesOC() {
           <span className="font-medium">{row.original.folio}</span>
           <span className="text-xs text-muted-foreground">Proveedor #{row.original.idProveedor || 'N/A'}</span>
         </div>
-      ),
-    },
-    {
-      accessorKey: 'estado',
-      header: 'Paso actual',
-      cell: ({ row }) => (
-        <Badge
-          variant={ESTADO_BADGE[row.original.estado] || 'outline'}
-          className={ESTADO_BADGE_CLASS[row.original.estado]}
-        >
-          {getEstadoLabel(row.original.estado)}
-        </Badge>
       ),
     },
     {
@@ -898,6 +931,25 @@ export default function AutorizacionesOC() {
       ),
     },
     {
+      accessorKey: 'idEstado',
+      header: 'Estado',
+      cell: ({ row }) => {
+        const info = getEstadoInfo(row.original.idEstado);
+        return (
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors"
+            style={{
+              borderColor: info.color,
+              color: info.color,
+              backgroundColor: info.color + '15',
+            }}
+          >
+            {info.nombre}
+          </span>
+        );
+      },
+    },
+    {
       id: 'actions',
       header: 'Acción',
       cell: ({ row }) => (
@@ -911,7 +963,7 @@ export default function AutorizacionesOC() {
             <Eye className="h-3.5 w-3.5" />
             Revisar
           </Button>
-          {row.original.estado === 'Creada' && (
+          {row.original.idEstado === 1 && (
             <Button
               size="sm"
               variant="outline"
@@ -925,8 +977,7 @@ export default function AutorizacionesOC() {
         </div>
       ),
     },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], []);
+  ], [workflowEstados, navigate]);
 
   return (
     <div className="space-y-6">
@@ -954,7 +1005,9 @@ export default function AutorizacionesOC() {
               >
                 {estados.map((e) => (
                   <option key={e} value={e}>
-                    {e === 'all' ? 'Todos los estados' : getEstadoLabel(e)}
+                    {e === 'all'
+                      ? 'Todos los estados'
+                      : getEstadoInfo(Number(e)).nombre}
                   </option>
                 ))}
               </select>
@@ -1026,12 +1079,21 @@ export default function AutorizacionesOC() {
                             </p>
                           )}
                         </div>
-                        <Badge
-                          variant={ESTADO_BADGE[selectedOrden.estado] || 'outline'}
-                          className={ESTADO_BADGE_CLASS[selectedOrden.estado]}
-                        >
-                          {getEstadoLabel(selectedOrden.estado)}
-                        </Badge>
+                        {(() => {
+                          const info = getEstadoInfo(selectedOrden.idEstado);
+                          return (
+                            <span
+                              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                              style={{
+                                borderColor: info.color,
+                                color: info.color,
+                                backgroundColor: info.color + '15',
+                              }}
+                            >
+                              {info.nombre}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1418,8 +1480,8 @@ export default function AutorizacionesOC() {
                               const isDevuelto = paso.estadoVisual === 'devuelto';
                               const isPendiente = !isActual && !isCompletado && !isOmitido && !isRechazado && !isDevuelto;
                               const isExpanded = expandedPasoId === paso.idPaso;
-                              const isActualRechazada = isActual && selectedOrden?.estado === 'Rechazada';
-                              const isActualCancelada = isActual && selectedOrden?.estado === 'Cancelada';
+                              const isActualRechazada = isActual && selectedOrden?.idEstado === 8;
+                              const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
@@ -1623,11 +1685,11 @@ export default function AutorizacionesOC() {
                                                   <Button
                                                     key={a.idAccion}
                                                     size="sm"
-                                                    variant={a.tipoAccion === 'RECHAZO' ? 'destructive' : 'default'}
+                                                    variant={a.tipoAccionCodigo === 'RECHAZAR' ? 'destructive' : 'default'}
                                                     onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
-                                                    className={a.nombreAccion.toLowerCase().includes('devolver') ? 'hidden' : undefined}
+                                                    className={a.tipoAccionCodigo === 'DEVOLVER' ? 'hidden' : undefined}
                                                   >
-                                                    {a.nombreAccion}
+                                                    {a.tipoAccionNombre}
                                                   </Button>
                                                 ))
                                               )}
@@ -2007,7 +2069,7 @@ export default function AutorizacionesOC() {
           setIsFirmarModalOpen(open);
           if (!open) cerrarModalFirma();
         }}
-        title={accionSeleccionada ? `${accionSeleccionada.nombreAccion} orden` : 'Procesar firma'}
+        title={accionSeleccionada ? `${accionSeleccionada.tipoAccionNombre} orden` : 'Procesar firma'}
         size="lg"
         footer={
           <div className="flex w-full justify-end gap-2">
@@ -2029,8 +2091,8 @@ export default function AutorizacionesOC() {
           <div className={`rounded-md border p-3 ${bgAccion}`}>
             <p className={`text-sm font-semibold ${colorAccion}`}>{selectedOrden?.folio}</p>
             <p className="text-xs text-muted-foreground">
-              Estado actual: {selectedOrden?.estado}{' '}
-              {accionSeleccionada ? `• Acción: ${accionSeleccionada.nombreAccion}` : ''}
+              Estado actual: {selectedOrden ? getEstadoInfo(selectedOrden.idEstado).nombre : '-'}{' '}
+              {accionSeleccionada ? `• Acción: ${accionSeleccionada.tipoAccionNombre}` : ''}
             </p>
             {(esRechazo || esRetorno) && (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -2298,11 +2360,11 @@ export default function AutorizacionesOC() {
             <div className="flex items-center justify-between">
               <Label htmlFor="comentario-firma">
                 Comentario
-                {(esRechazo || esRetorno || currentPaso?.requiereComentario) && (
+                {(esRechazo || esRetorno || accionSeleccionada?.requiereComentario) && (
                   <span className="ml-1 text-red-500">*</span>
                 )}
               </Label>
-              {!esRechazo && !esRetorno && !currentPaso?.requiereComentario && (
+              {!esRechazo && !esRetorno && !accionSeleccionada?.requiereComentario && (
                 <span className="text-xs text-muted-foreground">Opcional</span>
               )}
             </div>
@@ -2326,13 +2388,13 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Adjunto libre — visible when paso allows free attachments */}
-          {currentPaso?.permiteAdjunto && selectedOrden && (
+          {/* Adjunto libre — visible when action allows free attachments */}
+          {accionSeleccionada?.permiteAdjunto && selectedOrden && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>
                   Documentos adjuntos
-                  {currentPaso.requiereAdjunto && (
+                  {accionSeleccionada.requiereAdjunto && (
                     <span className="ml-1 text-red-500">*</span>
                   )}
                   {adjuntosLibres.length > 0 && (
@@ -2341,7 +2403,7 @@ export default function AutorizacionesOC() {
                     </span>
                   )}
                 </Label>
-                {!currentPaso.requiereAdjunto && (
+                {!accionSeleccionada?.requiereAdjunto && (
                   <span className="text-xs text-muted-foreground">Opcional</span>
                 )}
               </div>
@@ -2386,7 +2448,7 @@ export default function AutorizacionesOC() {
                     tipo: 'adjunto_libre',
                     paso: selectedOrden.idPasoActual ?? undefined,
                     nombrePaso: currentPaso?.nombrePaso ?? undefined,
-                    nombreAccion: accionSeleccionada?.nombreAccion ?? undefined,
+                    nombreAccion: accionSeleccionada?.tipoAccionNombre ?? undefined,
                   }}
                   tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']}
                   descripcion="Arrastra o selecciona documentos de soporte"
@@ -2422,7 +2484,7 @@ export default function AutorizacionesOC() {
               ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
               : null
           }
-          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           partidasPendientes={partidasPendientes}
           onComprobanteSubido={(c) => {
             setComprobantesWorkflow((prev) => ({
@@ -2448,7 +2510,7 @@ export default function AutorizacionesOC() {
               ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
               : null
           }
-          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
           totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
