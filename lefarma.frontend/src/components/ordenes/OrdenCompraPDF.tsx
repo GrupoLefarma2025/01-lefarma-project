@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import logoImage from '@/assets/logo.png';
 
@@ -41,9 +41,9 @@ function fmtDate(dateStr: string) {
   }
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-}
+// function fmtMoney(n: number) {
+//   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+// }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
 const BORDER = '#4a7aad';
 const WHITE = '#ffffff';
-const LIGHT_GRAY = '#f5f5f5';
+// const LIGHT_GRAY = '#f5f5f5';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
