@@ -88,8 +88,18 @@ const menuItems: SidebarMenuItem[] = [
     isCollapsible: true,
     items: [
       // { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] } },
-      { title: 'Usuarios', icon: Users, path: '/seguridad/usuarios', permission: { require: 'usuarios.ver_detalle' } },
-      { title: 'Roles', icon: Users, path: '/seguridad/roles', permission: { require: 'usuarios.ver_detalle' } },
+      {
+        title: 'Usuarios',
+        icon: Users,
+        path: '/seguridad/usuarios',
+        permission: { require: 'usuarios.ver_detalle' },
+      },
+      {
+        title: 'Roles',
+        icon: Users,
+        path: '/seguridad/roles',
+        permission: { require: 'usuarios.ver_detalle' },
+      },
       { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
     ],
   },
@@ -101,7 +111,7 @@ const menuItems: SidebarMenuItem[] = [
       { title: 'Empresas', icon: Building, path: '/catalogos/empresas' },
       { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales' },
       { title: 'Áreas', icon: Database, path: '/catalogos/areas' },
-      { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
+      // { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
       { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
       { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
       { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto' },
@@ -166,17 +176,13 @@ export function AppSidebar() {
                 <ChevronRight className="ml-auto h-4 w-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="right"
-              align="start"
-              className="min-w-48"
-            >
+            <DropdownMenuContent side="right" align="start" className="min-w-48">
               {visibleItems.map((subItem) => (
                 <DropdownMenuItem key={subItem.path} asChild>
                   <NavLink
                     to={subItem.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-2 w-full ${isActive ? 'bg-primary/10 font-medium text-primary-foreground' : ''}`
+                      `flex w-full items-center gap-2 ${isActive ? 'bg-primary/10 font-medium text-primary-foreground' : ''}`
                     }
                   >
                     {subItem.icon && <subItem.icon className="h-4 w-4" />}
