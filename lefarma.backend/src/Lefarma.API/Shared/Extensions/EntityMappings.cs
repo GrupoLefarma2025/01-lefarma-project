@@ -37,6 +37,7 @@ namespace Lefarma.API.Shared.Extensions
             PaginaWeb = entity.PaginaWeb ?? string.Empty,
             NumeroEmpleados = entity.NumeroEmpleados ?? 0,
             Activo = entity.Activo,
+            PuedeSeleccionarEmpresas = entity.PuedeSeleccionarEmpresas,
             FechaCreacion = entity.FechaCreacion,
             FechaModificacion = entity.FechaModificacion
         };

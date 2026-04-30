@@ -23,6 +23,7 @@ public class Empresa
         public string? PaginaWeb { get; set; }
         public int? NumeroEmpleados { get; set; }
         public bool Activo { get; set; } = true;
+        public bool PuedeSeleccionarEmpresas { get; set; } = false;
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
 

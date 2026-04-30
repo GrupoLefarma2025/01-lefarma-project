@@ -43,6 +43,7 @@ export interface Empresa {
   nombre: string;
   codigo: string;
   activo: boolean;
+  puedeSeleccionarEmpresas: boolean;
 }
 
 export interface Sucursal {
@@ -119,6 +120,7 @@ export interface AuthState {
   area: Area | null;
 
   hasFirma: boolean | null;
+  puedeSeleccionarEmpresas: boolean;
 
   // Existing actions
   logout: () => Promise<void>;

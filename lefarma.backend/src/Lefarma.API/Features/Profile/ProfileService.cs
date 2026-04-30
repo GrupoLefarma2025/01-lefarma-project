@@ -51,6 +51,15 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
+            // Obtener si la empresa del usuario puede seleccionar otras empresas
+            var puedeSeleccionarEmpresas = false;
+            if (detalle.IdEmpresa > 0)
+            {
+                var empresa = await _appContext.Empresas
+                    .FirstOrDefaultAsync(e => e.IdEmpresa == detalle.IdEmpresa, cancellationToken);
+                puedeSeleccionarEmpresas = empresa?.PuedeSeleccionarEmpresas ?? false;
+            }
+
             // Obtener roles activos del usuario
             var roles = await _asokamContext.UsuariosRoles
                 .Include(ur => ur.Rol)
@@ -92,6 +101,7 @@ public class ProfileService : BaseService, IProfileService
                 FechaCreacion = usuario.FechaCreacion,
                 Roles = roles,
                 Permisos = permisos,
+                PuedeSeleccionarEmpresas = puedeSeleccionarEmpresas,
                 Detalle = detalle != null ? new UsuarioDetalleData
                 {
                     IdCentroCosto = detalle.IdCentroCosto,

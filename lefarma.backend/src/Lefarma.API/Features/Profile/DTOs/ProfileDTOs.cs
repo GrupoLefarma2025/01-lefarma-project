@@ -17,6 +17,9 @@ public record ProfileResponse
     public List<string> Roles { get; init; } = [];
     public List<string> Permisos { get; init; } = [];
 
+    // Detalle de la empresa seleccionada (para saber si puede ver/seleccionar otras)
+    public bool PuedeSeleccionarEmpresas { get; init; }
+
     // Detalles del usuario
     public UsuarioDetalleData? Detalle { get; init; }
 }

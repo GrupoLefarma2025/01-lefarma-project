@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   areas: [],
   area: null,
   hasFirma: null as boolean | null,
+  puedeSeleccionarEmpresas: false,
 
 
   loginStepOne: async (username: string) => {
@@ -89,12 +90,63 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authService.getAreas(),
       ]);
 
+      // Obtener perfil para saber si puede seleccionar empresas
+      let puedeSeleccionar = false;
+      try {
+        const profileRes = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean }>>('/profile');
+        puedeSeleccionar = profileRes.data.data?.puedeSeleccionarEmpresas ?? false;
+      } catch {
+        // Si falla el profile, se asume que no puede seleccionar
+      }
+
       // Sincronizar con configStore
       useConfigStore.getState().updatePerfil({
         nombre: response.user.nombre || '',
         correo: response.user.correo || '',
       });
 
+      // Si no puede seleccionar empresas, auto-seleccionar la unica que tiene y saltar al dashboard
+      if (!puedeSeleccionar && empresas.length === 1) {
+        const unicaEmpresa = empresas[0];
+        const sucursalesDeEmpresa = sucursales.filter(
+          (s) => String(s.idEmpresa) === String(unicaEmpresa.idEmpresa)
+        );
+        const unicaSucursal =
+          sucursalesDeEmpresa.length === 1 ? sucursalesDeEmpresa[0] : null;
+
+        authService.setEmpresa(unicaEmpresa);
+        if (unicaSucursal) {
+          authService.setSucursal(unicaSucursal);
+        }
+
+        set({
+          user: response.user,
+          token: response.accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+          loginStep: 1,
+          availableDomains: [],
+          requiresDomainSelection: false,
+          displayName: null,
+          pendingUsername: null,
+          empresas: [],
+          sucursales: [],
+          areas: [],
+          puedeSeleccionarEmpresas: false,
+          empresa: unicaEmpresa,
+          sucursal: unicaSucursal,
+        });
+
+        useConfigStore.getState().updatePerfil({
+          nombre: response.user.nombre || '',
+          correo: response.user.correo || '',
+        });
+
+        await get().fetchProfileSignature();
+        return;
+      }
+
+      // Si puede seleccionar, mostrar pantalla de seleccion
       set({
         user: response.user,
         token: response.accessToken,
@@ -108,6 +160,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         empresas,
         sucursales,
         areas,
+        puedeSeleccionarEmpresas: puedeSeleccionar,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -186,6 +239,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       sucursales: [],
         areas: [],
         hasFirma: null,
+        puedeSeleccionarEmpresas: false,
       });
 
     if (window.location.pathname !== '/') {
@@ -250,9 +304,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   fetchProfileSignature: async () => {
     try {
-      const response = await API.get<ApiResponse<Usuario>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string } }>>('/profile');
       const firmaPath = response.data.data?.detalle?.firmaPath;
-      set({ hasFirma: !!firmaPath });
+      const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
+      set({ hasFirma: !!firmaPath, puedeSeleccionarEmpresas: puedeSeleccionar });
     } catch {
         set({ hasFirma: false })
     }
@@ -289,7 +344,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sucursales: [],
         areas: [],
         hasFirma: null,
-    });
+        puedeSeleccionarEmpresas: false,
+      });
+
       useConfigStore.getState().updatePerfil({
         nombre: user.nombre || '',
         correo: user.correo || '',
