@@ -29,6 +29,9 @@ public record ProfileResponse
 /// </summary>
 public record UsuarioDetalleData
 {
+    public int IdEmpresa { get; init; }
+    public int IdSucursal { get; init; }
+    public int? IdArea { get; init; }
     public int? IdCentroCosto { get; init; }
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }

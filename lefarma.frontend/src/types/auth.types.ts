@@ -121,6 +121,7 @@ export interface AuthState {
 
   hasFirma: boolean | null;
   puedeSeleccionarEmpresas: boolean;
+  usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
 
   // Existing actions
   logout: () => Promise<void>;

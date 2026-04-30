@@ -3,7 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from '@/components/ui/card';
 import {
   Select,
   SelectContent,
@@ -11,18 +16,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Lock,
-  User,
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle,
-  Building2,
-  Building,
-  MapPin,
-  Loader2,
-} from 'lucide-react';
+import { Lock, User, AlertCircle, ArrowLeft, CheckCircle, Building2, Building, MapPin, Loader2 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
+
 
 const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-HN': 'LeFarma Honduras',
@@ -30,7 +26,7 @@ const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-SV': 'LeFarma El Salvador',
   'LEFARMA-NI': 'LeFarma Nicaragua',
   'LEFARMA-CR': 'LeFarma Costa Rica',
-  DC: 'Distribuidora Central',
+  'DC': 'Distribuidora Central',
 };
 
 export default function Login() {
@@ -61,6 +57,18 @@ export default function Login() {
   const [selectedSucursal, setSelectedSucursal] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
   const [error, setError] = useState('');
+
+  const sucursalesFiltradas = sucursales.filter((s) => {
+    if (!s.idSucursal || s.idSucursal === undefined) return false;
+    if (!s.idEmpresa || s.idEmpresa === undefined) return false;
+    return String(s.idEmpresa) === String(selectedEmpresa);
+  });
+
+  const areasFiltradas = areas.filter((a) => {
+    if (!a.idArea) return false;
+    return String(a.idEmpresa) === String(selectedEmpresa);
+  });
+
   // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
@@ -74,9 +82,13 @@ export default function Login() {
     const { idSucursal } = usuarioDetalle;
     const empresaId = autoSelectedEmpresa;
     if (!empresaId) return null;
-    const sucursalesDeEmpresa = sucursales.filter((s) => String(s.idEmpresa) === empresaId);
+    const sucursalesDeEmpresa = sucursales.filter(
+      (s) => String(s.idEmpresa) === empresaId
+    );
     if (idSucursal > 0) {
-      const existe = sucursalesDeEmpresa.some((s) => String(s.idSucursal) === String(idSucursal));
+      const existe = sucursalesDeEmpresa.some(
+        (s) => String(s.idSucursal) === String(idSucursal)
+      );
       if (existe) return String(idSucursal);
     }
     if (sucursalesDeEmpresa.length === 1) {
@@ -100,18 +112,25 @@ export default function Login() {
   const effectiveSucursal = autoSelectedSucursal ?? selectedSucursal;
   const effectiveArea = autoSelectedArea ?? selectedArea;
 
-  const sucursalesFiltradas = sucursales.filter((s) => {
-    if (!s.idSucursal || s.idSucursal === undefined) return false;
-    if (!s.idEmpresa || s.idEmpresa === undefined) return false;
-    return String(s.idEmpresa) === String(effectiveEmpresa);
-  });
+  // Auto-submit cuando el usuario no puede seleccionar
+  const shouldAutoSubmit = useMemo(() => {
+    return (
+      !puedeSeleccionarEmpresas &&
+      !!effectiveEmpresa &&
+      !!effectiveSucursal &&
+      (areasFiltradas.length === 0 || !!effectiveArea)
+    );
+  }, [puedeSeleccionarEmpresas, effectiveEmpresa, effectiveSucursal, effectiveArea, areasFiltradas]);
 
-  const areasFiltradas = useMemo(() => {
-    return areas.filter((a) => {
-      if (!a.idArea) return false;
-      return String(a.idEmpresa) === String(effectiveEmpresa);
-    });
-  }, [areas, effectiveEmpresa]);
+  useEffect(() => {
+    if (shouldAutoSubmit) {
+      const form = document.getElementById('empresa-sucursal-form') as HTMLFormElement;
+      if (form) {
+        const timer = setTimeout(() => form.requestSubmit(), 150);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [shouldAutoSubmit]);
 
   // Sincronizar username del store
   useEffect(() => {
@@ -140,7 +159,8 @@ export default function Login() {
     try {
       await loginStepOne(username.trim());
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Usuario no encontrado';
+      const message =
+        err instanceof Error ? err.message : 'Usuario no encontrado';
       setError(message);
     }
   };
@@ -159,12 +179,15 @@ export default function Login() {
       return;
     }
 
-    const domain = requiresDomainSelection ? selectedDomain : availableDomains[0];
+    const domain = requiresDomainSelection
+      ? selectedDomain
+      : availableDomains[0];
 
     try {
       await loginStepTwo(password, domain);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Credenciales incorrectas';
+      const message =
+        err instanceof Error ? err.message : 'Credenciales incorrectas';
       setError(message);
     }
   };
@@ -196,7 +219,8 @@ export default function Login() {
       await loginStepThree(emp, suc, ar);
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
+      const message =
+        err instanceof Error ? err.message : 'Error al seleccionar ubicación';
       setError(message);
     }
   };
@@ -231,23 +255,35 @@ export default function Login() {
           </div>
 
           {/* Progress steps */}
-          <div className="my-4 flex items-center justify-center gap-2">
+          <div className="flex items-center justify-center gap-2 my-4">
             <div
               className={`flex items-center gap-2 ${
                 loginStep >= 1 ? 'text-primary' : 'text-muted-foreground'
               }`}
             >
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                  loginStep >= 1 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  loginStep >= 1
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
                 }`}
               >
-                {loginStep > 1 ? <CheckCircle className="h-4 w-4" /> : '1'}
+                {loginStep > 1 ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  '1'
+                )}
               </div>
-              <span className="hidden text-sm font-medium sm:inline">Usuario</span>
+              <span className="text-sm font-medium hidden sm:inline">
+                Usuario
+              </span>
             </div>
 
-            <div className={`h-0.5 w-6 ${loginStep > 1 ? 'bg-primary' : 'bg-muted'}`} />
+            <div
+              className={`h-0.5 w-6 ${
+                loginStep > 1 ? 'bg-primary' : 'bg-muted'
+              }`}
+            />
 
             <div
               className={`flex items-center gap-2 ${
@@ -255,16 +291,28 @@ export default function Login() {
               }`}
             >
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                  loginStep >= 2 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  loginStep >= 2
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
                 }`}
               >
-                {loginStep > 2 ? <CheckCircle className="h-4 w-4" /> : '2'}
+                {loginStep > 2 ? (
+                  <CheckCircle className="h-4 w-4" />
+                ) : (
+                  '2'
+                )}
               </div>
-              <span className="hidden text-sm font-medium sm:inline">Contraseña</span>
+              <span className="text-sm font-medium hidden sm:inline">
+                Contraseña
+              </span>
             </div>
 
-            <div className={`h-0.5 w-6 ${loginStep > 2 ? 'bg-primary' : 'bg-muted'}`} />
+            <div
+              className={`h-0.5 w-6 ${
+                loginStep > 2 ? 'bg-primary' : 'bg-muted'
+              }`}
+            />
 
             <div
               className={`flex items-center gap-2 ${
@@ -272,13 +320,17 @@ export default function Login() {
               }`}
             >
               <div
-                className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                  loginStep >= 3 ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                  loginStep >= 3
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted'
                 }`}
               >
                 3
               </div>
-              <span className="hidden text-sm font-medium sm:inline">Ubicación</span>
+              <span className="text-sm font-medium hidden sm:inline">
+                Ubicación
+              </span>
             </div>
           </div>
 
@@ -301,7 +353,9 @@ export default function Login() {
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Nombre de Usuario</label>
+                <label className="text-sm font-medium">
+                  Nombre de Usuario
+                </label>
                 <div className="relative">
                   <User className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                   <Input
@@ -317,7 +371,11 @@ export default function Login() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+              >
                 {isLoading ? 'Buscando...' : 'Continuar'}
               </Button>
             </form>
@@ -334,7 +392,7 @@ export default function Login() {
               )}
 
               {displayName && (
-                <div className="rounded-lg bg-muted px-4 py-2 text-center">
+                <div className="text-center py-2 px-4 bg-muted rounded-lg">
                   <p className="text-sm text-muted-foreground">Hola,</p>
                   <p className="font-medium">{displayName}</p>
                 </div>
@@ -342,7 +400,9 @@ export default function Login() {
 
               {requiresDomainSelection && availableDomains.length > 1 && (
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Seleccionar Dominio</label>
+                  <label className="text-sm font-medium">
+                    Seleccionar Dominio
+                  </label>
                   <Select
                     value={selectedDomain}
                     onValueChange={setSelectedDomain}
@@ -353,7 +413,10 @@ export default function Login() {
                     </SelectTrigger>
                     <SelectContent>
                       {availableDomains.map((domain, index) => (
-                        <SelectItem key={domain || `domain-${index}`} value={domain || ''}>
+                        <SelectItem
+                          key={domain || `domain-${index}`}
+                          value={domain || ''}
+                        >
                           {DOMAIN_NAMES[domain] || domain}
                         </SelectItem>
                       ))}
@@ -363,10 +426,11 @@ export default function Login() {
               )}
 
               {!requiresDomainSelection && availableDomains.length === 1 && (
-                <div className="bg-primary/10 flex items-center gap-2 rounded-lg p-3 text-primary">
+                <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg text-primary">
                   <CheckCircle className="h-4 w-4" />
                   <span className="text-sm">
-                    Dominio: {DOMAIN_NAMES[availableDomains[0]] || availableDomains[0]}
+                    Dominio:{' '}
+                    {DOMAIN_NAMES[availableDomains[0]] || availableDomains[0]}
                   </span>
                 </div>
               )}
@@ -388,14 +452,18 @@ export default function Login() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading}
+              >
                 {isLoading ? 'Verificando...' : 'Continuar'}
               </Button>
 
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex w-full items-center justify-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
                 disabled={isLoading}
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -415,8 +483,10 @@ export default function Login() {
               )}
 
               {displayName && (
-                <div className="bg-primary/10 rounded-lg px-4 py-2 text-center text-primary">
-                  <p className="text-sm font-medium">Bienvenido, {displayName}</p>
+                <div className="text-center py-2 px-4 bg-primary/10 rounded-lg text-primary">
+                  <p className="text-sm font-medium">
+                    Bienvenido, {displayName}
+                  </p>
                   <p className="text-xs text-muted-foreground">
                     Selecciona la ubicación desde la cual generarás órdenes de compra
                   </p>
@@ -425,7 +495,7 @@ export default function Login() {
 
               {/* Empresa */}
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium">
+                <label className="text-sm font-medium flex items-center gap-2">
                   <Building2 className="h-4 w-4" />
                   Empresa
                 </label>
@@ -457,11 +527,11 @@ export default function Login() {
               {/* Sucursal */}
               {(effectiveEmpresa || selectedEmpresa) && (
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium">
+                  <label className="text-sm font-medium flex items-center gap-2">
                     <Building className="h-4 w-4" />
                     Sucursal
                     {empresaSeleccionada && (
-                      <span className="font-normal text-muted-foreground">
+                      <span className="text-muted-foreground font-normal">
                         - {empresaSeleccionada.nombre}
                       </span>
                     )}
@@ -469,7 +539,7 @@ export default function Login() {
                   <Select
                     value={effectiveSucursal || selectedSucursal}
                     onValueChange={setSelectedSucursal}
-                    disabled={sucursalesFiltradas.length === 0}
+                    disabled={sucursalesFiltradas.length === 0 || !puedeSeleccionarEmpresas}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona una sucursal" />
@@ -497,7 +567,7 @@ export default function Login() {
               {/* Área */}
               {(effectiveEmpresa || selectedEmpresa) && (
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium">
+                  <label className="text-sm font-medium flex items-center gap-2">
                     <MapPin className="h-4 w-4" />
                     Área
                   </label>
@@ -505,49 +575,60 @@ export default function Login() {
                     <Select
                       value={effectiveArea || selectedArea}
                       onValueChange={setSelectedArea}
-                      disabled={areasFiltradas.length === 0}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Selecciona un área" />
                       </SelectTrigger>
                       <SelectContent>
                         {areasFiltradas.map((area) => (
-                          <SelectItem key={area.idArea} value={String(area.idArea)}>
+                          <SelectItem
+                            key={area.idArea}
+                            value={String(area.idArea)}
+                          >
                             {area.nombre}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   ) : (
-                    <p className="text-sm italic text-muted-foreground">
+                    <p className="text-sm text-muted-foreground italic">
                       No hay áreas disponibles para esta empresa.
                     </p>
                   )}
                 </div>
               )}
 
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={
-                  !(effectiveEmpresa || selectedEmpresa) ||
-                  !(effectiveSucursal || selectedSucursal) ||
-                  (areasFiltradas.length > 0 && !(effectiveArea || selectedArea)) ||
-                  isLoading
-                }
-              >
-                {isLoading ? 'Procesando...' : 'Iniciar Sesión'}
-              </Button>
+              {puedeSeleccionarEmpresas && (
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={
+                    !(effectiveEmpresa || selectedEmpresa) ||
+                    !(effectiveSucursal || selectedSucursal) ||
+                    (areasFiltradas.length > 0 && !(effectiveArea || selectedArea)) ||
+                    isLoading
+                  }
+                >
+                  {isLoading ? 'Procesando...' : 'Iniciar Sesión'}
+                </Button>
+              )}
 
-              <button
-                type="button"
-                onClick={handleBack}
-                className="flex w-full items-center justify-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                disabled={isLoading}
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Volver
-              </button>
+              {puedeSeleccionarEmpresas ? (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="w-full flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  disabled={isLoading}
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Volver
+                </button>
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground py-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cargando...
+                </div>
+              )}
             </form>
           )}
 

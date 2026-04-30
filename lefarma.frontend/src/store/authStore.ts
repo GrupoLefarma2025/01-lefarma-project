@@ -36,6 +36,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   area: null,
   hasFirma: null as boolean | null,
   puedeSeleccionarEmpresas: false,
+  usuarioDetalle: null as { idEmpresa: number; idSucursal: number; idArea: number | null } | null,
 
 
   loginStepOne: async (username: string) => {
@@ -90,11 +91,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         authService.getAreas(),
       ]);
 
-      // Obtener perfil para saber si puede seleccionar empresas
+      // Obtener perfil para saber si puede seleccionar empresas y su empresa asignada
       let puedeSeleccionar = false;
+      let usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null = null;
       try {
-        const profileRes = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean }>>('/profile');
+        const profileRes = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number } }>>('/profile');
         puedeSeleccionar = profileRes.data.data?.puedeSeleccionarEmpresas ?? false;
+        if (profileRes.data.data?.detalle) {
+          usuarioDetalle = {
+            idEmpresa: profileRes.data.data.detalle.idEmpresa ?? 0,
+            idSucursal: profileRes.data.data.detalle.idSucursal ?? 0,
+            idArea: profileRes.data.data.detalle.idArea ?? null,
+          };
+        }
       } catch {
         // Si falla el profile, se asume que no puede seleccionar
       }
@@ -111,30 +120,44 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const sucursalesDeEmpresa = sucursales.filter(
           (s) => String(s.idEmpresa) === String(unicaEmpresa.idEmpresa)
         );
-        const unicaSucursal =
-          sucursalesDeEmpresa.length === 1 ? sucursalesDeEmpresa[0] : null;
+
+        // Usar la sucursal del detalle si existe y pertenece a la empresa,
+        // si no, usar la primera sucursal disponible de esa empresa
+        const detalleSucursalId = usuarioDetalle?.idSucursal ?? 0;
+        const sucursalDelDetalle = detalleSucursalId > 0
+          ? sucursalesDeEmpresa.find((s) => String(s.idSucursal) === String(detalleSucursalId))
+          : null;
+        const unicaSucursal = sucursalDelDetalle
+          ?? (sucursalesDeEmpresa.length > 0 ? sucursalesDeEmpresa[0] : null);
 
         authService.setEmpresa(unicaEmpresa);
         if (unicaSucursal) {
           authService.setSucursal(unicaSucursal);
         }
 
+        // Mantener sucursales y areas disponibles (filtradas por empresa) para el paso 3
+        const areasDeEmpresa = areas.filter(
+          (a) => !a.idSucursal || String(a.idSucursal) === String(unicaEmpresa.idEmpresa)
+        );
+
         set({
           user: response.user,
           token: response.accessToken,
-          isAuthenticated: true,
+          isAuthenticated: false,
           isLoading: false,
-          loginStep: 1,
+          loginStep: 3,
           availableDomains: [],
           requiresDomainSelection: false,
           displayName: null,
           pendingUsername: null,
-          empresas: [],
-          sucursales: [],
-          areas: [],
+          empresas,
+          sucursales,
+          areas,
           puedeSeleccionarEmpresas: false,
+          usuarioDetalle,
           empresa: unicaEmpresa,
           sucursal: unicaSucursal,
+          area: areasDeEmpresa.length === 1 ? areasDeEmpresa[0] : null,
         });
 
         useConfigStore.getState().updatePerfil({
@@ -161,6 +184,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         sucursales,
         areas,
         puedeSeleccionarEmpresas: puedeSeleccionar,
+        usuarioDetalle,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -222,6 +246,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       empresas: [],
       sucursales: [],
       areas: [],
+      usuarioDetalle: null,
     });
   },
 
@@ -237,10 +262,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       loginStep: 1,
       empresas: [],
       sucursales: [],
-        areas: [],
-        hasFirma: null,
-        puedeSeleccionarEmpresas: false,
-      });
+      areas: [],
+      hasFirma: null,
+      puedeSeleccionarEmpresas: false,
+      usuarioDetalle: null,
+    });
 
     if (window.location.pathname !== '/') {
       window.location.href = '/';

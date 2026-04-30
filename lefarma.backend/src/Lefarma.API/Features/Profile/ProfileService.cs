@@ -104,6 +104,9 @@ public class ProfileService : BaseService, IProfileService
                 PuedeSeleccionarEmpresas = puedeSeleccionarEmpresas,
                 Detalle = detalle != null ? new UsuarioDetalleData
                 {
+                    IdEmpresa = detalle.IdEmpresa,
+                    IdSucursal = detalle.IdSucursal,
+                    IdArea = detalle.IdArea,
                     IdCentroCosto = detalle.IdCentroCosto,
                     Puesto = detalle.Puesto,
                     NumeroEmpleado = detalle.NumeroEmpleado,
