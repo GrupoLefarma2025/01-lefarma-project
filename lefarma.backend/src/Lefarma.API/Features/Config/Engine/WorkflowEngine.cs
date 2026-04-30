@@ -23,9 +23,9 @@ namespace Lefarma.API.Features.Config.Engine
 
         public async Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext ctx)
         {
-            var workflow = await _workflowRepo.GetByCodigoProcesoAsync(ctx.CodigoProceso);
+            var workflow = await _workflowRepo.GetByIdAsync(ctx.Orden.IdWorkflow);
             if (workflow is null)
-                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.CodigoProceso}' no encontrado.", null, null);
+                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
 
             var pasoActual = workflow.Pasos
                 .FirstOrDefault(p => p.IdPaso == ctx.Orden.IdPasoActual && p.Activo);
@@ -89,9 +89,10 @@ namespace Lefarma.API.Features.Config.Engine
             // Registrar en bitácora inmutable la transición ejecutada
             var snapshot = new Dictionary<string, object?>
             {
+                ["idWorkflow"] = workflow.IdWorkflow,
                 ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
                 ["idPasoNuevo"] = nuevoPaso?.IdPaso,
-                ["codigoEstadoNuevo"] = nuevoPaso?.CodigoEstado,
+                ["idEstadoNuevo"] = nuevoPaso?.IdEstado,
                 ["datosAdicionales"] = ctx.DatosAdicionales
             };
 
@@ -112,7 +113,7 @@ namespace Lefarma.API.Features.Config.Engine
                 Exitoso: true,
                 Error: null,
                 NuevoIdPaso: nuevoPaso?.IdPaso,
-                NuevoCodigoEstado: nuevoPaso?.CodigoEstado
+                NuevoIdEstado: nuevoPaso?.IdEstado
             );
         }
 
@@ -132,7 +133,7 @@ namespace Lefarma.API.Features.Config.Engine
             if (pasoActual?.Condiciones.Any() == true)
             {
                 var aprobaciones = acciones
-                    .Where(a => a.TipoAccion == "APROBACION")
+                    .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
                     .OrderBy(a => a.IdAccion)
                     .ToList();
 
@@ -144,13 +145,56 @@ namespace Lefarma.API.Features.Config.Engine
                         IdAccion = accionBase.IdAccion,
                         IdPasoOrigen = accionBase.IdPasoOrigen,
                         IdPasoDestino = accionBase.IdPasoDestino,
-                        NombreAccion = "Autorizar",
-                        TipoAccion = accionBase.TipoAccion,
-                        ClaseEstetica = accionBase.ClaseEstetica
+                        IdTipoAccion = accionBase.IdTipoAccion
                     };
 
                     var restantes = acciones
-                        .Where(a => a.TipoAccion != "APROBACION")
+                        .Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "APROBAR")
+                        .OrderBy(a => a.IdAccion)
+                        .ToList();
+
+                    return new List<WorkflowAccion> { autorizacionUnica }
+                        .Concat(restantes)
+                        .ToList();
+                }
+            }
+
+            return acciones;
+        }
+
+        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
+            int idWorkflow, int idOrden, int idUsuario)
+        {
+            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
+            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
+
+            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+            var workflow = await _workflowRepo.GetByIdAsync(idWorkflow);
+            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
+            if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
+
+            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
+            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
+            if (pasoActual?.Condiciones.Any() == true)
+            {
+                var aprobaciones = acciones
+                    .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
+                    .OrderBy(a => a.IdAccion)
+                    .ToList();
+
+                if (aprobaciones.Count > 1)
+                {
+                    var accionBase = aprobaciones.First();
+                    var autorizacionUnica = new WorkflowAccion
+                    {
+                        IdAccion = accionBase.IdAccion,
+                        IdPasoOrigen = accionBase.IdPasoOrigen,
+                        IdPasoDestino = accionBase.IdPasoDestino,
+                        IdTipoAccion = accionBase.IdTipoAccion
+                    };
+
+                    var restantes = acciones
+                        .Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "APROBAR")
                         .OrderBy(a => a.IdAccion)
                         .ToList();
 
