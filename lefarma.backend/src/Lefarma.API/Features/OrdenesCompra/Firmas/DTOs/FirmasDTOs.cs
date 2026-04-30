@@ -21,9 +21,20 @@ public class FirmarRequest
     public class AccionDisponibleResponse
     {
         public int IdAccion { get; set; }
-        public string NombreAccion { get; set; } = string.Empty;
-        public string TipoAccion { get; set; } = string.Empty;
-        public string ClaseEstetica { get; set; } = string.Empty; // Para el color del bot�n en el frontend
+        public int IdTipoAccion { get; set; }
+        public string? TipoAccionCodigo { get; set; }
+        public string? TipoAccionNombre { get; set; }
+        public bool? TipoAccionCambiaEstado { get; set; }
+        
+        // Handlers y campos para construir el modal dinámico
+        public List<AccionHandlerMetadataResponse> Handlers { get; set; } = new();
+        public List<WorkflowCampoMetadataResponse> CamposWorkflow { get; set; } = new();
+        public List<string> CamposRequeridos { get; set; } = new();
+        
+        // Requisitos del paso origen
+        public bool RequiereComentario { get; set; }
+        public bool RequiereAdjunto { get; set; }
+        public bool PermiteAdjunto { get; set; }
     }
 
     public class AccionHandlerMetadataResponse
@@ -48,14 +59,44 @@ public class FirmarRequest
     {
         public int IdOrden { get; set; }
         public int IdAccion { get; set; }
-        public string NombreAccion { get; set; } = string.Empty;
-        public string TipoAccion { get; set; } = string.Empty;
+        public int IdTipoAccion { get; set; }
+        public string? TipoAccionCodigo { get; set; }
+        public string? TipoAccionNombre { get; set; }
+        public bool? TipoAccionCambiaEstado { get; set; }
         public bool RequiereComentario { get; set; }
         public bool RequiereAdjunto { get; set; }
         public bool PermiteAdjunto { get; set; }
         public List<AccionHandlerMetadataResponse> Handlers { get; set; } = new();
         public List<WorkflowCampoMetadataResponse> CamposWorkflow { get; set; } = new();
         public List<string> CamposRequeridos { get; set; } = new();
+    }
+
+    // ── Envío Concentrado ─────────────────────────────────────────────────────
+
+    public class EnvioConcentradoRequest
+    {
+        /// <summary>IDs de las órdenes en paso 4 a avanzar.</summary>
+        public required List<int> IdsOrdenes { get; set; }
+
+        /// <summary>Comentario que quedará en la bitácora de cada orden.</summary>
+        public string? Comentario { get; set; }
+    }
+
+    public class EnvioConcentradoItemResult
+    {
+        public int IdOrden { get; set; }
+        public string Folio { get; set; } = string.Empty;
+        public bool Exitoso { get; set; }
+        public string? NuevoEstado { get; set; }
+        public string? Error { get; set; }
+    }
+
+    public class EnvioConcentradoResponse
+    {
+        public int Total { get; set; }
+        public int Exitosas { get; set; }
+        public int Fallidas { get; set; }
+        public List<EnvioConcentradoItemResult> Resultados { get; set; } = new();
     }
 
     public class HistorialWorkflowItemResponse
