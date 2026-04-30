@@ -142,7 +142,7 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                     NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
                     Descripcion = request.Descripcion,
                     DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
-                    Abreviatura = request.Abreviatura.Trim().ToUpperInvariant(),
+                    Abreviatura = request.Abreviatura.Trim(),
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
                 };
@@ -200,7 +200,7 @@ public class UnidadMedidaService : BaseService, IUnidadMedidaService
                 unidadMedida.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
                 unidadMedida.Descripcion = request.Descripcion;
                 unidadMedida.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
-                unidadMedida.Abreviatura = request.Abreviatura.Trim().ToUpperInvariant();
+                unidadMedida.Abreviatura = request.Abreviatura.Trim();
                 unidadMedida.Activo = request.Activo;
                 unidadMedida.FechaModificacion = DateTime.UtcNow;
 

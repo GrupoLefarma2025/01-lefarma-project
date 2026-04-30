@@ -142,7 +142,7 @@ namespace Lefarma.API.Shared.Extensions
         {
             IdUnidadMedida = entity.IdUnidadMedida,
             IdMedida = entity.IdMedida,
-            NombreMedida = null, // Navegación no incluida para evitar carga
+            NombreMedida = entity.Medida?.Nombre,
             Nombre = entity.Nombre,
             Descripcion = entity.Descripcion ?? string.Empty,
             Abreviatura = entity.Abreviatura,
