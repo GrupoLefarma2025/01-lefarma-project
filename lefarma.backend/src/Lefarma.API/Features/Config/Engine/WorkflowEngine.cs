@@ -2,6 +2,7 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 namespace Lefarma.API.Features.Config.Engine
 {
@@ -169,7 +170,9 @@ namespace Lefarma.API.Features.Config.Engine
             if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
-            var workflow = await _workflowRepo.GetByIdAsync(idWorkflow);
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
