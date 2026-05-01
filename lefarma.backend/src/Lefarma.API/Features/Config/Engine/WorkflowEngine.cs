@@ -26,6 +26,13 @@ namespace Lefarma.API.Features.Config.Engine
         {
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.AccionHandlers)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.TipoAccion)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Condiciones)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
             if (workflow is null)
                 return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
@@ -127,7 +134,10 @@ namespace Lefarma.API.Features.Config.Engine
             if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
-            var workflow = await _workflowRepo.GetByCodigoProcesoAsync(codigoProceso);
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Condiciones)
+                .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
@@ -174,6 +184,7 @@ namespace Lefarma.API.Features.Config.Engine
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Condiciones)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();

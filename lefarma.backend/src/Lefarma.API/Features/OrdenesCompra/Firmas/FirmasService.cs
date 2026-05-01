@@ -57,6 +57,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
+                        .ThenInclude(p => p.AccionesOrigen)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
 
                 var estadoAnterior = orden.Estado?.Codigo;
@@ -221,6 +222,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 var workflow = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
+                        .ThenInclude(p => p.AccionesOrigen)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
                 if (workflow is null)
                     return CommonErrors.NotFound("workflow", orden.IdWorkflow.ToString());
