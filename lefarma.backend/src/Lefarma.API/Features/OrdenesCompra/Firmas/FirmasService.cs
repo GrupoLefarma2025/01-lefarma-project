@@ -23,8 +23,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly IServiceScopeFactory _scopeFactory;
         protected override string EntityName => "Firma";
 
-        private const string CODIGO_PROCESO = "ORDEN_COMPRA";
-
         public FirmasService(
             IOrdenCompraRepository ordenRepo,
             IWorkflowEngine engine,
@@ -67,7 +65,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Ejecutar el motor de workflow
                 var ctx = new WorkflowContext(
-                    CodigoProceso: CODIGO_PROCESO,
+                    IdWorkflow: orden.IdWorkflow,
                     IdOrden: idOrden,
                     IdAccion: request.IdAccion,
                     IdUsuario: idUsuario,
@@ -217,9 +215,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden is null)
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
 
-                var workflow = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
+                var workflow = await _workflowRepo.GetByIdAsync(orden.IdWorkflow);
                 if (workflow is null)
-                    return CommonErrors.NotFound("workflow", CODIGO_PROCESO);
+                    return CommonErrors.NotFound("workflow", orden.IdWorkflow.ToString());
 
                 if (!orden.IdPasoActual.HasValue)
                     return CommonErrors.Conflict("orden", "La orden no tiene paso actual configurado.");

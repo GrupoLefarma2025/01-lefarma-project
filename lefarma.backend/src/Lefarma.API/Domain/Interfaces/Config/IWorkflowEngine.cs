@@ -13,7 +13,7 @@ namespace Lefarma.API.Domain.Interfaces.Config
     }
 
     public record WorkflowContext(
-        string CodigoProceso,
+        int IdWorkflow,
         int IdOrden,
         int IdAccion,
         int IdUsuario,
