@@ -1702,12 +1702,11 @@ export default function AutorizacionesOC() {
                                                 <p className="text-xs text-muted-foreground">No hay acciones disponibles.</p>
                                               ) : (
                                                 acciones.map((a) => (
-                                                  <Button
+                                                   <Button
                                                     key={a.idAccion}
                                                     size="sm"
                                                     variant={a.tipoAccionCodigo === 'RECHAZAR' ? 'destructive' : 'default'}
                                                     onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
-                                                    className={a.tipoAccionCodigo === 'DEVOLVER' ? 'hidden' : undefined}
                                                   >
                                                     {a.tipoAccionNombre}
                                                   </Button>
