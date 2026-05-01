@@ -421,7 +421,9 @@ export default function AutorizacionesOC() {
       const [ordenRes, accionesRes, historialRes] = await Promise.all([
         API.get<ApiResponse<OrdenCompraResponse>>(`/ordenes/${idOrden}`),
         API.get<ApiResponse<AccionDisponibleResponse[]>>(`/ordenes/${idOrden}/acciones`).catch(
-          (): { data: { data: [] } } => ({ data: { data: [] } })
+          (err) => {
+            return { data: { data: [] } } as { data: { data: AccionDisponibleResponse[] } };
+          }
         ),
         API.get<ApiResponse<HistorialWorkflowItemResponse[]>>(
           `/ordenes/${idOrden}/historial-workflow`
@@ -781,10 +783,23 @@ export default function AutorizacionesOC() {
       : null;
     const flujoFinalizado = Boolean(pasoActualConfig?.esFinal);
     const eventosPorPasoLocal = new Map<number, HistorialWorkflowItemResponse[]>();
+    const pasosCompletados = new Set<number>();
     for (const item of historial) {
       const arr = eventosPorPasoLocal.get(item.idPaso) ?? [];
       arr.push(item);
       eventosPorPasoLocal.set(item.idPaso, arr);
+
+      // Extraer idPasoAnterior del snapshot para saber qué pasos fueron completados
+      if (item.datosSnapshot) {
+        try {
+          const snapshot = JSON.parse(item.datosSnapshot);
+          if (snapshot.idPasoAnterior) {
+            pasosCompletados.add(snapshot.idPasoAnterior);
+          }
+        } catch {
+          // ignorar JSON inválido
+        }
+      }
     }
 
     return pasosWorkflow.map((paso) => {
@@ -794,7 +809,12 @@ export default function AutorizacionesOC() {
       const isActual = selectedOrden?.idPasoActual === paso.idPaso;
       const isRechazado = !isActual && tipoUltimoEvento === 'rechazo';
       const isDevuelto = !isActual && tipoUltimoEvento === 'retorno';
-      const isCompletado = !isActual && tipoUltimoEvento === 'autorizacion';
+      // Un paso está completado si:
+      // 1. Tiene evento de autorización en su historial, O
+      // 2. Aparece como idPasoAnterior en algún snapshot (fue completado al moverse al siguiente paso)
+      const isCompletado = !isActual && (
+        tipoUltimoEvento === 'autorizacion' || pasosCompletados.has(paso.idPaso)
+      );
       const isOmitido =
         !isActual &&
         !isCompletado &&
