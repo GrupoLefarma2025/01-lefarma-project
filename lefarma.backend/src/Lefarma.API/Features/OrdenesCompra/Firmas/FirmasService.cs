@@ -55,7 +55,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden.IdEstado == 7 || orden.IdEstado == 9) // 7 = CERRADA, 9 = CANCELADA
                     return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
-                var workflowConfig = await _workflowRepo.GetByIdAsync(orden.IdWorkflow);
+                var workflowConfig = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
 
                 var estadoAnterior = orden.Estado?.Codigo;
 
@@ -153,7 +155,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!acciones.Any())
                     return CommonErrors.NotFound("Accion");
 
-                var workflow = await _workflowRepo.GetByIdAsync(orden.IdWorkflow);
+                var workflow = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
                 var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
                 
                 // Obtener campos del workflow una sola vez
@@ -215,7 +219,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden is null)
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
 
-                var workflow = await _workflowRepo.GetByIdAsync(orden.IdWorkflow);
+                var workflow = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
                 if (workflow is null)
                     return CommonErrors.NotFound("workflow", orden.IdWorkflow.ToString());
 

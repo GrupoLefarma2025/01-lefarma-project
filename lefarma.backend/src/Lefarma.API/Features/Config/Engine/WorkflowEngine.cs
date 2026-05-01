@@ -24,7 +24,9 @@ namespace Lefarma.API.Features.Config.Engine
 
         public async Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext ctx)
         {
-            var workflow = await _workflowRepo.GetByIdAsync(ctx.Orden.IdWorkflow);
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
             if (workflow is null)
                 return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
 
