@@ -768,7 +768,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 
       <div className={embedded ? 'h-full overflow-hidden p-4' : 'flex-1 overflow-hidden px-6'}>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-            <TabsList className="bg-muted/70 grid w-full grid-cols-7 h-10 border p-1 mb-4">
+            <TabsList className="bg-muted/70 grid w-full grid-cols-8 h-10 border p-1 mb-4">
               <TabsTrigger value="pasos" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm">
                 <GitBranch className="h-4 w-4" />
                 Pasos
@@ -808,7 +808,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                 } catch { }
               }}>
                 <Zap className="h-4 w-4" />
-                Mappings
+                Asignaciones
               </TabsTrigger>
             </TabsList>
 
@@ -1354,10 +1354,17 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                                       {paso.orden}
                                     </span>
+                                    <span className="font-medium text-sm font-semibold">{paso.nombrePaso}</span> - 
                                     <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
                                     <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7">
+                                    {notificacion.idTipoNotificacion ? (
+                                      <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/30">
+                                        <Zap className="mr-1 h-3 w-3" />
+                                        {tiposNotificacion.find((t: any) => t.idTipo === notificacion.idTipoNotificacion)?.nombre || `Tipo #${notificacion.idTipoNotificacion}`}
+                                      </Badge>
+                                    ) : null}
                                     {/* In App always on */}
                                     <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/30">
                                       <Bell className="mr-1 h-3 w-3" />
@@ -1379,12 +1386,6 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                         Telegram
                                       </Badge>
                                     )}
-                                    {notificacion.idTipoNotificacion ? (
-                                      <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/30">
-                                        <Zap className="mr-1 h-3 w-3" />
-                                        {tiposNotificacion.find((t: any) => t.idTipo === notificacion.idTipoNotificacion)?.nombre || `Tipo #${notificacion.idTipoNotificacion}`}
-                                      </Badge>
-                                    ) : null}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7 mt-1">
                                     {notificacion.avisarAlCreador && (
