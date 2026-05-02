@@ -25,6 +25,7 @@ import {
   Mail,
   Clock,
   FlaskConical,
+  MapPin,
   Zap
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
-import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo } from '@/types/workflow.types';
+import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo, WorkflowScopeType, WorkflowMapping, WorkflowEstado, WorkflowTipoAccion } from '@/types/workflow.types';
 import { toApiError } from '@/utils/errors';
 
 interface WorkflowWithDetails extends Workflow {
@@ -50,7 +51,7 @@ interface WorkflowWithDetails extends Workflow {
 interface CreatePasoPayload {
   nombrePaso: string;
   orden: number;
-  codigoEstado: string | null;
+  idEstado: number | null;
   descripcionAyuda: string | null;
   esInicio: boolean;
   esFinal: boolean;
@@ -61,12 +62,17 @@ interface CreatePasoPayload {
 }
 
 // Tipos de acciones para los colores
-const ACTION_COLORS = {
-  APROBACION: '#10b981', // green
-  RECHAZO: '#ef4444',    // red
-  RETORNO: '#f59e0b',    // amber
-  CANCELACION: '#6b7280' // gray
-} as const;
+const ACTION_COLORS: Record<string, string> = {
+  ENVIAR: '#10b981',     // green soft
+  AUTORIZAR: '#008500',       // green
+  RECHAZAR: '#ef4444',      // red
+  DEVOLVER: '#f59e0b',      // amber
+  CANCELAR: '#6b7280',      // gray
+  ENVIAR_TESORERIA: '#3b82f6', // blue
+  MARCAR_PAGADA: '#059669',    // teal
+  CERRAR: '#64748b',           // slate
+  NOTIFICACION: '#8b5cf6'      // violet
+};
 
 const HANDLER_LABELS: Record<string, string> = {
   RequiredFields:   'Campos requeridos',
@@ -82,6 +88,7 @@ export default function WorkflowDiagram() {
   const [loading, setLoading] = useState(true);
   const [selectedPaso, setSelectedPaso] = useState<WorkflowPaso | null>(null);
   const [viewMode, setViewMode] = useState<'diagram' | 'list'>('diagram');
+  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
 
   usePageTitle(workflow?.nombre || 'Diagrama de Workflow', 'Editor visual de flujo');
 
@@ -96,6 +103,20 @@ export default function WorkflowDiagram() {
       setSelectedPaso(null);
     }
   }, [viewMode]);
+
+  useEffect(() => {
+    const fetchEstados = async () => {
+      try {
+        const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
+        if (res.data?.success) {
+          setWorkflowEstados(res.data.data || []);
+        }
+      } catch {
+        setWorkflowEstados([]);
+      }
+    };
+    fetchEstados();
+  }, []);
 
   const fetchWorkflow = async (workflowId: number) => {
     try {
@@ -162,9 +183,9 @@ export default function WorkflowDiagram() {
                               </span>
                               <h3 className="font-semibold text-lg">{paso.nombrePaso}</h3>
                             </div>
-                            {paso.codigoEstado && (
-                              <p className="text-xs font-mono text-muted-foreground ml-8">
-                                {paso.codigoEstado}
+                            {paso.idEstado && (
+                              <p className="text-xs text-muted-foreground ml-8">
+                                Estado: {workflowEstados.find(e => e.idEstado === paso.idEstado)?.nombre ?? `ID: ${paso.idEstado}`}
                               </p>
                             )}
                             {paso.descripcionAyuda && (
@@ -204,7 +225,7 @@ export default function WorkflowDiagram() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {acciones.map(accion => {
                               const destinoPaso = sortedPasos.find(p => p.idPaso === accion.idPasoDestino);
-                              const color = ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS] || '#6b7280';
+                              const color = ACTION_COLORS[accion.tipoAccionCodigo as keyof typeof ACTION_COLORS] || '#6b7280';
                               
                               return (
                                 <div
@@ -213,7 +234,7 @@ export default function WorkflowDiagram() {
                                 >
                                   <div className="h-8 w-1 rounded-full" style={{ backgroundColor: color }} />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium truncate">{accion.nombreAccion}</p>
+                                    <p className="text-sm font-medium truncate">{accion.tipoAccionNombre}</p>
                                     {destinoPaso && (
                                       <p className="text-xs text-muted-foreground truncate">
                                         → {destinoPaso.nombrePaso}
@@ -229,7 +250,7 @@ export default function WorkflowDiagram() {
                                       backgroundColor: color + '10'
                                     }}
                                   >
-                                    {accion.tipoAccion}
+                                    {accion.tipoAccionCodigo}
                                   </Badge>
                                 </div>
                               );
@@ -341,7 +362,7 @@ export default function WorkflowDiagram() {
                 <span className="text-muted-foreground font-semibold">Tipos de Acción:</span>
                 <div className="flex items-center gap-2">
                   <div className="h-0.5 w-6 bg-green-500" />
-                  <span>Aprobación</span>
+                  <span>Autorización</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="h-0.5 w-6 bg-red-500" />
@@ -390,10 +411,10 @@ export default function WorkflowDiagram() {
                     <p className="text-sm font-semibold">{selectedPaso.nombrePaso}</p>
                   </div>
 
-                  {selectedPaso.codigoEstado && (
+                  {selectedPaso.idEstado && (
                     <div>
-                      <label className="text-xs text-muted-foreground">Código Estado</label>
-                      <p className="text-sm font-mono">{selectedPaso.codigoEstado}</p>
+                      <label className="text-xs text-muted-foreground">Estado</label>
+                      <p className="text-sm">{workflowEstados.find(e => e.idEstado === selectedPaso.idEstado)?.nombre ?? `ID: ${selectedPaso.idEstado}`}</p>
                     </div>
                   )}
 
@@ -445,15 +466,15 @@ export default function WorkflowDiagram() {
                             key={accion.idAccion}
                             className="flex items-center justify-between p-2 rounded border border-border text-sm"
                           >
-                            <span>{accion.nombreAccion}</span>
+                            <span>{accion.tipoAccionNombre}</span>
                             <Badge
                               variant="outline"
                               style={{
-                                borderColor: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS],
-                                color: ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS]
+                                borderColor: ACTION_COLORS[accion.tipoAccionCodigo as keyof typeof ACTION_COLORS],
+                                color: ACTION_COLORS[accion.tipoAccionCodigo as keyof typeof ACTION_COLORS]
                               }}
                             >
-                              {accion.tipoAccion}
+                              {accion.tipoAccionCodigo}
                             </Badge>
                           </div>
                         ))}
@@ -483,6 +504,7 @@ export default function WorkflowDiagram() {
               await fetchWorkflow(workflow.idWorkflow);
               toast.success('Cambios guardados correctamente');
             }}
+            workflowEstados={workflowEstados}
           />
         </div>
       )}
@@ -498,9 +520,10 @@ interface WorkflowEditorModalProps {
   embedded?: boolean;
   onClose: () => void;
   onSave: () => Promise<void>;
+  workflowEstados?: WorkflowEstado[];
 }
 
-function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose, onSave }: WorkflowEditorModalProps) {
+function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose, onSave, workflowEstados = [] }: WorkflowEditorModalProps) {
   const [activeTab, setActiveTab] = useState('pasos');
   const [editingPaso, setEditingPaso] = useState<WorkflowPaso | null>(null);
   const [isCreatingPaso, setIsCreatingPaso] = useState(false);
@@ -525,7 +548,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     notificacionModal: false,
     canalTemplateModal: false,
     recordatorioModal: false,
-    plantillasModal: false
+    plantillasModal: false,
+    mappingModal: false,
   });
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
@@ -533,6 +557,113 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       ...prev,
       [modalName]: state ?? !prev[modalName],
     }));
+  };
+
+  // Scope types and mappings state (read-only scope types; mappings CRUD)
+  const [scopeTypes, setScopeTypes] = useState<WorkflowScopeType[]>([]);
+  const [mappings, setMappings] = useState<WorkflowMapping[]>([]);
+  const [empresas, setEmpresas] = useState<any[]>([]);
+  const [sucursales, setSucursales] = useState<any[]>([]);
+  const [areas, setAreas] = useState<any[]>([]);
+  const [usuarios, setUsuarios] = useState<any[]>([]);
+  const [proveedores, setProveedores] = useState<any[]>([]);
+  const [editingMapping, setEditingMapping] = useState<WorkflowMapping | null>(null);
+  const [mappingPayload, setMappingPayload] = useState<{
+    idScopeType: number | null;
+    scopeId?: number | null;
+    idWorkflow: number;
+    prioridadManual: number;
+    activo: boolean;
+    observaciones?: string | null;
+  }>({ idScopeType: null, scopeId: null, idWorkflow: workflow.idWorkflow, prioridadManual: 100, activo: true, observaciones: '' });
+
+  const loadScopeTypes = async () => {
+    try {
+      const res = await API.get<any>('/config/workflows/scope-types');
+      setScopeTypes(res.data?.data ?? []);
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const loadMappings = async () => {
+    try {
+      const res = await API.get<any>(`/config/workflows/mappings?codigoProceso=${workflow.codigoProceso}&idWorkflow=${workflow.idWorkflow}`);
+      setMappings(res.data?.data ?? []);
+    } catch { }
+  };
+
+  // Load catalogs dynamically when scope type selection changes in the mapping form
+  useEffect(() => {
+    const loadCatalogo = async () => {
+      const id = mappingPayload.idScopeType;
+      if (!id) return;
+      const scopeCode = scopeTypes.find(s => s.idScopeType === Number(id))?.codigo.toUpperCase();
+
+      setEmpresas([]); setSucursales([]); setAreas([]); setUsuarios([]); setProveedores([]);
+      try {
+        if (scopeCode === 'EMPRESA') {
+          const res = await API.get('/catalogos/empresas');
+          setEmpresas(res.data.data ?? []);
+        } else if (scopeCode === 'SUCURSAL') {
+          const res = await API.get('/catalogos/sucursales');
+          setSucursales(res.data.data ?? []);
+        } else if (scopeCode === 'AREA') {
+          const res = await API.get('/catalogos/areas');
+          setAreas(res.data.data ?? []);
+        } else if (scopeCode === 'USUARIO') {
+          const res = await API.get('/Admin/usuarios');
+          setUsuarios(res.data.data ?? []);
+        } else if (scopeCode === 'PROVEEDOR' || scopeCode === 'PROVEEDOR_ESPECIFICO') {
+          const res = await API.get('/catalogos/proveedores');
+          setProveedores(res.data.data ?? []);
+        }
+      } catch {}
+    };
+    loadCatalogo();
+  }, [mappingPayload.idScopeType, scopeTypes]);
+
+  const openCreateMapping = () => {
+    setEditingMapping(null);
+    setMappingPayload({ idScopeType: scopeTypes[0]?.idScopeType ?? null, scopeId: null, idWorkflow: workflow.idWorkflow, prioridadManual: 100, activo: true, observaciones: '' });
+    toggleModal('mappingModal', true);
+  };
+
+  const handleEditMapping = (m: WorkflowMapping) => {
+    setEditingMapping(m);
+    setMappingPayload({ idScopeType: m.idScopeType ?? null, scopeId: m.scopeId ?? null, idWorkflow: m.idWorkflow, prioridadManual: m.prioridadManual, activo: m.activo, observaciones: m.observaciones ?? '' });
+    toggleModal('mappingModal', true);
+  };
+
+  const handleSaveMapping = async () => {
+    try {
+      if (!mappingPayload.idScopeType) return toast.error('Selecciona un tipo de scope');
+      if (editingMapping) {
+        await API.put(`/config/workflows/mappings/${editingMapping.idMapping}`, mappingPayload);
+        toast.success('Mapping actualizado');
+      } else {
+        await API.post('/config/workflows/mappings', { codigoProceso: workflow.codigoProceso, ...mappingPayload });
+        toast.success('Mapping creado');
+      }
+      toggleModal('mappingModal', false);
+      setEditingMapping(null);
+      await loadMappings();
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al guardar mapping');
+    }
+  };
+
+  const handleDeleteMapping = async (id: number) => {
+    if (!confirm('¿Eliminar mapping?')) return;
+    try {
+      await API.delete(`/config/workflows/mappings/${id}`);
+      toast.success('Mapping eliminado');
+      await loadMappings();
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al eliminar mapping');
+    }
   };
 
   const handleEditPaso = (paso: WorkflowPaso) => {
@@ -547,7 +678,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       idWorkflow: workflow.idWorkflow,
       orden: Math.max(0, ...workflow.pasos.map(p => p.orden)) + 10,
       nombrePaso: '',
-      codigoEstado: '',
+      idEstado: undefined,
       descripcionAyuda: '',
       esInicio: false,
       esFinal: false,
@@ -568,7 +699,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       const updateRequest = {
         nombrePaso: updatedPaso.nombrePaso,
         orden: updatedPaso.orden,
-        codigoEstado: updatedPaso.codigoEstado || null,
+        idEstado: updatedPaso.idEstado ?? null,
         descripcionAyuda: updatedPaso.descripcionAyuda || null,
         esInicio: updatedPaso.esInicio,
         esFinal: updatedPaso.esFinal,
@@ -658,6 +789,14 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                 <Clock className="h-4 w-4" />
                 Recordatorios
               </TabsTrigger>
+              <TabsTrigger value="mappings" className="gap-2 border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm" onClick={async () => {
+                try {
+                 await Promise.all([loadScopeTypes(), loadMappings()]);
+                } catch { }
+              }}>
+                <Zap className="h-4 w-4" />
+                Mappings
+              </TabsTrigger>
             </TabsList>
 
             <div className="flex-1 overflow-auto">
@@ -706,9 +845,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   {paso.activo ? 'Activo' : 'Inactivo'}
                                 </Badge>
                               </div>
-                              {paso.codigoEstado && (
-                                <p className="text-xs font-mono text-muted-foreground mt-1">
-                                  {paso.codigoEstado}
+                              {paso.idEstado && (
+                                <p className="text-xs text-muted-foreground ml-8">
+                                  Estado: {workflowEstados.find(e => e.idEstado === paso.idEstado)?.nombre ?? `ID: ${paso.idEstado}`}
                                 </p>
                               )}
                               {paso.descripcionAyuda && (
@@ -773,7 +912,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${paso.idPaso}`, {
                                     nombrePaso: paso.nombrePaso,
                                     orden: paso.orden,
-                                    codigoEstado: paso.codigoEstado || null,
+                                    idEstado: paso.idEstado ?? null,
                                     descripcionAyuda: paso.descripcionAyuda || null,
                                     esInicio: paso.esInicio,
                                     esFinal: paso.esFinal,
@@ -836,7 +975,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                           <div className="grid gap-2">
                             {acciones.map(accion => {
                               const destinoPaso = workflow.pasos.find(p => p.idPaso === accion.idPasoDestino);
-                              const color = ACTION_COLORS[accion.tipoAccion as keyof typeof ACTION_COLORS] || '#6b7280';
+                              const color = ACTION_COLORS[accion.tipoAccionCodigo as keyof typeof ACTION_COLORS] || '#6b7280';
                               
                               return (
                                 <div
@@ -845,7 +984,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                 >
                                   <div className="h-10 w-1 rounded-full shrink-0" style={{ backgroundColor: color }} />
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-medium">{accion.nombreAccion}</p>
+                                    <p className="text-sm font-medium">{accion.tipoAccionNombre}</p>
                                     <p className="text-xs text-muted-foreground">
                                       {destinoPaso ? `→ ${destinoPaso.nombrePaso}` : 'Sin destino'}
                                     </p>
@@ -859,7 +998,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                       backgroundColor: color + '10'
                                     }}
                                   >
-                                    {accion.tipoAccion}
+                                    {accion.tipoAccionCodigo}
                                   </Badge>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <Button 
@@ -996,8 +1135,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                           <div key={`accion-${accion.idAccion}`} className="rounded-lg border border-border bg-card p-3">
                             <div className="flex items-center justify-between gap-2">
                               <div>
-                                <p className="text-sm font-semibold">{paso.nombrePaso} · {accion.nombreAccion}</p>
-                                <p className="text-xs text-muted-foreground">{accion.tipoAccion}</p>
+                                <p className="text-sm font-semibold">{paso.nombrePaso} · {accion.tipoAccionNombre}</p>
+                                <p className="text-xs text-muted-foreground">{accion.tipoAccionCodigo}</p>
                               </div>
                               <Button
                                 size="sm"
@@ -1202,8 +1341,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                                     {paso.orden}
                                   </span>
-                                  <span className="font-medium text-sm">{accion.nombreAccion}</span>
-                                  <Badge variant="outline" className="text-xs">{accion.tipoAccion}</Badge>
+                                  <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
+                                  <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
                                   {[
@@ -1424,6 +1563,72 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                   )}
                 </div>
               </TabsContent>
+
+              <TabsContent value="mappings" className="mt-0 h-full">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-muted-foreground">Gestiona las asignaciones del flujo</p>
+                    <Button 
+                      size="sm" 
+                      className="gap-2"
+                      onClick={() => openCreateMapping()}
+                    >
+                      <Plus className="h-4 w-4" />
+                      Nueva Asignación
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {mappings.length === 0 ? (
+                      <div className="rounded-lg border border-border bg-muted/30 p-8 text-center">
+                        <Zap className="h-12 w-12 text-muted-foreground/40 mx-auto mb-3" />
+                        <p className="text-sm text-muted-foreground mb-2">No hay asignaciones configuradas</p>
+                        <p className="text-xs text-muted-foreground">Asigna flujos por nivel y destino</p>
+                      </div>
+                    ) : (
+                      mappings.map((m) => (
+                        <div key={m.idMapping} className={`p-3 rounded-lg border transition-colors ${m.activo ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <div className="mt-1 rounded-md bg-muted px-2 py-1">
+                                <MapPin className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h4 className="font-semibold">{m.scopeNombre ?? 'Global'}</h4>
+                                  <Badge variant="outline" className="text-[10px]">{m.scopeTypeNombre}</Badge>
+                                </div>
+                                <p className="text-xs text-muted-foreground">Prioridad: {m.prioridadManual}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleEditMapping(m)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className={m.activo ? 'text-destructive' : 'text-emerald-600'} onClick={async () => {
+                                const accion = m.activo ? 'desactivar' : 'activar';
+                                if (!confirm(`¿Deseas ${accion} esta asignación?`)) return;
+                                try {
+                                  await API.put(`/config/workflows/mappings/${m.idMapping}`, { ...m, activo: !m.activo });
+                                  toast.success('Asignación actualizada');
+                                  await loadMappings();
+                                } catch (err) {
+                                  const e = toApiError(err as unknown);
+                                  toast.error(e.message ?? 'Error al actualizar asignación');
+                                }
+                              }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                </div>
+              </TabsContent>
+
             </div>
           </Tabs>
       </div>
@@ -1463,6 +1668,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
             setIsCreatingPaso(false);
           }}
           onSave={handleSavePaso}
+          workflowEstados={workflowEstados}
         />
       )}
       
@@ -1530,6 +1736,100 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           setEditingNotificacion(null);
         }}
       />
+
+<Modal
+  id="modal-mapping"
+  open={modalStates.mappingModal}
+  setOpen={(open) => toggleModal('mappingModal', open)}
+  title={editingMapping ? 'Editar Asignación' : 'Nueva Asignación'}
+  size="lg"
+  footer={
+    <div className="flex gap-2 justify-end pt-2">
+      <Button 
+        type="button" 
+        variant="outline" 
+        onClick={() => {
+          toggleModal('mappingModal', false);
+          setEditingMapping(null);
+        }}
+      >
+        Cancelar
+      </Button>
+      <Button 
+        type="submit" // Deberías añadir este state
+        onClick={handleSaveMapping} 
+        className="gap-2"
+      >
+        {editingMapping ? 'Actualizar' : 'Crear'} Asignación
+      </Button>
+      
+      {editingMapping && (
+        <Button
+          type="button"
+          variant="destructive"
+          onClick={() => handleDeleteMapping(editingMapping.idMapping)}
+        >
+          Eliminar
+        </Button>
+      )}
+    </div>
+  }
+>
+  <div className="space-y-4 p-4">
+      <div className="grid grid-cols-2 gap-4">
+        {/* Selector de Nivel */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase">Nivel</Label>
+          <Select 
+            value={String(mappingPayload.idScopeType ?? '')} 
+            onValueChange={(val) => setMappingPayload({ ...mappingPayload, idScopeType: Number(val), scopeId: 0 })}
+          >
+            <SelectTrigger><SelectValue placeholder="Selecciona nivel" /></SelectTrigger>
+            <SelectContent>
+              {scopeTypes.map(st => <SelectItem key={st.idScopeType} value={String(st.idScopeType)}>{st.nombre}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        {/* Selector de Destino Dinámico */}
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold uppercase">Destino</Label>
+          {(() => {
+            const scope = scopeTypes.find(s => s.idScopeType === mappingPayload.idScopeType);
+            const code = scope?.codigo?.toUpperCase() ?? '';
+            
+            if (!code || code === 'GLOBAL') return <Input value="Todo el Sistema" disabled className="bg-muted" />;
+            return (
+              <Select 
+                value={String(mappingPayload.scopeId ?? '0')} 
+                onValueChange={(val) => setMappingPayload({ ...mappingPayload, scopeId: Number(val) })}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecciona..." /></SelectTrigger>
+                <SelectContent>
+                  {code === 'EMPRESA' && empresas.map(e => <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>{e.nombre}</SelectItem>)}
+                  {code === 'SUCURSAL' && sucursales.map(s => <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>{s.nombre}</SelectItem>)}
+                  {code === 'AREA' && areas.map(a => <SelectItem key={a.idArea} value={String(a.idArea)}>{a.nombre}</SelectItem>)}
+                  {code === 'USUARIO' && usuarios.map(u => <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>{u.nombreCompleto}</SelectItem>)}
+                  {(code === 'PROVEEDOR' || code === 'PROVEEDOR_ESPECIFICO') && proveedores.map(p => <SelectItem key={p.idProveedor} value={String(p.idProveedor)}>{p.razonSocial}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            );
+          })()}
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Prioridad Manual</label>
+          <Input type="number" value={String(mappingPayload.prioridadManual)} onChange={e => setMappingPayload({ ...mappingPayload, prioridadManual: Number(e.target.value) || 100 })} />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Checkbox id="mappingActivo" checked={mappingPayload.activo} onCheckedChange={(v) => setMappingPayload({ ...mappingPayload, activo: !!v })} />
+          <label className="text-xs">Activo</label>
+        </div>
+    </div>
+    </div>
+</Modal>
+
+
+
       {/* Plantillas Modal */}
       <Dialog open={modalStates.plantillasModal} onOpenChange={(open) => toggleModal('plantillasModal', open)}>
         <DialogContent className="max-w-2xl">
@@ -1642,9 +1942,10 @@ interface StepEditFormProps {
   open: boolean;
   onClose: () => void;
   onSave: (paso: WorkflowPaso) => Promise<void>;
+  workflowEstados: WorkflowEstado[];
 }
 
-function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
+function StepEditForm({ paso, open, onClose, onSave, workflowEstados }: StepEditFormProps) {
   const [formData, setFormData] = useState<WorkflowPaso>(paso);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -1725,17 +2026,27 @@ function StepEditForm({ paso, open, onClose, onSave }: StepEditFormProps) {
               </div>
 
               <div className="space-y-2 col-span-2">
-                <Label htmlFor="codigoEstado" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Código de Estado *
+                <Label htmlFor="idEstado" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Estado del Workflow
                 </Label>
-                <Input
-                  id="codigoEstado"
-                  value={formData.codigoEstado || ''}
-                  onChange={(e) => handleChange('codigoEstado', e.target.value)}
-                  placeholder="ej. EN_REVISION_F2"
-                  required
-                  className="font-mono text-sm"
-                />
+                <Select
+                  value={formData.idEstado ? String(formData.idEstado) : ''}
+                  onValueChange={(val) => handleChange('idEstado', val ? Number(val) : undefined)}
+                >
+                  <SelectTrigger id="idEstado">
+                    <SelectValue placeholder="Selecciona un estado..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {workflowEstados.map(est => (
+                      <SelectItem key={est.idEstado} value={String(est.idEstado)}>
+                        {est.nombre ?? est.codigo} (ID: {est.idEstado})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Estado que se asignará a las órdenes cuando estén en este paso
+                </p>
               </div>
             </div>
 
@@ -1945,13 +2256,12 @@ interface ActionEditModalProps {
 function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    nombreAccion: '',
-    tipoAccion: 'APROBACION',
-    claseEstetica: 'success',
+    idTipoAccion: 1,
     idPasoOrigen: 0,
     idPasoDestino: 0,
     activo: true
   });
+  const [tiposAccionList, setTiposAccionList] = useState<WorkflowTipoAccion[]>([]);
 
   useEffect(() => {
     if (accion) {
@@ -1961,18 +2271,14 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
       );
       
       setFormData({
-        nombreAccion: accion.nombreAccion,
-        tipoAccion: accion.tipoAccion,
-        claseEstetica: accion.claseEstetica || 'success',
+        idTipoAccion: accion.idTipoAccion,
         idPasoOrigen: pasoOrigen?.idPaso || 0,
         idPasoDestino: accion.idPasoDestino || 0,
         activo: accion.activo ?? true
       });
     } else {
       setFormData({
-        nombreAccion: '',
-        tipoAccion: 'APROBACION',
-        claseEstetica: 'success',
+        idTipoAccion: 1,
         idPasoOrigen: workflow.pasos[0]?.idPaso || 0,
         idPasoDestino: 0,
         activo: true
@@ -1980,14 +2286,26 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
     }
   }, [accion, workflow.pasos, open]);
 
+  useEffect(() => {
+    const loadTipos = async () => {
+      try {
+        const res = await API.get<ApiResponse<WorkflowTipoAccion[]>>('/config/workflows/tipos-accion');
+        if (res.data?.success) {
+          setTiposAccionList(res.data.data || []);
+        }
+      } catch {
+        // silent fail
+      }
+    };
+    loadTipos();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     try {
       const payload = {
-        nombreAccion: formData.nombreAccion,
-        tipoAccion: formData.tipoAccion,
-        claseEstetica: formData.claseEstetica,
+        idTipoAccion: formData.idTipoAccion,
         idPasoDestino: formData.idPasoDestino || null,
         activo: formData.activo
       };
@@ -2006,12 +2324,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
     }
   };
 
-  const tiposAccion = [
-    { value: 'APROBACION', label: 'Aprobación', color: '#10b981' },
-    { value: 'RECHAZO', label: 'Rechazo', color: '#ef4444' },
-    { value: 'RETORNO', label: 'Retorno', color: '#f59e0b' },
-    { value: 'CANCELACION', label: 'Cancelación', color: '#6b7280' }
-  ];
+  const tiposAccion = tiposAccionList;
 
   return (
     <Modal
@@ -2038,9 +2351,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
                 setIsSaving(true);
                 try {
                   await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPasoOrigen}/acciones/${accion.idAccion}`, {
-                    nombreAccion: formData.nombreAccion,
-                    tipoAccion: formData.tipoAccion,
-                    claseEstetica: formData.claseEstetica,
+                    idTipoAccion: formData.idTipoAccion,
                     idPasoDestino: formData.idPasoDestino || null,
                     activo: !formData.activo
                   });
@@ -2062,42 +2373,24 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
       }
     >
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Nombre de la Acción */}
-        <div className="space-y-2">
-          <Label htmlFor="nombreAccion" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Nombre de la Acción *
-          </Label>
-          <Input
-            id="nombreAccion"
-            value={formData.nombreAccion}
-            onChange={(e) => setFormData(prev => ({ ...prev, nombreAccion: e.target.value }))}
-            placeholder="ej. Autorizar, Rechazar, Devolver Corrección"
-            required
-            className="font-medium"
-          />
-          <p className="text-xs text-muted-foreground">
-            Este es el texto que verá el usuario en el botón de acción
-          </p>
-        </div>
-
         {/* Tipo de Acción */}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Tipo de Acción *
           </Label>
           <Select
-            value={formData.tipoAccion}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, tipoAccion: value }))}
+            value={String(formData.idTipoAccion)}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, idTipoAccion: Number(value) }))}
           >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {tiposAccion.map(tipo => (
-                <SelectItem key={tipo.value} value={tipo.value}>
+                <SelectItem key={tipo.idTipoAccion} value={String(tipo.idTipoAccion)}>
                   <div className="flex items-center gap-2">
-                    <div className="h-0.5 w-6" style={{ backgroundColor: tipo.color }} />
-                    <span>{tipo.label}</span>
+                    <div className="h-0.5 w-6" style={{ backgroundColor: ACTION_COLORS[tipo.codigo || ''] || '#6b7280' }} />
+                    <span>{tipo.codigo} - {tipo.nombre}</span>
                   </div>
                 </SelectItem>
               ))}
@@ -2178,14 +2471,14 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
               </span>
               <div 
                 className="h-0.5 flex-1" 
-                style={{ backgroundColor: tiposAccion.find(t => t.value === formData.tipoAccion)?.color }}
+                style={{ backgroundColor: tiposAccion.find(t => t.idTipoAccion === formData.idTipoAccion)?.codigo ? ACTION_COLORS[tiposAccion.find(t => t.idTipoAccion === formData.idTipoAccion)!.codigo!] : '#6b7280' }}
               />
               <span className="font-mono text-xs px-2 py-1 rounded bg-background">
-                {formData.nombreAccion}
+                {tiposAccion.find(t => t.idTipoAccion === formData.idTipoAccion)?.nombre}
               </span>
               <div 
                 className="h-0.5 flex-1" 
-                style={{ backgroundColor: tiposAccion.find(t => t.value === formData.tipoAccion)?.color }}
+                style={{ backgroundColor: tiposAccion.find(t => t.idTipoAccion === formData.idTipoAccion)?.codigo ? ACTION_COLORS[tiposAccion.find(t => t.idTipoAccion === formData.idTipoAccion)!.codigo!] : '#6b7280' }}
               />
               <span className="font-medium">
                 {workflow.pasos.find(p => p.idPaso === formData.idPasoDestino)?.nombrePaso}
@@ -2523,7 +2816,7 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
       <form onSubmit={handleSubmit} className="space-y-4">
         {accion && (
           <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
-            Acción: <span className="font-semibold">{accion.nombreAccion}</span> · {accion.tipoAccion}
+            Acción: <span className="font-semibold">{accion.tipoAccionNombre}</span> · {accion.tipoAccionCodigo}
           </div>
         )}
 
@@ -3245,14 +3538,14 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
               <SelectValue placeholder="Selecciona una acción" />
             </SelectTrigger>
             <SelectContent>
-              {todasLasAcciones.map(({ idAccion, nombreAccion, tipoAccion, paso }) => (
+              {todasLasAcciones.map(({ idAccion, tipoAccionNombre, tipoAccionCodigo, paso }) => (
                 <SelectItem key={idAccion} value={idAccion.toString()}>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground">{paso.nombrePaso}</span>
                     <span className="text-muted-foreground">·</span>
-                    <span>{nombreAccion}</span>
+                    <span>{tipoAccionNombre}</span>
                     <Badge variant="outline" className="text-xs">
-                      {tipoAccion}
+                      {tipoAccionCodigo}
                     </Badge>
                   </div>
                 </SelectItem>
@@ -3430,7 +3723,7 @@ function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Anterior: quien tenía la orden • Autorizadores previos: todos los que aprobaron pasos anteriores de esta orden
+            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Anterior: quien tenía la orden • Autorizadores previos: todos los que autorizaron pasos anteriores de esta orden
           </p>
         </div>
 
