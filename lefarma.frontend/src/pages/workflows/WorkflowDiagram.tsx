@@ -538,6 +538,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [recordatorios, setRecordatorios] = useState<any[]>([]);
   const [ejecutandoRecordatorios, setEjecutandoRecordatorios] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
+  const [tiposNotificacion, setTiposNotificacion] = useState<any[]>([]);
+  const [tiposNotificacionLoaded, setTiposNotificacionLoaded] = useState(false);
   
   const [modalStates, setModalStates] = useState({
     stepForm: false,
@@ -622,6 +624,17 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     };
     loadCatalogo();
   }, [mappingPayload.idScopeType, scopeTypes]);
+
+  useEffect(() => {
+    if (!tiposNotificacionLoaded) {
+      API.get<any>('/config/workflows/tipos-notificacion')
+        .then(res => {
+          setTiposNotificacion(res.data?.data ?? []);
+          setTiposNotificacionLoaded(true);
+        })
+        .catch(() => setTiposNotificacionLoaded(true));
+    }
+  }, [tiposNotificacionLoaded]);
 
   const openCreateMapping = () => {
     setEditingMapping(null);
@@ -845,17 +858,17 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   {paso.activo ? 'Activo' : 'Inactivo'}
                                 </Badge>
                               </div>
-                              {paso.idEstado && (
-                                <p className="text-xs text-muted-foreground ml-8">
-                                  Estado: {workflowEstados.find(e => e.idEstado === paso.idEstado)?.nombre ?? `ID: ${paso.idEstado}`}
-                                </p>
-                              )}
                               {paso.descripcionAyuda && (
                                 <p className="text-sm text-muted-foreground mt-2">
                                   {paso.descripcionAyuda}
                                 </p>
                               )}
                               <div className="flex items-center gap-2 mt-3">
+                                {paso.idEstado && (
+                                  <Badge variant="outline" className="text-xs bg-yellow-500/10 text-yellow-700 border-yellow-500/30">
+                                    Estado: {workflowEstados.find(e => e.idEstado === paso.idEstado)?.nombre ?? `ID: ${paso.idEstado}`}
+                                  </Badge>
+                                )}
                                 {paso.requiereFirma && (
                                   <Badge variant="outline" className="text-xs">
                                     <CheckCircle2 className="mr-1 h-3 w-3" />
@@ -1335,23 +1348,74 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                       {workflow.pasos.flatMap(paso =>
                         (paso.acciones || []).flatMap(accion =>
                           (accion.notificaciones || []).map(notificacion => (
-                            <div key={notificacion.idNotificacion} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
-                                    {paso.orden}
-                                  </span>
-                                  <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
-                                  <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
+                              <div key={notificacion.idNotificacion} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
+                                      {paso.orden}
+                                    </span>
+                                    <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
+                                    <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1.5 ml-7">
+                                    {/* In App always on */}
+                                    <Badge variant="outline" className="text-xs bg-blue-500/10 text-blue-700 border-blue-500/30">
+                                      <Bell className="mr-1 h-3 w-3" />
+                                      In App
+                                    </Badge>
+                                    {notificacion.enviarEmail && (
+                                      <Badge variant="outline" className="text-xs bg-red-500/10 text-red-700 border-red-500/30">
+                                        <Mail className="mr-1 h-3 w-3" />
+                                        Email
+                                      </Badge>
+                                    )}
+                                    {notificacion.enviarWhatsapp && (
+                                      <Badge variant="outline" className="text-xs bg-green-500/10 text-green-700 border-green-500/30">
+                                        WhatsApp
+                                      </Badge>
+                                    )}
+                                    {notificacion.enviarTelegram && (
+                                      <Badge variant="outline" className="text-xs bg-sky-500/10 text-sky-700 border-sky-500/30">
+                                        Telegram
+                                      </Badge>
+                                    )}
+                                    {notificacion.idTipoNotificacion ? (
+                                      <Badge variant="outline" className="text-xs bg-purple-500/10 text-purple-700 border-purple-500/30">
+                                        <Zap className="mr-1 h-3 w-3" />
+                                        {tiposNotificacion.find((t: any) => t.idTipo === notificacion.idTipoNotificacion)?.nombre || `Tipo #${notificacion.idTipoNotificacion}`}
+                                      </Badge>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-1.5 ml-7 mt-1">
+                                    {notificacion.avisarAlCreador && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <Users className="mr-1 h-3 w-3" />
+                                        Creador
+                                      </Badge>
+                                    )}
+                                    {notificacion.avisarAlSiguiente && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <Users className="mr-1 h-3 w-3" />
+                                        Siguiente
+                                      </Badge>
+                                    )}
+                                    {notificacion.avisarAlAnterior && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <Users className="mr-1 h-3 w-3" />
+                                        Anterior
+                                      </Badge>
+                                    )}
+                                    {notificacion.avisarAAutorizadoresPrevios && (
+                                      <Badge variant="outline" className="text-xs">
+                                        <Users className="mr-1 h-3 w-3" />
+                                        Autorizadores previos
+                                      </Badge>
+                                    )}
+                                    {!notificacion.avisarAlCreador && !notificacion.avisarAlSiguiente && !notificacion.avisarAlAnterior && !notificacion.avisarAAutorizadoresPrevios && (
+                                      <span className="text-xs text-muted-foreground">Sin destinatario</span>
+                                    )}
+                                  </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {[
-                                    notificacion.enviarEmail ? 'Email' : null,
-                                    notificacion.enviarWhatsapp ? 'WhatsApp' : null,
-                                    notificacion.enviarTelegram ? 'Telegram' : null
-                                  ].filter(Boolean).join(', ') || 'Sin canal'} • {notificacion.canales?.[0]?.asuntoTemplate || 'Sin asunto'}
-                                </p>
-                              </div>
                               <div className="flex gap-1">
                                 <Button
                                   variant="ghost"
