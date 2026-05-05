@@ -26,7 +26,10 @@ import {
   Clock,
   FlaskConical,
   MapPin,
-  Zap
+  Zap,
+  ListChecks,
+  PenLine,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,7 +81,18 @@ const HANDLER_LABELS: Record<string, string> = {
   RequiredFields:   'Campos requeridos',
   FieldUpdater:     'Actualizar campo',
   DocumentRequired: 'Documento requerido',
-  SmartAudit:       'Auditoría inteligente',
+};
+
+const HANDLER_DESCRIPTIONS: Record<string, string> = {
+  RequiredFields:   'Obliga al usuario a completar ciertos campos antes de ejecutar la acción',
+  FieldUpdater:     'Modifica automáticamente un campo de la orden al ejecutar la acción',
+  DocumentRequired: 'Exige adjuntar un documento específico para continuar',
+};
+
+const HANDLER_CONFIGS: Record<string, { icon: any; color: string; borderColor: string }> = {
+  RequiredFields:   { icon: ListChecks, color: 'bg-amber-500/10 text-amber-700', borderColor: 'border-amber-500/30' },
+  FieldUpdater:     { icon: PenLine,   color: 'bg-blue-500/10 text-blue-700',   borderColor: 'border-blue-500/30' },
+  DocumentRequired: { icon: FileText,  color: 'bg-purple-500/10 text-purple-700', borderColor: 'border-purple-500/30' },
 };
 
 export default function WorkflowDiagram() {
@@ -1142,72 +1156,72 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                   </div>
 
                   {workflow.pasos.some(p => (p.acciones || []).some(a => (a.handlers?.length || 0) > 0)) ? (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {workflow.pasos.flatMap(paso =>
-                        (paso.acciones || []).map(accion => (
-                          <div key={`accion-${accion.idAccion}`} className="rounded-lg border border-border bg-card p-3">
-                            <div className="flex items-center justify-between gap-2">
-                              <div>
-                                <p className="text-sm font-semibold">{paso.nombrePaso} · {accion.tipoAccionNombre}</p>
-                                <p className="text-xs text-muted-foreground">{accion.tipoAccionCodigo}</p>
-                              </div>
-                              <Button
-                                size="sm"
-                                className="gap-2"
-                                onClick={() => {
-                                  setEditingAccionHandler({ accion, handler: null });
-                                  toggleModal('handlerModal', true);
-                                }}
-                              >
-                                <Plus className="h-4 w-4" />
-                                Agregar regla
-                              </Button>
-                            </div>
-
-                            <div className="mt-3 space-y-2">
-                              {(accion.handlers || []).length === 0 ? (
-                                <p className="text-xs text-muted-foreground">Sin reglas configuradas.</p>
-                              ) : (accion.handlers || []).map(handler => (
-                                <div key={handler.idHandler} className="flex items-center justify-between rounded-md border px-3 py-2">
-                                  <div>
-                                    <p className="text-sm font-medium">{HANDLER_LABELS[handler.handlerKey] ?? handler.handlerKey}</p>
-                                    <p className="text-xs text-muted-foreground font-mono">{handler.handlerKey} · Orden: {handler.ordenEjecucion}</p>
+                        (paso.acciones || []).flatMap(accion =>
+                          (accion.handlers || []).length === 0 ? [] : (accion.handlers || []).map(handler => {
+                            const cfg = HANDLER_CONFIGS[handler.handlerKey];
+                            const Icon = cfg?.icon || Wrench;
+                            return (
+                              <div key={handler.idHandler} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
+                                      {paso.orden}
+                                    </span>
+                                    <span className="font-medium text-sm font-semibold">{paso.nombrePaso}</span> -
+                                    <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
+                                    <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
+                                    {accion.enviaConcentrado && (
+                                      <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/30">
+                                        Envia concentrado
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setEditingAccionHandler({ accion, handler });
-                                        toggleModal('handlerModal', true);
-                                      }}
-                                    >
-                                      <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-destructive"
-                                      onClick={async () => {
-                                        if (!confirm('¿Eliminar esta regla?')) return;
-                                        try {
-                                          await API.delete(`/config/workflows/${workflow.idWorkflow}/acciones/${accion.idAccion}/handlers/${handler.idHandler}`);
-                                          toast.success('Regla eliminada');
-                                          await onSave();
-                                        } catch (error: unknown) {
-                                          const err = toApiError(error);
-                                          toast.error(err.message ?? 'No se pudo eliminar la regla');
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                  <div className="flex flex-wrap items-center gap-1.5 ml-7">
+                                    <Badge variant="outline" className={`text-xs ${cfg?.color || ''} ${cfg?.borderColor || ''}`} title={HANDLER_DESCRIPTIONS[handler.handlerKey]}>
+                                      <Icon className="mr-1 h-3 w-3" />
+                                      {HANDLER_LABELS[handler.handlerKey] ?? handler.handlerKey}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                                      Orden: {handler.ordenEjecucion}
+                                    </Badge>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))
+                                <div className="flex items-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditingAccionHandler({ accion, handler });
+                                      toggleModal('handlerModal', true);
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive"
+                                    onClick={async () => {
+                                      if (!confirm('¿Eliminar esta regla?')) return;
+                                      try {
+                                        await API.delete(`/config/workflows/${workflow.idWorkflow}/acciones/${accion.idAccion}/handlers/${handler.idHandler}`);
+                                        toast.success('Regla eliminada');
+                                        await onSave();
+                                      } catch (error: unknown) {
+                                        const err = toApiError(error);
+                                        toast.error(err.message ?? 'No se pudo eliminar la regla');
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )
                       )}
                     </div>
                   ) : (
@@ -2604,7 +2618,6 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
   const [fuValue, setFuValue] = useState('');
   const [fuInputKey, setFuInputKey] = useState('');
   const [documentLabel, setDocumentLabel] = useState('');
-  const [auditLevel, setAuditLevel] = useState<'basic' | 'advanced'>('basic');
 
   const availableCampos = (workflow.campos || []).filter((c: WorkflowCampo) => c.activo);
 
@@ -2612,14 +2625,12 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
     { value: 'RequiredFields',   label: 'Campos requeridos' },
     { value: 'FieldUpdater',     label: 'Actualizar campo' },
     { value: 'DocumentRequired', label: 'Documento requerido' },
-    { value: 'SmartAudit',       label: 'Auditoría inteligente' },
   ];
 
   const resetSmartState = () => {
     setSelectedFields([]);
     setFuField(''); setFuSource('value'); setFuValue(''); setFuInputKey('');
     setDocumentLabel('');
-    setAuditLevel('basic');
   };
 
   const parseExistingJson = (key: string, json: string) => {
@@ -2633,7 +2644,6 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
         setFuInputKey(p.inputKey || '');
       }
       if (key === 'DocumentRequired' && p.etiqueta) setDocumentLabel(p.etiqueta);
-      if (key === 'SmartAudit' && p.level) setAuditLevel(p.level);
     } catch { /* json inválido, dejar defaults */ }
   };
 
@@ -2675,9 +2685,6 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
     }
     if (key === 'DocumentRequired') {
       return documentLabel ? JSON.stringify({ etiqueta: documentLabel }) : null;
-    }
-    if (key === 'SmartAudit') {
-      return JSON.stringify({ level: auditLevel });
     }
     return null;
   };
@@ -2850,30 +2857,6 @@ function HandlerEditModal({ workflow, accion, handler, open, setOpen, onSave }: 
           <p className="text-xs text-muted-foreground">
             El usuario verá este nombre al adjuntar el documento requerido
           </p>
-        </div>
-      );
-    }
-
-    if (handlerKey === 'SmartAudit') {
-      return (
-        <div className="space-y-2">
-          <Label>Nivel de auditoría</Label>
-          <div className="grid grid-cols-2 gap-2">
-            {(['basic', 'advanced'] as const).map(level => (
-              <button
-                key={level}
-                type="button"
-                onClick={() => setAuditLevel(level)}
-                className={`rounded-md border px-3 py-2 text-sm transition-colors ${
-                  auditLevel === level
-                    ? 'border-primary bg-primary/10 text-primary font-medium'
-                    : 'border-border hover:bg-muted/50'
-                }`}
-              >
-                {level === 'basic' ? 'Básico' : 'Avanzado'}
-              </button>
-            ))}
-          </div>
         </div>
       );
     }
