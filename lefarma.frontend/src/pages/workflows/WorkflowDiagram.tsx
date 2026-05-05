@@ -1028,9 +1028,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     >
                                       {accion.tipoAccionCodigo}
                                     </Badge>
-                                    {!accion.activo && (
-                                      <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
-                                    )}
+                                    <Badge variant={accion.activo ? 'default' : 'secondary'} className="text-[10px]">
+                                      {accion.activo ? 'Activa' : 'Inactiva'}
+                                    </Badge>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <Button 
@@ -1100,9 +1100,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   {paso.orden}
                                 </span>
                                 <span className="font-medium text-sm">{paso.nombrePaso}</span>
-                                {condicion.activo === false && (
-                                  <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
-                                )}
+                                <Badge variant={condicion.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
+                                  {condicion.activo !== false ? 'Activa' : 'Inactiva'}
+                                </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 Si {condicion.campoEvaluacion} {condicion.operador} {condicion.valorComparacion} → 
@@ -1185,9 +1185,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                         Envia concentrado
                                       </Badge>
                                     )}
-                                    {handler.activo === false && (
-                                      <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
-                                    )}
+                                    <Badge variant={handler.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
+                                      {handler.activo !== false ? 'Activo' : 'Inactivo'}
+                                    </Badge>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7">
                                     <Badge variant="outline" className={`text-xs ${cfg?.color || ''} ${cfg?.borderColor || ''}`} title={HANDLER_DESCRIPTIONS[handler.handlerKey]}>
@@ -1279,9 +1279,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   {paso.orden}
                                 </span>
                                 <span className="font-medium text-sm">{paso.nombrePaso}</span>
-                                {participante.activo === false && (
-                                  <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
-                                )}
+                                <Badge variant={participante.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
+                                  {participante.activo !== false ? 'Activo' : 'Inactivo'}
+                                </Badge>
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {participante.idRol
@@ -1385,9 +1385,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     <span className="font-medium text-sm font-semibold">{paso.nombrePaso}</span> - 
                                     <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
                                     <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
-                                    {notificacion.activo === false && (
-                                      <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
-                                    )}
+                                    <Badge variant={notificacion.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
+                                      {notificacion.activo !== false ? 'Activa' : 'Inactiva'}
+                                    </Badge>
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7">
                                     {notificacion.idTipoNotificacion ? (
