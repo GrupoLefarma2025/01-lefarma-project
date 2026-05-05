@@ -33,6 +33,8 @@ namespace Lefarma.API.Features.Config.Engine
                         .ThenInclude(a => a.TipoAccion)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
             if (workflow is null)
                 return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
@@ -42,6 +44,10 @@ namespace Lefarma.API.Features.Config.Engine
 
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
+
+            // Validar que el usuario es participante del paso actual
+            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario))
+                return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
                 return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
@@ -119,6 +125,13 @@ namespace Lefarma.API.Features.Config.Engine
             });
             await _context.SaveChangesAsync();
 
+            // Si la acción requiere envío concentrado, comunicar con sistema externo
+            if (accion.EnviaConcentrado)
+            {
+                Console.WriteLine($"[EnvioConcentrado] Orden {ctx.IdOrden} - Acción {accion.IdAccion} requiere envío concentrado. Comunicando con sistema externo...");
+                // TODO: Implementar llamada al endpoint del sistema externo
+            }
+
             return new WorkflowEjecucionResult(
                 Exitoso: true,
                 Error: null,
@@ -133,17 +146,45 @@ namespace Lefarma.API.Features.Config.Engine
             var orden = await _context.OrdenesCompra.FindAsync(idOrden);
             if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
-            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
-            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
+
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario);
+        }
+
+        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
+            int idWorkflow, int idOrden, int idUsuario)
+        {
+            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
+            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
+
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario);
+        }
+
+        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario)
+        {
+            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(idPasoActual);
+            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
+
+            // Validar que el usuario es participante del paso actual
+            if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario))
+                return Array.Empty<WorkflowAccion>();
 
             // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
             // se expone una sola acción "Autorizar" para evitar duplicados en UI.
-            if (pasoActual?.Condiciones.Any() == true)
+            if (pasoActual.Condiciones.Any())
             {
                 var aprobaciones = acciones
                     .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
@@ -175,52 +216,22 @@ namespace Lefarma.API.Features.Config.Engine
             return acciones;
         }
 
-        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
-            int idWorkflow, int idOrden, int idUsuario)
+        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario)
         {
-            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
-            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
+            var participantes = paso.Participantes.Where(p => p.Activo).ToList();
+            if (!participantes.Any()) return true; // Si no hay participantes definidos, permitir a todos
 
-            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
-            var workflow = await _workflowRepo.GetQueryable()
-                .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Condiciones)
-                .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
-            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
-            if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
+            // Verificar asignación directa por usuario
+            if (participantes.Any(p => p.IdUsuario == idUsuario))
+                return true;
 
-            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
-            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
-            if (pasoActual?.Condiciones.Any() == true)
-            {
-                var aprobaciones = acciones
-                    .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
-                    .OrderBy(a => a.IdAccion)
-                    .ToList();
+            // Verificar asignación por rol
+            var rolesUsuario = await _context.UsuariosRoles
+                .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                .Select(ur => ur.IdRol)
+                .ToListAsync();
 
-                if (aprobaciones.Count > 1)
-                {
-                    var accionBase = aprobaciones.First();
-                    var autorizacionUnica = new WorkflowAccion
-                    {
-                        IdAccion = accionBase.IdAccion,
-                        IdPasoOrigen = accionBase.IdPasoOrigen,
-                        IdPasoDestino = accionBase.IdPasoDestino,
-                        IdTipoAccion = accionBase.IdTipoAccion
-                    };
-
-                    var restantes = acciones
-                        .Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "APROBAR")
-                        .OrderBy(a => a.IdAccion)
-                        .ToList();
-
-                    return new List<WorkflowAccion> { autorizacionUnica }
-                        .Concat(restantes)
-                        .ToList();
-                }
-            }
-
-            return acciones;
+            return participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
         }
 
         private static bool EvaluarCondicion(WorkflowCondicion c, Dictionary<string, object>? datos)

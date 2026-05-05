@@ -2324,6 +2324,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
     idTipoAccion: 1,
     idPasoOrigen: 0,
     idPasoDestino: 0,
+    enviaConcentrado: false,
     activo: true
   });
   const [tiposAccionList, setTiposAccionList] = useState<WorkflowTipoAccion[]>([]);
@@ -2339,6 +2340,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
         idTipoAccion: accion.idTipoAccion,
         idPasoOrigen: pasoOrigen?.idPaso || 0,
         idPasoDestino: accion.idPasoDestino || 0,
+        enviaConcentrado: accion.enviaConcentrado ?? false,
         activo: accion.activo ?? true
       });
     } else {
@@ -2346,6 +2348,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
         idTipoAccion: 1,
         idPasoOrigen: workflow.pasos[0]?.idPaso || 0,
         idPasoDestino: 0,
+        enviaConcentrado: false,
         activo: true
       });
     }
@@ -2372,6 +2375,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
       const payload = {
         idTipoAccion: formData.idTipoAccion,
         idPasoDestino: formData.idPasoDestino || null,
+        enviaConcentrado: formData.enviaConcentrado,
         activo: formData.activo
       };
       if (accion) {
@@ -2418,6 +2422,7 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
                   await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPasoOrigen}/acciones/${accion.idAccion}`, {
                     idTipoAccion: formData.idTipoAccion,
                     idPasoDestino: formData.idPasoDestino || null,
+                    enviaConcentrado: formData.enviaConcentrado,
                     activo: !formData.activo
                   });
                   toast.success(formData.activo ? 'Acción desactivada' : 'Acción activada');
@@ -2524,6 +2529,23 @@ function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEdit
           <p className="text-xs text-muted-foreground">
             El paso al que se moverá la orden al ejecutar esta acción
           </p>
+        </div>
+
+        {/* Envia Concentrado */}
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">
+          <Checkbox
+            id="envia-concentrado"
+            checked={formData.enviaConcentrado}
+            onCheckedChange={(checked) => setFormData(prev => ({ ...prev, enviaConcentrado: Boolean(checked) }))}
+          />
+          <div className="space-y-0.5">
+            <Label htmlFor="envia-concentrado" className="text-sm font-medium cursor-pointer">
+              Enviar a concentrado
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Al ejecutar esta acción, se comunicará con el sistema externo de envío concentrado
+            </p>
+          </div>
         </div>
 
         {/* Preview */}

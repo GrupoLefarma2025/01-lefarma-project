@@ -51,6 +51,7 @@ export interface WorkflowAccion {
   tipoAccionCodigo?: string;
   tipoAccionNombre?: string;
   tipoAccionCambiaEstado?: boolean;
+  enviaConcentrado?: boolean;
   activo: boolean;
   handlers?: WorkflowAccionHandler[];
   notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción

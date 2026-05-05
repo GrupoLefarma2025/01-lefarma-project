@@ -58,7 +58,33 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
+                    .Include(w => w.Pasos)
+                        .ThenInclude(p => p.Participantes)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
+
+                if (workflowConfig is null)
+                    return CommonErrors.NotFound("Workflow", orden.IdWorkflow.ToString());
+
+                var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
+                if (pasoActual is null || !pasoActual.Activo)
+                    return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
+
+                // Validar que el usuario es participante del paso actual
+                var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
+                if (participantes.Any())
+                {
+                    var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
+                    if (!esParticipante)
+                    {
+                        var rolesUsuario = await _context.UsuariosRoles
+                            .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                            .Select(ur => ur.IdRol)
+                            .ToListAsync();
+                        esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
+                    }
+                    if (!esParticipante)
+                        return CommonErrors.Validation("Autorizacion", "No eres participante de este paso del workflow.");
+                }
 
                 var estadoAnterior = orden.Estado?.Codigo;
 
@@ -153,8 +179,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.Conflict("orden", "La orden no tiene workflow asignado.");
 
                 var acciones = await _engine.GetAccionesDisponiblesAsync(orden.IdWorkflow, idOrden, idUsuario);
-                if (!acciones.Any())
-                    return CommonErrors.NotFound("Accion");
 
                 var workflow = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)

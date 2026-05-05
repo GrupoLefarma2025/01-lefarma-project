@@ -94,6 +94,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public string? TipoAccionNombre { get; set; }
         public bool? TipoAccionCambiaEstado { get; set; }
         public int? IdPasoDestino { get; set; }
+        public bool EnviaConcentrado { get; set; }
         public bool Activo { get; set; }
         public List<WorkflowAccionHandlerResponse> Handlers { get; set; } = new();
         public List<NotificacionResponse> Notificaciones { get; set; } = new();
@@ -180,6 +181,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public int IdTipoAccion { get; set; }
         public int? IdPasoDestino { get; set; }
+        public bool EnviaConcentrado { get; set; } = false;
         public bool Activo { get; set; } = true;
     }
 
@@ -187,6 +189,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public int IdTipoAccion { get; set; }
         public int? IdPasoDestino { get; set; }
+        public bool EnviaConcentrado { get; set; } = false;
         public bool Activo { get; set; } = true;
     }
 

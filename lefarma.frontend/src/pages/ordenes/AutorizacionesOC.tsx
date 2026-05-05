@@ -1699,7 +1699,9 @@ export default function AutorizacionesOC() {
                                             </p>
                                             <div className="flex flex-wrap gap-2">
                                               {acciones.length === 0 ? (
-                                                <p className="text-xs text-muted-foreground">No hay acciones disponibles.</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                  No hay acciones disponibles para su usuario en este paso.
+                                                </p>
                                               ) : (
                                                 acciones.map((a) => (
                                                    <Button

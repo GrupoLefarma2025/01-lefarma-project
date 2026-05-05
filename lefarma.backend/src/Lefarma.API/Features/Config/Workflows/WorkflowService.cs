@@ -540,6 +540,7 @@ public class WorkflowService : BaseService, IWorkflowService
                         TipoAccionNombre = a.TipoAccion != null ? a.TipoAccion.Nombre : null,
                         TipoAccionCambiaEstado = a.TipoAccion != null ? a.TipoAccion.CambiaEstado : null,
                         IdPasoDestino = a.IdPasoDestino,
+                        EnviaConcentrado = a.EnviaConcentrado,
                         Activo = a.Activo
                     }).ToList()
                 };
@@ -704,6 +705,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPasoOrigen = idPaso,
                     IdTipoAccion = request.IdTipoAccion,
                     IdPasoDestino = request.IdPasoDestino,
+                    EnviaConcentrado = request.EnviaConcentrado,
                     Activo = request.Activo
                 };
 
@@ -715,6 +717,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdAccion = accion.IdAccion,
                     IdTipoAccion = accion.IdTipoAccion,
                     IdPasoDestino = accion.IdPasoDestino,
+                    EnviaConcentrado = accion.EnviaConcentrado,
                     Activo = accion.Activo,
                     Handlers = new List<WorkflowAccionHandlerResponse>()
                 };
@@ -761,6 +764,7 @@ public class WorkflowService : BaseService, IWorkflowService
 
                 accion.IdTipoAccion = request.IdTipoAccion;
                 accion.IdPasoDestino = request.IdPasoDestino;
+                accion.EnviaConcentrado = request.EnviaConcentrado;
                 accion.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
@@ -770,6 +774,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdAccion = accion.IdAccion,
                     IdTipoAccion = accion.IdTipoAccion,
                     IdPasoDestino = accion.IdPasoDestino,
+                    EnviaConcentrado = accion.EnviaConcentrado,
                     Activo = accion.Activo,
                     Handlers = accion.AccionHandlers
                         .Where(h => h.Activo)
@@ -1725,6 +1730,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     TipoAccionNombre = a.TipoAccion != null ? a.TipoAccion.Nombre : null,
                     TipoAccionCambiaEstado = a.TipoAccion != null ? a.TipoAccion.CambiaEstado : null,
                     IdPasoDestino = a.IdPasoDestino,
+                    EnviaConcentrado = a.EnviaConcentrado,
                     Activo = a.Activo,
                     Handlers = a.AccionHandlers.Where(h => h.Activo).OrderBy(h => h.OrdenEjecucion).Select(h => new WorkflowAccionHandlerResponse
                     {
