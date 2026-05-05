@@ -48,9 +48,23 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (query.Activo.HasValue)
                     q = q.Where(w => w.Activo == query.Activo.Value);
 
-                var items = await q.OrderBy(w => w.Nombre).ToListAsync();
+                var items = await q.OrderBy(w => w.Nombre).ThenByDescending(w => w.Activo).ToListAsync();
 
-                var response = items.Select(ToResponse).ToList();
+                var workflowIds = items.Select(w => w.IdWorkflow).ToList();
+                var mappingsCounts = await _context.WorkflowMappings
+                    .Where(m => workflowIds.Contains(m.IdWorkflow) && m.Activo)
+                    .GroupBy(m => m.IdWorkflow)
+                    .Select(g => new { IdWorkflow = g.Key, Count = g.Count() })
+                    .ToDictionaryAsync(x => x.IdWorkflow, x => x.Count);
+
+                var response = items.Select(w => {
+                    var r = ToResponse(w);
+                    if (mappingsCounts.TryGetValue(w.IdWorkflow, out var count))
+                    {
+                        r.Stats!.TotalMappings = count;
+                    }
+                    return r;
+                }).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }

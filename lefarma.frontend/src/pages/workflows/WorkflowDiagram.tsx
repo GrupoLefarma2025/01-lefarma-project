@@ -653,29 +653,29 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       if (!mappingPayload.idScopeType) return toast.error('Selecciona un tipo de scope');
       if (editingMapping) {
         await API.put(`/config/workflows/mappings/${editingMapping.idMapping}`, mappingPayload);
-        toast.success('Mapping actualizado');
+        toast.success('Asignación actualizada');
       } else {
         await API.post('/config/workflows/mappings', { codigoProceso: workflow.codigoProceso, ...mappingPayload });
-        toast.success('Mapping creado');
+        toast.success('Asignación creada');
       }
       toggleModal('mappingModal', false);
       setEditingMapping(null);
       await loadMappings();
     } catch (error: unknown) {
       const err = toApiError(error);
-      toast.error(err.message ?? 'Error al guardar mapping');
+        toast.error(err.message ?? 'Error al guardar asignación');
     }
   };
 
   const handleDeleteMapping = async (id: number) => {
-    if (!confirm('¿Eliminar mapping?')) return;
+    if (!confirm('¿Eliminar asignación?')) return;
     try {
       await API.delete(`/config/workflows/mappings/${id}`);
-      toast.success('Mapping eliminado');
+        toast.success('Asignación eliminada');
       await loadMappings();
     } catch (error: unknown) {
       const err = toApiError(error);
-      toast.error(err.message ?? 'Error al eliminar mapping');
+        toast.error(err.message ?? 'Error al eliminar asignación');
     }
   };
 

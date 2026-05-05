@@ -64,6 +64,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public int TotalAcciones { get; set; }
         public int TotalCondiciones { get; set; }
         public int TotalNotificaciones { get; set; }
+        public int TotalMappings { get; set; }
     }
 
     public class WorkflowPasoResponse
@@ -71,7 +72,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public int IdPaso { get; set; }
         public int Orden { get; set; }
         public string NombrePaso { get; set; } = string.Empty;
-        public string? CodigoEstado { get; set; }
+        public int? IdEstado { get; set; }
         public string? DescripcionAyuda { get; set; }
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
@@ -88,9 +89,10 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     public class WorkflowAccionResponse
     {
         public int IdAccion { get; set; }
-        public string NombreAccion { get; set; } = string.Empty;
-        public string TipoAccion { get; set; } = string.Empty;
-        public string ClaseEstetica { get; set; } = string.Empty;
+        public int IdTipoAccion { get; set; }
+        public string? TipoAccionCodigo { get; set; }
+        public string? TipoAccionNombre { get; set; }
+        public bool? TipoAccionCambiaEstado { get; set; }
         public int? IdPasoDestino { get; set; }
         public bool Activo { get; set; }
         public List<WorkflowAccionHandlerResponse> Handlers { get; set; } = new();
@@ -145,7 +147,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public required string NombrePaso { get; set; }
         public int Orden { get; set; }
-        public string? CodigoEstado { get; set; }
+        public int? IdEstado { get; set; }
         public string? DescripcionAyuda { get; set; }
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
@@ -160,7 +162,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public required string NombrePaso { get; set; }
         public int Orden { get; set; }
-        public string? CodigoEstado { get; set; }
+        public int? IdEstado { get; set; }
         public string? DescripcionAyuda { get; set; }
         public bool EsInicio { get; set; }
         public bool EsFinal { get; set; }
@@ -176,18 +178,14 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     // ============================================================================
     public class CreateAccionRequest
     {
-        public required string NombreAccion { get; set; }
-        public required string TipoAccion { get; set; }
-        public required string ClaseEstetica { get; set; }
+        public int IdTipoAccion { get; set; }
         public int? IdPasoDestino { get; set; }
         public bool Activo { get; set; } = true;
     }
 
     public class UpdateAccionRequest
     {
-        public required string NombreAccion { get; set; }
-        public required string TipoAccion { get; set; }
-        public required string ClaseEstetica { get; set; }
+        public int IdTipoAccion { get; set; }
         public int? IdPasoDestino { get; set; }
         public bool Activo { get; set; } = true;
     }
@@ -453,5 +451,54 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public bool EnviarWhatsapp { get; set; } = false;
         public bool EnviarTelegram { get; set; } = false;
         public List<WorkflowRecordatorioCanalDto> Canales { get; set; } = new();
+    }
+
+    // Scope types and mappings DTOs
+    public class WorkflowScopeTypeResponse
+    {
+        public int IdScopeType { get; set; }
+        public string Codigo { get; set; } = string.Empty;
+        public string Nombre { get; set; } = string.Empty;
+        public int NivelPrioridad { get; set; }
+        public string? Descripcion { get; set; }
+        public bool Activo { get; set; }
+        public DateTime FechaCreacion { get; set; }
+    }
+
+    public class WorkflowMappingResponse
+    {
+        public int IdMapping { get; set; }
+        public string CodigoProceso { get; set; } = string.Empty;
+        public int IdScopeType { get; set; }
+        public int? ScopeId { get; set; }
+        public string? ScopeTypeNombre { get; set; }
+        public string? ScopeNombre { get; set; } 
+        public string? WorkflowNombre { get; set; }
+        public int IdWorkflow { get; set; }
+        public int PrioridadManual { get; set; }
+        public bool Activo { get; set; }
+        public string? Observaciones { get; set; }
+        public DateTime FechaCreacion { get; set; }
+        public int? CreadoPor { get; set; }
+        public DateTime? FechaActualizacion { get; set; }
+    }
+
+    public class WorkflowEstadoResponse
+    {
+        public int IdEstado { get; set; }
+        public string? Codigo { get; set; }
+        public string? Nombre { get; set; }
+        public string? ColorHex { get; set; }
+        public bool Activo { get; set; }
+    }
+
+    public class WorkflowTipoAccionResponse
+    {
+        public int IdTipoAccion { get; set; }
+        public string? Codigo { get; set; }
+        public string? Nombre { get; set; }
+        public string? Descripcion { get; set; }
+        public bool CambiaEstado { get; set; }
+        public bool Activo { get; set; }
     }
 }

@@ -8,10 +8,10 @@ import {
   Trash2, 
   Search, 
   Loader2, 
-  // RefreshCcw, // @typescript-eslint/no-unused-vars
+  RefreshCcw, 
   GitBranch,
   Eye,
-  // BarChart3, // @typescript-eslint/no-unused-vars
+  BarChart3
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -233,6 +233,14 @@ export default function WorkflowsList() {
               <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
               <span className="text-muted-foreground">
                 {row.original.stats?.totalCondiciones} condiciones
+              </span>
+            </div>
+          )}
+          {(row.original.stats?.totalMappings || 0) > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="h-1.5 w-1.5 rounded-full bg-purple-500" />
+              <span className="text-muted-foreground">
+                {row.original.stats?.totalMappings} asignaciones
               </span>
             </div>
           )}

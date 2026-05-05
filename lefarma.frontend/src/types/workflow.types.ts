@@ -19,7 +19,7 @@ export interface WorkflowPaso {
   idWorkflow: number;
   orden: number;
   nombrePaso: string;
-  codigoEstado?: string; // 'EN_REVISION_F2', 'AUTORIZADA', etc.
+  idEstado?: number; // FK a WorkflowEstados
   descripcionAyuda?: string;
   esInicio: boolean;
   esFinal: boolean;
@@ -34,13 +34,23 @@ export interface WorkflowPaso {
 
 // ─── WorkflowAccion ───────────────────────────────────────────────────────────
 
+export interface WorkflowTipoAccion {
+  idTipoAccion: number;
+  codigo?: string;
+  nombre?: string;
+  descripcion?: string;
+  cambiaEstado: boolean;
+  activo: boolean;
+}
+
 export interface WorkflowAccion {
   idAccion: number;
   idPasoOrigen: number;
   idPasoDestino?: number; // null si finaliza el flujo
-  nombreAccion: string; // 'Autorizar', 'Rechazar', etc.
-  tipoAccion: 'APROBACION' | 'RECHAZO' | 'RETORNO' | 'CANCELACION';
-  claseEstetica?: string; // 'success', 'danger', 'warning', 'primary'
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
   activo: boolean;
   handlers?: WorkflowAccionHandler[];
   notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción
@@ -118,6 +128,14 @@ export interface WorkflowNotificacion {
 
 // ─── WorkflowBitacora ─────────────────────────────────────────────────────────
 
+export interface WorkflowEstado {
+  idEstado: number;
+  codigo?: string;
+  nombre?: string;
+  colorHex?: string;
+  activo: boolean;
+}
+
 export interface WorkflowBitacora {
   idEvento: number;
   idOrden: number;
@@ -137,8 +155,37 @@ export interface WorkflowStats {
   totalAcciones: number;
   totalCondiciones: number;
   totalNotificaciones: number;
+  totalMappings: number;
 }
 
 export interface WorkflowWithStats extends Workflow {
   stats?: WorkflowStats;
+}
+
+// Scope types and mappings (backend additions)
+export interface WorkflowScopeType {
+  idScopeType: number;
+  codigo: string;
+  nombre: string;
+  nivelPrioridad: number;
+  descripcion?: string;
+  activo: boolean;
+  fechaCreacion: string;
+}
+
+export interface WorkflowMapping {
+  idMapping: number;
+  codigoProceso: string;
+  idScopeType: number;
+  scopeTypeNombre?: string;
+  scopeId?: number | null;
+  scopeNombre?: string;
+  idWorkflow: number;
+  workflowNombre?: string;
+  prioridadManual: number;
+  activo: boolean;
+  observaciones?: string | null;
+  fechaCreacion: string;
+  creadoPor?: number | null;
+  fechaActualizacion?: string | null;
 }
