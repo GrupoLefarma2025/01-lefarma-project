@@ -504,11 +504,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         await httpClient.PostAsJsonAsync(endpointExterno, new
                         {
                             IdConcentrado = envioConcentrado.IdEnvioConcentrado,
-                            TokenSeguridad = token,
-                            IdsOrdenes = idsExitosas,
-                            Total = total,
-                            CantidadOrdenes = ordenesExitosas.Count,
-                            FechaEnvio = envioConcentrado.FechaEnvio
+                            TokenSeguridad = token
                         });
                     }
                     catch (HttpRequestException)
@@ -597,7 +593,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         IdWorkflow: orden.IdWorkflow,
                         IdOrden: orden.IdOrden,
                         IdAccion: accion.IdAccion,
-                        IdUsuario: 0, // Sistema externo
+                        IdUsuario: request.IdUsuario,
                         Orden: orden,
                         Comentario: request.Comentario
                     );

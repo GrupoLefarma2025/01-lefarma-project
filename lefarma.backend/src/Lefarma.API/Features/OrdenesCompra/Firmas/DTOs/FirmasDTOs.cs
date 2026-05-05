@@ -121,6 +121,7 @@ public class FirmarRequest
     {
         public required int IdConcentrado { get; set; }
         public required string TokenSeguridad { get; set; }
+        public required int IdUsuario { get; set; }
         public required string Accion { get; set; } // "APROBAR" o "DEVOLVER"
         public string? Comentario { get; set; }
     }

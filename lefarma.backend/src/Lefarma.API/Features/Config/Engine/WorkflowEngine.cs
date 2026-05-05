@@ -45,8 +45,8 @@ namespace Lefarma.API.Features.Config.Engine
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
-            // Validar que el usuario es participante del paso actual (bypass si es sistema externo: idUsuario = 0)
-            if (ctx.IdUsuario != 0 && !await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
+            // Validar que el usuario es participante del paso actual
+            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
                 return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
