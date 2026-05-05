@@ -46,7 +46,7 @@ namespace Lefarma.API.Features.Config.Engine
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
             // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario))
+            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
                 return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
@@ -153,7 +153,7 @@ namespace Lefarma.API.Features.Config.Engine
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
 
-            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario);
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
         }
 
         public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
@@ -169,17 +169,17 @@ namespace Lefarma.API.Features.Config.Engine
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
-            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario);
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
         }
 
-        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario)
+        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario, int idUsuarioCreador)
         {
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(idPasoActual);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
             // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario))
+            if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador))
                 return Array.Empty<WorkflowAccion>();
 
             // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
@@ -216,8 +216,12 @@ namespace Lefarma.API.Features.Config.Engine
             return acciones;
         }
 
-        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario)
+        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador)
         {
+            // Si es el paso inicial, el creador de la orden siempre puede ejecutar acciones
+            if (paso.EsInicio && idUsuario == idUsuarioCreador)
+                return true;
+
             var participantes = paso.Participantes.Where(p => p.Activo).ToList();
             if (!participantes.Any()) return true; // Si no hay participantes definidos, permitir a todos
 
