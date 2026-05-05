@@ -1007,26 +1007,31 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                               return (
                                 <div
                                   key={accion.idAccion}
-                                  className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors"
+                                  className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${accion.activo ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}
                                 >
                                   <div className="h-10 w-1 rounded-full shrink-0" style={{ backgroundColor: color }} />
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium">{accion.tipoAccionNombre}</p>
-                                    <p className="text-xs text-muted-foreground">
+                                     <p className="text-xs text-muted-foreground">
                                       {destinoPaso ? `→ ${destinoPaso.nombrePaso}` : 'Sin destino'}
                                     </p>
                                   </div>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs shrink-0"
-                                    style={{ 
-                                      borderColor: color + '40',
-                                      color: color,
-                                      backgroundColor: color + '10'
-                                    }}
-                                  >
-                                    {accion.tipoAccionCodigo}
-                                  </Badge>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                      style={{ 
+                                        borderColor: color + '40',
+                                        color: color,
+                                        backgroundColor: color + '10'
+                                      }}
+                                    >
+                                      {accion.tipoAccionCodigo}
+                                    </Badge>
+                                    {!accion.activo && (
+                                      <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
+                                    )}
+                                  </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     <Button 
                                       variant="ghost" 
@@ -1088,13 +1093,16 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     <div className="space-y-2">
                       {workflow.pasos.flatMap(paso => 
                         (paso.condiciones || []).map(condicion => (
-                          <div key={condicion.idCondicion} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                           <div key={condicion.idCondicion} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${condicion.activo !== false ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                                   {paso.orden}
                                 </span>
                                 <span className="font-medium text-sm">{paso.nombrePaso}</span>
+                                {condicion.activo === false && (
+                                  <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 Si {condicion.campoEvaluacion} {condicion.operador} {condicion.valorComparacion} → 
@@ -1163,7 +1171,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                             const cfg = HANDLER_CONFIGS[handler.handlerKey];
                             const Icon = cfg?.icon || Wrench;
                             return (
-                              <div key={handler.idHandler} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                              <div key={handler.idHandler} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${handler.activo !== false ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
@@ -1176,6 +1184,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                       <Badge variant="outline" className="text-xs bg-orange-500/10 text-orange-700 border-orange-500/30">
                                         Envia concentrado
                                       </Badge>
+                                    )}
+                                    {handler.activo === false && (
+                                      <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
                                     )}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7">
@@ -1261,13 +1272,16 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     <div className="space-y-2">
                       {workflow.pasos.flatMap(paso => 
                         (paso.participantes || []).map(participante => (
-                          <div key={participante.idParticipante} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                           <div key={participante.idParticipante} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${participante.activo !== false ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                                   {paso.orden}
                                 </span>
                                 <span className="font-medium text-sm">{paso.nombrePaso}</span>
+                                {participante.activo === false && (
+                                  <Badge variant="secondary" className="text-[10px]">Inactivo</Badge>
+                                )}
                               </div>
                               <p className="text-xs text-muted-foreground">
                                 {participante.idRol
@@ -1362,7 +1376,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                       {workflow.pasos.flatMap(paso =>
                         (paso.acciones || []).flatMap(accion =>
                           (accion.notificaciones || []).map(notificacion => (
-                              <div key={notificacion.idNotificacion} className="flex items-center justify-between p-3 rounded-lg border border-border bg-card hover:bg-accent/50 transition-colors">
+                              <div key={notificacion.idNotificacion} className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${notificacion.activo !== false ? 'border-border bg-card hover:bg-accent/50' : 'border-border/60 bg-muted/40 opacity-70'}`}>
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-2">
                                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
@@ -1371,6 +1385,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                     <span className="font-medium text-sm font-semibold">{paso.nombrePaso}</span> - 
                                     <span className="font-medium text-sm">{accion.tipoAccionNombre}</span>
                                     <Badge variant="outline" className="text-xs">{accion.tipoAccionCodigo}</Badge>
+                                    {notificacion.activo === false && (
+                                      <Badge variant="secondary" className="text-[10px]">Inactiva</Badge>
+                                    )}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-1.5 ml-7">
                                     {notificacion.idTipoNotificacion ? (

@@ -176,12 +176,17 @@ export default function WorkflowsList() {
   };
 
   const filteredWorkflows = useMemo(() => {
-    return workflows.filter(
-      (w) =>
-        w.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        w.codigoProceso.toLowerCase().includes(search.toLowerCase()) ||
-        w.descripcion?.toLowerCase().includes(search.toLowerCase())
-    );
+    return workflows
+      .filter(
+        (w) =>
+          w.nombre.toLowerCase().includes(search.toLowerCase()) ||
+          w.codigoProceso.toLowerCase().includes(search.toLowerCase()) ||
+          w.descripcion?.toLowerCase().includes(search.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (a.activo === b.activo) return a.nombre.localeCompare(b.nombre);
+        return a.activo ? -1 : 1;
+      });
   }, [workflows, search]);
 
   const columns: ColumnDef<WorkflowWithStats>[] = [
