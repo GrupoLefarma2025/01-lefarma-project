@@ -25,6 +25,7 @@ public class FirmarRequest
         public string? TipoAccionCodigo { get; set; }
         public string? TipoAccionNombre { get; set; }
         public bool? TipoAccionCambiaEstado { get; set; }
+        public bool EnviaConcentrado { get; set; }
         
         // Handlers y campos para construir el modal dinámico
         public List<AccionHandlerMetadataResponse> Handlers { get; set; } = new();

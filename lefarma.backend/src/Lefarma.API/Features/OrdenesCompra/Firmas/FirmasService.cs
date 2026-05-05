@@ -204,6 +204,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         TipoAccionCodigo = a.TipoAccion != null ? a.TipoAccion.Codigo : null,
                         TipoAccionNombre = a.TipoAccion != null ? a.TipoAccion.Nombre : null,
                         TipoAccionCambiaEstado = a.TipoAccion != null ? a.TipoAccion.CambiaEstado : null,
+                        EnviaConcentrado = a.EnviaConcentrado,
                         Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
                         {
                             IdHandler = h.IdHandler,
@@ -368,9 +369,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             }
         }
 
-        // Acción de Autorizar desde paso 4 (GAF → Director / Tesorería según condiciones)
-        private const int ACCION_AUTORIZAR_PASO4 = 8;
-
         public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoAsync(EnvioConcentradoRequest request, int idUsuario)
         {
             try
@@ -379,9 +377,50 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 foreach (var idOrden in request.IdsOrdenes)
                 {
+                    var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                    if (orden is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = $"OC-{idOrden}",
+                            Exitoso = false,
+                            Error = "Orden no encontrada."
+                        });
+                        continue;
+                    }
+
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    // Buscar la acción con envia_concentrado en el paso actual
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accionEnviar = accionesPaso.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
+
+                    if (accionEnviar is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene una acción de envío concentrado disponible en su paso actual."
+                        });
+                        continue;
+                    }
+
                     var firmarReq = new FirmarRequest
                     {
-                        IdAccion = ACCION_AUTORIZAR_PASO4,
+                        IdAccion = accionEnviar.IdAccion,
                         Comentario = request.Comentario ?? "Enviado en lote desde Concentrado de Órdenes"
                     };
 
@@ -389,13 +428,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     if (resultado.IsError)
                     {
-                        var firstError = resultado.FirstError;
                         resultados.Add(new EnvioConcentradoItemResult
                         {
                             IdOrden = idOrden,
-                            Folio = $"OC-{idOrden}",
+                            Folio = orden.Folio,
                             Exitoso = false,
-                            Error = firstError.Description
+                            Error = resultado.FirstError.Description
                         });
                     }
                     else

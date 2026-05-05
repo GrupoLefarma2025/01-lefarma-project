@@ -71,12 +71,13 @@ interface AccionDisponibleResponse {
   tipoAccionCodigo?: string;
   tipoAccionNombre?: string;
   tipoAccionCambiaEstado?: boolean;
-  
+  enviaConcentrado?: boolean;
+
   // Requisitos del paso
   requiereComentario: boolean;
   requiereAdjunto: boolean;
   permiteAdjunto: boolean;
-  
+
   // Handlers y campos para modal dinámico
   handlers: AccionHandlerResponse[];
   camposWorkflow: WorkflowCampoResponse[];
@@ -1698,12 +1699,14 @@ export default function AutorizacionesOC() {
                                               Acciones disponibles
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                              {acciones.length === 0 ? (
+                                              {acciones.filter(a => !a.enviaConcentrado).length === 0 ? (
                                                 <p className="text-xs text-muted-foreground">
                                                   No hay acciones disponibles para su usuario en este paso.
                                                 </p>
                                               ) : (
-                                                acciones.map((a) => (
+                                                acciones
+                                                  .filter(a => !a.enviaConcentrado)
+                                                  .map((a) => (
                                                    <Button
                                                     key={a.idAccion}
                                                     size="sm"
