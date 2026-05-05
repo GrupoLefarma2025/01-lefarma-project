@@ -10,6 +10,8 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using System.Net.Http.Json;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
@@ -21,6 +23,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
         protected override string EntityName => "Firma";
 
         public FirmasService(
@@ -30,6 +34,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
             IServiceScopeFactory scopeFactory,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -39,6 +45,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             _context = context;
             _asokamContext = asokamContext;
             _scopeFactory = scopeFactory;
+            _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
@@ -371,6 +379,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
         public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoAsync(EnvioConcentradoRequest request, int idUsuario)
         {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            
             try
             {
                 var resultados = new List<EnvioConcentradoItemResult>();
@@ -402,7 +412,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         continue;
                     }
 
-                    // Buscar la acción con envia_concentrado en el paso actual
                     var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
                     var accionEnviar = accionesPaso.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
 
@@ -449,8 +458,71 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 }
 
                 var exitosas = resultados.Count(r => r.Exitoso);
+                var idsExitosas = resultados.Where(r => r.Exitoso).Select(r => r.IdOrden).ToList();
+                
+                if (exitosas == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return new EnvioConcentradoResponse
+                    {
+                        Total = request.IdsOrdenes.Count,
+                        Exitosas = 0,
+                        Fallidas = request.IdsOrdenes.Count,
+                        Resultados = resultados
+                    };
+                }
+
+                // Obtener ordenes exitosas para calcular total
+                var ordenesExitosas = await _context.OrdenesCompra
+                    .Where(o => idsExitosas.Contains(o.IdOrden))
+                    .ToListAsync();
+                var total = ordenesExitosas.Sum(o => o.Total);
+
+                // Crear registro de envio concentrado
+                var token = Guid.NewGuid().ToString("N");
+                var envioConcentrado = new EnvioConcentrado
+                {
+                    IdUsuarioEnvio = idUsuario,
+                    Estado = "PENDIENTE",
+                    TokenSeguridad = token,
+                    Total = total,
+                    CantidadOrdenes = ordenesExitosas.Count,
+                    FechaCreacion = DateTime.UtcNow,
+                    Ordenes = ordenesExitosas
+                };
+
+                _context.EnviosConcentrado.Add(envioConcentrado);
+                await _context.SaveChangesAsync();
+
+                // Enviar al sistema externo
+                var endpointExterno = _configuration["Integraciones:EnvioConcentrado:EndpointExterno"];
+                if (!string.IsNullOrEmpty(endpointExterno))
+                {
+                    try
+                    {
+                        var httpClient = _httpClientFactory.CreateClient();
+                        await httpClient.PostAsJsonAsync(endpointExterno, new
+                        {
+                            IdConcentrado = envioConcentrado.IdEnvioConcentrado,
+                            TokenSeguridad = token,
+                            IdsOrdenes = idsExitosas,
+                            Total = total,
+                            CantidadOrdenes = ordenesExitosas.Count,
+                            FechaEnvio = envioConcentrado.FechaEnvio
+                        });
+                    }
+                    catch (HttpRequestException)
+                    {
+                        // El envio queda en PENDIENTE, se puede reintentar manualmente
+                        // Loggear error
+                    }
+                }
+
+                await transaction.CommitAsync();
+
                 EnrichWideEvent("EnvioConcentrado", additionalContext: new Dictionary<string, object>
                 {
+                    ["idConcentrado"] = envioConcentrado.IdEnvioConcentrado,
                     ["total"] = request.IdsOrdenes.Count,
                     ["exitosas"] = exitosas,
                     ["fallidas"] = resultados.Count - exitosas
@@ -466,8 +538,101 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             }
             catch (Exception ex)
             {
+                await transaction.RollbackAsync();
                 EnrichWideEvent("EnvioConcentrado", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al procesar el envío concentrado.");
+            }
+        }
+
+        public async Task<ErrorOr<RespuestaConcentradoResponse>> ProcesarRespuestaConcentradoAsync(RespuestaConcentradoExternoRequest request)
+        {
+            try
+            {
+                var concentrado = await _context.EnviosConcentrado
+                    .Include(e => e.Ordenes)
+                    .FirstOrDefaultAsync(e => e.IdEnvioConcentrado == request.IdConcentrado 
+                        && e.TokenSeguridad == request.TokenSeguridad);
+
+                if (concentrado is null)
+                    return CommonErrors.NotFound("Concentrado", $"ID: {request.IdConcentrado}");
+
+                if (concentrado.Estado != "PENDIENTE")
+                    return CommonErrors.Conflict("Concentrado", $"El concentrado ya fue {concentrado.Estado}.");
+
+                var resultados = new List<EnvioConcentradoItemResult>();
+                var esAprobar = request.Accion.ToUpper() == "APROBAR";
+
+                foreach (var orden in concentrado.Ordenes)
+                {
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = orden.IdOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accion = esAprobar
+                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "APROBAR" && a.Activo)
+                        : accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "DEVOLVER" && a.Activo);
+
+                    if (accion is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = orden.IdOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = $"No hay acción {(esAprobar ? "APROBAR" : "DEVOLVER")} disponible."
+                        });
+                        continue;
+                    }
+
+                    var ctx = new WorkflowContext(
+                        IdWorkflow: orden.IdWorkflow,
+                        IdOrden: orden.IdOrden,
+                        IdAccion: accion.IdAccion,
+                        IdUsuario: 0, // Sistema externo
+                        Orden: orden,
+                        Comentario: request.Comentario
+                    );
+
+                    var resultado = await _engine.EjecutarAccionAsync(ctx);
+
+                    resultados.Add(new EnvioConcentradoItemResult
+                    {
+                        IdOrden = orden.IdOrden,
+                        Folio = orden.Folio,
+                        Exitoso = resultado.Exitoso,
+                        Error = resultado.Error,
+                        NuevoEstado = resultado.NuevoIdEstado?.ToString()
+                    });
+                }
+
+                // Actualizar concentrado
+                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
+                concentrado.FechaRespuesta = DateTime.UtcNow;
+                concentrado.ComentarioRespuesta = request.Comentario;
+                concentrado.FechaModificacion = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+
+                return new RespuestaConcentradoResponse
+                {
+                    Total = concentrado.Ordenes.Count,
+                    Exitosas = resultados.Count(r => r.Exitoso),
+                    Fallidas = resultados.Count - resultados.Count(r => r.Exitoso),
+                    Resultados = resultados
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("RespuestaConcentrado", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al procesar respuesta del concentrado.");
             }
         }
 

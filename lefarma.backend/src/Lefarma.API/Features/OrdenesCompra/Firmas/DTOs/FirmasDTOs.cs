@@ -114,4 +114,22 @@ public class FirmarRequest
         public string? DatosSnapshot { get; set; }
         public DateTime FechaEvento { get; set; }
     }
+
+    // ── Respuesta del Sistema Externo ────────────────────────────────────────
+
+    public class RespuestaConcentradoExternoRequest
+    {
+        public required int IdConcentrado { get; set; }
+        public required string TokenSeguridad { get; set; }
+        public required string Accion { get; set; } // "APROBAR" o "DEVOLVER"
+        public string? Comentario { get; set; }
+    }
+
+    public class RespuestaConcentradoResponse
+    {
+        public int Total { get; set; }
+        public int Exitosas { get; set; }
+        public int Fallidas { get; set; }
+        public List<EnvioConcentradoItemResult> Resultados { get; set; } = new();
+    }
 }

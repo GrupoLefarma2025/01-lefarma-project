@@ -45,12 +45,17 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowRecordatorioCanal> WorkflowRecordatorioCanales { get; set; }
         public DbSet<WorkflowNotificacionCanal> WorkflowNotificacionCanales { get; set; }
         public DbSet<WorkflowNotificacionesPlantillas> WorkflowNotificacionesPlantillas { get; set; }
+        public DbSet<WorkflowScopeType> WorkflowScopeTypes { get; set; }
+        public DbSet<WorkflowMapping> WorkflowMappings { get; set; }
+        public DbSet<WorkflowEstados> WorkflowEstados { get; set; }
+        public DbSet<WorkflowTipoAccion> WorkflowTiposAccion { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
         public DbSet<OrdenCompraPartida> OrdenesCompraPartidas { get; set; }
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Comprobacion> Comprobaciones { get; set; }
+        public DbSet<EnvioConcentrado> EnviosConcentrado { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }
@@ -132,6 +137,7 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(o => o.IdArea)
                 .OnDelete(DeleteBehavior.Restrict);
+
         }
     }
 }
