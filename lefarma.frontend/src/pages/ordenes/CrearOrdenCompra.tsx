@@ -30,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -119,16 +120,17 @@ const ordenCompraSchema = z
     idSucursal: z.number().positive('Seleccione una sucursal'),
     idArea: z.number().positive('Seleccione un área'),
     idTipoGasto: z.number().optional().nullable(),
-    fechaLimitePago: z.string().min(1, 'La fecha es requerida'),
+    fechaLimitePago: z.string().min(1, 'La fecha es requerida').refine(
+      (val) => new Date(val) >= new Date(new Date().toISOString().split('T')[0]),
+      { message: 'La fecha límite de pago no puede ser anterior a hoy' }
+    ),
     idMoneda: z.number().optional().nullable(),
     tipoCambioAplicado: z.number().optional(),
     sinDatosFiscales: z.boolean(),
-    // FK al proveedor (proveedor a nivel orden)
     idProveedor: z.number().optional().nullable(),
-    // Campo de UI para mostrar la razón social del proveedor seleccionado
     razonSocialProveedor: z.string().optional(),
-    // Cuenta bancaria única a nivel orden
     idCuentaBancaria: z.number().optional().nullable(),
+    idFormaPago: z.number().optional().nullable(),
     notaFormaPago: z.string().optional(),
     notasGenerales: z.string().optional(),
     agregarProveedorPorPartida: z.boolean(),
@@ -349,32 +351,32 @@ function UnidadMedidaSelector({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
+              className="w-full justify-between border-input bg-transparent"
             >
               <span className="truncate">
                 {selectedUnidad ? (
                   <span className="flex items-center gap-2">
                     <span className="font-medium">{selectedUnidad.abreviatura}</span>
-                    <span className="text-sm text-slate-500">— {selectedUnidad.nombre}</span>
+                    <span className="text-sm text-muted-foreground">— {selectedUnidad.nombre}</span>
                   </span>
                 ) : (
-                  <span className="text-slate-400">Seleccionar unidad...</span>
+                  <span className="text-muted-foreground">Seleccionar unidad...</span>
                 )}
               </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
             </Button>
           </FormControl>
         </PopoverTrigger>
         <PopoverContent className="w-[400px] p-0" align="start" sideOffset={4}>
-          <Command className="rounded-lg border shadow-md">
-            <div className="flex items-center border-b bg-slate-50 px-3 py-2">
-              <Search className="mr-2 h-4 w-4 text-slate-400" />
+          <Command className="rounded-lg border shadow-md bg-popover text-popover-foreground">
+            <div className="flex items-center border-b bg-transparent px-3 py-2">
+              <Search className="mr-2 h-4 w-4 text-muted-foreground" />
               <CommandInput
                 placeholder="Buscar unidad de medida..."
-                className="flex-1 bg-transparent outline-none placeholder:text-slate-400"
+                className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
               />
             </div>
-            <CommandEmpty className="py-6 text-center text-sm text-slate-500">
+            <CommandEmpty className="py-6 text-center text-sm text-muted-foreground">
               No se encontró ninguna unidad.
             </CommandEmpty>
             <CommandList className="max-h-[300px] overflow-auto">
@@ -393,13 +395,13 @@ function UnidadMedidaSelector({
                           onChange(unidad.idUnidadMedida);
                           setOpen(false);
                         }}
-                        className="flex cursor-pointer items-center justify-between rounded-md px-2 py-2 hover:bg-slate-100"
+                        className="flex cursor-pointer items-center justify-between rounded-md px-2 py-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
                       >
                         <span className="flex items-center gap-3">
-                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-slate-100 text-xs font-semibold text-slate-700">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent text-xs font-semibold text-accent-foreground">
                             {unidad.abreviatura}
                           </span>
-                          <span className="text-sm">{unidad.nombre}</span>
+                          <span className="text-sm text-popover-foreground">{unidad.nombre}</span>
                         </span>
                         {value === unidad.idUnidadMedida && (
                           <Check className="h-4 w-4 text-primary" />
@@ -439,7 +441,6 @@ export default function CrearOrdenCompra() {
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
-  const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [medidas, setMedidas] = useState<Medida[]>([]);
   const [regimenesFiscales, setRegimenesFiscales] = useState<RegimenFiscalItem[]>([]);
@@ -459,7 +460,7 @@ export default function CrearOrdenCompra() {
       idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
-      idTipoGasto: 0,
+      idTipoGasto: null,
       fechaLimitePago: '',
       idMoneda: null,
       tipoCambioAplicado: 1,
@@ -691,6 +692,9 @@ export default function CrearOrdenCompra() {
   const [selectedProveedorId, setSelectedProveedorId] = useState(0);
   const [selectedCuentaBancariaId, setSelectedCuentaBancariaId] = useState<number | null>(null);
   const [cuentasBancarias, setCuentasBancarias] = useState<ProveedorCuentaBancaria[]>([]);
+  const [selectedFormaPagoId, setSelectedFormaPagoId] = useState<number | null>(null);
+  const [numeroMensualidades, setNumeroMensualidades] = useState<number>(1);
+  const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
 
   const obtenerProveedorPorId = async (id: number): Promise<Proveedor | null> => {
     try {
@@ -721,7 +725,8 @@ export default function CrearOrdenCompra() {
     } else {
       setCuentasBancarias([]);
     }
-    setSelectedCuentasBancariasIds([]);
+    setSelectedCuentaBancariaId(null);
+    setSelectedFormaPagoId(null);
   };
   useEffect(() => {
     if (catalogFetched.current) return;
@@ -785,7 +790,8 @@ export default function CrearOrdenCompra() {
             sinDatosFiscales: orden.sinDatosFiscales,
             idProveedor: orden.idProveedor || 0,
             razonSocialProveedor,
-            idCuentaBancaria: orden.idCuentaBancaria || null,
+            idCuentaBancaria: orden.idsCuentasBancarias?.[0] || null,
+            idFormaPago: orden.idsFormaPago?.[0] ?? null,
             notaFormaPago: orden.notaFormaPago || '',
             notasGenerales: orden.notasGenerales || '',
             agregarProveedorPorPartida:
@@ -810,12 +816,14 @@ export default function CrearOrdenCompra() {
                 : [emptyPartida],
           };
           setSelectedProveedorId(orden.idProveedor || 0);
-          setSelectedCuentaBancariaId(orden.idCuentaBancaria || null);
+          setSelectedCuentaBancariaId(orden.idsCuentasBancarias?.[0] || null);
+          setSelectedFormaPagoId(orden.idsFormaPago?.[0] ?? null);
           setCuentasBancarias(cuentasBancariasDelProveedor);
           form.reset(mapped);
         }
       } catch (error) {
         toast.error('Error al cargar la orden');
+        console.error('Error al cargar orden:', error); 
       }
     }
 
@@ -918,7 +926,9 @@ export default function CrearOrdenCompra() {
         sinDatosFiscales: values.sinDatosFiscales,
         notaFormaPago: values.notaFormaPago || null,
         notasGenerales: values.notasGenerales || null,
-        idCuentaBancaria: selectedCuentaBancariaId,
+        idsCuentasBancarias: selectedCuentaBancariaId ? [selectedCuentaBancariaId] : null,
+        idsFormaPago: selectedFormaPagoId ? [selectedFormaPagoId] : null,
+        numeroMensualidades: selectedFormaPagoId ? numeroMensualidades : null,
         partidas: values.partidas.map((p) => ({
           descripcion: p.descripcion,
           cantidad: p.cantidad,
@@ -1127,11 +1137,35 @@ export default function CrearOrdenCompra() {
                                 ))}
                               </SelectContent>
                             </Select>
-                            <FormMessage />
-                          </FormItem>
+<FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        {selectedFormaPagoId && (
+                          <div className="grid grid-cols-1 gap-4 mt-4">
+                            <FormItem>
+                              <FormLabel>Número de pagos mensuales</FormLabel>
+                              <FormControl>
+                                <Input
+                                  type="number"
+                                  min={1}
+                                  max={48}
+                                  value={numeroMensualidades}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 1;
+                                    setNumeroMensualidades(Math.max(1, Math.min(48, val)));
+                                  }}
+                                  className="w-32"
+                                />
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                ¿En cuántos meses se realizará el pago? (1-48 meses)
+                              </FormDescription>
+                            </FormItem>
+                          </div>
                         )}
-                      />
-                    </div>
+                      </div>
                   </FormSection>
                 </CardContent>
               </CollapsibleContent>
@@ -1264,7 +1298,7 @@ export default function CrearOrdenCompra() {
                                     variant="outline"
                                     role="combobox"
                                     aria-expanded={open}
-                                    className="w-full justify-between border-slate-200 bg-white hover:bg-slate-50"
+                                    className="w-full justify-between border-input bg-transparent"
                                   >
                                     <span
                                       className={cn(
@@ -1274,23 +1308,23 @@ export default function CrearOrdenCompra() {
                                     >
                                       {field.value || 'Escribe para buscar...'}
                                     </span>
-                                    <Search className="ml-2 h-4 w-4 shrink-0 text-slate-400" />
+                                    <Search className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
                                   </Button>
                                 </FormControl>
                               </PopoverTrigger>
                               <PopoverContent className="w-[400px] p-0" align="start">
                                 <Command
                                   shouldFilter={false}
-                                  className="rounded-lg border shadow-md"
+                                  className="rounded-lg border shadow-md bg-popover text-popover-foreground"
                                 >
-                                  <div className="flex items-center border-b bg-slate-50 px-3 py-2">
-                                    <Search className="mr-2 h-4 w-4 text-slate-400" />
+                                  <div className="flex items-center border-b bg-transparent px-3 py-2">
+                                    <Search className="mr-2 h-4 w-4 text-muted-foreground" />
                                     <CommandInput
                                       placeholder="Escribe para buscar..."
                                       value={busqueda}
                                       onValueChange={handleBuscar}
                                       onKeyDown={handleKeyDown}
-                                      className="flex-1 bg-transparent outline-none placeholder:text-slate-400"
+                                      className="flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
                                     />
                                   </div>
                                   <CommandList className="max-h-[300px] overflow-auto">
@@ -1316,11 +1350,11 @@ export default function CrearOrdenCompra() {
                                                 setSelectedIndex(0);
                                               }}
                                               className={cn(
-                                                'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 hover:bg-slate-100 hover:shadow-sm',
-                                                index === selectedIndex && 'bg-slate-100'
+                                                'flex cursor-pointer flex-col items-start rounded-md px-2 py-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground',
+                                                index === selectedIndex && 'bg-accent'
                                               )}
                                             >
-                                              <span className="font-medium">
+                                              <span className="font-medium text-popover-foreground">
                                                 {proveedor.razonSocial}
                                               </span>
                                               <span className="text-xs text-muted-foreground">
@@ -1347,53 +1381,104 @@ export default function CrearOrdenCompra() {
                         );
                       }}
                     />
-                    <FormField
-                      control={form.control}
-                      name="idCuentaBancaria"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Cuenta Bancaria</FormLabel>
-                          <Select
-                            onValueChange={(val) => {
-                              const id = Number(val);
-                              setSelectedCuentaBancariaId(id);
-                              field.onChange(id);
-                            }}
-                            value={field.value ? String(field.value) : ''}
-                          >
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Selecciona una cuenta bancaria..." />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              {cuentasBancarias.length === 0 ? (
-                                <SelectItem value="__none__" disabled>
-                                  {selectedProveedorId > 0
-                                    ? 'Este proveedor no tiene cuentas activas'
-                                    : 'Seleccione primero un proveedor'}
-                                </SelectItem>
-                              ) : (
-                                cuentasBancarias.map((cuenta) => (
-                                  <SelectItem
-                                    key={cuenta.idCuen}
-                                    value={String(cuenta.idCuen)}
-                                  >
-                                    {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
-                                    {cuenta.formaPagoNombre ? ` · ${cuenta.formaPagoNombre}` : ''}
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                          <FormDescription className="text-xs">
-                            Seleccione la cuenta bancaria del proveedor para realizar el pago
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
+
+                  {selectedProveedorId > 0 && (
+                    <>
+                      <div className="grid grid-cols-1 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="idCuentaBancaria"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Cuenta Bancaria</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  value={field.value ? String(field.value) : ''}
+                                  onValueChange={(val) => {
+                                    const id = Number(val);
+                                    setSelectedCuentaBancariaId(id);
+                                    field.onChange(id);
+                                  }}
+                                >
+                                  <div className="flex flex-col gap-2 mt-2">
+                                    {cuentasBancarias.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground">
+                                        {selectedProveedorId > 0
+                                          ? 'Este proveedor no tiene cuentas activas'
+                                          : 'Seleccione primero un proveedor'}
+                                      </p>
+                                    ) : (
+                                      cuentasBancarias.map((cuenta) => (
+                                        <label
+                                          key={cuenta.idCuen}
+                                          className="flex items-center gap-3 cursor-pointer text-sm border border-slate-200 dark:border-slate-700 rounded-md p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                                        >
+                                          <RadioGroupItem value={String(cuenta.idCuen)} />
+                                          <div className="flex flex-col">
+                                            <span className="font-medium text-slate-900 dark:text-slate-100">
+                                              {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
+                                            </span>
+                                            {cuenta.formaPagoNombre && (
+                                              <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                {cuenta.formaPagoNombre}
+                                              </span>
+                                            )}
+                                          </div>
+                                        </label>
+                                      ))
+                                    )}
+                                  </div>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                Seleccione la cuenta bancaria del proveedor para realizar el pago
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4">
+                        <FormField
+                          control={form.control}
+                          name="idFormaPago"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Forma de Pago</FormLabel>
+                              <FormControl>
+                                <RadioGroup
+                                  value={field.value !== undefined ? String(field.value) : ''}
+                                  onValueChange={(val) => {
+                                    const id = val === '' ? null : Number(val);
+                                    field.onChange(id);
+                                    setSelectedFormaPagoId(id);
+                                  }}
+                                >
+                                  <div className="flex flex-wrap gap-3 mt-2">
+                                    {formasPago.filter(f => f.activo).map((forma) => (
+                                      <label
+                                        key={forma.idFormaPago}
+                                        className="flex items-center gap-2 cursor-pointer text-sm"
+                                      >
+                                        <RadioGroupItem value={String(forma.idFormaPago)} />
+                                        {forma.nombre}
+                                      </label>
+                                    ))}
+                                  </div>
+                                </RadioGroup>
+                              </FormControl>
+                              <FormDescription className="text-xs">
+                                Seleccione la forma de pago
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      </div>
+                    </>
+                  )}
                 </FormSection>
               )}
             </CardContent>
@@ -1451,7 +1536,7 @@ export default function CrearOrdenCompra() {
                       <FormControl>
                         <Input
                           type="date"
-                          min={new Date(Date.now() - 2 * 86_400_000).toISOString().split('T')[0]}
+                          min={new Date().toISOString().split('T')[0]}
                           {...field}
                         />
                       </FormControl>
@@ -1471,7 +1556,7 @@ export default function CrearOrdenCompra() {
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
                         <CreditCard className="h-3.5 w-3.5" />
-                        Comentarios de Forma de Pago
+                        Comentarios sobre el pago
                       </FormLabel>
                       <FormControl>
                         <Input placeholder="Instrucciones especiales de pago" {...field} />
@@ -1517,7 +1602,7 @@ export default function CrearOrdenCompra() {
                     type="button"
                     variant="default"
                     size="default"
-                    onClick={() => append(emptyPartida)}
+                    onClick={() => append({ ...emptyPartida, idTipoImpuesto: defaultTipoImpuestoId })}
                     className="text-base font-semibold shadow-sm"
                   >
                     <Plus className="mr-2 h-5 w-5" /> Agregar Partida

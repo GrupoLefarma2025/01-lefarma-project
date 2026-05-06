@@ -2,7 +2,18 @@ using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 {
-    public class OrdenCompraResponse
+    /// <summary>
+    /// Representa el JSON almacenado en la columna ids_cuentas_bancarias de la tabla ordenes_compra.
+    /// Formato: {"ids_cuentas_bancarias":[1,2], "ids_forma_pago":[1,2,3], "numero_mensualidades":3}
+    /// </summary>
+    public class CuentasBancariasYFormasPago
+    {
+        public List<int> IdsCuentasBancarias { get; set; } = new();
+        public List<int> IdsFormaPago { get; set; } = new();
+        public int? NumeroMensualidades { get; set; }
+    }
+
+public class OrdenCompraResponse
     {
         public int IdOrden { get; set; }
         public string Folio { get; set; } = string.Empty;
@@ -16,6 +27,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int? IdProveedor { get; set; }
         public string? RazonSocialProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
+        public List<int>? IdsFormaPago { get; set; }
+        public int? NumeroMensualidades { get; set; }
         public int? IdEstado { get; set; }
         public int? IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
@@ -62,6 +75,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public required DateTime FechaLimitePago { get; set; }
         public int? IdProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
+        public List<int>? IdsFormaPago { get; set; }
+        public int? NumeroMensualidades { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
