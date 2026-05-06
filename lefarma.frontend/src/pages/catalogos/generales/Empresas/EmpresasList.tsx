@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, /* Store, */ } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';

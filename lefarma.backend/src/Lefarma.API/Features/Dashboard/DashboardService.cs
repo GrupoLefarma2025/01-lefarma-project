@@ -28,13 +28,15 @@ namespace Lefarma.API.Features.Dashboard
         {
             try
             {
-                EnrichWideEvent(action: "GetStats");
+                var estados = await _db.WorkflowEstados
+                    .Where(e => e.Activo)
+                    .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
+                var cards = await GetCardsAsync(estados);
+                var graficaMensual = await GetGraficaMensualAsync(estados);
+                var pagosUrgentes = await GetPagosUrgentesAsync(estados);
 
-                var cards = await GetCardsAsync();
-                var graficaMensual = await GetGraficaMensualAsync();
                 var distribucionArea = await GetDistribucionAreaAsync();
                 var distribucionSucursal = await GetDistribucionSucursalAsync();
-                var pagosUrgentes = await GetPagosUrgentesAsync();
                 var actividadReciente = await GetActividadRecienteAsync();
 
                 return new DashboardStatsResponse
@@ -54,32 +56,28 @@ namespace Lefarma.API.Features.Dashboard
             }
         }
 
-        private async Task<PipelineCardsStats> GetCardsAsync()
+        private async Task<PipelineCardsStats> GetCardsAsync(Dictionary<string, int> estados)
         {
             var today = DateTime.UtcNow;
 
-            var estadosFirma = new List<EstadoOC>
-            {
-                EstadoOC.EnRevisionF2, EstadoOC.EnRevisionF3,
-                EstadoOC.EnRevisionF4, EstadoOC.EnRevisionF5
-            };
+            int idCreada = estados.GetValueOrDefault("CREADA");
+            int idRevision = estados.GetValueOrDefault("REVISION");
+            int idTesoreria = estados.GetValueOrDefault("TESORERIA");
 
-            var estadosTerminados = new List<EstadoOC>
-            {
-                EstadoOC.Pagada, EstadoOC.Cerrada, EstadoOC.Cancelada
+            // estados terminados
+            var idsTerminados = new[] {
+                estados.GetValueOrDefault("PAGADA"),
+                estados.GetValueOrDefault("CERRADA"),
+                estados.GetValueOrDefault("CANCELADA")
             };
-
             var pendientesEnvio = await _db.OrdenesCompra
-                .CountAsync(oc => oc.Estado == EstadoOC.Creada);
-
+                .CountAsync(oc => oc.IdEstado == idCreada);
             var enFirmas = await _db.OrdenesCompra
-                .CountAsync(oc => estadosFirma.Contains(oc.Estado));
-
+                .CountAsync(oc => oc.IdEstado == idRevision);
             var enTesoreria = await _db.OrdenesCompra
-                .CountAsync(oc => oc.Estado == EstadoOC.EnTesoreria);
-
+                .CountAsync(oc => oc.IdEstado == idTesoreria);
             var vencidas = await _db.OrdenesCompra
-                .CountAsync(oc => !estadosTerminados.Contains(oc.Estado) && oc.FechaLimitePago < today);
+                .CountAsync(oc => !idsTerminados.Contains(oc.IdEstado) && oc.FechaLimitePago < today);
 
             return new PipelineCardsStats
             {
@@ -90,7 +88,7 @@ namespace Lefarma.API.Features.Dashboard
             };
         }
 
-        private async Task<List<GraficaMensualItem>> GetGraficaMensualAsync()
+        private async Task<List<GraficaMensualItem>> GetGraficaMensualAsync(Dictionary<string, int> estados)
         {
             var now = DateTime.UtcNow;
             var startDate = new DateTime(now.Year, now.Month, 1).AddMonths(-5);
@@ -100,11 +98,13 @@ namespace Lefarma.API.Features.Dashboard
                 .Where(cc => cc.Activo && cc.LimitePresupuesto.HasValue)
                 .SumAsync(cc => cc.LimitePresupuesto ?? 0m);
 
-            var estadosPagados = new List<EstadoOC> { EstadoOC.Pagada, EstadoOC.Cerrada };
+            var idPagada = estados.GetValueOrDefault("PAGADA");
+            var idCerrada = estados.GetValueOrDefault("CERRADA");
+            var idsPagados = new[] { idPagada, idCerrada };
 
             var ocData = await _db.OrdenesCompra
                 .Where(oc => oc.FechaCreacion >= startDate)
-                .Select(oc => new { oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado, oc.Estado })
+                .Select(oc => new { oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado, oc.IdEstado })
                 .ToListAsync();
 
             var result = new List<GraficaMensualItem>();
@@ -121,7 +121,7 @@ namespace Lefarma.API.Features.Dashboard
 
                 var solicitado = monthData.Sum(oc => oc.Total * oc.TipoCambioAplicado);
                 var pagado = monthData
-                    .Where(oc => estadosPagados.Contains(oc.Estado))
+                    .Where(oc => idsPagados.Contains(oc.IdEstado))
                     .Sum(oc => oc.Total * oc.TipoCambioAplicado);
 
                 result.Add(new GraficaMensualItem
@@ -172,11 +172,13 @@ namespace Lefarma.API.Features.Dashboard
                 .ToList();
         }
 
-        private async Task<List<PagoUrgenteItem>> GetPagosUrgentesAsync()
+        private async Task<List<PagoUrgenteItem>> GetPagosUrgentesAsync(Dictionary<string, int> estados)
         {
             var today = DateTime.UtcNow;
+            var idTesoreria = estados.GetValueOrDefault("TESORERIA");
+
             var orders = await _db.OrdenesCompra
-                .Where(oc => oc.Estado == EstadoOC.EnTesoreria)
+                .Where(oc => oc.IdEstado == idTesoreria)
                 .OrderBy(oc => oc.FechaLimitePago)
                 .Take(5)
                 .Select(oc => new
@@ -249,7 +251,8 @@ namespace Lefarma.API.Features.Dashboard
 
             var acciones = await _db.WorkflowAcciones
                 .Where(a => accionIds.Contains(a.IdAccion))
-                .Select(a => new { a.IdAccion, a.NombreAccion, a.TipoAccion })
+                .Include(a => a.TipoAccion)
+                .Select(a => new { a.IdAccion, NombreAccion = a.TipoAccion != null ? a.TipoAccion.Nombre : null, CodigoTipoAccion = a.TipoAccion != null ? a.TipoAccion.Codigo : null })
                 .ToDictionaryAsync(a => a.IdAccion);
 
             var ordenes = await _db.OrdenesCompra
@@ -268,7 +271,7 @@ namespace Lefarma.API.Features.Dashboard
                     : "Acción desconocida";
 
                 var tipoAccion = acciones.TryGetValue(b.IdAccion, out var ac)
-                    ? MapTipo(ac.TipoAccion)
+                    ? MapTipo(ac.CodigoTipoAccion)
                     : "info";
 
                 var folio = ordenes.TryGetValue(b.IdOrden, out var oc)

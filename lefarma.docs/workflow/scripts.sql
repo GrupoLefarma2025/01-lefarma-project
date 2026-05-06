@@ -66,13 +66,55 @@ CREATE TABLE config.workflows (
     fecha_creacion DATETIME DEFAULT GETDATE()
 );
 
+-- 2.1  Tabla de Tipos de Scope (Jerarquía)
+CREATE TABLE Lefarma.config.workflow_scope_types (
+	id_scope_type int IDENTITY(1,1) NOT NULL,
+	codigo varchar(50) COLLATE Modern_Spanish_CI_AS NOT NULL,
+	nombre varchar(100) COLLATE Modern_Spanish_CI_AS NOT NULL,
+	nivel_prioridad int NOT NULL,
+	descripcion varchar(255) COLLATE Modern_Spanish_CI_AS NULL,
+	activo bit DEFAULT 1 NOT NULL,
+	fecha_creacion datetime DEFAULT getdate() NOT NULL,
+	CONSTRAINT PK__workflow__E022807453270961 PRIMARY KEY (id_scope_type),
+	CONSTRAINT UQ__workflow__40F9A2065EEFEDC6 UNIQUE (codigo)
+);
+
+-- 2.2 Tabla de Mapeos (La matriz de decisiones)
+CREATE TABLE Lefarma.config.workflow_mappings (
+	id_mapping int IDENTITY(1,1) NOT NULL,
+	codigo_proceso varchar(50) COLLATE Modern_Spanish_CI_AS NOT NULL,
+	id_scope_type int NOT NULL,
+	scope_id int NULL,
+	id_workflow int NOT NULL,
+	prioridad_manual int DEFAULT 100 NOT NULL,
+	activo bit DEFAULT 1 NOT NULL,
+	observaciones varchar(255) COLLATE Modern_Spanish_CI_AS NULL,
+	fecha_creacion datetime DEFAULT getdate() NOT NULL,
+	creado_por int NULL,
+	fecha_actualizacion datetime NULL,
+	CONSTRAINT PK__workflow__695465FA42C8DA7F PRIMARY KEY (id_mapping),
+	CONSTRAINT FK_workflow_mappings_scope_type FOREIGN KEY (id_scope_type) REFERENCES Lefarma.config.workflow_scope_types(id_scope_type),
+	CONSTRAINT FK_workflow_mappings_workflows FOREIGN KEY (id_workflow) REFERENCES Lefarma.config.workflows(id_workflow)
+);
+
+-- 2.3 Tabla de estados del workflow
+CREATE TABLE Lefarma.config.workflow_estados (
+	id_estado int NOT NULL,
+	codigo varchar(50) COLLATE Modern_Spanish_CI_AS NOT NULL,
+	nombre varchar(100) COLLATE Modern_Spanish_CI_AS NOT NULL,
+	color_hex varchar(10) COLLATE Modern_Spanish_CI_AS NULL,
+	activo bit DEFAULT 1 NULL,
+	CONSTRAINT PK__workflow__86989FB295017A50 PRIMARY KEY (id_estado),
+	CONSTRAINT UQ__workflow__40F9A206AB286E33 UNIQUE (codigo)
+);
+
 -- 3. PASOS DEL FLUJO (Las 5 Firmas y Estados)
 CREATE TABLE config.workflow_pasos (
     id_paso INT IDENTITY(1,1) PRIMARY KEY,
     id_workflow INT NOT NULL,
     orden INT NOT NULL, -- 10, 20, 30...
     nombre_paso VARCHAR(100) NOT NULL,
-    codigo_estado VARCHAR(50) UNIQUE NULL, -- Mapea al enum del dominio: 'EN_REVISION_F2', 'AUTORIZADA', etc.
+    id_estado VARCHAR(50) UNIQUE NULL, -- Mapea al enum del dominio: 'EN_REVISION_F2', 'AUTORIZADA', etc.
     descripcion_ayuda VARCHAR(255) NULL,   -- Texto guía para el usuario en el UI
 
     -- Reglas de Validación en el paso
@@ -156,15 +198,13 @@ CREATE TABLE config.workflow_notificaciones (
 -- {{Contenido}} es reemplazado por el cuerpo interpolado; el resto de vars sigue disponible.
 CREATE TABLE config.workflow_canal_templates (
     id_template INT IDENTITY(1,1) PRIMARY KEY,
-    id_workflow INT NOT NULL,
     codigo_canal VARCHAR(50) NOT NULL,  -- 'email' | 'in_app' | 'whatsapp' | 'telegram'
     nombre VARCHAR(100) NOT NULL,
     layout_html NVARCHAR(MAX) NOT NULL,
     activo BIT NOT NULL DEFAULT 1,
     fecha_modificacion DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
 
-    CONSTRAINT FK_workflow_canal_templates_workflow FOREIGN KEY (id_workflow) REFERENCES config.workflows(id_workflow),
-    CONSTRAINT UX_workflow_canal_templates_canal UNIQUE (id_workflow, codigo_canal)
+    CONSTRAINT UX_workflow_canal_templates_canal UNIQUE (codigo_canal)
 );
 
 -- 8. CAMPOS CONFIGURABLES POR WORKFLOW (metadatos para UI dinámica)
@@ -403,6 +443,7 @@ CREATE TABLE operaciones.ordenes_compra (
     
     -- Estado y workflow
     estado INT NOT NULL DEFAULT 1, -- Mapea al enum EstadoOC (1=Creada, 2=EnRevisionF2, etc.)
+    id_workflow INT NULL, -- FK lógica a config.workflows
     id_paso_actual INT NULL, -- FK lógica a config.workflow_pasos
     
     -- Proveedor (FK al catálogo + datos capturados en la orden)

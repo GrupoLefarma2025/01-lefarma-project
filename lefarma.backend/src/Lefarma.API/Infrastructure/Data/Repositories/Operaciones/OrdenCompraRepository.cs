@@ -22,15 +22,15 @@ public class OrdenCompraRepository : BaseRepository<OrdenCompra>, IOrdenCompraRe
                 .Include(o => o.Area)
                 .FirstOrDefaultAsync(o => o.IdOrden == idOrden);
 
-        public async Task<ICollection<OrdenCompra>> GetByEstadoAsync(EstadoOC estado)
+        public async Task<ICollection<OrdenCompra>> GetByEstadoAsync(int idEstado)
             => await _context.OrdenesCompra
-                .Where(o => o.Estado == estado)
+                .Where(o => o.IdEstado == idEstado)
                 .OrderByDescending(o => o.FechaCreacion)
                 .ToListAsync();
 
-        public async Task<ICollection<OrdenCompra>> GetBandejaAsync(int idUsuario, EstadoOC[] estados)
+        public async Task<ICollection<OrdenCompra>> GetBandejaAsync(int idUsuario, int[] idsEstados)
             => await _context.OrdenesCompra
-                .Where(o => estados.Contains(o.Estado))
+                .Where(o => idsEstados.Contains(o.IdEstado))
                 .OrderByDescending(o => o.FechaCreacion)
                 .ToListAsync();
 

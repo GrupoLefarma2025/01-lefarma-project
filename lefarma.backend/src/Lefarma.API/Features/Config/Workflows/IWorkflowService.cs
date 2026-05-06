@@ -6,8 +6,14 @@ namespace Lefarma.API.Features.Config.Workflows
 public interface IWorkflowService
     {
         Task<ErrorOr<IEnumerable<WorkflowResponse>>> GetAllAsync(WorkflowRequest query);
+        Task<ErrorOr<IEnumerable<WorkflowFlowResponse>>> GetAllFlowAsync();
         Task<ErrorOr<WorkflowResponse>> GetByIdAsync(int id);
         Task<ErrorOr<WorkflowResponse>> GetByCodigoProcesoAsync(string codigoProceso);
+        Task<ErrorOr<IEnumerable<WorkflowScopeTypeResponse>>> GetScopeTypesAsync();
+        Task<ErrorOr<IEnumerable<WorkflowMappingResponse>>> GetMappingsAsync(string? codigoProceso = null, int? idWorkflow = null, int? idScopeType = null, int? scopeId = null);
+        Task<ErrorOr<WorkflowMappingResponse>> CreateMappingAsync(CreateWorkflowMappingRequest request);
+        Task<ErrorOr<WorkflowMappingResponse>> UpdateMappingAsync(int idMapping, UpdateWorkflowMappingRequest request);
+        Task<ErrorOr<bool>> DeleteMappingAsync(int idMapping);
         Task<ErrorOr<WorkflowResponse>> CreateAsync(CreateWorkflowRequest request);
         Task<ErrorOr<WorkflowResponse>> UpdateAsync(int id, UpdateWorkflowRequest request);
         Task<ErrorOr<bool>> DeleteAsync(int id);
@@ -44,9 +50,9 @@ public interface IWorkflowService
         Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo);
 
         // Canal Templates
-        Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync(int idWorkflow);
-        Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(int idWorkflow, CreateCanalTemplateRequest request);
-        Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(int idWorkflow, string codigoCanal, UpsertCanalTemplateRequest request);
+        Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync();
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(CreateCanalTemplateRequest request);
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(string codigoCanal, UpsertCanalTemplateRequest request);
 
         // Tipos Notificacion
         Task<ErrorOr<IEnumerable<WorkflowTipoNotificacionResponse>>> GetTiposNotificacionAsync();

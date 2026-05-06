@@ -14,9 +14,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? AreaNombre { get; set; }
         public int IdTipoGasto { get; set; }
         public int? IdProveedor { get; set; }
+        public string? RazonSocialProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
-        public string Estado { get; set; } = string.Empty;
+        public int? IdEstado { get; set; }
+        public int? IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
+        public int IdUsuarioCreador { get; set; }
+        public string? SolicitanteNombre { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
@@ -43,7 +47,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
     {
         public int? IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
-        public EstadoOC? Estado { get; set; }
+        public int? IdEstado { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";
         public string? OrderDirection { get; set; } = "desc";
     }
@@ -80,6 +84,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; }
         public decimal Total { get; set; }
+        public string? UnidadMedidaNombre { get; set; }
         public int? IdProveedor { get; set; }
         public string? IdsCuentasBancarias { get; set; }
         public bool RequiereFactura { get; set; } = true;

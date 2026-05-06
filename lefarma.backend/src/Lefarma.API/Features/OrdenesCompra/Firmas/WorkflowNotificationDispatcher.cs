@@ -86,7 +86,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
             var nombreAccion = await _context.WorkflowAcciones
                 .Where(a => a.IdAccion == notificacion.IdAccion)
-                .Select(a => a.NombreAccion)
+                .Select(a => a.TipoAccion != null ? a.TipoAccion.Nombre : null)
                 .FirstOrDefaultAsync(ct) ?? "";
 
             // 4. Interpolar templates
@@ -150,7 +150,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 var asuntoEmail = Interpolate(canalEmail.AsuntoTemplate ?? $"Orden de Compra {orden.Folio}", contextoTemplate);
                 var cuerpoEmail = Interpolate(canalEmail.CuerpoTemplate, contextoTemplate);
                 contextoTemplate["Asunto"] = asuntoEmail;
-                var emailHtml = await ApplyCanalTemplateAsync(idWorkflow, "email", cuerpoEmail, contextoTemplate, ct);
+                var emailHtml = await ApplyCanalTemplateAsync("email", cuerpoEmail, contextoTemplate, ct);
                 await _notificationService.SendAsync(new SendNotificationRequest
                 {
                     Title = asuntoEmail,
@@ -229,8 +229,8 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 .Join(_context.WorkflowAcciones,
                     b => b.IdAccion,
                     a => a.IdAccion,
-                    (b, a) => new { b.IdUsuario, a.TipoAccion })
-                .Where(x => x.TipoAccion == "APROBACION")
+                    (b, a) => new { b.IdUsuario, a.IdTipoAccion, TipoAccionCodigo = a.TipoAccion != null ? a.TipoAccion.Codigo : null })
+                .Where(x => x.TipoAccionCodigo == "APROBAR")
                 .Select(x => x.IdUsuario)
                 .Distinct()
                 .ToListAsync(ct);
@@ -302,13 +302,10 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         return template;
     }
 
-    private async Task<string> ApplyCanalTemplateAsync(int idWorkflow, string codigoCanal, string contenido, Dictionary<string, string> ctx, CancellationToken ct)
+    private async Task<string> ApplyCanalTemplateAsync(string codigoCanal, string contenido, Dictionary<string, string> ctx, CancellationToken ct)
     {
-        if (idWorkflow <= 0)
-            return BuildEmailHtmlFallback(contenido, ctx.GetValueOrDefault("Asunto", ""), ctx.GetValueOrDefault("Folio", ""), ctx.GetValueOrDefault("UrlOrden", ""));
-
         var layoutHtml = await _context.WorkflowCanalTemplates
-            .Where(t => t.IdWorkflow == idWorkflow && t.CodigoCanal == codigoCanal && t.Activo)
+            .Where(t => t.CodigoCanal == codigoCanal && t.Activo)
             .Select(t => t.LayoutHtml)
             .FirstOrDefaultAsync(ct);
 

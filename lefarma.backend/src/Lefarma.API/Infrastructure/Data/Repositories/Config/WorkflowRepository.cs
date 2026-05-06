@@ -16,6 +16,9 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
             => await _context.Workflows
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.TipoAccion)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.AccionHandlers)
                             .ThenInclude(h => h.Campo)
                 .Include(w => w.Pasos)
@@ -29,12 +32,13 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                 .Include(w => w.Campos)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso && w.Activo);
 
-        public async Task<WorkflowPaso?> GetPasoByCodigoEstadoAsync(int idWorkflow, string codigoEstado)
+        public async Task<WorkflowPaso?> GetPasoByIdEstadoAsync(int idWorkflow, int idEstado)
             => await _context.WorkflowPasos
-                .FirstOrDefaultAsync(p => p.IdWorkflow == idWorkflow && p.CodigoEstado == codigoEstado);
+                .FirstOrDefaultAsync(p => p.IdWorkflow == idWorkflow && p.IdEstado == idEstado);
 
         public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idPaso)
             => await _context.WorkflowAcciones
+                .Include(a => a.TipoAccion)
                 .Where(a => a.IdPasoOrigen == idPaso && a.Activo)
                 .ToListAsync();
 
@@ -51,14 +55,13 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                 .OrderBy(c => c.EtiquetaUsuario)
                 .ToListAsync();
 
-        public async Task<ICollection<WorkflowCanalTemplate>> GetCanalTemplatesAsync(int idWorkflow)
+        public async Task<ICollection<WorkflowCanalTemplate>> GetCanalTemplatesAsync()
             => await _context.WorkflowCanalTemplates
-                .Where(t => t.IdWorkflow == idWorkflow)
                 .OrderBy(t => t.CodigoCanal)
                 .ToListAsync();
 
-        public async Task<WorkflowCanalTemplate?> GetCanalTemplateAsync(int idWorkflow, string codigoCanal)
+        public async Task<WorkflowCanalTemplate?> GetCanalTemplateAsync(string codigoCanal)
             => await _context.WorkflowCanalTemplates
-                .FirstOrDefaultAsync(t => t.IdWorkflow == idWorkflow && t.CodigoCanal == codigoCanal);
+                .FirstOrDefaultAsync(t => t.CodigoCanal == codigoCanal);
     }
 }

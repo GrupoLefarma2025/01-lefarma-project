@@ -441,9 +441,9 @@ VALUES
 SET IDENTITY_INSERT config.workflow_canal_templates ON;
 
 INSERT INTO config.workflow_canal_templates
-    (id_template, id_workflow, codigo_canal, nombre, layout_html, activo, fecha_modificacion)
+    (id_template, codigo_canal, nombre, layout_html, activo, fecha_modificacion)
 VALUES
-(1, 1, 'email', 'Email - Orden de Compra',
+(1, 'email', 'Email - Orden de Compra',
 N'<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -517,7 +517,7 @@ N'<!DOCTYPE html>
 </html>',
 1, GETUTCDATE()),
 
-(2, 1, 'in_app', 'In-App - Orden de Compra',
+(2, 'in_app', 'In-App - Orden de Compra',
 N'{{Contenido}}',
 1, GETUTCDATE());
 

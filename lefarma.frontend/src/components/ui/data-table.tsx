@@ -77,7 +77,7 @@ export interface DataTableProps<TData> {
   isRowSelected?: (row: TData) => boolean;
 
   // Filter configuration
-  filterConfig?: FilterConfigType<TData>;
+  filterConfig?: FilterConfigType;
 
   // NEW: Optional density and page size overrides
   density?: 'compact' | 'standard' | 'comfortable';

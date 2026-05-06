@@ -1,4 +1,5 @@
 using Lefarma.API.Domain.Entities.Catalogos;
+using Lefarma.API.Domain.Entities.Config;
 
 namespace Lefarma.API.Domain.Entities.Operaciones
 {
@@ -13,7 +14,10 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int IdTipoGasto { get; set; }
         public int IdUsuarioCreador { get; set; }
 
-        public EstadoOC Estado { get; set; } = EstadoOC.Creada;
+        public int IdEstado { get; set; }
+        public virtual WorkflowEstados? Estado { get; set; } 
+
+        public int IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
 
         // Proveedor: FK opcional al catálogo
@@ -32,7 +36,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int? IdMoneda { get; set; }
         public decimal TipoCambioAplicado { get; set; } = 1m;  // congelado al momento de crear
 
-        // Navegación a catálogos (resueltos en queries)
+        // Navegación a catálogos 
         public virtual Proveedor? Proveedor { get; set; }
         public virtual CentroCosto? CentroCosto { get; set; }
         public virtual CuentaContable? CuentaContable { get; set; }
