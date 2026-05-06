@@ -6,6 +6,7 @@ export interface OrdenCompraPartidaResponse {
   descripcion: string;
   cantidad: number;
   idUnidadMedida: number;
+  unidadMedidaNombre?: string | null;
   precioUnitario: number;
   descuento: number;
   porcentajeIva: number;
@@ -34,12 +35,20 @@ export interface OrdenCompraResponse {
   idArea: number;
   areaNombre?: string | null;
   idTipoGasto: number;
-  estado: string;
+  idEstado: number;
+  estadoNombre?: string | null;
+  idWorkflow?: number | null;
   idPasoActual?: number | null;
   // Proveedor
   idProveedor?: number | null;
   idsCuentasBancarias?: number[] | null;
   sinDatosFiscales: boolean;
+  razonSocialProveedor?: string | null;
+  rfcProveedor?: string | null;
+  codigoPostalProveedor?: string | null;
+  personaContacto?: string | null;
+  idUsuarioCreador?: number;
+  solicitanteNombre?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idCentroCosto?: number | null;
@@ -103,7 +112,7 @@ export interface CreateOrdenCompraRequest {
 export interface OrdenCompraListRequest {
   idEmpresa?: number | null;
   idSucursal?: number | null;
-  estado?: string | null;
+  idEstado?: number | null;
   orderBy?: string;
   orderDirection?: 'asc' | 'desc';
 }

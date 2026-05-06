@@ -504,11 +504,17 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
 
       {/* ── FIRMAS ── */}
       {firmas.length > 0 && (
-        <div className="pdf-section">
-          <div className="pdf-section-title">Firmas y Autorizaciones</div>
-          <div className="pdf-firmas-grid">
-            {firmas.slice(1).map((firma) => {
-              const firmaUrl = firmasMap?.get(firma.idUsuario);
+        <table style={{ ...s.firmasTable, marginTop: 8 }}>
+          <thead>
+            <tr style={s.firmaThRow}>
+              <th style={s.firmaTh}>Paso</th>
+              <th style={s.firmaTh}>Autorizado por</th>
+              {tieneFirma && <th style={s.firmaTh}>Firma</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {firmas.slice(1).map((f) => {
+              const firmaUrl = firmasMap?.get(f.idUsuario);
               return (
                 <tr key={f.idEvento}>
                   <td style={s.firmaTd}>{f.nombrePaso ?? '-'}</td>

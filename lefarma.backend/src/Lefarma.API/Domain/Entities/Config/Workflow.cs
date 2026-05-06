@@ -11,6 +11,6 @@ public class Workflow
 
         public virtual ICollection<WorkflowPaso> Pasos { get; set; } = new List<WorkflowPaso>();
         public virtual ICollection<WorkflowCampo> Campos { get; set; } = new List<WorkflowCampo>();
-        public virtual ICollection<WorkflowCanalTemplate> CanalTemplates { get; set; } = new List<WorkflowCanalTemplate>();
+
     }
 }

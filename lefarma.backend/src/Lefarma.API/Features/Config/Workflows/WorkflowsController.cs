@@ -1,9 +1,11 @@
 using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
 
@@ -16,7 +18,12 @@ namespace Lefarma.API.Features.Config.Workflows
     public class WorkflowsController : ControllerBase
     {
         private readonly IWorkflowService _service;
-        public WorkflowsController(IWorkflowService service) => _service = service;
+        private readonly ApplicationDbContext _context;
+        public WorkflowsController(IWorkflowService service, ApplicationDbContext context)
+        {
+            _service = service;
+            _context = context;
+        }
 
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener todos los workflows")]
@@ -29,6 +36,15 @@ namespace Lefarma.API.Features.Config.Workflows
             var result = await _service.GetAllAsync(query);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowResponse>>
             { Success = true, Message = "Workflows obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpGet("flow")]
+        [SwaggerOperation(Summary = "Obtener workflows ligeros para flujo visual")]
+        public async Task<IActionResult> GetAllFlow()
+        {
+            var result = await _service.GetAllFlowAsync();
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowFlowResponse>>
+            { Success = true, Message = "Workflows obtenidos correctamente.", Data = data }));
         }
 
         [HttpGet("{id}")]
@@ -302,29 +318,29 @@ namespace Lefarma.API.Features.Config.Workflows
         // CANAL TEMPLATES
         // ============================================================================
 
-        [HttpGet("{idWorkflow}/canal-templates")]
-        [SwaggerOperation(Summary = "Obtener plantillas de canal del workflow")]
-        public async Task<IActionResult> GetCanalTemplates(int idWorkflow)
+        [HttpGet("canal-templates")]
+        [SwaggerOperation(Summary = "Obtener plantillas de canal")]
+        public async Task<IActionResult> GetCanalTemplates()
         {
-            var result = await _service.GetCanalTemplatesAsync(idWorkflow);
+            var result = await _service.GetCanalTemplatesAsync();
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowCanalTemplateResponse>>
             { Success = true, Message = "Plantillas de canal obtenidas exitosamente.", Data = data }));
         }
 
-        [HttpPost("{idWorkflow}/canal-templates")]
+        [HttpPost("canal-templates")]
         [SwaggerOperation(Summary = "Crear nueva plantilla de canal")]
-        public async Task<IActionResult> CreateCanalTemplate(int idWorkflow, [FromBody] CreateCanalTemplateRequest request)
+        public async Task<IActionResult> CreateCanalTemplate([FromBody] CreateCanalTemplateRequest request)
         {
-            var result = await _service.CreateCanalTemplateAsync(idWorkflow, request);
+            var result = await _service.CreateCanalTemplateAsync(request);
             return result.ToActionResult(this, data => StatusCode(201, new ApiResponse<WorkflowCanalTemplateResponse>
             { Success = true, Message = "Plantilla de canal creada exitosamente.", Data = data }));
         }
 
-        [HttpPut("{idWorkflow}/canal-templates/{codigoCanal}")]
+        [HttpPut("canal-templates/{codigoCanal}")]
         [SwaggerOperation(Summary = "Crear o actualizar plantilla de canal")]
-        public async Task<IActionResult> UpsertCanalTemplate(int idWorkflow, string codigoCanal, [FromBody] UpsertCanalTemplateRequest request)
+        public async Task<IActionResult> UpsertCanalTemplate(string codigoCanal, [FromBody] UpsertCanalTemplateRequest request)
         {
-            var result = await _service.UpsertCanalTemplateAsync(idWorkflow, codigoCanal, request);
+            var result = await _service.UpsertCanalTemplateAsync(codigoCanal, request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowCanalTemplateResponse>
             { Success = true, Message = "Plantilla de canal guardada exitosamente.", Data = data }));
         }
@@ -353,10 +369,7 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Plantillas obtenidas.", Data = data }));
         }
 
-        // ============================================================================
         // RECORDATORIOS
-        // ============================================================================
-
         [HttpGet("{idWorkflow}/recordatorios")]
         [SwaggerOperation(Summary = "Obtener recordatorios automáticos del workflow")]
         public async Task<IActionResult> GetRecordatorios(int idWorkflow)
@@ -401,6 +414,98 @@ namespace Lefarma.API.Features.Config.Workflows
             var result = await _service.TestRecordatorioAsync(idWorkflow, idRecordatorio, idUsuarioActual);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Recordatorio de prueba enviado.", Data = null }));
+        }
+        [HttpGet("scope-types")]
+        [SwaggerOperation(Summary = "Obtener tipos de alcance (scope types)")]
+        public async Task<IActionResult> GetScopeTypes()
+        {
+            var result = await _service.GetScopeTypesAsync();
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowScopeTypeResponse>>
+            { Success = true, Message = "Tipos de alcance obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpGet("mappings")]
+        [SwaggerOperation(Summary = "Obtener mappings de workflow")]
+        public async Task<IActionResult> GetMappings([FromQuery] string? codigoProceso = null, [FromQuery] int? idWorkflow = null, [FromQuery] int? idScopeType = null, [FromQuery] int? scopeId = null)
+        {
+            var result = await _service.GetMappingsAsync(codigoProceso, idWorkflow, idScopeType, scopeId);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowMappingResponse>>
+            { Success = true, Message = "Mappings obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpPost("mappings")]
+        [SwaggerOperation(Summary = "Crear mapping de workflow")]
+        public async Task<IActionResult> CreateMapping([FromBody] CreateWorkflowMappingRequest request)
+        {
+            var result = await _service.CreateMappingAsync(request);
+            return result.ToActionResult(this, data => CreatedAtAction(nameof(GetMappings), new { id = data.IdMapping }, new ApiResponse<WorkflowMappingResponse> { Success = true, Message = "Mapping creado exitosamente.", Data = data }));
+        }
+
+        [HttpPut("mappings/{idMapping}")]
+        [SwaggerOperation(Summary = "Actualizar mapping de workflow")]
+        public async Task<IActionResult> UpdateMapping(int idMapping, [FromBody] UpdateWorkflowMappingRequest request)
+        {
+            var result = await _service.UpdateMappingAsync(idMapping, request);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowMappingResponse> { Success = true, Message = "Mapping actualizado exitosamente.", Data = data }));
+        }
+
+        [HttpDelete("mappings/{idMapping}")]
+        [SwaggerOperation(Summary = "Eliminar mapping de workflow")]
+        public async Task<IActionResult> DeleteMapping(int idMapping)
+        {
+            var result = await _service.DeleteMappingAsync(idMapping);
+            return result.ToActionResult(this, _ => Ok(new ApiResponse<object> { Success = true, Message = "Mapping eliminado exitosamente.", Data = null }));
+        }
+
+        [HttpGet("estados")]
+        [SwaggerOperation(Summary = "Obtener estados de workflow", Description = "Retorna la lista de estados configurables para pasos de workflow")]
+        public async Task<IActionResult> GetEstados()
+        {
+            var estados = await _context.WorkflowEstados
+                .Where(e => e.Activo)
+                .OrderBy(e => e.Codigo)
+                .Select(e => new WorkflowEstadoResponse
+                {
+                    IdEstado = e.IdEstado,
+                    Codigo = e.Codigo,
+                    Nombre = e.Nombre,
+                    ColorHex = e.ColorHex,
+                    Activo = e.Activo
+                })
+                .ToListAsync();
+
+            return Ok(new ApiResponse<IEnumerable<WorkflowEstadoResponse>>
+            {
+                Success = true,
+                Message = "Estados de workflow obtenidos exitosamente.",
+                Data = estados
+            });
+        }
+
+        [HttpGet("tipos-accion")]
+        [SwaggerOperation(Summary = "Obtener tipos de acción de workflow", Description = "Retorna la lista de tipos de acción configurables para workflow")]
+        public async Task<IActionResult> GetTiposAccion()
+        {
+            var tipos = await _context.WorkflowTiposAccion
+                .Where(t => t.Activo)
+                .OrderBy(t => t.Codigo)
+                .Select(t => new WorkflowTipoAccionResponse
+                {
+                    IdTipoAccion = t.IdTipoAccion,
+                    Codigo = t.Codigo,
+                    Nombre = t.Nombre,
+                    Descripcion = t.Descripcion,
+                    CambiaEstado = t.CambiaEstado,
+                    Activo = t.Activo
+                })
+                .ToListAsync();
+
+            return Ok(new ApiResponse<IEnumerable<WorkflowTipoAccionResponse>>
+            {
+                Success = true,
+                Message = "Tipos de acción obtenidos exitosamente.",
+                Data = tipos
+            });
         }
     }
 }

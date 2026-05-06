@@ -13,8 +13,13 @@ public class WorkflowPasoConfiguration : IEntityTypeConfiguration<WorkflowPaso>
             builder.Property(p => p.IdWorkflow).HasColumnName("id_workflow");
             builder.Property(p => p.Orden).HasColumnName("orden");
             builder.Property(p => p.NombrePaso).HasColumnName("nombre_paso").HasMaxLength(100).IsRequired();
-            builder.Property(p => p.CodigoEstado).HasColumnName("codigo_estado").HasMaxLength(50);
-            builder.HasIndex(p => p.CodigoEstado).IsUnique().HasFilter("[codigo_estado] IS NOT NULL");
+            builder.Property(p => p.IdEstado).HasColumnName("id_estado");
+            builder.HasOne(p => p.Estado)
+                .WithMany()
+                .HasForeignKey(p => p.IdEstado)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+
             builder.Property(p => p.DescripcionAyuda).HasColumnName("descripcion_ayuda").HasMaxLength(255);
             builder.Property(p => p.EsInicio).HasColumnName("es_inicio").HasDefaultValue(false);
             builder.Property(p => p.EsFinal).HasColumnName("es_final").HasDefaultValue(false);

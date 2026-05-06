@@ -215,9 +215,10 @@
 
 /* ─── Print / PDF styles ─────────────────────────────────────────────────── */
 
-/* On screen: hide both print documents */
+/* On screen: hide all print documents */
 #flujo-pdf-print,
-#orden-compra-pdf-print {
+#orden-compra-pdf-print,
+#envio-concentrado-pdf-print {
   display: none;
 }
 
@@ -275,6 +276,32 @@
     color: #111 !important;
     font-family: 'Geist Variable', 'Geist', ui-sans-serif, sans-serif !important;
     font-size: 10pt !important;
+    padding: 0 !important;
+  }
+
+  /* When printing ENVIO CONCENTRADO - show only envio-concentrado */
+  body.print-envio-concentrado #flujo-pdf-print,
+  body.print-envio-concentrado #orden-compra-pdf-print {
+    display: none !important;
+  }
+
+  @page { size: A4 landscape; margin: 8mm; }
+
+  body.print-envio-concentrado #envio-concentrado-pdf-print,
+  body.print-envio-concentrado #envio-concentrado-pdf-print * {
+    visibility: visible !important;
+  }
+
+  body.print-envio-concentrado #envio-concentrado-pdf-print {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: 'Arial', sans-serif !important;
+    font-size: 7pt !important;
     padding: 0 !important;
   }
 

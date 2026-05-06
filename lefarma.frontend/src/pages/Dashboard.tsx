@@ -309,12 +309,12 @@ export default function Dashboard() {
       <div className={`grid grid-cols-1 gap-6 ${puedeVerPresupuesto ? 'lg:grid-cols-3' : 'lg:grid-cols-2'}`}>
         
         {/* Gauge: Presupuesto del Mes — solo con permiso */}
-        {puedeVerPresupuesto && (
+        {!puedeVerPresupuesto && (
           <Card>
             <CardHeader>
             <CardTitle className="text-lg">Presupuesto del Mes</CardTitle>
             <CardDescription>
-              Ejercicio vs límite autorizado — {mesActualNombre}
+              Ejercicio vs límite autorizado (Total cuentas contables) — {mesActualNombre}
               {isOverBudget && (
                 <span className="ml-2 text-red-500 font-semibold">⚠ Presupuesto excedido</span>
               )}
