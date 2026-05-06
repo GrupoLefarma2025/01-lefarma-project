@@ -74,7 +74,6 @@ import type {
   Area,
   FormaPago,
   UnidadMedida,
-  Gasto,
   Medida,
   TipoImpuesto,
   ProveedorCuentaBancaria,
@@ -439,7 +438,6 @@ export default function CrearOrdenCompra() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [tiposGasto, setTiposGasto] = useState<Gasto[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
@@ -563,16 +561,6 @@ export default function CrearOrdenCompra() {
       setAreas(areasData || []);
       setLoadingCatalogs(false);
     });
-
-    // Catálogos secundarios - cada uno independiente
-    API.get<ApiResponse<Gasto[]>>('/catalogos/Gastos')
-      .then((res) => {
-        if (res.data.success) setTiposGasto(res.data.data || []);
-      })
-      .catch((err) => {
-        console.warn('[fetchCatalogs] Error al cargar Gastos:', err);
-        errors.push('Tipos de Gasto');
-      });
 
     API.get<ApiResponse<Moneda[]>>('/catalogos/Monedas')
       .then((res) => {
@@ -922,7 +910,7 @@ export default function CrearOrdenCompra() {
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
         idArea: values.idArea,
-        idTipoGasto: values.idTipoGasto,
+        idTipoGasto: values.idTipoGasto && values.idTipoGasto > 0 ? values.idTipoGasto : null,
         fechaLimitePago: values.fechaLimitePago,
         idMoneda: values.idMoneda ?? null,
         tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
@@ -1419,35 +1407,6 @@ export default function CrearOrdenCompra() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="hidden">
-                  <FormField
-                    control={form.control}
-                    name="idTipoGasto"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo de Gasto</FormLabel>
-                        <Select
-                          onValueChange={(val) => field.onChange(Number(val))}
-                          value={field.value ? String(field.value) : ''}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecciona tipo de gasto..." />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tiposGasto.map((g) => (
-                              <SelectItem key={g.idGasto} value={String(g.idGasto)}>
-                                {g.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                </div>
                 <FormField
                   control={form.control}
                   name="idMoneda"
@@ -1490,7 +1449,11 @@ export default function CrearOrdenCompra() {
                         Fecha Límite de Pago *
                       </FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <Input
+                          type="date"
+                          min={new Date(Date.now() - 2 * 86_400_000).toISOString().split('T')[0]}
+                          {...field}
+                        />
                       </FormControl>
                       <FormDescription className="text-xs">
                         Fecha máxima para realizar el pago al proveedor
@@ -1508,7 +1471,7 @@ export default function CrearOrdenCompra() {
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
                         <CreditCard className="h-3.5 w-3.5" />
-                        Nota de Forma de Pago
+                        Comentarios de Forma de Pago
                       </FormLabel>
                       <FormControl>
                         <Input placeholder="Instrucciones especiales de pago" {...field} />
@@ -1520,7 +1483,7 @@ export default function CrearOrdenCompra() {
                     </FormItem>
                   )}
                 />
-                <FormField
+                  {/* <FormField
                   control={form.control}
                   name="notasGenerales"
                   render={({ field }) => (
@@ -1539,7 +1502,7 @@ export default function CrearOrdenCompra() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
               </div>
             </CardContent>
           </Card>
@@ -2140,6 +2103,31 @@ export default function CrearOrdenCompra() {
                   )}
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <FormField
+                control={form.control}
+                name="notasGenerales"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observaciones</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Información adicional relevante para esta orden de compra..."
+                        rows={3}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Cualquier información adicional sobre la orden que deba ser considerada
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </CardContent>
           </Card>
 

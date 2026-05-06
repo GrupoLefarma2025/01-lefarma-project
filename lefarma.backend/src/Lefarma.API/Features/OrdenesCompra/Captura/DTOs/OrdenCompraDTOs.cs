@@ -58,7 +58,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public required int IdEmpresa { get; set; }
         public required int IdSucursal { get; set; }
         public required int IdArea { get; set; }
-        public required int IdTipoGasto { get; set; }
+        public int? IdTipoGasto { get; set; }
         public required DateTime FechaLimitePago { get; set; }
         public int? IdProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
