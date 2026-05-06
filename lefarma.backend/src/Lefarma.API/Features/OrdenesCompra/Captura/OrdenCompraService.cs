@@ -47,6 +47,17 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
                 if (query.IdEstado.HasValue) q = q.Where(o => o.IdEstado == query.IdEstado.Value);
 
+                if (query.SoloEnvioConcentrado == true)
+                {
+                    var pasosConEnvioConcentrado = await _context.WorkflowAcciones
+                        .Where(a => a.Activo && a.EnviaConcentrado)
+                        .Select(a => a.IdPasoOrigen)
+                        .Distinct()
+                        .ToListAsync();
+
+                    q = q.Where(o => o.IdPasoActual.HasValue && pasosConEnvioConcentrado.Contains(o.IdPasoActual.Value));
+                }
+
                 // Si NO tiene el permiso de ver todas, filtrar por usuario/rol participante
                 if (!puedeVerTodas)
                 {
