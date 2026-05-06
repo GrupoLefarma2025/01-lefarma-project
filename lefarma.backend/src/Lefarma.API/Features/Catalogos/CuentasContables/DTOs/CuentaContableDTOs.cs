@@ -8,8 +8,7 @@ namespace Lefarma.API.Features.Catalogos.CuentasContables.DTOs
         public string? DescripcionNormalizada { get; set; }
         public string Nivel1 { get; set; } = string.Empty;
         public string Nivel2 { get; set; } = string.Empty;
-        public string? EmpresaPrefijo { get; set; }
-        public int? EmpresaId { get; set; }
+        public int? IdEmpresa { get; set; }
         public string? EmpresaNombre { get; set; }
         public int? CentroCostoId { get; set; }
         public string? CentroCostoNombre { get; set; }
@@ -24,8 +23,7 @@ namespace Lefarma.API.Features.Catalogos.CuentasContables.DTOs
         public required string Descripcion { get; set; } = null!;
         public required string Nivel1 { get; set; } = null!;
         public required string Nivel2 { get; set; } = null!;
-        public string? EmpresaPrefijo { get; set; }
-        public int? EmpresaId { get; set; }
+        public int? IdEmpresa { get; set; }
         public int? CentroCostoId { get; set; }
         public bool Activo { get; set; } = true;
     }
@@ -37,8 +35,7 @@ namespace Lefarma.API.Features.Catalogos.CuentasContables.DTOs
         public required string Descripcion { get; set; } = null!;
         public required string Nivel1 { get; set; } = null!;
         public required string Nivel2 { get; set; } = null!;
-        public string? EmpresaPrefijo { get; set; }
-        public int? EmpresaId { get; set; }
+        public int? IdEmpresa { get; set; }
         public int? CentroCostoId { get; set; }
         public bool Activo { get; set; }
     }
