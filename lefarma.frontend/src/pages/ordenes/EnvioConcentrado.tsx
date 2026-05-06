@@ -108,7 +108,7 @@ export default function EnvioConcentrado() {
     setError(null);
     try {
       const res = await API.get<ApiResponse<OrdenCompraResponse[]>>(
-        `/ordenes?idEstado=${ESTADO_ENVIO_CONCENTRADO}`
+        `/ordenes?idEstado=${ESTADO_ENVIO_CONCENTRADO}&soloEnvioConcentrado=true`
       );
       setOrdenes(res.data.data ?? []);
     } catch {

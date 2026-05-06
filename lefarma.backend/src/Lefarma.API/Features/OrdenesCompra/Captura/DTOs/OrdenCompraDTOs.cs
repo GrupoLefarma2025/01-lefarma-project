@@ -48,6 +48,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int? IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
         public int? IdEstado { get; set; }
+        public bool? SoloEnvioConcentrado { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";
         public string? OrderDirection { get; set; } = "desc";
     }
