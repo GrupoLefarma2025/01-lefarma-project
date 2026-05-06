@@ -8,6 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import type { Empresa } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -35,6 +36,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/comp
 
 const ENDPOINT = '/catalogos/CuentasContables';
 const CENTROS_COSTO_ENDPOINT = '/catalogos/CentrosCosto';
+const EMPRESAS_ENDPOINT = '/catalogos/Empresas';
 
 export const NIVEL1_OPTIONS = [
   { value: '600', label: '600 — Gastos' },
@@ -70,7 +72,7 @@ const cuentaContableSchema = z.object({
   nivel3: z.string().min(1, 'El nivel 3 es obligatorio'),
   nivel4: z.string().min(1, 'El nivel 4 es obligatorio'),
   descripcion: z.string().min(3, 'La descripción debe tener al menos 3 caracteres'),
-  empresaPrefijo: z.string().optional().or(z.literal('')),
+  idEmpresa: z.number().optional().nullable(),
   centroCostoId: z.number().optional(),
   activo: z.boolean(),
 });
@@ -83,7 +85,8 @@ interface CuentaContable {
   nivel2: string;
   nivel3?: string;
   nivel4?: string;
-  empresaPrefijo?: string;
+  idEmpresa?: number;
+  empresaNombre?: string;
   centroCostoId?: number;
   centroCostoNombre?: string;
   activo: boolean;
@@ -105,6 +108,7 @@ type CuentaContableRequest = Omit<CuentaContableFormValues, 'nivel3' | 'nivel4'>
 export default function CuentasContablesList() {
   usePageTitle('Cuentas Contables', 'Catálogo contable del sistema');
   const [cuentas, setCuentas] = useState<CuentaContable[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -122,7 +126,7 @@ export default function CuentasContablesList() {
       nivel3: '',
       nivel4: '',
       descripcion: '',
-      empresaPrefijo: '',
+      idEmpresa: null,
       centroCostoId: undefined,
       activo: true,
     },
@@ -154,9 +158,21 @@ export default function CuentasContablesList() {
     }
   };
 
+  const fetchEmpresas = async () => {
+    try {
+      const response = await API.get<ApiResponse<Empresa[]>>(EMPRESAS_ENDPOINT);
+      if (response.data.success) {
+        setEmpresas(response.data.data || []);
+      }
+    } catch {
+      // silencioso
+    }
+  };
+
   useEffect(() => {
     fetchCuentas();
     fetchCentrosCosto();
+    fetchEmpresas();
   }, []);
 
   const handleNuevaCuenta = () => {
@@ -167,7 +183,7 @@ export default function CuentasContablesList() {
       nivel3: '',
       nivel4: '',
       descripcion: '',
-      empresaPrefijo: '',
+      idEmpresa: null,
       centroCostoId: undefined,
       activo: true,
     });
@@ -186,7 +202,7 @@ export default function CuentasContablesList() {
         nivel3: parts.nivel3,
         nivel4: parts.nivel4,
         descripcion: cuenta.descripcion,
-        empresaPrefijo: cuenta.empresaPrefijo || '',
+        idEmpresa: cuenta.idEmpresa ?? null,
         centroCostoId: cuenta.centroCostoId,
         activo: cuenta.activo,
       });
@@ -210,7 +226,7 @@ export default function CuentasContablesList() {
         nivel1: values.nivel1,
         nivel2: values.nivel2,
         descripcion: values.descripcion,
-        empresaPrefijo: values.empresaPrefijo,
+        idEmpresa: values.idEmpresa,
         centroCostoId: values.centroCostoId,
         activo: values.activo,
       };
@@ -286,8 +302,8 @@ export default function CuentasContablesList() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-mono font-medium">{row.original.cuenta}</span>
-            {row.original.empresaPrefijo && (
-              <span className="text-xs text-muted-foreground">{row.original.empresaPrefijo}</span>
+            {row.original.empresaNombre && (
+              <span className="text-xs text-muted-foreground">{row.original.empresaNombre}</span>
             )}
           </div>
         </div>
@@ -581,13 +597,28 @@ export default function CuentasContablesList() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <FormField
                   control={form.control}
-                  name="empresaPrefijo"
+                  name="idEmpresa"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Empresa Prefijo</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej. ATC-103" {...field} />
-                      </FormControl>
+                      <FormLabel>Empresa</FormLabel>
+                      <Select
+                        onValueChange={(val) => field.onChange(val === '__none__' ? null : Number(val))}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona empresa..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">Ninguna</SelectItem>
+                          {empresas.map((e) => (
+                            <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
+                              {e.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

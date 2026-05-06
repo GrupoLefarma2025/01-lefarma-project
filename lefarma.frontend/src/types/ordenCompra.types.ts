@@ -14,7 +14,7 @@ export interface OrdenCompraPartidaResponse {
   deducible: boolean;
   total: number;
   idProveedor?: number | null;
-  idsCuentasBancarias?: string | null; // JSON string array, ej: "[1,2,3]"
+  idCuentaBancaria?: number | null;
   requiereFactura: boolean;
   tipoComprobante?: string | null;
   cantidadFacturada?: number | null;
@@ -38,7 +38,7 @@ export interface OrdenCompraResponse {
   idPasoActual?: number | null;
   // Proveedor
   idProveedor?: number | null;
-  idsCuentasBancarias?: number[] | null;
+  idCuentaBancaria?: number | null;
   sinDatosFiscales: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
@@ -74,7 +74,7 @@ export interface CreatePartidaRequest {
   otrosImpuestos: number;
   deducible: boolean;
   idProveedor?: number | null;
-  idsCuentasBancarias?: number[] | null;
+  idCuentaBancaria?: number | null;
   requiereFactura?: boolean;
   tipoComprobante?: string | null;
 }
@@ -89,7 +89,7 @@ export interface CreateOrdenCompraRequest {
   fechaLimitePago: string;
   // Proveedor
   idProveedor?: number | null;
-  idsCuentasBancarias?: number[] | null;
+  idCuentaBancaria?: number | null;
   sinDatosFiscales: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
