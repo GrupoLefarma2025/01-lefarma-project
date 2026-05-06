@@ -9,6 +9,8 @@ using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
@@ -96,7 +98,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}");
 
-                var uomIds = items.SelectMany(o => o.Partidas).Select(p => p.IdUnidadMedida).Distinct().ToList();
+                var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                                  .Select(p => p.IdUnidadMedida)
+                                  .Distinct()
+                                  .ToList();
                 var uomNombres = await _context.UnidadesMedida.AsNoTracking()
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
@@ -130,7 +135,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .FirstOrDefaultAsync();
                 if (uNombre != null) usuarioNombres[uNombre.IdUsuario] = uNombre.Nombre;
 
-                var uomIds = item.Partidas.Select(p => p.IdUnidadMedida).Distinct().ToList();
+                var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
                 var uomNombres = await _context.UnidadesMedida.AsNoTracking()
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
@@ -176,13 +181,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (workflow is null)
                     return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");
 
-                var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio);
+                var pasoInicio = workflow.Pasos?.FirstOrDefault(p => p.EsInicio);
                 if (pasoInicio is null)
                     return CommonErrors.Conflict("Workflow", "El workflow no tiene un paso inicial configurado.");
 
-                var accionInicial = pasoInicio.AccionesOrigen
-                    .OrderBy(a => a.IdAccion)
-                    .FirstOrDefault();
+                var accionInicial = pasoInicio.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
 
                 if (accionInicial is null)
                     return CommonErrors.Conflict("Workflow", "El paso inicial no tiene acciones configuradas para registrar bitácora.");
@@ -193,15 +196,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdEmpresa = request.IdEmpresa,
                     IdSucursal = request.IdSucursal,
                     IdArea = request.IdArea,
-                    IdTipoGasto = request.IdTipoGasto,
+                    IdTipoGasto = request.IdTipoGasto ?? 0,
                     IdUsuarioCreador = idUsuario,
                     IdEstado = 1, // Creada
                     IdWorkflow = workflow.IdWorkflow,
                     IdPasoActual = pasoInicio?.IdPaso,
                     IdProveedor = request.IdProveedor,
-                    IdsCuentasBancarias = request.IdsCuentasBancarias != null
-                        ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
-                        : null,
+                    IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades),
                     SinDatosFiscales = request.SinDatosFiscales,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
@@ -309,9 +310,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdTipoGasto = request.IdTipoGasto;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
-                orden.IdsCuentasBancarias = request.IdsCuentasBancarias != null
-                    ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
-                    : null;
+                orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
                 orden.SinDatosFiscales = request.SinDatosFiscales;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
@@ -319,7 +318,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
 
                 // Recrear partidas: remover existentes y crear nuevas
-                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
+                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas ?? Enumerable.Empty<OrdenCompraPartida>());
                 var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
                 {
                     IdOrden = orden.IdOrden,
@@ -381,10 +380,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             SucursalNombre = o.Sucursal?.NombreNormalizado ?? o.Sucursal?.Nombre,
             IdArea = o.IdArea,
             AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
-            IdTipoGasto = o.IdTipoGasto,
+            IdTipoGasto = o.IdTipoGasto ?? 0,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
-                : System.Text.Json.JsonSerializer.Deserialize<List<int>>(o.IdsCuentasBancarias),
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsCuentasBancarias,
+            IdsFormaPago = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago,
+            NumeroMensualidades = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.NumeroMensualidades,
             IdEstado = o.IdEstado,
             IdWorkflow = o.IdWorkflow,
             IdPasoActual = o.IdPasoActual,
@@ -411,7 +416,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             MonedaCodigo = o.Moneda?.Codigo,
             MonedaSimbolo = o.Moneda?.Simbolo,
             TipoCambioAplicado = o.TipoCambioAplicado,
-            Partidas = o.Partidas.OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
+            Partidas = (o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
             {
                 IdPartida = p.IdPartida,
                 NumeroPartida = p.NumeroPartida,
@@ -435,5 +440,38 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EstadoFacturacion = p.EstadoFacturacion
             }).ToList()
         };
+
+        private static string? SerializeCuentasYFormasPago(List<int>? idsCuentas, List<int>? idsFormasPago, int? numeroMensualidades)
+        {
+            if (idsCuentas == null && idsFormasPago == null && numeroMensualidades == null) return null;
+            var obj = new CuentasBancariasYFormasPago
+            {
+                IdsCuentasBancarias = idsCuentas ?? new List<int>(),
+                IdsFormaPago = idsFormasPago ?? new List<int>(),
+                NumeroMensualidades = numeroMensualidades
+            };
+            return System.Text.Json.JsonSerializer.Serialize(obj);
+        }
+
+        private static CuentasBancariasYFormasPago? DeserializeCuentasYFormasPago(string? json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<CuentasBancariasYFormasPago>(json);
+            }
+            catch
+            {
+                try
+                {
+                    var idsAntiguo = System.Text.Json.JsonSerializer.Deserialize<List<int>>(json);
+                    return new CuentasBancariasYFormasPago { IdsCuentasBancarias = idsAntiguo ?? new List<int>() };
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
     }
 }

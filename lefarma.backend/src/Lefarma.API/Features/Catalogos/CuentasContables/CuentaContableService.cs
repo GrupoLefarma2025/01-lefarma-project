@@ -152,8 +152,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                     DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
                     Nivel1 = request.Nivel1,
                     Nivel2 = request.Nivel2,
-                    EmpresaPrefijo = request.EmpresaPrefijo,
-                    EmpresaId = request.EmpresaId,
+                    IdEmpresa = request.IdEmpresa,
                     CentroCostoId = request.CentroCostoId,
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
@@ -210,8 +209,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 cuentaContable.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
                 cuentaContable.Nivel1 = request.Nivel1;
                 cuentaContable.Nivel2 = request.Nivel2;
-                cuentaContable.EmpresaPrefijo = request.EmpresaPrefijo;
-                cuentaContable.EmpresaId = request.EmpresaId;
+                cuentaContable.IdEmpresa = request.IdEmpresa;
                 cuentaContable.CentroCostoId = request.CentroCostoId;
                 cuentaContable.Activo = request.Activo;
                 cuentaContable.FechaModificacion = DateTime.UtcNow;
@@ -228,9 +226,9 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 }
 
                 // Recargar la navegación si hay EmpresaId
-                if (request.EmpresaId.HasValue)
+                if (request.IdEmpresa.HasValue)
                 {
-                    var empresa = await _empresaRepository.GetByIdAsync(request.EmpresaId.Value);
+                    var empresa = await _empresaRepository.GetByIdAsync(request.IdEmpresa.Value);
                     cuentaContable.Empresa = empresa;
                 }
                 else

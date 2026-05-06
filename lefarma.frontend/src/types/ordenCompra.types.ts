@@ -39,9 +39,10 @@ export interface OrdenCompraResponse {
   estadoNombre?: string | null;
   idWorkflow?: number | null;
   idPasoActual?: number | null;
-  // Proveedor
   idProveedor?: number | null;
-  idCuentaBancaria?: number | null;
+  idsCuentasBancarias?: number[] | null;
+  idsFormaPago?: number[] | null;
+  numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
   razonSocialProveedor?: string | null;
   rfcProveedor?: string | null;
@@ -96,9 +97,10 @@ export interface CreateOrdenCompraRequest {
   idArea: number;
   idTipoGasto: number;
   fechaLimitePago: string;
-  // Proveedor
   idProveedor?: number | null;
-  idCuentaBancaria?: number | null;
+idsCuentasBancarias?: number[] | null;
+  idsFormaPago?: number[] | null;
+  numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
