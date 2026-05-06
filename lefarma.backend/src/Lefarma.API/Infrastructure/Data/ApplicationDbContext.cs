@@ -138,6 +138,9 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(o => o.IdArea)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            modelBuilder.Entity<Empresa>()
+                .Property(e => e.PuedeSeleccionarEmpresas)
+                .HasColumnName("puede_seleccionar_empresas");
         }
     }
 }

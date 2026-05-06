@@ -23,6 +23,7 @@ const DEFAULT_UI_CONFIG: UIConfig = {
       defaultCollapsed: false,
     },
   },
+  sidebarCollapsed: false,
   notificaciones: {
     tiposHabilitados: ['in-app'],
     preferencias: [
@@ -204,6 +205,12 @@ export const useConfigStore = create<ConfigState>()(
                 : state.ui.notificaciones.tiposHabilitados.filter((t) => t !== tipo),
             },
           },
+        }));
+      },
+
+      setSidebarCollapsed: (collapsed: boolean) => {
+        set((state) => ({
+          ui: { ...state.ui, sidebarCollapsed: collapsed },
         }));
       },
 

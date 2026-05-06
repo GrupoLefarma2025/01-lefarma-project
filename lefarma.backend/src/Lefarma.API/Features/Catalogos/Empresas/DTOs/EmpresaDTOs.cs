@@ -18,6 +18,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas.DTOs
         public string PaginaWeb { get; set; } = string.Empty;
         public int? NumeroEmpleados { get; set; }
         public bool Activo { get; set; }
+        public bool PuedeSeleccionarEmpresas { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
     }
@@ -49,6 +50,7 @@ namespace Lefarma.API.Features.Catalogos.Empresas.DTOs
         public string? PaginaWeb { get; set; }
         public int? NumeroEmpleados { get; set; }
         public bool Activo { get; set; } = true;
+        public bool PuedeSeleccionarEmpresas { get; set; } = false;
     }
 
     public class UpdateEmpresaRequest
@@ -69,5 +71,6 @@ namespace Lefarma.API.Features.Catalogos.Empresas.DTOs
         public string? PaginaWeb { get; set; }
         public int? NumeroEmpleados { get; set; }
         public bool Activo { get; set; }
+        public bool PuedeSeleccionarEmpresas { get; set; }
     }
 }

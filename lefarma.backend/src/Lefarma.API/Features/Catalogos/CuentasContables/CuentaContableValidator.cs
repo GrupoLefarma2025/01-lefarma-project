@@ -28,6 +28,10 @@ public class CreateCuentaContableRequestValidator : AbstractValidator<CreateCuen
                 .MaximumLength(20).WithMessage("El prefijo de empresa no puede tener más de 20 caracteres")
                 .When(x => !string.IsNullOrWhiteSpace(x.EmpresaPrefijo));
 
+            RuleFor(x => x.EmpresaId)
+                .GreaterThan(0).WithMessage("El ID de empresa debe ser mayor a 0")
+                .When(x => x.EmpresaId.HasValue);
+
             RuleFor(x => x.Activo)
                 .NotNull().WithMessage("El valor de 'Activo' es obligatorio");
         }
@@ -61,6 +65,10 @@ public class CreateCuentaContableRequestValidator : AbstractValidator<CreateCuen
             RuleFor(x => x.EmpresaPrefijo)
                 .MaximumLength(20).WithMessage("El prefijo de empresa no puede tener más de 20 caracteres")
                 .When(x => !string.IsNullOrWhiteSpace(x.EmpresaPrefijo));
+
+            RuleFor(x => x.EmpresaId)
+                .GreaterThan(0).WithMessage("El ID de empresa debe ser mayor a 0")
+                .When(x => x.EmpresaId.HasValue);
 
             RuleFor(x => x.Activo)
                 .NotNull().WithMessage("El valor de 'Activo' es obligatorio");

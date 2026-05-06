@@ -1,13 +1,14 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { FileText, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw } from 'lucide-react';
+import { FileText, Plus, Pencil, Trash2, Search, Loader2, RefreshCcw, HelpCircle, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
+import type { Empresa } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -31,16 +32,47 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 const ENDPOINT = '/catalogos/CuentasContables';
 const CENTROS_COSTO_ENDPOINT = '/catalogos/CentrosCosto';
+const EMPRESAS_ENDPOINT = '/catalogos/Empresas';
+
+export const NIVEL1_OPTIONS = [
+  { value: '600', label: '600 — Gastos' },
+  { value: '601', label: '601 — Gastos Administrativos' },
+  { value: '602', label: '602 — Gastos Financieros' },
+  { value: '603', label: '603 — Gastos de Producción' },
+  { value: '604', label: '604 — Gastos Administrativos (Operativos)' },
+];
+
+/** Parsea "600-001-001-01" → { nivel1, nivel2, nivel3, nivel4 } */
+function parseCuenta(cuenta: string) {
+  const parts = (cuenta || '').split('-');
+  return {
+    nivel1: parts[0] || '',
+    nivel2: parts[1] || '',
+    nivel3: parts[2] || '',
+    nivel4: parts[3] || '',
+  };
+}
+
+/** Construye "600-001-001-01" a partir de las partes */
+function buildCuenta(nivel1: string, nivel2: string, nivel3: string, nivel4: string): string {
+  const n1 = nivel1.padStart(3, '0');
+  const n2 = nivel2.padStart(3, '0');
+  const n3 = nivel3.padStart(3, '0');
+  const n4 = nivel4.padStart(2, '0');
+  return `${n1}-${n2}-${n3}-${n4}`;
+}
 
 const cuentaContableSchema = z.object({
-  cuenta: z.string().min(1, 'La cuenta es obligatoria'),
-  descripcion: z.string().min(3, 'La descripción debe tener al menos 3 caracteres'),
   nivel1: z.string().min(1, 'El nivel 1 es obligatorio'),
   nivel2: z.string().min(1, 'El nivel 2 es obligatorio'),
-  empresaPrefijo: z.string().optional().or(z.literal('')),
+  nivel3: z.string().min(1, 'El nivel 3 es obligatorio'),
+  nivel4: z.string().min(1, 'El nivel 4 es obligatorio'),
+  descripcion: z.string().min(3, 'La descripción debe tener al menos 3 caracteres'),
+  idEmpresa: z.number().optional().nullable(),
   centroCostoId: z.number().optional(),
   activo: z.boolean(),
 });
@@ -51,7 +83,10 @@ interface CuentaContable {
   descripcion: string;
   nivel1: string;
   nivel2: string;
-  empresaPrefijo?: string;
+  nivel3?: string;
+  nivel4?: string;
+  idEmpresa?: number;
+  empresaNombre?: string;
   centroCostoId?: number;
   centroCostoNombre?: string;
   activo: boolean;
@@ -65,15 +100,20 @@ interface CentroCosto {
 }
 
 type CuentaContableFormValues = z.infer<typeof cuentaContableSchema>;
-type CuentaContableRequest = CuentaContableFormValues & { idCuentaContable: number };
+type CuentaContableRequest = Omit<CuentaContableFormValues, 'nivel3' | 'nivel4'> & {
+  idCuentaContable: number;
+  cuenta: string;
+};
 
 export default function CuentasContablesList() {
   usePageTitle('Cuentas Contables', 'Catálogo contable del sistema');
   const [cuentas, setCuentas] = useState<CuentaContable[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [centrosCosto, setCentrosCosto] = useState<CentroCosto[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [nivel1Filter, setNivel1Filter] = useState<string>('');
   const [isEditing, setIsEditing] = useState(false);
   const [cuentaId, setCuentaId] = useState(0);
   const [modalOpen, setModalOpen] = useState(false);
@@ -81,11 +121,12 @@ export default function CuentasContablesList() {
   const form = useForm<CuentaContableFormValues>({
     resolver: zodResolver(cuentaContableSchema),
     defaultValues: {
-      cuenta: '',
-      descripcion: '',
       nivel1: '',
       nivel2: '',
-      empresaPrefijo: '',
+      nivel3: '',
+      nivel4: '',
+      descripcion: '',
+      idEmpresa: null,
       centroCostoId: undefined,
       activo: true,
     },
@@ -101,7 +142,7 @@ export default function CuentasContablesList() {
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar las cuentas contables');
-    }finally {
+    } finally {
       setLoading(false);
     }
   };
@@ -117,19 +158,32 @@ export default function CuentasContablesList() {
     }
   };
 
+  const fetchEmpresas = async () => {
+    try {
+      const response = await API.get<ApiResponse<Empresa[]>>(EMPRESAS_ENDPOINT);
+      if (response.data.success) {
+        setEmpresas(response.data.data || []);
+      }
+    } catch {
+      // silencioso
+    }
+  };
+
   useEffect(() => {
     fetchCuentas();
     fetchCentrosCosto();
+    fetchEmpresas();
   }, []);
 
   const handleNuevaCuenta = () => {
     setCuentaId(0);
     form.reset({
-      cuenta: '',
-      descripcion: '',
       nivel1: '',
       nivel2: '',
-      empresaPrefijo: '',
+      nivel3: '',
+      nivel4: '',
+      descripcion: '',
+      idEmpresa: null,
       centroCostoId: undefined,
       activo: true,
     });
@@ -141,12 +195,14 @@ export default function CuentasContablesList() {
     const cuenta = cuentas.find((c) => c.idCuentaContable === id);
     if (cuenta) {
       setCuentaId(cuenta.idCuentaContable);
+      const parts = parseCuenta(cuenta.cuenta);
       form.reset({
-        cuenta: cuenta.cuenta,
+        nivel1: parts.nivel1,
+        nivel2: parts.nivel2,
+        nivel3: parts.nivel3,
+        nivel4: parts.nivel4,
         descripcion: cuenta.descripcion,
-        nivel1: cuenta.nivel1,
-        nivel2: cuenta.nivel2,
-        empresaPrefijo: cuenta.empresaPrefijo || '',
+        idEmpresa: cuenta.idEmpresa ?? null,
         centroCostoId: cuenta.centroCostoId,
         activo: cuenta.activo,
       });
@@ -158,14 +214,33 @@ export default function CuentasContablesList() {
   const handleSaveCuenta = async (values: CuentaContableFormValues) => {
     setIsSaving(true);
     try {
-      const payload: CuentaContableRequest = { idCuentaContable: cuentaId, ...values };
+      const cuentaCompleta = buildCuenta(
+        values.nivel1,
+        values.nivel2,
+        values.nivel3,
+        values.nivel4,
+      );
+      const payload: CuentaContableRequest = {
+        idCuentaContable: cuentaId,
+        cuenta: cuentaCompleta,
+        nivel1: values.nivel1,
+        nivel2: values.nivel2,
+        descripcion: values.descripcion,
+        idEmpresa: values.idEmpresa,
+        centroCostoId: values.centroCostoId,
+        activo: values.activo,
+      };
 
       const response = isEditing
         ? await API.put(`${ENDPOINT}/${cuentaId}`, payload)
         : await API.post(ENDPOINT, payload);
 
       if (response.data.success) {
-        toast.success(isEditing ? 'Cuenta contable actualizada correctamente.' : 'Cuenta contable creada correctamente.');
+        toast.success(
+          isEditing
+            ? 'Cuenta contable actualizada correctamente.'
+            : 'Cuenta contable creada correctamente.',
+        );
         setModalOpen(false);
         await fetchCuentas();
       } else {
@@ -198,12 +273,23 @@ export default function CuentasContablesList() {
     }
   };
 
+  const nivel1Options = useMemo(() => {
+    const seen = new Set<string>();
+    return cuentas
+      .map((c) => c.nivel1)
+      .filter((n) => n && !seen.has(n) && seen.add(n))
+      .sort();
+  }, [cuentas]);
+
   const filteredCuentas = useMemo(() => {
-    return cuentas.filter((c) =>
-      c.cuenta.toLowerCase().includes(search.toLowerCase()) ||
-      c.descripcion.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [cuentas, search]);
+    return cuentas.filter((c) => {
+      const matchesSearch =
+        c.cuenta.toLowerCase().includes(search.toLowerCase()) ||
+        c.descripcion.toLowerCase().includes(search.toLowerCase());
+      const matchesNivel1 = !nivel1Filter || c.nivel1 === nivel1Filter;
+      return matchesSearch && matchesNivel1;
+    });
+  }, [cuentas, search, nivel1Filter]);
 
   const columns: ColumnDef<CuentaContable>[] = [
     {
@@ -216,8 +302,8 @@ export default function CuentasContablesList() {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-mono font-medium">{row.original.cuenta}</span>
-            {row.original.empresaPrefijo && (
-              <span className="text-xs text-muted-foreground">{row.original.empresaPrefijo}</span>
+            {row.original.empresaNombre && (
+              <span className="text-xs text-muted-foreground">{row.original.empresaNombre}</span>
             )}
           </div>
         </div>
@@ -226,36 +312,44 @@ export default function CuentasContablesList() {
     {
       accessorKey: 'descripcion',
       header: 'Descripción',
-      cell: ({ row }) => (
-        <span className="text-sm">{row.original.descripcion}</span>
-      ),
+      cell: ({ row }) => <span className="text-sm">{row.original.descripcion}</span>,
     },
     {
       accessorKey: 'nivel1',
-      header: 'Nivel 1',
+      header: 'Cuenta Mayor (AAA)',
       cell: ({ row }) => (
         <span className="text-sm font-mono text-muted-foreground">{row.original.nivel1}</span>
       ),
     },
     {
       accessorKey: 'nivel2',
-      header: 'Nivel 2',
+      header: 'Sub-cuenta (BBB)',
       cell: ({ row }) => (
         <span className="text-sm font-mono text-muted-foreground">{row.original.nivel2}</span>
       ),
     },
     {
-      accessorKey: 'centroCostoNombre',
+      accessorKey: 'centroCosto',
+      id: 'centroCosto',
       header: 'Centro de Costo',
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">{row.original.centroCostoNombre || '—'}</span>
-      ),
+      cell: ({ row }) => {
+        const nombre =
+          row.original.centroCostoNombre ||
+          (row.original as any).centroCosto?.nombre ||
+          '—';
+        return (
+          <span className="text-sm text-muted-foreground">{nombre}</span>
+        );
+      },
     },
     {
       accessorKey: 'activo',
       header: 'Estado',
       cell: ({ row }) => (
-        <Badge variant={row.original.activo ? 'default' : 'secondary'} className="h-5">
+        <Badge
+          variant={row.original.activo ? 'default' : 'secondary'}
+          className="h-5"
+        >
           {row.original.activo ? 'Activo' : 'Inactivo'}
         </Badge>
       ),
@@ -289,113 +383,280 @@ export default function CuentasContablesList() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por cuenta o descripción..."
-            className="pl-10"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <Button onClick={handleNuevaCuenta}>
-          <Plus className="mr-2 h-4 w-4" /> Nueva Cuenta Contable
-        </Button>
-      </div>
-
-      <div className="relative">
-        {!loading && cuentas.length === 0 ? (
-          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">
-            <FileText className="mb-4 h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm font-medium text-foreground">No hay cuentas contables registradas</p>
-            <p className="text-xs text-muted-foreground mt-1">Catálogo contable del sistema</p>
-            <Button className="mt-4" size="sm" onClick={fetchCuentas}>
-              <RefreshCcw className="mr-2 h-4 w-4" /> Refrescar
-            </Button>
-          </div>
-        ) : (
-          <>
-            <DataTable
-              columns={columns}
-              data={filteredCuentas}
-              title="Cuentas Contables"
-              showRowCount
-              showRefreshButton
-              onRefresh={fetchCuentas}
-              filterConfig={{
-                tableId: 'cuentas-contables',
-                searchableColumns: ['cuenta', 'descripcion'],
-                defaultSearchColumns: ['cuenta'],
-                defaultVisibleColumns: ['cuenta', 'descripcion', 'centroCostoNombre', 'activo', 'actions'],
-              }}
+    <TooltipProvider>
+      <div className="space-y-6">
+        {/* Toolbar */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por cuenta o descripción..."
+              className="pl-10 pr-10"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
-            {loading && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-sm">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <Modal
-        id="modal-cuenta-contable"
-        open={modalOpen}
-        setOpen={setModalOpen}
-        title={isEditing ? 'Editar Cuenta Contable' : 'Nueva Cuenta Contable'}
-        size="xl"
-        footer={
-          <div className="flex gap-2 justify-end pt-2">
-            <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              disabled={isSaving}
-              onClick={form.handleSubmit(handleSaveCuenta)}
-            >
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditing ? 'Guardar Cambios' : 'Crear Cuenta Contable'}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 cursor-help text-muted-foreground hover:text-foreground">
+                  <HelpCircle className="h-4 w-4" />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-xs">
+                <div className="space-y-2">
+                  <p className="font-semibold text-xs">Formato de Cuenta: AAA-BBB-CCC-DD</p>
+                  <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-xs">
+                    <span className="font-mono font-bold">AAA</span>
+                    <span>Cuenta mayor (AAA)</span>
+                    <span className="font-mono font-bold">BBB</span>
+                    <span>Sub-cuenta</span>
+                    <span className="font-mono font-bold">CCC</span>
+                    <span>Analítica</span>
+                    <span className="font-mono font-bold">DD</span>
+                    <span>Auxiliar</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground pt-1 border-t">
+                    Ejemplo: 601-001-001-01
+                  </p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
           </div>
-        }
-      >
-        <Form {...form}>
-          <form className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="cuenta"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Cuenta *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej. 601-001-001-01" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
+
+          {nivel1Options.length > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground whitespace-nowrap">Cuenta Mayor (AAA):</span>
+              <select
+                value={nivel1Filter}
+                onChange={(e) => setNivel1Filter(e.target.value)}
+                className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="">Todos</option>
+                {nivel1Options.map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              {nivel1Filter && (
+                <button
+                  onClick={() => setNivel1Filter('')}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Limpiar filtro"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+
+          <Button onClick={handleNuevaCuenta}>
+            <Plus className="mr-2 h-4 w-4" /> Nueva Cuenta Contable
+          </Button>
+        </div>
+
+        {/* Table */}
+        <div className="relative">
+          {!loading && cuentas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">
+              <FileText className="mb-4 h-10 w-10 text-muted-foreground/40" />
+              <p className="text-sm font-medium text-foreground">No hay cuentas contables registradas</p>
+              <p className="text-xs text-muted-foreground mt-1">Catálogo contable del sistema</p>
+              <Button className="mt-4" size="sm" onClick={fetchCuentas}>
+                <RefreshCcw className="mr-2 h-4 w-4" /> Refrescar
+              </Button>
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                data={filteredCuentas}
+                title="Cuentas Contables"
+                showRowCount
+                showRefreshButton
+                onRefresh={fetchCuentas}
+                filterConfig={{
+                  tableId: 'cuentas-contables',
+                  searchableColumns: ['cuenta', 'descripcion'],
+                  defaultSearchColumns: ['cuenta'],
+                  defaultVisibleColumns: ['cuenta', 'descripcion', 'centroCosto', 'activo', 'actions'],
+                }}
               />
-              <FormField
-                control={form.control}
-                name="empresaPrefijo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Empresa Prefijo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej. ATC-103" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {loading && (
+                <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-sm">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Modal */}
+        <Modal
+          id="modal-cuenta-contable"
+          open={modalOpen}
+          setOpen={setModalOpen}
+          title={isEditing ? 'Editar Cuenta Contable' : 'Nueva Cuenta Contable'}
+          size="xl"
+          footer={
+            <div className="flex gap-2 justify-end pt-2">
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                disabled={isSaving}
+                onClick={form.handleSubmit(handleSaveCuenta)}
+              >
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isEditing ? 'Guardar Cambios' : 'Crear Cuenta Contable'}
+              </Button>
+            </div>
+          }
+        >
+          <Form {...form}>
+            <form className="space-y-4">
+              {/* Cuenta Mayor (AAA), Sub-cuenta (BBB), Analítica (CCC), Auxiliar (DD) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                <FormField
+                  control={form.control}
+                  name="nivel1"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        <span className="hidden md:inline">Cuenta Mayor (AAA)</span>
+                        <span className="md:hidden">AAA</span>
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {NIVEL1_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nivel2"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        <span className="hidden md:inline">Sub-cuenta (BBB)</span>
+                        <span className="md:hidden">BBB</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="001" {...field} className="font-mono" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nivel3"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        <span className="hidden md:inline">Analítica (CCC)</span>
+                        <span className="md:hidden">CCC</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="001" {...field} className="font-mono" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="nivel4"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        <span className="hidden md:inline">Auxiliar (DD)</span>
+                        <span className="md:hidden">DD</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="01" {...field} className="font-mono" />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="idEmpresa"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Empresa</FormLabel>
+                      <Select
+                        onValueChange={(val) => field.onChange(val === '__none__' ? null : Number(val))}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona empresa..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="__none__">Ninguna</SelectItem>
+                          {empresas.map((e) => (
+                            <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
+                              {e.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="centroCostoId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Centro de Costo</FormLabel>
+                      <Select
+                        onValueChange={(val) => field.onChange(Number(val))}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona centro..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {centrosCosto.map((c) => (
+                            <SelectItem key={c.idCentroCosto} value={String(c.idCentroCosto)}>
+                              {c.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <FormField
                 control={form.control}
                 name="descripcion"
                 render={({ field }) => (
-                  <FormItem className="md:col-span-2">
+                  <FormItem>
                     <FormLabel>Descripción *</FormLabel>
                     <FormControl>
                       <Input placeholder="Descripción de la cuenta" {...field} />
@@ -404,59 +665,7 @@ export default function CuentasContablesList() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="nivel1"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nivel 1 *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej. 601" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="nivel2"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Nivel 2 *</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Ej. 601-001" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="centroCostoId"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Centro de Costo</FormLabel>
-                    <Select
-                      onValueChange={(val) => field.onChange(Number(val))}
-                      value={field.value ? String(field.value) : ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona centro..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {centrosCosto.map((c) => (
-                          <SelectItem key={c.idCentroCosto} value={String(c.idCentroCosto)}>
-                            {c.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+
               <FormField
                 control={form.control}
                 name="activo"
@@ -472,10 +681,10 @@ export default function CuentasContablesList() {
                   </FormItem>
                 )}
               />
-            </div>
-          </form>
-        </Form>
-      </Modal>
-    </div>
+            </form>
+          </Form>
+        </Modal>
+      </div>
+    </TooltipProvider>
   );
 }

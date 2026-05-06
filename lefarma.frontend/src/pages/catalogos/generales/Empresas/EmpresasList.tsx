@@ -51,10 +51,14 @@ const empresaSchema = z.object({
   paginaWeb: z.string().url('URL invalida').optional().or(z.literal('')),
   numeroEmpleados: z.number().optional().or(z.literal(0)),
   activo: z.boolean(),
+  puedeSeleccionarEmpresas: z.boolean(),
 });
 
 type EmpresaFormValues = z.infer<typeof empresaSchema>;
-type EmpresaRequest = EmpresaFormValues & { idEmpresa: number };
+type EmpresaRequest = Omit<EmpresaFormValues, 'puedeSeleccionarEmpresas'> & {
+  idEmpresa: number;
+  puedeSeleccionarEmpresas: boolean;
+};
 
 export default function EmpresasList() {
   usePageTitle('Empresas', 'Gestión de empresas del catálogo general');
@@ -96,6 +100,7 @@ export default function EmpresasList() {
       paginaWeb: '',
       numeroEmpleados: 0,
       activo: true,
+      puedeSeleccionarEmpresas: false,
     },
   });
 
@@ -146,6 +151,7 @@ export default function EmpresasList() {
         paginaWeb: empresa.paginaWeb || '',
         numeroEmpleados: empresa.numeroEmpleados || 0,
         activo: empresa.activo,
+        puedeSeleccionarEmpresas: (empresa as any).puedeSeleccionarEmpresas ?? false,
       });
       setIsEditing(true);
       toggleModal("newEmpresa", true);
@@ -519,21 +525,36 @@ export default function EmpresasList() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={formEmpresa.control}
-                name="activo"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Activo</FormLabel>
-                      <FormDescription>La empresa aparecera en los catalogos.</FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={formEmpresa.control}
+              name="activo"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Activo</FormLabel>
+                    <FormDescription>La empresa aparecera en los catalogos.</FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formEmpresa.control}
+              name="puedeSeleccionarEmpresas"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Restringir empresa</FormLabel>
+                    <FormDescription>Los usuarios asignados a esta empresa no podran cambiar a otra empresa o sucursal.</FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
             </div>
 
             <FormField

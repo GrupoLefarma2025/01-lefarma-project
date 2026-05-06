@@ -77,6 +77,7 @@ export default function MedidasList() {
   const [medidaId, setMedidaId] = useState(0);
   const [isEditingUnidad, setIsEditingUnidad] = useState(false);
   const [unidadMedidaId, setUnidadMedidaId] = useState(0);
+  const [modalUnidadOpen, setModalUnidadOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [reasignarUnidadId, setReasignarUnidadId] = useState<number | null>(null);
 
@@ -207,6 +208,7 @@ export default function MedidasList() {
       activo: true,
     });
     setIsEditingUnidad(false);
+    setModalUnidadOpen(true);
   };
 
   const handleEditUnidad = (unidad: UnidadMedida) => {
@@ -219,6 +221,7 @@ export default function MedidasList() {
       activo: unidad.activo,
     });
     setIsEditingUnidad(true);
+    setModalUnidadOpen(true);
   };
 
   const handleCancelarUnidad = () => {
@@ -231,6 +234,7 @@ export default function MedidasList() {
       descripcion: '',
       activo: true,
     });
+    setModalUnidadOpen(false);
   };
 
   const handleSaveUnidad = async (values: UnidadMedidaFormValues) => {
@@ -288,10 +292,22 @@ export default function MedidasList() {
     if (!reasignarUnidadId || !values.idMedida) return;
     setIsSavingUnidad(true);
     try {
-      const response = await API.put(`${UNIDADES_ENDPOINT}/${reasignarUnidadId}`, {
+      // Fetch full unidad data to send complete UpdateUnidadMedidaRequest
+      const unidad = unidadesMedida.find((u) => u.idUnidadMedida === reasignarUnidadId);
+      if (!unidad) {
+        toast.error('Unidad no encontrada');
+        setIsSavingUnidad(false);
+        return;
+      }
+      const payload = {
         idUnidadMedida: reasignarUnidadId,
         idMedida: values.idMedida,
-      });
+        nombre: unidad.nombre,
+        abreviatura: unidad.abreviatura,
+        descripcion: unidad.descripcion || '',
+        activo: unidad.activo,
+      };
+      const response = await API.put(`${UNIDADES_ENDPOINT}/${reasignarUnidadId}`, payload);
 
       if (response.data.success) {
         toast.success('Unidad reasignada correctamente');
@@ -303,7 +319,7 @@ export default function MedidasList() {
       }
     } catch (error: unknown) {
       const err = toApiError(error);
-      toast.error('Error al reasignar la unidad');
+      toast.error(err.message ?? 'Error al reasignar la unidad');
     } finally {
       setIsSavingUnidad(false);
     }
@@ -507,119 +523,13 @@ export default function MedidasList() {
             <Button size="sm" variant="outline" onClick={fetchUnidadesMedida}>
               <RefreshCcw className="h-3 w-3" />
             </Button>
+            <Button size="sm" onClick={handleNuevaUnidad}>
+              <Plus className="mr-1 h-3 w-3" /> Nueva Unidad
+            </Button>
           </div>
         </div>
 
         <DataTable columns={unidadColumns} data={filteredUnidades} showRowCount />
-
-        {/* Formulario inline para crear/editar unidad */}
-        <div className="rounded-lg border bg-card p-4">
-          <h3 className="mb-3 text-sm font-medium">
-            {isEditingUnidad ? 'Editar Unidad' : 'Nueva Unidad de Medida'}
-          </h3>
-          <Form {...formUnidadMedida}>
-            <form className="flex flex-wrap items-end gap-4">
-              <FormField
-                control={formUnidadMedida.control}
-                name="idMedida"
-                render={({ field }) => (
-                  <FormItem className="w-40">
-                    <FormLabel className="text-xs">Medida</FormLabel>
-                    <Select
-                      value={field.value ? String(field.value) : ''}
-                      onValueChange={(val) => field.onChange(val ? Number(val) : 0)}
-                    >
-                      <FormControl>
-                        <SelectTrigger className="h-8">
-                          <SelectValue placeholder="Medida..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {medidas.map((m) => (
-                          <SelectItem key={m.idMedida} value={String(m.idMedida)}>
-                            {m.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage className="text-xs" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={formUnidadMedida.control}
-                name="nombre"
-                render={({ field }) => (
-                  <FormItem className="min-w-32 flex-1">
-                    <FormLabel className="text-xs">Nombre</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Kilogramo" className="h-8" {...field} />
-                    </FormControl>
-                    <FormMessage className="text-xs" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={formUnidadMedida.control}
-                name="abreviatura"
-                render={({ field }) => (
-                  <FormItem className="w-24">
-                    <FormLabel className="text-xs">Abreviatura</FormLabel>
-                    <FormControl>
-                      <Input placeholder="kg" className="h-8" {...field} />
-                    </FormControl>
-                    <FormMessage className="text-xs" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={formUnidadMedida.control}
-                name="descripcion"
-                render={({ field }) => (
-                  <FormItem className="min-w-32 flex-1">
-                    <FormLabel className="text-xs">Descripción</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Opcional" className="h-8" {...field} />
-                    </FormControl>
-                    <FormMessage className="text-xs" />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={formUnidadMedida.control}
-                name="activo"
-                render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <FormLabel className="text-xs">Activo</FormLabel>
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex gap-2">
-                {isEditingUnidad && (
-                  <Button size="sm" variant="outline" onClick={handleCancelarUnidad}>
-                    Cancelar
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  disabled={isSavingUnidad}
-                  onClick={formUnidadMedida.handleSubmit(handleSaveUnidad)}
-                >
-                  {isSavingUnidad && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
-                  {isEditingUnidad ? 'Guardar' : 'Agregar'}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </div>
       </div>
 
       {/* Modal editar medida */}
@@ -671,6 +581,109 @@ export default function MedidasList() {
             />
             <FormField
               control={formMedida.control}
+              name="activo"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center gap-3">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <FormLabel>Activo</FormLabel>
+                </FormItem>
+              )}
+            />
+          </form>
+        </Form>
+      </Modal>
+
+      {/* Modal crear/editar unidad */}
+      <Modal
+        id="modal-unidad"
+        open={modalUnidadOpen}
+        setOpen={(open) => !open && handleCancelarUnidad()}
+        title={isEditingUnidad ? 'Editar Unidad' : 'Nueva Unidad de Medida'}
+        size="md"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={handleCancelarUnidad}>
+              Cancelar
+            </Button>
+            <Button disabled={isSavingUnidad} onClick={formUnidadMedida.handleSubmit(handleSaveUnidad)}>
+              {isSavingUnidad && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditingUnidad ? 'Guardar' : 'Crear'}
+            </Button>
+          </div>
+        }
+      >
+        <Form {...formUnidadMedida}>
+          <form className="space-y-4">
+            <FormField
+              control={formUnidadMedida.control}
+              name="idMedida"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Medida</FormLabel>
+                  <Select
+                    value={field.value ? String(field.value) : ''}
+                    onValueChange={(val) => field.onChange(val ? Number(val) : 0)}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecciona una medida..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {medidas.map((m) => (
+                        <SelectItem key={m.idMedida} value={String(m.idMedida)}>
+                          {m.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formUnidadMedida.control}
+              name="nombre"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Nombre</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Kilogramo" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formUnidadMedida.control}
+              name="abreviatura"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Abreviatura</FormLabel>
+                  <FormControl>
+                    <Input placeholder="kg" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formUnidadMedida.control}
+              name="descripcion"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Descripción</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Opcional" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formUnidadMedida.control}
               name="activo"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-center gap-3">

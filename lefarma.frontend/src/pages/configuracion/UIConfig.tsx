@@ -1,13 +1,13 @@
 ﻿import { useConfigStore } from '@/store/configStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Moon, Sun, Monitor } from 'lucide-react';
+import { Moon, Sun, Monitor, PanelLeftClose, PanelLeft } from 'lucide-react';
 import { PresetSelector } from '@/components/config/PresetSelector';
 import { AdvancedConfigUI } from '@/components/config/AdvancedConfigUI';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
 export function UIConfig() {
-  const { ui, setTema } = useConfigStore();
+  const { ui, setTema, setSidebarCollapsed } = useConfigStore();
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handleTemaChange = (tema: 'light' | 'dark' | 'system') => {
@@ -57,6 +57,29 @@ export function UIConfig() {
               ? 'La aplicación usará el tema de tu sistema operativo'
               : `Tema ${ui.tema === 'light' ? 'claro' : 'oscuro'} seleccionado`}
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Configuración de Sidebar */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Barra Lateral</CardTitle>
+          <CardDescription>Controla el estado del menú lateral</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <button
+            onClick={() => setSidebarCollapsed(!ui.sidebarCollapsed)}
+            className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:pointer-events-none [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground h-7 w-7"
+          >
+            {ui.sidebarCollapsed ? (
+              <PanelLeft className="h-4 w-4" />
+            ) : (
+              <PanelLeftClose className="h-4 w-4" />
+            )}
+            <span className="text-sm">
+              {ui.sidebarCollapsed ? 'Contraído' : 'Expandido'}
+            </span>
+          </button>
         </CardContent>
       </Card>
 

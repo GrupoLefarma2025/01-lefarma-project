@@ -43,6 +43,9 @@ public class CuentaContableConfiguration : IEntityTypeConfiguration<CuentaContab
                 .HasColumnName("empresa_prefijo")
                 .HasMaxLength(20);
 
+            builder.Property(e => e.EmpresaId)
+                .HasColumnName("empresa_id");
+
             builder.Property(e => e.CentroCostoId)
                 .HasColumnName("centro_costo_id");
 
@@ -62,6 +65,11 @@ public class CuentaContableConfiguration : IEntityTypeConfiguration<CuentaContab
             builder.HasOne(e => e.CentroCosto)
                 .WithMany()
                 .HasForeignKey(e => e.CentroCostoId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(e => e.Empresa)
+                .WithMany()
+                .HasForeignKey(e => e.EmpresaId)
                 .OnDelete(DeleteBehavior.Restrict);
         }
     }

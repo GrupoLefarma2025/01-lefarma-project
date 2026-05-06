@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import logoImage from '@/assets/logo.png';
 
@@ -41,9 +41,9 @@ function fmtDate(dateStr: string) {
   }
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-}
+// function fmtMoney(n: number) {
+//   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+// }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
 const BORDER = '#4a7aad';
 const WHITE = '#ffffff';
-const LIGHT_GRAY = '#f5f5f5';
+// const LIGHT_GRAY = '#f5f5f5';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
@@ -357,7 +357,7 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
     n === 0
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
+  console.log(fmt)
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
@@ -504,16 +504,16 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
 
       {/* ── FIRMAS ── */}
       {firmas.length > 0 && (
-        <table style={{ ...s.firmasTable, marginTop: 8 }}>
+        <table style={s.firmasTable}>
           <thead>
             <tr style={s.firmaThRow}>
-              <th style={s.firmaTh}>Paso</th>
-              <th style={s.firmaTh}>Autorizado por</th>
+              <th style={s.firmaTh}>Puesto</th>
+              <th style={s.firmaTh}>Nombre</th>
               {tieneFirma && <th style={s.firmaTh}>Firma</th>}
             </tr>
           </thead>
           <tbody>
-            {firmas.slice(1).map((f) => {
+            {firmas.map((f) => {
               const firmaUrl = firmasMap?.get(f.idUsuario);
               return (
                 <tr key={f.idEvento}>

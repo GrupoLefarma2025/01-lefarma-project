@@ -18,13 +18,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Building2, Building, AlertCircle, ArrowLeft, Loader2 } from 'lucide-react';
+import { Building2, Building, AlertCircle, ArrowLeft, Loader2, Lock } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
 
 export default function SelectEmpresaSucursal() {
   const navigate = useNavigate();
-  const { user, changeEmpresaSucursal } = useAuthStore();
+  const { user, changeEmpresaSucursal, puedeSeleccionarEmpresas } = useAuthStore();
 
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
@@ -33,6 +33,34 @@ export default function SelectEmpresaSucursal() {
   const [selectedSucursal, setSelectedSucursal] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Pre-seleccionar empresa/sucursal si el usuario no puede cambiar
+  useEffect(() => {
+    if (!puedeSeleccionarEmpresas) {
+      const storedEmpresa = authService.getEmpresa();
+      const storedSucursal = authService.getSucursal();
+      if (storedEmpresa) {
+        setSelectedEmpresa(String(storedEmpresa.idEmpresa));
+      }
+      if (storedSucursal) {
+        setSelectedSucursal(String(storedSucursal.idSucursal));
+      }
+    }
+  }, [puedeSeleccionarEmpresas]);
+
+  // Auto-submit si el usuario no puede seleccionar empresa/sucursal
+  useEffect(() => {
+    if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal) {
+      const form = document.getElementById('empresa-sucursal-form') as HTMLFormElement;
+      if (form) {
+        // Pequeño delay para asegurar que el state está actualizado
+        const timer = setTimeout(() => {
+          form.requestSubmit();
+        }, 100);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [puedeSeleccionarEmpresas, selectedEmpresa, selectedSucursal]);
 
   useEffect(() => {
     loadData();
@@ -105,6 +133,7 @@ export default function SelectEmpresaSucursal() {
         { idEmpresa: selectedEmpresa } as Empresa,
         { idSucursal: selectedSucursal } as Sucursal
       );
+      // Si no puede seleccionar, ir directo al dashboard sin mostrar el select
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const message =
@@ -139,7 +168,7 @@ export default function SelectEmpresaSucursal() {
         </CardHeader>
 
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form id="empresa-sucursal-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Info del usuario */}
             {user?.nombre && (
               <div className="text-center py-2 px-4 bg-muted rounded-lg">
@@ -172,11 +201,12 @@ export default function SelectEmpresaSucursal() {
                 <label className="text-sm font-medium flex items-center gap-2">
                   <Building2 className="h-4 w-4" />
                   Empresa
+                  {!puedeSeleccionarEmpresas && <Lock className="h-3 w-3 text-muted-foreground" />}
                 </label>
                 <Select
                   value={selectedEmpresa}
                   onValueChange={setSelectedEmpresa}
-                  disabled={isLoading}
+                  disabled={isLoading || !puedeSeleccionarEmpresas}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una empresa" />
@@ -201,6 +231,7 @@ export default function SelectEmpresaSucursal() {
                 <label className="text-sm font-medium flex items-center gap-2">
                   <Building className="h-4 w-4" />
                   Sucursal
+                  {!puedeSeleccionarEmpresas && <Lock className="h-3 w-3 text-muted-foreground" />}
                   {empresaSeleccionada && (
                     <span className="text-muted-foreground font-normal">
                       - {empresaSeleccionada.nombre}
@@ -210,7 +241,7 @@ export default function SelectEmpresaSucursal() {
                 <Select
                   value={selectedSucursal}
                   onValueChange={setSelectedSucursal}
-                  disabled={sucursalesFiltradas.length === 0}
+                  disabled={sucursalesFiltradas.length === 0 || !puedeSeleccionarEmpresas}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecciona una sucursal" />
@@ -237,13 +268,15 @@ export default function SelectEmpresaSucursal() {
 
             {/* Botones */}
             <div className="flex flex-col gap-2">
-              <Button
-                type="submit"
-                disabled={!selectedEmpresa || !selectedSucursal || isLoading}
-                className="w-full"
-              >
-                {isLoading ? 'Procesando...' : 'Confirmar Cambio'}
-              </Button>
+              {puedeSeleccionarEmpresas && (
+                <Button
+                  type="submit"
+                  disabled={!selectedEmpresa || !selectedSucursal || isLoading}
+                  className="w-full"
+                >
+                  {isLoading ? 'Procesando...' : 'Confirmar Cambio'}
+                </Button>
+              )}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -251,7 +284,7 @@ export default function SelectEmpresaSucursal() {
                 disabled={isLoading}
               >
                 <ArrowLeft className="h-4 w-4" />
-                Cancelar
+                {puedeSeleccionarEmpresas ? 'Cancelar' : 'Ir al Dashboard'}
               </button>
             </div>
           </form>
