@@ -26,7 +26,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener ordenes de compra con filtros")]
-        public async Task<IActionResult> GetAll(OrdenCompraRequest? query)
+        public async Task<IActionResult> GetAll([FromQuery] OrdenCompraRequest? query)
         {
             if(query == null)
             {
