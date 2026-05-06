@@ -495,24 +495,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 await _context.SaveChangesAsync();
 
                 // Enviar al sistema externo
-                var endpointExterno = _configuration["Integraciones:EnvioConcentrado:EndpointExterno"];
-                if (!string.IsNullOrEmpty(endpointExterno))
-                {
-                    try
-                    {
-                        var httpClient = _httpClientFactory.CreateClient();
-                        await httpClient.PostAsJsonAsync(endpointExterno, new
-                        {
-                            IdConcentrado = envioConcentrado.IdEnvioConcentrado,
-                            TokenSeguridad = token
-                        });
-                    }
-                    catch (HttpRequestException)
-                    {
-                        // El envio queda en PENDIENTE, se puede reintentar manualmente
-                        // Loggear error
-                    }
-                }
+                //var endpointExterno = _configuration["Integraciones:EnvioConcentrado:EndpointExterno"];
+                //if (!string.IsNullOrEmpty(endpointExterno))
+                //{
+                //    try
+                //    {
+                //        var httpClient = _httpClientFactory.CreateClient();
+                //        await httpClient.PostAsJsonAsync(endpointExterno, new
+                //        {
+                //            IdConcentrado = envioConcentrado.IdEnvioConcentrado,
+                //            TokenSeguridad = token
+                //        });
+                //    }
+                //    catch (HttpRequestException)
+                //    {
+                //        // El envio queda en PENDIENTE, se puede reintentar manualmente
+                //        // Loggear error
+                //    }
+                //}
 
                 await transaction.CommitAsync();
 

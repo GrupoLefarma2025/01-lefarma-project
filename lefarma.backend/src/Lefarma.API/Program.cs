@@ -165,6 +165,7 @@ builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+            builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
 
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();

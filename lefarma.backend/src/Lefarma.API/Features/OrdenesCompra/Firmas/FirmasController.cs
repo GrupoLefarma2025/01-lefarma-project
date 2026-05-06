@@ -52,6 +52,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
         }
 
+        [HttpPost("envio-concentrado")]
+        [SwaggerOperation(
+            Summary = "Concentrado de órdenes — avanzar en lote desde paso 4",
+            Description = "Ejecuta la acción de Autorizar (acción 8) sobre cada orden indicada. " +
+                          "El motor de workflow enruta automáticamente: Total > 100,000 → Paso 5 (Dirección), " +
+                          "Total ≤ 100,000 → Paso 6 (Tesorería).")]
+        public async Task<IActionResult> EnvioConcentrado([FromBody] EnvioConcentradoRequest request)
+        {
+            var result = await _service.EnvioConcentradoAsync(request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<EnvioConcentradoResponse>
+            { Success = true, Message = $"{data?.Exitosas} orden(es) avanzadas exitosamente.", Data = data }));
+        }
+
         [HttpGet("{id}/historial-workflow")]
         [SwaggerOperation(Summary = "Obtener historial de transiciones del workflow para una orden")]
         public async Task<IActionResult> GetHistorialWorkflow(int id)

@@ -210,7 +210,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                             ctx["Asunto"] = asuntoEmail;
 
                             var layoutWrapper = await _db.WorkflowCanalTemplates
-                                .FirstOrDefaultAsync(t => t.IdWorkflow == rec.IdWorkflow && t.CodigoCanal == "email" && t.Activo, ct);
+                                .FirstOrDefaultAsync(t => t.CodigoCanal == "email" && t.Activo, ct);
                             if (layoutWrapper != null)
                             {
                                 cuerpoEmail = layoutWrapper.LayoutHtml.Replace("{{Contenido}}", cuerpoEmail, StringComparison.OrdinalIgnoreCase);

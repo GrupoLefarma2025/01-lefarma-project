@@ -1808,15 +1808,14 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         };
 
-        public async Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync(int idWorkflow)
+        public async Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync()
         {
             try
             {
-                var templates = await _repo.GetCanalTemplatesAsync(idWorkflow);
+                var templates = await _repo.GetCanalTemplatesAsync();
                 return templates.Select(t => new WorkflowCanalTemplateResponse
                 {
                     IdTemplate = t.IdTemplate,
-                    IdWorkflow = t.IdWorkflow,
                     CodigoCanal = t.CodigoCanal,
                     Nombre = t.Nombre,
                     LayoutHtml = t.LayoutHtml,
@@ -1826,27 +1825,22 @@ public class WorkflowService : BaseService, IWorkflowService
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("GetCanalTemplates", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("GetCanalTemplates", exception: ex);
                 return CommonErrors.DatabaseError("obtener las plantillas de canal");
             }
         }
 
-        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(int idWorkflow, CreateCanalTemplateRequest request)
+        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(CreateCanalTemplateRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable().FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
-                if (workflow == null)
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-
                 var codigoCanal = request.CodigoCanal.ToLowerInvariant();
-                var existing = await _repo.GetCanalTemplateAsync(idWorkflow, codigoCanal);
+                var existing = await _repo.GetCanalTemplateAsync(codigoCanal);
                 if (existing != null)
                     return CommonErrors.AlreadyExists("CanalTemplate", "canal", codigoCanal);
 
                 var template = new WorkflowCanalTemplate
                 {
-                    IdWorkflow = idWorkflow,
                     CodigoCanal = codigoCanal,
                     Nombre = request.Nombre,
                     LayoutHtml = request.LayoutHtml,
@@ -1858,7 +1852,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 return new WorkflowCanalTemplateResponse
                 {
                     IdTemplate = template.IdTemplate,
-                    IdWorkflow = template.IdWorkflow,
                     CodigoCanal = template.CodigoCanal,
                     Nombre = template.Nombre,
                     LayoutHtml = template.LayoutHtml,
@@ -1868,20 +1861,16 @@ public class WorkflowService : BaseService, IWorkflowService
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("CreateCanalTemplate", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("CreateCanalTemplate", exception: ex);
                 return CommonErrors.DatabaseError("crear la plantilla de canal");
             }
         }
 
-        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(int idWorkflow, string codigoCanal, UpsertCanalTemplateRequest request)
+        public async Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(string codigoCanal, UpsertCanalTemplateRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable().FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
-                if (workflow == null)
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-
-                var existing = await _repo.GetCanalTemplateAsync(idWorkflow, codigoCanal);
+                var existing = await _repo.GetCanalTemplateAsync(codigoCanal);
                 if (existing != null)
                 {
                     existing.Nombre = request.Nombre;
@@ -1893,7 +1882,6 @@ public class WorkflowService : BaseService, IWorkflowService
                     return new WorkflowCanalTemplateResponse
                     {
                         IdTemplate = existing.IdTemplate,
-                        IdWorkflow = existing.IdWorkflow,
                         CodigoCanal = existing.CodigoCanal,
                         Nombre = existing.Nombre,
                         LayoutHtml = existing.LayoutHtml,
@@ -1904,7 +1892,6 @@ public class WorkflowService : BaseService, IWorkflowService
 
                 var template = new WorkflowCanalTemplate
                 {
-                    IdWorkflow = idWorkflow,
                     CodigoCanal = codigoCanal.ToLowerInvariant(),
                     Nombre = request.Nombre,
                     LayoutHtml = request.LayoutHtml,
@@ -1916,7 +1903,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 return new WorkflowCanalTemplateResponse
                 {
                     IdTemplate = template.IdTemplate,
-                    IdWorkflow = template.IdWorkflow,
                     CodigoCanal = template.CodigoCanal,
                     Nombre = template.Nombre,
                     LayoutHtml = template.LayoutHtml,
@@ -1926,7 +1912,7 @@ public class WorkflowService : BaseService, IWorkflowService
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("UpsertCanalTemplate", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("UpsertCanalTemplate", exception: ex);
                 return CommonErrors.DatabaseError("guardar la plantilla de canal");
             }
         }

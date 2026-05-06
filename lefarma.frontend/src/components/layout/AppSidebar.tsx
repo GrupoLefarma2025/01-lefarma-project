@@ -1,4 +1,4 @@
-﻿import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import type { ElementType } from 'react';
 import {
   LayoutDashboard,
@@ -24,6 +24,7 @@ import {
   GitBranch,
   ShoppingCart,
   Receipt,
+  Send,
 } from 'lucide-react';
 
 import {
@@ -119,6 +120,7 @@ const menuItems: SidebarMenuItem[] = [
     items: [
       { title: 'Crear orden', icon: FileText, path: '/ordenes/crear' },
       { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones' },
+      { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado' },
     ],
   },
   {

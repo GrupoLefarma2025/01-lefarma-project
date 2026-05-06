@@ -312,7 +312,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     public class WorkflowCanalTemplateResponse
     {
         public int IdTemplate { get; set; }
-        public int IdWorkflow { get; set; }
         public string CodigoCanal { get; set; } = string.Empty;
         public string Nombre { get; set; } = string.Empty;
         public string LayoutHtml { get; set; } = string.Empty;

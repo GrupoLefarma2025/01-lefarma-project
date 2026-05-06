@@ -928,7 +928,7 @@ export default function CrearOrdenCompra() {
           deducible: p.deducible ?? false,
           idProveedor: p.idProveedor || null,
           idsCuentasBancarias: p.idsCuentasBancarias && p.idsCuentasBancarias.length > 0
-            ? JSON.stringify(p.idsCuentasBancarias)
+            ? p.idsCuentasBancarias
             : null,
         })),
       };

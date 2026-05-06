@@ -17,7 +17,13 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.IdArea).HasColumnName("id_area");
             builder.Property(o => o.IdTipoGasto).HasColumnName("id_tipo_gasto");
             builder.Property(o => o.IdUsuarioCreador).HasColumnName("id_usuario_creador");
-            builder.Property(o => o.Estado).HasColumnName("estado").HasConversion<int>();
+            builder.Property(o => o.IdEstado).HasColumnName("id_estado");
+            builder.HasOne(o => o.Estado)
+                .WithMany()
+                .HasForeignKey(o => o.IdEstado)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(o => o.IdWorkflow).HasColumnName("id_workflow");
             builder.Property(o => o.IdPasoActual).HasColumnName("id_paso_actual");
             builder.Property(o => o.IdProveedor).HasColumnName("id_proveedor");
             builder.Property(o => o.IdsCuentasBancarias).HasColumnName("ids_cuentas_bancarias").HasColumnType("nvarchar(max)");

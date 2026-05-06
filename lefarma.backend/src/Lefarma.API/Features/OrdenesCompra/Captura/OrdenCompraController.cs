@@ -55,7 +55,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         [HttpPost]
     //    [HasPermission(Permissions.OrdenesCompra.Create)]
         [SwaggerOperation(Summary = "Crear nueva orden de compra")]
-        public async Task<IActionResult> Create( CreateOrdenCompraRequest? request)
+        public async Task<IActionResult> Create( CreateOrdenCompraRequest request)
         {
             var result = await _service.CreateAsync(request, GetUserId(), HttpContext.RequestAborted);
             return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),

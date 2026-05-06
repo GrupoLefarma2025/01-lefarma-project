@@ -100,8 +100,8 @@ export default function EnvioConcentrado() {
   const [envioError, setEnvioError] = useState<string | null>(null);
 
   // ── Fetch órdenes pendientes de envío concentrado ────────────────────────
-  // TODO: Configurar el ID del estado correspondiente al paso que tiene envia_concentrado
-  const ESTADO_ENVIO_CONCENTRADO = 4;
+  // Estado PREPARACION_GAF (id_estado = 11) - paso que tiene envia_concentrado
+  const ESTADO_ENVIO_CONCENTRADO = 11;
 
   const fetchOrdenes = async () => {
     setLoading(true);

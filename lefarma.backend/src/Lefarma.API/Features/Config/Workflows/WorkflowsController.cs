@@ -318,29 +318,29 @@ namespace Lefarma.API.Features.Config.Workflows
         // CANAL TEMPLATES
         // ============================================================================
 
-        [HttpGet("{idWorkflow}/canal-templates")]
-        [SwaggerOperation(Summary = "Obtener plantillas de canal del workflow")]
-        public async Task<IActionResult> GetCanalTemplates(int idWorkflow)
+        [HttpGet("canal-templates")]
+        [SwaggerOperation(Summary = "Obtener plantillas de canal")]
+        public async Task<IActionResult> GetCanalTemplates()
         {
-            var result = await _service.GetCanalTemplatesAsync(idWorkflow);
+            var result = await _service.GetCanalTemplatesAsync();
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowCanalTemplateResponse>>
             { Success = true, Message = "Plantillas de canal obtenidas exitosamente.", Data = data }));
         }
 
-        [HttpPost("{idWorkflow}/canal-templates")]
+        [HttpPost("canal-templates")]
         [SwaggerOperation(Summary = "Crear nueva plantilla de canal")]
-        public async Task<IActionResult> CreateCanalTemplate(int idWorkflow, [FromBody] CreateCanalTemplateRequest request)
+        public async Task<IActionResult> CreateCanalTemplate([FromBody] CreateCanalTemplateRequest request)
         {
-            var result = await _service.CreateCanalTemplateAsync(idWorkflow, request);
+            var result = await _service.CreateCanalTemplateAsync(request);
             return result.ToActionResult(this, data => StatusCode(201, new ApiResponse<WorkflowCanalTemplateResponse>
             { Success = true, Message = "Plantilla de canal creada exitosamente.", Data = data }));
         }
 
-        [HttpPut("{idWorkflow}/canal-templates/{codigoCanal}")]
+        [HttpPut("canal-templates/{codigoCanal}")]
         [SwaggerOperation(Summary = "Crear o actualizar plantilla de canal")]
-        public async Task<IActionResult> UpsertCanalTemplate(int idWorkflow, string codigoCanal, [FromBody] UpsertCanalTemplateRequest request)
+        public async Task<IActionResult> UpsertCanalTemplate(string codigoCanal, [FromBody] UpsertCanalTemplateRequest request)
         {
-            var result = await _service.UpsertCanalTemplateAsync(idWorkflow, codigoCanal, request);
+            var result = await _service.UpsertCanalTemplateAsync(codigoCanal, request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowCanalTemplateResponse>
             { Success = true, Message = "Plantilla de canal guardada exitosamente.", Data = data }));
         }

@@ -45,19 +45,17 @@ interface Props {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const ESTADO_LABEL: Record<string, string> = {
-  Creada: 'Creada',
-  EnRevisionF2: 'En revisión - Firma 2',
-  EnRevisionF3: 'En revisión - Firma 3',
-  EnRevisionF4: 'En revisión - Firma 4',
-  EnRevisionF5: 'En revisión - Firma 5',
-  Autorizada: 'Autorizada',
-  EnTesoreria: 'En tesorería',
-  Pagada: 'Pagada',
-  EnComprobacion: 'En comprobación',
-  Cerrada: 'Cerrada',
-  Rechazada: 'Rechazada',
-  Cancelada: 'Cancelada',
+const ESTADO_INFO: Record<number, { label: string; bg: string; color: string }> = {
+  1:  { label: 'Creada', bg: '#dbeafe', color: '#1e3a8a' },
+  2:  { label: 'En Revisión', bg: '#dbeafe', color: '#1e3a8a' },
+  3:  { label: 'Autorizada', bg: '#dbeafe', color: '#1e3a8a' },
+  4:  { label: 'En Tesorería', bg: '#dbeafe', color: '#1e3a8a' },
+  5:  { label: 'Pagada', bg: '#dcfce7', color: '#166534' },
+  6:  { label: 'En Comprobación', bg: '#dbeafe', color: '#1e3a8a' },
+  7:  { label: 'Cerrada', bg: '#dcfce7', color: '#166534' },
+  8:  { label: 'Rechazada', bg: '#fee2e2', color: '#991b1b' },
+  9:  { label: 'Cancelada', bg: '#fee2e2', color: '#991b1b' },
+  10: { label: 'Devuelta', bg: '#dbeafe', color: '#1e3a8a' },
 };
 
 const ESTADO_COLOR: Record<EstadoVisual, string> = {
@@ -140,19 +138,9 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
     minute: '2-digit',
   });
 
-  const estadoBg =
-    orden.estado === 'Rechazada' || orden.estado === 'Cancelada'
-      ? '#fee2e2'
-      : orden.estado === 'Cerrada' || orden.estado === 'Pagada'
-        ? '#dcfce7'
-        : '#dbeafe';
-
-  const estadoColor =
-    orden.estado === 'Rechazada' || orden.estado === 'Cancelada'
-      ? '#991b1b'
-      : orden.estado === 'Cerrada' || orden.estado === 'Pagada'
-        ? '#166534'
-        : '#1e3a8a';
+  const estInfo = ESTADO_INFO[orden.idEstado] ?? { label: `Estado ${orden.idEstado}`, bg: '#dbeafe', color: '#1e3a8a' };
+  const estadoBg = estInfo.bg;
+  const estadoColor = estInfo.color;
 
   return (
     <div id="flujo-pdf-print">
@@ -187,7 +175,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
                 className="pdf-badge"
                 style={{ backgroundColor: estadoBg, color: estadoColor }}
               >
-                {ESTADO_LABEL[orden.estado] ?? orden.estado}
+                {estInfo.label}
               </span>
             </div>
           </div>

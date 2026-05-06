@@ -1,4 +1,4 @@
-﻿import { Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { LandingRoute, ProtectedRoute, PublicOnlyRoute } from './LandingRoute';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
@@ -26,6 +26,7 @@ import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
 import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
 import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
+import EnvioConcentrado from '@/pages/ordenes/EnvioConcentrado';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
@@ -79,6 +80,7 @@ export const AppRoutes = () => {
           <Route path="/ordenes/editar/:id" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
+          <Route path="/ordenes/envio-concentrado" element={<EnvioConcentrado />} />
           <Route path="/perfil" element={<Perfil />} />
           <Route path="/notificaciones" element={<NotificationsPage />} />
           <Route path="/help" element={<HelpList />} />
