@@ -95,7 +95,7 @@ export interface CreateOrdenCompraRequest {
   idEmpresa: number;
   idSucursal: number;
   idArea: number;
-  idTipoGasto: number;
+  idTipoGasto: number | null;
   fechaLimitePago: string;
   idProveedor?: number | null;
 idsCuentasBancarias?: number[] | null;

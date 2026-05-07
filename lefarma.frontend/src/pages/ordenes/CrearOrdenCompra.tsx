@@ -918,7 +918,7 @@ export default function CrearOrdenCompra() {
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
         idArea: values.idArea,
-        idTipoGasto: values.idTipoGasto && values.idTipoGasto > 0 ? values.idTipoGasto : null,
+        idTipoGasto: null,
         fechaLimitePago: values.fechaLimitePago,
         idMoneda: values.idMoneda ?? null,
         tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
@@ -1142,29 +1142,7 @@ export default function CrearOrdenCompra() {
                           )}
                         />
 
-                        {selectedFormaPagoId && (
-                          <div className="grid grid-cols-1 gap-4 mt-4">
-                            <FormItem>
-                              <FormLabel>Número de pagos mensuales</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min={1}
-                                  max={48}
-                                  value={numeroMensualidades}
-                                  onChange={(e) => {
-                                    const val = parseInt(e.target.value) || 1;
-                                    setNumeroMensualidades(Math.max(1, Math.min(48, val)));
-                                  }}
-                                  className="w-32"
-                                />
-                              </FormControl>
-                              <FormDescription className="text-xs">
-                                ¿En cuántos meses se realizará el pago? (1-48 meses)
-                              </FormDescription>
-                            </FormItem>
-                          </div>
-                        )}
+                        
                       </div>
                   </FormSection>
                 </CardContent>
@@ -1476,6 +1454,30 @@ export default function CrearOrdenCompra() {
                             </FormItem>
                           )}
                         />
+                        {selectedFormaPagoId && (
+                          <div className="grid grid-cols-1 gap-4 mt-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium" htmlFor="numero-mensualidades">
+                                Número de pagos mensuales
+                              </label>
+                              <Input
+                                id="numero-mensualidades"
+                                type="number"
+                                min={1}
+                                max={48}
+                                value={numeroMensualidades}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 1;
+                                  setNumeroMensualidades(Math.max(1, Math.min(48, val)));
+                                }}
+                                className="w-32"
+                              />
+                              <p className="text-xs text-muted-foreground">
+                                ¿En cuántos meses se realizará el pago? (1-48 meses)
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}

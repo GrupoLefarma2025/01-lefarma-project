@@ -1,5 +1,6 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import logoImage from '@/assets/logo.png';
 
 interface HistorialWorkflowItem {
@@ -18,6 +19,7 @@ interface ProveedorInfo {
   idProveedor: number;
   razonSocial: string;
   rfc?: string;
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
 
 interface Props {
@@ -25,6 +27,7 @@ interface Props {
   historial?: HistorialWorkflowItem[];
   proveedoresMap?: Map<number, ProveedorInfo>;
   firmasMap?: Map<number, string>;
+  formasPagoMap?: Map<number, { idFormaPago: number; nombre: string }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -339,7 +342,7 @@ const Logo: React.FC = () => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap }: Props) {
+export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap, formasPagoMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
@@ -435,9 +438,35 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
             <td style={s.thBlue}>Régimen fiscal</td>
             <td style={s.tdValue}>-</td>
             <td style={s.thBlue}>Forma de pago</td>
-            <td style={s.tdValue}>{orden.notaFormaPago ?? '-'}</td>
+            <td style={s.tdValue}>
+              {orden.idsFormaPago?.map((idFp) => {
+                const fp = formasPagoMap?.get(idFp);
+                return fp?.nombre ?? `ID ${idFp}`;
+              }).join(', ') ?? '-'}
+            </td>
             <td style={s.thBlue}>¿Se obtendra factura?</td>
             <td style={s.tdValue}>-</td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Cuenta bancaria</td>
+            <td style={s.tdValue}>
+              {orden.idsCuentasBancarias?.map((idCb) => {
+                let info: string | undefined;
+                proveedoresMap?.forEach((prov) => {
+                  const cuenta = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
+                  if (cuenta) {
+                    info = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
+                  }
+                });
+                return info ?? `ID ${idCb}`;
+              }).join(', ') ?? '-'}
+            </td>
+            <td style={s.thBlue}>Mensualidades</td>
+            <td style={s.tdValue}>
+              {orden.numeroMensualidades ? `${orden.numeroMensualidades} mensualidad(es)` : '-'}
+            </td>
+            <td style={s.thBlue}>Nota forma de pago</td>
+            <td style={s.tdValue}>{orden.notaFormaPago ?? '-'}</td>
           </tr>
         </tbody>
       </table>

@@ -48,7 +48,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
-import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
+import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
@@ -324,6 +324,7 @@ export default function AutorizacionesOC() {
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+  const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
 
   const estados = useMemo(() => {
     const values = Array.from(new Set(ordenes.map((o) => o.idEstado))).sort((a, b) => a - b);
@@ -531,10 +532,26 @@ export default function AutorizacionesOC() {
     }
   };
 
+  const fetchFormasPago = async () => {
+    try {
+      const res = await API.get<ApiResponse<FormaPago[]>>('/catalogos/FormasPago');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, FormaPago>();
+        for (const fp of res.data.data) {
+          map.set(fp.idFormaPago, fp);
+        }
+        setFormasPagoMap(map);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
   useEffect(() => {
-    fetchEstados(); 
+    fetchEstados();
     fetchOrdenes();
     fetchAllWorkflowsFlow();
+    fetchFormasPago();
   }, []);
 
   useEffect(() => {
@@ -1257,6 +1274,57 @@ export default function AutorizacionesOC() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Formas de pago, cuentas bancarias y mensualidades */}
+                      {(selectedOrden.idsFormaPago?.length || selectedOrden.idsCuentasBancarias?.length || selectedOrden.numeroMensualidades) && (
+                        <div className="rounded-md border bg-background px-3 py-2 text-xs">
+                          <p className="mb-2 font-medium text-muted-foreground">Formas de pago</p>
+                          <div className="space-y-1.5">
+                            {selectedOrden.idsFormaPago?.map((idFp) => {
+                              const formaPago = formasPagoMap.get(idFp);
+                              return (
+                                <div key={idFp} className="flex items-center gap-2">
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                                    Forma de pago
+                                  </span>
+                                  <span className="font-medium">
+                                    {formaPago?.nombre ?? `ID ${idFp}`}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {selectedOrden.idsCuentasBancarias?.map((idCb) => {
+                              let cuentaInfo: string | undefined;
+                              proveedoresMap.forEach((proveedor) => {
+                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                if (cuenta) {
+                                  cuentaInfo = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
+                                }
+                              });
+                              return (
+                                <div key={idCb} className="flex items-center gap-2">
+                                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                    Cuenta bancaria
+                                  </span>
+                                  <span className="font-medium">
+                                    {cuentaInfo ?? `ID ${idCb}`}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {selectedOrden.numeroMensualidades && (
+                              <div className="flex items-center gap-2">
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                  Parcialidades
+                                </span>
+                                <span className="font-medium">
+                                  {selectedOrden.numeroMensualidades} parcialidad(es)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedOrden.notaFormaPago && (
                         <div className="rounded-md border bg-background px-3 py-2 text-xs">
@@ -2579,6 +2647,7 @@ export default function AutorizacionesOC() {
           historial={historial}
           proveedoresMap={proveedoresMap}
           firmasMap={firmasMap}
+          formasPagoMap={formasPagoMap}
         />,
         document.body
       )}
