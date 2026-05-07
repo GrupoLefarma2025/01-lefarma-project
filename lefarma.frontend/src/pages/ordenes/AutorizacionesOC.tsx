@@ -547,12 +547,25 @@ export default function AutorizacionesOC() {
     }
   };
 
-  useEffect(() => {
-    fetchEstados();
-    fetchOrdenes();
-    fetchAllWorkflowsFlow();
-    fetchFormasPago();
-  }, []);
+useEffect(() => {
+  const cargarDatos = async () => {
+    try {
+      // Promise.all dispara todas las peticiones al mismo tiempo
+      await Promise.all([
+        fetchEstados(),
+        fetchAllWorkflowsFlow(),
+        fetchFormasPago(),
+      ]);
+      
+      await fetchOrdenes()
+      console.log("¡Todo cargado!");
+    } catch (error) {
+      console.error("Error al cargar los datos:", error);
+    }
+  };
+
+  cargarDatos();
+}, [fetchOrdenes]);
 
   useEffect(() => {
     if (selectedId != null) fetchDetalle(selectedId);

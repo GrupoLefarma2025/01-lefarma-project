@@ -139,6 +139,9 @@ export const Header = () => {
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
+              {user?.puesto && (
+                <span className="text-xs font-normal text-muted-foreground">{user.puesto}</span>
+              )}
             </DropdownMenuLabel>
 
             <DropdownMenuSeparator />
