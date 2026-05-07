@@ -360,7 +360,14 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
     n === 0
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  console.log(fmt)
+
+  // DEBUG: formas de pago en PDF
+  console.log('[OrdenCompraPDF] idsFormaPago:', orden.idsFormaPago);
+  console.log('[OrdenCompraPDF] idsCuentasBancarias:', orden.idsCuentasBancarias);
+  console.log('[OrdenCompraPDF] numeroMensualidades:', orden.numeroMensualidades);
+  console.log('[OrdenCompraPDF] formasPagoMap:', formasPagoMap);
+  console.log('[OrdenCompraPDF] proveedoresMap:', proveedoresMap);
+
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
@@ -422,51 +429,40 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
                 : '-'}
             </td>
             <td style={s.thBlue}>Teléfono de contacto</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Correo electrónico</td>
-            <td style={s.tdLink}>-</td>
+            <td style={s.tdValue} colSpan={3}>-</td>
           </tr>
           <tr>
-            <td style={s.thBlue}>Dirección</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Código postal</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Tipo de persona</td>
-            <td style={s.tdValue}>-</td>
-          </tr>
-          <tr>
-            <td style={s.thBlue}>Régimen fiscal</td>
-            <td style={s.tdValue}>-</td>
             <td style={s.thBlue}>Forma de pago</td>
-            <td style={s.tdValue}>
+            <td style={s.tdValue} colSpan={5}>
               {orden.idsFormaPago?.map((idFp) => {
                 const fp = formasPagoMap?.get(idFp);
                 return fp?.nombre ?? `ID ${idFp}`;
               }).join(', ') ?? '-'}
             </td>
-            <td style={s.thBlue}>¿Se obtendra factura?</td>
-            <td style={s.tdValue}>-</td>
           </tr>
+          {orden.numeroMensualidades !== 1 && (
+            <tr>
+              <td style={s.thBlue}>Cuenta bancaria</td>
+              <td style={s.tdValue}>
+                {orden.idsCuentasBancarias?.map((idCb) => {
+                  let info: string | undefined;
+                  proveedoresMap?.forEach((prov) => {
+                    const cuenta = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
+                    if (cuenta) {
+                      info = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
+                    }
+                  });
+                  return info ?? `ID ${idCb}`;
+                }).join(', ') ?? '-'}
+              </td>
+              <td style={s.thBlue}>Parcialidades</td>
+              <td style={s.tdValue}>
+                {orden.numeroMensualidades ? `${orden.numeroMensualidades} parcialidad(es)` : '-'}
+              </td>
+            </tr>
+          )}
           <tr>
-            <td style={s.thBlue}>Cuenta bancaria</td>
-            <td style={s.tdValue}>
-              {orden.idsCuentasBancarias?.map((idCb) => {
-                let info: string | undefined;
-                proveedoresMap?.forEach((prov) => {
-                  const cuenta = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
-                  if (cuenta) {
-                    info = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
-                  }
-                });
-                return info ?? `ID ${idCb}`;
-              }).join(', ') ?? '-'}
-            </td>
-            <td style={s.thBlue}>Mensualidades</td>
-            <td style={s.tdValue}>
-              {orden.numeroMensualidades ? `${orden.numeroMensualidades} mensualidad(es)` : '-'}
-            </td>
-            <td style={s.thBlue}>Nota forma de pago</td>
-            <td style={s.tdValue}>{orden.notaFormaPago ?? '-'}</td>
+            <td style={s.thBlue} colSpan={6}>Nota forma de pago: {orden.notaFormaPago ?? '-'}</td>
           </tr>
         </tbody>
       </table>

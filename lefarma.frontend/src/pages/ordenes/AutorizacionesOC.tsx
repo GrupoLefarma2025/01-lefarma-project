@@ -318,9 +318,11 @@ export default function AutorizacionesOC() {
   const [loadingFacturacion, setLoadingFacturacion] = useState(false);
   const [isSubirComprobanteOpen, setIsSubirComprobanteOpen] = useState(false);
   const [isSubirComprobantePagoOpen, setIsSubirComprobantePagoOpen] = useState<string | null>(null);
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
   const [comprobantesWorkflow, setComprobantesWorkflow] = useState<Record<string, import('@/types/comprobante.types').ComprobanteResponse[]>>({});
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
+  const [allProveedoresMap, setAllProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
@@ -547,7 +549,22 @@ export default function AutorizacionesOC() {
     }
   };
 
-useEffect(() => {
+  const fetchAllProveedores = async () => {
+    try {
+      const res = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, Proveedor>();
+        for (const p of res.data.data) {
+          map.set(p.idProveedor, p);
+        }
+        setAllProveedoresMap(map);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
+  useEffect(() => {
   const cargarDatos = async () => {
     try {
       // Promise.all dispara todas las peticiones al mismo tiempo
@@ -555,8 +572,9 @@ useEffect(() => {
         fetchEstados(),
         fetchAllWorkflowsFlow(),
         fetchFormasPago(),
+        fetchAllProveedores(),
       ]);
-      
+
       await fetchOrdenes()
       console.log("¡Todo cargado!");
     } catch (error) {
@@ -569,6 +587,14 @@ useEffect(() => {
 
   useEffect(() => {
     if (selectedId != null) fetchDetalle(selectedId);
+  }, [selectedId]);
+
+  useEffect(() => {
+    if (selectedId != null) {
+      setIsDetailDrawerOpen(true);
+    } else {
+      setIsDetailDrawerOpen(false);
+    }
   }, [selectedId]);
 
   useEffect(() => {
@@ -956,12 +982,19 @@ useEffect(() => {
     {
       accessorKey: 'folio',
       header: 'Folio',
-      cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span className="font-medium">{row.original.folio}</span>
-          <span className="text-xs text-muted-foreground">Proveedor #{row.original.idProveedor || 'N/A'}</span>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const razonSocial = row.original.idProveedor
+          ? allProveedoresMap.get(row.original.idProveedor)?.razonSocial
+          : null;
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{row.original.folio}</span>
+            <span className="text-xs text-muted-foreground">
+              {razonSocial ? `Proveedor ${razonSocial}` : `Proveedor #${row.original.idProveedor || 'N/A'}`}
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'total',
@@ -1028,12 +1061,12 @@ useEffect(() => {
         </div>
       ),
     },
-  ], [workflowEstados, navigate]);
+  ], [workflowEstados, navigate, allProveedoresMap]);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-5">
+        <div className="space-y-4 xl:col-span-12">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
@@ -1085,32 +1118,47 @@ useEffect(() => {
             height={460}
           />
         </div>
+      </div>
 
-        <div className="space-y-4 xl:col-span-7">
-          <Card className="xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-6.5rem)] xl:max-h-[calc(100vh-6.5rem)] xl:min-h-[680px] xl:flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-4 w-4" /> Detalle de orden de compra
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 xl:min-h-0 xl:flex-1">
-              {loadingDetail && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
-                </div>
-              )}
+      <Modal
+        id="modal-detalle-oc"
+        open={isDetailDrawerOpen}
+        setOpen={setIsDetailDrawerOpen}
+        title={
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <FileText className="h-5 w-5" />
+              <span>Detalle de orden de compra</span>
+            </div>
+            {selectedOrden && (
+              <span className="text-sm text-muted-foreground ml-3">
+                {selectedOrden.folio} — {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor)
+                  ? proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial
+                  : 'Sin proveedor'}
+              </span>
+            )}
+          </div>
+        }
+        size="full"
+      >
+        <div className="min-h-0 flex-1 overflow-y-auto -mx-6 px-4 py-2">
+          {loadingDetail && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
+            </div>
+          )}
 
-              {!loadingDetail && !selectedOrden && (
-                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
-                  <FileText className="h-10 w-10 opacity-30" />
-                  <p className="text-sm font-medium">Aquí se mostrará el detalle de la orden</p>
-                  <p className="text-xs opacity-70">Selecciona una orden de la lista para ver su información</p>
-                </div>
-              )}
+          {!loadingDetail && !selectedOrden && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+              <FileText className="h-10 w-10 opacity-30" />
+              <p className="text-sm font-medium">Aquí se mostrará el detalle de la orden</p>
+              <p className="text-xs opacity-70">Selecciona una orden de la lista para ver su información</p>
+            </div>
+          )}
 
-              {!loadingDetail && selectedOrden && (
-                <>
-                  <Tabs defaultValue="detalle" className="xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+          {!loadingDetail && selectedOrden && (
+            <>
+              <Tabs defaultValue="detalle" className="flex h-full min-h-0 flex-col">
                       <div className="bg-muted/20 rounded-lg border p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -2162,10 +2210,8 @@ useEffect(() => {
                   </Tabs>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+      </Modal>
 
       <Modal
         id="modal-firmar-oc"
