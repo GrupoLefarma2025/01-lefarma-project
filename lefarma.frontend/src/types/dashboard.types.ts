@@ -1,7 +1,7 @@
 export interface DashboardStatsResponse {
   cards: PipelineCardsStats;
   graficaMensual: GraficaMensualItem[];
-  distribucionArea: DistribucionItem[];
+  distribucionEmpresa: DistribucionItem[];
   distribucionSucursal: DistribucionItem[];
   pagosUrgentes: PagoUrgenteItem[];
   actividadReciente: ActividadRecienteItem[];
@@ -10,8 +10,13 @@ export interface DashboardStatsResponse {
 export interface PipelineCardsStats {
   pendientesEnvio: number;
   enFirmas: number;
-  enTesoreria: number;
+  revisionDirector: number;
+  cerradas: number;
+  canceladas: number;
+  rechazadas: number;
   vencidas: number;
+  totalCreadasMes: number;
+  totalGastado: number;
 }
 
 export interface GraficaMensualItem {
