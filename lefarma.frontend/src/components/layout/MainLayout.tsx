@@ -8,7 +8,8 @@ import { useConfigStore } from '@/store/configStore';
 export const MainLayout = () => {
   const { ui } = useConfigStore();
 
-  const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+  const defaultCollapsed = false;
+  // const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
 
   return (
     <SidebarProvider defaultOpen={!defaultCollapsed} className="h-svh overflow-hidden">
