@@ -43,7 +43,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).Include(o => o.Estado).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -394,6 +394,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 ? null
                 : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.NumeroMensualidades,
             IdEstado = o.IdEstado,
+            EstadoNombre = o.Estado?.Nombre,
+            EstadoColor = o.Estado?.ColorHex,
             IdWorkflow = o.IdWorkflow,
             IdPasoActual = o.IdPasoActual,
             IdProveedor = o.IdProveedor,

@@ -213,16 +213,19 @@ export default function Dashboard() {
     { accessorKey: 'estadoNombre', header: 'Estado', size: 130,
       cell: ({ row }) => {
         const nombre = row.original.estadoNombre ?? '-';
-        const color = getEstadoColor(nombre);
+        const color = row.original.estadoColor || getEstadoColor(nombre);
         return (
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: color + '20', color }}>
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: `${color}20`, color }}>
             {nombre}
           </span>
         );
       }
     },
-    { accessorKey: 'fechaSolicitud', header: 'Fecha', size: 110,
+    { accessorKey: 'fechaSolicitud', header: 'Creado', size: 100,
       cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaSolicitud).toLocaleDateString('es-MX')}</span>
+    },
+    { accessorKey: 'fechaLimitePago', header: 'Limite', size: 100,
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaLimitePago).toLocaleDateString('es-MX')}</span>
     },
   ], [fmt]);
 
@@ -456,9 +459,10 @@ function MiniOrdenesTable({ fmt }: { fmt: (n: number) => string }) {
         <tr className="border-b text-muted-foreground">
           <th className="text-left font-medium py-1.5">Folio</th>
           <th className="text-left font-medium py-1.5">Proveedor</th>
-          <th className="text-right font-medium py-1.5">Monto</th>
-          <th className="text-left font-medium py-1.5">Estado</th>
-          <th className="text-right font-medium py-1.5">Fecha</th>
+          <th className="text-right font-medium py-1.5 pr-4">Monto</th>
+          <th className="text-left font-medium py-1.5 pr-4">Estado</th>
+          <th className="text-right font-medium py-1.5 pr-2">Creado</th>
+          <th className="text-right font-medium py-1.5">Limite</th>
         </tr>
       </thead>
       <tbody>
@@ -466,13 +470,14 @@ function MiniOrdenesTable({ fmt }: { fmt: (n: number) => string }) {
           <tr key={o.idOrden} className="border-b border-muted/50">
             <td className="py-1.5 font-medium">{o.folio}</td>
             <td className="py-1.5 truncate max-w-[120px]">{o.razonSocialProveedor ?? '-'}</td>
-            <td className="py-1.5 text-right">{fmt(o.total)}</td>
-            <td className="py-1.5">
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: getEstadoColor(o.estadoNombre ?? '') + '20', color: getEstadoColor(o.estadoNombre ?? '') }}>
+            <td className="py-1.5 text-right pr-4">{fmt(o.total)}</td>
+            <td className="py-1.5 pr-4">
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: `${o.estadoColor || getEstadoColor(o.estadoNombre ?? '')}20`, color: o.estadoColor || getEstadoColor(o.estadoNombre ?? '') }}>
                 {o.estadoNombre ?? '-'}
               </span>
             </td>
-            <td className="py-1.5 text-right text-muted-foreground">{new Date(o.fechaSolicitud).toLocaleDateString('es-MX')}</td>
+            <td className="py-1.5 text-right text-muted-foreground pr-2">{new Date(o.fechaSolicitud).toLocaleDateString('es-MX')}</td>
+            <td className="py-1.5 text-right text-muted-foreground">{new Date(o.fechaLimitePago).toLocaleDateString('es-MX')}</td>
           </tr>
         ))}
       </tbody>
