@@ -195,7 +195,7 @@ public class ProveedoresController : ControllerBase
             await file.CopyToAsync(stream);
         }
 
-        var result = await _proveedorService.UpdateCaratulaAsync(id, relativePath);
+        var result = await _proveedorService.UpdateCaratulaAsync(id, relativePath.Replace("\\", "/"));
 
         return result.ToActionResult(this, _ => Ok(new ApiResponse<CaratulaUploadResponse>
         {

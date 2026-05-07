@@ -403,8 +403,8 @@ public class ProveedorService : BaseService, IProveedorService
                 detalleStaging.ContactoTelefono = request.Detalle.ContactoTelefono;
                 detalleStaging.ContactoEmail = request.Detalle.ContactoEmail;
                 detalleStaging.Comentario = request.Detalle.Comentario;
-                if (request.Detalle.CaratulaUrl != null)
-                    detalleStaging.CaratulaPath = request.Detalle.CaratulaUrl;
+                // La carátula NO va a staging: se sube aparte vía UpdateCaratulaAsync
+                // para que esté disponible inmediatamente sin esperar autorización.
                 detalleStaging.FechaModificacion = DateTime.UtcNow;
             }
 
