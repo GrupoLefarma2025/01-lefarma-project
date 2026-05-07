@@ -63,6 +63,7 @@ public class OrdenCompraResponse
         public int? IdSucursal { get; set; }
         public int? IdEstado { get; set; }
         public bool? SoloEnvioConcentrado { get; set; }
+        public int? Max { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";
         public string? OrderDirection { get; set; } = "desc";
     }

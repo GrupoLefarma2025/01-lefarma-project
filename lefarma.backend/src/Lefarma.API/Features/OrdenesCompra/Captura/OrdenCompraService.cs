@@ -93,6 +93,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     _ => q.OrderByDescending(o => o.FechaCreacion)
                 };
 
+                if (query.Max.HasValue && query.Max.Value > 0)
+                    q = q.Take(query.Max.Value);
+
                 var items = await q.ToListAsync();
 
                 var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
