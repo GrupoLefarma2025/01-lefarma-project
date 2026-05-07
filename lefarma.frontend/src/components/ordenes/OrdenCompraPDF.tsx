@@ -406,9 +406,9 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>
-            <td style={s.tdValue}>-</td>
+            <td style={s.tdValue}>{orden.solicitanteNombre ?? '-'}</td>
             <td style={s.thBlue}>Puesto</td>
-            <td style={s.tdValue}>-</td>
+            <td style={s.tdValue}>{orden.solicitantePuesto ?? '-'}</td>
             <td style={s.thBlue}>Fecha máxima de pago</td>
             <td style={s.tdValue}>
               {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '-'}
@@ -423,13 +423,11 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
         <tbody>
           <tr>
             <td style={s.thBlue}>Nombre, Denominación o Razón social</td>
-            <td style={{ ...s.tdValue, width: '30%' }}>
+            <td style={s.tdValue} colSpan={5}>
               {orden.idProveedor
                 ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? '-')
                 : '-'}
             </td>
-            <td style={s.thBlue}>Teléfono de contacto</td>
-            <td style={s.tdValue} colSpan={3}>-</td>
           </tr>
           <tr>
             <td style={s.thBlue}>Forma de pago</td>
@@ -462,7 +460,8 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
             </tr>
           )}
           <tr>
-            <td style={s.thBlue} colSpan={6}>Nota forma de pago: {orden.notaFormaPago ?? '-'}</td>
+            <td style={s.thBlue}>Comentarios sobre el pago</td>
+            <td style={{ ...s.tdValue, textAlign: 'justify' }} colSpan={5}>{orden.notaFormaPago ?? '-'}</td>
           </tr>
         </tbody>
       </table>
@@ -483,7 +482,7 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
           {(orden.partidas ?? []).map((p, i) => (
             <tr key={p.idPartida ?? i}>
               <td style={s.deliveryTd}>{p.cantidad}</td>
-              <td style={s.deliveryTd}>{p.idUnidadMedida}</td>
+              <td style={s.deliveryTd}>{p.unidadMedidaNombre ?? p.idUnidadMedida}</td>
               <td style={s.deliveryTdDesc}>{p.descripcion}</td>
               <td style={s.deliveryTdRight}>
                 {p.precioUnitario.toLocaleString('es-MX', { minimumFractionDigits: 2 })}

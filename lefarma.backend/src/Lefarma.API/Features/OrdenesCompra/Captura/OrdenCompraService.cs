@@ -23,6 +23,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly AsokamDbContext _asokamContext;
         protected override string EntityName => "OrdenCompra";
 
+        private record UsuarioInfo(string Nombre, string? Puesto);
+
         public OrdenCompraService(
             IOrdenCompraRepository repo,
             IWorkflowRepository workflowRepo,
@@ -94,9 +96,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var items = await q.ToListAsync();
 
                 var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
-                var usuarioNombres = await _asokamContext.Usuarios.AsNoTracking()
+                var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}");
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
                 var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
                                   .Select(p => p.IdUnidadMedida)
@@ -106,7 +108,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
 
-                var response = items.Select(o => ToResponse(o, usuarioNombres, uomNombres)).ToList();
+                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres)).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }
@@ -128,19 +130,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
-                var usuarioNombres = new Dictionary<int, string>();
-                var uNombre = await _asokamContext.Usuarios.AsNoTracking()
+                var usuariosInfo = new Dictionary<int, UsuarioInfo>();
+                var uInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => u.IdUsuario == item.IdUsuarioCreador)
-                    .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}" })
+                    .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto })
                     .FirstOrDefaultAsync();
-                if (uNombre != null) usuarioNombres[uNombre.IdUsuario] = uNombre.Nombre;
+                if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto);
 
                 var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
                 var uomNombres = await _context.UnidadesMedida.AsNoTracking()
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
 
-                return ToResponse(item, usuarioNombres, uomNombres);
+                return ToResponse(item, usuariosInfo, uomNombres);
             }
             catch (Exception ex)
             {
@@ -369,7 +371,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         private static OrdenCompraResponse ToResponse(
             OrdenCompra o,
-            Dictionary<int, string>? usuarioNombres = null,
+            Dictionary<int, UsuarioInfo>? usuariosInfo = null,
             Dictionary<int, string>? uomNombres = null) => new()
         {
             IdOrden = o.IdOrden,
@@ -396,7 +398,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdProveedor = o.IdProveedor,
             RazonSocialProveedor = o.Proveedor?.RazonSocial,
             IdUsuarioCreador = o.IdUsuarioCreador,
-            SolicitanteNombre = usuarioNombres != null && usuarioNombres.TryGetValue(o.IdUsuarioCreador, out var sn) ? sn : null,
+            SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
+            SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto : null,
             SinDatosFiscales = o.SinDatosFiscales,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,

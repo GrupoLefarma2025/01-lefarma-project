@@ -50,6 +50,7 @@ export interface UIConfig {
   presetId: UIPresetId;
   visual: VisualPreferences;
   componentes: ComponentPreferences;
+  sidebarCollapsed: boolean;
 
   notificaciones: {
     tiposHabilitados: TipoNotificacion[];

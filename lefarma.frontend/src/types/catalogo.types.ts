@@ -49,6 +49,7 @@ export interface Sucursal {
 export interface Area {
   idArea: number;
   idEmpresa: number;
+  idSucursal?: number;
   idSupervisorResponsable?: number;
   nombre: string;
   nombreNormalizado?: string;

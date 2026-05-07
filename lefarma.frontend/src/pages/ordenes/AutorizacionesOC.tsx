@@ -439,20 +439,15 @@ export default function AutorizacionesOC() {
       setAcciones(accionesRes.data?.data || []);
       setHistorial(historialRes.data?.data || []);
 
-      if (orden) {
-        cargarProveedoresOrden(orden);
-      }
-
       const historialData = historialRes.data?.data || [];
       console.log(`Bitacora de oriden ${idOrden} :`, historialData);
-      if (historialData.length > 0) {
-        await fetchFirmasUsuarios(historialData);
-      } else {
-        setFirmasMap(new Map());
-      }
 
-      fetchArchivosOrden(idOrden);
-      fetchPartidasPendientes(idOrden);
+      await Promise.all([
+        orden ? cargarProveedoresOrden(orden) : Promise.resolve(),
+        fetchFirmasUsuarios(historialData),
+        fetchArchivosOrden(idOrden),
+        fetchPartidasPendientes(idOrden),
+      ]);
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar detalle de orden');

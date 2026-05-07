@@ -50,6 +50,7 @@ export interface OrdenCompraResponse {
   personaContacto?: string | null;
   idUsuarioCreador?: number;
   solicitanteNombre?: string | null;
+  solicitantePuesto?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idCentroCosto?: number | null;

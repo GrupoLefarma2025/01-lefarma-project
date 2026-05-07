@@ -254,6 +254,7 @@ export const useConfigStore = create<ConfigState>()(
             presetId: 'estandar',
             visual: defaultPreset.config.visual,
             componentes: defaultPreset.config.componentes,
+            sidebarCollapsed: false,
             notificaciones: {
               tiposHabilitados: ['in-app'],
               preferencias: [
