@@ -30,6 +30,8 @@ public class OrdenCompraResponse
         public List<int>? IdsFormaPago { get; set; }
         public int? NumeroMensualidades { get; set; }
         public int? IdEstado { get; set; }
+        public string? EstadoNombre { get; set; }
+        public string? EstadoColor { get; set; }
         public int? IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
         public int IdUsuarioCreador { get; set; }
