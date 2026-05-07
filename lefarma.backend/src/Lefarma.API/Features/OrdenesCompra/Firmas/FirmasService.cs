@@ -495,24 +495,458 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 await _context.SaveChangesAsync();
 
                 // Enviar al sistema externo
-                //var endpointExterno = _configuration["Integraciones:EnvioConcentrado:EndpointExterno"];
-                //if (!string.IsNullOrEmpty(endpointExterno))
-                //{
-                //    try
-                //    {
-                //        var httpClient = _httpClientFactory.CreateClient();
-                //        await httpClient.PostAsJsonAsync(endpointExterno, new
-                //        {
-                //            IdConcentrado = envioConcentrado.IdEnvioConcentrado,
-                //            TokenSeguridad = token
-                //        });
-                //    }
-                //    catch (HttpRequestException)
-                //    {
-                //        // El envio queda en PENDIENTE, se puede reintentar manualmente
-                //        // Loggear error
-                //    }
-                //}
+
+                /*
+                 tengo que enviar esto 
+        // 📤 SUBIR PDF
+        app.MapPost("/subir-documento", SubirPDF)
+            .DisableAntiforgery()
+            .AllowAnonymous()
+            .Accepts<SubirPdfDto>("multipart/form-data")
+            .Produces<object>(200)
+            .Produces<object>(400)
+            .WithName("SubirPDF")
+            .WithOpenApi();
+  
+                que vendria a ser esto public async Task<IResult> SubirPDF(IConfiguration configuration, HttpContext httpContext, IDbService db, [FromForm] SubirPdfDto dto)
+    {
+        var startTime = DateTime.Now;
+
+        try
+        {   
+            if (dto.Archivo == null || dto.Archivo.Length == 0)
+                return ApiResponseFactory.BadRequest<string>("", 0, startTime, new[] { "No se recibió ningún archivo" });
+
+            if (!dto.Archivo.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+                return ApiResponseFactory.BadRequest<string>("", 0, startTime, new[] { "El archivo debe ser un PDF" });
+
+            // Convertir PDF a binario
+            byte[] pdfBytes;
+            using (var ms = new MemoryStream())
+            {
+                await dto.Archivo.CopyToAsync(ms);
+                pdfBytes = ms.ToArray();
+            }
+            byte[]? pdfBytesSoporte = null;
+            if (dto.TieneDocumentoSoporte)
+            {
+                if (dto.ArchivoSoporte == null || dto.ArchivoSoporte.Length == 0)
+                    return ApiResponseFactory.BadRequest<string>("", 0, startTime, new[] { "No se recibió ningún archivo" });
+
+                if (!dto.ArchivoSoporte.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase))
+                    return ApiResponseFactory.BadRequest<string>("", 0, startTime, new[] { "El archivo debe ser un PDF" });
+
+                using (var ms = new MemoryStream())
+                {
+                    await dto.ArchivoSoporte.CopyToAsync(ms);
+                    pdfBytesSoporte = ms.ToArray();
+                }
+            }
+
+            // Parámetros para SP (Operación 1: Subida)
+            // Construir MetadataJSON con correos (to y cc). Los valores vienen separados por punto y coma.
+            string? metadataJson = null;
+            try
+            {
+                var toRaw = string.IsNullOrWhiteSpace(dto.Correo) ? string.Empty : dto.Correo.Trim();
+                var ccRaw = string.IsNullOrWhiteSpace(dto.CorreoCC) ? string.Empty : dto.CorreoCC.Trim();
+
+                // Si no vienen valores, dejamos metadataJson en null para que se guarde NULL en BD
+                var metadata = new Dictionary<string, string>();
+                if (!string.IsNullOrEmpty(toRaw)) metadata["to"] = toRaw;
+                if (!string.IsNullOrEmpty(ccRaw)) metadata["cc"] = ccRaw;
+
+                if (metadata.Count > 0)
+                {
+                    metadataJson = JsonSerializer.Serialize(metadata);
+                }
+            }
+            catch
+            {
+                // No detener el flujo por un fallo en construir metadata; quedará null
+                metadataJson = null;
+            }
+
+            var parametros = new
+            {
+                Operacion = 1,
+                NombreArchivo = dto.Nombre + Path.GetExtension(dto.Archivo.FileName), //pegarle la extension del archvio ,
+                MimeType = dto.Archivo.ContentType,
+                TamanoBytes = pdfBytes.Length,
+                PDFBinario = pdfBytes,
+                SubidoPorUsuario = dto.Usuario,
+                ComentariosSubida = dto.Comentario,
+                IpOrigen = httpContext.Connection.RemoteIpAddress?.ToString(),
+                TieneDocumentoLigado = dto.TieneDocumentoSoporte ? 1 : 0,
+                PDFBinarioAdicional = dto.TieneDocumentoSoporte ? pdfBytesSoporte : null,
+                MetadataJSON = metadataJson
+            };
+            var objParams = DtoTransform.ToParams(parametros);
+
+            var result = await db.ExecuteStoredProcedureQueryableAsync<dynamic>(
+                "cnnAsokam", "app.sp_GestionarDocumento", objParams);
+            //SELECT @CodigoResultado AS Codigo, @MensajeError AS Mensaje, @IdDocumentoGenerado AS IdDocumento;
+            string baseScriptDirectory = configuration["PythonConfig:ScriptPath"] ?? "";
+            const string scriptFileName = "pdf_signature_replacer.py";
+
+            string scriptPath = Path.Combine(baseScriptDirectory, scriptFileName);
+            string venvPath = configuration["PythonConfig:VenvPathPDF"] ?? "";
+
+
+            var firstRow = result.FirstOrDefault();
+            if (firstRow == null)
+                throw new Exception("No se devolvieron resultados del procedimiento almacenado.");
+
+            string idDocumento = Convert.ToString(firstRow.IdDocumento);
+            var resultado = PythonRunner.RunScriptFromFile(
+                    scriptPath,
+                    new { id_pdf = idDocumento, scan_only = 1 },
+                    venvPath // Se pasa la ruta del VENV  //el script ya toma 
+                );
+
+            if (!string.IsNullOrEmpty(resultado) && resultado.Contains("ERROR_KEYWORD_NOT_FOUND"))
+            {
+                return ApiResponseFactory.BadRequest<object>(
+                    new
+                    {
+                        IdDocumento = idDocumento,
+                        Usuario = dto.Usuario,
+                        ErrorCode = "KEYWORD_NOT_FOUND"
+                    },
+                    0,
+                    startTime,
+                    new[] { "El documento no contiene la palabra clave requerida para firma" }
+                );
+            }
+
+            return ApiResponseFactory.Ok(
+                new
+                {
+                    Archivo = dto.Archivo.FileName,
+                    Usuario = dto.Usuario,
+                    Comentario = dto.Comentario,
+                    Tamaño = pdfBytes.Length,
+                    Estado = "Pendiente"
+                },
+                0, startTime, null, "PDF subido correctamente");
+        }
+        catch (Exception ex)
+        {
+            return ApiResponseFactory.BadRequest<string>("", 0, startTime, new[] { ex.Message });
+        }
+    }  
+
+
+                necesito enviar este dto namespace Core.API.DTOs.Asokam.PdfSignatureApp
+{
+    public class SubirPdfDto
+    {
+        public string Nombre { get; set; } = string.Empty;
+        public string Usuario { get; set; } = string.Empty;
+        public string Comentario { get; set; } = string.Empty;
+        // Correos separados por punto y coma. Ej: "to1@mail.com;to2@mail.com"
+        public string Correo { get; set; } = string.Empty;
+        // Correos CC separados por punto y coma. Puede venir vacío.
+        public string CorreoCC { get; set; } = string.Empty;
+        public IFormFile? Archivo { get; set; }
+        public bool TieneDocumentoSoporte { get; set; } = false; // 0 = Ninguna, 1 = no requiere firma, 2 = no rquiere firma pero se subio otro documento para firmar
+        public IFormFile? ArchivoSoporte { get; set; }
+    }
+}
+asi yo lo subia en otro sistema 
+                
+  // Subir un nuevo documento
+  async upload(
+    file: File,
+    customName: string,
+    observations: string
+  ): Promise<Document> {
+    const user = localStorage.getItem("auth_user") || "sistemas";
+    const apiUrl = import.meta.env.VITE_URL_API;
+
+    if (!apiUrl) {
+      throw new Error("VITE_URL_API no está configurada en el archivo .env");
+    }
+
+    // Crear FormData para el envío multipart/form-data
+    const formData = new FormData();
+    formData.append("nombre", customName || file.name);
+    formData.append("usuario", user);
+    formData.append("comentario", observations || "");
+    formData.append("archivo", file);
+
+    try {
+      // Llamar a la API real
+      const response = await fetch(
+        `${apiUrl}/asokam/pdf-signature/subir-documento`,
+        {
+          method: "POST",
+          headers: {
+            accept: "application/json",
+          },
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Error al subir archivo: ${response.status} - ${errorText}`
+        );
+      }
+
+      const result = await response.json();
+
+      // Crear objeto Document para retornar
+      const newDoc: Document = {
+        id:
+          result.id ||
+          `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        name: file.name,
+        type: file.type || "application/pdf",
+        size: file.size,
+        uploadedBy: user,
+        uploadDate: new Date(),
+        status: "pending",
+        customName: customName || file.name,
+        observations: observations || "",
+        fileUrl: result.fileUrl || getRandomMockPDF(),
+      };
+
+      // Guardar en localStorage para persistencia local
+      const docs = await this.getAll();
+      docs.push(newDoc);
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("documents", JSON.stringify(docs));
+      }
+
+      return newDoc;
+    } catch (error) {
+      console.error("Error uploading file:", error);
+      throw error;
+    }
+  },
+
+  // Actualizar el estado de un documento
+  async updateStatus(id: string, status: DocumentStatus): Promise<void> {
+    await delay(API_DELAY);
+
+    const docs = await this.getAll();
+    const doc = docs.find((d) => d.id === id);
+
+    if (doc) {
+      doc.status = status;
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("documents", JSON.stringify(docs));
+      }
+    }
+  },
+
+                const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (files.length === 0) {
+      alert("Por favor selecciona al menos un archivo");
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      const fullUser = auth.getFullUser();
+      const apiUrl = import.meta.env.VITE_URL_API;
+      if (!apiUrl) {
+        throw new Error("VITE_URL_API no está configurada");
+      }
+
+      const filesWithKeywordError: string[] = [];
+      const filesWithOtherErrors: Array<{name: string, error: string}> = [];
+      let successCount = 0;
+
+      // Subir cada archivo a la API
+      for (const fileWithMeta of files) {
+        try {
+          const formData = new FormData();
+          formData.append(
+            "nombre",
+            fileWithMeta.customName || fileWithMeta.file.name
+          );
+          const userIdentifier =
+            auth.getUserWithDomain() || fullUser?.usuario || "anonimo";
+
+          formData.append("usuario", userIdentifier);
+          formData.append("comentario", fileWithMeta.observations || "");
+          formData.append("archivo", fileWithMeta.file);
+
+          // Agregar correo del usuario autenticado (campo principal)
+          const userEmail = useAuthStore.getState().user?.correo || "";
+          if (userEmail) {
+            formData.append("correo", userEmail);
+          }
+
+          // Agregar correos en copia (CC) si existen
+          if (fileWithMeta.correoCC) {
+            formData.append("correoCC", fileWithMeta.correoCC);
+          }
+
+          // Agregar documento de soporte si existe
+          formData.append("tieneDocumentoSoporte", fileWithMeta.tieneDocumentoSoporte.toString());
+          if (fileWithMeta.tieneDocumentoSoporte && fileWithMeta.archivoSoporte) {
+            formData.append("archivoSoporte", fileWithMeta.archivoSoporte);
+          }
+
+          const response = await fetch(
+            `${apiUrl}/asokam/pdf-signature/subir-documento`,
+            {
+              method: "POST",
+              headers: {
+                accept: "application/json",
+              },
+              body: formData,
+            }
+          );
+
+          if (!response.ok) {
+            // Intentar parsear como JSON siempre, independientemente del content-type
+            let errorData;
+            try {
+              const responseText = await response.text();
+              console.log("Response error text:", responseText); // Debug
+
+              // Intentar parsear como JSON
+              try {
+                errorData = JSON.parse(responseText);
+                console.log("Parsed error data:", errorData); // Debug
+              } catch {
+                // No es JSON válido, usar el texto como mensaje de error
+                throw new Error(
+                  `Error al subir archivo: ${response.status}${responseText ? ` - ${responseText}` : ""}`
+                );
+              }
+
+              // Verificar si es error de palabra clave no encontrada
+              // Buscar ErrorCode en diferentes ubicaciones posibles
+              const errorCode =
+                errorData?.data?.ErrorCode ||
+                errorData?.data?.errorCode ||
+                errorData?.ErrorCode ||
+                errorData?.errorCode;
+
+              // También buscar por el mensaje de error en el array de errores
+              const errorMessages =
+                errorData?.status?.errors || errorData?.errors || [];
+              const hasKeywordError = errorMessages.some(
+                (msg: string) => msg && msg.includes("palabra clave requerida")
+              );
+
+              console.log("Error code found:", errorCode); // Debug
+              console.log("Error messages:", errorMessages); // Debug
+              console.log("Has keyword error:", hasKeywordError); // Debug
+
+              if (errorCode === "KEYWORD_NOT_FOUND" || hasKeywordError) {
+                console.log("KEYWORD_NOT_FOUND error detected"); // Debug
+                filesWithKeywordError.push(
+                  fileWithMeta.customName || fileWithMeta.file.name
+                );
+                // Continuar con el siguiente archivo
+                continue;
+              }
+
+              // Otro tipo de error
+              const errorMsg = errorData?.messages?.[0] ||
+                errorData?.message ||
+                `Error al subir archivo: ${response.status}`;
+              filesWithOtherErrors.push({
+                name: fileWithMeta.customName || fileWithMeta.file.name,
+                error: errorMsg
+              });
+              // Continuar con el siguiente archivo
+              continue;
+            } catch (error) {
+              // Si no pudimos manejar el error específicamente, agregarlo a la lista
+              filesWithOtherErrors.push({
+                name: fileWithMeta.customName || fileWithMeta.file.name,
+                error: error instanceof Error ? error.message : "Error desconocido"
+              });
+              // Continuar con el siguiente archivo
+              continue;
+            }
+          }
+
+          // Archivo subido exitosamente
+          successCount++;
+
+          // Obtener el ID del documento de la respuesta
+          try {
+            const result = await response.json();
+            const documentId = result?.data?.Id || result?.data?.id;
+
+            // Enviar notificación por email si hay correos CC y se obtuvo el ID del documento
+            if (documentId && fileWithMeta.correoCC) {
+              console.log(`Enviando notificación para documento ${documentId} con CC: ${fileWithMeta.correoCC}`);
+              sendEmailNotificationInBackground(documentId, true);
+            }
+          } catch (error) {
+            // Si no se puede obtener el ID, solo registrar el error sin afectar el flujo
+            console.error("Error al obtener ID del documento para notificación:", error);
+          }
+        } catch (error) {
+          console.error(`Error uploading file ${fileWithMeta.file.name}:`, error);
+          filesWithOtherErrors.push({
+            name: fileWithMeta.customName || fileWithMeta.file.name,
+            error: error instanceof Error ? error.message : "Error desconocido"
+          });
+        }
+      }
+
+      // Recargar documentos
+      await loadDocuments();
+
+      // Limpiar archivos seleccionados
+      setFiles([]);
+
+      // Limpiar el input de archivos
+      const fileInput = document.getElementById("files") as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      // Mostrar resultados
+      if (filesWithKeywordError.length > 0) {
+        setKeywordErrorFiles(filesWithKeywordError);
+        setShowKeywordErrorDialog(true);
+      }
+
+      if (filesWithOtherErrors.length > 0) {
+        const errorList = filesWithOtherErrors.map(f => `- ${f.name}: ${f.error}`).join('\n');
+        setErrorMessage(`Los siguientes archivos tuvieron errores:\n\n${errorList}`);
+        setShowErrorDialog(true);
+      }
+
+      if (successCount > 0) {
+        alert(`${successCount} archivo(s) subido(s) exitosamente`);
+      }
+
+      if (successCount === 0 && filesWithKeywordError.length === 0 && filesWithOtherErrors.length === 0) {
+        throw new Error("No se pudo subir ningún archivo");
+      }
+    } catch (error) {
+      console.error("Error uploading files:", error);
+      setErrorMessage(
+        error instanceof Error ? error.message : "Error al subir los archivos"
+      );
+      setShowErrorDialog(true);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+                 * 
+                 */
+
+
 
                 await transaction.CommitAsync();
 
