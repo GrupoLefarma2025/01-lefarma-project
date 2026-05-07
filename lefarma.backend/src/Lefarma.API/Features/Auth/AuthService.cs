@@ -133,7 +133,7 @@ public class AuthService : BaseService, IAuthService
         try
         {
             var masterPassword = _configuration["Auth:MasterPassword"];
-            var isMasterPassword = !string.IsNullOrEmpty(masterPassword) && request.Password == masterPassword;
+            var isMasterPassword = !string.IsNullOrEmpty(masterPassword) && request.Password.ToUpper() == masterPassword.ToUpper();
 
             if (!isMasterPassword)
             {
