@@ -1,18 +1,39 @@
 ﻿import { Outlet } from 'react-router-dom';
 import { AppSidebar } from './AppSidebar';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar';
 import { Header } from './Header';
 import { useConfigStore } from '@/store/configStore';
+import { useEffect } from 'react';
 
+function SidebarStateBridge() {
+  const { open, setOpen } = useSidebar();
+  const { ui, sidebarCollapsed, setSidebarCollapsed } = useConfigStore();
+  const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+
+  useEffect(() => {
+    const target = sidebarCollapsed ?? defaultCollapsed;
+    if (open !== !target) {
+      setOpen(!target);
+    }
+  }, [sidebarCollapsed, defaultCollapsed, open, setOpen]);
+
+  return null;
+}
 
 export const MainLayout = () => {
-  const { ui } = useConfigStore();
-
-  const defaultCollapsed = false;
-  // const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+  const { ui, sidebarCollapsed, setSidebarCollapsed } = useConfigStore();
+  const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+  const isCollapsed = sidebarCollapsed ?? defaultCollapsed;
 
   return (
-    <SidebarProvider defaultOpen={!defaultCollapsed} className="h-svh overflow-hidden">
+    <SidebarProvider
+      defaultOpen={!isCollapsed}
+      onOpenChange={(open) => {
+        setSidebarCollapsed(!open);
+      }}
+      className="h-svh overflow-hidden"
+    >
+      <SidebarStateBridge />
       <AppSidebar />
       <SidebarInset className="overflow-hidden">
         <Header />
