@@ -9,6 +9,7 @@ export interface UserInfo {
   nombre?: string;
   correo?: string;
   dominio?: string;
+  puesto?: string;
   roles: RoleInfo[];
   permisos: PermissionInfo[];
 }

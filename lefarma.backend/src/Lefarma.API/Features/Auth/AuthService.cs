@@ -267,6 +267,7 @@ public class AuthService : BaseService, IAuthService
                     Nombre = usuario.NombreCompleto,
                     Correo = usuario.Correo,
                     Dominio = usuario.Dominio,
+                    Puesto = usuario.Puesto,
                     Roles = userRoles,
                     Permisos = allPermissions
                 }
@@ -386,6 +387,7 @@ public class AuthService : BaseService, IAuthService
                     Nombre = usuario.NombreCompleto,
                     Correo = usuario.Correo,
                     Dominio = usuario.Dominio,
+                    Puesto = usuario.Puesto,
                     Roles = userRoles,
                     Permisos = allPermissions
                 }
