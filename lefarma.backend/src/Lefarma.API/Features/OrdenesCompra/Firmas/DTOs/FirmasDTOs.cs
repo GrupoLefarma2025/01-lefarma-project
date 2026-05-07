@@ -100,6 +100,19 @@ public class FirmarRequest
         public List<EnvioConcentradoItemResult> Resultados { get; set; } = new();
     }
 
+    public class EnvioConcentradoConPdfRequest
+    {
+        public required List<int> IdsOrdenes { get; set; }
+        public string? Comentario { get; set; }
+        public string? Nombre { get; set; }
+        public string? Usuario { get; set; }
+        public string? Correo { get; set; }
+        public string? CorreoCC { get; set; }
+        public IFormFile? Archivo { get; set; }
+        public bool TieneDocumentoSoporte { get; set; }
+        public IFormFile? ArchivoSoporte { get; set; }
+    }
+
     public class HistorialWorkflowItemResponse
     {
         public int IdEvento { get; set; }

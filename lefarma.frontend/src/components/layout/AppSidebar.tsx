@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Database,
   Store,
-  Wallet,
+  // Wallet,
   Ruler,
   Users,
   CreditCard,
@@ -93,15 +93,19 @@ const menuItems: SidebarMenuItem[] = [
         title: 'Usuarios',
         icon: Users,
         path: '/seguridad/usuarios',
-        permission: { require: 'usuarios.ver_detalle' },
+        permission: { require: 'usuarios.ver_listado' },
       },
       {
         title: 'Roles',
         icon: Users,
         path: '/seguridad/roles',
-        permission: { require: 'usuarios.ver_detalle' },
+        permission: { require: 'roles.ver_listado' },
       },
-      { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
+      { title: 'Permisos', 
+        icon: Key, 
+        path: '/seguridad/permisos',
+        permission: { require: 'permisos.ver_listado' },
+      },
     ],
   },
   {
@@ -109,18 +113,40 @@ const menuItems: SidebarMenuItem[] = [
     icon: Database,
     isCollapsible: true,
     items: [
-      { title: 'Empresas', icon: Building, path: '/catalogos/empresas' },
-      { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales' },
-      { title: 'Áreas', icon: Database, path: '/catalogos/areas' },
+      { title: 'Empresas', icon: Building, path: '/catalogos/empresas',
+        permission: { require: 'empresas.ver_listado' }
+       },
+      { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales',
+        permission: { require: 'sucursales.ver_listado' }
+      },
+      { title: 'Áreas', icon: Database, path: '/catalogos/areas',
+        permission: { require: 'areas.ver_listado' }
+      },
       // { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
-      { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
-      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
-      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto' },
-      { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo' },
-      { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables' },
-      { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden' },
-      { title: 'Proveedores', icon: Building, path: '/catalogos/proveedores' },
-      { title: 'Regímenes Fiscales', icon: UserCircle, path: '/catalogos/regimenes-fiscales' },
+      { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas',
+        permission: { require: 'medidas.ver_listado' }
+      },
+      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago',
+        permission: { require: 'formas-pago.ver_listado' }
+      },
+      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto',
+        permission: { require: 'tipos-impuesto.ver_listado' }
+      },
+      { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo',
+        permission: { require: 'centros-costo.ver_listado' }
+      },
+      { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables',
+        permission: { require: 'cuentas-contables.ver_listado' }
+      },
+      { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden',
+        permission: { require: 'estatus-orden.ver_listado' }
+      },
+      { title: 'Proveedores', icon: Building, path: '/catalogos/proveedores',
+        permission: { require: 'proveedores.ver_listado' }
+      },
+      { title: 'Regímenes Fiscales', icon: UserCircle, path: '/catalogos/regimenes-fiscales',
+        permission: { require: 'regimenes-fiscales.ver_listado' }
+      },
     ],
   },
   {
@@ -128,20 +154,28 @@ const menuItems: SidebarMenuItem[] = [
     icon: ShoppingCart,
     isCollapsible: true,
     items: [
-      { title: 'Crear orden', icon: FileText, path: '/ordenes/crear' },
-      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones' },
-      { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado' },
+      { title: 'Crear orden', icon: FileText, path: '/ordenes/crear',
+        permission: { require: 'ordenes.crear' }
+       },
+      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
+        permission: { require: 'ordenes.ver_listado' }
+       },
+      { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado',
+        permission: { require: 'ordenes.envio_concentrado' }
+      },
     ],
   },
   {
     title: 'Notificaciones',
     icon: Bell,
     path: '/notificaciones',
+    // permission: { require: 'notificaciones.ver_listado' },
   },
   {
     title: 'Workflows',
     icon: GitBranch,
     path: '/workflows',
+    permission: { require: 'workflows.ver_listado' },
   },
   {
     title: 'Ayuda',

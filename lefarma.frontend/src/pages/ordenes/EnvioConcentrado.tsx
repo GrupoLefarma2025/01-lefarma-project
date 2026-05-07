@@ -1,5 +1,7 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { API } from '@/services/api';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import type { ApiResponse } from '@/types/api.types';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
@@ -180,20 +182,48 @@ export default function EnvioConcentrado() {
     setTimeout(() => document.body.classList.remove('print-envio-concentrado'), 500);
   };
 
-  // ── Enviar al Director ────────────────────────────────────────────────────
   const handleEnviar = async () => {
     if (ordenesSeleccionadas.length === 0) return;
     setEnviando(true);
     setEnvioResult(null);
     setEnvioError(null);
     try {
-      const res = await API.post<ApiResponse<EnvioConcentradoResponse>>('/ordenes/envio-concentrado', {
-        idsOrdenes: ordenesSeleccionadas.map((o) => o.idOrden),
-        comentario: 'Enviado en lote desde Envío GAF',
+      const previewElement = document.getElementById('envio-concentrado-preview');
+      if (!previewElement) throw new Error('No se encontró el preview del concentrado');
+
+      const canvas = await html2canvas(previewElement, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
       });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * ratio, canvas.height * ratio);
+
+      const pdfBlob = pdf.output('blob');
+
+      const formData = new FormData();
+      formData.append('idsOrdenes', JSON.stringify(ordenesSeleccionadas.map((o) => o.idOrden)));
+      formData.append('comentario', 'Enviado en lote desde Envío GAF');
+      formData.append('nombre', `autorizacion_concentrado_cxp_${new Date().toISOString().split('T')[0]}`);
+      formData.append('usuario', '41');
+      formData.append('correo', '41@grupolefarma.com.mx');
+      formData.append('correoCC', '6@grupolefarma.com.mx');
+      formData.append('archivo', pdfBlob, 'concentrado.pdf');
+      formData.append('tieneDocumentoSoporte', 'false');
+
+      const res = await API.post<ApiResponse<EnvioConcentradoResponse>>(
+        '/ordenes/envio-concentrado/pdf',
+        formData
+      );
       const data = res.data.data!;
       setEnvioResult(data);
-      // Recargar órdenes para reflejar los cambios de estado
       if (data.exitosas > 0) {
         setTimeout(fetchOrdenes, 800);
         setSelected(new Set());
@@ -459,7 +489,7 @@ export default function EnvioConcentrado() {
                 </span>
               </div>
             ) : (
-              <div className="bg-white shadow-sm rounded overflow-hidden">
+              <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
                 {/* Resumen de grupos en preview */}
                 <div className="p-4 border-b bg-slate-50 text-xs text-muted-foreground flex items-center gap-4">
                   <span>

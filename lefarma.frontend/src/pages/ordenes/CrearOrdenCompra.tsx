@@ -80,6 +80,8 @@ import type {
   ProveedorCuentaBancaria,
   Moneda,
 } from '@/types/catalogo.types';
+import { PermissionGuard } from '@/components/auth/PermissionGuard';
+import { PermissionElement } from '../../components/permissions/PermissionElement';
 
 interface Proveedor {
   idProveedor: number;
@@ -1052,10 +1054,11 @@ export default function CrearOrdenCompra() {
                         control={form.control}
                         name="idEmpresa"
                         render={({ field }) => (
+                            <PermissionElement require="orden_compra.puede_cambiar_empresa">
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              disabled={!canChangeEmpresa}
+                              // disabled={!canChangeEmpresa}
                               onValueChange={(val) => {
                                 field.onChange(Number(val));
                               }}
@@ -1081,41 +1084,47 @@ export default function CrearOrdenCompra() {
                             )}
                             <FormMessage />
                           </FormItem>
+                          </PermissionElement>
                         )}
                       />
                       <FormField
                         control={form.control}
                         name="idSucursal"
                         render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Sucursal *</FormLabel>
-                            <Select
-                              onValueChange={(val) => {
-                                field.onChange(Number(val));
-                              }}
-                              value={field.value ? String(field.value) : ''}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona sucursal..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {filteredSucursales.map((s) => (
-                                  <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
-                                    {s.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
+                          <PermissionElement require="orden_compra.puede_cambiar_sucursal">
+
+                        
+                              <FormItem>
+                                <FormLabel>Sucursal *</FormLabel>
+                                <Select
+                                  onValueChange={(val) => {
+                                    field.onChange(Number(val));
+                                  }}
+                                  value={field.value ? String(field.value) : ''}
+                                >
+                                  <FormControl>
+                                    <SelectTrigger>
+                                      <SelectValue placeholder="Selecciona sucursal..." />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {filteredSucursales.map((s) => (
+                                      <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
+                                        {s.nombre}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            </PermissionElement>
                         )}
                       />
                       <FormField
                         control={form.control}
                         name="idArea"
                         render={({ field }) => (
+                          <PermissionElement require="orden_compra.puede_cambiar_area">
                           <FormItem>
                             <FormLabel>Área *</FormLabel>
                             <Select
@@ -1137,8 +1146,9 @@ export default function CrearOrdenCompra() {
                                 ))}
                               </SelectContent>
                             </Select>
-<FormMessage />
+                              <FormMessage />
                             </FormItem>
+                            </PermissionElement>
                           )}
                         />
 
@@ -1183,19 +1193,22 @@ export default function CrearOrdenCompra() {
                 control={form.control}
                 name="agregarProveedorPorPartida"
                 render={({ field }) => (
-                  <FormItem className="bg-muted/30 flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel className="!mt-0 font-medium">
-                        Agregar proveedor por partida
-                      </FormLabel>
-                      <p className="text-xs text-muted-foreground">
-                        Permite especificar un proveedor diferente para cada partida de la orden
-                      </p>
-                    </div>
-                  </FormItem>
+                    <PermissionElement require="orden_compra.puede_agregar_proveedor_por_partida">
+                      
+                    <FormItem className="bg-muted/30 flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="!mt-0 font-medium">
+                          Agregar proveedor por partida
+                        </FormLabel>
+                        <p className="text-xs text-muted-foreground">
+                          Permite especificar un proveedor diferente para cada partida de la orden
+                        </p>
+                      </div>
+                    </FormItem>
+                    </PermissionElement>
                 )}
               />
 

@@ -84,7 +84,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
                     if (!esParticipante)
                     {
-                        var rolesUsuario = await _context.UsuariosRoles
+                          var rolesUsuario = await _context.UsuariosRoles
                             .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                             .Select(ur => ur.IdRol)
                             .ToListAsync();
@@ -971,6 +971,187 @@ asi yo lo subia en otro sistema
                 await transaction.RollbackAsync();
                 EnrichWideEvent("EnvioConcentrado", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al procesar el envío concentrado.");
+            }
+        }
+
+        public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoConPdfAsync(EnvioConcentradoConPdfRequest request, int idUsuario)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var resultados = new List<EnvioConcentradoItemResult>();
+
+                foreach (var idOrden in request.IdsOrdenes)
+                {
+                    var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                    if (orden is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = $"OC-{idOrden}",
+                            Exitoso = false,
+                            Error = "Orden no encontrada."
+                        });
+                        continue;
+                    }
+
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accionEnviar = accionesPaso.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
+
+                    if (accionEnviar is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene una acción de envío concentrado disponible."
+                        });
+                        continue;
+                    }
+
+                    var firmarReq = new FirmarRequest
+                    {
+                        IdAccion = accionEnviar.IdAccion,
+                        Comentario = request.Comentario ?? "Enviado en lote desde Concentrado de Órdenes"
+                    };
+
+                    var resultado = await FirmarAsync(idOrden, firmarReq, idUsuario);
+
+                    if (resultado.IsError)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = resultado.FirstError.Description
+                        });
+                    }
+                    else
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = resultado.Value.Folio,
+                            Exitoso = true,
+                            NuevoEstado = resultado.Value.NuevoEstado
+                        });
+                    }
+                }
+
+                var exitosas = resultados.Count(r => r.Exitoso);
+                var idsExitosas = resultados.Where(r => r.Exitoso).Select(r => r.IdOrden).ToList();
+
+                if (exitosas == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return new EnvioConcentradoResponse
+                    {
+                        Total = request.IdsOrdenes.Count,
+                        Exitosas = 0,
+                        Fallidas = request.IdsOrdenes.Count,
+                        Resultados = resultados
+                    };
+                }
+
+                var ordenesExitosas = await _context.OrdenesCompra
+                    .Where(o => idsExitosas.Contains(o.IdOrden))
+                    .ToListAsync();
+                var total = ordenesExitosas.Sum(o => o.Total);
+
+                var token = Guid.NewGuid().ToString("N");
+                var envioConcentrado = new EnvioConcentrado
+                {
+                    IdUsuarioEnvio = idUsuario,
+                    Estado = "PENDIENTE",
+                    TokenSeguridad = token,
+                    Total = total,
+                    CantidadOrdenes = ordenesExitosas.Count,
+                    FechaCreacion = DateTime.UtcNow,
+                    Ordenes = ordenesExitosas
+                };
+
+                _context.EnviosConcentrado.Add(envioConcentrado);
+                await _context.SaveChangesAsync();
+
+                if (request.Archivo != null)
+                {
+                    var client = _httpClientFactory.CreateClient("Asokam");
+                    using var ms = new MemoryStream();
+                    await request.Archivo.CopyToAsync(ms);
+                    var pdfBytes = ms.ToArray();
+
+                    using var content = new MultipartFormDataContent();
+                    content.Add(new StringContent(request.Nombre ?? "documento"), "nombre");
+                    content.Add(new StringContent(request.Usuario ?? idUsuario.ToString()), "usuario");
+                    content.Add(new StringContent(request.Comentario ?? ""), "comentario");
+                    content.Add(new StringContent(request.Correo ?? ""), "correo");
+                    content.Add(new StringContent(request.CorreoCC ?? ""), "correoCC");
+                    content.Add(new StringContent(request.TieneDocumentoSoporte ? "true" : "false"), "tieneDocumentoSoporte");
+
+                    var fileContent = new ByteArrayContent(pdfBytes);
+                    fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+                    content.Add(fileContent, "archivo", request.Archivo.FileName);
+
+                    if (request.TieneDocumentoSoporte && request.ArchivoSoporte != null)
+                    {
+                        using var msSoporte = new MemoryStream();
+                        await request.ArchivoSoporte.CopyToAsync(msSoporte);
+                        var soporteBytes = msSoporte.ToArray();
+                        var soporteContent = new ByteArrayContent(soporteBytes);
+                        soporteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/pdf");
+                        content.Add(soporteContent, "archivoSoporte", request.ArchivoSoporte.FileName);
+                    }
+
+                    var asokamUrl = _configuration["AsokamSettings:PdfSignatureUrl"]
+                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
+                    var asokamResponse = await client.PostAsync(asokamUrl, content);
+                    if (!asokamResponse.IsSuccessStatusCode)
+                    {
+                        _context.Entry(envioConcentrado).State = EntityState.Detached;
+                        await transaction.RollbackAsync();
+                        return CommonErrors.InternalServerError($"Error al subir PDF al sistema externo: {asokamResponse.StatusCode}");
+                    }
+                }
+
+                await transaction.CommitAsync();
+
+                EnrichWideEvent("EnvioConcentradoConPdf", additionalContext: new Dictionary<string, object>
+                {
+                    ["idConcentrado"] = envioConcentrado.IdEnvioConcentrado,
+                    ["total"] = request.IdsOrdenes.Count,
+                    ["exitosas"] = exitosas,
+                    ["fallidas"] = resultados.Count - exitosas
+                });
+
+                return new EnvioConcentradoResponse
+                {
+                    Total = request.IdsOrdenes.Count,
+                    Exitosas = exitosas,
+                    Fallidas = resultados.Count - exitosas,
+                    Resultados = resultados
+                };
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                EnrichWideEvent("EnvioConcentradoConPdf", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al procesar el envío concentrado con PDF.");
             }
         }
 

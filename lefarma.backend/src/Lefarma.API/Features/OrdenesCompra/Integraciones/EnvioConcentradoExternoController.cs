@@ -25,5 +25,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Integraciones
                 onError: errors => Problem(errors.First().Description, statusCode: 400)
             );
         }
+
+        [HttpPost("pdf")]
+        public async Task<IActionResult> EnvioConcentradoConPdf([FromForm] EnvioConcentradoConPdfRequest request, [FromForm] int idUsuario = 41)
+        {
+            var result = await _firmasService.EnvioConcentradoConPdfAsync(request, idUsuario);
+            return result.Match(
+                onValue: response => Ok(new { exitoso = response.Exitosas > 0, response }),
+                onError: errors => Problem(errors.First().Description, statusCode: 400)
+            );
+        }
     }
 }

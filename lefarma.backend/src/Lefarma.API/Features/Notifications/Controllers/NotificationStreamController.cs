@@ -131,10 +131,10 @@ public class NotificationStreamController : ControllerBase
                 "SSE connection closed for user {UserId}",
                 userId);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException ex)
         {
             // Normal cancellation when client disconnects
-            _logger.LogInformation("SSE connection cancelled (client disconnect)");
+            _logger.LogInformation($@"SSE connection cancelled (client disconnect: {ex.Message})");
         }
         catch (Exception ex)
         {
