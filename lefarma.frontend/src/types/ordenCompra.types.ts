@@ -37,6 +37,7 @@ export interface OrdenCompraResponse {
   idTipoGasto: number;
   idEstado: number;
   estadoNombre?: string | null;
+  estadoColor?: string | null;
   idWorkflow?: number | null;
   idPasoActual?: number | null;
   idProveedor?: number | null;
