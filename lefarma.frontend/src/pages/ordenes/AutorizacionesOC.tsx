@@ -271,6 +271,21 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
   }
   return result;
 }
+
+// ── helpers de formato ──────────────────────────────────────────────────────
+const fmtFecha = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '-';
+  try {
+    return new Date(dateStr).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
   const navigate = useNavigate();
@@ -529,13 +544,29 @@ export default function AutorizacionesOC() {
     }
   };
 
+  // Helper to get formaPago ID regardless of casing (backend uses IdFormaPago/PascalCase)
+  const getFormaPagoId = (fp: Record<string, unknown>): number => {
+    return (fp.idFormaPago ?? fp.IdFormaPago) as number;
+  };
+
+  // Helper to get formaPago nombre regardless of casing
+  const getFormaPagoNombre = (fp: Record<string, unknown>): string => {
+    return (fp.nombre ?? fp.Nombre ?? 'Sin nombre') as string;
+  };
+
   const fetchFormasPago = async () => {
     try {
       const res = await API.get<ApiResponse<FormaPago[]>>('/catalogos/FormasPago');
       if (res.data?.success && res.data.data) {
         const map = new Map<number, FormaPago>();
         for (const fp of res.data.data) {
-          map.set(fp.idFormaPago, fp);
+          const fpRecord = fp as unknown as Record<string, unknown>;
+          // Transform from PascalCase (backend) to camelCase (frontend type)
+          const transformed: FormaPago = {
+            idFormaPago: getFormaPagoId(fpRecord),
+            nombre: getFormaPagoNombre(fpRecord),
+          } as FormaPago;
+          map.set(transformed.idFormaPago, transformed);
         }
         setFormasPagoMap(map);
       }
@@ -1005,7 +1036,7 @@ export default function AutorizacionesOC() {
       header: 'Fecha solicitud',
       cell: ({ row }) => (
         <span className="text-sm">
-          {new Date(row.original.fechaSolicitud).toLocaleDateString('es-MX')}
+          {fmtFecha(row.original.fechaSolicitud)}
         </span>
       ),
     },
@@ -1291,13 +1322,13 @@ export default function AutorizacionesOC() {
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Solicitud</p>
                           <p className="font-medium">
-                            {new Date(selectedOrden.fechaSolicitud).toLocaleDateString('es-MX')}
+                            {fmtFecha(selectedOrden.fechaSolicitud)}
                           </p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Límite pago</p>
                           <p className="font-medium">
-                            {new Date(selectedOrden.fechaLimitePago).toLocaleDateString('es-MX')}
+                            {fmtFecha(selectedOrden.fechaLimitePago)}
                           </p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
@@ -1351,12 +1382,22 @@ export default function AutorizacionesOC() {
                             })}
                             {selectedOrden.idsCuentasBancarias?.map((idCb) => {
                               let cuentaInfo: string | undefined;
-                              proveedoresMap.forEach((proveedor) => {
+                              for (const [, proveedor] of proveedoresMap) {
                                 const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
                                 if (cuenta) {
-                                  cuentaInfo = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
+                                  cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                  break;
                                 }
-                              });
+                              }
+                              if (!cuentaInfo) {
+                                for (const [, proveedor] of allProveedoresMap) {
+                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                  if (cuenta) {
+                                    cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                    break;
+                                  }
+                                }
+                              }
                               return (
                                 <div key={idCb} className="flex items-center gap-2">
                                   <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
@@ -1730,7 +1771,7 @@ export default function AutorizacionesOC() {
                                     )}
                                     {eventosPaso.length > 0 && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
-                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {new Date(ultimoEvento.fechaEvento).toLocaleString('es-MX')}
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
                                       </p>
                                     )}
 
@@ -1776,7 +1817,7 @@ export default function AutorizacionesOC() {
                                                       {item.nombreAccion || `Acción ${item.idAccion}`}
                                                     </span>
                                                     <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                      {new Date(item.fechaEvento).toLocaleString('es-MX')}
+                                                      {fmtFecha(item.fechaEvento)}
                                                     </span>
                                                   </div>
                                                   {/* Cuerpo con etiquetas */}
@@ -2158,7 +2199,7 @@ export default function AutorizacionesOC() {
                                                 <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
                                                 <span className="text-muted-foreground/40">·</span>
                                                 <span className="text-muted-foreground">
-                                                  {new Date(archivo.fechaCreacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                  {fmtFecha(archivo.fechaCreacion)}
                                                 </span>
                                               </div>
                                               {meta.nombreAccion && (

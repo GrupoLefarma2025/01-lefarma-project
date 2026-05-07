@@ -154,8 +154,16 @@ export interface ProveedorCuentaBancaria {
   idCuen: number;
   idProveedor: number;
   idFormaPago: number;
-  formaPagoNombre?: string;
+  FormaPagoNombre?: string;
   idBanco?: number;
+  BancoNombre?: string;
+  NumeroCuenta?: string;
+  Clabe?: string;
+  NumeroTarjeta?: string;
+  Beneficiario?: string;
+  CorreoNotificacion?: string;
+  Activo: boolean;
+  formaPagoNombre?: string;
   bancoNombre?: string;
   numeroCuenta?: string;
   clabe?: string;

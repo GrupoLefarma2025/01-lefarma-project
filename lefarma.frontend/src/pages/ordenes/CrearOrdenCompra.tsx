@@ -462,7 +462,7 @@ export default function CrearOrdenCompra() {
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       idTipoGasto: null,
       fechaLimitePago: '',
-      idMoneda: null,
+      idMoneda: 1,
       tipoCambioAplicado: 1,
       sinDatosFiscales: false,
       idProveedor: 0,
