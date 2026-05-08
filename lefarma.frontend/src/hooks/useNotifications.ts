@@ -18,7 +18,7 @@ const SSE_NOTIFICATIONS_URL = (() => {
   return `${apiPath}/notifications/stream`;
 })();
 
-const MAX_RECONNECT_ATTEMPTS = 3; // Máximo 3 reintentos antes de hacer logout
+const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
 const BASE_RECONNECT_DELAY = 1000; // 1 segundo
 
 export interface UseNotificationsOptions {
@@ -61,56 +61,79 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   const connectRef = useRef<(() => void) | null>(null);
 
   /**
-   * Maneja la apertura de la conexión SSE
+   * Maneja la apertura exitosa de la conexion SSE.
+   * Reinicia el contador de errores porque ya tenemos conexion estable.
    */
   const handleOpen = useCallback(() => {
-    // Reiniciar contador de reintentos cuando la conexión es exitosa
     reconnectAttemptsRef.current = 0;
     setConnected(true);
     setError(undefined);
     onConnectionChange?.(true);
-
-    // NO llamar a refreshUnreadCount automáticamente para evitar loops infinitos
-    // El conteo se actualizará cuando lleguen notificaciones vía SSE
   }, [setConnected, setError, onConnectionChange]);
 
   /**
-   * Maneja errores de la conexión SSE
-   * Detecta 401 (token expirado) y hace logout automático para evitar bucles infinitos
+   * Maneja errores de la conexion SSE.
+   *
+   * IMPORTANTE: EventSource.onerror se dispara para TODO tipo de error:
+   *  - readyState === CONNECTING (0): el navegador esta reintentando automaticamente.
+   *    NO es un error real. Sucede en microcortes de red, WiFi inestable, etc.
+   *    NO contamos estos como fallos.
+   *  - readyState === CLOSED (2): el servidor cerro la conexion definitivamente.
+   *    Esto SI es un error real (401 token expirado, 500 del servidor, etc.)
+   *    SOLO estos los contamos para decidir si hacer logout.
+   *
+   * Antes el contador acumulaba TODOS los errores sin distinguir, causando que
+   * cualquier microcorte de red (4 reconexiones del navegador) forzara logout.
    */
   const handleError = useCallback(() => {
-    console.error('[Notifications SSE] Error en la conexión');
+    const es = eventSourceRef.current;
+    if (!es) return;
 
-    reconnectAttemptsRef.current++;
+    // Solo contar si el servidor CERRÓ la conexion (error real, no reconexion automatica)
+    if (es.readyState === EventSource.CLOSED) {
+      reconnectAttemptsRef.current++;
+      console.warn(`[Notifications SSE] Error real #${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} - servidor cerro conexion`);
+    } else {
+      // CONNECTING (0): el navegador esta reintentando, no contamos
+      console.debug('[Notifications SSE] Reconexion automatica del navegador, no se cuenta como error');
+    }
 
-    // Si hay demasiados reintentos seguidos, el token probablemente expiró
-    // Hacer logout automático para limpiar la sesión
+    // Solo hacer logout si se acumulan demasiados errores REALES (CLOSED)
     if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
-      const error = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.';
+      console.warn('[Notifications SSE] Demasiados errores reales. Cerrando sesion...');
       setConnected(false);
-      setError(error);
+      setError('Tu sesion ha expirado. Por favor, inicia sesion nuevamente.');
       onConnectionChange?.(false);
-      console.warn('[Notifications SSE] Demasiados reintentos fallidos. Cerrando sesión...');
 
-      // Hacer logout automáticamente
+      if (es.readyState !== EventSource.CLOSED) {
+        es.close();
+      }
+
       useAuthStore.getState().logout();
 
-      // Redirigir a login
       if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
         window.location.href = '/login';
       }
-
       return;
     }
 
-    const delay = BASE_RECONNECT_DELAY * reconnectAttemptsRef.current;
+    // Si es un error de red/tiempo (CONNECTING), dejar que el navegador reintente
+    // EventSource tiene su propio backoff de reconexion (~3s)
+    if (es.readyState === EventSource.CONNECTING) {
+      setConnected(false);
+      onConnectionChange?.(false);
+      // No programamos reconexion manual, el navegador lo hace solo
+      return;
+    }
 
-    const error = 'Error de conexión. Reintentando...';
+    // Si llego a CLOSED pero aun no excede el limite, marcar desconectado
+    // y programar reconexion manual con backoff exponencial
     setConnected(false);
-    setError(error);
+    setError('Error de conexion. Reintentando...');
     onConnectionChange?.(false);
 
-    // Programar reconexión SOLO si estamos montados y autenticados
+    const delay = BASE_RECONNECT_DELAY * Math.min(reconnectAttemptsRef.current, 30);
+
     if (isMountedRef.current && isAuthenticated) {
       reconnectTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
