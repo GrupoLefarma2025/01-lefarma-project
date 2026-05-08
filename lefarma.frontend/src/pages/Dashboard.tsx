@@ -18,13 +18,11 @@ import {
   FileText,
   CheckCircle2,
   Clock,
-  AlertCircle,
   Calendar,
   Activity,
   Building2,
   Store,
   Eye,
-  XCircle,
   TrendingUp,
 } from 'lucide-react';
 import {
@@ -34,6 +32,8 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { Loader } from '@/components/ui/loader';
+import { fa } from '@faker-js/faker';
 
 const ENDPOINT = '/dashboard/stats';
 
@@ -124,10 +124,11 @@ export default function Dashboard() {
   usePageTitle('Dashboard', 'Pagina principal');
 
   const puedeVerPresupuesto = usePermission({ require: 'dashboard.puede_ver_presupuesto' });
-  const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
+  // const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
   const { fmt } = useCurrency();
 
   const [stats, setStats] = useState<DashboardStatsResponse | null>(null);
+  const [ultimasOrdenes, setUltimasOrdenes] = useState<OrdenCompraResponse[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [distribucionTab, setDistribucionTab] = useState('empresa');
   const [ordenesModalOpen, setOrdenesModalOpen] = useState(false);
@@ -135,20 +136,29 @@ export default function Dashboard() {
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchAll = async () => {
       try {
-        const response = await API.get<ApiResponse<DashboardStatsResponse>>(ENDPOINT);
-        if (response.data.success) {
-          setStats(response.data.data);
+        setIsLoading(true); 
+        const [statsRes, ordenesRes] = await Promise.all([
+          API.get<ApiResponse<DashboardStatsResponse>>(ENDPOINT),
+          API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes?max=10&orderBy=fechaCreacion&orderDirection=desc'),
+        ]);
+
+        if (statsRes.data.success) {
+          setStats(statsRes.data.data);
         }
+        if (ordenesRes.data.success) {
+          setUltimasOrdenes(ordenesRes.data.data ?? []);
+        }
+    
       } catch (error: unknown) {
         const err = toApiError(error);
-        toast.error(err.message ?? 'Error al cargar las estadisticas del dashboard');
+        toast.error(err.message ?? 'Error al cargar los datos del dashboard');
       } finally {
         setIsLoading(false);
       }
     };
-    fetchStats();
+    fetchAll();
   }, []);
 
   const loadTodasLasOrdenes = async () => {
@@ -231,7 +241,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 pb-10">
-
+<Loader show={isLoading} />
       {/* ── 1. KPIs (8 tarjetas, 2 filas x 4) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isLoading ? (
@@ -381,7 +391,7 @@ export default function Dashboard() {
             {isLoading ? (
               <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded" />)}</div>
             ) : (
-              <MiniOrdenesTable fmt={fmt} />
+              <MiniOrdenesTable ordenes={ultimasOrdenes} fmt={fmt} />
             )}
           </CardContent>
         </Card>
@@ -436,22 +446,8 @@ export default function Dashboard() {
   );
 }
 
-function MiniOrdenesTable({ fmt }: { fmt: (n: number) => string }) {
-  const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetch = async () => {
-      try {
-        const res = await API.get<ApiResponse<OrdenCompraResponse[]>>('/ordenes?max=10&orderBy=fechaCreacion&orderDirection=desc');
-        if (res.data.success) setOrdenes(res.data.data ?? []);
-      } catch { /* silent */ }
-      finally { setLoading(false); }
-    };
-    fetch();
-  }, []);
-
-  if (loading) return <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-7 w-full rounded" />)}</div>;
+function MiniOrdenesTable({ ordenes, fmt }: { ordenes: OrdenCompraResponse[]; fmt: (n: number) => string }) {
+  if (ordenes.length === 0) return <p className="text-sm text-muted-foreground text-center py-4">Sin ordenes recientes</p>;
 
   return (
     <table className="w-full text-xs">
