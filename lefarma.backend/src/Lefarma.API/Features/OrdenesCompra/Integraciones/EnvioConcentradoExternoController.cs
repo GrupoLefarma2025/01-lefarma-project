@@ -2,7 +2,6 @@ using ErrorOr;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 using Microsoft.AspNetCore.Mvc;
-
 namespace Lefarma.API.Features.OrdenesCompra.Integraciones
 {
     [ApiController]
@@ -10,12 +9,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Integraciones
     public class EnvioConcentradoExternoController : ControllerBase
     {
         private readonly IFirmasService _firmasService;
-
         public EnvioConcentradoExternoController(IFirmasService firmasService)
         {
             _firmasService = firmasService;
         }
-
         [HttpPost("respuesta")]
         public async Task<IActionResult> RecibirRespuesta([FromBody] RespuestaConcentradoExternoRequest request)
         {
@@ -25,10 +22,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Integraciones
                 onError: errors => Problem(errors.First().Description, statusCode: 400)
             );
         }
-
         [HttpPost("pdf")]
-        public async Task<IActionResult> EnvioConcentradoConPdf([FromForm] EnvioConcentradoConPdfRequest request, [FromForm] int idUsuario = 41)
+        public async Task<IActionResult> EnvioConcentradoConPdf([FromForm] EnvioConcentradoConPdfRequest request)
         {
+            int idUsuario = 63;
             var result = await _firmasService.EnvioConcentradoConPdfAsync(request, idUsuario);
             return result.Match(
                 onValue: response => Ok(new { exitoso = response.Exitosas > 0, response }),
