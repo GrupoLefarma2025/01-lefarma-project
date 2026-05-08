@@ -34,7 +34,6 @@ import {
 } from 'recharts';
 import { Loader } from '@/components/ui/loader';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { fa } from '@faker-js/faker';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/dashboard/stats';
