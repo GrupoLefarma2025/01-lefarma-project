@@ -26,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/catalogos/Gastos';
 const UNIDADES_ENDPOINT = '/catalogos/UnidadesMedida';
@@ -356,9 +357,11 @@ export default function GastosList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevoGasto}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Gasto
-        </Button>
+        <PermissionElement require={['gastos.crear']}>
+          <Button onClick={handleNuevoGasto}>
+            <Plus className="mr-2 h-4 w-4" /> Nuevo Gasto
+          </Button>
+        </PermissionElement>
       </div>
 
       <div className="relative">

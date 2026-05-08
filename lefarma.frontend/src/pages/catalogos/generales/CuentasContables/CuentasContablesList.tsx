@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 
 const ENDPOINT = '/catalogos/CuentasContables';
@@ -359,24 +360,28 @@ export default function CuentasContablesList() {
       header: '',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5"
-            onClick={() => handleEditCuenta(row.original.idCuentaContable)}
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Editar
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="h-8 gap-1.5"
-            onClick={() => handleDeleteCuenta(row.original.idCuentaContable)}
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </Button>
+          <PermissionElement require={['cuentas-contables.editar']}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => handleEditCuenta(row.original.idCuentaContable)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+          </PermissionElement>
+          <PermissionElement require={['cuentas-contables.eliminar']}>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 gap-1.5"
+              onClick={() => handleDeleteCuenta(row.original.idCuentaContable)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar
+            </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -449,9 +454,11 @@ export default function CuentasContablesList() {
             </div>
           )}
 
-          <Button onClick={handleNuevaCuenta}>
-            <Plus className="mr-2 h-4 w-4" /> Nueva Cuenta Contable
-          </Button>
+          <PermissionElement require={['cuentas-contables.crear']}>
+            <Button onClick={handleNuevaCuenta}>
+              <Plus className="mr-2 h-4 w-4" /> Nueva Cuenta Contable
+            </Button>
+          </PermissionElement>
         </div>
 
         {/* Table */}

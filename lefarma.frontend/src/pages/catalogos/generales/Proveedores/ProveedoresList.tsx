@@ -42,6 +42,8 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -716,24 +718,28 @@ export default function ProveedoresList() {
                 </Button>
               </>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5"
-              onClick={() => handleEditProveedor(proveedor.idProveedor)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Editar
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-8 gap-1.5"
-              onClick={() => handleDeleteProveedor(proveedor.idProveedor)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Eliminar
-            </Button>
+            <PermissionElement require={['proveedores.editar']}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => handleEditProveedor(proveedor.idProveedor)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
+              </Button>
+            </PermissionElement>
+            <PermissionElement require={['proveedores.eliminar']}>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 gap-1.5"
+                onClick={() => handleDeleteProveedor(proveedor.idProveedor)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar
+              </Button>
+            </PermissionElement>
           </div>
         );
       },
@@ -752,9 +758,11 @@ export default function ProveedoresList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevoProveedor}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
-        </Button>
+        <PermissionElement require={['proveedores.crear']}>
+          <Button onClick={handleNuevoProveedor}>
+            <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
+          </Button>
+        </PermissionElement>
       </div>
 
       <div className="relative">

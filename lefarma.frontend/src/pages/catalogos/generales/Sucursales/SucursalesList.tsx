@@ -32,6 +32,7 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/catalogos/Sucursales';
 const EMPRESAS_ENDPOINT = '/catalogos/Empresas';
@@ -295,16 +296,20 @@ export default function SucursalesList() {
       header: '',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-8 gap-1.5"
-            onClick={() => handleEditSucursal(row.original.idSucursal)}>
-            <Pencil className="h-3.5 w-3.5" />
-            Editar
-          </Button>
-          <Button size="sm" variant="destructive" className="h-8 gap-1.5"
-            onClick={() => handleDelete(row.original.idSucursal)}>
-            <Trash2 className="h-3.5 w-3.5" />
-            Eliminar
-          </Button>
+          <PermissionElement require={['sucursales.editar']}>
+            <Button size="sm" variant="outline" className="h-8 gap-1.5"
+              onClick={() => handleEditSucursal(row.original.idSucursal)}>
+              <Pencil className="h-3.5 w-3.5" />
+              Editar
+            </Button>
+          </PermissionElement>
+          <PermissionElement require={['sucursales.eliminar']}>
+            <Button size="sm" variant="destructive" className="h-8 gap-1.5"
+              onClick={() => handleDelete(row.original.idSucursal)}>
+              <Trash2 className="h-3.5 w-3.5" />
+              Eliminar
+            </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -322,9 +327,11 @@ export default function SucursalesList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevaSucursal}>
-          <Plus className="mr-2 h-4 w-4" /> Nueva Sucursal
-        </Button>
+        <PermissionElement require={['sucursales.crear']}>
+          <Button onClick={handleNuevaSucursal}>
+            <Plus className="mr-2 h-4 w-4" /> Nueva Sucursal
+          </Button>
+        </PermissionElement>
       </div>
 
       <div className="relative">

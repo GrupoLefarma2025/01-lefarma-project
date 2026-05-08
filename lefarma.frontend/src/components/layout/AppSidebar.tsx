@@ -155,7 +155,7 @@ const menuItems: SidebarMenuItem[] = [
     isCollapsible: true,
     items: [
       { title: 'Crear orden', icon: FileText, path: '/ordenes/crear',
-        permission: { require: 'ordenes.crear' }
+        permission: { require: 'orden_compra.crear' }
        },
       { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
         permission: { require: 'ordenes.ver_listado' }
