@@ -1133,12 +1133,30 @@ asi yo lo subia en otro sistema
                         content.Add(soporteContent, "archivoSoporte", request.ArchivoSoporte.FileName);
                     }
 
-                    var asokamUrl = _configuration["AsokamSettings:PdfSignatureUrl"]
-                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
-                    var asokamUser = _configuration["AsokamSettings:PdfSignatureUrl"]
-                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
-                    var asokamPassword = _configuration["AsokamSettings:PdfSignatureUrl"]
-                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
+                    var asokamUrl = _configuration["AsokamSettings:PdfSignatureUrl"] ?? "";
+                    var asokamUser = _configuration["AsokamSettings:User"] ?? "";
+                    var asokamPassword = _configuration["AsokamSettings:Password"] ?? "";
+                    var asokamAuthUrl = _configuration["AsokamSettings:PdfSignatureUrlAuth"] ?? "";
+
+                    using var loginRequest = new HttpRequestMessage(HttpMethod.Post, asokamAuthUrl);
+                    loginRequest.Headers.Accept.ParseAdd("application/json");
+                    loginRequest.Content = JsonContent.Create(new { username = asokamUser, password = asokamPassword });
+                    using var loginResponse = await client.SendAsync(loginRequest);
+                    if (!loginResponse.IsSuccessStatusCode)
+                    {
+                        _context.Entry(envioConcentrado).State = EntityState.Detached;
+                        await transaction.RollbackAsync();
+                        return CommonErrors.InternalServerError($"Error de autenticacion con sistema externo: {loginResponse.StatusCode}");
+                    }
+                    var loginBody = await loginResponse.Content.ReadFromJsonAsync<AsokamLoginResponse>();
+                    if (string.IsNullOrEmpty(loginBody?.Token))
+                    {
+                        _context.Entry(envioConcentrado).State = EntityState.Detached;
+                        await transaction.RollbackAsync();
+                        return CommonErrors.InternalServerError("No se obtuvo token de autenticacion del sistema externo.");
+                    }
+
+                    client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", loginBody.Token);
                     var asokamResponse = await client.PostAsync(asokamUrl, content);
                     if (!asokamResponse.IsSuccessStatusCode)
                     {
