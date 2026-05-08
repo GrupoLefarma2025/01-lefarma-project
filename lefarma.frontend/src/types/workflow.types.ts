@@ -67,7 +67,6 @@ export interface WorkflowAccionHandler {
 
 export interface WorkflowCampo {
   idWorkflowCampo: number;
-  idWorkflow: number;
   nombreTecnico: string;
   etiquetaUsuario: string;
   tipoControl: string;
