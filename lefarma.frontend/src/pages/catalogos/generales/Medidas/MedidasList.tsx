@@ -40,6 +40,7 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/catalogos/Medidas';
 const UNIDADES_ENDPOINT = '/catalogos/UnidadesMedida';
@@ -396,22 +397,26 @@ export default function MedidasList() {
       header: '',
       cell: ({ row }) => (
         <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7"
-            onClick={() => handleEditMedida(row.original.idMedida)}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="h-7"
-            onClick={() => handleDeleteMedida(row.original.idMedida)}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <PermissionElement require={['medidas.editar']}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => handleEditMedida(row.original.idMedida)}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </PermissionElement>
+          <PermissionElement require={['medidas.eliminar']}>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7"
+              onClick={() => handleDeleteMedida(row.original.idMedida)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -460,22 +465,26 @@ export default function MedidasList() {
           >
             <ArrowRightLeft className="h-3 w-3" />
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7"
-            onClick={() => handleEditUnidad(row.original)}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            className="h-7"
-            onClick={() => handleDeleteUnidad(row.original.idUnidadMedida)}
-          >
-            <Trash2 className="h-3 w-3" />
-          </Button>
+          <PermissionElement require={['unidades-medida.editar']}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7"
+              onClick={() => handleEditUnidad(row.original)}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          </PermissionElement>
+          <PermissionElement require={['unidades-medida.eliminar']}>
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-7"
+              onClick={() => handleDeleteUnidad(row.original.idUnidadMedida)}
+            >
+              <Trash2 className="h-3 w-3" />
+            </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -497,9 +506,11 @@ export default function MedidasList() {
             <Button size="sm" variant="outline" onClick={fetchMedidas}>
               <RefreshCcw className="h-3 w-3" />
             </Button>
-            <Button size="sm" onClick={handleNuevaMedida}>
-              <Plus className="mr-1 h-3 w-3" /> Nueva Medida
-            </Button>
+            <PermissionElement require={['medidas.crear']}>
+              <Button size="sm" onClick={handleNuevaMedida}>
+                <Plus className="mr-1 h-3 w-3" /> Nueva Medida
+              </Button>
+            </PermissionElement>
           </div>
         </div>
 
@@ -523,9 +534,11 @@ export default function MedidasList() {
             <Button size="sm" variant="outline" onClick={fetchUnidadesMedida}>
               <RefreshCcw className="h-3 w-3" />
             </Button>
-            <Button size="sm" onClick={handleNuevaUnidad}>
-              <Plus className="mr-1 h-3 w-3" /> Nueva Unidad
-            </Button>
+            <PermissionElement require={['unidades-medida.crear']}>
+              <Button size="sm" onClick={handleNuevaUnidad}>
+                <Plus className="mr-1 h-3 w-3" /> Nueva Unidad
+              </Button>
+            </PermissionElement>
           </div>
         </div>
 

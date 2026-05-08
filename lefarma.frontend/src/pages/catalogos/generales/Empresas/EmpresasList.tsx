@@ -1,8 +1,9 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, Store } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Loader } from '@/components/ui/loader';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 // Helper function to normalize text (remove accents and convert to lowercase)
 const normalizeText = (text: string): string => {
@@ -327,6 +329,7 @@ export default function EmpresasList() {
       header: '',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
+          <PermissionElement require={['empresas.editar']} >
           <Button
             size="sm"
             variant="outline"
@@ -336,6 +339,8 @@ export default function EmpresasList() {
             <Pencil className="h-3.5 w-3.5" />
             Editar
           </Button>
+          </PermissionElement>
+          <PermissionElement require={['empresas.eliminar']} >
           <Button
             size="sm"
             variant="destructive"
@@ -345,6 +350,7 @@ export default function EmpresasList() {
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar
           </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -362,9 +368,11 @@ export default function EmpresasList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevaEmpresa}>
-          <Plus className="mr-2 h-4 w-4" /> Nueva Empresa
-        </Button>
+        <PermissionElement require={['empresas.crear']} >
+          <Button onClick={handleNuevaEmpresa}>
+            <Plus className="mr-2 h-4 w-4" /> Nueva Empresa
+          </Button>
+        </PermissionElement>
       </div>
 
       <div className="relative">
@@ -392,9 +400,7 @@ export default function EmpresasList() {
               }}
             />
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-sm">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <Loader show />
             )}
           </>
         )}
