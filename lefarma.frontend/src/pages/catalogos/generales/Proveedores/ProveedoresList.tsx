@@ -43,7 +43,6 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
-import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
