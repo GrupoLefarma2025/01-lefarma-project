@@ -158,10 +158,10 @@ const menuItems: SidebarMenuItem[] = [
         permission: { require: 'orden_compra.crear' }
        },
       { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
-        permission: { require: 'ordenes.ver_listado' }
+        permission: { require: 'orden_compra.ver_listado' }
        },
       { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado',
-        permission: { require: 'ordenes.envio_concentrado' }
+        permission: { require: 'orden_compra.envio_concentrado' }
       },
     ],
   },
