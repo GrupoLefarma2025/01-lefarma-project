@@ -209,9 +209,7 @@ export default function EnvioConcentrado() {
       const pdfBlob = pdf.output('blob');
 
       const formData = new FormData();
-      for (const id of ordenesSeleccionadas.map((o) => o.idOrden)) {
-        formData.append('IdsOrdenes', id.toString());
-      }
+      formData.append('idsOrdenes', JSON.stringify(ordenesSeleccionadas.map((o) => o.idOrden)));
       formData.append('comentario', 'Enviado en lote desde Envío GAF');
       formData.append('nombre', `autorizacion_concentrado_cxp_${new Date().toISOString().split('T')[0]}`);
       formData.append('usuario', '41');
