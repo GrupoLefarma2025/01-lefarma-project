@@ -29,7 +29,6 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                     .ThenInclude(p => p.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
-                .Include(w => w.Campos)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso && w.Activo);
 
         public async Task<WorkflowPaso?> GetPasoByIdEstadoAsync(int idWorkflow, int idEstado)
@@ -49,9 +48,9 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                 .OrderBy(h => h.OrdenEjecucion)
                 .ToListAsync();
 
-        public async Task<ICollection<WorkflowCampo>> GetCamposByWorkflowAsync(int idWorkflow)
+        public async Task<ICollection<WorkflowCampo>> GetCamposAsync()
             => await _context.WorkflowCampos
-                .Where(c => c.IdWorkflow == idWorkflow && c.Activo)
+                .Where(c => c.Activo)
                 .OrderBy(c => c.EtiquetaUsuario)
                 .ToListAsync();
 

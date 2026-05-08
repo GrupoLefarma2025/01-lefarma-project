@@ -36,7 +36,6 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var q = _repo.GetQueryable()
-                    .Include(w => w.Campos)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
                     .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
@@ -57,8 +56,10 @@ public class WorkflowService : BaseService, IWorkflowService
                     .Select(g => new { IdWorkflow = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.IdWorkflow, x => x.Count);
 
+                var campos = await _repo.GetCamposAsync();
+
                 var response = items.Select(w => {
-                    var r = ToResponse(w);
+                    var r = ToResponse(w, campos);
                     if (mappingsCounts.TryGetValue(w.IdWorkflow, out var count))
                     {
                         r.Stats!.TotalMappings = count;
@@ -127,7 +128,6 @@ public class WorkflowService : BaseService, IWorkflowService
             try
             {
                 var item = await _repo.GetQueryable()
-                    .Include(w => w.Campos)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.TipoAccion)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
@@ -142,7 +142,8 @@ public class WorkflowService : BaseService, IWorkflowService
                 }
 
                 EnrichWideEvent("GetById", entityId: id, nombre: item.Nombre);
-                return ToResponse(item);
+                var campos = await _repo.GetCamposAsync();
+                return ToResponse(item, campos);
             }
             catch (Exception ex)
             {
@@ -157,7 +158,8 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 var item = await _repo.GetByCodigoProcesoAsync(codigoProceso);
                 if (item is null) return CommonErrors.NotFound("workflow", codigoProceso);
-                return ToResponse(item);
+                var campos = await _repo.GetCamposAsync();
+                return ToResponse(item, campos);
             }
             catch (Exception ex)
             {
@@ -392,7 +394,8 @@ public class WorkflowService : BaseService, IWorkflowService
 
                 var result = await _repo.AddAsync(entity);
                 EnrichWideEvent("Create", entityId: result.IdWorkflow, nombre: result.Nombre);
-                return ToResponse(result);
+                var campos = await _repo.GetCamposAsync();
+                return ToResponse(result, campos);
             }
             catch (Exception ex)
             {
@@ -418,7 +421,8 @@ public class WorkflowService : BaseService, IWorkflowService
 
                 var result = await _repo.UpdateAsync(entity);
                 EnrichWideEvent("Update", entityId: id, nombre: result.Nombre);
-                return ToResponse(result);
+                var campos = await _repo.GetCamposAsync();
+                return ToResponse(result, campos);
             }
             catch (Exception ex)
             {
@@ -790,7 +794,6 @@ public class WorkflowService : BaseService, IWorkflowService
                             Campo = h.Campo != null ? new WorkflowCampoResponse
                             {
                                 IdWorkflowCampo = h.Campo.IdWorkflowCampo,
-                                IdWorkflow = h.Campo.IdWorkflow,
                                 NombreTecnico = h.Campo.NombreTecnico,
                                 EtiquetaUsuario = h.Campo.EtiquetaUsuario,
                                 TipoControl = h.Campo.TipoControl,
@@ -1561,23 +1564,18 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
-        public async Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(int idWorkflow, CreateWorkflowCampoRequest request)
+        public async Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(CreateWorkflowCampoRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Campos)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                var exists = await _context.WorkflowCampos
+                    .AnyAsync(c => c.NombreTecnico == request.NombreTecnico);
 
-                if (workflow == null)
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-
-                if (workflow.Campos.Any(c => c.NombreTecnico == request.NombreTecnico))
+                if (exists)
                     return CommonErrors.AlreadyExists("campo", "nombre_tecnico", request.NombreTecnico);
 
                 var campo = new WorkflowCampo
                 {
-                    IdWorkflow = idWorkflow,
                     NombreTecnico = request.NombreTecnico.Trim(),
                     EtiquetaUsuario = request.EtiquetaUsuario.Trim(),
                     TipoControl = request.TipoControl.Trim(),
@@ -1587,14 +1585,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = request.Activo
                 };
 
-                workflow.Campos.Add(campo);
-                await _repo.UpdateAsync(workflow);
+                _context.WorkflowCampos.Add(campo);
+                await _context.SaveChangesAsync();
 
-                EnrichWideEvent("CreateCampo", entityId: campo.IdWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                EnrichWideEvent("CreateCampo", entityId: campo.IdWorkflowCampo);
                 return new WorkflowCampoResponse
                 {
                     IdWorkflowCampo = campo.IdWorkflowCampo,
-                    IdWorkflow = campo.IdWorkflow,
                     NombreTecnico = campo.NombreTecnico,
                     EtiquetaUsuario = campo.EtiquetaUsuario,
                     TipoControl = campo.TipoControl,
@@ -1606,23 +1603,18 @@ public class WorkflowService : BaseService, IWorkflowService
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("CreateCampo", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("CreateCampo", exception: ex);
                 return CommonErrors.DatabaseError("crear campo de workflow");
             }
         }
 
-        public async Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflow, int idWorkflowCampo, UpdateWorkflowCampoRequest request)
+        public async Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflowCampo, UpdateWorkflowCampoRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Campos)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                var campo = await _context.WorkflowCampos
+                    .FirstOrDefaultAsync(c => c.IdWorkflowCampo == idWorkflowCampo);
 
-                if (workflow == null)
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-
-                var campo = workflow.Campos.FirstOrDefault(c => c.IdWorkflowCampo == idWorkflowCampo);
                 if (campo == null)
                     return CommonErrors.NotFound("campo", idWorkflowCampo.ToString());
 
@@ -1633,13 +1625,12 @@ public class WorkflowService : BaseService, IWorkflowService
                 campo.PropiedadEntidad = request.PropiedadEntidad?.Trim();
                 campo.ValidarFiscal = request.ValidarFiscal;
                 campo.Activo = request.Activo;
-                await _repo.UpdateAsync(workflow);
+                await _context.SaveChangesAsync();
 
-                EnrichWideEvent("UpdateCampo", entityId: idWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                EnrichWideEvent("UpdateCampo", entityId: idWorkflowCampo);
                 return new WorkflowCampoResponse
                 {
                     IdWorkflowCampo = campo.IdWorkflowCampo,
-                    IdWorkflow = campo.IdWorkflow,
                     NombreTecnico = campo.NombreTecnico,
                     EtiquetaUsuario = campo.EtiquetaUsuario,
                     TipoControl = campo.TipoControl,
@@ -1651,40 +1642,35 @@ public class WorkflowService : BaseService, IWorkflowService
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("UpdateCampo", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("UpdateCampo", entityId: idWorkflowCampo, exception: ex);
                 return CommonErrors.DatabaseError("actualizar campo de workflow");
             }
         }
 
-        public async Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo)
+        public async Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflowCampo)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Campos)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                var campo = await _context.WorkflowCampos
+                    .FirstOrDefaultAsync(c => c.IdWorkflowCampo == idWorkflowCampo);
 
-                if (workflow == null)
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-
-                var campo = workflow.Campos.FirstOrDefault(c => c.IdWorkflowCampo == idWorkflowCampo);
                 if (campo == null)
                     return CommonErrors.NotFound("campo", idWorkflowCampo.ToString());
 
                 campo.Activo = false;
-                await _repo.UpdateAsync(workflow);
+                await _context.SaveChangesAsync();
 
-                EnrichWideEvent("DeleteCampo", entityId: idWorkflowCampo, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow });
+                EnrichWideEvent("DeleteCampo", entityId: idWorkflowCampo);
                 return true;
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("DeleteCampo", entityId: idWorkflow, exception: ex);
+                EnrichWideEvent("DeleteCampo", entityId: idWorkflowCampo, exception: ex);
                 return CommonErrors.DatabaseError("eliminar campo de workflow");
             }
         }
 
-        private static WorkflowResponse ToResponse(Workflow w) => new()
+        private static WorkflowResponse ToResponse(Workflow w, IEnumerable<WorkflowCampo> campos) => new()
         {
             IdWorkflow = w.IdWorkflow,
             Nombre = w.Nombre,
@@ -1693,13 +1679,12 @@ public class WorkflowService : BaseService, IWorkflowService
             Version = w.Version,
             Activo = w.Activo,
             FechaCreacion = w.FechaCreacion,
-            Campos = w.Campos
+            Campos = campos
                 .Where(c => c.Activo)
                 .OrderBy(c => c.EtiquetaUsuario)
                 .Select(c => new WorkflowCampoResponse
                 {
                     IdWorkflowCampo = c.IdWorkflowCampo,
-                    IdWorkflow = c.IdWorkflow,
                     NombreTecnico = c.NombreTecnico,
                     EtiquetaUsuario = c.EtiquetaUsuario,
                     TipoControl = c.TipoControl,
@@ -1743,7 +1728,6 @@ public class WorkflowService : BaseService, IWorkflowService
                         Campo = h.Campo != null ? new WorkflowCampoResponse
                         {
                             IdWorkflowCampo = h.Campo.IdWorkflowCampo,
-                            IdWorkflow = h.Campo.IdWorkflow,
                             NombreTecnico = h.Campo.NombreTecnico,
                             EtiquetaUsuario = h.Campo.EtiquetaUsuario,
                             TipoControl = h.Campo.TipoControl,

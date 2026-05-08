@@ -287,29 +287,29 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Notificaci�n eliminada exitosamente.", Data = null }));
         }
 
-        [HttpPost("{idWorkflow}/campos")]
+        [HttpPost("campos")]
         [SwaggerOperation(Summary = "Crear campo configurable de workflow")]
-        public async Task<IActionResult> CreateCampo(int idWorkflow, [FromBody] CreateWorkflowCampoRequest request)
+        public async Task<IActionResult> CreateCampo([FromBody] CreateWorkflowCampoRequest request)
         {
-            var result = await _service.CreateCampoAsync(idWorkflow, request);
+            var result = await _service.CreateCampoAsync(request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowCampoResponse>
             { Success = true, Message = "Campo creado exitosamente.", Data = data }));
         }
 
-        [HttpPut("{idWorkflow}/campos/{idWorkflowCampo}")]
+        [HttpPut("campos/{idWorkflowCampo}")]
         [SwaggerOperation(Summary = "Actualizar campo configurable de workflow")]
-        public async Task<IActionResult> UpdateCampo(int idWorkflow, int idWorkflowCampo, [FromBody] UpdateWorkflowCampoRequest request)
+        public async Task<IActionResult> UpdateCampo(int idWorkflowCampo, [FromBody] UpdateWorkflowCampoRequest request)
         {
-            var result = await _service.UpdateCampoAsync(idWorkflow, idWorkflowCampo, request);
+            var result = await _service.UpdateCampoAsync(idWorkflowCampo, request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<WorkflowCampoResponse>
             { Success = true, Message = "Campo actualizado exitosamente.", Data = data }));
         }
 
-        [HttpDelete("{idWorkflow}/campos/{idWorkflowCampo}")]
+        [HttpDelete("campos/{idWorkflowCampo}")]
         [SwaggerOperation(Summary = "Eliminar campo configurable de workflow")]
-        public async Task<IActionResult> DeleteCampo(int idWorkflow, int idWorkflowCampo)
+        public async Task<IActionResult> DeleteCampo(int idWorkflowCampo)
         {
-            var result = await _service.DeleteCampoAsync(idWorkflow, idWorkflowCampo);
+            var result = await _service.DeleteCampoAsync(idWorkflowCampo);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Campo eliminado exitosamente.", Data = null }));
         }
