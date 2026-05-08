@@ -79,9 +79,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
-                // Validar que el usuario es participante del paso actual
-                // Si es el paso inicial, el creador de la orden siempre puede ejecutar
-                if (!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador)
+                //// Validar que el usuario es participante del paso actual
+                //// Si es el paso inicial, el creador de la orden siempre puede ejecutar
+                /// Si se manda para autorizacion
+                if ((!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador))
                 {
                     var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
                     if (participantes.Any())
@@ -89,10 +90,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
                         if (!esParticipante)
                         {
-                              var rolesUsuario = await _asokamContext.UsuariosRoles
-                                .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
-                                .Select(ur => ur.IdRol)
-                                .ToListAsync();
+                            var rolesUsuario = await _asokamContext.UsuariosRoles
+                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                              .Select(ur => ur.IdRol)
+                              .ToListAsync();
                             esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
                         }
                         if (!esParticipante)
@@ -1133,6 +1134,10 @@ asi yo lo subia en otro sistema
                     }
 
                     var asokamUrl = _configuration["AsokamSettings:PdfSignatureUrl"]
+                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
+                    var asokamUser = _configuration["AsokamSettings:PdfSignatureUrl"]
+                        ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
+                    var asokamPassword = _configuration["AsokamSettings:PdfSignatureUrl"]
                         ?? throw new InvalidOperationException("AsokamSettings:PdfSignatureUrl no está configurado.");
                     var asokamResponse = await client.PostAsync(asokamUrl, content);
                     if (!asokamResponse.IsSuccessStatusCode)
