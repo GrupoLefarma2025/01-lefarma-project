@@ -33,7 +33,9 @@ import {
   Cell,
 } from 'recharts';
 import { Loader } from '@/components/ui/loader';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { fa } from '@faker-js/faker';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const ENDPOINT = '/dashboard/stats';
 
@@ -240,8 +242,13 @@ export default function Dashboard() {
   ], [fmt]);
 
   return (
+  
+    <PermissionElement require="menu.dashboard" fallback={
+      <EmptyState title="Aún nada para mostrar" description="No hay informacion disponible en este momento" />
+    }>
     <div className="space-y-5 pb-10">
-<Loader show={isLoading} />
+      <Loader show={isLoading} />
+
       {/* ── 1. KPIs (8 tarjetas, 2 filas x 4) ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {isLoading ? (
@@ -443,6 +450,7 @@ export default function Dashboard() {
         </DialogContent>
       </Dialog>
     </div>
+    </PermissionElement>
   );
 }
 
