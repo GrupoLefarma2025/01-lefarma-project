@@ -553,10 +553,17 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor }: Props)
       <div style={s.firmaSection}>
         <div style={s.groupHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {['Elaboró (GAF)', 'Visto Bueno — Dirección Corporativa'].map((label) => (
+          {[
+            { label: 'Elaboró (GAF)', firma: null as string | null },
+            { label: 'Visto Bueno — Dirección Corporativa', firma: '#firmad' },
+          ].map(({ label, firma }) => (
             <div key={label} style={s.firmaBox}>
               <div style={s.firmaLabel}>{label}</div>
-              <div style={s.firmaLine}>Nombre y Firma</div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
+                {firma && (
+                  <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}>{firma}</span>
+                )}
+              </div>
             </div>
           ))}
         </div>
