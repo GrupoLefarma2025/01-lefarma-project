@@ -80,20 +80,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
                 // Validar que el usuario es participante del paso actual
-                var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
-                if (participantes.Any())
+                // Si es el paso inicial, el creador de la orden siempre puede ejecutar
+                if (!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador)
                 {
-                    var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
-                    if (!esParticipante)
+                    var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
+                    if (participantes.Any())
                     {
-                          var rolesUsuario = await _context.UsuariosRoles
-                            .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
-                            .Select(ur => ur.IdRol)
-                            .ToListAsync();
-                        esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
+                        var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
+                        if (!esParticipante)
+                        {
+                              var rolesUsuario = await _asokamContext.UsuariosRoles
+                                .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                                .Select(ur => ur.IdRol)
+                                .ToListAsync();
+                            esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
+                        }
+                        if (!esParticipante)
+                            return CommonErrors.Validation("Autorizacion", "No eres participante de este paso del workflow.");
                     }
-                    if (!esParticipante)
-                        return CommonErrors.Validation("Autorizacion", "No eres participante de este paso del workflow.");
                 }
 
                 var estadoAnterior = orden.Estado?.Codigo;
