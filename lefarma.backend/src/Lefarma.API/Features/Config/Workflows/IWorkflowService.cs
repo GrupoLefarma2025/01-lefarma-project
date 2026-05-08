@@ -45,9 +45,9 @@ public interface IWorkflowService
         Task<ErrorOr<bool>> DeleteNotificacionAsync(int idWorkflow, int idAccion, int idNotificacion);
 
         // Campos configurables
-        Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(int idWorkflow, CreateWorkflowCampoRequest request);
-        Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflow, int idWorkflowCampo, UpdateWorkflowCampoRequest request);
-        Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo);
+        Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(CreateWorkflowCampoRequest request);
+        Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflowCampo, UpdateWorkflowCampoRequest request);
+        Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflowCampo);
 
         // Canal Templates
         Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync();

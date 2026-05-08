@@ -114,7 +114,6 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     public class WorkflowCampoResponse
     {
         public int IdWorkflowCampo { get; set; }
-        public int IdWorkflow { get; set; }
         public string NombreTecnico { get; set; } = string.Empty;
         public string EtiquetaUsuario { get; set; } = string.Empty;
         public string TipoControl { get; set; } = string.Empty;

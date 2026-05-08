@@ -28,6 +28,7 @@ namespace Lefarma.API.Features.Config.Engine
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.AccionHandlers)
+                            .ThenInclude(h => h.Campo)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.TipoAccion)

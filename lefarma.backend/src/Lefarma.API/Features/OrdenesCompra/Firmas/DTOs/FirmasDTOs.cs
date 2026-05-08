@@ -45,6 +45,7 @@ public class FirmarRequest
         public bool Requerido { get; set; } = true;
         public string? ConfiguracionJson { get; set; }
         public int OrdenEjecucion { get; set; }
+        public WorkflowCampoMetadataResponse? Campo { get; set; }
     }
 
     public class WorkflowCampoMetadataResponse

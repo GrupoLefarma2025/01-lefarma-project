@@ -66,6 +66,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
+                            .ThenInclude(a => a.Notificaciones)
+                                .ThenInclude(n => n.Canales)
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.Participantes)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
@@ -194,7 +196,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
                 
                 // Obtener campos del workflow una sola vez
-                var camposWorkflow = (await _workflowRepo.GetCamposByWorkflowAsync(orden.IdWorkflow)).ToList();
+                var camposWorkflow = (await _workflowRepo.GetCamposAsync()).ToList();
 
                 var result = new List<AccionDisponibleResponse>();
                 foreach (var a in acciones)
@@ -219,7 +221,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                             HandlerKey = h.HandlerKey,
                             Requerido = h.Requerido,
                             ConfiguracionJson = h.ConfiguracionJson,
-                            OrdenEjecucion = h.OrdenEjecucion
+                            OrdenEjecucion = h.OrdenEjecucion,
+                            Campo = h.Campo != null ? new WorkflowCampoMetadataResponse
+                            {
+                                IdWorkflowCampo = h.Campo.IdWorkflowCampo,
+                                NombreTecnico = h.Campo.NombreTecnico,
+                                EtiquetaUsuario = h.Campo.EtiquetaUsuario,
+                                TipoControl = h.Campo.TipoControl,
+                                SourceCatalog = h.Campo.SourceCatalog
+                            } : null
                         }).ToList(),
                         CamposWorkflow = camposWorkflow.Select(c => new WorkflowCampoMetadataResponse
                         {
@@ -272,7 +282,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("acción", idAccion.ToString());
 
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
-                var campos = (await _workflowRepo.GetCamposByWorkflowAsync(workflow.IdWorkflow)).ToList();
+                var campos = (await _workflowRepo.GetCamposAsync()).ToList();
 
                 // CamposRequeridos: nombres técnicos de campos vinculados a handlers requeridos activos
                 var camposRequeridos = handlers
