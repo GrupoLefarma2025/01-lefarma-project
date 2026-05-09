@@ -16,7 +16,9 @@ public record SubirComprobanteRequest(
     // Campos exclusivos de pago
     string? ReferenciaPago,
     DateTime? FechaPago,
-    decimal? MontoPago
+    decimal? MontoPago,
+    // Medio de pago (nullable, solo categoria='pago')
+    int? IdMedioPago
 );
 
 public record AsignarPartidasRequest(
@@ -24,7 +26,6 @@ public record AsignarPartidasRequest(
 );
 
 public record AsignacionItemRequest(
-    int? IdConcepto,
     int IdPartida,
     decimal CantidadAsignada,
     decimal ImporteAsignado,
@@ -48,6 +49,9 @@ public record ComprobanteResponse(
     string? ReferenciaPago,
     DateTime? FechaPago,
     decimal? MontoPago,
+    int? IdMedioPago,
+    string? MedioPagoNombre,
+    string? DatosAdicionales,
     List<ComprobanteConceptoResponse> Conceptos
 );
 
@@ -85,11 +89,10 @@ public record CfdiPreviewResponse(
     decimal TotalRetenciones,
     decimal Total,
     List<CfdiConceptoPreviewDto> Conceptos,
-    // Validación SAT (solo cuando se consulta con idOrden; null si solo se parseó el XML)
-    bool?   SatContactado    = null,   // true si el SAT respondió
-    string? SatEstado        = null,   // "Vigente" | "Cancelado" | "No Encontrado"
-    string? SatCodigoEstatus = null,   // Descripción del código S/N
-    string? SatCancelacion   = null    // Estado de cancelación (null si Vigente)
+    bool?   SatContactado    = null,
+    string? SatEstado        = null,
+    string? SatCodigoEstatus = null,
+    string? SatCancelacion   = null
 );
 
 public record CfdiConceptoPreviewDto(
@@ -112,6 +115,7 @@ public record PartidaPendienteResponse(
     string FolioOrden,
     decimal Cantidad,
     decimal PrecioUnitario,
+    decimal Total,
     decimal CantidadFacturada,
     decimal ImporteFacturado,
     decimal CantidadPendiente,

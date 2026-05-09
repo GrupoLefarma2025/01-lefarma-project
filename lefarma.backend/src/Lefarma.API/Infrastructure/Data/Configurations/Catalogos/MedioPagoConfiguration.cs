@@ -50,6 +50,10 @@ public class MedioPagoConfiguration : IEntityTypeConfiguration<MedioPago>
                 .HasColumnName("requiere_autorizacion")
                 .HasDefaultValue(false);
 
+            builder.Property(e => e.Orden)
+                .HasColumnName("orden")
+                .HasDefaultValue(0);
+
             builder.Property(e => e.LimiteMonto)
                 .HasColumnName("limite_monto")
                 .HasColumnType("decimal(18,2)");

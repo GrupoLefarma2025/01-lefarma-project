@@ -1680,7 +1680,6 @@ public class WorkflowService : BaseService, IWorkflowService
             Activo = w.Activo,
             FechaCreacion = w.FechaCreacion,
             Campos = campos
-                .Where(c => c.Activo)
                 .OrderBy(c => c.EtiquetaUsuario)
                 .Select(c => new WorkflowCampoResponse
                 {
@@ -1693,7 +1692,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     ValidarFiscal = c.ValidarFiscal,
                     Activo = c.Activo
                 }).ToList(),
-                Pasos = w.Pasos.Where(p => p.Activo).OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
+                Pasos = w.Pasos.OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
                 {
                 IdPaso = p.IdPaso,
                 Orden = p.Orden,
@@ -1707,7 +1706,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 RequiereComentario = p.RequiereComentario,
                 RequiereAdjunto = p.RequiereAdjunto,
                 PermiteAdjunto = p.PermiteAdjunto,
-                Acciones = p.AccionesOrigen.Where(a => a.Activo).Select(a => new WorkflowAccionResponse
+                Acciones = p.AccionesOrigen.Select(a => new WorkflowAccionResponse
                 {
                     IdAccion = a.IdAccion,
                     IdTipoAccion = a.IdTipoAccion,
@@ -1717,7 +1716,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPasoDestino = a.IdPasoDestino,
                     EnviaConcentrado = a.EnviaConcentrado,
                     Activo = a.Activo,
-                    Handlers = a.AccionHandlers.Where(h => h.Activo).OrderBy(h => h.OrdenEjecucion).Select(h => new WorkflowAccionHandlerResponse
+                    Handlers = a.AccionHandlers.OrderBy(h => h.OrdenEjecucion).Select(h => new WorkflowAccionHandlerResponse
                     {
                         IdHandler = h.IdHandler,
                         HandlerKey = h.HandlerKey,
@@ -1737,7 +1736,7 @@ public class WorkflowService : BaseService, IWorkflowService
                             Activo = h.Campo.Activo
                         } : null
                     }).ToList(),
-                    Notificaciones = a.Notificaciones.Where(n => n.Activo).Select(n => new NotificacionResponse
+                    Notificaciones = a.Notificaciones.Select(n => new NotificacionResponse
                     {
                         IdNotificacion = n.IdNotificacion,
                         IdAccion = n.IdAccion,
@@ -1763,7 +1762,7 @@ public class WorkflowService : BaseService, IWorkflowService
                         }).ToList()
                     }).ToList()
                 }).ToList(),
-                Condiciones = p.Condiciones.Where(c => c.Activo).Select(c => new CondicionResponse
+                Condiciones = p.Condiciones.Select(c => new CondicionResponse
                 {
                     IdCondicion = c.IdCondicion,
                     IdPaso = c.IdPaso,
@@ -1773,7 +1772,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPasoSiCumple = c.IdPasoSiCumple,
                     Activo = c.Activo
                 }).ToList(),
-                Participantes = p.Participantes.Where(pt => pt.Activo).Select(pt => new ParticipanteResponse
+                Participantes = p.Participantes.Select(pt => new ParticipanteResponse
                 {
                     IdParticipante = pt.IdParticipante,
                     IdPaso = pt.IdPaso,

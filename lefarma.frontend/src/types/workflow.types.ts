@@ -60,9 +60,12 @@ export interface WorkflowAccion {
 export interface WorkflowAccionHandler {
   idHandler: number;
   handlerKey: string;
-  configuracionJson?: string;
+  requerido: boolean;
+  configuracionJson?: string | null;
   ordenEjecucion: number;
   activo: boolean;
+  idWorkflowCampo?: number | null;
+  campo?: WorkflowCampo | null;
 }
 
 export interface WorkflowCampo {

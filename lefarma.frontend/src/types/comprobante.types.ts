@@ -16,19 +16,22 @@ export interface ComprobanteConceptoResponse {
 
 export interface ComprobanteResponse {
   idComprobante: number;
-  categoria: string;           // 'gasto' | 'pago'
-  tipoComprobante: string;     // cfdi | ticket | nota | recibo | manual | spei | cheque | ...
+  categoria: string;
+  tipoComprobante: string;
   esCfdi: boolean;
   uuidCfdi?: string | null;
   rfcEmisor?: string | null;
   nombreEmisor?: string | null;
   total: number;
-  estado: number; // 0=Pendiente, 1=Parcial, 2=Aplicado, 3=Rechazado
+  estado: number;
   estadoDescripcion: string;
   fechaCreacion: string;
   referenciaPago?: string | null;
   fechaPago?: string | null;
   montoPago?: number | null;
+  idMedioPago?: number | null;
+  medioPagoNombre?: string | null;
+  datosAdicionales?: string | null;
   conceptos: ComprobanteConceptoResponse[];
 }
 
@@ -83,11 +86,12 @@ export interface PartidaPendienteResponse {
   folioOrden: string;
   cantidad: number;
   precioUnitario: number;
+  total: number;
   cantidadFacturada: number;
   importeFacturado: number;
   cantidadPendiente: number;
   importePendiente: number;
-  estadoFacturacion: number; // 0=Pendiente, 1=Parcial, 2=Completa
+  estadoFacturacion: number;
 }
 
 // ─── Facturación por partida ──────────────────────────────────────────────────
@@ -121,10 +125,10 @@ export interface SubirComprobanteRequest {
   tipoComprobante: string;
   totalManual?: number | null;
   notas?: string | null;
+  idMedioPago?: number | null;
 }
 
 export interface AsignacionItemRequest {
-  idConcepto?: number | null;
   idPartida: number;
   cantidadAsignada: number;
   importeAsignado: number;

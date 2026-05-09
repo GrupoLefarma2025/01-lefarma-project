@@ -4,21 +4,25 @@ using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
 namespace Lefarma.API.Features.Config.Engine
 {
     public class WorkflowEngine : IWorkflowEngine
     {
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
+        private readonly AsokamDbContext _asokamContext;
         private readonly IServiceProvider _serviceProvider;
 
         public WorkflowEngine(
             IWorkflowRepository workflowRepo,
             ApplicationDbContext context,
+            AsokamDbContext asokamContext,
             IServiceProvider serviceProvider)
         {
             _workflowRepo = workflowRepo;
             _context = context;
+            _asokamContext = asokamContext;
             _serviceProvider = serviceProvider;
         }
 
@@ -231,7 +235,7 @@ namespace Lefarma.API.Features.Config.Engine
                 return true;
 
             // Verificar asignación por rol
-            var rolesUsuario = await _context.UsuariosRoles
+            var rolesUsuario = await _asokamContext.UsuariosRoles
                 .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                 .Select(ur => ur.IdRol)
                 .ToListAsync();

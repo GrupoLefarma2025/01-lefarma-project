@@ -14,6 +14,7 @@ public class MedioPago
         public string? CodigoSAT { get; set; }
         public bool RequiereReferencia { get; set; } = false;
         public bool RequiereAutorizacion { get; set; } = false;
+        public int Orden { get; set; } = 0;
         public decimal? LimiteMonto { get; set; }
         public int? PlazoMaximoDias { get; set; }
         public bool Activo { get; set; } = true;

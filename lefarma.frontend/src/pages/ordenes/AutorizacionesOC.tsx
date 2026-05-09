@@ -36,6 +36,7 @@ import {
   Eye,
   Download,
   Clock,
+  AlertCircle,
   XCircle,
   AlertTriangle,
   UserRound,
@@ -91,6 +92,8 @@ interface AccionHandlerResponse {
   configuracionJson?: string | null;
   ordenEjecucion: number;
   campo?: WorkflowCampoResponse | null;
+  validacionExito?: boolean | null;
+  validacionMensaje?: string | null;
 }
 
 interface WorkflowCampoResponse {
@@ -214,7 +217,7 @@ interface WorkflowPasoFlowResponse {
   permiteAdjunto: boolean;
 }
 
-type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string };
+type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string; validacionExito?: boolean | null; validacionMensaje?: string | null };
 
 function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoFormItem[] {
   if (!accion) return [];
@@ -262,6 +265,28 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
             }, 
             requerido: handler.requerido, 
             inputKey 
+          });
+        }
+      }
+
+      // Alerta: muestra mensaje de validacion (ej: proveedor no autorizado)
+      if (handler.campo?.tipoControl === 'Alerta') {
+        const inputKey = handler.campo.nombreTecnico;
+        if (!seen.has(inputKey)) {
+          seen.add(inputKey);
+          result.push({
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: 'Alerta',
+              sourceCatalog: null,
+              activo: true
+            },
+            requerido: false,
+            inputKey,
+            validacionExito: handler.validacionExito,
+            validacionMensaje: handler.validacionMensaje
           });
         }
       }
@@ -772,7 +797,7 @@ export default function AutorizacionesOC() {
                 (c.cantidadAsignada ?? 0) > 0 || (c.importeAsignado ?? 0) > 0
             );
             if (!tieneAsignaciones) {
-              toast.error(`El comprobante ${comp.nombreEmisor ?? comp.uuidCfdi ?? comp.tipoComprobante} no tiene asignaciones a partidas. Debes asignarlo antes de firmar.`);
+              toast.error(`El comprobante ${comp.nombreEmisor ?? comp.tipoComprobante?.toUpperCase() ?? 'sin nombre'} no tiene asignaciones. Debes asignarlo antes de firmar.`);
               setIsSubmittingFirma(false);
               return;
             }
@@ -1032,6 +1057,25 @@ export default function AutorizacionesOC() {
       ),
     },
     {
+      id: 'descripcionPartidas',
+      header: 'Descripcion',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground line-clamp-2 max-w-[200px]">
+          {row.original.partidas?.map(p => p.descripcion).filter(Boolean).join(', ') || '-'}
+        </span>
+      ),
+      size: 200,
+    },
+    {
+      accessorKey: 'fechaLimitePago',
+      header: 'Limite de pago',
+      cell: ({ row }) => (
+        <span className="text-sm">
+          {fmtFecha(row.original.fechaLimitePago)}
+        </span>
+      ),
+    },
+    {
       accessorKey: 'fechaSolicitud',
       header: 'Fecha solicitud',
       cell: ({ row }) => (
@@ -1068,7 +1112,7 @@ export default function AutorizacionesOC() {
             size="sm"
             variant="outline"
             className="gap-1.5"
-            onClick={(e) => { e.stopPropagation(); setSelectedId(row.original.idOrden); }}
+            onClick={(e) => { e.stopPropagation(); setSelectedId(row.original.idOrden); setIsDetailDrawerOpen(true); }}
           >
             <Eye className="h-3.5 w-3.5" />
             Revisar
@@ -1139,7 +1183,7 @@ export default function AutorizacionesOC() {
               searchableColumns: ['folio'],
               defaultSearchColumns: ['folio'],
             }}
-            onRowClick={(row) => setSelectedId((row as OrdenCompraResponse).idOrden)}
+            onRowClick={(row) => { setSelectedId((row as OrdenCompraResponse).idOrden); setIsDetailDrawerOpen(true); }}
             isRowSelected={(row) => (row as OrdenCompraResponse).idOrden === selectedId}
             height={460}
           />
@@ -1149,7 +1193,10 @@ export default function AutorizacionesOC() {
       <Modal
         id="modal-detalle-oc"
         open={isDetailDrawerOpen}
-        setOpen={setIsDetailDrawerOpen}
+        setOpen={(open) => {
+          setIsDetailDrawerOpen(open);
+          if (!open) setSelectedId(null);
+        }}
         title={
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1">
@@ -1252,15 +1299,10 @@ export default function AutorizacionesOC() {
                       </TabsTrigger>
                       <TabsTrigger
                         value="facturacion"
-                        className="hidden border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                        className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                         onClick={() => selectedOrden && fetchPartidasPendientes(selectedOrden.idOrden)}
                       >
-                        Facturación
-                        {partidasPendientes.some((p) => p.estadoFacturacion < 2) && (
-                          <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
-                            {partidasPendientes.filter((p) => p.estadoFacturacion < 2).length}
-                          </span>
-                        )}
+                        Comprobantes
                       </TabsTrigger>
                       <TabsTrigger
                         value="archivos"
@@ -1872,11 +1914,24 @@ export default function AutorizacionesOC() {
                                                 acciones
                                                   .filter(a => !a.enviaConcentrado)
                                                   .map((a) => (
-                                                   <Button
-                                                    key={a.idAccion}
-                                                    size="sm"
-                                                    variant={a.tipoAccionCodigo === 'RECHAZAR' ? 'destructive' : 'default'}
-                                                    onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                                                  <Button
+                                                   key={a.idAccion}
+                                                   size="sm"
+                                                   className={(() => {
+                                                     const styles: Record<string, string> = {
+                                                       'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                                       'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                     };
+                                                     return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                                   })()}
+                                                   onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
                                                   >
                                                     {a.tipoAccionNombre}
                                                   </Button>
@@ -1898,7 +1953,7 @@ export default function AutorizacionesOC() {
                       </div>
                     </TabsContent>
 
-                    {/* Tab: Facturación */}
+                    {/* Tab: Comprobantes */}
                     <TabsContent
                       value="facturacion"
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
@@ -1906,9 +1961,9 @@ export default function AutorizacionesOC() {
                       <div className="space-y-3">
                         {/* Header del tab */}
                         <div>
-                          <h3 className="text-sm font-semibold">Comprobantes de pago</h3>
+                          <h3 className="text-sm font-semibold">Comprobantes de gasto y pago</h3>
                           <p className="text-muted-foreground text-xs">
-                            Partidas de la orden y su estado de facturación
+                            Estado de comprobacion por partida
                           </p>
                         </div>
 
@@ -1923,85 +1978,83 @@ export default function AutorizacionesOC() {
                           </div>
                         ) : (
                           <div className="space-y-2">
+                            {/* Gasto */}
                             {partidasPendientes.map((partida) => {
-                              const pctFacturado =
-                                partida.cantidad > 0
-                                  ? Math.min(
-                                      100,
-                                      (partida.cantidadFacturada / partida.cantidad) * 100
-                                    )
-                                  : 0;
+                              const pctFacturado = partida.total > 0
+                                ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                : 0;
                               const estadoConfig = {
-                                0: {
-                                  label: 'Pendiente',
-                                  className: 'bg-amber-100 text-amber-700 border-amber-200',
-                                  barColor: 'bg-amber-400',
-                                },
-                                1: {
-                                  label: 'Parcial',
-                                  className: 'bg-blue-100 text-blue-700 border-blue-200',
-                                  barColor: 'bg-blue-400',
-                                },
-                                2: {
-                                  label: 'Completa',
-                                  className: 'bg-green-100 text-green-700 border-green-200',
-                                  barColor: 'bg-green-500',
-                                },
-                              }[partida.estadoFacturacion] ?? {
-                                label: 'Desconocido',
-                                className: 'bg-muted text-muted-foreground border-muted',
-                                barColor: 'bg-muted',
-                              };
+                                0: { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 border-amber-200', barColor: 'bg-amber-400' },
+                                1: { label: 'Parcial', className: 'bg-blue-100 text-blue-700 border-blue-200', barColor: 'bg-blue-400' },
+                                2: { label: 'Completa', className: 'bg-green-100 text-green-700 border-green-200', barColor: 'bg-green-500' },
+                              }[partida.estadoFacturacion] ?? { label: 'Desconocido', className: 'bg-muted text-muted-foreground border-muted', barColor: 'bg-muted' };
 
                               return (
-                                <div
-                                  key={partida.idPartida}
-                                  className="bg-card rounded-lg border p-3 shadow-sm"
-                                >
+                                <div key={`gasto-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
                                   <div className="mb-2 flex items-start justify-between gap-2">
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center gap-2">
-                                        <span className="text-muted-foreground text-xs font-mono">
-                                          #{partida.numeroPartida}
-                                        </span>
-                                        <p className="truncate text-sm font-medium">
-                                          {partida.descripcionPartida}
-                                        </p>
+                                        <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                        <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                        <Badge variant="outline" className="text-[10px]">Gasto</Badge>
                                       </div>
-                                      <p className="text-muted-foreground mt-0.5 text-xs">
-                                        {partida.folioOrden}
-                                      </p>
+                                      <p className="text-muted-foreground mt-0.5 text-xs">{partida.folioOrden}</p>
                                     </div>
-                                    <span
-                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}
-                                    >
-                                      {estadoConfig.label}
-                                    </span>
+                                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}>{estadoConfig.label}</span>
                                   </div>
-
-                                  {/* Barra de progreso */}
                                   <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${estadoConfig.barColor}`}
-                                      style={{ width: `${pctFacturado}%` }}
-                                    />
+                                    <div className={`h-full rounded-full transition-all ${estadoConfig.barColor}`} style={{ width: `${pctFacturado}%` }} />
                                   </div>
-
-                                  {/* Cantidades */}
                                   <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                    <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
                                     <span>
-                                      {partida.cantidadFacturada} / {partida.cantidad} unidades
-                                    </span>
-                                    <span>
-                                      ${partida.importeFacturado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} /{' '}
-                                      ${(partida.cantidad * partida.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                      {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                      {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                     </span>
                                   </div>
-
-                                  {partida.cantidadPendiente > 0 && (
+                                  {partida.importePendiente > 0 && (
                                     <p className="mt-1 text-[10px] text-amber-600">
-                                      Pendiente: {partida.cantidadPendiente} unidades · $
-                                      {partida.importePendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                                      Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {/* Pago */}
+                            {partidasPendientesPago.map((partida) => {
+                              const pctPagado = partida.total > 0
+                                ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                : 0;
+                              const estadoPago = partida.importePendiente <= 0 ? 'Completa' : partida.importeFacturado > 0 ? 'Parcial' : 'Pendiente';
+                              const colorPago = estadoPago === 'Completa' ? 'bg-green-100 text-green-700 border-green-200' : estadoPago === 'Parcial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200';
+                              const barPago = estadoPago === 'Completa' ? 'bg-green-500' : estadoPago === 'Parcial' ? 'bg-blue-400' : 'bg-amber-400';
+
+                              return (
+                                <div key={`pago-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
+                                  <div className="mb-2 flex items-start justify-between gap-2">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                        <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                        <Badge variant="outline" className="text-[10px]">Pago</Badge>
+                                      </div>
+                                      <p className="text-muted-foreground mt-0.5 text-xs">{partida.folioOrden}</p>
+                                    </div>
+                                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colorPago}`}>{estadoPago}</span>
+                                  </div>
+                                  <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                    <div className={`h-full rounded-full transition-all ${barPago}`} style={{ width: `${pctPagado}%` }} />
+                                  </div>
+                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                    <span>Pagado</span>
+                                    <span>
+                                      {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                      {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                    </span>
+                                  </div>
+                                  {partida.importePendiente > 0 && (
+                                    <p className="mt-1 text-[10px] text-amber-600">
+                                      Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                     </p>
                                   )}
                                 </div>
@@ -2062,38 +2115,7 @@ export default function AutorizacionesOC() {
                         const tipoBadgeClass = (tipo?: string) =>
                           tipo ? (TIPO_BADGE[tipo.toLowerCase()] ?? 'bg-primary/10 text-primary') : '';
 
-                        // ── agrupar por paso/origen ───────────────────────
-                        type Grupo = { paso: string | null; nombrePaso?: string; origen?: string; items: typeof archivosOrden };
-                        const grupos: Grupo[] = [];
-                        const pasoMap = new Map<string, typeof archivosOrden>();
-                        const pasoNombreMap = new Map<string, string>();
-                        const pasoOrigenMap = new Map<string, string>();
-
-                        archivosOrden.forEach((a) => {
-                          const { paso, nombrePaso, origen } = parseMetaArchivo(a.metadata);
-                          // Archivos de creación van a un grupo especial '__creacion__'
-                          const key = origen === 'creacion' ? '__creacion__' : (paso ?? '__general__');
-                          if (!pasoMap.has(key)) pasoMap.set(key, []);
-                          pasoMap.get(key)!.push(a);
-                          if (nombrePaso && !pasoNombreMap.has(key)) pasoNombreMap.set(key, nombrePaso);
-                          if (origen && !pasoOrigenMap.has(key)) pasoOrigenMap.set(key, origen);
-                        });
-
-                        // Orden: pasos numéricos → creación → general
-                        const keys = Array.from(pasoMap.keys()).sort((a, b) => {
-                          if (a === '__general__') return 1;
-                          if (b === '__general__') return -1;
-                          if (a === '__creacion__') return 1;
-                          if (b === '__creacion__') return -1;
-                          return Number(a) - Number(b);
-                        });
-                        keys.forEach((k) => grupos.push({
-                          paso: k === '__general__' || k === '__creacion__' ? null : k,
-                          nombrePaso: pasoNombreMap.get(k),
-                          origen: pasoOrigenMap.get(k) ?? (k === '__creacion__' ? 'creacion' : undefined),
-                          items: pasoMap.get(k)!,
-                        }));
-
+                        // ── lista plana de archivos (sin agrupar por paso) ─────
                         return (
                           <div className="space-y-2">
                             {/* Encabezado */}
@@ -2132,111 +2154,73 @@ export default function AutorizacionesOC() {
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-3">
-                                {grupos.map(({ paso, nombrePaso, origen, items }) => (
-                                  <div key={paso ?? origen ?? 'general'}>
-                                    {/* Separador de grupo */}
-                                    <div className="mb-1.5 flex items-center gap-2">
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
-                                        {paso
-                                          ? `Paso ${paso}`
-                                          : origen === 'creacion'
-                                          ? 'Creación de orden'
-                                          : 'General'}
+                              <div className="space-y-1">
+                                {archivosOrden.map((archivo) => {
+                                  const meta = parseMetaArchivo(archivo.metadata);
+                                  const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
+                                  const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
+                                  let tipoLabel: string | undefined;
+                                  if (esComprobante) {
+                                    const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
+                                    const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
+                                    tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
+                                  } else {
+                                    tipoLabel = meta.observaciones ?? meta.tipo;
+                                  }
+
+                                  return (
+                                    <div
+                                      key={archivo.id}
+                                      className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
+                                    >
+                                      <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
+                                        {ext || '?'}
                                       </span>
-                                      {nombrePaso && (
-                                        <span className="text-[10px] text-muted-foreground truncate">
-                                          — {nombrePaso}
-                                        </span>
-                                      )}
-                                      <div className="h-px flex-1 bg-border" />
-                                      <span className="text-[10px] text-muted-foreground shrink-0">{items.length}</span>
-                                    </div>
 
-                                    {/* Archivos del grupo */}
-                                    <div className="space-y-1">
-                                       {items.map((archivo) => {
-                                        const meta = parseMetaArchivo(archivo.metadata);
-                                        const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
-                                        // Label: para comprobantes usar subtipo + tipo de archivo
-                                        const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
-                                        let tipoLabel: string | undefined;
-                                        if (esComprobante) {
-                                          const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
-                                          const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
-                                          tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
-                                        } else {
-                                          tipoLabel = meta.observaciones ?? meta.tipo;
-                                        }
-
-                                        return (
-                                          <div
-                                            key={archivo.id}
-                                            className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
-                                          >
-                                            {/* Badge extensión */}
-                                            <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
-                                              {ext || '?'}
+                                      <div className="min-w-0 flex-1 space-y-0.5">
+                                        <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
+                                          {archivo.nombreOriginal}
+                                        </p>
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          {tipoLabel && (
+                                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tipoBadgeClass(meta.tipo)}`}>
+                                              {tipoLabel}
                                             </span>
+                                          )}
+                                          {esComprobante && meta.monto != null && (
+                                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                              {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          )}
+                                          <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
+                                          <span className="text-muted-foreground/40">·</span>
+                                          <span className="text-muted-foreground">
+                                            {fmtFecha(archivo.fechaCreacion)}
+                                          </span>
+                                        </div>
+                                        {(meta.nombrePaso || meta.nombreAccion) && (
+                                          <p className="text-[10px] text-muted-foreground/60 leading-tight">
+                                            {meta.nombrePaso ? `Paso: ${meta.nombrePaso}` : ''}
+                                            {meta.nombrePaso && meta.nombreAccion ? ' — ' : ''}
+                                            {meta.nombreAccion ?? ''}
+                                          </p>
+                                        )}
+                                      </div>
 
-                                            {/* Contenido */}
-                                            <div className="min-w-0 flex-1 space-y-0.5">
-                                              <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
-                                                {archivo.nombreOriginal}
-                                              </p>
-                                              <div className="flex flex-wrap items-center gap-1.5">
-                                                {tipoLabel && (
-                                                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tipoBadgeClass(meta.tipo)}`}>
-                                                    {tipoLabel}
-                                                  </span>
-                                                )}
-                                                {/* Monto del comprobante */}
-                                                {esComprobante && meta.monto != null && (
-                                                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                                  </span>
-                                                )}
-                                                <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
-                                                <span className="text-muted-foreground/40">·</span>
-                                                <span className="text-muted-foreground">
-                                                  {fmtFecha(archivo.fechaCreacion)}
-                                                </span>
-                                              </div>
-                                              {meta.nombreAccion && (
-                                                <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                                  {meta.nombreAccion}
-                                                </p>
-                                              )}
-                                            </div>
-
-                                            {/* Acciones */}
-                                            <div className="flex shrink-0 items-center gap-0.5">
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                                title="Ver documento"
-                                                onClick={() => setViewerArchivoId(archivo.id)}
-                                              >
-                                                <Eye className="h-3.5 w-3.5" />
-                                              </Button>
-                                              <a
-                                                href={archivoService.getDownloadUrl(archivo.id)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title="Descargar"
-                                              >
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
-                                                  <Download className="h-3.5 w-3.5" />
-                                                </Button>
-                                              </a>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                      <div className="flex shrink-0 items-center gap-0.5">
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Ver documento"
+                                          onClick={() => setViewerArchivoId(archivo.id)}>
+                                          <Eye className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <a href={archivoService.getDownloadUrl(archivo.id)} target="_blank" rel="noopener noreferrer" title="Descargar">
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                                            <Download className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </a>
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -2292,12 +2276,38 @@ export default function AutorizacionesOC() {
           {camposParaAccion.length > 0 && (
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-semibold">
-                Información requerida
+                Informacion requerida
                 {loadingCatalogos && (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </h4>
-              {camposParaAccion.map(({ campo, requerido, inputKey }) => {
+
+              {/* Mensajes de validacion de todos los handlers que tengan uno */}
+              {camposParaAccion.some(c => c.validacionMensaje) && (
+                <div className="space-y-1.5">
+                  {camposParaAccion.filter(c => c.validacionMensaje).map(({ campo, validacionExito, validacionMensaje }) => (
+                    <div
+                      key={campo.nombreTecnico}
+                      className={`rounded-md border px-3 py-2 text-sm ${
+                        validacionExito === false
+                          ? 'border-red-300 bg-red-50 text-red-800 dark:bg-red-950/20 dark:text-red-400'
+                          : 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="font-semibold">{campo.etiquetaUsuario}</p>
+                          <p className="mt-0.5 text-xs opacity-90">{validacionMensaje}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Inputs y otros controles */}
+              {camposParaAccion.map(({ campo, requerido, inputKey, validacionExito, validacionMensaje }) => {
                 const fieldId = `campo-${inputKey}`;
                 const value = camposValues[inputKey];
 
@@ -2427,7 +2437,7 @@ export default function AutorizacionesOC() {
                                 <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
                                 <div className="flex-1 min-w-0">
                                   <p className="font-medium text-green-700 dark:text-green-400 truncate">
-                                    {cg.nombreEmisor ?? 'Factura CFDI'}
+                                    {cg.nombreEmisor ?? cg.tipoComprobante?.toUpperCase() ?? 'Comprobante'}
                                   </p>
                                   <p className="text-green-600/80 dark:text-green-500/80">
                                     {cg.uuidCfdi ? `UUID: ${cg.uuidCfdi.slice(0, 8)}…` : 'Sin UUID'}
@@ -2435,19 +2445,6 @@ export default function AutorizacionesOC() {
                                     ${cg.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                                   </p>
                                 </div>
-                                <button
-                                  type="button"
-                                  title="Quitar"
-                                  className="text-muted-foreground hover:text-destructive shrink-0"
-                                  onClick={() =>
-                                    setComprobantesWorkflow((prev) => ({
-                                      ...prev,
-                                      comprobante_gasto: (prev['comprobante_gasto'] ?? []).filter((_, i) => i !== idx),
-                                    }))
-                                  }
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
                               </div>
                             ))}
                           </div>
@@ -2491,19 +2488,6 @@ export default function AutorizacionesOC() {
                                   <p className="text-muted-foreground">Ref: {cp.referenciaPago}</p>
                                 )}
                               </div>
-                              <button
-                                type="button"
-                                title="Quitar"
-                                className="text-muted-foreground hover:text-destructive shrink-0"
-                                onClick={() =>
-                                  setComprobantesWorkflow((prev) => ({
-                                    ...prev,
-                                    [inputKey]: (prev[inputKey] ?? []).filter((_, i) => i !== idx),
-                                  }))
-                                }
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
                             </div>
                           ))}
                         </div>
@@ -2607,13 +2591,6 @@ export default function AutorizacionesOC() {
                       <span className="flex-1 truncate text-green-800 dark:text-green-300">
                         {archivo.nombreOriginal}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setAdjuntosLibres((prev) => prev.filter((a) => a.id !== archivo.id))}
-                        className="text-green-600 hover:text-red-500 dark:text-green-400 dark:hover:text-red-400"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
                     </div>
                   ))}
                 </div>

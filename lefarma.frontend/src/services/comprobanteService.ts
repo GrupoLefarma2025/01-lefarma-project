@@ -46,6 +46,7 @@ export const comprobanteService = {
     referenciaPago?: string | null;
     fechaPago?: string | null;
     montoPago?: number | null;
+    idMedioPago?: number | null;
   }): Promise<ComprobanteResponse> {
     const form = new FormData();
     form.append('idEmpresa', String(params.idEmpresa));
@@ -62,6 +63,7 @@ export const comprobanteService = {
     if (params.referenciaPago) form.append('referenciaPago', params.referenciaPago);
     if (params.fechaPago) form.append('fechaPago', params.fechaPago);
     if (params.montoPago != null) form.append('montoPago', String(params.montoPago));
+    if (params.idMedioPago != null) form.append('idMedioPago', String(params.idMedioPago));
 
     const res = await API.post<ApiResponse<ComprobanteResponse>>(
       BASE,
