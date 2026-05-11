@@ -22,7 +22,7 @@ namespace Lefarma.API.Features.Config.Engine
         {
             _workflowRepo = workflowRepo;
             _context = context;
-            _asokamcontext = asokamcontext;
+            _asokamContext = asokamcontext;
             _serviceProvider = serviceProvider;
         }
 
@@ -235,7 +235,7 @@ namespace Lefarma.API.Features.Config.Engine
                 return true;
 
             // Verificar asignación por rol
-            var rolesUsuario = await _asokamcontext.UsuariosRoles
+            var rolesUsuario = await _asokamContext.UsuariosRoles
                 .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                 .Select(ur => ur.IdRol)
                 .ToListAsync();

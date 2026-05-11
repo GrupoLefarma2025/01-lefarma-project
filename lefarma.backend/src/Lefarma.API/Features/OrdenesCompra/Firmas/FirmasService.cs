@@ -84,9 +84,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
-                // Validar que el usuario es participante del paso actual
-                // Si es el paso inicial, el creador de la orden siempre puede ejecutar
-                if (!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador)
+                //// Validar que el usuario es participante del paso actual
+                //// Si es el paso inicial, el creador de la orden siempre puede ejecutar
+                /// Si se manda para autorizacion
+                if ((!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador))
                 {
                     var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
                     if (participantes.Any())
@@ -94,10 +95,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
                         if (!esParticipante)
                         {
-                              var rolesUsuario = await _asokamContext.UsuariosRoles
-                                .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
-                                .Select(ur => ur.IdRol)
-                                .ToListAsync();
+                            var rolesUsuario = await _asokamContext.UsuariosRoles
+                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                              .Select(ur => ur.IdRol)
+                              .ToListAsync();
                             esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
                         }
                         if (!esParticipante)
@@ -131,7 +132,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (nuevoIdEstado.HasValue)
                 {
                     orden.IdEstado = nuevoIdEstado.Value;
-                    if (nuevoIdEstado == 3) // 3 = AUTORIZADA
+                    if (nuevoIdEstado == 7) // 7 SE CIERRA ORDEN
                         orden.FechaAutorizacion = DateTime.UtcNow;
                 }
 
@@ -185,7 +186,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 return CommonErrors.InternalServerError("Error inesperado al procesar la firma.");
             }
         }
-
         public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesAsync(int idOrden, int idUsuario)
         {
             try
@@ -862,7 +862,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             {
                 var concentrado = await _context.EnviosConcentrado
                     .Include(e => e.Ordenes)
-                    .FirstOrDefaultAsync(e => e.IdEnvioConcentrado == request.IdConcentrado 
+                    .FirstOrDefaultAsync(e => e.IdEnvioConcentrado == request.IdConcentrado
                         && e.TokenSeguridad == request.TokenSeguridad);
 
                 if (concentrado is null)
@@ -872,7 +872,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.Conflict("Concentrado", $"El concentrado ya fue {concentrado.Estado}.");
 
                 var resultados = new List<EnvioConcentradoItemResult>();
-                var esAprobar = request.Accion.ToUpper() == "APROBAR";
+                var esAprobar = request.Accion.ToUpper() == "AUTORIZAR";
 
                 foreach (var orden in concentrado.Ordenes)
                 {
@@ -890,7 +890,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
                     var accion = esAprobar
-                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "APROBAR" && a.Activo)
+                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "AUTORIZAR" && a.Activo)
                         : accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "DEVOLVER" && a.Activo);
 
                     if (accion is null)
@@ -900,7 +900,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                             IdOrden = orden.IdOrden,
                             Folio = orden.Folio,
                             Exitoso = false,
-                            Error = $"No hay acción {(esAprobar ? "APROBAR" : "DEVOLVER")} disponible."
+                            Error = $"No hay acción {(esAprobar ? "AUTORIZAR" : "DEVOLVER")} disponible."
                         });
                         continue;
                     }
@@ -914,15 +914,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         Comentario: request.Comentario
                     );
 
-                    var resultado = await _engine.EjecutarAccionAsync(ctx);
+                    var resultado = await FirmarAsync(orden.IdOrden, new FirmarRequest { IdAccion = accion.IdAccion, Comentario = request.Comentario }, request.IdUsuario);
+
+
+                    //var resultado = await _engine.EjecutarAccionAsync(ctx);
 
                     resultados.Add(new EnvioConcentradoItemResult
                     {
                         IdOrden = orden.IdOrden,
                         Folio = orden.Folio,
-                        Exitoso = resultado.Exitoso,
-                        Error = resultado.Error,
-                        NuevoEstado = resultado.NuevoIdEstado?.ToString()
+                        Exitoso = true,
+                        Error = resultado.Value.Mensaje,
+                        NuevoEstado = resultado.Value.NuevoEstado?.ToString()
                     });
                 }
 
@@ -947,7 +950,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 return CommonErrors.InternalServerError("Error inesperado al procesar respuesta del concentrado.");
             }
         }
-
         private async Task<int?> GetEstadoIdByCodigoAsync(string codigo)
         {
             var estado = await _context.WorkflowEstados

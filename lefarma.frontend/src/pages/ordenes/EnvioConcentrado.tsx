@@ -188,23 +188,46 @@ export default function EnvioConcentrado() {
     setEnvioResult(null);
     setEnvioError(null);
     try {
-      const previewElement = document.getElementById('envio-concentrado-preview');
-      if (!previewElement) throw new Error('No se encontró el preview del concentrado');
+      const pdfElement = document.getElementById('envio-concentrado-pdf-print');
+      if (!pdfElement) throw new Error('No se encontró el componente PDF del concentrado');
 
-      const canvas = await html2canvas(previewElement, {
+      // Hacer visible temporalmente para html2canvas
+      pdfElement.style.display = 'block';
+      pdfElement.style.position = 'absolute';
+      pdfElement.style.top = '-9999px';
+      pdfElement.style.left = '0';
+      pdfElement.style.width = '1200px';
+      pdfElement.style.background = '#ffffff';
+
+      const canvas = await html2canvas(pdfElement, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
+        windowWidth: 1200,
       });
+
+      // Restaurar ocultamiento
+      pdfElement.style.display = '';
+      pdfElement.style.position = '';
+      pdfElement.style.top = '';
+      pdfElement.style.left = '';
+      pdfElement.style.width = '';
+      pdfElement.style.background = '';
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width * ratio, canvas.height * ratio);
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const finalWidth = imgWidth * ratio;
+      const finalHeight = imgHeight * ratio;
+      const offsetX = (pdfWidth - finalWidth) / 2;
+      const offsetY = (pdfHeight - finalHeight) / 2;
+      pdf.addImage(imgData, 'PNG', offsetX, offsetY, finalWidth, finalHeight);
 
       const pdfBlob = pdf.output('blob');
 
@@ -212,8 +235,8 @@ export default function EnvioConcentrado() {
       for (const id of ordenesSeleccionadas.map((o) => o.idOrden)) {
         formData.append('IdsOrdenes', String(id));
       }
-      formData.append('comentario', 'Enviado en lote desde Envío GAF');
-      formData.append('nombre', `concentrado  ${new Date().toISOString().split('T')[0]}`);
+      formData.append('comentario', 'Autorización enviada desde el sistema de control de gastos');
+      formData.append('nombre', `concentrado-${new Date().toISOString().split('T')[0]}`);
       formData.append('usuario', '41@Grupolefarma');
       formData.append('correo', '41@grupolefarma.com.mx');
       formData.append('correoCC', '6@grupolefarma.com.mx');

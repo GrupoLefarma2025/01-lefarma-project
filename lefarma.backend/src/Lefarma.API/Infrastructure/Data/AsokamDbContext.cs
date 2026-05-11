@@ -100,6 +100,7 @@ public class AsokamDbContext : DbContext
         modelBuilder.Entity<DocumentoInterfaseOC>(entity =>
         {
             entity.HasKey(e => e.IdDocumentoFirmar);
+            entity.Property(e => e.IdEnvioConcentrado).HasColumnName("id_envio_concentrado");
             entity.ToTable("DocumentosInterfaseOC", "app");
         });
     }
