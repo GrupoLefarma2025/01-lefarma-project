@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
@@ -23,6 +25,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly IHttpClientFactory _httpClientFactory;
         private readonly IConfiguration _configuration;
         protected override string EntityName => "Firma";
 
@@ -33,6 +37,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
             IServiceScopeFactory scopeFactory,
+            IServiceProvider serviceProvider,
+            IHttpClientFactory httpClientFactory,
             IConfiguration configuration,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
@@ -43,6 +49,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             _context = context;
             _asokamContext = asokamContext;
             _scopeFactory = scopeFactory;
+            _serviceProvider = serviceProvider;
+            _httpClientFactory = httpClientFactory;
             _configuration = configuration;
         }
 
@@ -245,6 +253,63 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         RequiereAdjunto = pasoActual?.RequiereAdjunto ?? false,
                         PermiteAdjunto = pasoActual?.PermiteAdjunto ?? false
                     });
+                }
+
+                // Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
+                foreach (var response in result)
+                {
+                    foreach (var handlerMeta in response.Handlers)
+                    {
+                        string? mensaje = null;
+                        if (!string.IsNullOrWhiteSpace(handlerMeta.ConfiguracionJson))
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(handlerMeta.ConfiguracionJson);
+                                if (doc.RootElement.TryGetProperty("mensaje", out var m))
+                                    mensaje = m.GetString();
+                            }
+                            catch { }
+                        }
+
+                        if (mensaje is null) continue;
+
+                        // Alerta: solo informativo, siempre exito
+                        if (handlerMeta.HandlerKey == "Alerta")
+                        {
+                            handlerMeta.ValidacionExito = true;
+                            handlerMeta.ValidacionMensaje = mensaje;
+                            continue;
+                        }
+
+                        // Demas handlers: ejecutar el handler real para saber si pasa o falla
+                        try
+                        {
+                            var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(handlerMeta.HandlerKey);
+                            if (actionHandler == null) continue;
+
+                            var handlerEntity = await _workflowRepo.GetAccionHandlersAsync(response.IdAccion);
+                            var h = handlerEntity.FirstOrDefault(x => x.IdHandler == handlerMeta.IdHandler);
+
+                            var ctx = new WorkflowHandlerContext(
+                                Orden: orden,
+                                IdOrden: orden.IdOrden,
+                                IdAccion: response.IdAccion,
+                                IdUsuario: idUsuario,
+                                Comentario: null,
+                                DatosAdicionales: null,
+                                Handler: h);
+
+                            var vr = await actionHandler.ProcessAsync(ctx, h?.ConfiguracionJson);
+                            handlerMeta.ValidacionExito = vr.Exitoso;
+                            handlerMeta.ValidacionMensaje = vr.Exitoso ? mensaje : (vr.Error ?? mensaje);
+                        }
+                        catch
+                        {
+                            handlerMeta.ValidacionExito = null;
+                            handlerMeta.ValidacionMensaje = mensaje;
+                        }
+                    }
                 }
 
                 return result;

@@ -165,6 +165,8 @@ export function FileUploader({
       toast.success(`${uploadedArchivos.length} archivo(s) subido(s)`);
       onUploadComplete(uploadedArchivos);
       setFiles([]);
+      // Limpiar el input nativo para permitir re-seleccionar archivos
+      if (inputRef.current) inputRef.current.value = '';
     }
   };
 

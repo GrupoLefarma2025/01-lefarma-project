@@ -37,7 +37,8 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 var response = (result ?? [])
                     .Where(m => !string.IsNullOrWhiteSpace(m.Nombre))
                     .Select(m => m.ToResponse())
-                    .OrderBy(m => m.Nombre)
+                    .OrderBy(m => m.Orden)
+                    .ThenBy(m => m.Nombre)
                     .ToList();
 
                 EnrichWideEvent(action: "GetAll", count: response.Count, items: response.Select(m => m.Nombre).ToList());
@@ -93,6 +94,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
                     CodigoSAT = request.CodigoSAT,
                     RequiereReferencia = request.RequiereReferencia,
                     RequiereAutorizacion = request.RequiereAutorizacion,
+                    Orden = request.Orden,
                     LimiteMonto = request.LimiteMonto,
                     PlazoMaximoDias = request.PlazoMaximoDias,
                     Activo = request.Activo,
@@ -148,6 +150,7 @@ public class MedioPagoService : BaseService, IMedioPagoService
                 medioPago.CodigoSAT = request.CodigoSAT;
                 medioPago.RequiereReferencia = request.RequiereReferencia;
                 medioPago.RequiereAutorizacion = request.RequiereAutorizacion;
+                medioPago.Orden = request.Orden;
                 medioPago.LimiteMonto = request.LimiteMonto;
                 medioPago.PlazoMaximoDias = request.PlazoMaximoDias;
                 medioPago.FechaModificacion = DateTime.UtcNow;

@@ -199,6 +199,9 @@ public class ArchivoService : IArchivoService
         return true;
     }
 
+    public async Task<int> GetArchivosCountAsync(string entidadTipo, int entidadId, string carpeta, CancellationToken ct = default)
+        => await _repository.GetCountAsync(entidadTipo, entidadId, carpeta, ct);
+
     private static ArchivoResponse MapToResponse(Archivo archivo)
     {
         return new ArchivoResponse(
