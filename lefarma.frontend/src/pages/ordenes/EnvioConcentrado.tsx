@@ -210,10 +210,10 @@ export default function EnvioConcentrado() {
 
       const formData = new FormData();
       for (const id of ordenesSeleccionadas.map((o) => o.idOrden)) {
-        formData.append('IdsOrdenes', id);
+        formData.append('IdsOrdenes', String(id));
       }
       formData.append('comentario', 'Enviado en lote desde Envío GAF');
-      formData.append('nombre', `autorizacion_concentrado_cxp_${new Date().toISOString().split('T')[0]}`);
+      formData.append('nombre', `concentrado  ${new Date().toISOString().split('T')[0]}`);
       formData.append('usuario', '41@Grupolefarma');
       formData.append('correo', '41@grupolefarma.com.mx');
       formData.append('correoCC', '6@grupolefarma.com.mx');
