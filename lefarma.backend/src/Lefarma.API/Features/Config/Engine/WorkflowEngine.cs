@@ -17,12 +17,12 @@ namespace Lefarma.API.Features.Config.Engine
         public WorkflowEngine(
             IWorkflowRepository workflowRepo,
             ApplicationDbContext context,
-            AsokamDbContext asokamContext,
+            AsokamDbContext asokamcontext,
             IServiceProvider serviceProvider)
         {
             _workflowRepo = workflowRepo;
             _context = context;
-            _asokamContext = asokamContext;
+            _asokamcontext = asokamcontext;
             _serviceProvider = serviceProvider;
         }
 
@@ -51,8 +51,8 @@ namespace Lefarma.API.Features.Config.Engine
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
             // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
-                return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
+            //if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
+            //    return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
                 return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
@@ -235,7 +235,7 @@ namespace Lefarma.API.Features.Config.Engine
                 return true;
 
             // Verificar asignación por rol
-            var rolesUsuario = await _asokamContext.UsuariosRoles
+            var rolesUsuario = await _asokamcontext.UsuariosRoles
                 .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
                 .Select(ur => ur.IdRol)
                 .ToListAsync();

@@ -305,8 +305,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
 
-                if (orden.Estado?.IdEstado != 1) // 1 = Creada
-                    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
+                //if (orden.Estado?.IdEstado != 1) // 1 = Creada
+                //    return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
 
                 // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
                 orden.IdEmpresa = request.IdEmpresa;
