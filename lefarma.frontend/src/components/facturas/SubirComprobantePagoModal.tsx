@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,12 +14,15 @@ import {
 import {
   Loader2,
   ArrowRight,
+  ArrowLeft,
   AlertCircle,
   Banknote,
 } from 'lucide-react';
 import { comprobanteService } from '@/services/comprobanteService';
+import { API } from '@/services/api';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { toast } from 'sonner';
+import type { ApiResponse } from '@/types/api.types';
 import type {
   ComprobanteResponse,
   PartidaPendienteResponse,
@@ -27,6 +30,15 @@ import type {
 } from '@/types/comprobante.types';
 import type { Archivo } from '@/types/archivo.types';
 import { toApiError } from '@/utils/errors';
+
+interface MedioPagoItem {
+  idMedioPago: number;
+  nombre: string;
+  codigoSAT: string;
+  requiereReferencia: boolean;
+  requiereAutorizacion: boolean;
+  orden: number;
+}
 
 interface Props {
   open: boolean;
@@ -44,15 +56,6 @@ interface Props {
 }
 
 type Step = 'datos' | 'archivo' | 'asignar';
-
-const TIPOS_PAGO = [
-  { value: 'spei',          label: 'SPEI / Transferencia' },
-  { value: 'cheque',        label: 'Cheque' },
-  { value: 'efectivo',      label: 'Efectivo' },
-  { value: 'tarjeta',       label: 'Tarjeta' },
-  { value: 'transferencia', label: 'Transferencia internacional' },
-  { value: 'otro',          label: 'Otro' },
-];
 
 const formatCurrency = (n: number) =>
   new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(n);
@@ -79,13 +82,26 @@ export function SubirComprobantePagoModal({
 }: Props) {
   const [step, setStep] = useState<Step>('datos');
   const [loading, setLoading] = useState(false);
+  const [mediosPago, setMediosPago] = useState<MedioPagoItem[]>([]);
 
   // Step datos
-  const [tipoPago, setTipoPago]       = useState('spei');
+  const [idMedioPago, setIdMedioPago] = useState<number | null>(null);
   const [referencia, setReferencia]   = useState('');
+  const [autorizacion, setAutorizacion] = useState('');
   const [fechaPago, setFechaPago]     = useState('');
   const [monto, setMonto]             = useState(() => totalOrden != null ? String(totalOrden) : '');
   const [notas, setNotas]             = useState('');
+
+  // Cargar medios de pago al abrir
+  useEffect(() => {
+    if (open) {
+      API.get<ApiResponse<MedioPagoItem[]>>('/catalogos/MediosPago')
+        .then(res => { if (res.data?.success) setMediosPago((res.data.data ?? []).sort((a, b) => a.orden - b.orden)); })
+        .catch(() => { /* silent */ });
+    }
+  }, [open]);
+
+  const medioSeleccionado = mediosPago.find(m => m.idMedioPago === idMedioPago);
 
   // Pendiente al abrir el modal
   const pendienteOrden = totalOrden != null ? Math.max(0, totalOrden - totalPagado) : undefined;
@@ -103,8 +119,9 @@ export function SubirComprobantePagoModal({
 
   const resetForm = () => {
     setStep('datos');
-    setTipoPago('spei');
+    setIdMedioPago(null);
     setReferencia('');
+    setAutorizacion('');
     setFechaPago('');
     setMonto(pendienteOrden != null ? String(pendienteOrden) : '');
     setNotas('');
@@ -127,7 +144,7 @@ export function SubirComprobantePagoModal({
         idEmpresa,
         idOrden:          idOrden ?? null,
         idPasoWorkflow,
-        tipoComprobante:  tipoPago,
+        tipoComprobante:  medioSeleccionado?.nombre?.toLowerCase() ?? 'transferencia',
         categoria:        'pago',
         montoPago:        Number(monto),
         referenciaPago:   referencia || null,
@@ -135,6 +152,7 @@ export function SubirComprobantePagoModal({
         notas:            notas || null,
         nombrePaso:       nombrePaso ?? null,
         nombreAccion:     nombreAccion ?? null,
+        idMedioPago:      idMedioPago,
       });
       setComprobanteSubido(comp);
       setStep('archivo');
@@ -146,50 +164,19 @@ export function SubirComprobantePagoModal({
     }
   };
 
-  // ── Step archivo → asignar (o cierre directo si ≤1 partida) ─────────────
+  // ── Step archivo → asignar ────────────────────────────────────────────────
 
   const handleArchivoSubido = async (archivos: Archivo[]) => {
     if (!comprobanteSubido) return;
-    void archivos; // ya subidos, solo necesitamos el comprobante
+    void archivos;
 
-    // Con 0 o 1 partida: auto-asignar y cerrar sin mostrar step asignar
-    if (partidasPendientes.length <= 1) {
-      if (partidasPendientes.length === 1) {
-        setLoading(true);
-        try {
-          const items: AsignacionItemRequest[] = [{
-            idConcepto:       null,
-            idPartida:        partidasPendientes[0].idPartida,
-            cantidadAsignada: 1,
-            importeAsignado:  Number(monto),
-            notas:            null,
-          }];
-          const updated = await comprobanteService.asignarPartidas(
-            comprobanteSubido.idComprobante,
-            { asignaciones: items },
-            idPasoWorkflow
-          );
-          onComprobanteSubido(updated);
-        } catch (error: unknown) {
-          const apiErr = toApiError(error);
-          toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar el pago a la partida');
-          setLoading(false);
-          return; // Stay in modal so user can fix
-        } finally {
-          setLoading(false);
-        }
-      } else {
-        onComprobanteSubido(comprobanteSubido);
-      }
-      handleClose();
-      return;
-    }
-
-    // Múltiples partidas: mostrar step asignar para distribuir
+    // Siempre ir al step asignar para que el usuario revise
     setAsignaciones(
       partidasPendientes.map((p) => ({
         idPartida: p.idPartida,
-        importe:   String(Math.min(Number(monto), p.importePendiente).toFixed(2)),
+        importe:   partidasPendientes.length === 1
+          ? String(Math.min(Number(monto), p.importePendiente).toFixed(2))
+          : '0',
         notas:     '',
       }))
     );
@@ -204,7 +191,6 @@ export function SubirComprobantePagoModal({
     const items: AsignacionItemRequest[] = asignaciones
       .filter((a) => a.idPartida !== null && Number(a.importe) > 0)
       .map((a) => ({
-        idConcepto:       null,
         idPartida:        a.idPartida!,
         cantidadAsignada: 1,
         importeAsignado:  Number(a.importe),
@@ -224,19 +210,14 @@ export function SubirComprobantePagoModal({
         idPasoWorkflow
       );
       onComprobanteSubido(updated);
-      handleClose();
+      setComprobanteSubido(updated);
+      toast.success('Pago asignado. Revisa y cierra cuando termines.');
     } catch (error: unknown) {
       const apiErr = toApiError(error);
       toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
     } finally {
       setLoading(false);
     }
-  };
-
-  const skipAsignacion = () => {
-    if (!comprobanteSubido) return;
-    onComprobanteSubido(comprobanteSubido);
-    handleClose();
   };
 
   // ── Metadata para FileUploader ────────────────────────────────────────────
@@ -247,7 +228,7 @@ export function SubirComprobantePagoModal({
     tipo:           'comprobante_pago',
     idOrden:        idOrden,
     idComprobante:  comprobanteSubido.idComprobante,
-    subtipo:        tipoPago,
+    subtipo:        medioSeleccionado?.nombre?.toLowerCase() ?? 'transferencia',
     archivo:        'imagen',
     monto:          comprobanteSubido.total,
     paso:           idPasoWorkflow,
@@ -278,26 +259,35 @@ export function SubirComprobantePagoModal({
       size="lg"
       canClose={!loading}
       footer={
-        <div className="flex w-full items-center justify-end gap-2">
-          {step === 'datos' && (
-            <Button onClick={handleCrearComprobante} disabled={loading || !monto}>
-              {loading
-                ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                : <ArrowRight className="mr-1.5 h-3.5 w-3.5" />}
-              Siguiente
-            </Button>
-          )}
-          {step === 'asignar' && (
-            <>
-              <Button variant="outline" size="sm" onClick={skipAsignacion} disabled={loading}>
-                Omitir asignación
+        <div className="flex w-full items-center justify-between gap-2">
+          <div>
+            {step === 'asignar' && (
+              <Button variant="outline" size="sm" onClick={() => setStep('archivo')} disabled={loading}>
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" /> Atras
               </Button>
-              <Button onClick={handleAsignar} disabled={loading}>
-                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                Guardar asignaciones
+            )}
+          </div>
+          <div className="flex gap-2">
+            {step === 'datos' && (
+              <Button onClick={handleCrearComprobante} disabled={loading || !monto}>
+                {loading
+                  ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  : <ArrowRight className="mr-1.5 h-3.5 w-3.5" />}
+                Siguiente
               </Button>
-            </>
-          )}
+            )}
+            {step === 'asignar' && (
+              <>
+                <Button onClick={handleAsignar} disabled={loading}>
+                  {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                  Guardar
+                </Button>
+                <Button variant="outline" onClick={handleClose} disabled={loading}>
+                  Cerrar
+                </Button>
+              </>
+            )}
+          </div>
         </div>
       }
     >
@@ -320,43 +310,44 @@ export function SubirComprobantePagoModal({
         ))}
       </div>
 
+      {/* Banner de progreso — visible en todos los steps */}
+      {totalOrden != null && (
+        <div className="rounded-lg border bg-muted/20 px-3 py-2.5 space-y-2 text-xs mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Banknote className="h-3.5 w-3.5 shrink-0" />
+              <span>{folioOrden ?? 'Orden'}</span>
+            </div>
+            <span className="font-semibold">{formatCurrency(totalOrden)}</span>
+          </div>
+          {totalPagado > 0 && (
+            <>
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${Math.min(100, (totalPagado / totalOrden) * 100).toFixed(1)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Pagado: <span className="font-medium text-emerald-600">{formatCurrency(totalPagado)}</span></span>
+                <span>Pendiente: <span className="font-medium text-foreground">{formatCurrency(Math.max(0, totalOrden - totalPagado))}</span></span>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* ── Step: datos ── */}
       {step === 'datos' && (
         <div className="space-y-4">
-          {/* Banner de progreso de pago */}
-          {totalOrden != null && (
-            <div className="rounded-lg border bg-muted/20 px-3 py-2.5 space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Banknote className="h-3.5 w-3.5 shrink-0" />
-                  <span>{folioOrden ?? 'Orden'}</span>
-                </div>
-                <span className="font-semibold">{formatCurrency(totalOrden)}</span>
-              </div>
-              {totalPagado > 0 && (
-                <>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-emerald-500 transition-all"
-                      style={{ width: `${Math.min(100, (totalPagado / totalOrden) * 100).toFixed(1)}%` }}
-                    />
-                  </div>
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Pagado: <span className="font-medium text-emerald-600">{formatCurrency(totalPagado)}</span></span>
-                    <span>Pendiente: <span className="font-medium text-foreground">{formatCurrency(Math.max(0, totalOrden - totalPagado))}</span></span>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
+          <p className="text-xs text-muted-foreground">Selecciona el medio de pago e ingresa los datos de la transaccion.</p>
           <div className="space-y-1.5">
-            <Label>Tipo de pago <span className="text-red-500">*</span></Label>
-            <Select value={tipoPago} onValueChange={setTipoPago}>
-              <SelectTrigger><SelectValue placeholder="Selecciona tipo" /></SelectTrigger>
+            <Label>Medio de pago <span className="text-red-500">*</span></Label>
+            <Select value={idMedioPago?.toString() ?? ''} onValueChange={(v) => setIdMedioPago(Number(v) || null)}>
+              <SelectTrigger><SelectValue placeholder="Selecciona medio de pago" /></SelectTrigger>
               <SelectContent>
-                {TIPOS_PAGO.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                {mediosPago.filter(m => m.idMedioPago).map((m) => (
+                  <SelectItem key={m.idMedioPago} value={m.idMedioPago.toString()}>{m.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -372,10 +363,18 @@ export function SubirComprobantePagoModal({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Referencia / folio <span className="text-muted-foreground text-xs">(opcional)</span></Label>
-              <Input value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Ej. 123456789" />
-            </div>
+            {medioSeleccionado?.requiereReferencia !== false && (
+              <div className="space-y-1.5">
+                <Label>Referencia / folio <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Input value={referencia} onChange={(e) => setReferencia(e.target.value)} placeholder="Ej. 123456789" />
+              </div>
+            )}
+            {medioSeleccionado?.requiereAutorizacion === true && (
+              <div className="space-y-1.5">
+                <Label>Autorizacion <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Input value={autorizacion} onChange={(e) => setAutorizacion(e.target.value)} placeholder="Ej. A-12345" />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Fecha del pago <span className="text-muted-foreground text-xs">(opcional)</span></Label>
               <Input type="date" value={fechaPago} onChange={(e) => setFechaPago(e.target.value)} />
@@ -391,7 +390,9 @@ export function SubirComprobantePagoModal({
 
       {/* ── Step: archivo — FileUploader inline ── */}
       {step === 'archivo' && comprobanteSubido && (
-        <FileUploader
+        <>
+          <p className="text-xs text-muted-foreground mb-3">Sube el comprobante o voucher del pago (PDF, JPG, PNG).</p>
+          <FileUploader
           inline
           open={true}
           entidadTipo="OrdenCompra"
@@ -405,15 +406,17 @@ export function SubirComprobantePagoModal({
           onUploadComplete={handleArchivoSubido}
           onClose={() => {}}
         />
+        </>
       )}
 
       {/* ── Step: asignar ── */}
       {step === 'asignar' && comprobanteSubido && (
         <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Distribuye el pago entre las partidas de la orden. Puedes guardar y cerrar cuando termines.</p>
           <div className="rounded-lg border bg-muted/20 p-3 text-xs flex items-center gap-3">
             <div className="flex-1">
               <p className="font-medium">
-                {TIPOS_PAGO.find((t) => t.value === comprobanteSubido.tipoComprobante)?.label ?? comprobanteSubido.tipoComprobante}
+                {medioSeleccionado?.nombre ?? comprobanteSubido.tipoComprobante}
               </p>
               {comprobanteSubido.referenciaPago && (
                 <p className="text-muted-foreground">Ref: {comprobanteSubido.referenciaPago}</p>

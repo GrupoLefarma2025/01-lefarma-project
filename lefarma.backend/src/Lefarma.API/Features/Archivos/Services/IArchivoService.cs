@@ -36,4 +36,5 @@ public interface IArchivoService
         CancellationToken cancellationToken = default);
 
     Task<ErrorOr<bool>> DeleteAsync(int id, CancellationToken cancellationToken = default);
+    Task<int> GetArchivosCountAsync(string entidadTipo, int entidadId, string carpeta, CancellationToken ct = default);
 }

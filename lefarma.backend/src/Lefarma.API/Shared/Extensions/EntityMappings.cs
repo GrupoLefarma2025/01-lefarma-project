@@ -304,7 +304,11 @@ namespace Lefarma.API.Shared.Extensions
             IdMedioPago = entity.IdMedioPago,
             Nombre = entity.Nombre,
             Clave = entity.Clave ?? string.Empty,
+            CodigoSAT = entity.CodigoSAT ?? string.Empty,
             Descripcion = entity.Descripcion ?? string.Empty,
+            RequiereReferencia = entity.RequiereReferencia,
+            RequiereAutorizacion = entity.RequiereAutorizacion,
+            Orden = entity.Orden,
             Activo = entity.Activo,
             FechaCreacion = entity.FechaCreacion,
             FechaModificacion = entity.FechaModificacion
