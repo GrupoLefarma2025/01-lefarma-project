@@ -50,6 +50,7 @@ using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
+using Lefarma.API.Shared.ModelBinders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -377,6 +378,7 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
+    options.ModelBinderProviders.Insert(0, new DecimalModelBinderProvider());
 })
 .AddJsonOptions(options =>
 {
