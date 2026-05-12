@@ -127,12 +127,52 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
+                // Si la accion es DEVOLVER, resetear facturacion y anular comprobantes
+                var accionEntity = workflowConfig.Pasos
+                    .SelectMany(p => p.AccionesOrigen)
+                    .FirstOrDefault(a => a.IdAccion == request.IdAccion);
+
+                if (accionEntity?.TipoAccion?.Codigo == "DEVOLVER")
+                {
+                    // Resetear acumulados de facturacion en todas las partidas
+                    var idPartidas = await _context.OrdenesCompraPartidas
+                        .Where(p => p.IdOrden == idOrden)
+                        .Select(p => p.IdPartida)
+                        .ToListAsync();
+
+                    if (idPartidas.Count > 0)
+                    {
+                        await _context.OrdenesCompraPartidas
+                            .Where(p => idPartidas.Contains(p.IdPartida))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.CantidadFacturada, 0m)
+                                .SetProperty(p => p.ImporteFacturado, 0m)
+                                .SetProperty(p => p.EstadoFacturacion, (byte)0));
+                    }
+
+                    // Anular comprobantes asociados a esta orden
+                    var idsComprobantes = await _context.ComprobantesPartidas
+                        .Where(cp => idPartidas.Contains(cp.IdPartida))
+                        .Select(cp => cp.IdComprobante)
+                        .Distinct()
+                        .ToListAsync();
+
+                    if (idsComprobantes.Count > 0)
+                    {
+                        await _context.Comprobantes
+                            .Where(c => idsComprobantes.Contains(c.IdComprobante))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(c => c.Estado, (byte)3)       // Rechazado
+                                .SetProperty(c => c.FechaModificacion, DateTime.UtcNow));
+                    }
+                }
+
                 // Actualizar estado de la orden
                 var nuevoIdEstado = resultado.NuevoIdEstado; //MapEstadoId(resultado.NuevoIdEstado);
                 if (nuevoIdEstado.HasValue)
                 {
                     orden.IdEstado = nuevoIdEstado.Value;
-                    if (nuevoIdEstado == 3) // 3 = AUTORIZADA
+                    if (nuevoIdEstado == 7) // 7 SE CIERRA ORDEN
                         orden.FechaAutorizacion = DateTime.UtcNow;
                 }
 
@@ -1252,7 +1292,7 @@ asi yo lo subia en otro sistema
                     return CommonErrors.Conflict("Concentrado", $"El concentrado ya fue {concentrado.Estado}.");
 
                 var resultados = new List<EnvioConcentradoItemResult>();
-                var esAprobar = request.Accion.ToUpper() == "APROBAR";
+                var esAprobar = request.Accion.ToUpper() == "AUTORIZAR";
 
                 foreach (var orden in concentrado.Ordenes)
                 {
@@ -1270,7 +1310,7 @@ asi yo lo subia en otro sistema
 
                     var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
                     var accion = esAprobar
-                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "APROBAR" && a.Activo)
+                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "AUTORIZAR" && a.Activo)
                         : accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "DEVOLVER" && a.Activo);
 
                     if (accion is null)
@@ -1280,7 +1320,7 @@ asi yo lo subia en otro sistema
                             IdOrden = orden.IdOrden,
                             Folio = orden.Folio,
                             Exitoso = false,
-                            Error = $"No hay acción {(esAprobar ? "APROBAR" : "DEVOLVER")} disponible."
+                            Error = $"No hay acción {(esAprobar ? "AUTORIZAR" : "DEVOLVER")} disponible."
                         });
                         continue;
                     }
@@ -1294,20 +1334,23 @@ asi yo lo subia en otro sistema
                         Comentario: request.Comentario
                     );
 
-                    var resultado = await _engine.EjecutarAccionAsync(ctx);
+                    var resultado = await FirmarAsync(orden.IdOrden, new FirmarRequest { IdAccion = accion.IdAccion, Comentario = request.Comentario }, request.IdUsuario);
+
+
+                    //var resultado = await _engine.EjecutarAccionAsync(ctx);
 
                     resultados.Add(new EnvioConcentradoItemResult
                     {
                         IdOrden = orden.IdOrden,
                         Folio = orden.Folio,
-                        Exitoso = resultado.Exitoso,
-                        Error = resultado.Error,
-                        NuevoEstado = resultado.NuevoIdEstado?.ToString()
+                        Exitoso = resultado.Value.Exitoso,
+                        Error = resultado.Value.Mensaje,
+                        NuevoEstado = resultado.Value.NuevoEstado?.ToString()
                     });
                 }
 
                 // Actualizar concentrado
-                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
+                concentrado.Estado = esAprobar ? "AUTORIZADO" : "DEVUELTO";
                 concentrado.FechaRespuesta = DateTime.UtcNow;
                 concentrado.ComentarioRespuesta = request.Comentario;
                 concentrado.FechaModificacion = DateTime.UtcNow;
