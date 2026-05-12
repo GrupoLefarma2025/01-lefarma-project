@@ -77,7 +77,7 @@ function getGroupLabel(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): s
     case 'area':
       return orden.areaNombre ?? `Área ${orden.idArea}`;
     case 'proveedor':
-      return orden.idProveedor ? `Proveedor ${orden.idProveedor}` : 'Sin proveedor';
+      return orden.razonSocialProveedor ?? 'Sin proveedor';
   }
 }
 
