@@ -2307,7 +2307,9 @@ export default function AutorizacionesOC() {
               )}
 
               {/* Inputs y otros controles */}
-              {camposParaAccion.map(({ campo, requerido, inputKey, validacionExito, validacionMensaje }) => {
+              {camposParaAccion
+                .filter(c => c.campo.tipoControl !== 'Alerta' && c.campo.tipoControl !== 'Validacion')
+                .map(({ campo, requerido, inputKey, validacionExito, validacionMensaje }) => {
                 const fieldId = `campo-${inputKey}`;
                 const value = camposValues[inputKey];
 
@@ -2655,7 +2657,6 @@ export default function AutorizacionesOC() {
               ...prev,
               comprobante_gasto: [...(prev['comprobante_gasto'] ?? []), c],
             }));
-            setIsSubirComprobanteOpen(false);
             fetchPartidasPendientes(selectedOrden.idOrden);
           }}
         />
@@ -2685,7 +2686,6 @@ export default function AutorizacionesOC() {
               ...prev,
               [key]: [...(prev[key] ?? []), c],
             }));
-            setIsSubirComprobantePagoOpen(null);
             fetchPartidasPendientes(selectedOrden.idOrden);
             fetchArchivosOrden(selectedOrden.idOrden);
           }}

@@ -210,8 +210,8 @@ export function SubirComprobantePagoModal({
         idPasoWorkflow
       );
       onComprobanteSubido(updated);
-      setComprobanteSubido(updated);
-      toast.success('Pago asignado. Revisa y cierra cuando termines.');
+      toast.success('Pago asignado.');
+      handleClose();
     } catch (error: unknown) {
       const apiErr = toApiError(error);
       toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
@@ -277,15 +277,10 @@ export function SubirComprobantePagoModal({
               </Button>
             )}
             {step === 'asignar' && (
-              <>
-                <Button onClick={handleAsignar} disabled={loading}>
-                  {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                  Guardar
-                </Button>
-                <Button variant="outline" onClick={handleClose} disabled={loading}>
-                  Cerrar
-                </Button>
-              </>
+              <Button onClick={handleAsignar} disabled={loading}>
+                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Guardar
+              </Button>
             )}
           </div>
         </div>

@@ -127,6 +127,46 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
+                // Si la accion es DEVOLVER, resetear facturacion y anular comprobantes
+                var accionEntity = workflowConfig.Pasos
+                    .SelectMany(p => p.AccionesOrigen)
+                    .FirstOrDefault(a => a.IdAccion == request.IdAccion);
+
+                if (accionEntity?.TipoAccion?.Codigo == "DEVOLVER")
+                {
+                    // Resetear acumulados de facturacion en todas las partidas
+                    var idPartidas = await _context.OrdenesCompraPartidas
+                        .Where(p => p.IdOrden == idOrden)
+                        .Select(p => p.IdPartida)
+                        .ToListAsync();
+
+                    if (idPartidas.Count > 0)
+                    {
+                        await _context.OrdenesCompraPartidas
+                            .Where(p => idPartidas.Contains(p.IdPartida))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.CantidadFacturada, 0m)
+                                .SetProperty(p => p.ImporteFacturado, 0m)
+                                .SetProperty(p => p.EstadoFacturacion, (byte)0));
+                    }
+
+                    // Anular comprobantes asociados a esta orden
+                    var idsComprobantes = await _context.ComprobantesPartidas
+                        .Where(cp => idPartidas.Contains(cp.IdPartida))
+                        .Select(cp => cp.IdComprobante)
+                        .Distinct()
+                        .ToListAsync();
+
+                    if (idsComprobantes.Count > 0)
+                    {
+                        await _context.Comprobantes
+                            .Where(c => idsComprobantes.Contains(c.IdComprobante))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(c => c.Estado, (byte)3)       // Rechazado
+                                .SetProperty(c => c.FechaModificacion, DateTime.UtcNow));
+                    }
+                }
+
                 // Actualizar estado de la orden
                 var nuevoIdEstado = resultado.NuevoIdEstado; //MapEstadoId(resultado.NuevoIdEstado);
                 if (nuevoIdEstado.HasValue)
@@ -923,14 +963,14 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     {
                         IdOrden = orden.IdOrden,
                         Folio = orden.Folio,
-                        Exitoso = true,
+                        Exitoso = resultado.Value.Exitoso,
                         Error = resultado.Value.Mensaje,
                         NuevoEstado = resultado.Value.NuevoEstado?.ToString()
                     });
                 }
 
                 // Actualizar concentrado
-                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
+                concentrado.Estado = esAprobar ? "AUTORIZADO" : "DEVUELTO";
                 concentrado.FechaRespuesta = DateTime.UtcNow;
                 concentrado.ComentarioRespuesta = request.Comentario;
                 concentrado.FechaModificacion = DateTime.UtcNow;

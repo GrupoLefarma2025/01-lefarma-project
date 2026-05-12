@@ -165,8 +165,8 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     try {
       const updated = await comprobanteService.asignarPartidas(comprobanteSubido.idComprobante, { asignaciones: items }, idPasoWorkflow);
       onComprobanteSubido(updated);
-      setComprobanteSubido(updated);
       toast.success('Asignacion guardada.');
+      handleClose();
     } catch (error: unknown) {
       const apiErr = toApiError(error);
       toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
@@ -203,13 +203,10 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
                 Siguiente
               </Button>
             ) : step === 'asignar' ? (
-              <>
-                <Button onClick={handleAsignar} disabled={loading}>
-                  {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
-                  Guardar asignaciones
-                </Button>
-                <Button variant="outline" onClick={handleClose} disabled={loading}>Cerrar</Button>
-              </>
+              <Button onClick={handleAsignar} disabled={loading}>
+                {loading && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />}
+                Guardar asignaciones
+              </Button>
             ) : null}
           </div>
         </div>
