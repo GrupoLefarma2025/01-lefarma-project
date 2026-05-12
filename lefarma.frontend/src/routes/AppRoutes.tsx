@@ -51,7 +51,7 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} />
+          <Route path="/seguridad/usuarios" element=<UsuariosList /> />
           <Route
             path="/seguridad/roles"
             element={
@@ -60,6 +60,8 @@ export const AppRoutes = () => {
               </PermissionGuard>
             }
           />
+          <Route path="/seguridad/permisos" element={<PermisosList />} />
+
 
       {/* Catalogos   */}
           <Route path="/catalogos/empresas" element={<PermissionGuard requireAny={['empresas.ver_listado']}><EmpresasList /></PermissionGuard>} />
@@ -71,7 +73,6 @@ export const AppRoutes = () => {
           <Route path="/catalogos/estatus-orden" element={<PermissionGuard requireAny={['estatus-orden.ver_listado']}><EstatusOrdenList /></PermissionGuard>} />
           <Route path="/catalogos/proveedores" element={<PermissionGuard requireAny={['proveedores.ver_listado']}><ProveedoresList /></PermissionGuard>} />
           <Route path="/catalogos/regimenes-fiscales" element={<PermissionGuard requireAny={['regimenes-fiscales.ver_listado']}><RegimenesFiscalesList /></PermissionGuard>} />
-          <Route path="/seguridad/permisos" element={<PermissionGuard requireAny={['permisos.ver_listado']}><PermisosList /></PermissionGuard>} />
           <Route path="/catalogos/sucursales" element={<PermissionGuard requireAny={['sucursales.ver_listado']}><SucursalesList /></PermissionGuard>} />
           <Route path="/catalogos/gastos" element={<PermissionGuard requireAny={['gastos.ver_listado']}><GastosList /></PermissionGuard>} />
           <Route path="/catalogos/medidas" element={<PermissionGuard requireAny={['medidas.ver_listado']}><MedidasList /></PermissionGuard>} />
