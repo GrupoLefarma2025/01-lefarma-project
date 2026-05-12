@@ -312,7 +312,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdEmpresa = request.IdEmpresa;
                 orden.IdSucursal = request.IdSucursal;
                 orden.IdArea = request.IdArea;
-                orden.IdTipoGasto = request.IdTipoGasto;
+                orden.IdTipoGasto = request.IdTipoGasto ?? 0;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
                 orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);

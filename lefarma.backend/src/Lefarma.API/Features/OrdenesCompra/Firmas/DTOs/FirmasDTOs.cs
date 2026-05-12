@@ -149,4 +149,10 @@ public class FirmarRequest
         public int Fallidas { get; set; }
         public List<EnvioConcentradoItemResult> Resultados { get; set; } = new();
     }
+
+    public class AsokamLoginResponse
+    {
+        public string Token { get; set; } = "";
+        public string? ExpiresAt { get; set; }
+    }
 }

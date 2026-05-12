@@ -675,15 +675,19 @@ export default function ProveedoresList() {
           <div className="flex items-center gap-2">
             {proveedor.estatus === ESTATUS.NUEVO && (
               <>
+              <PermissionElement require={'proveedores.autorizar'}>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-8 gap-1.5 text-green-600 border-green-600 hover:bg-green-50"
                   onClick={() => handleAutorizar(proveedor.idProveedor)}
                 >
+                  
                   <Check className="h-3.5 w-3.5" />
                   Autorizar
                 </Button>
+                </PermissionElement>
+                <PermissionElement require={'proveedores.rechazar'}>
                 <Button
                   size="sm"
                   variant="outline"
@@ -693,8 +697,10 @@ export default function ProveedoresList() {
                   <X className="h-3.5 w-3.5" />
                   Rechazar
                 </Button>
+                </PermissionElement>
               </>
             )}
+            <PermissionElement require={'proveedores.autorizar'}> 
             {proveedor.estatus === ESTATUS.EDITADO_PENDIENTE && (
               <>
                 <Button
@@ -717,7 +723,8 @@ export default function ProveedoresList() {
                 </Button>
               </>
             )}
-            <PermissionElement require={['proveedores.editar']}>
+            </PermissionElement>
+            <PermissionElement require={'proveedores.editar'}>
               <Button
                 size="sm"
                 variant="outline"
@@ -728,7 +735,7 @@ export default function ProveedoresList() {
                 Editar
               </Button>
             </PermissionElement>
-            <PermissionElement require={['proveedores.eliminar']}>
+            <PermissionElement require={'proveedores.eliminar'}>
               <Button
                 size="sm"
                 variant="destructive"

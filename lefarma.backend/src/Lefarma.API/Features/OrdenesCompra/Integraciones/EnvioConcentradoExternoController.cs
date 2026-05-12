@@ -1,6 +1,7 @@
 using ErrorOr;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 namespace Lefarma.API.Features.OrdenesCompra.Integraciones
 {
@@ -14,6 +15,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Integraciones
             _firmasService = firmasService;
         }
         [HttpPost("respuesta")]
+        [AllowAnonymous]
         public async Task<IActionResult> RecibirRespuesta([FromBody] RespuestaConcentradoExternoRequest request)
         {
             var result = await _firmasService.ProcesarRespuestaConcentradoAsync(request);

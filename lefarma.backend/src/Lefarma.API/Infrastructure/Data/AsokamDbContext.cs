@@ -1,3 +1,4 @@
+using Lefarma.API.Domain.Entities.Asokam;
 using Lefarma.API.Domain.Entities.Auth;
 using Microsoft.EntityFrameworkCore;
 
@@ -19,6 +20,8 @@ public class AsokamDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
     public DbSet<DominioConfig> DominioConfigs { get; set; } = null!;
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
+    public DbSet<Documento> Documentos { get; set; } = null!;
+    public DbSet<DocumentoInterfaseOC> DocumentosInterfaseOC { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -86,6 +89,19 @@ public class AsokamDbContext : DbContext
         {
             entity.HasKey(e => e.IdAudit);
             entity.ToTable("AuditLog", "app");
+        });
+
+        modelBuilder.Entity<Documento>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.ToTable("Documentos", "app");
+        });
+
+        modelBuilder.Entity<DocumentoInterfaseOC>(entity =>
+        {
+            entity.HasKey(e => e.IdDocumentoFirmar);
+            entity.Property(e => e.IdEnvioConcentrado).HasColumnName("id_envio_concentrado");
+            entity.ToTable("DocumentosInterfaseOC", "app");
         });
     }
 }
