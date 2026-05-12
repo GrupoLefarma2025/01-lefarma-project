@@ -352,7 +352,7 @@ export function SubirComprobantePagoModal({
             <Label>Monto pagado <span className="text-red-500">*</span></Label>
             <Input
               type="number" min="0.01" step="0.01"
-              value={monto} onChange={(e) => setMonto(e.target.value)}
+              value={monto} onChange={(e) => setMonto(e.target.value.replace(',', '.'))}
               placeholder="0.00"
             />
           </div>
@@ -449,7 +449,7 @@ export function SubirComprobantePagoModal({
                         value={asig.importe}
                         onChange={(e) => {
                           const next = [...asignaciones];
-                          next[i] = { ...next[i], importe: e.target.value };
+                          next[i] = { ...next[i], importe: e.target.value.replace(',', '.') };
                           setAsignaciones(next);
                         }}
                         className="h-8 text-sm"

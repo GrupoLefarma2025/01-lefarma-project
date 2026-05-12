@@ -307,7 +307,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
           {tipoComprobante && tipoComprobante !== 'cfdi' && (
             <div className="space-y-1.5">
               <Label>Total del comprobante <span className="text-red-500">*</span></Label>
-              <Input type="number" min="0.01" step="0.01" value={totalManual} onChange={(e) => setTotalManual(e.target.value)}
+              <Input type="number" min="0.01" step="0.01" value={totalManual} onChange={(e) => setTotalManual(e.target.value.replace(',', '.'))}
                 placeholder={(() => { const p = partidasPendientes.reduce((s, x) => s + x.importePendiente, 0); return p > 0 ? p.toFixed(2) : '0.00'; })()} />
               <p className="text-[10px] text-muted-foreground">Ingresa el total del ticket, nota o recibo.</p>
             </div>
@@ -388,7 +388,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
                     <div className="px-3 pb-3 space-y-2">
                       <div className="grid grid-cols-2 gap-2">
                         {esCfdi && (<div className="space-y-1"><Label className="text-[10px]">Cantidad</Label><Input type="number" min="0.01" step="0.01" value={asig.cantidad} onChange={e => setAsignaciones(prev => prev.map((a, j) => j === i ? { ...a, cantidad: e.target.value } : a))} /></div>)}
-                        <div className="space-y-1"><Label className="text-[10px]">Importe</Label><Input type="number" min="0.01" step="0.01" value={asig.importe} onChange={e => setAsignaciones(prev => prev.map((a, j) => j === i ? { ...a, importe: e.target.value } : a))} /></div>
+                        <div className="space-y-1"><Label className="text-[10px]">Importe</Label><Input type="number" min="0.01" step="0.01" value={asig.importe} onChange={e => setAsignaciones(prev => prev.map((a, j) => j === i ? { ...a, importe: e.target.value.replace(',', '.') } : a))} /></div>
                       </div>
                       <div className="space-y-1"><Label className="text-[10px]">Notas <span className="text-muted-foreground">(opcional)</span></Label><Input value={asig.notas} onChange={e => setAsignaciones(prev => prev.map((a, j) => j === i ? { ...a, notas: e.target.value } : a))} placeholder="Notas..." /></div>
                     </div>

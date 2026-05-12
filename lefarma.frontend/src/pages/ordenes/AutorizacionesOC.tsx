@@ -1104,6 +1104,16 @@ export default function AutorizacionesOC() {
       },
     },
     {
+      accessorKey: 'solicitanteNombre',
+      header: 'Solicitante',
+      cell: ({ row }) => (
+        <span className="text-xs">
+          {row.original.solicitanteNombre ?? '-'}
+        </span>
+      ),
+      size: 150,
+    },
+    {
       id: 'actions',
       header: 'Acción',
       cell: ({ row }) => (
@@ -2006,7 +2016,9 @@ export default function AutorizacionesOC() {
                                     <div className={`h-full rounded-full transition-all ${estadoConfig.barColor}`} style={{ width: `${pctFacturado}%` }} />
                                   </div>
                                   <div className="text-muted-foreground flex items-center justify-between text-xs">
-                                    <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
+                                    {partida.cantidadFacturada > 0 && (
+                                      <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
+                                    )}
                                     <span>
                                       {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
                                       {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
@@ -2390,7 +2402,7 @@ export default function AutorizacionesOC() {
                         onChange={(e) =>
                           setCamposValues((prev) => ({
                             ...prev,
-                            [inputKey]: e.target.value === '' ? '' : Number(e.target.value),
+                            [inputKey]: e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')),
                           }))
                         }
                         placeholder={`Ingresa ${campo.etiquetaUsuario.toLowerCase()}`}

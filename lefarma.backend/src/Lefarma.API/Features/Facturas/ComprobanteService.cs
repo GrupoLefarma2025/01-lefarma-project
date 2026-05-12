@@ -312,6 +312,7 @@ public class ComprobanteService : IComprobanteService
         foreach (var item in request.Asignaciones)
         {
             var partida = await _db.OrdenesCompraPartidas
+                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.IdPartida == item.IdPartida, ct);
 
             if (partida is null) return CommonErrors.NotFound("Partida", item.IdPartida.ToString());
@@ -437,6 +438,7 @@ public class ComprobanteService : IComprobanteService
     private async Task RecalcularEstadoPartidaAsync(int idPartida, CancellationToken ct)
     {
         var p = await _db.OrdenesCompraPartidas
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.IdPartida == idPartida, ct);
         if (p is null) return;
 
