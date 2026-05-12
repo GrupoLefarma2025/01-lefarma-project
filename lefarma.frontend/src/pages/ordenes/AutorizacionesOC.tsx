@@ -369,9 +369,9 @@ export default function AutorizacionesOC() {
   const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
 
   const estados = useMemo(() => {
-    const values = Array.from(new Set(ordenes.map((o) => o.idEstado))).sort((a, b) => a - b);
-    return ['all', ...values.map(String)];
-  }, [ordenes]);
+    const values = workflowEstados.filter(e => e.activo).sort((a, b) => a.idEstado - b.idEstado);
+    return ['all', ...values.map(e => String(e.idEstado))];
+  }, [workflowEstados]);
 
   const getEstadoInfo = (idEstado: number | null | undefined) => {
     if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
