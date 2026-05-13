@@ -233,7 +233,7 @@ export default function Dashboard() {
       }
     },
     { accessorKey: 'fechaSolicitud', header: 'Creado', size: 100,
-      cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaSolicitud).toLocaleDateString('es-MX')}</span>
+      cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaSolicitud ?? '').toLocaleDateString('es-MX')}</span>
     },
     { accessorKey: 'fechaLimitePago', header: 'Limite', size: 100,
       cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaLimitePago).toLocaleDateString('es-MX')}</span>
@@ -479,7 +479,7 @@ function MiniOrdenesTable({ ordenes, fmt }: { ordenes: OrdenCompraResponse[]; fm
                 {o.estadoNombre ?? '-'}
               </span>
             </td>
-            <td className="py-1.5 text-right text-muted-foreground pr-2">{new Date(o.fechaSolicitud).toLocaleDateString('es-MX')}</td>
+            <td className="py-1.5 text-right text-muted-foreground pr-2">{new Date(o.fechaSolicitud ?? '').toLocaleDateString('es-MX')}</td>
             <td className="py-1.5 text-right text-muted-foreground">{new Date(o.fechaLimitePago).toLocaleDateString('es-MX')}</td>
           </tr>
         ))}

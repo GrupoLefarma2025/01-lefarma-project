@@ -202,7 +202,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
           <div className="pdf-field-group">
             <div className="pdf-field">
               <span className="pdf-label">Fecha solicitud</span>
-              <span className="pdf-value">{fmtDate(orden.fechaSolicitud)}</span>
+              <span className="pdf-value">{fmtDate(orden.fechaSolicitud ?? '')}</span>
             </div>
             <div className="pdf-field">
               <span className="pdf-label">Fecha límite pago</span>
