@@ -64,7 +64,9 @@ export const comprobanteService = {
     if (params.fechaPago) form.append('fechaPago', params.fechaPago);
     if (params.montoPago != null) form.append('montoPago', String(params.montoPago));
     if (params.idMedioPago != null) form.append('idMedioPago', String(params.idMedioPago));
-
+    console.log('--------------------------------------');
+    console.log('Subiendo comprobante con params:', params);
+    console.log('--------------------------------------');
     const res = await API.post<ApiResponse<ComprobanteResponse>>(
       BASE,
       form,
