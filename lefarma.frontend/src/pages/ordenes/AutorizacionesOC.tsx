@@ -1254,7 +1254,7 @@ export default function AutorizacionesOC() {
         }
         size="full"
       >
-        <div className="min-h-0 flex-1 overflow-y-auto -mx-6 px-4 py-2">
+        <div className="-mx-6 px-4 py-2">
           {loadingDetail && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
@@ -1324,7 +1324,7 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
-                    <TabsList className="bg-muted/70 mt-3 grid h-10 w-full grid-cols-4 border p-1">
+                    <TabsList className="bg-background sticky top-0 z-10 mt-3 grid h-10 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"
                         className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
