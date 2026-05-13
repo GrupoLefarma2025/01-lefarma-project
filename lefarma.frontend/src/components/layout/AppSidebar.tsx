@@ -155,13 +155,13 @@ const menuItems: SidebarMenuItem[] = [
     isCollapsible: true,
     items: [
       { title: 'Crear orden', icon: FileText, path: '/ordenes/crear',
-        //permission: { require: 'ordenes.crear' }
+        permission: { require: 'ordenes.crear' }
        },
       { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
-        //permission: { require: 'ordenes.ver_listado' }
+        permission: { require: 'ordenes.ver_listado' }
        },
       { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado',
-        ///permission: { require: 'ordenes.envio_concentrado' }
+        permission: { require: 'ordenes.envio_concentrado' }
       },
     ],
   },

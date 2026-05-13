@@ -1006,7 +1006,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 }
 
                 // Actualizar concentrado
-                concentrado.Estado = esAprobar ? "AUTORIZADO" : "DEVUELTO";
+
+                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
                 concentrado.FechaRespuesta = DateTime.Now;
                 concentrado.ComentarioRespuesta = request.Comentario;
                 concentrado.FechaModificacion = DateTime.Now;

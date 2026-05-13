@@ -249,7 +249,7 @@ export default function EnvioConcentrado() {
       );
       const data = res.data.data!;
       setEnvioResult(data);
-      if (data.exitosas > 0) {
+      if ((data.exitosas ?? 0) > 0) {
         setTimeout(fetchOrdenes, 800);
         setSelected(new Set());
       }
