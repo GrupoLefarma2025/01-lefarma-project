@@ -2,6 +2,7 @@ using ErrorOr;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Features.Dashboard.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -61,13 +62,13 @@ namespace Lefarma.API.Features.Dashboard
             var today = DateTime.UtcNow;
             var startOfMonth = new DateTime(today.Year, today.Month, 1);
 
-            int idCreada = estados.GetValueOrDefault("CREADA");
-            int idRevision = estados.GetValueOrDefault("REVISION");
-            int idRevisionDirector = estados.GetValueOrDefault("REVISION_DIRECTOR");
-            int idCerrada = estados.GetValueOrDefault("CERRADA");
-            int idPagada = estados.GetValueOrDefault("PAGADA");
-            int idCancelada = estados.GetValueOrDefault("CANCELADA");
-            int idRechazada = estados.GetValueOrDefault("RECHAZADA");
+            int idCreada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CREADA);
+            int idRevision = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION);
+            int idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
+            int idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+            int idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+            int idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+            int idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
 
             var allOrdenes = await _db.OrdenesCompra
                 .Select(oc => new { oc.IdEstado, oc.FechaLimitePago, oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado })
@@ -112,8 +113,8 @@ namespace Lefarma.API.Features.Dashboard
                 .Where(cc => cc.Activo && cc.LimitePresupuesto.HasValue)
                 .SumAsync(cc => cc.LimitePresupuesto ?? 0m);
 
-            var idPagada = estados.GetValueOrDefault("PAGADA");
-            var idCerrada = estados.GetValueOrDefault("CERRADA");
+            var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+            var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
             var idsPagados = new[] { idPagada, idCerrada };
 
             var ocData = await _db.OrdenesCompra

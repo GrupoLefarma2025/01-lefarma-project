@@ -6,6 +6,7 @@ using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -96,7 +97,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         if (!esParticipante)
                         {
                             var rolesUsuario = await _asokamContext.UsuariosRoles
-                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.Now))
                               .Select(ur => ur.IdRol)
                               .ToListAsync();
                             esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
@@ -163,21 +164,56 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                             .Where(c => idsComprobantes.Contains(c.IdComprobante))
                             .ExecuteUpdateAsync(s => s
                                 .SetProperty(c => c.Estado, (byte)3)       // Rechazado
-                                .SetProperty(c => c.FechaModificacion, DateTime.UtcNow));
+                                .SetProperty(c => c.FechaModificacion, DateTime.Now));
                     }
                 }
 
                 // Actualizar estado de la orden
-                var nuevoIdEstado = resultado.NuevoIdEstado; //MapEstadoId(resultado.NuevoIdEstado);
+                var nuevoIdEstado = resultado.NuevoIdEstado;
                 if (nuevoIdEstado.HasValue)
                 {
                     orden.IdEstado = nuevoIdEstado.Value;
-                    if (nuevoIdEstado == 7) // 7 SE CIERRA ORDEN
-                        orden.FechaAutorizacion = DateTime.UtcNow;
+
+                    // Registrar fechas del ciclo de vida segun el nuevo estado
+                    var estados = await _context.WorkflowEstados
+                        .Where(e => e.Activo)
+                        .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
+
+                    var idAprobacion = estados.GetValueOrDefault(WorkflowEstadoCodigo.APROBACION);
+                    var idTesoreria = estados.GetValueOrDefault(WorkflowEstadoCodigo.TESORERIA);
+                    var idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
+                    var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+                    var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+                    var idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
+                    var idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+
+                    // FechaSolicitud: cuando la orden se envia a aprobacion por el creador (pasa a APROBACION)
+                    if (nuevoIdEstado == idAprobacion)
+                        orden.FechaSolicitud = DateTime.Now;
+
+                    // FechaAutorizacion: cuando el director firmo (aprobo)y pasa a TESORERIA
+                    if (nuevoIdEstado == idTesoreria) // nuevoIdEstado == idRevisionDirector
+                        orden.FechaAutorizacion = DateTime.Now;
+
+                    // FechaPago: cuando la orden se marca como PAGADA
+                    if (nuevoIdEstado == idPagada)
+                        orden.FechaPago = DateTime.Now;
+
+                    // FechaCierre: cuando la orden se Cierra definitivamente
+                    if (nuevoIdEstado == idCerrada)
+                        orden.FechaCierre = DateTime.Now;
+
+                    // FechaRechazo: cuando la orden es Rechazada
+                    if (nuevoIdEstado == idRechazada)
+                        orden.FechaRechazo = DateTime.Now;
+
+                    // FechaCancelacion: cuando la orden es Cancelada
+                    if (nuevoIdEstado == idCancelada)
+                        orden.FechaCancelacion = DateTime.Now;
                 }
 
                 orden.IdPasoActual = resultado.NuevoIdPaso;
-                orden.FechaModificacion = DateTime.UtcNow;
+                orden.FechaModificacion = DateTime.Now;
                 await _ordenRepo.UpdateAsync(orden);
 
                 // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
@@ -603,7 +639,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     TokenSeguridad = token,
                     Total = total,
                     CantidadOrdenes = ordenesExitosas.Count,
-                    FechaCreacion = DateTime.UtcNow,
+                    FechaCreacion = DateTime.Now,    
                     Ordenes = ordenesExitosas
                 };
 
@@ -633,7 +669,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     PDFBinario = Array.Empty<byte>(),
                     PDFBinarioAutorizado = null,
                     Estatus = 1,
-                    FechaSubida = DateTime.UtcNow,
+                    FechaSubida = DateTime.Now,
                     SubidoPorUsuario = idUsuario.ToString(),
                     FechaAutorizacion = null,
                     AutorizadoPorUsuario = null,
@@ -790,7 +826,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     TokenSeguridad = token,
                     Total = total,
                     CantidadOrdenes = ordenesExitosas.Count,
-                    FechaCreacion = DateTime.UtcNow,
+                    FechaCreacion = DateTime.Now,
                     Ordenes = ordenesExitosas
                 };
 
@@ -840,7 +876,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         PDFBinario = pdfBytes,
                         PDFBinarioAutorizado = null,
                         Estatus = 1,
-                        FechaSubida = DateTime.UtcNow,
+                        FechaSubida = DateTime.Now,
                         SubidoPorUsuario = request.Usuario ?? idUsuario.ToString(),
                         FechaAutorizacion = null,
                         AutorizadoPorUsuario = null,
@@ -971,9 +1007,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Actualizar concentrado
                 concentrado.Estado = esAprobar ? "AUTORIZADO" : "DEVUELTO";
-                concentrado.FechaRespuesta = DateTime.UtcNow;
+                concentrado.FechaRespuesta = DateTime.Now;
                 concentrado.ComentarioRespuesta = request.Comentario;
-                concentrado.FechaModificacion = DateTime.UtcNow;
+                concentrado.FechaModificacion = DateTime.Now;
                 await _context.SaveChangesAsync();
 
                 return new RespuestaConcentradoResponse

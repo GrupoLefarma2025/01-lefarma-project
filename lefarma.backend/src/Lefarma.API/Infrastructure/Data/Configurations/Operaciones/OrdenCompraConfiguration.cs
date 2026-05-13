@@ -39,6 +39,10 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
             builder.Property(o => o.FechaModificacion).HasColumnName("fecha_modificacion");
             builder.Property(o => o.FechaAutorizacion).HasColumnName("fecha_autorizacion");
+            builder.Property(o => o.FechaPago).HasColumnName("fecha_pago");
+            builder.Property(o => o.FechaCierre).HasColumnName("fecha_cierre");
+            builder.Property(o => o.FechaRechazo).HasColumnName("fecha_rechazo");
+            builder.Property(o => o.FechaCancelacion).HasColumnName("fecha_cancelacion");
             builder.Property(o => o.Subtotal).HasColumnName("subtotal").HasColumnType("decimal(18,2)");
             builder.Property(o => o.TotalIva).HasColumnName("total_iva").HasColumnType("decimal(18,2)");
             builder.Property(o => o.TotalRetenciones).HasColumnName("total_retenciones").HasColumnType("decimal(18,2)");
