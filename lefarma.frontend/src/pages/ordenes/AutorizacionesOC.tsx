@@ -2009,18 +2009,22 @@ export default function AutorizacionesOC() {
                         </div>
 
                         {/* Botones para subir comprobantes */}
-                        {selectedOrden && (
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => setIsSubirComprobanteOpen(true)}>
-                              <Receipt className="mr-1 h-3.5 w-3.5" />
-                              Subir comprobante de gasto
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => setIsSubirComprobantePagoOpen('pago')}>
-                              <Banknote className="mr-1 h-3.5 w-3.5" />
-                              Subir comprobante de pago
-                            </Button>
-                          </div>
-                        )}
+                        {selectedOrden && (() => {
+                          const gastoCompleto = partidasPendientes.length > 0 && partidasPendientes.every(p => p.estadoFacturacion === 2);
+                          const pagoCompleto = partidasPendientesPago.length > 0 && partidasPendientesPago.every(p => p.importePendiente <= 0);
+                          return (
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" disabled={gastoCompleto} onClick={() => setIsSubirComprobanteOpen(true)}>
+                                <Receipt className="mr-1 h-3.5 w-3.5" />
+                                Subir comprobante de gasto
+                              </Button>
+                              <Button size="sm" variant="outline" disabled={pagoCompleto} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
+                                <Banknote className="mr-1 h-3.5 w-3.5" />
+                                Subir comprobante de pago
+                              </Button>
+                            </div>
+                          );
+                        })()}
 
                         {loadingFacturacion ? (
                           <div className="flex items-center justify-center py-10">
