@@ -325,8 +325,10 @@ function UnidadMedidaSelector({
   const unidadesPorMedida = useMemo(() => {
     const grupos: Record<number, { medida: Medida; unidades: UnidadMedida[] }> = {};
     unidadesMedida.forEach((unidad) => {
+      if(!unidad.activo) return; // Solo incluir unidades activas 
       const medidaId = unidad.idMedida || 0;
       const medida = medidas.find((m) => m.idMedida === medidaId);
+      if (!medida || !medida.activo) return; // Solo incluir medidas activas y existentes
       if (!grupos[medidaId]) {
         grupos[medidaId] = {
           medida: medida || {

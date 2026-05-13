@@ -4,9 +4,11 @@ using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace Lefarma.API.Features.Archivos.Controllers;
@@ -23,6 +25,9 @@ public class ArchivosController : ControllerBase
         _service = service;
         _db = db;
     }
+
+    private int GetUserId() =>
+        int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
     /// <summary>
     /// Sube un nuevo archivo al sistema.
@@ -120,7 +125,7 @@ public class ArchivosController : ControllerBase
             }
         }
 
-        var result = await _service.SubirAsync(stream, fileName, file.ContentType, request);
+        var result = await _service.SubirAsync(stream, fileName, file.ContentType, request, GetUserId());
 
         return result.ToActionResult(this, archivo => Ok(new ApiResponse<ArchivoResponse>
         {
@@ -159,7 +164,7 @@ public class ArchivosController : ControllerBase
             });
 
         using var stream = file.OpenReadStream();
-        var result = await _service.ReemplazarAsync(id, stream, file.FileName, file.ContentType, metadata);
+        var result = await _service.ReemplazarAsync(id, stream, file.FileName, file.ContentType, metadata, GetUserId());
 
         return result.ToActionResult(this, archivo => Ok(new ApiResponse<ArchivoResponse>
         {

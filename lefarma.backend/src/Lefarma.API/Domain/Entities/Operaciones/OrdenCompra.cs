@@ -49,11 +49,15 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public bool RequiereComprobacionPago { get; set; } = true;
         public bool RequiereComprobacionGasto { get; set; } = true;
 
-        public DateTime FechaSolicitud { get; set; }
+        public DateTime? FechaSolicitud { get; set; }
         public DateTime FechaLimitePago { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
         public DateTime? FechaAutorizacion { get; set; }
+        public DateTime? FechaPago { get; set; }
+        public DateTime? FechaCierre { get; set; }
+        public DateTime? FechaRechazo { get; set; }
+        public DateTime? FechaCancelacion { get; set; }
 
         public decimal Subtotal { get; set; }
         public decimal TotalIva { get; set; }

@@ -61,8 +61,14 @@ export interface OrdenCompraResponse {
   cuentaContableDescripcion?: string | null;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
-  fechaSolicitud: string;
+  fechaSolicitud?: string | null;
   fechaLimitePago: string;
+  fechaAutorizacion?: string | null;
+  fechaPago?: string | null;
+  fechaCierre?: string | null;
+  fechaRechazo?: string | null;
+  fechaCancelacion?: string | null;
+  fechaCreacion: string;
   subtotal: number;
   totalIva: number;
   total: number;

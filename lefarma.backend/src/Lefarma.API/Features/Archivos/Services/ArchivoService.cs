@@ -1,10 +1,11 @@
-using System.Text.Json;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Archivos;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Archivos.DTOs;
 using Lefarma.API.Features.Archivos.Settings;
+using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Archivos.Services;
@@ -12,15 +13,18 @@ public class ArchivoService : IArchivoService
 {
     private readonly IArchivoRepository _repository;
     private readonly ArchivosSettings _settings;
+    private readonly AsokamDbContext _asokamDb;
     private readonly ILogger<ArchivoService> _logger;
 
     public ArchivoService(
         IArchivoRepository repository,
         IOptions<ArchivosSettings> settings,
+        AsokamDbContext asokamDb,
         ILogger<ArchivoService> logger)
     {
         _repository = repository;
         _settings = settings.Value;
+        _asokamDb = asokamDb;
         _logger = logger;
     }
 
@@ -140,7 +144,27 @@ public class ArchivoService : IArchivoService
             query.SoloActivos,
             cancellationToken);
 
-        return archivos.Select(MapToListItemResponse).ToList();
+        var archivosList = archivos.ToList();
+
+        // Batch-fetch user names
+        var userIds = archivosList
+            .Where(a => a.UsuarioId.HasValue)
+            .Select(a => a.UsuarioId!.Value)
+            .Distinct()
+            .ToList();
+        var usuarios = userIds.Count > 0
+            ? await _asokamDb.Usuarios
+                .Where(u => userIds.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}")
+            : new Dictionary<int, string>();
+
+        return archivosList.Select(a =>
+        {
+            string? nombre = null;
+            if (a.UsuarioId.HasValue)
+                usuarios.TryGetValue(a.UsuarioId.Value, out nombre);
+            return MapToListItemResponse(a, nombre);
+        }).ToList();
     }
 
     public async Task<ErrorOr<(Stream Stream, string FileName, string ContentType)>> DownloadAsync(
@@ -222,7 +246,7 @@ public class ArchivoService : IArchivoService
         );
     }
 
-    private static ArchivoListItemResponse MapToListItemResponse(Archivo archivo)
+    private static ArchivoListItemResponse MapToListItemResponse(Archivo archivo, string? usuarioSubioNombre = null)
     {
         return new ArchivoListItemResponse(
             archivo.Id,
@@ -232,6 +256,8 @@ public class ArchivoService : IArchivoService
             archivo.TamanoBytes,
             archivo.Metadata,
             archivo.FechaCreacion,
+            archivo.UsuarioId,
+            usuarioSubioNombre,
             archivo.Activo
         );
     }

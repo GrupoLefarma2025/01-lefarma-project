@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
 import {
   Select,
   SelectContent,
@@ -62,6 +64,7 @@ const formatCurrency = (n: number) =>
 
 interface AsignacionLocal {
   idPartida: number | null;
+  checked: boolean;
   importe: string;
   notas: string;
 }
@@ -174,6 +177,7 @@ export function SubirComprobantePagoModal({
     setAsignaciones(
       partidasPendientes.map((p) => ({
         idPartida: p.idPartida,
+        checked: true,
         importe:   partidasPendientes.length === 1
           ? String(Math.min(Number(monto), p.importePendiente).toFixed(2))
           : '0',
@@ -189,7 +193,7 @@ export function SubirComprobantePagoModal({
     if (!comprobanteSubido) return;
 
     const items: AsignacionItemRequest[] = asignaciones
-      .filter((a) => a.idPartida !== null && Number(a.importe) > 0)
+      .filter((a) => a.checked && a.idPartida !== null && Number(a.importe) > 0)
       .map((a) => ({
         idPartida:        a.idPartida!,
         cantidadAsignada: 1,
@@ -408,7 +412,8 @@ export function SubirComprobantePagoModal({
       {step === 'asignar' && comprobanteSubido && (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">Distribuye el pago entre las partidas de la orden. Puedes guardar y cerrar cuando termines.</p>
-          <div className="rounded-lg border bg-muted/20 p-3 text-xs flex items-center gap-3">
+          
+          {/* <div className="rounded-lg border bg-muted/20 p-3 text-xs flex items-center gap-3">
             <div className="flex-1">
               <p className="font-medium">
                 {medioSeleccionado?.nombre ?? comprobanteSubido.tipoComprobante}
@@ -418,7 +423,7 @@ export function SubirComprobantePagoModal({
               )}
             </div>
             <p className="text-base font-bold">{formatCurrency(comprobanteSubido.total)}</p>
-          </div>
+          </div> */}
 
           {partidasPendientes.length === 0 && (
             <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20">
@@ -430,45 +435,41 @@ export function SubirComprobantePagoModal({
             {asignaciones.map((asig, i) => {
               const partida = partidasPendientes.find((p) => p.idPartida === asig.idPartida);
               return (
-                <div key={i} className="rounded-lg border p-3 space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-medium truncate">
-                      {partida ? `#${partida.numeroPartida} — ${partida.descripcionPartida}` : `Partida ${asig.idPartida}`}
-                    </span>
-                    {partida && (
-                      <span className="text-muted-foreground shrink-0 ml-2">
-                        Por cubrir: {formatCurrency(partida.importePendiente)}
-                      </span>
-                    )}
+                <div key={i} className={cn('rounded-lg border transition-colors', asig.checked ? 'border-primary/40 bg-primary/5' : 'border-border bg-muted/20 opacity-60')}>
+                  <div className="flex items-center gap-2.5 px-3 py-2">
+                    <Checkbox
+                      id={`pago-asig-check-${i}`}
+                      checked={asig.checked}
+                      onCheckedChange={v => setAsignaciones(prev => prev.map((a, j) => j === i ? { ...a, checked: Boolean(v) } : a))}
+                    />
+                    <label htmlFor={`pago-asig-check-${i}`} className="flex-1 cursor-pointer text-sm">
+                      <span className="font-medium">#{partida?.numeroPartida}</span>{' '}
+                      <span className="text-muted-foreground truncate">{partida?.descripcionPartida}</span>
+                    </label>
+                    <span className="text-xs text-muted-foreground">{partida ? formatCurrency(partida.importePendiente) : '—'}</span>
                   </div>
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Importe a asignar</Label>
-                      <Input
-                        type="number" min="0.01" step="0.01"
-                        value={asig.importe}
-                        onChange={(e) => {
-                          const next = [...asignaciones];
-                          next[i] = { ...next[i], importe: e.target.value.replace(',', '.') };
-                          setAsignaciones(next);
-                        }}
-                        className="h-8 text-sm"
-                      />
+                  {asig.checked && (
+                    <div className="px-3 pb-3 space-y-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Importe</Label>
+                        <Input type="number" min="0.01" step="0.01" value={asig.importe}
+                          onChange={e => {
+                            const next = [...asignaciones];
+                            next[i] = { ...next[i], importe: e.target.value.replace(',', '.') };
+                            setAsignaciones(next);
+                          }} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px]">Notas <span className="text-muted-foreground">(opcional)</span></Label>
+                        <Input value={asig.notas} placeholder="Notas..."
+                          onChange={e => {
+                            const next = [...asignaciones];
+                            next[i] = { ...next[i], notas: e.target.value };
+                            setAsignaciones(next);
+                          }} />
+                      </div>
                     </div>
-                    <div className="flex-1 space-y-1">
-                      <Label className="text-xs">Notas</Label>
-                      <Input
-                        value={asig.notas}
-                        onChange={(e) => {
-                          const next = [...asignaciones];
-                          next[i] = { ...next[i], notas: e.target.value };
-                          setAsignaciones(next);
-                        }}
-                        placeholder="Opcional"
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}

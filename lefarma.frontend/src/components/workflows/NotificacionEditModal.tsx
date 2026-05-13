@@ -324,7 +324,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
                 onCheckedChange={(checked) => setFormData(prev => ({ ...prev, avisarAlAnterior: !!checked }))}
               />
               <Label htmlFor="avisarAlAnterior" className="cursor-pointer text-xs">
-                Anterior
+                Firmante
               </Label>
             </div>
             <div className="flex items-center gap-2 p-2 rounded-md bg-card border border-border col-span-3">
@@ -339,7 +339,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Anterior: quien tenía la orden • Autorizadores previos: todos los que autorizaron pasos anteriores de esta orden
+            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Firmante: quien acaba de ejecutar la acción • Autorizadores previos: todos los que autorizaron pasos anteriores de esta orden
           </p>
         </div>
 

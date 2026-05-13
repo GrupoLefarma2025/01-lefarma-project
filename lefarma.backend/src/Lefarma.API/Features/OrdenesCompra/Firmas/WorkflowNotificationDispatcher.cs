@@ -79,6 +79,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             // 3. Obtener nombres para el template
             var (nombreCreador, nombreSiguiente) = await ResolveNamesAsync(orden.IdUsuarioCreador, participantesDestino, ct);
 
+            // NombreAnterior = actor actual que firmo (proposito informativo para el destinatario)
             var nombreActual = await _asokamContext.Usuarios
                 .Where(u => u.IdUsuario == idUsuarioActual)
                 .Select(u => u.NombreCompleto)
@@ -130,7 +131,9 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             // 6. Enviar in-app (siempre que haya contenido disponible)
             if (canalInAppEfectivo != null)
             {
-                var asuntoInApp = Interpolate(canalInAppEfectivo.AsuntoTemplate ?? $"Orden de Compra {orden.Folio}", contextoTemplate);
+                var asuntoInApp = Interpolate(
+                    !string.IsNullOrWhiteSpace(canalInAppEfectivo.AsuntoTemplate) ? canalInAppEfectivo.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
+                    contextoTemplate);
                 var cuerpoInApp = Interpolate(canalInAppEfectivo.CuerpoTemplate, contextoTemplate);
                 contextoTemplate["Asunto"] = asuntoInApp;
                 await _notificationService.SendAsync(new SendNotificationRequest
@@ -147,7 +150,9 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             // 7. Enviar email con wrapper HTML estilizado
             if (notificacion.EnviarEmail && canalEmail != null)
             {
-                var asuntoEmail = Interpolate(canalEmail.AsuntoTemplate ?? $"Orden de Compra {orden.Folio}", contextoTemplate);
+                var asuntoEmail = Interpolate(
+                    !string.IsNullOrWhiteSpace(canalEmail.AsuntoTemplate) ? canalEmail.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
+                    contextoTemplate);
                 var cuerpoEmail = Interpolate(canalEmail.CuerpoTemplate, contextoTemplate);
                 contextoTemplate["Asunto"] = asuntoEmail;
                 var emailHtml = await ApplyCanalTemplateAsync("email", cuerpoEmail, contextoTemplate, ct);
@@ -165,7 +170,9 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             // 8. Telegram (si aplica)
             if (notificacion.EnviarTelegram && canalTelegram != null)
             {
-                var asuntoTelegram = Interpolate(canalTelegram.AsuntoTemplate ?? $"Orden de Compra {orden.Folio}", contextoTemplate);
+                var asuntoTelegram = Interpolate(
+                    !string.IsNullOrWhiteSpace(canalTelegram.AsuntoTemplate) ? canalTelegram.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
+                    contextoTemplate);
                 var cuerpoTelegram = Interpolate(canalTelegram.CuerpoTemplate, contextoTemplate);
                 await _notificationService.SendAsync(new SendNotificationRequest
                 {
@@ -198,6 +205,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         if (notif.AvisarAlCreador)
             ids.Add(orden.IdUsuarioCreador);
 
+        // Anterior = el actor actual que acaba de ejecutar la accion (firmante)
         if (notif.AvisarAlAnterior)
             ids.Add(idUsuarioActual);
 
