@@ -47,8 +47,14 @@ public class OrdenCompraResponse
         public string? CuentaContableDescripcion { get; set; }
         public bool RequiereComprobacionPago { get; set; }
         public bool RequiereComprobacionGasto { get; set; }
-        public DateTime FechaSolicitud { get; set; }
+        public DateTime? FechaSolicitud { get; set; }
         public DateTime FechaLimitePago { get; set; }
+        public DateTime? FechaAutorizacion { get; set; }
+        public DateTime? FechaPago { get; set; }
+        public DateTime? FechaCierre { get; set; }
+        public DateTime? FechaRechazo { get; set; }
+        public DateTime? FechaCancelacion { get; set; }
+        public DateTime FechaCreacion { get; set; }
         public decimal Subtotal { get; set; }
         public decimal TotalIva { get; set; }
         public decimal Total { get; set; }
