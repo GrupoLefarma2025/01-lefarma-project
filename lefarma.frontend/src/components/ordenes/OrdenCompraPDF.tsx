@@ -438,23 +438,34 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
               }).join(', ') ?? '-'}
             </td>
           </tr>
+          <tr>
+            <td style={s.thBlue}>Cuenta bancaria</td>
+            <td style={s.tdValue} colSpan={5}>
+              {orden.idsCuentasBancarias?.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {orden.idsCuentasBancarias.map((idCb, idx) => {
+                    let cuenta: ProveedorCuentaBancaria | undefined;
+                    proveedoresMap?.forEach((prov) => {
+                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
+                      if (found) cuenta = found;
+                    });
+                    if (!cuenta) return <span key={idx}>ID {idCb}</span>;
+                    return (
+                      <span key={idx}>
+                        {cuenta.bancoNombre ?? 'Banco'} • {cuenta.numeroCuenta ?? 'Sin cuenta'}
+                        {cuenta.clabe ? ` • CLABE: ${cuenta.clabe}` : ''}
+                        {cuenta.numeroTarjeta ? ` • Tarjeta: ${cuenta.numeroTarjeta}` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : '-'}
+            </td>
+          </tr>
           {orden.numeroMensualidades !== 1 && (
             <tr>
-              <td style={s.thBlue}>Cuenta bancaria</td>
-              <td style={s.tdValue}>
-                {orden.idsCuentasBancarias?.map((idCb) => {
-                  let info: string | undefined;
-                  proveedoresMap?.forEach((prov) => {
-                    const cuenta = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
-                    if (cuenta) {
-                      info = `${cuenta.bancoNombre ?? 'Banco'} • ${cuenta.numeroCuenta ?? 'Sin cuenta'}`;
-                    }
-                  });
-                  return info ?? `ID ${idCb}`;
-                }).join(', ') ?? '-'}
-              </td>
               <td style={s.thBlue}>Parcialidades</td>
-              <td style={s.tdValue}>
+              <td style={s.tdValue} colSpan={5}>
                 {orden.numeroMensualidades ? `${orden.numeroMensualidades} parcialidad(es)` : '-'}
               </td>
             </tr>
