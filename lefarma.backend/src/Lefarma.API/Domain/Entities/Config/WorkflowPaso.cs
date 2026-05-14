@@ -19,6 +19,5 @@ public class WorkflowPaso
         public virtual WorkflowEstados? Estado { get; set; }
         public virtual ICollection<WorkflowParticipante> Participantes { get; set; } = new List<WorkflowParticipante>();
         public virtual ICollection<WorkflowAccion> AccionesOrigen { get; set; } = new List<WorkflowAccion>();
-        public virtual ICollection<WorkflowCondicion> Condiciones { get; set; } = new List<WorkflowCondicion>();
     }
 }

@@ -9,6 +9,7 @@ namespace Lefarma.API.Domain.Entities.Config
         public string? SourceCatalog { get; set; }
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; } = false;
+        public bool UsarEnCondiciones { get; set; } = false;
         public bool Activo { get; set; } = true;
     }
 }

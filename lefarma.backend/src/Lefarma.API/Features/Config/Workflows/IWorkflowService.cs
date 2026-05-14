@@ -30,9 +30,9 @@ public interface IWorkflowService
         Task<ErrorOr<bool>> DeleteAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler);
 
         // Condiciones
-        Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idPaso, CreateCondicionRequest request);
-        Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idPaso, int idCondicion, UpdateCondicionRequest request);
-        Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idPaso, int idCondicion);
+        Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idAccion, CreateCondicionRequest request);
+        Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idAccion, int idCondicion, UpdateCondicionRequest request);
+        Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idAccion, int idCondicion);
 
         // Participantes
         Task<ErrorOr<ParticipanteResponse>> CreateParticipanteAsync(int idWorkflow, int idPaso, CreateParticipanteRequest request);

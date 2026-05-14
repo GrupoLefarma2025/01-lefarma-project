@@ -26,7 +26,8 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                         .ThenInclude(a => a.Notificaciones)
                             .ThenInclude(n => n.Canales)
                 .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Condiciones)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso && w.Activo);

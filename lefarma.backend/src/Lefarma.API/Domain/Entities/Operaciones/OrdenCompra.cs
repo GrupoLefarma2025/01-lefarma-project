@@ -48,6 +48,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;
         public bool RequiereComprobacionGasto { get; set; } = true;
+        public bool RequierePagoAnticipado { get; set; }
 
         public DateTime? FechaSolicitud { get; set; }
         public DateTime FechaLimitePago { get; set; }

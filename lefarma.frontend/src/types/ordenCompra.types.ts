@@ -61,6 +61,7 @@ export interface OrdenCompraResponse {
   cuentaContableDescripcion?: string | null;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
+  requierePagoAnticipado: boolean;
   fechaSolicitud?: string | null;
   fechaLimitePago: string;
   fechaAutorizacion?: string | null;
@@ -110,6 +111,7 @@ idsCuentasBancarias?: number[] | null;
   idsFormaPago?: number[] | null;
   numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
+  requierePagoAnticipado: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idMoneda?: number | null;

@@ -26,7 +26,7 @@ interface CondicionEditModalProps {
 export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: CondicionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    idPaso: 0,
+    idAccion: 0,
     campoEvaluacion: '',
     operador: '>',
     valorComparacion: '',
@@ -39,7 +39,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
       setFormData({ ...condicion, activo: condicion.activo ?? true });
     } else {
       setFormData({
-        idPaso: workflow.pasos[0]?.idPaso || 0,
+        idAccion: workflow.pasos[0]?.acciones?.[0]?.idAccion || 0,
         campoEvaluacion: '',
         operador: '>',
         valorComparacion: '',
@@ -54,6 +54,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
     setIsSaving(true);
     try {
       const payload = {
+        idAccion: formData.idAccion,
         campoEvaluacion: formData.campoEvaluacion,
         operador: formData.operador,
         valorComparacion: formData.valorComparacion,
@@ -61,9 +62,9 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
         activo: formData.activo
       };
       if (condicion) {
-        await API.put(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/condiciones/${condicion.idCondicion}`, payload);
+        await API.put(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/condiciones/${condicion.idCondicion}`, payload);
       } else {
-        await API.post(`/config/workflows/${workflow.idWorkflow}/pasos/${formData.idPaso}/condiciones`, payload);
+        await API.post(`/config/workflows/${workflow.idWorkflow}/acciones/${formData.idAccion}/condiciones`, payload);
       }
       await onSave();
       toast.success(condicion ? 'Condición actualizada' : 'Condición creada');
@@ -81,6 +82,8 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
     { value: '=', label: 'Igual a (=)' },
     { value: '>=', label: 'Mayor o igual (>=)' },
     { value: '<=', label: 'Menor o igual (<=)' },
+    { value: 'true', label: 'Es verdadero (bool)' },
+    { value: 'false', label: 'Es falso (bool)' },
     { value: '!=', label: 'Diferente (!=)' },
     { value: 'IN', label: 'Está en (IN)' }
   ];
@@ -109,45 +112,54 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
         {/* Paso donde aplica */}
         <div className="space-y-2">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Paso donde aplica la condición *
+            Accion donde aplica la condicion *
           </Label>
           <Select
-            value={formData.idPaso.toString()}
-            onValueChange={(value) => setFormData(prev => ({ ...prev, idPaso: parseInt(value) }))}
+            value={formData.idAccion.toString()}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, idAccion: parseInt(value) }))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Selecciona el paso" />
+              <SelectValue placeholder="Selecciona la accion" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
-                <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
-                      {paso.orden}
-                    </span>
-                    <span>{paso.nombrePaso}</span>
-                  </div>
-                </SelectItem>
-              ))}
+              {workflow.pasos.flatMap((paso: WorkflowPaso) =>
+                (paso.acciones || []).map((accion: any) => (
+                  <SelectItem key={accion.idAccion} value={accion.idAccion.toString()}>
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
+                        {paso.orden}
+                      </span>
+                      <span>{paso.nombrePaso} — {accion.tipoAccionNombre}</span>
+                    </div>
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
 
         {/* Campo a Evaluar */}
         <div className="space-y-2">
-          <Label htmlFor="campoEvaluacion" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Campo a Evaluar *
+          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Campo a evaluar *
           </Label>
-          <Input
-            id="campoEvaluacion"
+          <Select
             value={formData.campoEvaluacion}
-            onChange={(e) => setFormData(prev => ({ ...prev, campoEvaluacion: e.target.value }))}
-            placeholder="ej. Total, IdEmpresa, TipoGasto"
-            required
-            className="font-mono"
-          />
+            onValueChange={(value) => setFormData(prev => ({ ...prev, campoEvaluacion: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecciona el campo..." />
+            </SelectTrigger>
+            <SelectContent>
+              {workflow.campos?.filter((c: any) => c.usarEnCondiciones && c.activo).map((c: any) => (
+                <SelectItem key={c.idWorkflowCampo} value={c.propiedadEntidad || c.nombreTecnico}>
+                  {c.etiquetaUsuario}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground">
-            Nombre del campo del modelo de datos a evaluar
+            Campo del modelo OrdenCompra a evaluar
           </p>
         </div>
 
@@ -174,19 +186,19 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
             </Select>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="valorComparacion" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Valor *
-            </Label>
-            <Input
-              id="valorComparacion"
-              value={formData.valorComparacion}
-              onChange={(e) => setFormData(prev => ({ ...prev, valorComparacion: e.target.value }))}
-              placeholder="ej. 100000, 5, 'VIATICOS'"
-              required
-              className="font-mono"
-            />
-          </div>
+          {formData.operador !== 'true' && formData.operador !== 'false' && (
+            <div className="space-y-2">
+              <Label htmlFor="valorComparacion" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Valor *
+              </Label>
+              <Input
+                id="valorComparacion"
+                value={formData.valorComparacion}
+                onChange={(e) => setFormData(prev => ({ ...prev, valorComparacion: e.target.value }))}
+                placeholder="ej. 100000, 5, 'VIATICOS'"
+              />
+            </div>
+          )}
         </div>
 
         {/* Paso Destino si cumple */}
@@ -217,7 +229,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
         </div>
 
         {/* Preview */}
-        {formData.idPaso > 0 && formData.campoEvaluacion && formData.idPasoSiCumple > 0 && (
+        {formData.idAccion > 0 && formData.campoEvaluacion && formData.idPasoSiCumple > 0 && (
           <div className="p-4 rounded-lg border border-border bg-muted/30">
             <p className="text-xs font-semibold text-muted-foreground mb-2">REGLA</p>
             <p className="text-sm font-mono">

@@ -37,7 +37,8 @@ namespace Lefarma.API.Features.Config.Engine
                     .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.TipoAccion)
                 .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Condiciones)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
@@ -94,9 +95,9 @@ namespace Lefarma.API.Features.Config.Engine
 
             // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
-            foreach (var condicion in accion.PasoOrigen!.Condiciones.Where(c => c.Activo))
+            foreach (var condicion in accion.Condiciones.Where(c => c.Activo))
             {
-                if (EvaluarCondicion(condicion, ctx.DatosAdicionales))
+                if (EvaluarCondicion(condicion, ctx))
                 {
                     idPasoDestino = condicion.IdPasoSiCumple;
                     break;
@@ -153,7 +154,8 @@ namespace Lefarma.API.Features.Config.Engine
 
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Condiciones)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
@@ -169,7 +171,8 @@ namespace Lefarma.API.Features.Config.Engine
 
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Condiciones)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
@@ -187,9 +190,8 @@ namespace Lefarma.API.Features.Config.Engine
             if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador))
                 return Array.Empty<WorkflowAccion>();
 
-            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
-            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
-            if (pasoActual.Condiciones.Any())
+            // Algun accion del paso tiene condiciones de enrutamiento
+            if (pasoActual.AccionesOrigen.Any(a => a.Condiciones.Any()))
             {
                 var aprobaciones = acciones
                     .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
@@ -243,21 +245,42 @@ namespace Lefarma.API.Features.Config.Engine
             return participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
         }
 
-        private static bool EvaluarCondicion(WorkflowCondicion c, Dictionary<string, object>? datos)
+        private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
         {
-            if (datos is null || !datos.TryGetValue(c.CampoEvaluacion, out var valor)) return false;
-            if (!decimal.TryParse(valor.ToString(), out var v) ||
-                !decimal.TryParse(c.ValorComparacion, out var cmp)) return false;
+            // Leer propiedad directa de OrdenCompra (IgnoreCase)
+            var prop = typeof(Domain.Entities.Operaciones.OrdenCompra).GetProperty(
+                c.CampoEvaluacion,
+                System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
-            return c.Operador switch
+            if (prop is null) return false;
+
+            var propValue = prop.GetValue(ctx.Orden);
+            if (propValue is null) return false;
+
+            // Booleanos: true/false
+            if (c.Operador is "true" or "false")
             {
-                ">" => v > cmp,
-                ">=" => v >= cmp,
-                "<" => v < cmp,
-                "<=" => v <= cmp,
-                "=" => v == cmp,
-                _ => false
-            };
+                var esVerdadero = propValue is bool b ? b : false;
+                return c.Operador == "true" ? esVerdadero : !esVerdadero;
+            }
+
+            // Numéricos: >, >=, <, <=, =, !=
+            if (decimal.TryParse(propValue.ToString(), out var v) &&
+                decimal.TryParse(c.ValorComparacion, out var cmp))
+            {
+                return c.Operador switch
+                {
+                    ">"  => v > cmp,
+                    ">=" => v >= cmp,
+                    "<"  => v < cmp,
+                    "<=" => v <= cmp,
+                    "="  => v == cmp,
+                    "!=" => v != cmp,
+                    _    => false
+                };
+            }
+
+            return false;
         }
     }
 }

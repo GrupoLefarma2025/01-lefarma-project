@@ -209,6 +209,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdProveedor = request.IdProveedor,
                     IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades),
                     SinDatosFiscales = request.SinDatosFiscales,
+                    RequierePagoAnticipado = request.RequierePagoAnticipado,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
                     IdMoneda = request.IdMoneda,
@@ -316,6 +317,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdProveedor = request.IdProveedor;
                 orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
                 orden.SinDatosFiscales = request.SinDatosFiscales;
+                orden.RequierePagoAnticipado = request.RequierePagoAnticipado;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
                 orden.IdMoneda = request.IdMoneda;
@@ -414,6 +416,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             CuentaContableDescripcion = o.CuentaContable?.Descripcion,
             RequiereComprobacionPago = o.RequiereComprobacionPago,
             RequiereComprobacionGasto = o.RequiereComprobacionGasto,
+            RequierePagoAnticipado = o.RequierePagoAnticipado,
             FechaSolicitud = o.FechaSolicitud,
             FechaLimitePago = o.FechaLimitePago,
             FechaAutorizacion = o.FechaAutorizacion,
