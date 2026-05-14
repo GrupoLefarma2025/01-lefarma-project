@@ -217,6 +217,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
+builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
+builder.Services.AddMemoryCache();
 
 // Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();

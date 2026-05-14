@@ -111,7 +111,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
 
-                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres)).ToList();
+                var formaPagoIds = items
+                    .Where(o => !string.IsNullOrEmpty(o.IdsCuentasBancarias))
+                    .SelectMany(o => DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago ?? Enumerable.Empty<int>())
+                    .Distinct()
+                    .ToList();
+                var formasPagoNombres = formaPagoIds.Count > 0
+                    ? await _context.FormasPago.AsNoTracking()
+                        .Where(fp => formaPagoIds.Contains(fp.IdFormaPago))
+                        .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
+                    : new Dictionary<int, string>();
+
+                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres)).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }
@@ -145,7 +156,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Where(u => uomIds.Contains(u.IdUnidadMedida))
                     .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
 
-                return ToResponse(item, usuariosInfo, uomNombres);
+                var formaPagoIds = !string.IsNullOrEmpty(item.IdsCuentasBancarias)
+                    ? DeserializeCuentasYFormasPago(item.IdsCuentasBancarias)?.IdsFormaPago ?? new List<int>()
+                    : new List<int>();
+                var formasPagoNombres = formaPagoIds.Count > 0
+                    ? await _context.FormasPago.AsNoTracking()
+                        .Where(fp => formaPagoIds.Contains(fp.IdFormaPago))
+                        .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
+                    : new Dictionary<int, string>();
+
+                return ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
             }
             catch (Exception ex)
             {
@@ -376,7 +396,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private static OrdenCompraResponse ToResponse(
             OrdenCompra o,
             Dictionary<int, UsuarioInfo>? usuariosInfo = null,
-            Dictionary<int, string>? uomNombres = null) => new()
+            Dictionary<int, string>? uomNombres = null,
+            Dictionary<int, string>? formasPagoNombres = null) => new()
         {
             IdOrden = o.IdOrden,
             Folio = o.Folio,
@@ -393,6 +414,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdsFormaPago = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
                 : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago,
+            FormasPagoNombres = formasPagoNombres != null && !string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago?
+                    .Where(id => formasPagoNombres.ContainsKey(id))
+                    .Select(id => formasPagoNombres[id])
+                    .ToList()
+                : null,
             NumeroMensualidades = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
                 : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.NumeroMensualidades,

@@ -17,6 +17,7 @@ interface Props {
   ordenes: OrdenCompraResponse[];
   agrupacion: AgrupacionKey;
   generadoPor?: string;
+  id?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -109,7 +110,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): P
         iva: ivaAmt,
         otrosImpuestos: p.otrosImpuestos,
         importeTotal: p.total,
-        formaPago: o.notaFormaPago ?? '—',
+        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
         medioPago: o.notaFormaPago ?? '—',
         groupKey: gk,
       });
@@ -364,12 +365,12 @@ const COL_HEADERS = [
   'Otros Imp.',
   'Importe Total',
   'Forma Pago',
-  'Medio Pago',
+  'Comentario de Pago',
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor }: Props) {
+export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print' }: Props) {
   const allRows = buildRows(ordenes, agrupacion);
   const grupos = agruparRows(allRows);
   const grandTotal = allRows.reduce((s, r) => s + r.importeTotal, 0);
@@ -382,7 +383,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor }: Props)
   });
 
   return (
-    <div id="envio-concentrado-pdf-print" style={s.page}>
+    <div id={id} style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.header}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

@@ -22,9 +22,18 @@ interface ProveedorInfo {
   cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
 
+interface PasoFlowItem {
+  idPaso: number;
+  orden: number;
+  nombrePaso: string;
+  esInicio: boolean;
+  esFinal: boolean;
+}
+
 interface Props {
   orden: OrdenCompraResponse;
   historial?: HistorialWorkflowItem[];
+  pasosWorkflow?: PasoFlowItem[];
   proveedoresMap?: Map<number, ProveedorInfo>;
   firmasMap?: Map<number, string>;
   formasPagoMap?: Map<number, { idFormaPago: number; nombre: string }>;
@@ -342,19 +351,33 @@ const Logo: React.FC = () => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap, formasPagoMap }: Props) {
+export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], proveedoresMap, firmasMap, formasPagoMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
-  const firmas = historial.filter((h) => {
-    const accion = (h.nombreAccion || '').toLowerCase();
-    const paso = (h.nombrePaso || '').toLowerCase();
-    if (accion.includes('creada')) return false;
-    if (paso.includes('cxp') || paso.includes('cuentas por pagar')) return false;
-    return accion.includes('autoriz') || accion.includes('aproba') || accion.includes('firm');
-  });
+  const historialPorPaso = new Map<number, HistorialWorkflowItem[]>();
+  for (const h of historial) {
+    const arr = historialPorPaso.get(h.idPaso) ?? [];
+    arr.push(h);
+    historialPorPaso.set(h.idPaso, arr);
+  }
 
-  const tieneFirma = firmas.some((f) => firmasMap?.get(f.idUsuario));
+  const flujoPasos = pasosWorkflow.map((paso) => {
+    const eventos = historialPorPaso.get(paso.idPaso) ?? [];
+    const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
+    return {
+      idPaso: paso.idPaso,
+      orden: paso.orden,
+      nombrePaso: paso.nombrePaso,
+      esInicio: paso.esInicio,
+      esFinal: paso.esFinal,
+      participante: ultimo ? (ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`) : null,
+      idUsuario: ultimo?.idUsuario ?? null,
+      accion: ultimo ? (ultimo.nombreAccion ?? '') : null,
+      fecha: ultimo?.fechaEvento ?? null,
+      tieneEvento: eventos.length > 0,
+    };
+  });
 
   const fmt = (n: number) =>
     n === 0
@@ -537,40 +560,56 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
         </div>
       </div>
 
-      {/* ── FIRMAS ── */}
-      {firmas.length > 0 && (
-        <table style={s.firmasTable}>
+      {/* ── FLUJO DINÁMICO ── */}
+      {flujoPasos.length > 0 && (
+        <table style={{ ...s.firmasTable, width: '100%' }}>
           <thead>
             <tr style={s.firmaThRow}>
-              <th style={s.firmaTh}>Puesto</th>
-              <th style={s.firmaTh}>Nombre</th>
-              {tieneFirma && <th style={s.firmaTh}>Firma</th>}
+              <th style={{ ...s.firmaTh, width: '5%' }}>#</th>
+              <th style={{ ...s.firmaTh, width: '20%' }}>Paso</th>
+              <th style={{ ...s.firmaTh, width: '22%' }}>Participante</th>
+              <th style={{ ...s.firmaTh, width: '18%' }}>Acción</th>
+              <th style={{ ...s.firmaTh, width: '15%' }}>Fecha</th>
+              <th style={{ ...s.firmaTh, width: '20%' }}>Firma</th>
             </tr>
           </thead>
           <tbody>
-            {firmas.map((f) => {
-              const firmaUrl = firmasMap?.get(f.idUsuario);
+            {flujoPasos.filter((_, idx) => {
+              const siguiente = idx < flujoPasos.length - 1 ? flujoPasos[idx + 1] : null;
+              return siguiente?.tieneEvento ?? false;
+            }).map((paso, idx) => {
+              const originalIdx = flujoPasos.indexOf(paso);
+              const siguiente = flujoPasos[originalIdx + 1];
               return (
-                <tr key={f.idEvento}>
-                  <td style={s.firmaTd}>{f.nombrePaso ?? '-'}</td>
-                  <td style={s.firmaTd}>{f.nombreUsuario ?? `Usuario ${f.idUsuario}`}</td>
-                  {tieneFirma && (
-                    <td style={s.firmaTd}>
-                      {firmaUrl ? (
-                        <img
-                          src={firmaUrl}
-                          alt="Firma"
-                          style={{
-                            height: 30,
-                            width: 80,
-                            objectFit: 'cover',
-                            display: 'block',
-                            marginLeft: 'auto',
-                          }}
-                        />
-                      ) : null}
-                    </td>
-                  )}
+                <tr key={paso.idPaso}>
+                  <td style={{ ...s.firmaTd, textAlign: 'center' }}>{paso.orden}</td>
+                  <td style={s.firmaTd}>{paso.nombrePaso}</td>
+                  <td style={s.firmaTd}>{siguiente?.participante ?? '—'}</td>
+                  <td style={s.firmaTd}>{siguiente?.accion ?? '—'}</td>
+                  <td style={s.firmaTd}>
+                    {siguiente?.fecha
+                      ? new Date(siguiente.fecha).toLocaleDateString('es-MX', {
+                          day: '2-digit', month: '2-digit', year: '2-digit',
+                        })
+                      : '—'}
+                  </td>
+                  <td style={s.firmaTd}>
+                    {siguiente?.idUsuario != null && firmasMap?.get(siguiente.idUsuario) ? (
+                      <img
+                        src={firmasMap.get(siguiente.idUsuario)}
+                        alt="Firma"
+                        style={{
+                          height: 28,
+                          width: 80,
+                          objectFit: 'contain',
+                          display: 'block',
+                          marginLeft: 'auto',
+                          printColorAdjust: 'exact',
+                          WebkitPrintColorAdjust: 'exact',
+                        }}
+                      />
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}

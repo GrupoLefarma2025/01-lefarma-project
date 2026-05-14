@@ -43,6 +43,7 @@ export interface OrdenCompraResponse {
   idProveedor?: number | null;
   idsCuentasBancarias?: number[] | null;
   idsFormaPago?: number[] | null;
+  formasPagoNombres?: string[] | null;
   numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
   razonSocialProveedor?: string | null;

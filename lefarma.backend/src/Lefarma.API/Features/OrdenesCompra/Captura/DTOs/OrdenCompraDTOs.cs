@@ -28,6 +28,7 @@ public class OrdenCompraResponse
         public string? RazonSocialProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
         public List<int>? IdsFormaPago { get; set; }
+        public List<string>? FormasPagoNombres { get; set; }
         public int? NumeroMensualidades { get; set; }
         public int? IdEstado { get; set; }
         public string? EstadoNombre { get; set; }

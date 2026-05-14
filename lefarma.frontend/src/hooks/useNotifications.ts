@@ -21,6 +21,31 @@ const SSE_NOTIFICATIONS_URL = (() => {
 const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
 const BASE_RECONNECT_DELAY = 1000; // 1 segundo
 
+async function fetchSseTicket(token: string): Promise<string | null> {
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
+    const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const response = await fetch(`${cleanUrl}/notifications/ticket`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      console.error('[Notifications SSE] Failed to fetch ticket:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data.ticket as string;
+  } catch (error) {
+    console.error('[Notifications SSE] Error fetching ticket:', error);
+    return null;
+  }
+}
+
 export interface UseNotificationsOptions {
   autoConnect?: boolean;
   onNotification?: (notification: UserNotification) => void;
@@ -199,8 +224,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
    * Establece la conexión SSE
    * SIEMPRE lee el token actual del store para evitar usar tokens expirados
    */
-  const connect = useCallback(() => {
-    // Leer el token actual del store en cada conexión
+  const connect = useCallback(async () => {
     const currentToken = useAuthStore.getState().token;
     const currentAuth = useAuthStore.getState().isAuthenticated;
 
@@ -213,7 +237,11 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     }
 
     try {
-      const url = `${SSE_NOTIFICATIONS_URL}?token=${encodeURIComponent(currentToken)}`;
+      const ticket = await fetchSseTicket(currentToken);
+      const url = ticket
+        ? `${SSE_NOTIFICATIONS_URL}?ticket=${encodeURIComponent(ticket)}`
+        : `${SSE_NOTIFICATIONS_URL}?token=${encodeURIComponent(currentToken)}`;
+
       eventSourceRef.current = new EventSource(url);
 
       eventSourceRef.current.onopen = handleOpen;

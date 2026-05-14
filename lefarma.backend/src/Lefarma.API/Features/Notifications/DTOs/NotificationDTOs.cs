@@ -1,9 +1,12 @@
 using System.ComponentModel.DataAnnotations;
 
 namespace Lefarma.API.Features.Notifications.DTOs;
-/// <summary>
-/// Request to send a notification through one or more channels
-/// </summary>
+
+public class SseTicketResponse
+{
+    public string Ticket { get; set; } = string.Empty;
+}
+
 public class SendNotificationRequest
 {
     /// <summary>

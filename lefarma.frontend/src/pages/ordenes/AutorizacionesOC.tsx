@@ -16,7 +16,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
   Select,
   SelectContent,
@@ -1732,386 +1731,264 @@ export default function AutorizacionesOC() {
                           )}
                         </div>
                         {progresoPasos.length > 0 && (() => {
-                          const pasoActual = progresoPasos.find(p => p.estadoVisual === 'actual');
-                          const idxActual = pasoActual ? progresoPasos.indexOf(pasoActual) : -1;
-                          const isActualRechazada = !!pasoActual && selectedOrden?.idEstado === 8;
-                          const isActualCancelada = !!pasoActual && selectedOrden?.idEstado === 9;
-                          const eventosActual = pasoActual ? (eventosPorPaso.get(pasoActual.idPaso) || []) : [];
-                          const ultimoEventoActual = eventosActual[eventosActual.length - 1];
-
-                          // Card border/bg para paso actual destacado
-                          const cardClassActual = isActualRechazada
-                            ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
-                            : isActualCancelada
-                              ? 'border-l-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/30'
-                              : 'border-l-blue-400 bg-blue-50/60 dark:bg-blue-950/15';
-
                           return (
-                          <>
-                            {/* ── Paso actual destacado (siempre expandido, sin timeline) ── */}
-                            {pasoActual && (
-                              <div className={`rounded-lg border border-l-4 p-4 text-left ring-1 ring-primary/30 ${cardClassActual}`}
-                              >
-                                <div className="flex items-start justify-between gap-2">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <span className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-blue-100 text-[10px] font-bold text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
-                                      {idxActual + 1}
-                                    </span>
-                                    <span className="text-sm font-semibold">{pasoActual.nombrePaso}</span>
-                                  </div>
-                                  <div className="flex flex-shrink-0 items-center gap-1.5">
-                                    <Badge variant={isActualRechazada ? 'destructive' : isActualCancelada ? 'outline' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                                      {isActualRechazada ? 'Rechazada' : isActualCancelada ? 'Cancelada' : '● Actual'}
-                                    </Badge>
-                                  </div>
-                                </div>
+                          <div
+                            ref={pasosContainerRef}
+                            className="relative max-h-[32rem] overflow-y-auto pr-1"
+                          >
+                            {/* Línea vertical fija — cubre toda la altura */}
+                            <div className="absolute left-[1.1rem] top-4 bottom-4 w-0.5 rounded-full bg-border/60" />
 
-                                <div className="mt-3 ml-1 space-y-3">
-                                  {pasoActual.descripcionAyuda && (
-                                    <p className="text-xs text-muted-foreground">{pasoActual.descripcionAyuda}</p>
-                                  )}
+                            <div className="space-y-2">
+                            {progresoPasos.map((paso, index) => {
+                              const isActual = paso.estadoVisual === 'actual';
+                              const isCompletado = paso.estadoVisual === 'completado';
+                              const isOmitido = paso.estadoVisual === 'omitido';
+                              const isRechazado = paso.estadoVisual === 'rechazado';
+                              const isDevuelto = paso.estadoVisual === 'devuelto';
+                              const isPendiente = !isActual && !isCompletado && !isOmitido && !isRechazado && !isDevuelto;
+                              const isExpanded = expandedPasoId === paso.idPaso;
+                              const isActualRechazada = isActual && selectedOrden?.idEstado === 8;
+                              const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
+                              const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
+                              const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
-                                  {/* Historial de actividad */}
-                                  <div>
-                                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                      Historial de actividad
-                                    </p>
-                                    {eventosActual.length === 0 ? (
-                                      <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
-                                    ) : (
-                                      <div className="space-y-2">
-                                      {eventosActual.map((item) => {
-                                        let transFrom: string | null = null;
-                                        let transTo: string | null = null;
-                                        if (item.datosSnapshot) {
-                                          try {
-                                            const snap = JSON.parse(item.datosSnapshot) as {
-                                              idPasoAnterior?: number | null;
-                                              idPasoNuevo?: number | null;
-                                            };
-                                            transFrom = snap.idPasoAnterior
-                                              ? (pasosMap.get(snap.idPasoAnterior)?.nombrePaso ?? null)
-                                              : null;
-                                            transTo = snap.idPasoNuevo
-                                              ? (pasosMap.get(snap.idPasoNuevo)?.nombrePaso ?? null)
-                                              : null;
-                                          } catch { /* ignore */ }
+                              // Dot visual
+                              const dotBg = isCompletado
+                                ? 'bg-emerald-500 border-emerald-500'
+                                : isActual
+                                  ? isActualRechazada
+                                    ? 'bg-red-500 border-red-500'
+                                    : isActualCancelada
+                                      ? 'bg-zinc-400 border-zinc-400'
+                                      : 'bg-blue-500 border-blue-500'
+                                  : isRechazado
+                                    ? 'bg-red-400 border-red-400'
+                                    : isDevuelto
+                                      ? 'bg-amber-400 border-amber-400'
+                                      : 'bg-background border-border';
+
+                              const DotIcon = isCompletado
+                                ? CheckCircle2
+                                : isRechazado || isActualRechazada
+                                  ? XCircle
+                                  : isDevuelto
+                                    ? AlertTriangle
+                                    : isPendiente || isOmitido
+                                      ? Clock
+                                      : null;
+
+                              // Card border/bg
+                              const cardClass = isActual
+                                ? isActualRechazada
+                                  ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
+                                  : isActualCancelada
+                                    ? 'border-l-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/30'
+                                    : 'border-l-blue-400 bg-blue-50/60 dark:bg-blue-950/15'
+                                : isCompletado
+                                  ? 'border-l-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/10'
+                                  : isRechazado
+                                    ? 'border-l-red-300 bg-red-50/40 dark:bg-red-950/10'
+                                    : isDevuelto
+                                      ? 'border-l-amber-300 bg-amber-50/40 dark:bg-amber-950/10'
+                                      : 'border-l-border/50 opacity-60';
+
+                              return (
+                                <div key={paso.idPaso} className="relative pl-10">
+                                  {/* Dot */}
+                                  <div className={`absolute left-3 top-3 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 ${dotBg}`}
+                                    style={{ width: '1.1rem', height: '1.1rem', left: '0.55rem' }}
+                                  >
+                                    {isActual && !isActualRechazada && !isActualCancelada ? (
+                                      <span className="relative flex h-full w-full">
+                                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-50" />
+                                        <span className="relative inline-flex h-full w-full rounded-full bg-blue-500" />
+                                      </span>
+                                    ) : DotIcon ? (
+                                      <DotIcon className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
+                                    ) : null}
+                                  </div>
+
+                                  {/* Card */}
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
+                                    data-paso-id={paso.idPaso}
+                                    onClick={() => setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso); } }}
+                                    className={`w-full cursor-default rounded-lg border border-l-4 p-3 text-left transition-all hover:shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${cardClass} ${isExpanded ? 'ring-1 ring-primary/30' : ''}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0">
+                                        <span className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
+                                          {index + 1}
+                                        </span>
+                                        <span className="truncate text-sm font-medium">{paso.nombrePaso}</span>
+                                      </div>
+                                      <div className="flex flex-shrink-0 items-center gap-1.5">
+                                        {isActual ? (
+                                          <Badge variant={isActualRechazada ? 'destructive' : isActualCancelada ? 'outline' : 'secondary'} className="text-[10px] px-1.5 py-0">
+                                            {isActualRechazada ? 'Rechazada' : isActualCancelada ? 'Cancelada' : '● Actual'}
+                                          </Badge>
+                                        ) : isCompletado ? (
+                                          <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 hover:bg-emerald-500">✓ Completado</Badge>
+                                        ) : isRechazado ? (
+                                          <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Rechazado</Badge>
+                                        ) : isDevuelto ? (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600">Devuelto</Badge>
+                                        ) : isOmitido ? (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 opacity-60">Omitido</Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">En espera</Badge>
+                                        )}
+                                        {isExpanded
+                                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                          : <ChevronRight className="h-3 w-3 text-muted-foreground" />
                                         }
-                                        const showTrans = (transFrom || transTo) && transFrom !== transTo;
+                                      </div>
+                                    </div>
 
-                                        return (
-                                          <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
-                                            <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
-                                              <span className="font-semibold truncate">
-                                                {item.nombreAccion || `Acción ${item.idAccion}`}
-                                              </span>
-                                              <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                {fmtFecha(item.fechaEvento)}
-                                              </span>
-                                            </div>
-                                            <div className="space-y-1 px-3 py-2">
-                                              <div className="flex items-center gap-2">
-                                                <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
-                                                <div className="flex items-center gap-1 text-foreground/80">
-                                                  <UserRound className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                                  <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
-                                                </div>
-                                              </div>
-                                              {showTrans && (
-                                                <div className="flex items-center gap-2">
-                                                  <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
-                                                  <div className="flex items-center gap-1 text-foreground/80">
-                                                    <MoveRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                                    <span>
-                                                      {transFrom && (
-                                                        <><span className="text-foreground/60">{transFrom}</span><span className="mx-1 text-muted-foreground">→</span></>
-                                                      )}
-                                                      <span className="font-medium">{transTo}</span>
+                                    {paso.descripcionAyuda && !isExpanded && (
+                                      <p className="mt-1 ml-7 text-[11px] text-muted-foreground truncate">{paso.descripcionAyuda}</p>
+                                    )}
+                                    {eventosPaso.length > 0 && !isExpanded && (
+                                      <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
+                                      </p>
+                                    )}
+
+                                    {isExpanded && (
+                                      <div className="mt-3 ml-1 space-y-3" onClick={e => e.stopPropagation()}>
+                                        {paso.descripcionAyuda && (
+                                          <p className="text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
+                                        )}
+
+                                        {/* Historial de actividad */}
+                                        <div>
+                                          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                            Historial de actividad
+                                          </p>
+                                          {eventosPaso.length === 0 ? (
+                                            <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
+                                          ) : (
+                                            <div className="space-y-2">
+                                            {eventosPaso.map((item) => {
+                                              let transFrom: string | null = null;
+                                              let transTo: string | null = null;
+                                              if (item.datosSnapshot) {
+                                                try {
+                                                  const snap = JSON.parse(item.datosSnapshot) as {
+                                                    idPasoAnterior?: number | null;
+                                                    idPasoNuevo?: number | null;
+                                                  };
+                                                  transFrom = snap.idPasoAnterior
+                                                    ? (pasosMap.get(snap.idPasoAnterior)?.nombrePaso ?? null)
+                                                    : null;
+                                                  transTo = snap.idPasoNuevo
+                                                    ? (pasosMap.get(snap.idPasoNuevo)?.nombrePaso ?? null)
+                                                    : null;
+                                                } catch { /* ignore */ }
+                                              }
+                                              const showTrans = (transFrom || transTo) && transFrom !== transTo;
+
+                                              return (
+                                                <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
+                                                  {/* Fila: acción + fecha */}
+                                                  <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+                                                    <span className="font-semibold truncate">
+                                                      {item.nombreAccion || `Acción ${item.idAccion}`}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
+                                                      {fmtFecha(item.fechaEvento)}
                                                     </span>
                                                   </div>
+                                                  {/* Cuerpo con etiquetas */}
+                                                  <div className="space-y-1 px-3 py-2">
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
+                                                      <div className="flex items-center gap-1 text-foreground/80">
+                                                        <UserRound className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                                                        <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
+                                                      </div>
+                                                    </div>
+                                                    {showTrans && (
+                                                      <div className="flex items-center gap-2">
+                                                        <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
+                                                        <div className="flex items-center gap-1 text-foreground/80">
+                                                          <MoveRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+                                                          <span>
+                                                            {transFrom && (
+                                                              <><span className="text-foreground/60">{transFrom}</span><span className="mx-1 text-muted-foreground">→</span></>
+                                                            )}
+                                                            <span className="font-medium">{transTo}</span>
+                                                          </span>
+                                                        </div>
+                                                      </div>
+                                                    )}
+                                                    {item.comentario && (
+                                                      <div className="mt-2 rounded-md border border-border/60 bg-muted/60 px-3 py-2.5 shadow-sm">
+                                                        <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comentario</p>
+                                                        <p className="text-[11px] leading-relaxed text-foreground/90 italic">{item.comentario}</p>
+                                                      </div>
+                                                    )}
+                                                  </div>
                                                 </div>
-                                              )}
-                                              {item.comentario && (
-                                                <div className="mt-2 rounded-md border border-border/60 bg-muted/60 px-3 py-2.5 shadow-sm">
-                                                  <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comentario</p>
-                                                  <p className="text-[11px] leading-relaxed text-foreground/90 italic">{item.comentario}</p>
-                                                </div>
+                                              );
+                                            })}
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {/* Acciones disponibles */}
+                                        {isActual && (
+                                          <div className="border-t border-border/50 pt-3">
+                                            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                              Acciones disponibles
+                                            </p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {acciones.filter(a => !a.enviaConcentrado).length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                  No hay acciones disponibles para su usuario en este paso.
+                                                </p>
+                                              ) : (
+                                                acciones
+                                                  .filter(a => !a.enviaConcentrado)
+                                                  .map((a) => (
+                                                  <Button
+                                                   key={a.idAccion}
+                                                   size="sm"
+                                                   className={(() => {
+                                                     const styles: Record<string, string> = {
+                                                       'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                                       'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                     };
+                                                     return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                                   })()}
+                                                   onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                                                  >
+                                                    {a.tipoAccionNombre}
+                                                  </Button>
+                                                ))
                                               )}
                                             </div>
                                           </div>
-                                        );
-                                      })}
+                                        )}
                                       </div>
                                     )}
                                   </div>
-
-                                  {/* Acciones disponibles */}
-                                  <div className="border-t border-border/50 pt-3">
-                                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                      Acciones disponibles
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                      {acciones.filter(a => !a.enviaConcentrado).length === 0 ? (
-                                        <p className="text-xs text-muted-foreground">
-                                          No hay acciones disponibles para su usuario en este paso.
-                                        </p>
-                                      ) : (
-                                        acciones
-                                          .filter(a => !a.enviaConcentrado)
-                                          .map((a) => (
-                                          <Button
-                                           key={a.idAccion}
-                                           size="sm"
-                                           className={(() => {
-                                             const styles: Record<string, string> = {
-                                               'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
-                                               'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
-                                               'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
-                                               'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
-                                               'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
-                                               'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
-                                               'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
-                                               'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
-                                               'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
-                                               'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
-                                             };
-                                             return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
-                                           })()}
-                                           onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
-                                          >
-                                            {a.tipoAccionNombre}
-                                          </Button>
-                                        ))
-                                      )}
-                                    </div>
-                                  </div>
                                 </div>
-                              </div>
-                            )}
-
-                            {/* ── Separador ── */}
-                            {pasoActual && (
-                              <div className="flex items-center gap-2 py-1">
-                                <div className="h-px flex-1 bg-border" />
-                                <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Flujo completo</span>
-                                <div className="h-px flex-1 bg-border" />
-                              </div>
-                            )}
-
-                            {/* ── Flujo completo con timeline ── */}
-                            <Collapsible defaultOpen={false}>
-                              <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60">
-                                <ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
-                                Ver flujo de pasos ({progresoPasos.length} pasos)
-                              </CollapsibleTrigger>
-                              <CollapsibleContent>
-                                <div
-                                  ref={pasosContainerRef}
-                                  className="relative max-h-[32rem] overflow-y-auto pr-1 pt-2"
-                                >
-                                  <div className="absolute left-[1.1rem] top-4 bottom-4 w-0.5 rounded-full bg-border/60" />
-                                  <div className="space-y-2">
-                                  {progresoPasos.map((paso, index) => {
-                                    const isActual = paso.estadoVisual === 'actual';
-                                    const isCompletado = paso.estadoVisual === 'completado';
-                                    const isOmitido = paso.estadoVisual === 'omitido';
-                                    const isRechazado = paso.estadoVisual === 'rechazado';
-                                    const isDevuelto = paso.estadoVisual === 'devuelto';
-                                    const isPendiente = !isActual && !isCompletado && !isOmitido && !isRechazado && !isDevuelto;
-                                    const isExpanded = expandedPasoId === paso.idPaso;
-                                    const isActualRechazadaColl = isActual && selectedOrden?.idEstado === 8;
-                                    const isActualCanceladaColl = isActual && selectedOrden?.idEstado === 9;
-                                    const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
-                                    const ultimoEvento = eventosPaso[eventosPaso.length - 1];
-
-                                    const dotBg = isCompletado
-                                      ? 'bg-emerald-500 border-emerald-500'
-                                      : isActual
-                                        ? isActualRechazadaColl
-                                          ? 'bg-red-500 border-red-500'
-                                          : isActualCanceladaColl
-                                            ? 'bg-zinc-400 border-zinc-400'
-                                            : 'bg-blue-500 border-blue-500'
-                                        : isRechazado
-                                          ? 'bg-red-400 border-red-400'
-                                          : isDevuelto
-                                            ? 'bg-amber-400 border-amber-400'
-                                            : 'bg-background border-border';
-
-                                    const DotIcon = isCompletado
-                                      ? CheckCircle2
-                                      : isRechazado || isActualRechazadaColl
-                                        ? XCircle
-                                        : isDevuelto
-                                          ? AlertTriangle
-                                          : isPendiente || isOmitido
-                                            ? Clock
-                                            : null;
-
-                                    const cardClass = isActual
-                                      ? isActualRechazadaColl
-                                        ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
-                                        : isActualCanceladaColl
-                                          ? 'border-l-zinc-400 bg-zinc-50/60 dark:bg-zinc-900/30'
-                                          : 'border-l-blue-400 bg-blue-50/60 dark:bg-blue-950/15'
-                                      : isCompletado
-                                        ? 'border-l-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/10'
-                                        : isRechazado
-                                          ? 'border-l-red-300 bg-red-50/40 dark:bg-red-950/10'
-                                          : isDevuelto
-                                            ? 'border-l-amber-300 bg-amber-50/40 dark:bg-amber-950/10'
-                                            : 'border-l-border/50 opacity-60';
-
-                                    return (
-                                      <div key={paso.idPaso} className="relative pl-10">
-                                        <div className={`absolute left-3 top-3 z-10 flex h-4.5 w-4.5 items-center justify-center rounded-full border-2 ${dotBg}`}
-                                          style={{ width: '1.1rem', height: '1.1rem', left: '0.55rem' }}
-                                        >
-                                          {isActual && !isActualRechazadaColl && !isActualCanceladaColl ? (
-                                            <span className="relative flex h-full w-full">
-                                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-50" />
-                                              <span className="relative inline-flex h-full w-full rounded-full bg-blue-500" />
-                                            </span>
-                                          ) : DotIcon ? (
-                                            <DotIcon className="h-2.5 w-2.5 text-white" strokeWidth={2.5} />
-                                          ) : null}
-                                        </div>
-
-                                        <div
-                                          role="button"
-                                          tabIndex={0}
-                                          data-paso-id={paso.idPaso}
-                                          onClick={() => setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso)}
-                                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedPasoId(prev => prev === paso.idPaso ? null : paso.idPaso); } }}
-                                          className={`w-full cursor-default rounded-lg border border-l-4 p-3 text-left transition-all hover:shadow-sm outline-none focus-visible:ring-1 focus-visible:ring-primary/40 ${cardClass} ${isExpanded ? 'ring-1 ring-primary/30' : ''}`}
-                                        >
-                                          <div className="flex items-start justify-between gap-2">
-                                            <div className="flex items-center gap-2 min-w-0">
-                                              <span className="flex-shrink-0 inline-flex h-5 w-5 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
-                                                {index + 1}
-                                              </span>
-                                              <span className="truncate text-sm font-medium">{paso.nombrePaso}</span>
-                                            </div>
-                                            <div className="flex flex-shrink-0 items-center gap-1.5">
-                                              {isActual ? (
-                                                <Badge variant={isActualRechazadaColl ? 'destructive' : isActualCanceladaColl ? 'outline' : 'secondary'} className="text-[10px] px-1.5 py-0">
-                                                  {isActualRechazadaColl ? 'Rechazada' : isActualCanceladaColl ? 'Cancelada' : '● Actual'}
-                                                </Badge>
-                                              ) : isCompletado ? (
-                                                <Badge className="text-[10px] px-1.5 py-0 bg-emerald-500 hover:bg-emerald-500">✓ Completado</Badge>
-                                              ) : isRechazado ? (
-                                                <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Rechazado</Badge>
-                                              ) : isDevuelto ? (
-                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-400 text-amber-600">Devuelto</Badge>
-                                              ) : isOmitido ? (
-                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 opacity-60">Omitido</Badge>
-                                              ) : (
-                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-muted-foreground">En espera</Badge>
-                                              )}
-                                              {isExpanded
-                                                ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                                                : <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                                              }
-                                            </div>
-                                          </div>
-
-                                          {paso.descripcionAyuda && !isExpanded && (
-                                            <p className="mt-1 ml-7 text-[11px] text-muted-foreground truncate">{paso.descripcionAyuda}</p>
-                                          )}
-                                          {eventosPaso.length > 0 && !isExpanded && (
-                                            <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
-                                              {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
-                                            </p>
-                                          )}
-
-                                          {isExpanded && (
-                                            <div className="mt-3 ml-1 space-y-3" onClick={e => e.stopPropagation()}>
-                                              {paso.descripcionAyuda && (
-                                                <p className="text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
-                                              )}
-                                              <div>
-                                                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                                                  Historial de actividad
-                                                </p>
-                                                {eventosPaso.length === 0 ? (
-                                                  <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
-                                                ) : (
-                                                  <div className="space-y-2">
-                                                  {eventosPaso.map((item) => {
-                                                    let transFrom: string | null = null;
-                                                    let transTo: string | null = null;
-                                                    if (item.datosSnapshot) {
-                                                      try {
-                                                        const snap = JSON.parse(item.datosSnapshot) as {
-                                                          idPasoAnterior?: number | null;
-                                                          idPasoNuevo?: number | null;
-                                                        };
-                                                        transFrom = snap.idPasoAnterior
-                                                          ? (pasosMap.get(snap.idPasoAnterior)?.nombrePaso ?? null)
-                                                          : null;
-                                                        transTo = snap.idPasoNuevo
-                                                          ? (pasosMap.get(snap.idPasoNuevo)?.nombrePaso ?? null)
-                                                          : null;
-                                                      } catch { /* ignore */ }
-                                                    }
-                                                    const showTrans = (transFrom || transTo) && transFrom !== transTo;
-
-                                                    return (
-                                                      <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
-                                                        <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
-                                                          <span className="font-semibold truncate">
-                                                            {item.nombreAccion || `Acción ${item.idAccion}`}
-                                                          </span>
-                                                          <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                            {fmtFecha(item.fechaEvento)}
-                                                          </span>
-                                                        </div>
-                                                        <div className="space-y-1 px-3 py-2">
-                                                          <div className="flex items-center gap-2">
-                                                            <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
-                                                            <div className="flex items-center gap-1 text-foreground/80">
-                                                              <UserRound className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                                              <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
-                                                            </div>
-                                                          </div>
-                                                          {showTrans && (
-                                                            <div className="flex items-center gap-2">
-                                                              <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
-                                                              <div className="flex items-center gap-1 text-foreground/80">
-                                                                <MoveRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-                                                                <span>
-                                                                  {transFrom && (
-                                                                    <><span className="text-foreground/60">{transFrom}</span><span className="mx-1 text-muted-foreground">→</span></>
-                                                                  )}
-                                                                  <span className="font-medium">{transTo}</span>
-                                                                </span>
-                                                              </div>
-                                                            </div>
-                                                          )}
-                                                          {item.comentario && (
-                                                            <div className="mt-2 rounded-md border border-border/60 bg-muted/60 px-3 py-2.5 shadow-sm">
-                                                              <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comentario</p>
-                                                              <p className="text-[11px] leading-relaxed text-foreground/90 italic">{item.comentario}</p>
-                                                            </div>
-                                                          )}
-                                                        </div>
-                                                      </div>
-                                                    );
-                                                  })}
-                                                  </div>
-                                                )}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                  </div>
-                                </div>
-                              </CollapsibleContent>
-                            </Collapsible>
-                          </>
+                              );
+                            })}
+                            </div>
+                          </div>
                           );
                         })()}
                       </div>
@@ -2868,6 +2745,7 @@ export default function AutorizacionesOC() {
         <OrdenCompraPDF
           orden={selectedOrden}
           historial={historial}
+          pasosWorkflow={pasosWorkflow}
           proveedoresMap={proveedoresMap}
           firmasMap={firmasMap}
           formasPagoMap={formasPagoMap}

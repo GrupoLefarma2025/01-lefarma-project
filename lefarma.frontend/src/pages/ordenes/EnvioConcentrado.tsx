@@ -25,7 +25,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 
@@ -100,6 +108,7 @@ export default function EnvioConcentrado() {
   const [enviando, setEnviando] = useState(false);
   const [envioResult, setEnvioResult] = useState<EnvioConcentradoResponse | null>(null);
   const [envioError, setEnvioError] = useState<string | null>(null);
+  const [showPreviewDialog, setShowPreviewDialog] = useState(false);
 
   // ── Fetch órdenes pendientes de envío concentrado ────────────────────────
   // Estado PREPARACION_GAF (id_estado = 11) - paso que tiene envia_concentrado
@@ -188,32 +197,15 @@ export default function EnvioConcentrado() {
     setEnvioResult(null);
     setEnvioError(null);
     try {
-      const pdfElement = document.getElementById('envio-concentrado-pdf-print');
+      const pdfElement = document.getElementById('envio-concentrado-pdf-preview');
       if (!pdfElement) throw new Error('No se encontró el componente PDF del concentrado');
-
-      // Hacer visible temporalmente para html2canvas
-      pdfElement.style.display = 'block';
-      pdfElement.style.position = 'absolute';
-      pdfElement.style.top = '-9999px';
-      pdfElement.style.left = '0';
-      pdfElement.style.width = '1200px';
-      pdfElement.style.background = '#ffffff';
 
       const canvas = await html2canvas(pdfElement, {
         scale: 2,
         useCORS: true,
         backgroundColor: '#ffffff',
         logging: false,
-        windowWidth: 1200,
       });
-
-      // Restaurar ocultamiento
-      pdfElement.style.display = '';
-      pdfElement.style.position = '';
-      pdfElement.style.top = '';
-      pdfElement.style.left = '';
-      pdfElement.style.width = '';
-      pdfElement.style.background = '';
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -492,11 +484,11 @@ export default function EnvioConcentrado() {
               <Button
                 size="sm"
                 className="gap-1.5 h-7 text-xs"
-                onClick={handleEnviar}
+                onClick={() => setShowPreviewDialog(true)}
                 disabled={ordenesSeleccionadas.length === 0 || enviando}
               >
                 <Send className="h-3.5 w-3.5" />
-                {enviando ? 'Procesando…' : 'Envar concentrado'}
+                {enviando ? 'Procesando…' : 'Enviar concentrado'}
               </Button>
             </div>
           </div>
@@ -568,6 +560,53 @@ export default function EnvioConcentrado() {
           </div>
         </div>
       </div>
+
+      {/* ── Dialog de previsualización antes de enviar ── */}
+      <Dialog open={showPreviewDialog} onOpenChange={setShowPreviewDialog}>
+        <DialogContent className="max-w-3xl max-h-[85vh] flex flex-col" showCloseButton={!enviando}>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" />
+              Previsualización del envío
+            </DialogTitle>
+            <DialogDescription>
+              Se enviarán <strong>{ordenesSeleccionadas.length}</strong> orden(es) agrupadas por{' '}
+              <strong>{AGRUPACION_LABELS[agrupacion]}</strong> con un total de{' '}
+              <strong>{fmtMoney(totalSeleccionado)}</strong>. Revisa el detalle antes de confirmar.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-auto border rounded-lg bg-white envio-concentrado-preview">
+            <EnvioConcentradoPDF
+              id="envio-concentrado-pdf-preview"
+              ordenes={ordenesSeleccionadas}
+              agrupacion={agrupacion}
+              generadoPor={user?.nombre ?? user?.username}
+            />
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowPreviewDialog(false)}
+              disabled={enviando}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={async () => {
+                await handleEnviar();
+                setShowPreviewDialog(false);
+              }}
+              disabled={enviando}
+              className="gap-1.5"
+            >
+              <Send className="h-4 w-4" />
+              {enviando ? 'Enviando…' : 'Confirmar envío'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Componente PDF oculto (solo se muestra al imprimir) ── */}
       <EnvioConcentradoPDF
