@@ -244,8 +244,13 @@ function NumericInput({
   }, [value]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
+    let raw = e.target.value;
     if (!hasValidNumericFormat(raw)) return;
+
+    // Strip leading zeros when typing after initial 0 (e.g. '05' → '5', '0.5' stays)
+    if (raw.length > 1 && raw[0] === '0' && raw[1] !== '.') {
+      raw = raw.replace(/^0+/, '') || '0';
+    }
 
     setDisplayValue(raw);
     const num = parseFloat(raw);

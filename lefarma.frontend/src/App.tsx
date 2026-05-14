@@ -35,7 +35,7 @@ function App() {
   }
 
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.PROD ? '/CxP' : undefined}>
       <AppRoutes />
       <Toaster />
     </BrowserRouter>
