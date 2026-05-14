@@ -189,32 +189,32 @@ namespace Lefarma.API.Features.Config.Workflows
         // CONDICIONES
         // ============================================================================
         
-        [HttpPost("{idWorkflow}/pasos/{idPaso}/condiciones")]
+        [HttpPost("{idWorkflow}/acciones/{idAccion}/condiciones")]
     //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Crear condici�n en un paso")]
-        public async Task<IActionResult> CreateCondicion(int idWorkflow, int idPaso,  CreateCondicionRequest request)
+        public async Task<IActionResult> CreateCondicion(int idWorkflow, int idAccion,  CreateCondicionRequest request)
         {
-            var result = await _service.CreateCondicionAsync(idWorkflow, idPaso, request);
+            var result = await _service.CreateCondicionAsync(idWorkflow, idAccion, request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<CondicionResponse>
             { Success = true, Message = "Condici�n creada exitosamente.", Data = data }));
         }
 
-        [HttpPut("{idWorkflow}/pasos/{idPaso}/condiciones/{idCondicion}")]
+        [HttpPut("{idWorkflow}/acciones/{idAccion}/condiciones/{idCondicion}")]
     //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Actualizar condici�n de un paso")]
-        public async Task<IActionResult> UpdateCondicion(int idWorkflow, int idPaso, int idCondicion,  UpdateCondicionRequest request)
+        public async Task<IActionResult> UpdateCondicion(int idWorkflow, int idAccion, int idCondicion,  UpdateCondicionRequest request)
         {
-            var result = await _service.UpdateCondicionAsync(idWorkflow, idPaso, idCondicion, request);
+            var result = await _service.UpdateCondicionAsync(idWorkflow, idAccion, idCondicion, request);
             return result.ToActionResult(this, data => Ok(new ApiResponse<CondicionResponse>
             { Success = true, Message = "Condici�n actualizada exitosamente.", Data = data }));
         }
 
-        [HttpDelete("{idWorkflow}/pasos/{idPaso}/condiciones/{idCondicion}")]
+        [HttpDelete("{idWorkflow}/acciones/{idAccion}/condiciones/{idCondicion}")]
     //    [HasPermission(Permissions.Workflows.Manage)]
         [SwaggerOperation(Summary = "Eliminar condici�n de un paso")]
-        public async Task<IActionResult> DeleteCondicion(int idWorkflow, int idPaso, int idCondicion)
+        public async Task<IActionResult> DeleteCondicion(int idWorkflow, int idAccion, int idCondicion)
         {
-            var result = await _service.DeleteCondicionAsync(idWorkflow, idPaso, idCondicion);
+            var result = await _service.DeleteCondicionAsync(idWorkflow, idAccion, idCondicion);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             { Success = true, Message = "Condici�n eliminada exitosamente.", Data = null }));
         }

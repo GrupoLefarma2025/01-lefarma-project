@@ -34,6 +34,7 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.IdCuentaContable).HasColumnName("id_cuenta_contable");
             builder.Property(o => o.RequiereComprobacionPago).HasColumnName("requiere_comprobacion_pago").HasDefaultValue(true);
             builder.Property(o => o.RequiereComprobacionGasto).HasColumnName("requiere_comprobacion_gasto").HasDefaultValue(true);
+            builder.Property(o => o.RequierePagoAnticipado).HasColumnName("requiere_pago_anticipado").HasDefaultValue(false);
             builder.Property(o => o.FechaSolicitud).HasColumnName("fecha_solicitud");
             builder.Property(o => o.FechaLimitePago).HasColumnName("fecha_limite_pago");
             builder.Property(o => o.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");

@@ -6,7 +6,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     public class CondicionResponse
     {
         public int IdCondicion { get; set; }
-        public int IdPaso { get; set; }
+        public int IdAccion { get; set; }
         public string CampoEvaluacion { get; set; } = string.Empty;
         public string Operador { get; set; } = string.Empty;
         public string ValorComparacion { get; set; } = string.Empty;
@@ -120,6 +120,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public string? SourceCatalog { get; set; }
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; }
+        public bool UsarEnCondiciones { get; set; }
         public bool Activo { get; set; }
     }
 
@@ -246,6 +247,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
 
     public class UpdateCondicionRequest
     {
+        public required int IdAccion { get; set; }
         public required string CampoEvaluacion { get; set; }
         public required string Operador { get; set; }
         public required string ValorComparacion { get; set; }

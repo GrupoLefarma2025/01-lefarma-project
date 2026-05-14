@@ -76,6 +76,7 @@ export interface WorkflowCampo {
   sourceCatalog?: string;
   propiedadEntidad?: string;
   validarFiscal?: boolean;
+  usarEnCondiciones: boolean;
   activo: boolean;
 }
 
@@ -83,7 +84,7 @@ export interface WorkflowCampo {
 
 export interface WorkflowCondicion {
   idCondicion: number;
-  idPaso: number;
+  idAccion: number;
   campoEvaluacion: string; // 'Total', 'TipoGasto', etc.
   operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN';
   valorComparacion: string;

@@ -129,6 +129,7 @@ const ordenCompraSchema = z
     idMoneda: z.number().optional().nullable(),
     tipoCambioAplicado: z.number().optional(),
     sinDatosFiscales: z.boolean(),
+    requierePagoAnticipado: z.boolean(),
     idProveedor: z.number().optional().nullable(),
     razonSocialProveedor: z.string().optional(),
     idCuentaBancaria: z.number().optional().nullable(),
@@ -469,6 +470,7 @@ export default function CrearOrdenCompra() {
       idMoneda: 1,
       tipoCambioAplicado: 1,
       sinDatosFiscales: false,
+      requierePagoAnticipado: false,
       idProveedor: 0,
       razonSocialProveedor: '',
       idCuentaBancaria: null,
@@ -792,6 +794,7 @@ export default function CrearOrdenCompra() {
             idMoneda: orden.idMoneda ?? null,
             tipoCambioAplicado: orden.tipoCambioAplicado ?? 1,
             sinDatosFiscales: orden.sinDatosFiscales,
+            requierePagoAnticipado: orden.requierePagoAnticipado,
             idProveedor: orden.idProveedor || 0,
             razonSocialProveedor,
             idCuentaBancaria: orden.idsCuentasBancarias?.[0] || null,
@@ -928,6 +931,7 @@ export default function CrearOrdenCompra() {
         tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
         idProveedor: values.idProveedor && values.idProveedor > 0 ? values.idProveedor : null,
         sinDatosFiscales: values.sinDatosFiscales,
+        requierePagoAnticipado: values.requierePagoAnticipado,
         notaFormaPago: values.notaFormaPago || null,
         notasGenerales: values.notasGenerales || null,
         idsCuentasBancarias: selectedCuentaBancariaId ? [selectedCuentaBancariaId] : null,
@@ -1545,10 +1549,10 @@ export default function CrearOrdenCompra() {
                   control={form.control}
                   name="fechaLimitePago"
                   render={({ field }) => (
-                    <FormItem className="sm:col-span-2 lg:col-span-2">
+                    <FormItem className="sm:col-span-1">
                       <FormLabel className="flex items-center gap-2">
                         <Calendar className="h-3.5 w-3.5" />
-                        Fecha Límite de Pago *
+                        Fecha Limite de Pago *
                       </FormLabel>
                       <FormControl>
                         <Input
@@ -1558,9 +1562,24 @@ export default function CrearOrdenCompra() {
                         />
                       </FormControl>
                       <FormDescription className="text-xs">
-                        Fecha máxima para realizar el pago al proveedor
+                        Fecha maxima para realizar el pago al proveedor
                       </FormDescription>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="requierePagoAnticipado"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-1 flex flex-row items-start space-x-3 space-y-0 pt-8">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel className="!mt-0 font-medium">Requiere pago anticipado</FormLabel>
+                        <FormDescription className="text-xs">Pago por adelantado</FormDescription>
+                      </div>
                     </FormItem>
                   )}
                 />

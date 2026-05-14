@@ -38,7 +38,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 var q = _repo.GetQueryable()
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Condiciones)
                     .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .AsQueryable();
 
@@ -131,7 +131,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.TipoAccion)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones).ThenInclude(n => n.Canales)
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.AccionHandlers).ThenInclude(h => h.Campo)
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Condiciones)
                     .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == id);
 
@@ -503,7 +503,8 @@ public class WorkflowService : BaseService, IWorkflowService
 
                 var condicionesQueApuntanAlPaso = workflow.Pasos
                     .Where(p => p.IdPaso != idPaso && p.Activo)
-                    .SelectMany(p => p.Condiciones)
+                    .SelectMany(p => p.AccionesOrigen)
+                    .SelectMany(a => a.Condiciones)
                     .Any(c => c.Activo && c.IdPasoSiCumple == idPaso);
                     if (condicionesQueApuntanAlPaso)
                         return CommonErrors.Conflict("paso", "No se puede inactivar el paso porque hay condiciones activas que lo usan como destino.");
@@ -634,7 +635,7 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 var workflow = await _repo.GetQueryable()
                     .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Notificaciones)
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
+                    .Include(w => w.Pasos).ThenInclude(p => p.AccionesOrigen).ThenInclude(a => a.Condiciones)
                     .Include(w => w.Pasos).ThenInclude(p => p.Participantes)
                     .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
@@ -992,34 +993,26 @@ public class WorkflowService : BaseService, IWorkflowService
         // ============================================================================
         // CONDICIONES
         // ============================================================================
-        public async Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idPaso, CreateCondicionRequest request)
+        public async Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idAccion, CreateCondicionRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                var accion = await _context.WorkflowAcciones
+                    .Include(a => a.Condiciones)
+                    .Include(a => a.PasoOrigen)
+                    .FirstOrDefaultAsync(a => a.IdAccion == idAccion);
 
-                if (workflow == null)
+                if (accion == null || accion.PasoOrigen == null || accion.PasoOrigen.IdWorkflow != idWorkflow)
                 {
-                    EnrichWideEvent("CreateCondicion", entityId: idWorkflow, notFound: true);
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+                    EnrichWideEvent("CreateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
-
-                var paso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPaso);
-                if (paso == null)
-                {
-                    EnrichWideEvent("CreateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
-                    return CommonErrors.NotFound("Paso", idPaso.ToString());
-                }
-                if (!paso.Activo)
-                    return CommonErrors.Conflict("paso", "No se pueden actualizar acciones en un paso inactivo.");
-                if (!paso.Activo)
-                    return CommonErrors.Conflict("paso", "No se pueden crear condiciones en un paso inactivo.");
+                if (!accion.Activo)
+                    return CommonErrors.Conflict("accion", "No se pueden crear condiciones en una acción inactiva.");
 
                 var condicion = new WorkflowCondicion
                 {
-                    IdPaso = idPaso,
+                    IdAccion = idAccion,
                     CampoEvaluacion = request.CampoEvaluacion,
                     Operador = request.Operador,
                     ValorComparacion = request.ValorComparacion,
@@ -1027,13 +1020,13 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = request.Activo
                 };
 
-                paso.Condiciones.Add(condicion);
-                await _repo.UpdateAsync(workflow);
+                accion.Condiciones.Add(condicion);
+                await _context.SaveChangesAsync();
 
                 var response = new CondicionResponse
                 {
                     IdCondicion = condicion.IdCondicion,
-                    IdPaso = condicion.IdPaso,
+                    IdAccion = condicion.IdAccion,
                     CampoEvaluacion = condicion.CampoEvaluacion,
                     Operador = condicion.Operador,
                     ValorComparacion = condicion.ValorComparacion,
@@ -1041,45 +1034,47 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = condicion.Activo
                 };
 
-                EnrichWideEvent("CreateCondicion", entityId: condicion.IdCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
+                EnrichWideEvent("CreateCondicion", entityId: condicion.IdCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
                 return response;
             }
             catch (Exception ex)
             {
                 EnrichWideEvent("CreateCondicion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("crear condici�n");
+                return CommonErrors.DatabaseError("crear condición");
             }
         }
 
-        public async Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idPaso, int idCondicion, UpdateCondicionRequest request)
+        public async Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idAccion, int idCondicion, UpdateCondicionRequest request)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                // Buscar condicion directamente por ID
+                var condicion = await _context.WorkflowCondiciones
+                    .Include(c => c.Accion).ThenInclude(a => a.PasoOrigen)
+                    .FirstOrDefaultAsync(c => c.IdCondicion == idCondicion);
 
-                if (workflow == null)
-                {
-                    EnrichWideEvent("UpdateCondicion", entityId: idWorkflow, notFound: true);
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
-                }
-
-                var paso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPaso);
-                if (paso == null)
-                {
-                    EnrichWideEvent("UpdateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
-                    return CommonErrors.NotFound("Paso", idPaso.ToString());
-                }
-
-                var condicion = paso.Condiciones.FirstOrDefault(c => c.IdCondicion == idCondicion);
                 if (condicion == null)
+                    return CommonErrors.NotFound("Condición", idCondicion.ToString());
+
+                if (condicion.Accion?.PasoOrigen?.IdWorkflow != idWorkflow)
+                    return CommonErrors.Validation("Workflow", "La condición no pertenece al workflow indicado.");
+
+                // Si cambia de accion, validar la nueva
+                if (request.IdAccion != condicion.IdAccion)
                 {
-                    EnrichWideEvent("UpdateCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["condicionId"] = idCondicion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Condici�n", idCondicion.ToString());
+                    var nuevaAccion = await _context.WorkflowAcciones
+                        .Include(a => a.PasoOrigen)
+                        .FirstOrDefaultAsync(a => a.IdAccion == request.IdAccion);
+
+                    if (nuevaAccion == null || nuevaAccion.PasoOrigen == null || nuevaAccion.PasoOrigen.IdWorkflow != idWorkflow)
+                        return CommonErrors.NotFound("Acción", request.IdAccion.ToString());
+
+                    if (!nuevaAccion.Activo && request.Activo)
+                        return CommonErrors.Conflict("condicion", "No se puede asignar una condición activa a una acción inactiva.");
+
+                    condicion.IdAccion = request.IdAccion;
+                    condicion.Accion = nuevaAccion;
                 }
-                if (!paso.Activo && request.Activo)
-                    return CommonErrors.Conflict("condicion", "No se puede reactivar una condici�n en un paso inactivo.");
 
                 condicion.CampoEvaluacion = request.CampoEvaluacion;
                 condicion.Operador = request.Operador;
@@ -1087,12 +1082,12 @@ public class WorkflowService : BaseService, IWorkflowService
                 condicion.IdPasoSiCumple = request.IdPasoSiCumple;
                 condicion.Activo = request.Activo;
 
-                await _repo.UpdateAsync(workflow);
+                await _context.SaveChangesAsync();
 
                 var response = new CondicionResponse
                 {
                     IdCondicion = condicion.IdCondicion,
-                    IdPaso = condicion.IdPaso,
+                    IdAccion = condicion.IdAccion,
                     CampoEvaluacion = condicion.CampoEvaluacion,
                     Operador = condicion.Operador,
                     ValorComparacion = condicion.ValorComparacion,
@@ -1100,57 +1095,50 @@ public class WorkflowService : BaseService, IWorkflowService
                     Activo = condicion.Activo
                 };
 
-                EnrichWideEvent("UpdateCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
+                EnrichWideEvent("UpdateCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["accionId"] = request.IdAccion });
                 return response;
             }
             catch (Exception ex)
             {
                 EnrichWideEvent("UpdateCondicion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("actualizar condici�n");
+                return CommonErrors.DatabaseError("actualizar condición de workflow");
             }
         }
 
-        public async Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idPaso, int idCondicion)
+        public async Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idAccion, int idCondicion)
         {
             try
             {
-                var workflow = await _repo.GetQueryable()
-                    .Include(w => w.Pasos).ThenInclude(p => p.Condiciones)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+                var accion = await _context.WorkflowAcciones
+                    .Include(a => a.Condiciones)
+                    .Include(a => a.PasoOrigen)
+                    .FirstOrDefaultAsync(a => a.IdAccion == idAccion);
 
-                if (workflow == null)
+                if (accion == null || accion.PasoOrigen == null || accion.PasoOrigen.IdWorkflow != idWorkflow)
                 {
-                    EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, notFound: true);
-                    return CommonErrors.NotFound(EntityName, idWorkflow.ToString());
+                    EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["notFound"] = true });
+                    return CommonErrors.NotFound("Acción", idAccion.ToString());
                 }
 
-                var paso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPaso);
-                if (paso == null)
-                {
-                    EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["notFound"] = true });
-                    return CommonErrors.NotFound("Paso", idPaso.ToString());
-                }
-
-                var condicion = paso.Condiciones.FirstOrDefault(c => c.IdCondicion == idCondicion);
+                var condicion = accion.Condiciones.FirstOrDefault(c => c.IdCondicion == idCondicion);
                 if (condicion == null)
                 {
-                    EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["pasoId"] = idPaso, ["condicionId"] = idCondicion, ["notFound"] = true });
-                    return CommonErrors.NotFound("Condici�n", idCondicion.ToString());
+                    EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, additionalContext: new Dictionary<string, object> { ["accionId"] = idAccion, ["condicionId"] = idCondicion, ["notFound"] = true });
+                    return CommonErrors.NotFound("Condición", idCondicion.ToString());
                 }
                 condicion.Activo = false;
-                await _repo.UpdateAsync(workflow);
+                await _context.SaveChangesAsync();
 
-                EnrichWideEvent("DeleteCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["pasoId"] = idPaso });
+                EnrichWideEvent("DeleteCondicion", entityId: idCondicion, additionalContext: new Dictionary<string, object> { ["workflowId"] = idWorkflow, ["accionId"] = idAccion });
                 return true;
             }
             catch (Exception ex)
             {
                 EnrichWideEvent("DeleteCondicion", entityId: idWorkflow, exception: ex);
-                return CommonErrors.DatabaseError("eliminar condici�n");
+                return CommonErrors.DatabaseError("eliminar condición");
             }
         }
 
-        // ============================================================================
         // PARTICIPANTES
         // ============================================================================
         public async Task<ErrorOr<ParticipanteResponse>> CreateParticipanteAsync(int idWorkflow, int idPaso, CreateParticipanteRequest request)
@@ -1690,6 +1678,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     SourceCatalog = c.SourceCatalog,
                     PropiedadEntidad = c.PropiedadEntidad,
                     ValidarFiscal = c.ValidarFiscal,
+                    UsarEnCondiciones = c.UsarEnCondiciones,
                     Activo = c.Activo
                 }).ToList(),
                 Pasos = w.Pasos.OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse
@@ -1762,10 +1751,10 @@ public class WorkflowService : BaseService, IWorkflowService
                         }).ToList()
                     }).ToList()
                 }).ToList(),
-                Condiciones = p.Condiciones.Select(c => new CondicionResponse
+                Condiciones = p.AccionesOrigen.SelectMany(a => a.Condiciones).Select(c => new CondicionResponse
                 {
                     IdCondicion = c.IdCondicion,
-                    IdPaso = c.IdPaso,
+                    IdAccion = c.IdAccion,
                     CampoEvaluacion = c.CampoEvaluacion,
                     Operador = c.Operador,
                     ValorComparacion = c.ValorComparacion,
@@ -1785,7 +1774,7 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 TotalPasos = w.Pasos.Count(p => p.Activo),
                 TotalAcciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.AccionesOrigen).Count(a => a.Activo),
-                TotalCondiciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.Condiciones).Count(c => c.Activo),
+                TotalCondiciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.AccionesOrigen).SelectMany(a => a.Condiciones).Count(c => c.Activo),
                 TotalNotificaciones = w.Pasos.Where(p => p.Activo).SelectMany(p => p.AccionesOrigen.Where(a => a.Activo))
                     .SelectMany(a => a.Notificaciones).Count(n => n.Activo)
             }

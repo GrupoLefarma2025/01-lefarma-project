@@ -47,6 +47,7 @@ public class OrdenCompraResponse
         public string? CuentaContableDescripcion { get; set; }
         public bool RequiereComprobacionPago { get; set; }
         public bool RequiereComprobacionGasto { get; set; }
+        public bool RequierePagoAnticipado { get; set; }
         public DateTime? FechaSolicitud { get; set; }
         public DateTime FechaLimitePago { get; set; }
         public DateTime? FechaAutorizacion { get; set; }
@@ -89,6 +90,7 @@ public class OrdenCompraResponse
         public List<int>? IdsFormaPago { get; set; }
         public int? NumeroMensualidades { get; set; }
         public bool SinDatosFiscales { get; set; }
+        public bool RequierePagoAnticipado { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
         public int? IdMoneda { get; set; }

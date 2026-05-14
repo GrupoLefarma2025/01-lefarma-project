@@ -30,7 +30,6 @@ public class WorkflowPasoConfiguration : IEntityTypeConfiguration<WorkflowPaso>
             builder.Property(p => p.PermiteAdjunto).HasColumnName("permite_adjunto").HasDefaultValue(true);
 
             builder.HasMany(p => p.AccionesOrigen).WithOne(a => a.PasoOrigen).HasForeignKey(a => a.IdPasoOrigen).OnDelete(DeleteBehavior.Restrict);
-            builder.HasMany(p => p.Condiciones).WithOne(c => c.Paso).HasForeignKey(c => c.IdPaso).OnDelete(DeleteBehavior.Cascade);
             builder.HasMany(p => p.Participantes).WithOne(pa => pa.Paso).HasForeignKey(pa => pa.IdPaso).OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -13,6 +13,7 @@ public class WorkflowAccion
         public virtual WorkflowPaso? PasoDestino { get; set; }
         public virtual ICollection<WorkflowAccionHandler> AccionHandlers { get; set; } = new List<WorkflowAccionHandler>();
         public virtual ICollection<WorkflowNotificacion> Notificaciones { get; set; } = new List<WorkflowNotificacion>();
+        public virtual ICollection<WorkflowCondicion> Condiciones { get; set; } = new List<WorkflowCondicion>();
         public virtual ICollection<WorkflowBitacora> Bitacora { get; set; } = new List<WorkflowBitacora>();
     }
 }
