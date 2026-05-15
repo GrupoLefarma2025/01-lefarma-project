@@ -6,6 +6,7 @@ import { PerfilConfig } from './PerfilConfig';
 import { SistemaConfig } from './SistemaConfig';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/lib/utils';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 
 interface TabItem {
@@ -13,6 +14,7 @@ interface TabItem {
   label: string;
   icon: LucideIcon;
   description: string;
+  permission?: string[];
 }
 
 const tabs: TabItem[] = [
@@ -21,18 +23,21 @@ const tabs: TabItem[] = [
     label: 'Mi Perfil',
     icon: User,
     description: 'Actualiza tu información personal y configura tus preferencias de notificación',
+    permission: [],
   },
   {
     value: 'ui',
     label: 'Interfaz',
     icon: Palette,
     description: 'Personaliza el tema visual de la aplicación',
+    permission: ['configuracion.ver_ui'],
   },
   {
     value: 'sistema',
     label: 'Sistema',
     icon: Server,
     description: 'Información técnica y variables de entorno globales',
+    permission: ['configuracion.ver_sistema'],
   },
 ];
 
@@ -52,19 +57,23 @@ export default function ConfiguracionGeneral() {
               const Icon = tab.icon;
               const isActive = activeTab === tab.value;
               return (
-                <button
+                <PermissionElement
                   key={tab.value}
-                  onClick={() => setActiveTab(tab.value)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
+                  require={tab.permission}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  {tab.label}
-                </button>
+                  <button
+                    onClick={() => setActiveTab(tab.value)}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors w-full',
+                      isActive
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    {tab.label}
+                  </button>
+                </PermissionElement>
               );
             })}
           </nav>
