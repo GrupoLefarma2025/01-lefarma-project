@@ -79,6 +79,7 @@ import type {
   TipoImpuesto,
   ProveedorCuentaBancaria,
   Moneda,
+  TipoGasto,
 } from '@/types/catalogo.types';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { PermissionElement } from '../../components/permissions/PermissionElement';
@@ -121,7 +122,7 @@ const ordenCompraSchema = z
     idEmpresa: z.number().positive('Seleccione una empresa'),
     idSucursal: z.number().positive('Seleccione una sucursal'),
     idArea: z.number().positive('Seleccione un área'),
-    idTipoGasto: z.number().optional().nullable(),
+    idTipoGasto: z.number().positive('Seleccione un tipo de gasto'),
     fechaLimitePago: z.string().min(1, 'La fecha es requerida').refine(
       (val) => new Date(val) >= new Date(new Date().toISOString().split('T')[0]),
       { message: 'La fecha límite de pago no puede ser anterior a hoy' }
@@ -254,6 +255,9 @@ function NumericInput({
 
   const handleFocus = () => {
     isFocusedRef.current = true;
+    if (displayValue === '0') {
+      setDisplayValue('');
+    }
   };
 
   const handleBlur = () => {
@@ -450,6 +454,7 @@ export default function CrearOrdenCompra() {
   const [medidas, setMedidas] = useState<Medida[]>([]);
   const [regimenesFiscales, setRegimenesFiscales] = useState<RegimenFiscalItem[]>([]);
   const [tiposImpuesto, setTiposImpuesto] = useState<TipoImpuesto[]>([]);
+  const [tiposGasto, setTiposGasto] = useState<TipoGasto[]>([]);
   const [defaultTipoImpuestoId, setDefaultTipoImpuestoId] = useState<number>(0);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -465,7 +470,7 @@ export default function CrearOrdenCompra() {
       idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
-      idTipoGasto: null,
+      idTipoGasto: 0,
       fechaLimitePago: '',
       idMoneda: 1,
       tipoCambioAplicado: 1,
@@ -642,6 +647,15 @@ export default function CrearOrdenCompra() {
       .catch((err) => {
         console.warn('[fetchCatalogs] Error al cargar TiposImpuesto:', err);
         errors.push('Tipos de Impuesto');
+      });
+
+    API.get<ApiResponse<TipoGasto[]>>('/catalogos/TiposGasto')
+      .then((res) => {
+        if (res.data.success) setTiposGasto(res.data.data || []);
+      })
+      .catch((err) => {
+        console.warn('[fetchCatalogs] Error al cargar TiposGasto:', err);
+        errors.push('Tipos de Gasto');
       });
 
     // Mostrar errores acumulados después de un tiempo
@@ -925,7 +939,7 @@ export default function CrearOrdenCompra() {
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
         idArea: values.idArea,
-        idTipoGasto: null,
+      idTipoGasto: values.idTipoGasto,
         fechaLimitePago: values.fechaLimitePago,
         idMoneda: values.idMoneda ?? null,
         tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
@@ -1513,6 +1527,39 @@ export default function CrearOrdenCompra() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                
+                <FormField
+                  control={form.control}
+                  name="idTipoGasto"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Gasto *</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          const id = Number(val);
+                          field.onChange(id);
+                        }}
+                        value={field.value ? String(field.value) : ''}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecciona tipo de gasto..." />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {tiposGasto.map((tg) => (
+                            tg.activo && (
+                            <SelectItem key={tg.idTipoGasto} value={String(tg.idTipoGasto)}>
+                              {tg.nombre}
+                            </SelectItem>
+                            )
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <FormField
                   control={form.control}
                   name="idMoneda"
@@ -1886,7 +1933,7 @@ export default function CrearOrdenCompra() {
                           name={`partidas.${index}.requiereFactura`}
                           render={({ field }) => (
                             <FormItem className="col-span-2 flex h-full items-center justify-end gap-2 pb-2 md:col-span-1 md:flex-col md:items-start md:justify-start md:pb-0">
-                              <FormLabel className="!mt-0 md:mt-2">Req. Factura</FormLabel>
+                              <FormLabel className="!mt-0 md:mt-2">Requiere Factura</FormLabel>
                               <FormControl>
                                 <Checkbox checked={field.value} onCheckedChange={field.onChange} />
                               </FormControl>

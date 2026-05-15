@@ -35,6 +35,7 @@ export interface OrdenCompraResponse {
   idArea: number;
   areaNombre?: string | null;
   idTipoGasto: number;
+  tipoGastoNombre?: string | null;
   idEstado: number;
   estadoNombre?: string | null;
   estadoColor?: string | null;

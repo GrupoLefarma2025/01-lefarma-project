@@ -14,6 +14,5 @@ public class UnidadMedida
 
         // Navigation properties
         public virtual Medida? Medida { get; set; }
-        public virtual ICollection<GastoUnidadMedida> GastoUnidadesMedida { get; set; } = new List<GastoUnidadMedida>();
     }
 }

@@ -17,7 +17,7 @@ using Lefarma.API.Features.Catalogos.RegimenesFiscales;
 using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.FormasPago;
-using Lefarma.API.Features.Catalogos.Gastos;
+using Lefarma.API.Features.Catalogos.TiposGasto;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.Sucursales;
@@ -121,7 +121,7 @@ builder.Services.AddDbContext<AsokamDbContext>(options =>
 // Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();
-builder.Services.AddScoped<IGastoRepository, GastoRepository>();
+builder.Services.AddScoped<ITipoGastoRepository, TipoGastoRepository>();
 builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<IMedidaRepository, MedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
@@ -184,7 +184,7 @@ builder.Services.AddKeyedScoped<IWorkflowActionHandler, AlertaWorkflowHandler>("
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
 builder.Services.AddScoped<ISucursalService, SucursalService>();
-builder.Services.AddScoped<IGastoService, GastoService>();
+builder.Services.AddScoped<ITipoGastoService, TipoGastoService>();
 builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();

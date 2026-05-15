@@ -1,40 +1,36 @@
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Interfaces.Catalogos;
-using Lefarma.API.Features.Catalogos.Gastos.DTOs;
-using Lefarma.API.Infrastructure.Data.Repositories;
+using Lefarma.API.Features.Catalogos.TiposGasto.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Linq;
 
-namespace Lefarma.API.Features.Catalogos.Gastos
+namespace Lefarma.API.Features.Catalogos.TiposGasto
 {
-public class GastoService : BaseService, IGastoService
+    public class TipoGastoService : BaseService, ITipoGastoService
     {
-        private readonly IGastoRepository _gastoRepository;
-        private readonly ILogger<GastoService> _logger;
-        protected override string EntityName => "Gastos";
+        private readonly ITipoGastoRepository _tipoGastoRepository;
+        private readonly ILogger<TipoGastoService> _logger;
+        protected override string EntityName => "TiposGasto";
 
-        public GastoService(IGastoRepository gastoRepository,
-            IWideEventAccessor wideEventAccessor, 
-            ILogger<GastoService> logger) 
+        public TipoGastoService(ITipoGastoRepository tipoGastoRepository,
+            IWideEventAccessor wideEventAccessor,
+            ILogger<TipoGastoService> logger)
             : base(wideEventAccessor)
         {
-            _gastoRepository = gastoRepository;
+            _tipoGastoRepository = tipoGastoRepository;
             _logger = logger;
         }
 
-        public async Task<ErrorOr<IEnumerable<GastoResponse>>> GetAllAsync(GastoRequest query)
+        public async Task<ErrorOr<IEnumerable<TipoGastoResponse>>> GetAllAsync(TipoGastoRequest query)
         {
             try
             {
-                IQueryable<Gasto> queryable = _gastoRepository.GetQueryable()
-                    .Include(g => g.GastoUnidadesMedida)
-                        .ThenInclude(gum => gum.UnidadMedida);
+                IQueryable<TipoGasto> queryable = _tipoGastoRepository.GetQueryable();
 
                 if (!string.IsNullOrWhiteSpace(query.Nombre))
                     queryable = queryable.Where(g => g.Nombre.Contains(query.Nombre));
@@ -64,7 +60,7 @@ public class GastoService : BaseService, IGastoService
                     {
                         ["filters"] = new { query.Nombre, query.RequiereComprobacionPago, query.RequiereComprobacionGasto, query.Activo, query.OrderBy, query.OrderDirection }
                     });
-                    return new List<GastoResponse>();
+                    return new List<TipoGastoResponse>();
                 }
 
                 var response = result.Select(g => g.ToResponse()).ToList();
@@ -79,19 +75,19 @@ public class GastoService : BaseService, IGastoService
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "GetAll", exception: ex);
-                return CommonErrors.DatabaseError("obtener los gastos");
+                return CommonErrors.DatabaseError("obtener los tipos de gasto");
             }
         }
 
-        public async Task<ErrorOr<GastoResponse>> GetByIdAsync(int id)
+        public async Task<ErrorOr<TipoGastoResponse>> GetByIdAsync(int id)
         {
             try
             {
-                var result = await _gastoRepository.GetByIdConUnidadesAsync(id);
+                var result = await _tipoGastoRepository.GetByIdAsync(id);
                 if (result == null)
                 {
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("gasto", id.ToString());
+                    return CommonErrors.NotFound("tipo de gasto", id.ToString());
                 }
 
                 var response = result.ToResponse();
@@ -101,98 +97,78 @@ public class GastoService : BaseService, IGastoService
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"obtener el gasto");
+                return CommonErrors.DatabaseError($"obtener el tipo de gasto");
             }
         }
 
-        public async Task<ErrorOr<GastoResponse>> CreateAsync(CreateGastoRequest request)
+        public async Task<ErrorOr<TipoGastoResponse>> CreateAsync(CreateTipoGastoRequest request)
         {
             try
             {
-                var existeConcepto = await _gastoRepository.ExistsAsync(s => s.Concepto == request.Concepto);
-                if (existeConcepto)
+                var existeNombre = await _tipoGastoRepository.ExistsAsync(s => s.Nombre == request.Nombre);
+                if (existeNombre)
                 {
-                    EnrichWideEvent(action: "Create", nombre: request.Concepto, duplicate: true);
-                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto!);
+                    EnrichWideEvent(action: "Create", nombre: request.Nombre, duplicate: true);
+                    return CommonErrors.AlreadyExists("tipo de gasto", "nombre", request.Nombre!);
                 }
 
-                var gasto = new Gasto
+                var tipoGasto = new TipoGasto
                 {
                     Nombre = request.Nombre,
                     NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre),
                     Descripcion = request.Descripcion,
-                    DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
                     Clave = request.Clave,
-                    Concepto = request.Concepto,
-                    Cuenta = request.Cuenta,
-                    SubCuenta = request.SubCuenta,
-                    Analitica = request.Analitica,
-                    Integracion = request.Integracion,
                     RequiereComprobacionPago = request.RequiereComprobacionPago,
                     RequiereComprobacionGasto = request.RequiereComprobacionGasto,
-                    PermiteSinDatosFiscales = request.PermiteSinDatosFiscales,
-                    DiasLimiteComprobacion = request.DiasLimiteComprobacion ?? 0,
                     Activo = request.Activo,
-                    FechaCreacion = DateTime.UtcNow,
-                    CuentaCatalogo = $"{request.Cuenta}-{request.SubCuenta}-{request.Analitica}-{request.Integracion}"
+                    FechaCreacion = DateTime.UtcNow
                 };
 
-                var result = await _gastoRepository.AddAsync(gasto);
+                var result = await _tipoGastoRepository.AddAsync(tipoGasto);
 
-                await _gastoRepository.ActualizarUnidadesMedidaAsync(result.IdGasto, request.UnidadesMedida);
-
-                EnrichWideEvent(action: "Create", entityId: result.IdGasto, nombre: result.Nombre);
+                EnrichWideEvent(action: "Create", entityId: result.IdTipoGasto, nombre: result.Nombre);
                 return result.ToResponse();
             }
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
-                return CommonErrors.DatabaseError($"guardar el gasto");
+                return CommonErrors.DatabaseError($"guardar el tipo de gasto");
             }
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
-                return CommonErrors.InternalServerError($"Error inesperado al crear el gasto.");
+                return CommonErrors.InternalServerError($"Error inesperado al crear el tipo de gasto.");
             }
         }
 
-        public async Task<ErrorOr<GastoResponse>> UpdateAsync(int id, UpdateGastoRequest request)
+        public async Task<ErrorOr<TipoGastoResponse>> UpdateAsync(int id, UpdateTipoGastoRequest request)
         {
             try
             {
-                var gasto = await _gastoRepository.GetByIdAsync(id);
-                if (gasto == null)
+                var tipoGasto = await _tipoGastoRepository.GetByIdAsync(id);
+                if (tipoGasto == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("gasto", id.ToString());
+                    return CommonErrors.NotFound("tipo de gasto", id.ToString());
                 }
 
-                var existeConcepto = await _gastoRepository.ExistsAsync(s => s.Concepto == request.Concepto && s.IdGasto != id);
-                if (existeConcepto)
+                var existeNombre = await _tipoGastoRepository.ExistsAsync(s => s.Nombre == request.Nombre && s.IdTipoGasto != id);
+                if (existeNombre)
                 {
-                    EnrichWideEvent(action: "Update", entityId: id, nombre: request.Concepto, duplicate: true);
-                    return CommonErrors.AlreadyExists("gasto", "concepto", request.Concepto!);
+                    EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, duplicate: true);
+                    return CommonErrors.AlreadyExists("tipo de gasto", "nombre", request.Nombre!);
                 }
 
-                gasto.Nombre = request.Nombre;
-                gasto.Descripcion = request.Descripcion;
-                gasto.Clave = request.Clave;
-                gasto.Concepto = request.Concepto;
-                gasto.Cuenta = request.Cuenta;
-                gasto.SubCuenta = request.SubCuenta;
-                gasto.Analitica = request.Analitica;
-                gasto.Integracion = request.Integracion;
-                gasto.RequiereComprobacionPago = request.RequiereComprobacionPago;
-                gasto.RequiereComprobacionGasto = request.RequiereComprobacionGasto;
-                gasto.PermiteSinDatosFiscales = request.PermiteSinDatosFiscales;
-                gasto.DiasLimiteComprobacion = request.DiasLimiteComprobacion ?? 0;
-                gasto.Activo = request.Activo;
-                gasto.FechaModificacion = DateTime.UtcNow;
-                gasto.CuentaCatalogo = $"{gasto.Cuenta}-{gasto.SubCuenta}-{gasto.Analitica}-{gasto.Integracion}";
+                tipoGasto.Nombre = request.Nombre;
+                tipoGasto.NombreNormalizado = StringExtensions.RemoveDiacritics(request.Nombre);
+                tipoGasto.Descripcion = request.Descripcion;
+                tipoGasto.Clave = request.Clave;
+                tipoGasto.RequiereComprobacionPago = request.RequiereComprobacionPago;
+                tipoGasto.RequiereComprobacionGasto = request.RequiereComprobacionGasto;
+                tipoGasto.Activo = request.Activo;
+                tipoGasto.FechaModificacion = DateTime.UtcNow;
 
-                var result = await _gastoRepository.UpdateAsync(gasto);
-
-                await _gastoRepository.ActualizarUnidadesMedidaAsync(result.IdGasto, request.UnidadesMedida);
+                var result = await _tipoGastoRepository.UpdateAsync(tipoGasto);
 
                 EnrichWideEvent(action: "Update", entityId: id, nombre: result.Nombre);
                 return result.ToResponse();
@@ -200,17 +176,17 @@ public class GastoService : BaseService, IGastoService
             catch (DbUpdateConcurrencyException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
-                return CommonErrors.ConcurrencyError("gasto");
+                return CommonErrors.ConcurrencyError("tipo de gasto");
             }
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
-                return CommonErrors.DatabaseError($"actualizar el gasto");
+                return CommonErrors.DatabaseError($"actualizar el tipo de gasto");
             }
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
-                return CommonErrors.InternalServerError($"Error inesperado al actualizar el gasto.");
+                return CommonErrors.InternalServerError($"Error inesperado al actualizar el tipo de gasto.");
             }
         }
 
@@ -218,32 +194,32 @@ public class GastoService : BaseService, IGastoService
         {
             try
             {
-                var gasto = await _gastoRepository.GetByIdAsync(id);
-                if (gasto == null)
+                var tipoGasto = await _tipoGastoRepository.GetByIdAsync(id);
+                if (tipoGasto == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
-                    return CommonErrors.NotFound("gasto", id.ToString());
+                    return CommonErrors.NotFound("tipo de gasto", id.ToString());
                 }
 
-                var eliminado = await _gastoRepository.DeleteAsync(gasto);
+                var eliminado = await _tipoGastoRepository.DeleteAsync(tipoGasto);
                 if (!eliminado)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
-                    return CommonErrors.DeleteFailed("gasto");
+                    return CommonErrors.DeleteFailed("tipo de gasto");
                 }
 
-                EnrichWideEvent(action: "Delete", entityId: id, nombre: gasto.Nombre);
+                EnrichWideEvent(action: "Delete", entityId: id, nombre: tipoGasto.Nombre);
                 return true;
             }
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.HasDependencies("Gasto");
+                return CommonErrors.HasDependencies("Tipo de Gasto");
             }
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
-                return CommonErrors.InternalServerError($"Error inesperado al eliminar el gasto.");
+                return CommonErrors.InternalServerError($"Error inesperado al eliminar el tipo de gasto.");
             }
         }
     }
