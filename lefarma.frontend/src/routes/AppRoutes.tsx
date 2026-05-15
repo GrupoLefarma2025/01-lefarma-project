@@ -89,7 +89,7 @@ export const AppRoutes = () => {
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/ordenes/envio-concentrado" element={<EnvioConcentrado />} />
           <Route path="/perfil" element={<Perfil />} />
-          <Route path="/notificaciones" element={<NotificationsPage />} />
+          <Route path="/notificaciones" element={<PermissionGuard require={['notificaciones.ver_listado']}><NotificationsPage /></PermissionGuard>} />
           <Route path="/help" element={<HelpList />} />
           <Route path="/help/new" element={<HelpEditor />} />
           <Route path="/help/edit/:id" element={<HelpEditor />} />

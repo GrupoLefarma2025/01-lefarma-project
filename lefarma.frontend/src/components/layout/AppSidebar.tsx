@@ -169,7 +169,7 @@ const menuItems: SidebarMenuItem[] = [
     title: 'Notificaciones',
     icon: Bell,
     path: '/notificaciones',
-    // permission: { require: 'notificaciones.ver_listado' },
+    permission: { require: 'notificaciones.ver_listado' },
   },
   {
     title: 'Workflows',
