@@ -2,6 +2,7 @@
 import { authService } from './authService';
 import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/types/api.types';
+import { navigateTo } from '@/lib/navigation';
 
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -88,11 +89,8 @@ apiClient.interceptors.response.use(
         useAuthStore.getState().logout();
         refreshSubscribers = [];
 
-        if (
-          window.location.pathname !== '/login' &&
-          window.location.pathname !== '/'
-        ) {
-          window.location.href = '/';
+        if (!window.location.pathname.endsWith('/login')) {
+          navigateTo('/login');
         }
 
         return Promise.reject(refreshError);

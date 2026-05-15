@@ -7,6 +7,7 @@ import {
 } from '@/types/auth.types';
 import type { Area } from '@/types/catalogo.types';
 import type { SseUserInfo } from '@/types/sse.types';
+import { navigateTo } from '@/lib/navigation';
 import { authService } from '@/services/authService';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
@@ -268,8 +269,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       usuarioDetalle: null,
     });
 
-    if (window.location.pathname !== '/') {
-      window.location.href = '/';
+    if (!window.location.pathname.endsWith('/login')) {
+      navigateTo('/login');
     }
   },
 

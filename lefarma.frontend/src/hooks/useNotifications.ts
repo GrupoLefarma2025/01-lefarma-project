@@ -7,6 +7,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/store/authStore';
+import { navigateTo } from '@/lib/navigation';
 import type { SseEvent, UserNotification } from '@/types/notification.types';
 
 const SSE_NOTIFICATIONS_URL = (() => {
@@ -136,8 +137,8 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
       useAuthStore.getState().logout();
 
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-        window.location.href = '/login';
+      if (!window.location.pathname.endsWith('/login')) {
+        navigateTo('/login');
       }
       return;
     }

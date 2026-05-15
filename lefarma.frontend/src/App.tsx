@@ -1,11 +1,20 @@
 ﻿import { useEffect } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { AppRoutes } from './routes/AppRoutes';
 import { useAuthStore } from './store/authStore';
 import { useConfigStore } from './store/configStore';
 import { Toaster } from '@/components/ui/sonner';
 import { AutoVerify } from '@/components/AutoVerify';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
+import { setNavigate } from '@/lib/navigation';
+
+function NavigationRegistrar() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    setNavigate(navigate);
+  }, [navigate]);
+  return null;
+}
 
 
 function App() {
@@ -35,7 +44,8 @@ function App() {
   }
 
   return (
-    <BrowserRouter basename={import.meta.env.PROD ? '/CxP' : undefined}>
+    <BrowserRouter>
+      <NavigationRegistrar />
       <AppRoutes />
       <Toaster />
     </BrowserRouter>

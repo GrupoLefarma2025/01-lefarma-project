@@ -80,7 +80,6 @@ import type {
   ProveedorCuentaBancaria,
   Moneda,
 } from '@/types/catalogo.types';
-import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { PermissionElement } from '../../components/permissions/PermissionElement';
 
 interface Proveedor {
