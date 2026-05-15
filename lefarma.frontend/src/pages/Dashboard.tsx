@@ -401,7 +401,7 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
+<PermissionElement require="dashboard.ver_actividad_reciente">
         <Card className="rounded-xl shadow-sm lg:col-span-2">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
@@ -433,8 +433,8 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+  </PermissionElement>
       </div>
-
       {/* ── MODAL: Todas las Ordenes ── */}
       <Dialog open={ordenesModalOpen} onOpenChange={setOrdenesModalOpen}>
         <DialogContent className="max-w-5xl max-h-[85vh] flex flex-col">
