@@ -196,7 +196,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         orden.FechaAutorizacion = DateTime.Now;
 
                     // FechaPago: cuando la orden se marca como PAGADA
-                    if (nuevoIdEstado == idPagada)
+                    // si la orden va directo de Tesoreria a Cerrada sin pasar por Comprobacion ni subir comprobantes de gasto
+                    if (nuevoIdEstado == idPagada || (nuevoIdEstado == idCerrada && orden.IdEstado == idTesoreria))
                         orden.FechaPago = DateTime.Now;
 
                     // FechaCierre: cuando la orden se Cierra definitivamente

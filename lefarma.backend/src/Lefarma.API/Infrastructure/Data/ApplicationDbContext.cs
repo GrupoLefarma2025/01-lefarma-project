@@ -20,11 +20,10 @@ public class ApplicationDbContext : DbContext
         // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
-        public DbSet<Gasto> Gastos { get; set; }
+        public DbSet<TipoGasto> TiposGasto { get; set; }
         public DbSet<Area> Areas { get; set; }
         public DbSet<Medida> Medidas { get; set; }
         public DbSet<UnidadMedida> UnidadesMedida { get; set; }
-        public DbSet<GastoUnidadMedida> GastosUnidadesMedida { get; set; }
         public DbSet<UsuarioDetalle> UsuariosDetalle { get; set; }
         public DbSet<FormaPago> FormasPago { get; set; }
 
@@ -135,6 +134,12 @@ public class ApplicationDbContext : DbContext
                 .HasOne(o => o.Area)
                 .WithMany()
                 .HasForeignKey(o => o.IdArea)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.TipoGasto)
+                .WithMany()
+                .HasForeignKey(o => o.IdTipoGasto)
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<Empresa>()

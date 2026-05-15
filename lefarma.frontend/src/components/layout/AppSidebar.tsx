@@ -25,6 +25,7 @@ import {
   ShoppingCart,
   Receipt,
   Send,
+  Wallet,
 } from 'lucide-react';
 
 import {
@@ -122,7 +123,9 @@ const menuItems: SidebarMenuItem[] = [
       { title: 'Áreas', icon: Database, path: '/catalogos/areas',
         permission: { require: 'areas.ver_listado' }
       },
-      // { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
+      { title: 'Tipos de Gasto', icon: Wallet, path: '/catalogos/tipos-gasto',
+        permission: { require: 'tipos-gasto.ver_listado' }
+      },
       { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas',
         permission: { require: 'medidas.ver_listado' }
       },

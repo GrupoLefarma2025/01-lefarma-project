@@ -11,8 +11,9 @@ import RolesList from '@/pages/admin/Roles/RolesList';
 import PermisosList from '@/pages/admin/Permisos/PermisosList';
 import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
 import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
-import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';
+
 import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
+import TiposGastoList from '@/pages/catalogos/generales/TiposGasto/TiposGastoList';
 
 import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
 import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
@@ -67,8 +68,9 @@ export const AppRoutes = () => {
           <Route path="/catalogos/proveedores" element={<PermissionGuard requireAny={['proveedores.ver_listado']}><ProveedoresList /></PermissionGuard>} />
           <Route path="/catalogos/regimenes-fiscales" element={<PermissionGuard requireAny={['regimenes-fiscales.ver_listado']}><RegimenesFiscalesList /></PermissionGuard>} />
           <Route path="/catalogos/sucursales" element={<PermissionGuard requireAny={['sucursales.ver_listado']}><SucursalesList /></PermissionGuard>} />
-          <Route path="/catalogos/gastos" element={<PermissionGuard requireAny={['gastos.ver_listado']}><GastosList /></PermissionGuard>} />
+
           <Route path="/catalogos/medidas" element={<PermissionGuard requireAny={['medidas.ver_listado']}><MedidasList /></PermissionGuard>} />
+          <Route path="/catalogos/tipos-gasto" element={<PermissionGuard requireAny={['tipos-gasto.ver_listado']}><TiposGastoList /></PermissionGuard>} />
 
           {/*   Workflows   */}    
           <Route path="/workflows" element={<PermissionGuard requireAny={['workflows.ver_listado']}><WorkflowsList /></PermissionGuard>} />
