@@ -32,10 +32,6 @@ export default defineConfig(({ mode }) => {
     host: '0.0.0.0',
     port: 5173,
     proxy: {
-      '/CxP/api': {
-        target: 'http://localhost:5174',
-        changeOrigin: true,
-      },
       '/api': {
         target: 'http://localhost:5174',
         changeOrigin: true,
