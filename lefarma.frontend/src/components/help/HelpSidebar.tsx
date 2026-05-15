@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { helpService } from '@/services/helpService';
 import type { HelpModule } from '@/types/help.types';
+import { PermissionElement } from '../permissions/PermissionElement';
 
 interface HelpSidebarProps {
   selectedModule: string;
@@ -94,6 +95,7 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
 
   return (
     <>
+    <PermissionElement require={['help.modificar_modulos']}>
       <ScrollArea className="h-[calc(100vh-7rem)]">
         <div className="space-y-4 p-4">
           <Card>
@@ -184,6 +186,7 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </PermissionElement>
     </>
   );
 }

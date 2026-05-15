@@ -574,7 +574,8 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
             </tr>
           </thead>
           <tbody>
-            {flujoPasos.filter((_, idx) => {
+            {flujoPasos.filter((paso, idx) => {
+              if (paso.esInicio) return false;
               const siguiente = idx < flujoPasos.length - 1 ? flujoPasos[idx + 1] : null;
               return siguiente?.tieneEvento ?? false;
             }).map((paso, idx) => {

@@ -51,15 +51,8 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/seguridad/usuarios" element=<UsuariosList /> />
-          <Route
-            path="/seguridad/roles"
-            element={
-              <PermissionGuard require="usuarios.ver_detalle" fallback={<></>}>
-                <RolesList />
-              </PermissionGuard>
-            }
-          />
+          <Route path="/seguridad/usuarios" element={<UsuariosList />} />
+          <Route path="/seguridad/roles"  element={ <RolesList />} />
           <Route path="/seguridad/permisos" element={<PermisosList />} />
 
 
