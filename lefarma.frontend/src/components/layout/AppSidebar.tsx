@@ -52,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store/authStore';
+import favicon from '@/assets/favicon.ico';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 import { checkPermission } from '@/utils/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -276,7 +277,7 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <NavLink to="/dashboard">
                 <div className="rounded-lg bg-primary p-1">
-                  <img src="/favicon.ico" alt="LeFarma" className="h-5 w-5" />
+                  <img src={favicon} alt="LeFarma" className="h-5 w-5" />
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col gap-0.5 leading-none">
