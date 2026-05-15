@@ -95,9 +95,10 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
 
   return (
     <>
-    <PermissionElement require={['help.modificar_modulos']}>
       <ScrollArea className="h-[calc(100vh-7rem)]">
         <div className="space-y-4 p-4">
+    <PermissionElement require={['help.modificar_modulos']}>
+
           <Card>
             <CardContent className="p-3">
               <Button
@@ -110,7 +111,7 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
               </Button>
             </CardContent>
           </Card>
-
+</PermissionElement>
           <Card>
             <CardContent className="p-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -129,6 +130,9 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
                       >
                         {module.label}
                       </Button>
+                       <PermissionElement require={['help.modificar_modulos']}>
+
+                      <>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -145,6 +149,8 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
+                    </>
+                    </PermissionElement>
                     </div>
                   ))
                 )}
@@ -186,7 +192,6 @@ export function HelpSidebar({ selectedModule, onModuleSelect }: HelpSidebarProps
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      </PermissionElement>
     </>
   );
 }
