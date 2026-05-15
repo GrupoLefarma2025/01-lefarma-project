@@ -11,7 +11,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public int IdEmpresa { get; set; }
         public int IdSucursal { get; set; }
         public int IdArea { get; set; }
-        public int? IdTipoGasto { get; set; }
+        public int IdTipoGasto { get; set; }
         public int IdUsuarioCreador { get; set; }
 
         public int IdEstado { get; set; }
@@ -44,6 +44,7 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public virtual Empresa? Empresa { get; set; }
         public virtual Sucursal? Sucursal { get; set; }
         public virtual Area? Area { get; set; }
+        public virtual TipoGasto? TipoGasto { get; set; }
 
         // Configurado en Firma 4 - GAF
         public bool RequiereComprobacionPago { get; set; } = true;

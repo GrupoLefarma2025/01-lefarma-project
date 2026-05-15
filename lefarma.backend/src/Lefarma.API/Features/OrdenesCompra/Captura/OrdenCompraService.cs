@@ -45,7 +45,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).Include(o => o.Estado).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).Include(o => o.TipoGasto).Include(o => o.Estado).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
@@ -221,7 +221,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdEmpresa = request.IdEmpresa,
                     IdSucursal = request.IdSucursal,
                     IdArea = request.IdArea,
-                    IdTipoGasto = request.IdTipoGasto ?? 0,
+                    IdTipoGasto = request.IdTipoGasto,
                     IdUsuarioCreador = idUsuario,
                     IdEstado = 1, // Creada
                     IdWorkflow = workflow.IdWorkflow,
@@ -332,7 +332,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdEmpresa = request.IdEmpresa;
                 orden.IdSucursal = request.IdSucursal;
                 orden.IdArea = request.IdArea;
-                orden.IdTipoGasto = request.IdTipoGasto ?? 0;
+                orden.IdTipoGasto = request.IdTipoGasto;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
                 orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
@@ -407,7 +407,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             SucursalNombre = o.Sucursal?.NombreNormalizado ?? o.Sucursal?.Nombre,
             IdArea = o.IdArea,
             AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
-            IdTipoGasto = o.IdTipoGasto ?? 0,
+            IdTipoGasto = o.IdTipoGasto,
+            TipoGastoNombre = o.TipoGasto?.Nombre,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
                 : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsCuentasBancarias,

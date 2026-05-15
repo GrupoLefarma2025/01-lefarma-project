@@ -114,29 +114,22 @@ export interface TipoImpuesto {
   fechaModificacion?: string;
 }
 
-// ─── Gasto ────────────────────────────────────────────────────────────────────
+// ─── Tipo de Gasto ────────────────────────────────────────────────────────────
 
-export interface Gasto {
-  idGasto: number;
+export interface TipoGasto {
+  idTipoGasto: number;
   nombre: string;
   nombreNormalizado?: string;
   descripcion?: string;
   clave?: string;
-  concepto?: string;
-  cuenta?: string;
-  subCuenta?: string;
-  analitica?: string;
-  integracion?: string;
-  cuentaCatalogo?: string;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
-  permiteSinDatosFiscales: boolean;
-  diasLimiteComprobacion: number;
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
-  unidadesMedida?: UnidadMedida[];
 }
+
+
 
 // ─── Banco ────────────────────────────────────────────────────────────────────
 
