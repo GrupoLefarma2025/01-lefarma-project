@@ -116,5 +116,6 @@ public static class Permissions
     {
         public const string Autorizar = "proveedores.autorizar";
         public const string Rechazar = "proveedores.rechazar";
+        public const string CargaMasiva = "proveedores.cargaMasiva";
     }
 }

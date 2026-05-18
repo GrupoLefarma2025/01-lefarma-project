@@ -16,7 +16,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores;
 
-public class ProveedorService : BaseService, IProveedorService
+public partial class ProveedorService : BaseService, IProveedorService
 {
     private readonly IProveedorRepository _proveedorRepository;
     private readonly IRegimenFiscalRepository _regimenFiscalRepository;

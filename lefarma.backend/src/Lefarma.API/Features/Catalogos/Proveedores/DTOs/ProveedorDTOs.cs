@@ -178,3 +178,85 @@ public class StagingProveedorFormaPagoCuentaResponse
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; }
 }
+
+public class BulkUploadCsvRow
+{
+    public string? RazonSocial { get; set; }
+    public string? RFC { get; set; }
+    public string? CodigoPostal { get; set; }
+    public string? RegimenFiscalId { get; set; }
+    public string? UsoCfdi { get; set; }
+    public string? PersonaContactoNombre { get; set; }
+    public string? ContactoTelefono { get; set; }
+    public string? ContactoEmail { get; set; }
+    public string? Comentario { get; set; }
+    public string? FormaPagoId { get; set; }
+    public string? BancoId { get; set; }
+    public string? NumeroCuenta { get; set; }
+    public string? CLABE { get; set; }
+    public string? NumeroTarjeta { get; set; }
+    public string? Beneficiario { get; set; }
+    public string? CorreoNotificacion { get; set; }
+}
+
+public class BulkUploadRowError
+{
+    public int RowNumber { get; set; }
+    public string? Field { get; set; }
+    public string Message { get; set; } = string.Empty;
+}
+
+public class BulkUploadResultResponse
+{
+    public int TotalRows { get; set; }
+    public int ProveedoresImported { get; set; }
+    public int CuentasImported { get; set; }
+    public int FailedRows { get; set; }
+    public List<BulkUploadRowError> Errors { get; set; } = new();
+}
+
+public static class BulkUploadColumns
+{
+    public const string RazonSocial = "RazonSocial";
+    public const string RFC = "RFC";
+    public const string CodigoPostal = "CodigoPostal";
+    public const string RegimenFiscalId = "RegimenFiscalId";
+    public const string UsoCfdi = "UsoCfdi";
+    public const string PersonaContactoNombre = "PersonaContactoNombre";
+    public const string ContactoTelefono = "ContactoTelefono";
+    public const string ContactoEmail = "ContactoEmail";
+    public const string Comentario = "Comentario";
+    public const string FormaPagoId = "FormaPagoId";
+    public const string BancoId = "BancoId";
+    public const string NumeroCuenta = "NumeroCuenta";
+    public const string CLABE = "CLABE";
+    public const string NumeroTarjeta = "NumeroTarjeta";
+    public const string Beneficiario = "Beneficiario";
+    public const string CorreoNotificacion = "CorreoNotificacion";
+
+    public static readonly IReadOnlyList<string> OrderedColumns = new[]
+    {
+        RazonSocial, RFC, CodigoPostal, RegimenFiscalId, UsoCfdi,
+        PersonaContactoNombre, ContactoTelefono, ContactoEmail, Comentario,
+        FormaPagoId, BancoId, NumeroCuenta, CLABE, NumeroTarjeta,
+        Beneficiario, CorreoNotificacion
+    };
+
+    public static readonly IReadOnlySet<string> RequiredColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        RazonSocial
+    };
+
+    /// <summary>
+    /// Cleans header text by stripping " (requerido)" / " (opcional)" suffixes
+    /// so user-friendly plantilla headers map back to the canonical column names.
+    /// </summary>
+    public static string NormalizeHeader(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        var clean = raw.Trim();
+        var parenIndex = clean.IndexOf(" (", StringComparison.Ordinal);
+        if (parenIndex > 0) clean = clean[..parenIndex];
+        return clean.Trim();
+    }
+}

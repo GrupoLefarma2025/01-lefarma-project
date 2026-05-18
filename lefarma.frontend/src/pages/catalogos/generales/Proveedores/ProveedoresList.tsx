@@ -14,6 +14,8 @@ import {
   X,
   FileText,
   Eye,
+  Upload,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +45,8 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
+import { BulkUploadModal } from './BulkUploadModal';
+import { ClavesReferenciaModal } from './ClavesReferenciaModal';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -208,6 +212,8 @@ export default function ProveedoresList() {
   const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [clavesModalOpen, setClavesModalOpen] = useState(false);
   // Valores originales al abrir el modal (para comparar cambios reales)
   const [originalValues, setOriginalValues] = useState<Partial<{
     regimenFiscalId: number | null;
@@ -765,9 +771,22 @@ export default function ProveedoresList() {
           />
         </div>
         <PermissionElement require={['proveedores.crear']}>
-          <Button onClick={handleNuevoProveedor}>
-            <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
-          </Button>
+          <div className="flex items-center gap-2">
+            <PermissionElement require={['proveedores.carga-masiva']}>
+              <Button
+                variant="outline"
+                onClick={() => setClavesModalOpen(true)}
+              >
+                <Download className="mr-2 h-4 w-4" /> Descargar Plantilla
+              </Button>
+              <Button variant="outline" onClick={() => setBulkModalOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Carga Masiva
+              </Button>
+            </PermissionElement>
+            <Button onClick={handleNuevoProveedor}>
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
+            </Button>
+          </div>
         </PermissionElement>
       </div>
 
@@ -1346,6 +1365,20 @@ export default function ProveedoresList() {
           <p className="text-sm text-muted-foreground text-center py-4">No hay datos de cambios disponibles.</p>
         )}
       </Modal>
+
+      <BulkUploadModal
+        open={bulkModalOpen}
+        setOpen={setBulkModalOpen}
+        onImported={fetchProveedores}
+      />
+
+      <ClavesReferenciaModal
+        open={clavesModalOpen}
+        setOpen={setClavesModalOpen}
+        formasPago={formasPago}
+        bancos={bancos}
+        regimenesFiscales={regimenesFiscales}
+      />
 
       {/* Fullscreen image viewer */}
       {fullscreenImage && (

@@ -126,6 +126,13 @@ export const proveedorApi = {
   autorizar: (id: number) => apiClient.post(`/catalogos/Proveedores/${id}/autorizar`),
   rechazar: (id: number, motivo: string) =>
     apiClient.post(`/catalogos/Proveedores/${id}/rechazar`, { motivo }),
+  bulkUpload: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/catalogos/Proveedores/bulk-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export default apiClient;

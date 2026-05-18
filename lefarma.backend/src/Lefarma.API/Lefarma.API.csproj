@@ -26,6 +26,7 @@
     <PackageReference Include="System.DirectoryServices.Protocols" Version="9.0.0" />
     <PackageReference Include="MailKit" Version="4.16.0" />
     <PackageReference Include="Handlebars.Net" Version="2.1.6" />
+    <PackageReference Include="CsvHelper" Version="33.0.1" />
   </ItemGroup>
 
   <ItemGroup>

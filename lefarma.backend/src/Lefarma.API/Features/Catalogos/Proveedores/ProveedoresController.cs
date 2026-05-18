@@ -270,4 +270,49 @@ public class ProveedoresController : ControllerBase
             Data = data
         }));
     }
+
+    [HttpPost("bulk-upload")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(5_000_000)]
+//    [HasPermission(Permissions.Proveedores.CargaMasiva)]
+    [SwaggerOperation(
+        Summary = "Carga masiva de proveedores vía CSV",
+        Description = "Sube un archivo CSV con proveedores y cuentas bancarias. " +
+                      "Las filas consecutivas con la misma RazonSocial+RFC se agrupan como cuentas " +
+                      "del mismo proveedor (la primera fila define los datos fiscales, las siguientes " +
+                      "sólo aportan cuentas bancarias adicionales). Los proveedores importados quedan " +
+                      "en estatus Nuevo (1) y siguen el flujo normal de autorización por CxP.")]
+    public async Task<IActionResult> BulkUpload(
+        [SwaggerRequestBody(Description = "Archivo CSV con los proveedores", Required = true)] IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No se proporcionó ningún archivo",
+                Data = null
+            });
+        }
+
+        if (file.Length > 5_000_000)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El archivo excede el tamaño máximo permitido de 5 MB",
+                Data = null
+            });
+        }
+
+        await using var stream = file.OpenReadStream();
+        var result = await _proveedorService.BulkUploadAsync(stream, file.FileName);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<BulkUploadResultResponse>
+        {
+            Success = true,
+            Message = $"Carga masiva procesada: {data.ProveedoresImported} proveedores y {data.CuentasImported} cuentas importados, {data.FailedRows} filas con errores.",
+            Data = data
+        }));
+    }
 }

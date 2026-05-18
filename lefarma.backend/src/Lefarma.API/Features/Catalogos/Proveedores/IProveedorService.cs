@@ -17,5 +17,6 @@ public interface IProveedorService
     Task<ErrorOr<ProveedorResponse>> AutorizarEdicionAsync(int id, int idUsuario);
     Task<ErrorOr<ProveedorResponse>> RechazarEdicionAsync(int id, int idUsuario);
     Task<ErrorOr<StagingProveedorResponse>> GetStagingByProveedorIdAsync(int idProveedor);
+    Task<ErrorOr<BulkUploadResultResponse>> BulkUploadAsync(Stream csvStream, string fileName);
 }
 }
