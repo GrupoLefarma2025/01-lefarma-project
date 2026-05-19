@@ -1172,7 +1172,7 @@ export default function ProveedoresList() {
                               value={cuenta.numeroCuenta || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].numeroCuenta = e.target.value;
+                                updated[index].numeroCuenta = e.target.value.replace(/\s/g, '');
                                 setCuentasFormaPago(updated);
                               }}
                             />
@@ -1187,7 +1187,7 @@ export default function ProveedoresList() {
                               value={cuenta.clabe || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].clabe = e.target.value;
+                                updated[index].clabe = e.target.value.replace(/\s/g, '');
                                 setCuentasFormaPago(updated);
                               }}
                             />

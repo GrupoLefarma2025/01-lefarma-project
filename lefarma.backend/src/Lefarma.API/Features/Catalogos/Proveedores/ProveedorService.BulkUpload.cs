@@ -461,8 +461,8 @@ public partial class ProveedorService
         {
             IdFormaPago = idFormaPago,
             IdBanco = idBanco,
-            NumeroCuenta = string.IsNullOrWhiteSpace(row.NumeroCuenta) ? null : row.NumeroCuenta.Trim(),
-            Clabe = string.IsNullOrWhiteSpace(row.CLABE) ? null : row.CLABE.Trim(),
+            NumeroCuenta = string.IsNullOrWhiteSpace(row.NumeroCuenta) ? null : row.NumeroCuenta.Replace(" ", ""),
+            Clabe = string.IsNullOrWhiteSpace(row.CLABE) ? null : row.CLABE.Replace(" ", ""),
             NumeroTarjeta = string.IsNullOrWhiteSpace(row.NumeroTarjeta) ? null : row.NumeroTarjeta.Trim(),
             Beneficiario = string.IsNullOrWhiteSpace(row.Beneficiario) ? null : row.Beneficiario.Trim(),
             CorreoNotificacion = string.IsNullOrWhiteSpace(row.CorreoNotificacion) ? null : row.CorreoNotificacion.Trim(),
