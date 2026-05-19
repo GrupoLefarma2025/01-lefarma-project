@@ -1,0 +1,16 @@
+version: 1
+agent:
+  extend: default
+  name: lefarma-project
+  subagents:
+    typescript-react-reviewer:
+      path: ./subagents/typescript-react-reviewer.yaml
+      description: >-
+        Expert TypeScript and React code reviewer. Use proactively when the user writes, modifies, or
+        asks to review any .ts, .tsx, or React component file. Detects type safety issues (any types,
+        missing generics, unsafe assertions), React anti-patterns (missing prop types, incorrect useEffect
+        deps, missing keys), structural problems (dead code, loose functions, magic numbers), and async
+        errors. ALWAYS fetches live official documentation before auditing to prevent hallucinations on
+        API behavior, hook signatures, and type definitions. Reports findings only — does NOT modify code.
+        Trigger phrases: "revisa este codigo", "code review", "revisa el TS", "tiene tipos malos",
+        "audit typescript", "check react code", "review types", "audita el PR", "revisa los tipos".

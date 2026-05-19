@@ -49,14 +49,17 @@ export function MultiSelect({
     );
   };
 
-  const remove = (e: React.MouseEvent, optValue: string) => {
+  const remove = (
+    e: React.MouseEvent | React.KeyboardEvent,
+    optValue: string,
+  ) => {
     e.stopPropagation();
     onChange(value.filter((v) => v !== optValue));
   };
 
   const selectedLabels = value
     .map((v) => options.find((o) => o.value === v)?.label)
-    .filter(Boolean) as string[];
+    .filter((l): l is string => Boolean(l));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -75,14 +78,14 @@ export function MultiSelect({
           <div className="flex flex-wrap gap-1">
             {selectedLabels.length > 0 ? (
               selectedLabels.map((label, i) => (
-                <Badge key={i} variant="secondary" className="gap-1 pr-1 text-xs">
+                <Badge key={value[i]} variant="secondary" className="gap-1 pr-1 text-xs">
                   {label}
                   <span
                     role="button"
                     tabIndex={0}
                     className="rounded-sm opacity-70 hover:opacity-100 cursor-pointer"
                     onMouseDown={(e) => remove(e, value[i])}
-                    onKeyDown={(e) => e.key === 'Enter' && remove(e as any, value[i])}
+                    onKeyDown={(e) => e.key === 'Enter' && remove(e, value[i])}
                   >
                     <X className="h-3 w-3" />
                   </span>

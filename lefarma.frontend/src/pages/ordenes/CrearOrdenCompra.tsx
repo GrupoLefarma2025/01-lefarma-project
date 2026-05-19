@@ -433,7 +433,6 @@ function UnidadMedidaSelector({
   );
 }
 
-// @lat: [[lat.md\frontend#Frontend#Pages#Ordenes]]
 export default function CrearOrdenCompra() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();

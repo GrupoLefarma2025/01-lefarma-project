@@ -429,7 +429,7 @@ export function DataTable<TData>({
                     return (
                     <TableRow
                       key={row.id}
-                      data-state={row.getIsSelected() && "selected"}
+                      data-state={row.getIsSelected() ? "selected" : undefined}
                       className={cn(
                         "text-sm",
                         onRowClick && "hover:bg-muted/50",
