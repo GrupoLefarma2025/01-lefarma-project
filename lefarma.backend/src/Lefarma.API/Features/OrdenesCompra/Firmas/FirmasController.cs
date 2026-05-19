@@ -3,6 +3,7 @@ using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -16,7 +17,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     public class FirmasController : ControllerBase
     {
         private readonly IFirmasService _service;
-        public FirmasController(IFirmasService service) => _service = service;
+        private readonly IConfiguration _configuration;
+        public FirmasController(IFirmasService service, IConfiguration configuration)
+        {
+            _service = service;
+            _configuration = configuration;
+        }
 
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
@@ -27,11 +33,36 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             Description = "Endpoint gen�rico. DatosAdicionales var�a por paso: " +
                           "Firma3 requiere CentroCosto y CuentaContable. " +
                           "Firma4 acepta RequiereComprobacionPago y RequiereComprobacionGasto.")]
-        public async Task<IActionResult> Firmar(int id,  FirmarRequest request)
+        public async Task<IActionResult> Firmar(int id, FirmarRequest request)
         {
             var result = await _service.FirmarAsync(id, request, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
             { Success = true, Message = data?.Mensaje ?? string.Empty, Data = data }));
+        }
+
+        [HttpPost("{id}/firmar/interface")]
+        [AllowAnonymous]
+        [SwaggerOperation(Summary = "Firmar orden an�nima (requiere MasterPassword)")]
+        public async Task<IActionResult> FirmarAnonymous(int id, [FromBody] FirmarRequest request)
+        {
+            var masterPassword = _configuration["Auth:MasterPassword"];
+            var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
+
+            if (string.IsNullOrEmpty(providedPassword)
+                || string.IsNullOrEmpty(masterPassword)
+                || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
+            {
+                return Unauthorized(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "MasterPassword inv�lida o no proporcionada."
+                });
+            }
+
+            var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
+            var result = await _service.FirmarAsync(id, request, anonymousUserId);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
+            { Success = true, Message = data?.Mensaje ?? "Firma ejecutada exitosamente (an�nimo).", Data = data }));
         }
 
         [HttpGet("{id}/acciones")]
