@@ -30,9 +30,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [HttpPost("{id}/firmar")]
         [SwaggerOperation(
             Summary = "Ejecutar acci�n de firma sobre una orden",
-            Description = "Endpoint gen�rico. DatosAdicionales var�a por paso: " +
-                          "Firma3 requiere CentroCosto y CuentaContable. " +
-                          "Firma4 acepta RequiereComprobacionPago y RequiereComprobacionGasto.")]
+            Description = "Endpoint gen�rico.")]
         public async Task<IActionResult> Firmar(int id, FirmarRequest request)
         {
             var result = await _service.FirmarAsync(id, request, GetUserId());
@@ -72,6 +70,31 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             var result = await _service.GetAccionesAsync(id, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
             { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
+        }
+
+        [HttpGet("{id}/acciones/interface")]
+        [AllowAnonymous]
+        [SwaggerOperation(Summary = "Obtener acciones disponibles anónimamente (requiere MasterPassword)")]
+        public async Task<IActionResult> GetAccionesAnonymous(int id)
+        {
+            var masterPassword = _configuration["Auth:MasterPassword"];
+            var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
+
+            if (string.IsNullOrEmpty(providedPassword)
+                || string.IsNullOrEmpty(masterPassword)
+                || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
+            {
+                return Unauthorized(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "MasterPassword inv�lida o no proporcionada."
+                });
+            }
+
+            var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
+            var result = await _service.GetAccionesAsync(id, anonymousUserId);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
+            { Success = true, Message = "Acciones obtenidas exitosamente (an�nimo).", Data = data }));
         }
 
         [HttpGet("{id}/acciones/{idAccion}/metadata")]

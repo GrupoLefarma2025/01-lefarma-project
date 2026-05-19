@@ -117,5 +117,33 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
             { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
+
+        [HttpPut("interface/{id}")]
+        [AllowAnonymous]
+        [SwaggerOperation(Summary = "Actualizar orden de compra anónima (requiere MasterPassword)")]
+        public async Task<IActionResult> UpdateAnonymous(int id, [FromBody] CreateOrdenCompraRequest? request)
+        {
+            if (request == null)
+                return BadRequest(new ApiResponse<object> { Success = false, Message = "Datos requeridos" });
+
+            var masterPassword = _configuration["Auth:MasterPassword"];
+            var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
+
+            if (string.IsNullOrEmpty(providedPassword)
+                || string.IsNullOrEmpty(masterPassword)
+                || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
+            {
+                return Unauthorized(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = "MasterPassword inválida o no proporcionada."
+                });
+            }
+
+            var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
+            var result = await _service.UpdateAsync(id, request, anonymousUserId, HttpContext.RequestAborted);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
+            { Success = true, Message = "Orden actualizada exitosamente (anónimo).", Data = data }));
+        }
     }
 }
