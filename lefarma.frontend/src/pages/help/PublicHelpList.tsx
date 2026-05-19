@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { FileText, ArrowLeft, Menu } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
@@ -218,7 +219,7 @@ export default function PublicHelpList() {
                       <h1 className="text-2xl font-bold mb-4">{selectedArticle.titulo}</h1>
                       <div
                         className="prose prose-sm max-w-none"
-                        dangerouslySetInnerHTML={{ __html: selectedArticle.contenido }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(selectedArticle.contenido) }}
                       />
                     </div>
                   )}

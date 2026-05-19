@@ -8,7 +8,8 @@ import { Modal } from '@/components/ui/modal';
 import { API } from '@/services/api';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
-import type { Workflow, WorkflowPaso } from '@/types/workflow.types';
+import type { Workflow, WorkflowPaso, WorkflowParticipante } from '@/types/workflow.types';
+import type { WorkflowRolCatalogo, WorkflowUsuarioCatalogo } from '@/hooks/useWorkflowCatalogs';
 
 interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
@@ -16,9 +17,9 @@ interface WorkflowWithDetails extends Workflow {
 
 interface ParticipanteEditModalProps {
   workflow: WorkflowWithDetails;
-  participante: any | null;
-  roles: any[];
-  usuarios: any[];
+  participante: WorkflowParticipante | null;
+  roles: WorkflowRolCatalogo[];
+  usuarios: WorkflowUsuarioCatalogo[];
   open: boolean;
   setOpen: (open: boolean) => void;
   onSave: () => Promise<void>;
@@ -174,7 +175,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
                 <SelectValue placeholder="Selecciona un rol" />
               </SelectTrigger>
               <SelectContent>
-                {roles.map((r: any) => (
+                {roles.map((r: WorkflowRolCatalogo) => (
                   <SelectItem key={r.idRol} value={String(r.idRol)}>{r.nombreRol}</SelectItem>
                 ))}
               </SelectContent>
@@ -193,7 +194,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
                 <SelectValue placeholder="Selecciona un usuario" />
               </SelectTrigger>
               <SelectContent>
-                {usuarios.map((u: any) => (
+                {usuarios.map((u: WorkflowUsuarioCatalogo) => (
                   <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>{u.nombreCompleto}</SelectItem>
                 ))}
               </SelectContent>

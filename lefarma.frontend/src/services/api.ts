@@ -100,7 +100,7 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      console.error('No tienes permisos');
+      // Permiso denegado - el backend ya responde con el mensaje apropiado
     }
 
     const apiError: ApiError = {

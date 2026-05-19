@@ -125,10 +125,17 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
     new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   );
 
+  type FilterState = {
+    unreadOnly: boolean;
+    type?: NotificationType;
+    category?: NotificationCategory;
+    priority?: NotificationPriority;
+  };
+
   /**
    * Aplica los filtros seleccionados
    */
-  const applyFilter = (key: string, value: any) => {
+  const applyFilter = <K extends keyof FilterState>(key: K, value: FilterState[K]) => {
     setFilter((prev) => ({
       ...prev,
       [key]: value,
@@ -205,7 +212,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
             <Select
               value={filter.type || 'all'}
               onValueChange={(value) =>
-                applyFilter('type', value === 'all' ? undefined : value)
+                applyFilter('type', value === 'all' ? undefined : (value as NotificationType))
               }
             >
               <SelectTrigger className="w-32">
@@ -225,7 +232,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
             <Select
               value={filter.category || 'all'}
               onValueChange={(value) =>
-                applyFilter('category', value === 'all' ? undefined : value)
+                applyFilter('category', value === 'all' ? undefined : (value as NotificationCategory))
               }
             >
               <SelectTrigger className="w-32">
@@ -245,7 +252,7 @@ export function NotificationList({ userId, onNotificationClick }: NotificationLi
             <Select
               value={filter.priority || 'all'}
               onValueChange={(value) =>
-                applyFilter('priority', value === 'all' ? undefined : value)
+                applyFilter('priority', value === 'all' ? undefined : (value as NotificationPriority))
               }
             >
               <SelectTrigger className="w-32">

@@ -19,6 +19,7 @@ export interface Empresa {
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
+  puedeSeleccionarEmpresas?: boolean;
 }
 
 // ─── Sucursal ─────────────────────────────────────────────────────────────────
@@ -147,15 +148,7 @@ export interface ProveedorCuentaBancaria {
   idCuen: number;
   idProveedor: number;
   idFormaPago: number;
-  FormaPagoNombre?: string;
   idBanco?: number;
-  BancoNombre?: string;
-  NumeroCuenta?: string;
-  Clabe?: string;
-  NumeroTarjeta?: string;
-  Beneficiario?: string;
-  CorreoNotificacion?: string;
-  Activo: boolean;
   formaPagoNombre?: string;
   bancoNombre?: string;
   numeroCuenta?: string;

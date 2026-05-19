@@ -10,7 +10,15 @@ import { API } from '@/services/api';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { PlantillasEditModal } from './PlantillasEditModal';
-import type { Workflow, WorkflowPaso } from '@/types/workflow.types';
+import type {
+  Workflow,
+  WorkflowPaso,
+  WorkflowAccion,
+  WorkflowNotificacion,
+  WorkflowNotificacionCanal,
+} from '@/types/workflow.types';
+import type { ApiResponse } from '@/types/api.types';
+import type { WorkflowTipoNotificacionCatalogo } from '@/hooks/useWorkflowCatalogs';
 
 interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
@@ -18,34 +26,52 @@ interface WorkflowWithDetails extends Workflow {
 
 interface NotificacionEditModalProps {
   workflow: WorkflowWithDetails;
-  notificacion: any | null;
+  notificacion: WorkflowNotificacion | null;
   open: boolean;
   setOpen: (open: boolean) => void;
   onSave: () => Promise<void>;
 }
 
+type NotificacionFormState = {
+  idAccion: number;
+  idPasoDestino: number;
+  idTipoNotificacion: number;
+  enviarEmail: boolean;
+  enviarWhatsapp: boolean;
+  enviarTelegram: boolean;
+  avisarAlCreador: boolean;
+  avisarAlSiguiente: boolean;
+  avisarAlAnterior: boolean;
+  avisarAAutorizadoresPrevios: boolean;
+  incluirPartidas: boolean;
+  activo: boolean;
+  canales: WorkflowNotificacionCanal[];
+};
+
+const EMPTY_FORM: NotificacionFormState = {
+  idAccion: 0,
+  idPasoDestino: 0,
+  idTipoNotificacion: 0,
+  enviarEmail: true,
+  enviarWhatsapp: false,
+  enviarTelegram: false,
+  avisarAlCreador: true,
+  avisarAlSiguiente: true,
+  avisarAlAnterior: false,
+  avisarAAutorizadoresPrevios: false,
+  incluirPartidas: false,
+  activo: true,
+  canales: [],
+};
+
 export function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }: NotificacionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [tiposNotificacion, setTiposNotificacion] = useState<any[]>([]);
-  const [formData, setFormData] = useState({
-    idAccion: 0,
-    idPasoDestino: 0,
-    idTipoNotificacion: 0,
-    enviarEmail: true,
-    enviarWhatsapp: false,
-    enviarTelegram: false,
-    avisarAlCreador: true,
-    avisarAlSiguiente: true,
-    avisarAlAnterior: false,
-    avisarAAutorizadoresPrevios: false,
-    incluirPartidas: false,
-    activo: true,
-    canales: [] as any[]
-  });
+  const [tiposNotificacion, setTiposNotificacion] = useState<WorkflowTipoNotificacionCatalogo[]>([]);
+  const [formData, setFormData] = useState<NotificacionFormState>(EMPTY_FORM);
 
   // Cargar tipos de notificación la primera vez
   useEffect(() => {
-    API.get<any>('/config/workflows/tipos-notificacion')
+    API.get<ApiResponse<WorkflowTipoNotificacionCatalogo[]>>('/config/workflows/tipos-notificacion')
       .then(res => setTiposNotificacion(res.data?.data ?? []))
       .catch(() => {});
   }, []);
@@ -55,29 +81,19 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
       // Cargar canales de la notificación
       const canales = notificacion.canales ?? [];
       setFormData({
+        ...EMPTY_FORM,
         ...notificacion,
         idPasoDestino: notificacion.idPasoDestino || 0,
         idTipoNotificacion: notificacion.idTipoNotificacion || 0,
         activo: notificacion.activo ?? true,
-        canales
+        canales,
       });
     } else {
       // Encontrar la primera acción disponible
       const primeraAccion = workflow.pasos.flatMap((p: WorkflowPaso) => p.acciones || [])[0];
       setFormData({
+        ...EMPTY_FORM,
         idAccion: primeraAccion?.idAccion || 0,
-        idPasoDestino: 0,
-        idTipoNotificacion: 0,
-        enviarEmail: true,
-        enviarWhatsapp: false,
-        enviarTelegram: false,
-        avisarAlCreador: true,
-        avisarAlSiguiente: true,
-        avisarAlAnterior: false,
-        avisarAAutorizadoresPrevios: false,
-        incluirPartidas: false,
-        activo: true,
-        canales: [] as any[]
       });
     }
   }, [notificacion, workflow.pasos, open]);
@@ -117,7 +133,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
 
   const todasLasAcciones = workflow.pasos.flatMap((p: WorkflowPaso) => {
     const paso = p;
-    return (p.acciones || []).map((a: any) => ({ ...a, paso }));
+    return (p.acciones || []).map((a: WorkflowAccion) => ({ ...a, paso }));
   });
 
   return (
@@ -208,7 +224,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
               <SelectValue>
                 {formData.idTipoNotificacion && formData.idTipoNotificacion > 0 ? (
                   (() => {
-                    const tipo = tiposNotificacion.find((t: any) => t.idTipo === formData.idTipoNotificacion);
+                    const tipo = tiposNotificacion.find((t) => t.idTipo === formData.idTipoNotificacion);
                     return tipo ? (
                       <span className="flex items-center gap-2">
                         <span
@@ -228,8 +244,8 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
               <SelectItem value="0">
                 <span className="text-muted-foreground">Sin tipo asignado</span>
               </SelectItem>
-              {tiposNotificacion.map((tipo: any) => (
-                <SelectItem key={tipo.idTipo} value={tipo.idTipo.toString()}>
+              {tiposNotificacion.map((tipo) => (
+                <SelectItem key={tipo.idTipo} value={(tipo.idTipo ?? 0).toString()}>
                   <span className="flex items-center gap-2">
                     <span
                       className="inline-block w-3 h-3 rounded-full flex-shrink-0"
@@ -349,7 +365,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           enviarEmail={formData.enviarEmail}
           enviarWhatsapp={formData.enviarWhatsapp}
           enviarTelegram={formData.enviarTelegram}
-          tipoNotificacion={tiposNotificacion.find((t: any) => t.idTipoNotificacion === formData.idTipoNotificacion)?.codigoTipo}
+          tipoNotificacion={tiposNotificacion.find((t) => t.idTipoNotificacion === formData.idTipoNotificacion)?.codigoTipo}
           bodyVars={['{{Folio}}', '{{Total}}', '{{Proveedor}}', '{{Comentario}}', '{{Accion}}', '{{NombreAnterior}}', '{{NombreSiguiente}}', '{{Solicitante}}', '{{Partidas}}']}
           tablaVarName={formData.incluirPartidas ? '{{Partidas}}' : undefined}
           showListadoRowHtml={!!formData.incluirPartidas}
@@ -357,7 +373,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           listadoRowHtmlVars={['{{NumeroPartida}}', '{{Descripcion}}', '{{Cantidad}}', '{{PrecioUnitario}}', '{{Total}}']}
           listadoRowHtmlPlaceholder="Dejar vacío para usar la tabla por defecto"
           listadoRowHtmlExample={`<tr>\n  <td>{{NumeroPartida}}</td>\n  <td>{{Descripcion}}</td>\n  <td style="text-align:right">{{Cantidad}}</td>\n  <td style="text-align:right">{{PrecioUnitario}}</td>\n  <td style="text-align:right;font-weight:600">{{Total}}</td>\n</tr>`}
-          onChange={(canales) => setFormData((prev: any) => ({ ...prev, canales }))}
+          onChange={(canales) => setFormData((prev) => ({ ...prev, canales }))}
         />
 
         {/* Opciones adicionales */}

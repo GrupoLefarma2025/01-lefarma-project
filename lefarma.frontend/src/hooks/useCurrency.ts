@@ -5,7 +5,7 @@ import { formatCurrency } from '@/utils/currency';
  * Returns a `fmt` function that formats numbers as currency using the
  * system's configured default currency (from globalConfig.defaultCurrency).
  */
-export function useCurrency() {
+export function useCurrency(): { currency: string; fmt: (amount: number, options?: { decimals?: boolean }) => string } {
   const currency = useConfigStore((s) => s.globalConfig.defaultCurrency);
 
   return {

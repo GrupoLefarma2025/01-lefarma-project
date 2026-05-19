@@ -9,7 +9,7 @@ import { Modal } from '@/components/ui/modal';
 import { API } from '@/services/api';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
-import type { Workflow, WorkflowPaso } from '@/types/workflow.types';
+import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowCampo, WorkflowCondicion } from '@/types/workflow.types';
 
 interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
@@ -17,15 +17,24 @@ interface WorkflowWithDetails extends Workflow {
 
 interface CondicionEditModalProps {
   workflow: WorkflowWithDetails;
-  condicion: any | null;
+  condicion: WorkflowCondicion | null;
   open: boolean;
   setOpen: (open: boolean) => void;
   onSave: () => Promise<void>;
 }
 
+type CondicionFormState = {
+  idAccion: number;
+  campoEvaluacion: string;
+  operador: WorkflowCondicion['operador'];
+  valorComparacion: string;
+  idPasoSiCumple: number;
+  activo: boolean;
+};
+
 export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave }: CondicionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CondicionFormState>({
     idAccion: 0,
     campoEvaluacion: '',
     operador: '>',
@@ -123,7 +132,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
             </SelectTrigger>
             <SelectContent>
               {workflow.pasos.flatMap((paso: WorkflowPaso) =>
-                (paso.acciones || []).map((accion: any) => (
+                (paso.acciones || []).map((accion: WorkflowAccion) => (
                   <SelectItem key={accion.idAccion} value={accion.idAccion.toString()}>
                     <div className="flex items-center gap-2">
                       <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
@@ -151,7 +160,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
               <SelectValue placeholder="Selecciona el campo..." />
             </SelectTrigger>
             <SelectContent>
-              {workflow.campos?.filter((c: any) => c.usarEnCondiciones && c.activo).map((c: any) => (
+              {workflow.campos?.filter((c: WorkflowCampo) => c.usarEnCondiciones && c.activo).map((c: WorkflowCampo) => (
                 <SelectItem key={c.idWorkflowCampo} value={c.propiedadEntidad || c.nombreTecnico}>
                   {c.etiquetaUsuario}
                 </SelectItem>
@@ -171,7 +180,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
             </Label>
             <Select
               value={formData.operador}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, operador: value }))}
+              onValueChange={(value) => setFormData(prev => ({ ...prev, operador: value as WorkflowCondicion['operador'] }))}
             >
               <SelectTrigger>
                 <SelectValue />

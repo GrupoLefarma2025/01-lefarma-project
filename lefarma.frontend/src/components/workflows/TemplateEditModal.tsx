@@ -9,12 +9,14 @@ import { Modal } from '@/components/ui/modal';
 import { API } from '@/services/api';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
+import type { ApiResponse } from '@/types/api.types';
+import type { CanalTemplate } from '@/types/workflow.types';
 
 interface TemplateEditModalProps {
-  template: any | null;
+  template: CanalTemplate | null;
   open: boolean;
   setOpen: (open: boolean) => void;
-  onSave: (saved: any, isNew: boolean) => Promise<void>;
+  onSave: (saved: CanalTemplate, isNew: boolean) => Promise<void>;
 }
 
 const CANAL_VARS: Record<string, string[]> = {
@@ -44,14 +46,14 @@ export function TemplateEditModal({ template, open, setOpen, onSave }: TemplateE
     setSaving(true);
     try {
       if (isNew) {
-        const res = await API.post<any>(
+        const res = await API.post<ApiResponse<CanalTemplate>>(
           `/config/workflows/canal-templates`,
           { codigoCanal: formData.codigoCanal, nombre: formData.nombre, layoutHtml: formData.layoutHtml, activo: formData.activo }
         );
         toast.success('Plantilla de canal creada');
         await onSave(res.data?.data ?? formData, true);
       } else {
-        const res = await API.put<any>(
+        const res = await API.put<ApiResponse<CanalTemplate>>(
           `/config/workflows/canal-templates/${template.codigoCanal}`,
           { nombre: formData.nombre, layoutHtml: formData.layoutHtml, activo: formData.activo }
         );

@@ -9,23 +9,47 @@ import { API } from '@/services/api';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { PlantillasEditModal } from './PlantillasEditModal';
-import type { Workflow, WorkflowPaso } from '@/types/workflow.types';
+import type { Workflow, WorkflowPaso, WorkflowNotificacionCanal } from '@/types/workflow.types';
+import type { ApiResponse } from '@/types/api.types';
 
 interface WorkflowWithDetails extends Workflow {
   pasos: WorkflowPaso[];
 }
 
+interface RecordatorioRecord {
+  idRecordatorio?: number;
+  nombre: string;
+  activo: boolean;
+  idPaso?: number | string | null;
+  tipoTrigger: 'horario' | 'recurrente' | 'fecha_especifica';
+  horaEnvio?: string | null;
+  diasSemana?: string | null;
+  intervaloHoras?: number | string | null;
+  fechaEspecifica?: string | null;
+  minOrdenesPendientes?: number | string | null;
+  minDiasEnPaso?: number | string | null;
+  montoMinimo?: number | string | null;
+  montoMaximo?: number | string | null;
+  escalarAJerarquia: boolean;
+  diasParaEscalar?: number | string | null;
+  enviarAlResponsable: boolean;
+  enviarEmail: boolean;
+  enviarWhatsapp: boolean;
+  enviarTelegram: boolean;
+  canales: WorkflowNotificacionCanal[];
+}
+
 interface RecordatorioEditModalProps {
   workflow: WorkflowWithDetails;
-  recordatorio: any | null;
+  recordatorio: RecordatorioRecord | null;
   open: boolean;
   setOpen: (open: boolean) => void;
-  onSave: (saved: any, isNew: boolean) => Promise<void>;
+  onSave: (saved: RecordatorioRecord, isNew: boolean) => Promise<void>;
 }
 
 const REC_VARS = ['{{NombreResponsable}}', '{{CantidadPendientes}}', '{{DiasEspera}}', '{{ListadoPendientes}}', '{{Folios}}', '{{Folio}}', '{{Total}}'];
 
-const EMPTY_REC = {
+const EMPTY_REC: RecordatorioRecord = {
   nombre: '',
   activo: true,
   idPaso: '',
@@ -44,13 +68,13 @@ const EMPTY_REC = {
   enviarEmail: true,
   enviarWhatsapp: false,
   enviarTelegram: false,
-  canales: [] as any[]
+  canales: []
 };
 
 export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, onSave }: RecordatorioEditModalProps) {
   const isNew = !recordatorio;
   const [saving, setSaving] = useState(false);
-  const [formData, setFormData] = useState<any>(EMPTY_REC);
+  const [formData, setFormData] = useState<RecordatorioRecord>(EMPTY_REC);
 
   const pasos = workflow.pasos;
 
@@ -76,7 +100,8 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
     }
   }, [recordatorio, open]);
 
-  const set = (field: string, value: any) => setFormData((p: any) => ({ ...p, [field]: value }));
+  const set = <K extends keyof RecordatorioRecord>(field: K, value: RecordatorioRecord[K]) =>
+    setFormData((p) => ({ ...p, [field]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -97,11 +122,11 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
       };
 
       if (isNew) {
-        const res = await API.post<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios`, payload);
+        const res = await API.post<ApiResponse<RecordatorioRecord>>(`/config/workflows/${workflow.idWorkflow}/recordatorios`, payload);
         toast.success('Recordatorio creado');
-        await onSave(res.data?.data ?? payload, true);
+        await onSave(res.data?.data ?? (payload as RecordatorioRecord), true);
       } else {
-        const res = await API.put<any>(`/config/workflows/${workflow.idWorkflow}/recordatorios/${recordatorio.idRecordatorio}`, payload);
+        const res = await API.put<ApiResponse<RecordatorioRecord>>(`/config/workflows/${workflow.idWorkflow}/recordatorios/${recordatorio.idRecordatorio}`, payload);
         toast.success('Recordatorio guardado');
         await onSave(res.data?.data ?? { ...recordatorio, ...payload }, false);
       }
@@ -165,7 +190,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
             <Label>Tipo</Label>
             <select
               value={formData.tipoTrigger}
-              onChange={e => set('tipoTrigger', e.target.value)}
+              onChange={e => set('tipoTrigger', e.target.value as RecordatorioRecord['tipoTrigger'])}
               className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
             >
               <option value="horario">Horario (hora del día)</option>
@@ -177,11 +202,11 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="rec-hora">Hora de envío</Label>
-                <Input id="rec-hora" type="time" value={formData.horaEnvio} onChange={e => set('horaEnvio', e.target.value)} />
+                <Input id="rec-hora" type="time" value={formData.horaEnvio ?? ''} onChange={e => set('horaEnvio', e.target.value)} />
               </div>
               <div>
                 <Label htmlFor="rec-dias">Días de la semana</Label>
-                <Input id="rec-dias" value={formData.diasSemana} onChange={e => set('diasSemana', e.target.value)} placeholder="1,2,3,4,5 (lun-vie)" />
+                <Input id="rec-dias" value={formData.diasSemana ?? ''} onChange={e => set('diasSemana', e.target.value)} placeholder="1,2,3,4,5 (lun-vie)" />
                 <p className="text-xs text-muted-foreground mt-1">1=Lun, 2=Mar, 3=Mié, 4=Jue, 5=Vie, 6=Sáb, 7=Dom</p>
               </div>
             </div>
@@ -189,13 +214,13 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           {formData.tipoTrigger === 'recurrente' && (
             <div>
               <Label htmlFor="rec-intervalo">Intervalo (horas)</Label>
-              <Input id="rec-intervalo" type="number" min={1} value={formData.intervaloHoras} onChange={e => set('intervaloHoras', e.target.value)} />
+              <Input id="rec-intervalo" type="number" min={1} value={formData.intervaloHoras ?? ''} onChange={e => set('intervaloHoras', e.target.value)} />
             </div>
           )}
           {formData.tipoTrigger === 'fecha_especifica' && (
             <div>
               <Label htmlFor="rec-fecha">Fecha</Label>
-              <Input id="rec-fecha" type="date" value={formData.fechaEspecifica} onChange={e => set('fechaEspecifica', e.target.value)} />
+              <Input id="rec-fecha" type="date" value={formData.fechaEspecifica ?? ''} onChange={e => set('fechaEspecifica', e.target.value)} />
             </div>
           )}
         </div>
@@ -206,19 +231,19 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="rec-minord">Mín. órdenes pendientes</Label>
-              <Input id="rec-minord" type="number" min={1} value={formData.minOrdenesPendientes} onChange={e => set('minOrdenesPendientes', e.target.value)} placeholder="Sin mínimo" />
+              <Input id="rec-minord" type="number" min={1} value={formData.minOrdenesPendientes ?? ''} onChange={e => set('minOrdenesPendientes', e.target.value)} placeholder="Sin mínimo" />
             </div>
             <div>
               <Label htmlFor="rec-mindias">Mín. días en paso</Label>
-              <Input id="rec-mindias" type="number" min={1} value={formData.minDiasEnPaso} onChange={e => set('minDiasEnPaso', e.target.value)} placeholder="Sin mínimo" />
+              <Input id="rec-mindias" type="number" min={1} value={formData.minDiasEnPaso ?? ''} onChange={e => set('minDiasEnPaso', e.target.value)} placeholder="Sin mínimo" />
             </div>
             <div>
               <Label htmlFor="rec-montmin">Monto mínimo</Label>
-              <Input id="rec-montmin" type="number" min={0} value={formData.montoMinimo} onChange={e => set('montoMinimo', e.target.value)} placeholder="Sin límite" />
+              <Input id="rec-montmin" type="number" min={0} value={formData.montoMinimo ?? ''} onChange={e => set('montoMinimo', e.target.value)} placeholder="Sin límite" />
             </div>
             <div>
               <Label htmlFor="rec-montmax">Monto máximo</Label>
-              <Input id="rec-montmax" type="number" min={0} value={formData.montoMaximo} onChange={e => set('montoMaximo', e.target.value)} placeholder="Sin límite" />
+              <Input id="rec-montmax" type="number" min={0} value={formData.montoMaximo ?? ''} onChange={e => set('montoMaximo', e.target.value)} placeholder="Sin límite" />
             </div>
           </div>
         </div>
@@ -254,7 +279,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
                 <Input
                   type="number"
                   min={1}
-                  value={formData.diasParaEscalar}
+                  value={formData.diasParaEscalar ?? ''}
                   onChange={e => set('diasParaEscalar', e.target.value)}
                   className="w-20"
                   placeholder="días"
@@ -275,7 +300,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           tablaVarName="{{ListadoPendientes}}"
           showListadoRowHtml={true}
           listadoRowHtmlExample={`<tr>\n  <td>{{Folio}}</td>\n  <td>{{Proveedor}}</td>\n  <td style="text-align:right">{{Total}}</td>\n  <td style="color:#6b7280">{{DiasEspera}} días</td>\n</tr>`}
-          onChange={(canales: any[]) => set('canales', canales)}
+          onChange={(canales) => set('canales', canales)}
         />
 
       </form>

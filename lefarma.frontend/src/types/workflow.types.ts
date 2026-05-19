@@ -86,7 +86,7 @@ export interface WorkflowCondicion {
   idCondicion: number;
   idAccion: number;
   campoEvaluacion: string; // 'Total', 'TipoGasto', etc.
-  operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN';
+  operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN' | 'true' | 'false';
   valorComparacion: string;
   idPasoSiCumple: number;
   activo: boolean;
@@ -138,6 +138,32 @@ export interface WorkflowEstado {
   nombre?: string;
   colorHex?: string;
   activo: boolean;
+}
+
+export interface WorkflowTipoNotificacion {
+  idTipo: number;
+  idTipoNotificacion?: number;
+  codigoTipo?: string;
+  nombre?: string;
+  icono?: string;
+  activo?: boolean;
+}
+
+export interface CanalTemplate {
+  idTemplate?: number;
+  codigoCanal: string;
+  nombre: string;
+  layoutHtml: string;
+  activo: boolean;
+}
+
+export interface WorkflowRecordatorio {
+  idRecordatorio?: number;
+  idTipoNotificacion: number;
+  diasAntes?: number;
+  horaEnvio?: string;
+  activo: boolean;
+  canales?: WorkflowNotificacionCanal[];
 }
 
 export interface WorkflowBitacora {

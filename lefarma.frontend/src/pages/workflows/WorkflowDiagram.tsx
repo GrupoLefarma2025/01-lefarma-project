@@ -51,7 +51,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useWorkflowCatalogs } from '@/hooks/useWorkflowCatalogs';
 import { toast } from 'sonner';
-import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo, WorkflowScopeType, WorkflowMapping, WorkflowEstado, WorkflowTipoAccion } from '@/types/workflow.types';
+import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo, WorkflowScopeType, WorkflowMapping, WorkflowEstado, WorkflowTipoAccion, WorkflowCondicion, WorkflowParticipante } from '@/types/workflow.types';
 import { toApiError } from '@/utils/errors';
 
 interface WorkflowWithDetails extends Workflow {
@@ -70,6 +70,14 @@ interface CreatePasoPayload {
   requiereFirma: boolean;
   requiereComentario: boolean;
   requiereAdjunto: boolean;
+}
+
+interface LocalCanalTemplate {
+  idTemplate: number;
+  codigoCanal: string;
+  nombre: string;
+  layoutHtml?: string;
+  activo?: boolean;
 }
 
 export default function WorkflowDiagram() {
@@ -503,11 +511,11 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [isCreatingPaso, setIsCreatingPaso] = useState(false);
   const [editingAccion, setEditingAccion] = useState<WorkflowAccion | null>(null);
   const [editingAccionHandler, setEditingAccionHandler] = useState<{ accion: WorkflowAccion | null; handler: WorkflowAccionHandler | null } | null>(null);
-  const [editingCondicion, setEditingCondicion] = useState<any | null>(null);
-  const [editingParticipante, setEditingParticipante] = useState<any | null>(null);
+  const [editingCondicion, setEditingCondicion] = useState<WorkflowCondicion | null>(null);
+  const [editingParticipante, setEditingParticipante] = useState<WorkflowParticipante | null>(null);
   const [editingNotificacion, setEditingNotificacion] = useState<any | null>(null);
   const [editingCanalTemplate, setEditingCanalTemplate] = useState<any | null>(null);
-  const [canalTemplates, setCanalTemplates] = useState<any[]>([]);
+  const [canalTemplates, setCanalTemplates] = useState<LocalCanalTemplate[]>([]);
   const [editingRecordatorio, setEditingRecordatorio] = useState<any | null>(null);
   const [recordatorios, setRecordatorios] = useState<any[]>([]);
   const [ejecutandoRecordatorios, setEjecutandoRecordatorios] = useState(false);
@@ -1840,10 +1848,11 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         open={modalStates.canalTemplateModal}
         setOpen={(open) => toggleModal('canalTemplateModal', open)}
         onSave={async (saved, isNew) => {
+          const local = saved as LocalCanalTemplate;
           if (isNew) {
-            setCanalTemplates(prev => [...prev, saved]);
+            setCanalTemplates(prev => [...prev, local]);
           } else {
-            setCanalTemplates(prev => prev.map(t => t.idTemplate === saved.idTemplate ? saved : t));
+            setCanalTemplates(prev => prev.map(t => t.idTemplate === local.idTemplate ? local : t));
           }
           toggleModal('canalTemplateModal', false);
           setEditingCanalTemplate(null);

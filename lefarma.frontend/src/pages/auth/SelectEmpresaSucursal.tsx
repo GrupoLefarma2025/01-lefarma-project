@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { authService } from '@/services/authService';
@@ -33,6 +33,7 @@ export default function SelectEmpresaSucursal() {
   const [selectedSucursal, setSelectedSucursal] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const formRef = useRef<HTMLFormElement>(null);
 
   // Pre-seleccionar empresa/sucursal si el usuario no puede cambiar
   useEffect(() => {
@@ -51,7 +52,7 @@ export default function SelectEmpresaSucursal() {
   // Auto-submit si el usuario no puede seleccionar empresa/sucursal
   useEffect(() => {
     if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal) {
-      const form = document.getElementById('empresa-sucursal-form') as HTMLFormElement;
+      const form = formRef.current;
       if (form) {
         // Pequeño delay para asegurar que el state está actualizado
         const timer = setTimeout(() => {
@@ -128,11 +129,13 @@ export default function SelectEmpresaSucursal() {
     }
 
     try {
-      // Convertir a string para consistencia
-      changeEmpresaSucursal(
-        { idEmpresa: selectedEmpresa } as Empresa,
-        { idSucursal: selectedSucursal } as Sucursal
-      );
+      const empresa = empresas.find(e => String(e.idEmpresa) === String(selectedEmpresa));
+      const sucursal = sucursales.find(s => String(s.idSucursal) === String(selectedSucursal));
+      if (!empresa || !sucursal) {
+        setError('Empresa o sucursal no encontrada');
+        return;
+      }
+      changeEmpresaSucursal(empresa, sucursal);
       // Si no puede seleccionar, ir directo al dashboard sin mostrar el select
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
@@ -168,7 +171,7 @@ export default function SelectEmpresaSucursal() {
         </CardHeader>
 
         <CardContent>
-          <form id="empresa-sucursal-form" onSubmit={handleSubmit} className="space-y-4">
+          <form ref={formRef} id="empresa-sucursal-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Info del usuario */}
             {user?.nombre && (
               <div className="text-center py-2 px-4 bg-muted rounded-lg">

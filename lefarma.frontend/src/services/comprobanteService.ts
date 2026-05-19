@@ -10,6 +10,25 @@ import type {
 
 const BASE = '/facturas';
 
+export interface SubirComprobanteParams {
+  idEmpresa: number;
+  idOrden?: number | null;
+  idPasoWorkflow?: number | null;
+  tipoComprobante: string;
+  categoria: 'gasto' | 'pago';
+  totalManual?: number | null;
+  notas?: string | null;
+  xmlFile?: File | null;
+  archivo?: File | null;
+  nombrePaso?: string | null;
+  nombreAccion?: string | null;
+  // pago
+  referenciaPago?: string | null;
+  fechaPago?: string | null;
+  montoPago?: number | null;
+  idMedioPago?: number | null;
+}
+
 export const comprobanteService = {
   /**
    * Parsea un XML CFDI y devuelve preview sin guardar nada.
@@ -30,24 +49,7 @@ export const comprobanteService = {
    * xmlFile: solo para CFDI
    * archivo: PDF (CFDI) o imagen/ticket (sin CFDI)
    */
-  async subir(params: {
-    idEmpresa: number;
-    idOrden?: number | null;
-    idPasoWorkflow?: number | null;
-    tipoComprobante: string;
-    categoria: 'gasto' | 'pago';
-    totalManual?: number | null;
-    notas?: string | null;
-    xmlFile?: File | null;
-    archivo?: File | null;
-    nombrePaso?: string | null;
-    nombreAccion?: string | null;
-    // pago
-    referenciaPago?: string | null;
-    fechaPago?: string | null;
-    montoPago?: number | null;
-    idMedioPago?: number | null;
-  }): Promise<ComprobanteResponse> {
+  async subir(params: SubirComprobanteParams): Promise<ComprobanteResponse> {
     const form = new FormData();
     form.append('idEmpresa', String(params.idEmpresa));
     form.append('tipoComprobante', params.tipoComprobante);
@@ -64,9 +66,6 @@ export const comprobanteService = {
     if (params.fechaPago) form.append('fechaPago', params.fechaPago);
     if (params.montoPago != null) form.append('montoPago', String(params.montoPago));
     if (params.idMedioPago != null) form.append('idMedioPago', String(params.idMedioPago));
-    console.log('--------------------------------------');
-    console.log('Subiendo comprobante con params:', params);
-    console.log('--------------------------------------');
     const res = await API.post<ApiResponse<ComprobanteResponse>>(
       BASE,
       form,

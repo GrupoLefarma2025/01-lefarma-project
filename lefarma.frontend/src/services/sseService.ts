@@ -1,4 +1,4 @@
-﻿import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
+import type { SseEventType, SseConnectionState, SseEvent } from '@/types/sse.types';
 
 
 const SSE_URL = import.meta.env.VITE_API_URL 
@@ -79,7 +79,10 @@ class SseService {
       this.listeners.set(event, new Set());
     }
     
-    const callbacks = this.listeners.get(event)!;
+    const callbacks = this.listeners.get(event);
+    if (!callbacks) {
+      return () => { /* no-op */ };
+    }
     callbacks.add(callback as EventCallback);
 
     return () => {
@@ -130,7 +133,7 @@ class SseService {
 
   private handleMessage(eventType: SseEventType, event: MessageEvent): void {
     try {
-      const data = JSON.parse(event.data) as SseEvent;
+      const data = JSON.parse(event.data) as SseEvent; // Data from trusted backend SSE endpoint
       const callbacks = this.listeners.get(eventType);
       
       if (callbacks) {

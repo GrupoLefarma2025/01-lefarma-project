@@ -219,7 +219,7 @@ export const FilterConfig = ({
                         <Label className="text-xs whitespace-nowrap">Tipo de filtro:</Label>
                         <Select
                           value={filterType}
-                          onValueChange={(value) => onColumnFilterChange?.(column.id, { ...config, type: value as any })}
+                          onValueChange={(value) => onColumnFilterChange?.(column.id, { ...config, type: value as ColumnFilterConfig['type'] })}
                         >
                           <SelectTrigger className="w-40 h-8">
                             <SelectValue placeholder="Tipo" />
@@ -289,7 +289,7 @@ export const FilterConfig = ({
                           </div>
                           <div>
                             <Label className="text-xs">Operador</Label>
-                            <Select value={config.numberOperator || '='} onValueChange={(value) => onColumnFilterChange?.(column.id, { ...config, numberOperator: value as any })}>
+                            <Select value={config.numberOperator || '='} onValueChange={(value) => onColumnFilterChange?.(column.id, { ...config, numberOperator: value as NonNullable<ColumnFilterConfig['numberOperator']> })}>
                               <SelectTrigger className="h-8">
                                 <SelectValue />
                               </SelectTrigger>

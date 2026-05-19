@@ -107,10 +107,17 @@ export default function CambiarUbicacionModal({
     }
 
     try {
-      changeEmpresaSucursal(
-        { idEmpresa: selectedEmpresa } as Empresa,
-        { idSucursal: selectedSucursal } as Sucursal
+      const empresa = empresas.find(
+        (e) => String(e.idEmpresa) === String(selectedEmpresa)
       );
+      const sucursal = sucursales.find(
+        (s) => String(s.idSucursal) === String(selectedSucursal)
+      );
+      if (!empresa || !sucursal) {
+        setError('Empresa o sucursal no encontrada');
+        return;
+      }
+      changeEmpresaSucursal(empresa, sucursal);
       onOpenChange(false);
     } catch (err: unknown) {
       const message =

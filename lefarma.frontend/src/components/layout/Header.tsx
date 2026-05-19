@@ -27,7 +27,9 @@ export const Header = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
   const handleThemeChange = (tema: string) => {
-    setTema(tema as 'light' | 'dark' | 'system');
+    if (tema === 'light' || tema === 'dark' || tema === 'system') {
+      setTema(tema);
+    }
   };
 
   const handleLogout = async () => {

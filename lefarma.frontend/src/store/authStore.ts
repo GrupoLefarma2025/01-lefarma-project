@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 
 const LEGACY_TOKEN_KEY = 'token';
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   token: null,
   empresa: null,
@@ -35,9 +35,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   sucursales: [],
   areas: [],
   area: null,
-  hasFirma: null as boolean | null,
+  hasFirma: null,
   puedeSeleccionarEmpresas: false,
-  usuarioDetalle: null as { idEmpresa: number; idSucursal: number; idArea: number | null } | null,
+  usuarioDetalle: null,
 
 
   loginStepOne: async (username: string) => {

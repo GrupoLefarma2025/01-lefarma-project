@@ -72,14 +72,14 @@ interface CollapsibleMenuItem extends MenuItemBase {
   items: MenuItem[];
 }
 
-type SidebarMenuItem = MenuItem | CollapsibleMenuItem;
+type SidebarMenuItemConfig = MenuItem | CollapsibleMenuItem;
 
 function hasPermission(permission?: PermissionCheckOptions): boolean {
   if (!permission) return true;
   return checkPermission(permission);
 }
 
-const menuItems: SidebarMenuItem[] = [
+const menuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Dashboard',
     icon: LayoutDashboard,

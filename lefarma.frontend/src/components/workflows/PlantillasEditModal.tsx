@@ -5,6 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { API } from '@/services/api';
 import { toast } from 'sonner';
+import type { ApiResponse } from '@/types/api.types';
+import type { WorkflowNotificacionCanal } from '@/types/workflow.types';
+
+interface PlantillaBase {
+  idPlantilla?: number;
+  nombre?: string;
+  asuntoTemplate?: string;
+  cuerpoTemplate?: string;
+  listadoRowHtml?: string;
+}
 
 export const CANAL_DEFAULTS: Record<string, { asunto: string; cuerpo: string }> = {
   email: {
@@ -26,7 +36,7 @@ export const CANAL_DEFAULTS: Record<string, { asunto: string; cuerpo: string }> 
 };
 
 interface PlantillasEditModalProps {
-  canales: any[];
+  canales: WorkflowNotificacionCanal[];
   enviarEmail: boolean;
   enviarWhatsapp: boolean;
   enviarTelegram: boolean;
@@ -39,7 +49,7 @@ interface PlantillasEditModalProps {
   /** Variable name (e.g. '{{Partidas}}') — when set, shows a per-canal toggle that inserts/removes the var from the body template */
   tablaVarName?: string;
   tipoNotificacion?: string;
-  onChange: (canales: any[]) => void;
+  onChange: (canales: WorkflowNotificacionCanal[]) => void;
 }
 
 export function PlantillasEditModal({
@@ -66,11 +76,11 @@ export function PlantillasEditModal({
 
   const [tabActivo, setTabActivo] = useState(canalesActivos[0]?.codigo ?? 'in_app');
   const [loadingPlantillas, setLoadingPlantillas] = useState(false);
-  const [plantillas, setPlantillas] = useState<any[]>([]);
+  const [plantillas, setPlantillas] = useState<PlantillaBase[]>([]);
   const [showPlantillaMenu, setShowPlantillaMenu] = useState<string | null>(null);
 
-  const getCanalData = (codigo: string) =>
-    canales.find((c: any) => c.codigoCanal === codigo) ?? {
+  const getCanalData = (codigo: string): WorkflowNotificacionCanal =>
+    canales.find((c) => c.codigoCanal === codigo) ?? {
       codigoCanal: codigo,
       asuntoTemplate: CANAL_DEFAULTS[codigo]?.asunto ?? '',
       cuerpoTemplate: CANAL_DEFAULTS[codigo]?.cuerpo ?? '',
@@ -78,10 +88,14 @@ export function PlantillasEditModal({
       activo: true
     };
 
-  const updateCanal = (codigo: string, field: string, value: any) => {
-    const existing = canales.find((c: any) => c.codigoCanal === codigo);
+  const updateCanal = <K extends keyof WorkflowNotificacionCanal>(
+    codigo: string,
+    field: K,
+    value: WorkflowNotificacionCanal[K]
+  ) => {
+    const existing = canales.find((c) => c.codigoCanal === codigo);
     if (existing) {
-      onChange(canales.map((c: any) => c.codigoCanal === codigo ? { ...c, [field]: value } : c));
+      onChange(canales.map((c) => c.codigoCanal === codigo ? { ...c, [field]: value } : c));
     } else {
       const defaults = getCanalData(codigo);
       onChange([...canales, { ...defaults, [field]: value }]);
@@ -93,7 +107,7 @@ export function PlantillasEditModal({
     try {
       const params = new URLSearchParams({ canal });
       if (tipoNotificacion) params.append('tipoNotificacion', tipoNotificacion);
-      const res = await API.get<any>(`/config/workflows/plantillas-base?${params}`);
+      const res = await API.get<ApiResponse<PlantillaBase[]>>(`/config/workflows/plantillas-base?${params}`);
       setPlantillas(res.data?.data ?? []);
       setShowPlantillaMenu(canal);
     } catch {
@@ -103,17 +117,17 @@ export function PlantillasEditModal({
     }
   };
 
-  const aplicarPlantilla = (canal: string, plantilla: any) => {
-    const existing = canales.find((c: any) => c.codigoCanal === canal);
+  const aplicarPlantilla = (canal: string, plantilla: PlantillaBase) => {
+    const existing = canales.find((c) => c.codigoCanal === canal);
     const base = existing ?? getCanalData(canal);
-    const updated = {
+    const updated: WorkflowNotificacionCanal = {
       ...base,
       asuntoTemplate: plantilla.asuntoTemplate ?? base.asuntoTemplate,
       cuerpoTemplate: plantilla.cuerpoTemplate ?? base.cuerpoTemplate,
       listadoRowHtml: plantilla.listadoRowHtml ?? base.listadoRowHtml ?? '',
     };
     if (existing) {
-      onChange(canales.map((c: any) => c.codigoCanal === canal ? updated : c));
+      onChange(canales.map((c) => c.codigoCanal === canal ? updated : c));
     } else {
       onChange([...canales, updated]);
     }
@@ -165,7 +179,7 @@ export function PlantillasEditModal({
                 <div className="absolute z-10 top-6 left-0 bg-background border border-border rounded-lg shadow-lg p-2 min-w-[280px] space-y-1">
                   {plantillas.length === 0
                     ? <p className="text-xs text-muted-foreground px-2 py-1">Sin plantillas disponibles para este canal</p>
-                    : plantillas.map((p: any) => (
+                    : plantillas.map((p) => (
                         <button
                           key={p.idPlantilla}
                           type="button"

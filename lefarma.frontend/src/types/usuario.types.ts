@@ -1,5 +1,5 @@
-﻿import { Rol } from './rol.types';
-import { Permiso } from './permiso.types';
+﻿import type { Rol } from './rol.types';
+import type { Permiso } from './permiso.types';
 
 export interface UsuarioDetalle {
   idUsuario: number;

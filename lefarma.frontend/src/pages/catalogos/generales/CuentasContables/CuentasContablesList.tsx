@@ -90,6 +90,7 @@ interface CuentaContable {
   empresaNombre?: string;
   centroCostoId?: number;
   centroCostoNombre?: string;
+  centroCosto?: { nombre?: string };
   activo: boolean;
   fechaCreacion: string;
 }
@@ -336,7 +337,7 @@ export default function CuentasContablesList() {
       cell: ({ row }) => {
         const nombre =
           row.original.centroCostoNombre ||
-          (row.original as any).centroCosto?.nombre ||
+          row.original.centroCosto?.nombre ||
           '—';
         return (
           <span className="text-sm text-muted-foreground">{nombre}</span>

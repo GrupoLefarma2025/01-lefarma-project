@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Hook personalizado para la conexión SSE de notificaciones
  * Maneja la recepción de notificaciones en tiempo real
  */
@@ -8,7 +8,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/store/authStore';
 import { navigateTo } from '@/lib/navigation';
-import type { SseEvent, UserNotification } from '@/types/notification.types';
+import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 
 const SSE_NOTIFICATIONS_URL = (() => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
@@ -21,6 +21,10 @@ const SSE_NOTIFICATIONS_URL = (() => {
 
 const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
 const BASE_RECONNECT_DELAY = 1000; // 1 segundo
+
+interface TicketResponse {
+  ticket?: string;
+}
 
 async function fetchSseTicket(token: string): Promise<string | null> {
   try {
@@ -35,14 +39,12 @@ async function fetchSseTicket(token: string): Promise<string | null> {
     });
 
     if (!response.ok) {
-      console.error('[Notifications SSE] Failed to fetch ticket:', response.status);
       return null;
     }
 
-    const data = await response.json();
-    return data.ticket as string;
-  } catch (error) {
-    console.error('[Notifications SSE] Error fetching ticket:', error);
+    const data = (await response.json()) as TicketResponse;
+    return data.ticket ?? null;
+  } catch {
     return null;
   }
 }
@@ -71,13 +73,12 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     onConnectionChange,
   } = options;
 
-  const { token, isAuthenticated, user } = useAuthStore();
+  const { token, isAuthenticated } = useAuthStore();
   const {
     setConnected,
     addNotification,
     setError,
     clearError,
-    refreshUnreadCount,
   } = useNotificationStore();
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -118,15 +119,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     // Solo contar si el servidor CERRÓ la conexion (error real, no reconexion automatica)
     if (es.readyState === EventSource.CLOSED) {
       reconnectAttemptsRef.current++;
-      console.warn(`[Notifications SSE] Error real #${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} - servidor cerro conexion`);
-    } else {
-      // CONNECTING (0): el navegador esta reintentando, no contamos
-      console.debug('[Notifications SSE] Reconexion automatica del navegador, no se cuenta como error');
     }
 
     // Solo hacer logout si se acumulan demasiados errores REALES (CLOSED)
     if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
-      console.warn('[Notifications SSE] Demasiados errores reales. Cerrando sesion...');
       setConnected(false);
       setError('Tu sesion ha expirado. Por favor, inicia sesion nuevamente.');
       onConnectionChange?.(false);
@@ -177,7 +173,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       const data: SseEvent = JSON.parse(event.data);
 
       if (data.type === 'notification') {
-        const notification = data.data as UserNotification;
+        const notification = data.data;
         addNotification(notification);
         onNotification?.(notification);
 
@@ -185,10 +181,9 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         playNotificationSound(notification);
       } else if (data.type === 'heartbeat') {
         // Heartbeat recibido, conexión está viva
-        console.debug('[Notifications SSE] Heartbeat recibido');
       }
-    } catch (error) {
-      console.error('[Notifications SSE] Error parseando mensaje:', error);
+    } catch {
+      // Ignorar errores de parseo
     }
   }, [addNotification, onNotification]);
 
@@ -201,7 +196,9 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         notification.notification?.priority === 'urgent') {
       try {
         // Usar Web Audio API para un beep simple
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const AudioContextCtor = window.AudioContext || (window as unknown as Record<string, unknown>).webkitAudioContext as typeof AudioContext;
+        const audioContext = new AudioContextCtor();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
@@ -214,9 +211,8 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
         oscillator.start();
         oscillator.stop(audioContext.currentTime + 0.1);
-      } catch (error) {
+      } catch {
         // Silenciar errores de audio
-        console.debug('No se pudo reproducir sonido de notificación');
       }
     }
   }, []);
@@ -260,12 +256,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
       // Escuchar eventos de prueba (para debug)
       eventSourceRef.current.addEventListener('test', (event) => {
-        console.log('[Notifications SSE] Test event received:', event.data);
         handleMessage('test', event);
       });
 
-    } catch (error) {
-      console.error('[Notifications SSE] Error creando EventSource:', error);
+    } catch {
       handleError();
     }
   }, [handleOpen, handleError, handleMessage]);
@@ -314,16 +308,14 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   // Solicitar permiso para notificaciones del navegador
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then((permission) => {
-        console.log(`Permiso de notificación: ${permission}`);
+      Notification.requestPermission().then(() => {
+        // Permiso solicitado
       });
     }
   }, []);
 
   // Wrapper público para disconnect
   const publicDisconnect = useCallback(() => {
-    console.log('[Notifications SSE] Desconectando (manual)...');
-
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -348,7 +340,15 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 /**
  * Hook simplificado que solo retorna las notificaciones sin conectar
  */
-export function useNotificationList() {
+export function useNotificationList(): {
+  notifications: UserNotification[];
+  unreadCount: number;
+  isLoading: boolean;
+  error: string | undefined;
+  loadNotifications: (userId?: number, filter?: NotificationFilter) => Promise<void>;
+  markAsRead: (notificationId: number) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+} {
   const notifications = useNotificationStore((state) => state.notifications);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const isLoading = useNotificationStore((state) => state.isLoading);

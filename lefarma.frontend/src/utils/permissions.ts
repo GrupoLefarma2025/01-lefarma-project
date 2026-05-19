@@ -23,14 +23,14 @@ function extractPermissionsFromJwt(): Set<string> {
     const payloadBase64 = token.split('.')[1];
     if (!payloadBase64) return new Set();
 
-    const payload = JSON.parse(atob(payloadBase64));
+    const payload: { permission?: string | string[] } = JSON.parse(atob(payloadBase64));
 
     // Los permisos vienen como claim 'permission' (puede ser string o array)
     const raw = payload.permission;
     if (!raw) return new Set();
 
     const items: string[] = Array.isArray(raw) ? raw : [raw];
-    return new Set(items.map((p: string) => p.toLowerCase()));
+    return new Set(items.map((p) => p.toLowerCase()));
   } catch {
     return new Set();
   }

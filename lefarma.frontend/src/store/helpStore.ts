@@ -21,7 +21,7 @@ interface HelpState {
   clearSelectedArticle: () => void;
 }
 
-export const useHelpStore = create<HelpState>((set) => ({
+export const useHelpStore = create<HelpState>()((set) => ({
   articles: [],
   selectedArticle: null,
   selectedModule: '',

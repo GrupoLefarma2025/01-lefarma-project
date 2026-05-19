@@ -2,10 +2,32 @@ import { useState, useCallback } from 'react';
 import { API } from '@/services/api';
 import type { WorkflowEstado } from '@/types/workflow.types';
 
+export interface WorkflowRolCatalogo {
+  idRol: number;
+  nombreRol: string;
+  descripcion?: string;
+}
+
+export interface WorkflowUsuarioCatalogo {
+  idUsuario: number;
+  nombreCompleto?: string;
+  correo?: string;
+}
+
+export interface WorkflowTipoNotificacionCatalogo {
+  idTipoNotificacion: number;
+  idTipo?: number;
+  codigoTipo?: string;
+  nombre: string;
+  descripcion?: string;
+  icono?: string;
+  colorTema?: string;
+}
+
 export interface WorkflowCatalogs {
-  roles: any[];
-  usuarios: any[];
-  tiposNotificacion: any[];
+  roles: WorkflowRolCatalogo[];
+  usuarios: WorkflowUsuarioCatalogo[];
+  tiposNotificacion: WorkflowTipoNotificacionCatalogo[];
   estados: WorkflowEstado[];
   loadingRoles: boolean;
   loadingUsuarios: boolean;
@@ -19,9 +41,9 @@ export interface WorkflowCatalogs {
 }
 
 export function useWorkflowCatalogs(): WorkflowCatalogs {
-  const [roles, setRoles] = useState<any[]>([]);
-  const [usuarios, setUsuarios] = useState<any[]>([]);
-  const [tiposNotificacion, setTiposNotificacion] = useState<any[]>([]);
+  const [roles, setRoles] = useState<WorkflowRolCatalogo[]>([]);
+  const [usuarios, setUsuarios] = useState<WorkflowUsuarioCatalogo[]>([]);
+  const [tiposNotificacion, setTiposNotificacion] = useState<WorkflowTipoNotificacionCatalogo[]>([]);
   const [estados, setEstados] = useState<WorkflowEstado[]>([]);
   
   const [loadingRoles, setLoadingRoles] = useState(false);
@@ -33,40 +55,44 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
     if (roles.length > 0) return;
     setLoadingRoles(true);
     try {
-      const res = await API.get('/Admin/roles');
+      const res = await API.get<{ data: WorkflowRolCatalogo[] }>('/Admin/roles');
       setRoles(res.data?.data ?? []);
-    } catch { /* silencioso */ }
-    finally { setLoadingRoles(false); }
+    } catch {
+      // Silencioso: los catálogos se cargan bajo demanda
+    } finally { setLoadingRoles(false); }
   }, [roles.length]);
 
   const loadUsuarios = useCallback(async () => {
     if (usuarios.length > 0) return;
     setLoadingUsuarios(true);
     try {
-      const res = await API.get('/Admin/usuarios');
+      const res = await API.get<{ data: WorkflowUsuarioCatalogo[] }>('/Admin/usuarios');
       setUsuarios(res.data?.data ?? []);
-    } catch { /* silencioso */ }
-    finally { setLoadingUsuarios(false); }
+    } catch {
+      // Silencioso: los catálogos se cargan bajo demanda
+    } finally { setLoadingUsuarios(false); }
   }, [usuarios.length]);
 
   const loadTiposNotificacion = useCallback(async () => {
     if (tiposNotificacion.length > 0) return;
     setLoadingTiposNotificacion(true);
     try {
-      const res = await API.get('/config/workflows/tipos-notificacion');
+      const res = await API.get<{ data: WorkflowTipoNotificacionCatalogo[] }>('/config/workflows/tipos-notificacion');
       setTiposNotificacion(res.data?.data ?? []);
-    } catch { /* silencioso */ }
-    finally { setLoadingTiposNotificacion(false); }
+    } catch {
+      // Silencioso: los catálogos se cargan bajo demanda
+    } finally { setLoadingTiposNotificacion(false); }
   }, [tiposNotificacion.length]);
 
   const loadEstados = useCallback(async () => {
     if (estados.length > 0) return;
     setLoadingEstados(true);
     try {
-      const res = await API.get('/config/workflows/estados');
+      const res = await API.get<{ data: WorkflowEstado[] }>('/config/workflows/estados');
       setEstados(res.data?.data ?? []);
-    } catch { /* silencioso */ }
-    finally { setLoadingEstados(false); }
+    } catch {
+      // Silencioso: los catálogos se cargan bajo demanda
+    } finally { setLoadingEstados(false); }
   }, [estados.length]);
 
   const loadAll = useCallback(async () => {

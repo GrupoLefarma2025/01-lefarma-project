@@ -397,12 +397,12 @@ export default function ProveedoresList() {
       };
 
       const response = isEditing
-        ? await API.put(`${ENDPOINT}/${proveedorId}`, payload)
-        : await API.post(ENDPOINT, payload);
+        ? await API.put<ApiResponse<Proveedor>>(`${ENDPOINT}/${proveedorId}`, payload)
+        : await API.post<ApiResponse<Proveedor>>(ENDPOINT, payload);
 
       if (response.data.success) {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
-        const savedId = isEditing ? proveedorId : (response.data.data as any)?.idProveedor;
+        const savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
 
         // Upload caratula file if present
         if (caratulaFile && savedId) {

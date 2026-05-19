@@ -153,7 +153,7 @@ export default function EmpresasList() {
         paginaWeb: empresa.paginaWeb || '',
         numeroEmpleados: empresa.numeroEmpleados || 0,
         activo: empresa.activo,
-        puedeSeleccionarEmpresas: (empresa as any).puedeSeleccionarEmpresas ?? false,
+        puedeSeleccionarEmpresas: empresa.puedeSeleccionarEmpresas ?? false,
       });
       setIsEditing(true);
       toggleModal("newEmpresa", true);
