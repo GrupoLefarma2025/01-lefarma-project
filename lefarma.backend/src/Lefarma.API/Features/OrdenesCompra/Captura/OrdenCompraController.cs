@@ -70,31 +70,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
             }
 
-            [HttpPost("interface")]
-            [AllowAnonymous]
-            [SwaggerOperation(Summary = "Crear orden de compra anónima (requiere MasterPassword)")]
-            public async Task<IActionResult> CreateAnonymous([FromBody] CreateOrdenCompraRequest request)
-            {
-                var masterPassword = _configuration["Auth:MasterPassword"];
-                var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
 
-                if (string.IsNullOrEmpty(providedPassword)
-                    || string.IsNullOrEmpty(masterPassword)
-                    || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
-                {
-                    return Unauthorized(new ApiResponse<object>
-                    {
-                        Success = false,
-                        Message = "MasterPassword inválida o no proporcionada."
-                    });
-                }
-
-                var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
-                var result = await _service.CreateAsync(request, anonymousUserId, HttpContext.RequestAborted);
-                return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
-                    new { id = data.IdOrden },
-                    new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente (anónimo).", Data = data }));
-            }
 
         [HttpDelete("{id}")]
     //    [HasPermission(Permissions.OrdenesCompra.Delete)]
@@ -117,5 +93,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
             { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
+
+
     }
 }
