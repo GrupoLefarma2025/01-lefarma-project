@@ -38,31 +38,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             { Success = true, Message = data?.Mensaje ?? string.Empty, Data = data }));
         }
 
-        [HttpPost("{id}/firmar/interface")]
-        [AllowAnonymous]
-        [SwaggerOperation(Summary = "Firmar orden an�nima (requiere MasterPassword)")]
-        public async Task<IActionResult> FirmarAnonymous(int id, [FromBody] FirmarRequest request)
-        {
-            var masterPassword = _configuration["Auth:MasterPassword"];
-            var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
-
-            if (string.IsNullOrEmpty(providedPassword)
-                || string.IsNullOrEmpty(masterPassword)
-                || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
-            {
-                return Unauthorized(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "MasterPassword inv�lida o no proporcionada."
-                });
-            }
-
-            var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
-            var result = await _service.FirmarAsync(id, request, anonymousUserId);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
-            { Success = true, Message = data?.Mensaje ?? "Firma ejecutada exitosamente (an�nimo).", Data = data }));
-        }
-
         [HttpGet("{id}/acciones")]
         [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden seg�n su estado actual")]
         public async Task<IActionResult> GetAcciones(int id)
@@ -70,31 +45,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             var result = await _service.GetAccionesAsync(id, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
             { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
-        }
-
-        [HttpGet("{id}/acciones/interface")]
-        [AllowAnonymous]
-        [SwaggerOperation(Summary = "Obtener acciones disponibles anónimamente (requiere MasterPassword)")]
-        public async Task<IActionResult> GetAccionesAnonymous(int id)
-        {
-            var masterPassword = _configuration["Auth:MasterPassword"];
-            var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
-
-            if (string.IsNullOrEmpty(providedPassword)
-                || string.IsNullOrEmpty(masterPassword)
-                || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
-            {
-                return Unauthorized(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = "MasterPassword inv�lida o no proporcionada."
-                });
-            }
-
-            var anonymousUserId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var uid) ? uid : 0;
-            var result = await _service.GetAccionesAsync(id, anonymousUserId);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
-            { Success = true, Message = "Acciones obtenidas exitosamente (an�nimo).", Data = data }));
         }
 
         [HttpGet("{id}/acciones/{idAccion}/metadata")]

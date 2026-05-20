@@ -1,6 +1,7 @@
 using Lefarma.API.Features.Facturas.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -13,11 +14,37 @@ namespace Lefarma.API.Features.Facturas;
 public class ComprobanteController : ControllerBase
 {
     private readonly IComprobanteService _service;
+    private readonly IConfiguration _configuration;
 
-    public ComprobanteController(IComprobanteService service) => _service = service;
+    public ComprobanteController(IComprobanteService service, IConfiguration configuration)
+    {
+        _service = service;
+        _configuration = configuration;
+    }
 
     private int GetUserId() =>
         int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
+    private bool ValidateMasterPassword(out IActionResult? errorResponse)
+    {
+        errorResponse = null;
+        var masterPassword = _configuration["Auth:MasterPassword"];
+        var providedPassword = HttpContext.Request.Headers["X-Master-Password"].FirstOrDefault();
+
+        if (string.IsNullOrEmpty(providedPassword)
+            || string.IsNullOrEmpty(masterPassword)
+            || !string.Equals(providedPassword, masterPassword, StringComparison.OrdinalIgnoreCase))
+        {
+            errorResponse = Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "MasterPassword inválida o no proporcionada."
+            });
+            return false;
+        }
+
+        return true;
+    }
 
     /// <summary>
     /// Parsea un XML CFDI y devuelve los datos extraídos sin guardar nada.
