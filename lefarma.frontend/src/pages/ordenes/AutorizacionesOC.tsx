@@ -1324,6 +1324,50 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
+                    {/* ── Acciones disponibles — siempre visibles arriba de todo ── */}
+                    {selectedOrden && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/80 p-3 shadow-sm backdrop-blur-sm dark:border-blue-800 dark:bg-blue-950/20">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Acciones disponibles
+                            </span>
+                            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300">
+                              Paso actual
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {acciones
+                              .filter(a => !a.enviaConcentrado)
+                              .map((a) => (
+                              <Button
+                                key={a.idAccion}
+                                size="sm"
+                                className={(() => {
+                                  const styles: Record<string, string> = {
+                                    'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                    'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                  };
+                                  return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                })()}
+                                onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                              >
+                                {a.tipoAccionNombre}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <TabsList className="bg-background sticky top-0 z-10 mt-3 grid h-10 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"

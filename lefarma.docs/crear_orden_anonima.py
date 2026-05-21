@@ -61,7 +61,7 @@ import os
 # ============================================================
 # Reemplazá los None por valores para omitir los argumentos CLI.
 
-BASE_URL = "http://localhost:5174"  # URL del backend Lefarma
+BASE_URL = "http://200.94.77.190:5074/cxP"  # URL del backend Lefarma
 API_KEY = "lefarma-api-key-2026"  # API Key general (misma para todos)
 ANONYMOUS_USER_ID = 25  # ID del usuario que opera (trazabilidad)
 
@@ -170,7 +170,7 @@ CATEGORIA_COMPROBANTE = "pago"
 TIPO_COMPROBANTE = "ticket"
 
 # OPCIONAL — Archivo del comprobante (XML para CFDI, PDF/imagen para otros). Vacío = no subir.
-ARCHIVO_COMPROBANTE = "./gaato.jpg"  # Ej: "./facturas/mi_comprobante.pdf"
+ARCHIVO_COMPROBANTE = "C:/Users/brand/OneDrive/Desktop/workspaces/trabajo-lefarma/develop/sistema_de_firmado/IdentityProvider/gaato.jpg"  # Ej: "./facturas/mi_comprobante.pdf"
 
 # OPCIONAL — Archivo XML por separado (solo para CFDI). Vacío = no subir.
 ARCHIVO_XML_CFDI = ""  # Ej: "./facturas/mi_cfdi.xml"
