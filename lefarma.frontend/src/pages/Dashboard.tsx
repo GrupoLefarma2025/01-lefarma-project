@@ -233,10 +233,18 @@ export default function Dashboard() {
       }
     },
     { accessorKey: 'fechaSolicitud', header: 'Creado', size: 100,
-      cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaSolicitud ?? '').toLocaleDateString('es-MX')}</span>
+      cell: ({ row }) => {
+        const fecha = row.original.fechaSolicitud;
+        const fechaValida = fecha && !isNaN(new Date(fecha).getTime());
+        return <span className="text-xs text-muted-foreground">{fechaValida ? new Date(fecha!).toLocaleDateString('es-MX') : '-'}</span>;
+      }
     },
     { accessorKey: 'fechaLimitePago', header: 'Limite', size: 100,
-      cell: ({ row }) => <span className="text-xs text-muted-foreground">{new Date(row.original.fechaLimitePago).toLocaleDateString('es-MX')}</span>
+      cell: ({ row }) => {
+        const fecha = row.original.fechaLimitePago;
+        const fechaValida = fecha && !isNaN(new Date(fecha).getTime());
+        return <span className="text-xs text-muted-foreground">{fechaValida ? new Date(fecha).toLocaleDateString('es-MX') : '-'}</span>;
+      }
     },
   ], [fmt]);
 
@@ -479,8 +487,8 @@ function MiniOrdenesTable({ ordenes, fmt }: { ordenes: OrdenCompraResponse[]; fm
                 {o.estadoNombre ?? '-'}
               </span>
             </td>
-            <td className="py-1.5 text-right text-muted-foreground pr-2">{new Date(o.fechaSolicitud ?? '').toLocaleDateString('es-MX')}</td>
-            <td className="py-1.5 text-right text-muted-foreground">{new Date(o.fechaLimitePago).toLocaleDateString('es-MX')}</td>
+            <td className="py-1.5 text-right text-muted-foreground pr-2">{o.fechaSolicitud && !isNaN(new Date(o.fechaSolicitud).getTime()) ? new Date(o.fechaSolicitud).toLocaleDateString('es-MX') : '-'}</td>
+            <td className="py-1.5 text-right text-muted-foreground">{o.fechaLimitePago && !isNaN(new Date(o.fechaLimitePago).getTime()) ? new Date(o.fechaLimitePago).toLocaleDateString('es-MX') : '-'}</td>
           </tr>
         ))}
       </tbody>

@@ -2,11 +2,11 @@ import { useConfigStore } from '@/store/configStore';
 import { formatCurrency } from '@/utils/currency';
 
 /**
- * Returns a `fmt` function that formats numbers as currency using the
- * system's configured default currency (from globalConfig.defaultCurrency).
+ * Returns a `fmt` function that formats numbers as MXN (Peso Mexicano).
+ * Always uses MXN regardless of system configuration or user locale.
  */
 export function useCurrency(): { currency: string; fmt: (amount: number, options?: { decimals?: boolean }) => string } {
-  const currency = useConfigStore((s) => s.globalConfig.defaultCurrency);
+  const currency = 'MXN';
 
   return {
     currency,

@@ -301,6 +301,11 @@ export const useConfigStore = create<ConfigState>()(
             ...currentState.perfil,
             ...persisted.perfil,
           },
+          globalConfig: {
+            ...DEFAULT_GLOBAL_CONFIG,
+            ...currentState.globalConfig,
+            ...persisted.globalConfig,
+          },
         });
       },
     }
