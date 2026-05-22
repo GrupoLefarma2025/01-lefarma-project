@@ -839,7 +839,47 @@ export default function ProveedoresList() {
             <Button
               type="button"
               disabled={isSaving}
-              onClick={form.handleSubmit(handleSaveProveedor)}
+              onClick={() => {
+                form.handleSubmit(
+                  handleSaveProveedor,
+                  (errors) => {
+                    type FieldErr = { message?: string };
+                    const FIELD_NAMES: Record<string, string> = {
+                      razonSocial: 'Razón Social',
+                      rfc: 'RFC',
+                      codigoPostal: 'Código Postal',
+                      regimenFiscalId: 'Régimen Fiscal',
+                      usoCfdi: 'Uso CFDI',
+                      personaContactoNombre: 'Contacto',
+                      contactoTelefono: 'Teléfono',
+                      contactoEmail: 'Email',
+                      comentario: 'Comentario',
+                    };
+                    const missing: string[] = [];
+                    const devDetails: string[] = [];
+                    for (const [key, err] of Object.entries(errors as Record<string, unknown>)) {
+                      if (!err) continue;
+                      if (typeof err === 'object' && 'message' in (err as object)) {
+                        const msg = (err as FieldErr).message ?? 'Requerido';
+                        missing.push(FIELD_NAMES[key] ?? key);
+                        devDetails.push(`${key} → ${msg}`);
+                      }
+                    }
+                    console.group('🔴 Validación Proveedor FALLÓ');
+                    devDetails.forEach((d) => console.log(d));
+                    console.log('Objeto completo:', errors);
+                    console.groupEnd();
+                    if (missing.length > 0) {
+                      toast.error('Faltan campos obligatorios', {
+                        description: missing.join(' · '),
+                        duration: 6000,
+                      });
+                    }
+                    const modal = document.getElementById('modal-proveedor');
+                    if (modal) modal.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                )();
+              }}
             >
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditing ? 'Guardar Cambios' : 'Crear Proveedor'}
