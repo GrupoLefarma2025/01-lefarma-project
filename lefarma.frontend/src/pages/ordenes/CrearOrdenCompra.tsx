@@ -2327,6 +2327,45 @@ export default function CrearOrdenCompra() {
                       '🔴 [BOTON GUARDAR] ❌ Validación FALLÓ:',
                       JSON.stringify(errors, null, 2)
                     );
+                    const fieldLabels: Record<string, string> = {
+                      idEmpresa: 'Empresa',
+                      idSucursal: 'Sucursal',
+                      idArea: 'Área',
+                      idTipoGasto: 'Tipo de gasto',
+                      fechaLimitePago: 'Fecha límite de pago',
+                      idProveedor: 'Proveedor',
+                      idCuentaBancaria: 'Cuenta bancaria',
+                      partidas: 'Partidas',
+                    };
+                    const missing: string[] = [];
+                    for (const [key, err] of Object.entries(errors)) {
+                      if (key === 'partidas' && err as unknown instanceof Array) {
+                        (err as unknown as unknown[]).forEach((p, idx) => {
+                          if (p && typeof p === 'object') {
+                            for (const [campo, detalle] of Object.entries(p as Record<string, unknown>)) {
+                              const label = campo === 'idUnidadMedida' ? 'Unidad de medida'
+                                : campo === 'idTipoImpuesto' ? 'Tipo de impuesto'
+                                : campo === 'idProveedor' ? 'Proveedor'
+                                : campo === 'idCuentaBancaria' ? 'Cuenta bancaria'
+                                : campo === 'descripcion' ? 'Descripción'
+                                : campo === 'cantidad' ? 'Cantidad'
+                                : campo === 'precioUnitario' ? 'Precio unitario'
+                                : campo;
+                              missing.push(`Partida ${idx + 1}: ${label}`);
+                            }
+                          }
+                        });
+                      } else {
+                        missing.push(fieldLabels[key] ?? key);
+                      }
+                    }
+                    if (missing.length > 0) {
+                      toast.error('Campos requeridos faltantes', {
+                        description: missing.join(', '),
+                        duration: 6000,
+                      });
+                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 )();
               }}

@@ -657,7 +657,7 @@ export default function AutorizacionesOC() {
       return;
     }
     setExpandedPasoId(selectedOrden.idPasoActual ?? null);
-    setExpandedPartidaId(selectedOrden.partidas[0]?.idPartida ?? null);
+    setExpandedPartidaId(null);
     if (selectedOrden.idWorkflow) {
       applyWorkflowToState(selectedOrden.idWorkflow);
     }
@@ -1649,10 +1649,10 @@ export default function AutorizacionesOC() {
                                           <div className="grid grid-cols-2 gap-2 text-[11px]">
                                             <div className="rounded border bg-background px-2 py-1.5">
                                               <p className="text-muted-foreground">
-                                                Unidad de medida (ID)
-                                              </p>
-                                              <p className="font-medium">
-                                                {partida.idUnidadMedida}
+                                                 Unidad de medida
+                                               </p>
+                                               <p className="font-medium">
+                                                 {partida.unidadMedidaNombre ?? `#${partida.idUnidadMedida}`}
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
