@@ -17,7 +17,9 @@ ACCIONES DISPONIBLES:
   3. FIRMAR         → Ejecuta una acción de firma/avance en el workflow.
                       Opcionalmente puede subir comprobantes antes de firmar.
   4. SUBIR_COMPROBANTE → Sube un comprobante (gasto/pago) y opcionalmente
-                         asigna partidas, sin firmar la orden.
+                          asigna partidas, sin firmar la orden.
+  5. SUBIR_ARCHIVO  → Sube un archivo adjunto genérico a una orden de compra
+                      (similar al botón "Adjuntar" en el tab Archivos).
 
 CONFIGURACIÓN:
   - Editá las constantes de este archivo para valores por defecto.
@@ -47,6 +49,10 @@ EJEMPLOS DE USO:
   → python crear_orden_anonima.py --accion SUBIR_COMPROBANTE --id-orden 136 \
       --archivo-comprobante "./factura.pdf" --categoria-comprobante gasto
 
+  # Subir archivo adjunto
+  → python crear_orden_anonima.py --accion SUBIR_ARCHIVO --id-orden 136 \
+      --archivo-adjunto "./documento.pdf" --carpeta "ordenes-compra"
+
 ================================================================================
 """
 
@@ -68,8 +74,8 @@ ANONYMOUS_USER_ID = 25  # ID del usuario que opera (trazabilidad)
 # ============================================================
 # SELECCIÓN DE ACCIÓN
 # ============================================================
-# Valores válidos: 'CREAR' | 'EDITAR' | 'FIRMAR' | 'SUBIR_COMPROBANTE'
-ACCION_SCRIPT = "SUBIR_COMPROBANTE"
+# ACCIÓN: 'CREAR' | 'EDITAR' | 'FIRMAR' | 'SUBIR_COMPROBANTE' | 'SUBIR_ADJUTNO'
+ACCION_SCRIPT = "EDITAR"
 
 # ============================================================
 # 1. VARIABLES PARA CREAR ORDEN
@@ -124,16 +130,17 @@ PARTIDAS = [
 ]
 
 # ============================================================
-# 2. VARIABLES PARA EDITAR ORDEN
+# 2. VARIABLES PARA EDITAR / FIRMAR / SUBIR_ADJUNTO
 # ============================================================
-# REQUERIDO — ID de la orden a editar. Tabla: operaciones.ordenes_compra
+# REQUERIDO — ID de la orden.
+# Tabla: operaciones.ordenes_compra
+# Se usa en: EDITAR, FIRMAR y SUBIR_ADJUNTO
 ID_ORDEN = 136
 # NOTA: Los demás campos se reutilizan de la sección CREAR.
 
 # ============================================================
 # 3. VARIABLES PARA FIRMAR ORDEN
 # ============================================================
-# REQUERIDO — ID de la orden a firmar. Tabla: operaciones.ordenes_compra
 # NOTA: Se usa la misma variable ID_ORDEN de la sección EDITAR.
 
 # REQUERIDO — ID de la acción de firma. Tabla: config.workflow_acciones
@@ -198,8 +205,41 @@ ID_MEDIO_PAGO = 7
 #     {"idPartida": 1, "cantidadAsignada": 2, "importeAsignado": 128.76, "notas": "completa"},
 # ]
 ASIGNACIONES_PARTIDAS = [
-     {"idPartida": 149, "cantidadAsignada": 2, "importeAsignado": 128.76, "notas": "completa"},
+    {
+        "idPartida": 149,
+        "cantidadAsignada": 2,
+        "importeAsignado": 128.76,
+        "notas": "completa",
+    },
 ]
+
+# ============================================================
+# 5. VARIABLES PARA SUBIR ARCHIVO ADJUNTO
+# ============================================================
+# Se usa en la acción SUBIR_ADJUNTO para adjuntar archivos a una orden de compra (similar al botón "Adjuntar" en el tab Archivos).
+
+# REQUERIDO — Ruta del archivo a adjuntar
+ARCHIVO_ADJUNTO = "./documentos/documento.pdf"
+
+# REQUERIDO — Carpeta donde se guardará el archivo
+# Valores comunes: "ordenes-compra", "comprobantes"
+# SIEMPRE ordenes-compra para adjuntos de ordenes, aunque sea un comprobante relacionado.
+CARPETA_ADJUNTO = "ordenes-compra"
+
+# REQUERIDO — Comentarios u observaciones del archivo adjunto
+# Se usa como "observaciones" en la metadata del archivo.
+COMENTARIOS_ADJUNTO = "Documento de soporte"
+
+# NOTA: La metadata se arma automáticamente con la siguiente estructura:
+# {
+#   "modulo": "ordenes_compra",      # SIEMPRE "ordenes_compra"
+#   "origen": "workflow",            # SIEMPRE "workflow"
+#   "tipo": "adjunto_libre",         # "adjunto_libre" para archivos, "comprobante_gasto" o "comprobante_pago" para comprobantes
+#   "paso": null,                    # SIEMPRE null 
+#   "nombrePaso": "",                # SIEMPRE vacío 
+#   "nombreAccion": "",              # SIEMPRE vacío
+#   "observaciones": COMENTARIOS_ADJUNTO o NOTAS_COMPROBANTE
+# }
 
 # ============================================================
 # EJEMPLOS DE CONFIGURACIÓN POR ACCIÓN
@@ -270,6 +310,13 @@ ASIGNACIONES_PARTIDAS = [
 # ASIGNACIONES_PARTIDAS = [
 #     {"idPartida": 1, "cantidadAsignada": 2, "importeAsignado": 232.00, "notas": "pago completo"},
 # ]
+#
+# --- EJEMPLO 6: SUBIR ARCHIVO ADJUNTO ---
+# ACCION_SCRIPT = "SUBIR_ADJUNTO"
+# ID_ORDEN = 136
+# ARCHIVO_ADJUNTO = "./documentos/contrato.pdf"
+# CARPETA_ADJUNTO = "ordenes-compra"
+# COMENTARIOS_ADJUNTO = "Documento de soporte"
 
 # ============================================================
 # FIN DE CONFIGURACIÓN
@@ -429,6 +476,58 @@ def asignar_partidas(
     )
 
 
+def subir_archivo_adjunto(
+    api_key: str,
+    archivo_path: str,
+    entidad_tipo: str = "OrdenCompra",
+    entidad_id: int | None = None,
+    carpeta: str = "ordenes-compra",
+    tipo: str = "adjunto_libre",
+    observaciones: str = "",
+    user_id: int | None = None,
+) -> requests.Response:
+    """POST /api/archivos/externo/upload — Subir archivo adjunto desde sistema externo."""
+    # Armar metadata automáticamente
+    metadata = json.dumps({
+        "modulo": "ordenes_compra",
+        "origen": "workflow",
+        "tipo": tipo,
+        "paso": None,
+        "nombrePaso": "",
+        "nombreAccion": "",
+        "observaciones": observaciones or "",
+    })
+
+    data = {
+        "entidadTipo": entidad_tipo,
+        "entidadId": entidad_id or ID_ORDEN,
+        "carpeta": carpeta,
+        "metadata": metadata,
+    }
+
+    files = {}
+    if archivo_path and os.path.isfile(archivo_path):
+        mime = (
+            "application/pdf"
+            if archivo_path.lower().endswith(".pdf")
+            else "image/png"
+            if archivo_path.lower().endswith((".png", ".jpg", ".jpeg"))
+            else "application/octet-stream"
+        )
+        files["file"] = (
+            os.path.basename(archivo_path),
+            open(archivo_path, "rb"),
+            mime,
+        )
+
+    return requests.post(
+        f"{BASE_URL}/api/archivos/externo/upload",
+        headers={"X-API-Key": api_key, "X-User-Id": str(user_id or ANONYMOUS_USER_ID)},
+        data=data,
+        files=files,
+    )
+
+
 def obtener_partidas_pendientes(
     id_orden: int,
     categoria: str,
@@ -478,7 +577,7 @@ if __name__ == "__main__":
         "--accion",
         type=str,
         default=None,
-        choices=["CREAR", "FIRMAR", "EDITAR", "SUBIR_COMPROBANTE"],
+        choices=["CREAR", "FIRMAR", "EDITAR", "SUBIR_COMPROBANTE", "SUBIR_ADJUNTO"],
         help="Acción a ejecutar (default: ACCION_SCRIPT)",
     )
 
@@ -578,6 +677,26 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help='JSON con asignaciones. Ej: \'[{"idPartida":1,"cantidadAsignada":2,"importeAsignado":128.76}]\'',
+    )
+
+    # --- ARCHIVOS ADJUNTOS ---
+    p.add_argument(
+        "--archivo-adjunto",
+        type=str,
+        default=None,
+        help="Ruta al archivo adjunto a subir",
+    )
+    p.add_argument(
+        "--carpeta-adjunto",
+        type=str,
+        default=None,
+        help="Carpeta donde guardar el archivo (ordenes-compra, comprobantes)",
+    )
+    p.add_argument(
+        "--comentarios-adjunto",
+        type=str,
+        default=None,
+        help="Comentarios u observaciones del archivo adjunto",
     )
 
     args = p.parse_args()
@@ -1097,3 +1216,54 @@ if __name__ == "__main__":
                 ANONYMOUS_USER_ID,
             )
             print_response(resp_asig, "ASIGNAR PARTIDAS")
+
+    # ============================================================
+    # SUBIR ARCHIVO ADJUNTO
+    # ============================================================
+    elif accion == "SUBIR_ADJUNTO":
+        id_orden = args.id_orden if args.id_orden is not None else ID_ORDEN
+        archivo = args.archivo_adjunto or ARCHIVO_ADJUNTO
+        carpeta = args.carpeta_adjunto or CARPETA_ADJUNTO
+        comentarios = args.comentarios_adjunto or COMENTARIOS_ADJUNTO
+
+        if id_orden is None:
+            print("Error: falta ID_ORDEN")
+            sys.exit(1)
+
+        if not archivo:
+            print(
+                "Error: falta archivo adjunto"
+            )
+            sys.exit(1)
+
+        # Armar metadata automáticamente
+        metadata = json.dumps(
+            {
+                "modulo": "ordenes_compra",
+                "origen": "workflow",
+                "tipo": "adjunto_libre",
+                "paso": ,
+                "nombrePaso": "",
+                "nombreAccion": "",
+                "observaciones": comentarios or "",
+            }
+        )
+
+        print(f"\nSubiendo archivo adjunto a orden {id_orden}...")
+        print(f"Metadata: {metadata}")
+        resp_arch = subir_archivo_adjunto(
+            api_key=resolved_password,
+            archivo_path=archivo,
+            entidad_tipo="OrdenCompra",
+            entidad_id=id_orden,
+            carpeta=carpeta,
+            metadata=metadata,
+            user_id=ANONYMOUS_USER_ID,
+        )
+        print_response(resp_arch, "SUBIR ARCHIVO ADJUNTO")
+
+        if resp_arch.status_code not in (200, 201):
+            print("Error al subir archivo adjunto.")
+            sys.exit(1)
+
+        print("\nArchivo adjunto subido exitosamente.")
