@@ -9,6 +9,7 @@ export interface OrdenCompraPartidaResponse {
   unidadMedidaNombre?: string | null;
   precioUnitario: number;
   descuento: number;
+  idTipoImpuesto?: number | null;
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;

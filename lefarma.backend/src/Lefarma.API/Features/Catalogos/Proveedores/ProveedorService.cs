@@ -160,8 +160,8 @@ public partial class ProveedorService : BaseService, IProveedorService
             {
                 RazonSocial = request.RazonSocial,
                 RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
-                RFC = request.RFC,
-                CodigoPostal = request.CodigoPostal,
+                RFC = string.IsNullOrWhiteSpace(request.RFC) ? null : request.RFC.Trim(),
+                CodigoPostal = string.IsNullOrWhiteSpace(request.CodigoPostal) ? null : request.CodigoPostal.Trim(),
                 RegimenFiscalId = request.RegimenFiscalId,
                 UsoCfdi = request.UsoCfdi,
                 SinDatosFiscales = request.SinDatosFiscales,

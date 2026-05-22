@@ -17,6 +17,7 @@ public class OrdenCompraPartidaConfiguration : IEntityTypeConfiguration<OrdenCom
             builder.Property(p => p.IdUnidadMedida).HasColumnName("id_unidad_medida");
             builder.Property(p => p.PrecioUnitario).HasColumnName("precio_unitario").HasColumnType("decimal(18,2)");
             builder.Property(p => p.Descuento).HasColumnName("descuento").HasColumnType("decimal(18,2)").HasDefaultValue(0);
+            builder.Property(p => p.IdTipoImpuesto).HasColumnName("id_tipo_impuesto");
             builder.Property(p => p.PorcentajeIva).HasColumnName("porcentaje_iva").HasColumnType("decimal(5,2)").HasDefaultValue(16);
             builder.Property(p => p.TotalRetenciones).HasColumnName("total_retenciones").HasColumnType("decimal(18,2)").HasDefaultValue(0);
             builder.Property(p => p.OtrosImpuestos).HasColumnName("otros_impuestos").HasColumnType("decimal(18,2)").HasDefaultValue(0);

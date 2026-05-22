@@ -58,7 +58,7 @@ const RECHAZAR_EDICION_ENDPOINT = (id: number) => `${ENDPOINT}/${id}/rechazar-ed
 
 const proveedorSchema = z.object({
   razonSocial: z.string().min(3, 'La razón social debe tener al menos 3 caracteres'),
-  rfc: z.string().optional(),
+  rfc: z.string().min(1, 'El RFC es requerido'),
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   usoCfdi: z.string().optional(),
@@ -366,9 +366,32 @@ export default function ProveedoresList() {
   const handleSaveProveedor = async (_values: ProveedorFormValues) => {
     setIsSaving(true);
     try {
-      // Usar form.getValues() directamente para capturar los valores actuales del formulario,
-      // evitando problemas con Select components que pueden tener field.value desincronizado
       const values = form.getValues();
+
+      if (cuentasFormaPago.length === 0) {
+        toast.error('Debes agregar al menos una cuenta bancaria');
+        setIsSaving(false);
+        return;
+      }
+
+      const cuentaErrors: string[] = [];
+      cuentasFormaPago.forEach((c, i) => {
+        const n = i + 1;
+        if (!c.idFormaPago || c.idFormaPago === 0) cuentaErrors.push(`Cuenta ${n}: Forma de pago`);
+        if (!c.idBanco || c.idBanco === 0) cuentaErrors.push(`Cuenta ${n}: Banco`);
+        if (!c.numeroCuenta?.trim()) cuentaErrors.push(`Cuenta ${n}: No. de Cuenta`);
+        if (!c.clabe?.trim()) cuentaErrors.push(`Cuenta ${n}: CLABE`);
+        if (!c.beneficiario?.trim()) cuentaErrors.push(`Cuenta ${n}: Beneficiario`);
+      });
+      if (cuentaErrors.length > 0) {
+        toast.error('Faltan campos obligatorios en cuentas bancarias', {
+          description: cuentaErrors.join(' · '),
+          duration: 6000,
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...rest } = values;
 
       // Fallback: si el form tiene undefined/NaN para campos críticos, usar los valores originales
@@ -909,7 +932,7 @@ export default function ProveedoresList() {
                 name="rfc"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>RFC</FormLabel>
+                    <FormLabel>RFC *</FormLabel>
                     <FormControl>
                       <Input placeholder="RFC del proveedor" {...field} />
                     </FormControl>
@@ -1152,7 +1175,7 @@ export default function ProveedoresList() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                           {/* Forma de Pago */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago *</label>
                             <Select
                               value={String(cuenta.idFormaPago || '')}
                               onValueChange={(val) => {
@@ -1177,7 +1200,7 @@ export default function ProveedoresList() {
 
                           {/* Banco */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco *</label>
                             <Select
                               value={String(cuenta.idBanco || '')}
                               onValueChange={(val) => {
@@ -1205,7 +1228,7 @@ export default function ProveedoresList() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {/* Número de Cuenta */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta *</label>
                             <Input
                               className="h-9 text-sm bg-white"
                               placeholder="****1234"
@@ -1220,7 +1243,7 @@ export default function ProveedoresList() {
 
                           {/* CLABE */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria *</label>
                             <Input
                               className="h-9 text-sm bg-white"
                               placeholder="18 dígitos"
@@ -1235,7 +1258,7 @@ export default function ProveedoresList() {
 
                           {/* Beneficiario */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario *</label>
                             <Input
                               className="h-9 text-sm bg-white"
                               placeholder="Nombre del beneficiario"

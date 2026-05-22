@@ -109,6 +109,7 @@ public class OrdenCompraResponse
         public int IdUnidadMedida { get; set; }
         public decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
+        public int? IdTipoImpuesto { get; set; }
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
@@ -131,6 +132,7 @@ public class OrdenCompraResponse
         public required int IdUnidadMedida { get; set; }
         public required decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
+        public int? IdTipoImpuesto { get; set; }
         public decimal PorcentajeIva { get; set; } = 16;
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
