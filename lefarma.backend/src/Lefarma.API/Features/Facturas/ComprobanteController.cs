@@ -189,4 +189,22 @@ public class ComprobanteController : ControllerBase
             Success = true, Message = "Facturación de partida obtenida", Data = data
         }));
     }
+
+    /// <summary>
+    /// Elimina todos los comprobantes de una categoría para una orden y revierte sus asignaciones.
+    /// </summary>
+    [HttpDelete("orden/{idOrden:int}")]
+    [SwaggerOperation(Summary = "Eliminar comprobantes por orden", Description = "Elimina todos los comprobantes de gasto o pago para una orden, revierte asignaciones a partidas y desactiva archivos relacionados.")]
+    public async Task<IActionResult> EliminarPorOrden(int idOrden, [FromQuery] string categoria, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(categoria) || (categoria != "gasto" && categoria != "pago"))
+            return BadRequest(new ApiResponse<object> { Success = false, Message = "La categoría debe ser 'gasto' o 'pago'" });
+
+        var result = await _service.EliminarPorOrdenAsync(idOrden, categoria, GetUserId(), ct);
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = $"Comprobantes de {categoria} eliminados correctamente"
+        }));
+    }
 }
