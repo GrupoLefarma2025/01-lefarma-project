@@ -48,6 +48,7 @@ import {
   Banknote,
   Upload,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
@@ -512,6 +513,19 @@ export default function AutorizacionesOC() {
       setArchivosOrden([]);
     } finally {
       setLoadingArchivos(false);
+    }
+  };
+
+  const handleEliminarArchivo = async (idArchivo: number) => {
+    if (!window.confirm('¿Deseas borrar este archivo?')) return;
+    try {
+      await archivoService.delete(idArchivo);
+      toast.success('Archivo borrado correctamente');
+      if (selectedOrden) {
+        fetchArchivosOrden(selectedOrden.idOrden);
+      }
+    } catch {
+      toast.error('Error al borrar el archivo');
     }
   };
 
@@ -2265,6 +2279,11 @@ export default function AutorizacionesOC() {
                                         <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
                                           {archivo.nombreOriginal}
                                         </p>
+                                        {meta.observaciones && (
+                                          <p className="text-xs text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 leading-tight">
+                                            {meta.observaciones}
+                                          </p>
+                                        )}
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           {tipoLabel && (
                                             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'`}>
@@ -2276,29 +2295,15 @@ export default function AutorizacionesOC() {
                                               {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                             </span>
                                           )}
-                                          <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
-                                          <span className="text-muted-foreground/40">·</span>
-                                          <span className="text-muted-foreground">
+                                          {archivo.usuarioSubioNombre && (
+                                            <span className="text-[10px] text-muted-foreground/60">
+                                              {archivo.usuarioSubioNombre}
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] text-muted-foreground/40">
                                             {fmtFecha(archivo.fechaCreacion)}
                                           </span>
                                         </div>
-                                        {(meta.nombrePaso || meta.nombreAccion) && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                            {meta.nombrePaso ? `Paso: ${meta.nombrePaso}` : ''}
-                                            {meta.nombrePaso && meta.nombreAccion ? ' — ' : ''}
-                                            {meta.nombreAccion ?? ''}
-                                          </p>
-                                        )}
-                                        {archivo.usuarioSubioNombre && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                            Subido por: {archivo.usuarioSubioNombre}
-                                          </p>
-                                        )}
-                                        {meta.observaciones && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight italic">
-                                            {meta.observaciones}
-                                          </p>
-                                        )}
                                       </div>
 
                                       <div className="flex shrink-0 items-center gap-0.5">
@@ -2311,6 +2316,15 @@ export default function AutorizacionesOC() {
                                             <Download className="h-3.5 w-3.5" />
                                           </Button>
                                         </a>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                          title="Borrar archivo"
+                                          onClick={() => handleEliminarArchivo(archivo.id)}
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
                                       </div>
                                     </div>
                                   );
