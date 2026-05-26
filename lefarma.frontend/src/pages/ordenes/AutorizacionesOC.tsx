@@ -2316,15 +2316,17 @@ export default function AutorizacionesOC() {
                                             <Download className="h-3.5 w-3.5" />
                                           </Button>
                                         </a>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                                          title="Borrar archivo"
-                                          onClick={() => handleEliminarArchivo(archivo.id)}
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
+                                        {!esComprobante && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                            title="Borrar archivo"
+                                            onClick={() => handleEliminarArchivo(archivo.id)}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                   );
