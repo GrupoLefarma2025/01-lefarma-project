@@ -583,6 +583,12 @@ export default function EnvioConcentrado() {
               ordenes={ordenesSeleccionadas}
               agrupacion={agrupacion}
               generadoPor={user?.nombre ?? user?.username}
+              firmaElaboro={(() => {
+                if (!user?.id) return undefined;
+                const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+                const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+                return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
+              })()}
             />
           </div>
 
@@ -609,12 +615,17 @@ export default function EnvioConcentrado() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Componente PDF oculto (portal a body, fuera del layout) ── */}
       {createPortal(
         <EnvioConcentradoPDF
           ordenes={ordenesSeleccionadas}
           agrupacion={agrupacion}
           generadoPor={user?.nombre ?? user?.username}
+          firmaElaboro={(() => {
+            if (!user?.id) return undefined;
+            const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+            const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+            return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
+          })()}
         />,
         document.body
       )}

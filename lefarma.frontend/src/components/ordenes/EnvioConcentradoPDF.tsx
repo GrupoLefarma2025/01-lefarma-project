@@ -18,6 +18,7 @@ interface Props {
   agrupacion: AgrupacionKey;
   generadoPor?: string;
   id?: string;
+  firmaElaboro?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -386,7 +387,7 @@ const COL_HEADERS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print' }: Props) {
+export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print', firmaElaboro }: Props) {
   const allRows = buildRows(ordenes, agrupacion);
   const grupos = agruparRows(allRows);
   const grandTotal = allRows.reduce((s, r) => s + r.importeTotal, 0);
@@ -571,19 +572,29 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
       <div style={s.firmaSection}>
         <div style={s.groupHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {[
-            { label: 'Elaboró (GAF)', firma: null as string | null },
-            { label: 'Visto Bueno — Dirección Corporativa', firma: '#firmad' },
-          ].map(({ label, firma }) => (
-            <div key={label} style={s.firmaBox}>
-              <div style={s.firmaLabel}>{label}</div>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
-                {firma && (
-                  <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}>{firma}</span>
-                )}
-              </div>
+          {/* Elaboró (GAF) */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>Elaboró (GAF)</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
+              {firmaElaboro ? (
+                <img
+                  src={firmaElaboro}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}> #firmad </span>
+              )}
             </div>
-          ))}
+          </div>
+          {/* Visto Bueno */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>Visto Bueno — Dirección Corporativa</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}> #firmad </span>
+            </div>
+          </div>
         </div>
       </div>
 
