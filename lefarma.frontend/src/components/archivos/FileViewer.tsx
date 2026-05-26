@@ -1,6 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  X,
   Download,
   FileText,
   AlertCircle,
@@ -381,23 +380,6 @@ export function FileViewer({
           <h2 className="flex-1 text-sm font-semibold truncate text-foreground">
             {titulo || archivo?.nombreOriginal || 'Vista previa'}
           </h2>
-          {canDownload && (
-            <button
-              onClick={handleDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-colors shrink-0"
-              title={textoDescargar}
-            >
-              <Download className="w-3.5 h-3.5" />
-              {textoDescargar}
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="p-1.5 hover:bg-accent rounded-md transition-colors text-muted-foreground"
-            title="Cerrar (Esc)"
-          >
-            <X className="w-4 h-4" />
-          </button>
         </div>
 
         {/* ── Body ── */}
@@ -436,6 +418,38 @@ export function FileViewer({
               )}
               {archivo.tipoMime && (
                 <p className="break-all font-mono text-[10px] text-muted-foreground/70">{archivo.tipoMime}</p>
+              )}
+              {(() => {
+                const meta = (() => {
+                  const m = archivo.metadata;
+                  if (!m) return null;
+                  if (typeof m === 'string') {
+                    try { return JSON.parse(m); } catch { return { observaciones: m }; }
+                  }
+                  if (typeof m === 'object') return m as Record<string, unknown>;
+                  return null;
+                })();
+                if (meta?.observaciones) {
+                  return (
+                    <div className="mt-2">
+                      <p className="text-[10px] font-medium text-muted-foreground mb-1">Comentario</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1.5 leading-tight">
+                        {String(meta.observaciones)}
+                      </p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              {canDownload && (
+                <button
+                  onClick={handleDownload}
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-xs font-medium hover:bg-primary/90 transition-colors w-full mt-2"
+                  title={textoDescargar}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {textoDescargar}
+                </button>
               )}
               {isLocal && (
                 <span className="inline-block px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 text-[10px] font-semibold w-fit">

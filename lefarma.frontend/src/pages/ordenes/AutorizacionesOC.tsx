@@ -48,6 +48,7 @@ import {
   Banknote,
   Upload,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
@@ -512,6 +513,33 @@ export default function AutorizacionesOC() {
       setArchivosOrden([]);
     } finally {
       setLoadingArchivos(false);
+    }
+  };
+
+  const handleEliminarArchivo = async (idArchivo: number) => {
+    if (!window.confirm('¿Deseas borrar este archivo?')) return;
+    try {
+      await archivoService.delete(idArchivo);
+      toast.success('Archivo borrado correctamente');
+      if (selectedOrden) {
+        fetchArchivosOrden(selectedOrden.idOrden);
+      }
+    } catch {
+      toast.error('Error al borrar el archivo');
+    }
+  };
+
+  const handleBorrarTodosComprobantes = async (categoria: 'gasto' | 'pago') => {
+    const label = categoria === 'gasto' ? 'gasto' : 'pago';
+    if (!window.confirm(`¿Deseas borrar TODOS los comprobantes de ${label} para esta orden? Se revertirán todas las asignaciones a las partidas. Esta acción no se puede deshacer.`)) return;
+    try {
+      await comprobanteService.eliminarPorOrden(selectedOrden!.idOrden, categoria);
+      toast.success(`Comprobantes de ${label} borrados correctamente`);
+      // Refrescar datos
+      fetchPartidasPendientes(selectedOrden!.idOrden);
+      fetchArchivosOrden(selectedOrden!.idOrden);
+    } catch {
+      toast.error(`Error al borrar los comprobantes de ${label}`);
     }
   };
 
@@ -2068,120 +2096,143 @@ export default function AutorizacionesOC() {
                           </p>
                         </div>
 
-                        {/* Botones para subir comprobantes */}
                         {selectedOrden && (() => {
+                          const ordenCerrada = selectedOrden.idEstado === 10;
                           const gastoCompleto = partidasPendientes.length > 0 && partidasPendientes.every(p => p.estadoFacturacion === 2);
                           const pagoCompleto = partidasPendientesPago.length > 0 && partidasPendientesPago.every(p => p.importePendiente <= 0);
                           return (
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="outline" disabled={gastoCompleto} onClick={() => setIsSubirComprobanteOpen(true)}>
-                                <Receipt className="mr-1 h-3.5 w-3.5" />
-                                Subir comprobante de gasto
-                              </Button>
-                              <Button size="sm" variant="outline" disabled={pagoCompleto} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
-                                <Banknote className="mr-1 h-3.5 w-3.5" />
-                                Subir comprobante de pago
-                              </Button>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Columna Gasto */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Receipt className="h-4 w-4" />
+                                    Comprobantes de Gasto
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" disabled={gastoCompleto || ordenCerrada} onClick={() => setIsSubirComprobanteOpen(true)}>
+                                      Subir
+                                    </Button>
+                                    {!ordenCerrada && partidasPendientes.some(p => p.importeFacturado > 0) && (
+                                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleBorrarTodosComprobantes('gasto')}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                                {partidasPendientes.length === 0 ? (
+                                  <div className="text-muted-foreground text-xs text-center py-4">Sin partidas de gasto</div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {partidasPendientes.map((partida) => {
+                                      const pctFacturado = partida.total > 0
+                                        ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                        : 0;
+                                      const estadoConfig = {
+                                        0: { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 border-amber-200', barColor: 'bg-amber-400' },
+                                        1: { label: 'Parcial', className: 'bg-blue-100 text-blue-700 border-blue-200', barColor: 'bg-blue-400' },
+                                        2: { label: 'Completa', className: 'bg-green-100 text-green-700 border-green-200', barColor: 'bg-green-500' },
+                                      }[partida.estadoFacturacion] ?? { label: 'Desconocido', className: 'bg-muted text-muted-foreground border-muted', barColor: 'bg-muted' };
+
+                                      return (
+                                        <div key={`gasto-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
+                                          <div className="mb-2 flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                                <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                              </div>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}>{estadoConfig.label}</span>
+                                          </div>
+                                          <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                            <div className={`h-full rounded-full transition-all ${estadoConfig.barColor}`} style={{ width: `${pctFacturado}%` }} />
+                                          </div>
+                                          <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                            {partida.cantidadFacturada > 0 && (
+                                              <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
+                                            )}
+                                            <span>
+                                              {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                              {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          </div>
+                                          {partida.importePendiente > 0 && (
+                                            <p className="mt-1 text-[10px] text-amber-600">
+                                              Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Columna Pago */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Banknote className="h-4 w-4" />
+                                    Comprobantes de Pago
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" disabled={pagoCompleto || ordenCerrada} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
+                                      Subir
+                                    </Button>
+                                    {!ordenCerrada && partidasPendientesPago.some(p => p.importeFacturado > 0) && (
+                                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleBorrarTodosComprobantes('pago')}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                                {partidasPendientesPago.length === 0 ? (
+                                  <div className="text-muted-foreground text-xs text-center py-4">Sin partidas de pago</div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {partidasPendientesPago.map((partida) => {
+                                      const pctPagado = partida.total > 0
+                                        ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                        : 0;
+                                      const estadoPago = partida.importePendiente <= 0 ? 'Completa' : partida.importeFacturado > 0 ? 'Parcial' : 'Pendiente';
+                                      const colorPago = estadoPago === 'Completa' ? 'bg-green-100 text-green-700 border-green-200' : estadoPago === 'Parcial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200';
+                                      const barPago = estadoPago === 'Completa' ? 'bg-green-500' : estadoPago === 'Parcial' ? 'bg-blue-400' : 'bg-amber-400';
+
+                                      return (
+                                        <div key={`pago-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
+                                          <div className="mb-2 flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                                <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                              </div>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colorPago}`}>{estadoPago}</span>
+                                          </div>
+                                          <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                            <div className={`h-full rounded-full transition-all ${barPago}`} style={{ width: `${pctPagado}%` }} />
+                                          </div>
+                                          <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                            <span>
+                                              {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                              {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          </div>
+                                          {partida.importePendiente > 0 && (
+                                            <p className="mt-1 text-[10px] text-amber-600">
+                                              Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           );
                         })()}
-
-                        {loadingFacturacion ? (
-                          <div className="flex items-center justify-center py-10">
-                            <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
-                          </div>
-                        ) : partidasPendientes.length === 0 ? (
-                          <div className="text-muted-foreground flex flex-col items-center gap-2 py-10 text-sm">
-                            <Receipt className="h-8 w-8 opacity-30" />
-                            <p>No hay partidas con requisito de facturación</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {/* Gasto */}
-                            {partidasPendientes.map((partida) => {
-                              const pctFacturado = partida.total > 0
-                                ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
-                                : 0;
-                              const estadoConfig = {
-                                0: { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 border-amber-200', barColor: 'bg-amber-400' },
-                                1: { label: 'Parcial', className: 'bg-blue-100 text-blue-700 border-blue-200', barColor: 'bg-blue-400' },
-                                2: { label: 'Completa', className: 'bg-green-100 text-green-700 border-green-200', barColor: 'bg-green-500' },
-                              }[partida.estadoFacturacion] ?? { label: 'Desconocido', className: 'bg-muted text-muted-foreground border-muted', barColor: 'bg-muted' };
-
-                              return (
-                                <div key={`gasto-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
-                                  <div className="mb-2 flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
-                                        <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
-                                        <Badge variant="outline" className="text-[10px]">Gasto</Badge>
-                                      </div>
-                                      <p className="text-muted-foreground mt-0.5 text-xs">{partida.folioOrden}</p>
-                                    </div>
-                                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}>{estadoConfig.label}</span>
-                                  </div>
-                                  <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                    <div className={`h-full rounded-full transition-all ${estadoConfig.barColor}`} style={{ width: `${pctFacturado}%` }} />
-                                  </div>
-                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
-                                    {partida.cantidadFacturada > 0 && (
-                                      <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
-                                    )}
-                                    <span>
-                                      {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
-                                      {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                    </span>
-                                  </div>
-                                  {partida.importePendiente > 0 && (
-                                    <p className="mt-1 text-[10px] text-amber-600">
-                                      Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {/* Pago */}
-                            {partidasPendientesPago.map((partida) => {
-                              const pctPagado = partida.total > 0
-                                ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
-                                : 0;
-                              const estadoPago = partida.importePendiente <= 0 ? 'Completa' : partida.importeFacturado > 0 ? 'Parcial' : 'Pendiente';
-                              const colorPago = estadoPago === 'Completa' ? 'bg-green-100 text-green-700 border-green-200' : estadoPago === 'Parcial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200';
-                              const barPago = estadoPago === 'Completa' ? 'bg-green-500' : estadoPago === 'Parcial' ? 'bg-blue-400' : 'bg-amber-400';
-
-                              return (
-                                <div key={`pago-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
-                                  <div className="mb-2 flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
-                                        <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
-                                        <Badge variant="outline" className="text-[10px]">Pago</Badge>
-                                      </div>
-                                      <p className="text-muted-foreground mt-0.5 text-xs">{partida.folioOrden}</p>
-                                    </div>
-                                    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colorPago}`}>{estadoPago}</span>
-                                  </div>
-                                  <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                    <div className={`h-full rounded-full transition-all ${barPago}`} style={{ width: `${pctPagado}%` }} />
-                                  </div>
-                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
-                                    <span>
-                                      {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
-                                      {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                    </span>
-                                  </div>
-                                  {partida.importePendiente > 0 && (
-                                    <p className="mt-1 text-[10px] text-amber-600">
-                                      Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
 
                     </TabsContent>
@@ -2325,6 +2376,11 @@ export default function AutorizacionesOC() {
                                         <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
                                           {archivo.nombreOriginal}
                                         </p>
+                                        {meta.observaciones && (
+                                          <p className="text-xs text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 leading-tight">
+                                            {meta.observaciones}
+                                          </p>
+                                        )}
                                         <div className="flex flex-wrap items-center gap-1.5">
                                           {tipoLabel && (
                                             <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'`}>
@@ -2336,29 +2392,15 @@ export default function AutorizacionesOC() {
                                               {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                             </span>
                                           )}
-                                          <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
-                                          <span className="text-muted-foreground/40">·</span>
-                                          <span className="text-muted-foreground">
+                                          {archivo.usuarioSubioNombre && (
+                                            <span className="text-[10px] text-muted-foreground/60">
+                                              {archivo.usuarioSubioNombre}
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] text-muted-foreground/40">
                                             {fmtFecha(archivo.fechaCreacion)}
                                           </span>
                                         </div>
-                                        {(meta.nombrePaso || meta.nombreAccion) && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                            {meta.nombrePaso ? `Paso: ${meta.nombrePaso}` : ''}
-                                            {meta.nombrePaso && meta.nombreAccion ? ' — ' : ''}
-                                            {meta.nombreAccion ?? ''}
-                                          </p>
-                                        )}
-                                        {archivo.usuarioSubioNombre && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                            Subido por: {archivo.usuarioSubioNombre}
-                                          </p>
-                                        )}
-                                        {meta.observaciones && (
-                                          <p className="text-[10px] text-muted-foreground/60 leading-tight italic">
-                                            {meta.observaciones}
-                                          </p>
-                                        )}
                                       </div>
 
                                       <div className="flex shrink-0 items-center gap-0.5">
@@ -2371,6 +2413,17 @@ export default function AutorizacionesOC() {
                                             <Download className="h-3.5 w-3.5" />
                                           </Button>
                                         </a>
+                                        {!esComprobante && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                            title="Borrar archivo"
+                                            onClick={() => handleEliminarArchivo(archivo.id)}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                   );

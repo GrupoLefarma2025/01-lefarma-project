@@ -104,4 +104,8 @@ export const comprobanteService = {
     );
     return res.data.data!;
   },
+
+  async eliminarPorOrden(idOrden: number, categoria: 'gasto' | 'pago'): Promise<void> {
+    await API.delete<ApiResponse<void>>(`${BASE}/orden/${idOrden}?categoria=${categoria}`);
+  },
 };
