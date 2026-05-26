@@ -56,7 +56,7 @@ public class ArchivosController : ControllerBase
 
         using var stream = file.OpenReadStream();
 
-        // Renombrar archivos adjuntos de workflow con formato: {folio}-Paso{id}-{nombrePaso}-adjunto-{N}.ext
+        // Renombrar archivos adjuntos de orden de compra con formato: {folioSinGuiones}-{ddMMyyyy}-adjunto_{N}.ext
         var fileName = file.FileName;
         if (request.EntidadTipo == "OrdenCompra" && request.Carpeta == "ordenes-compra")
         {
@@ -67,31 +67,18 @@ public class ArchivosController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(folio))
             {
-                string pasoInfo = "";
-                if (!string.IsNullOrWhiteSpace(request.Metadata))
-                {
-                    try
-                    {
-                        using var metaDoc = JsonDocument.Parse(request.Metadata);
-                        var raiz = metaDoc.RootElement;
-                        var idPaso = raiz.TryGetProperty("paso", out var p) ? p.GetString() ?? "" : "";
-                        var nombrePaso = raiz.TryGetProperty("nombrePaso", out var np) ? np.GetString() ?? "" : "";
-                        if (!string.IsNullOrWhiteSpace(idPaso) && !string.IsNullOrWhiteSpace(nombrePaso))
-                            pasoInfo = $"-Paso{idPaso}-{nombrePaso.Replace(' ', '_')}";
-                    }
-                    catch { /* metadata invalido */ }
-                }
-
+                var folioLimpio = folio.Replace("-", "");
+                var fecha = DateTime.Now.ToString("ddMMyyyy");
                 var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta);
                 var ext = Path.GetExtension(file.FileName);
-                fileName = $"{folio}{pasoInfo}-adjunto-{count + 1}{ext}";
+                fileName = $"{folioLimpio}-{fecha}-adjunto_{count + 1}{ext}";
             }
         }
 
-        // Renombrar archivos de comprobantes (pago/gasto): {folio}-Gasto-{N}.ext o {folio}-Pago-{N}.ext
+        // Renombrar archivos de comprobantes (pago/gasto): {folioSinGuiones}-{ddMMyyyy}-{tipo}_{N}.ext
         if (request.EntidadTipo == "OrdenCompra" && request.Carpeta == "comprobantes")
         {
-            string? prefijo = null;
+            string? tipoComprobante = null;
             if (!string.IsNullOrWhiteSpace(request.Metadata))
             {
                 try
@@ -99,12 +86,12 @@ public class ArchivosController : ControllerBase
                     using var metaDoc = JsonDocument.Parse(request.Metadata);
                     var raiz = metaDoc.RootElement;
                     var tipo = raiz.TryGetProperty("tipo", out var t) ? t.GetString() ?? "" : "";
-                    prefijo = tipo == "comprobante_pago" ? "Pago" : tipo == "comprobante_gasto" ? "Gasto" : null;
+                    tipoComprobante = tipo == "comprobante_pago" ? "pago" : tipo == "comprobante_gasto" ? "gasto" : null;
                 }
                 catch { /* metadata invalido */ }
             }
 
-            if (prefijo != null)
+            if (tipoComprobante != null)
             {
                 var folio = await _db.OrdenesCompra
                     .Where(o => o.IdOrden == request.EntidadId)
@@ -113,14 +100,14 @@ public class ArchivosController : ControllerBase
 
                 if (!string.IsNullOrWhiteSpace(folio))
                 {
-                    // Contar comprobantes del mismo tipo (pago o gasto) para esta orden
-                    var categoria = prefijo == "Pago" ? "pago" : "gasto";
+                    var folioLimpio = folio.Replace("-", "");
+                    var fecha = DateTime.Now.ToString("ddMMyyyy");
                     var count = await _db.Comprobantes
-                        .CountAsync(c => c.Categoria == categoria
+                        .CountAsync(c => c.Categoria == tipoComprobante
                             && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.EntidadId));
 
                     var ext = Path.GetExtension(file.FileName);
-                    fileName = $"{folio}-{prefijo}-{count + 1}{ext}";
+                    fileName = $"{folioLimpio}-{fecha}-{tipoComprobante}_{count + 1}{ext}";
                 }
             }
         }

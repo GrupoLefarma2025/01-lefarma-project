@@ -433,6 +433,85 @@ public class ComprobanteService : IComprobanteService
         );
     }
 
+    public async Task<ErrorOr<bool>> EliminarPorOrdenAsync(int idOrden, string categoria, int idUsuario, CancellationToken ct = default)
+    {
+        // Buscar todos los comprobantes de la categoría para esta orden
+        var comprobantes = await _db.Comprobantes
+            .Include(c => c.Asignaciones)
+            .Where(c => c.Categoria == categoria
+                && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == idOrden))
+            .ToListAsync(ct);
+
+        if (!comprobantes.Any()) return CommonErrors.NotFound("Comprobante", "No hay comprobantes para eliminar");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var comprobante in comprobantes)
+            {
+                bool esCfdi = comprobante.TipoComprobante == "cfdi";
+                bool esPago = comprobante.Categoria == "pago";
+
+                // Revertir asignaciones en partidas
+                foreach (var asignacion in comprobante.Asignaciones)
+                {
+                    if (esCfdi)
+                    {
+                        await _db.OrdenesCompraPartidas
+                            .Where(p => p.IdPartida == asignacion.IdPartida)
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.CantidadFacturada,
+                                    p => (p.CantidadFacturada ?? 0m) - asignacion.CantidadAsignada)
+                                .SetProperty(p => p.ImporteFacturado,
+                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                                ct);
+                    }
+                    else if (!esPago)
+                    {
+                        await _db.OrdenesCompraPartidas
+                            .Where(p => p.IdPartida == asignacion.IdPartida)
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.ImporteFacturado,
+                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                                ct);
+                    }
+
+                    await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
+                }
+
+                // Eliminar asignaciones 
+                _db.ComprobantesPartidas.RemoveRange(comprobante.Asignaciones);
+
+                // Desactivar archivos relacionados (buscar por idComprobante en metadata)
+                var archivosRelacionados = await _db.Archivos
+                    .Where(a => a.EntidadTipo == "OrdenCompra"
+                        && a.Carpeta == "comprobantes"
+                        && a.Metadata != null
+                        && a.Metadata.Contains($"\"idComprobante\":{comprobante.IdComprobante}"))
+                    .ToListAsync(ct);
+
+                foreach (var archivo in archivosRelacionados)
+                {
+                    await _archivoService.DeleteAsync(archivo.Id, ct);
+                }
+
+                // Eliminar comprobante
+                _db.Comprobantes.Remove(comprobante);
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            _logger.LogError(ex, "Error al eliminar comprobantes de {Categoria} para orden {IdOrden}", categoria, idOrden);
+            throw;
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private async Task RecalcularEstadoPartidaAsync(int idPartida, CancellationToken ct)
