@@ -133,7 +133,7 @@ public class OrdenCompraResponse
         public required decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
         public int? IdTipoImpuesto { get; set; }
-        public decimal PorcentajeIva { get; set; } = 16;
+        public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; } = true;

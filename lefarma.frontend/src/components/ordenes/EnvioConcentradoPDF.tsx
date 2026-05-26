@@ -79,6 +79,7 @@ interface PartidaRow {
   subtotalPartida: number;
   descuento: number;
   iva: number;
+  porcentajeIva: number;
   otrosImpuestos: number;
   importeTotal: number;
   formaPago: string;
@@ -92,7 +93,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): P
     const gk = getGroupKey(o, agrupacion);
     for (const p of o.partidas) {
       const base = p.cantidad * p.precioUnitario - p.descuento;
-      const ivaAmt = base * (p.porcentajeIva / 100);
+      const ivaAmt = base * p.porcentajeIva;
       rows.push({
         folio: o.folio,
         fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
@@ -108,6 +109,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): P
         subtotalPartida: base,
         descuento: p.descuento,
         iva: ivaAmt,
+        porcentajeIva: p.porcentajeIva,
         otrosImpuestos: p.otrosImpuestos,
         importeTotal: p.total,
         formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
@@ -325,7 +327,6 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
-// Column widths for 18 columns in landscape A4 (~277mm usable)
 const COL_WIDTHS = [
   '6%',   // Folio
   '4%',   // Fecha elab
@@ -340,6 +341,7 @@ const COL_WIDTHS = [
   '5%',   // Precio Unit
   '5%',   // Subtotal
   '4%',   // Descuento
+  '3%',   // % IVA
   '5%',   // IVA
   '4%',   // Otros Imp
   '5.5%', // Importe Total
@@ -361,6 +363,7 @@ const COL_HEADERS = [
   'P. Unitario',
   'Subtotal',
   'Descuento',
+  '% IVA',
   'IVA',
   'Otros Imp.',
   'Importe Total',
@@ -441,6 +444,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     <td style={tdr}>{fmtMoney(r.precioUnitario)}</td>
                     <td style={tdr}>{fmtMoney(r.subtotalPartida)}</td>
                     <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
+                    <td style={tdr}>{(r.porcentajeIva * 100).toFixed(0)}%</td>
                     <td style={tdr}>{fmtMoney(r.iva)}</td>
                     <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
                     <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>
@@ -452,7 +456,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
               {/* Group subtotal */}
               <tr style={s.subtotalRow}>
                 <td
-                  colSpan={15}
+                  colSpan={16}
                   style={{
                     padding: '2px 4px',
                     border: `1px solid ${BORDER}`,

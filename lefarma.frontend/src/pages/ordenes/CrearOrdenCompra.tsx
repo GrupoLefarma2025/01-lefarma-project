@@ -637,13 +637,15 @@ export default function CrearOrdenCompra() {
           const iva16 = tipos.find((t) => t.clave === 'T16');
           if (iva16) {
             setDefaultTipoImpuestoId(iva16.idTipoImpuesto);
-            form.setValue('partidas', [
-              {
-                ...emptyPartida,
-                idTipoImpuesto: iva16.idTipoImpuesto,
-                porcentajeIva: Number((iva16.tasa * 100).toFixed(2)),
-              },
-            ]);
+            if (!isEditing) {
+              form.setValue('partidas', [
+                {
+                  ...emptyPartida,
+                  idTipoImpuesto: iva16.idTipoImpuesto,
+                  porcentajeIva: Number((iva16.tasa * 100).toFixed(2)),
+                },
+              ]);
+            }
           }
         }
       })
@@ -828,7 +830,13 @@ export default function CrearOrdenCompra() {
                     idUnidadMedida: p.idUnidadMedida,
                     precioUnitario: Number(p.precioUnitario),
                     descuento: Number(p.descuento),
-                    idTipoImpuesto: p.idTipoImpuesto ?? defaultTipoImpuestoId,
+                    idTipoImpuesto:
+                      p.idTipoImpuesto && p.idTipoImpuesto > 0
+                        ? p.idTipoImpuesto
+                        : tiposImpuesto.find(
+                            (t) =>
+                              Math.abs(t.tasa * 100 - Number(p.porcentajeIva)) < 0.01
+                          )?.idTipoImpuesto ?? defaultTipoImpuestoId,
                     porcentajeIva: Number(p.porcentajeIva),
                     totalRetenciones: Number(p.totalRetenciones),
                     otrosImpuestos: Number(p.otrosImpuestos),

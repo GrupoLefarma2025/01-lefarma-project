@@ -1598,7 +1598,7 @@ export default function AutorizacionesOC() {
                                 const isExpanded = expandedPartidaId === partida.idPartida;
                                 const subtotalPartida = partida.cantidad * partida.precioUnitario;
                                 const totalImpuestos =
-                                  (subtotalPartida * partida.porcentajeIva) / 100;
+                                  subtotalPartida * partida.porcentajeIva;
                                 return (
                                   <Fragment key={partida.idPartida}>
                                     <tr
@@ -1634,7 +1634,7 @@ export default function AutorizacionesOC() {
                                         {formatCurrency(partida.precioUnitario)}
                                       </td>
                                       <td className="px-3 py-2 text-right">
-                                        {partida.porcentajeIva}%
+                                        {partida.porcentajeIva * 100}%
                                       </td>
                                       <td className="px-3 py-2 text-right font-semibold">
                                         {formatCurrency(partida.total)}
@@ -1647,32 +1647,40 @@ export default function AutorizacionesOC() {
                                       >
                                         <td colSpan={7} className="px-3 py-2">
                                           <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div className="col-span-2 rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Descripción</p>
+                                              <p className="font-medium">{partida.descripcion}</p>
+                                            </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                 Unidad de medida
-                                               </p>
-                                               <p className="font-medium">
-                                                 {partida.unidadMedidaNombre ?? `#${partida.idUnidadMedida}`}
+                                              <p className="text-muted-foreground">Cantidad</p>
+                                              <p className="font-medium">{partida.cantidad}</p>
+                                            </div>
+                                            <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Unidad de medida</p>
+                                              <p className="font-medium">
+                                                {partida.unidadMedidaNombre ?? `#${partida.idUnidadMedida}`}
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Subtotal partida
-                                              </p>
-                                              <p className="font-medium">
-                                                {formatCurrency(subtotalPartida)}
-                                              </p>
+                                              <p className="text-muted-foreground">Precio Unitario</p>
+                                              <p className="font-medium">{formatCurrency(partida.precioUnitario)}</p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
                                               <p className="text-muted-foreground">Descuento</p>
-                                              <p className="font-medium">
-                                                {formatCurrency(partida.descuento)}
-                                              </p>
+                                              <p className="font-medium">{formatCurrency(partida.descuento)}</p>
                                             </div>
-                                            <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">IVA calculado</p>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                               <p className="text-muted-foreground">
+                                                 Subtotal partida
+                                               </p>
+                                               <p className="font-medium">
+                                                 {formatCurrency(subtotalPartida)}
+                                               </p>
+                                             </div>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Impuesto</p>
                                               <p className="font-medium">
-                                                {formatCurrency(totalImpuestos)}
+                                                {partida.porcentajeIva * 100}% ({formatCurrency(totalImpuestos)})
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
@@ -1681,15 +1689,23 @@ export default function AutorizacionesOC() {
                                                 {formatCurrency(partida.totalRetenciones)}
                                               </p>
                                             </div>
-                                             <div className="rounded border bg-background px-2 py-1.5">
-                                               <p className="text-muted-foreground">
-                                                 Otros impuestos
-                                               </p>
-                                               <p className="font-medium">
-                                                 {formatCurrency(partida.otrosImpuestos)}
-                                               </p>
-                                             </div>
-                                             {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Otros impuestos
+                                                </p>
+                                                <p className="font-medium">
+                                                  {formatCurrency(partida.otrosImpuestos)}
+                                                </p>
+                                              </div>
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Requiere Factura
+                                                </p>
+                                                <p className="font-medium">
+                                                  {partida.requiereFactura ? 'Sí' : 'No'}
+                                                </p>
+                                              </div>
+                                              {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
                                                <div className="col-span-2 rounded border border-blue-200 bg-blue-50/50 px-2 py-1.5">
                                                  <div className="flex items-center justify-between">
                                                    <p className="text-muted-foreground">Proveedor de partida</p>
