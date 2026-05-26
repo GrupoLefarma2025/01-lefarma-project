@@ -181,7 +181,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 {
                     if (partida.IdTipoImpuesto.HasValue && impuestosDict.TryGetValue(partida.IdTipoImpuesto.Value, out var tasa))
                     {
-                        partida.PorcentajeIva = tasa;
+                        partida.PorcentajeIva = tasa * 100;
                     }
                 }
 
@@ -404,7 +404,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     PrecioUnitario = p.PrecioUnitario,
                     Descuento = p.Descuento,
                     IdTipoImpuesto = p.IdTipoImpuesto,
-                    PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar : p.PorcentajeIva,
+                    PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,

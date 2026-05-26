@@ -93,7 +93,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): P
     const gk = getGroupKey(o, agrupacion);
     for (const p of o.partidas) {
       const base = p.cantidad * p.precioUnitario - p.descuento;
-      const ivaAmt = base * p.porcentajeIva;
+      const ivaAmt = base * (p.porcentajeIva / 100);
       rows.push({
         folio: o.folio,
         fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
@@ -363,8 +363,8 @@ const COL_HEADERS = [
   'P. Unitario',
   'Subtotal',
   'Descuento',
-  '% IVA',
-  'IVA',
+  '% Imp.',
+  'Impuesto',
   'Otros Imp.',
   'Importe Total',
   'Forma Pago',
@@ -444,7 +444,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     <td style={tdr}>{fmtMoney(r.precioUnitario)}</td>
                     <td style={tdr}>{fmtMoney(r.subtotalPartida)}</td>
                     <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
-                    <td style={tdr}>{(r.porcentajeIva * 100).toFixed(0)}%</td>
+                    <td style={tdr}>{r.porcentajeIva.toFixed(0)}%</td>
                     <td style={tdr}>{fmtMoney(r.iva)}</td>
                     <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
                     <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>

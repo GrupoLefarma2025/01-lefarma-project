@@ -384,18 +384,6 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Recalcular totales desde partidas para evitar inconsistencias con porcentajeIva
-  const partidas = orden.partidas ?? [];
-  const subtotalCalculado = partidas.reduce(
-    (sum, p) => sum + p.precioUnitario * p.cantidad - (p.descuento || 0),
-    0
-  );
-  const totalIvaCalculado = partidas.reduce(
-    (sum, p) => sum + (p.precioUnitario * p.cantidad - (p.descuento || 0)) * (p.porcentajeIva || 0),
-    0
-  );
-  const totalCalculado = subtotalCalculado + totalIvaCalculado;
-
   // DEBUG: formas de pago en PDF
   console.log('[OrdenCompraPDF] idsFormaPago:', orden.idsFormaPago);
   console.log('[OrdenCompraPDF] idsCuentasBancarias:', orden.idsCuentasBancarias);
@@ -558,9 +546,9 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
         <div style={s.totalsBox}>
           {[
-            { label: 'Subtotal', value: subtotalCalculado, bold: false },
-            { label: 'Impuesto', value: totalIvaCalculado, bold: false },
-            { label: 'Total', value: totalCalculado, bold: true },
+            { label: 'Subtotal', value: orden.subtotal, bold: false },
+            { label: 'Impuesto', value: orden.totalIva, bold: false },
+            { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} style={s.totalRow}>
               <div style={{ ...s.totalLabel, fontWeight: bold ? 700 : 600 }}>{label}</div>

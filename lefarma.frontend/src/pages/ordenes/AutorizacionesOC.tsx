@@ -1598,7 +1598,7 @@ export default function AutorizacionesOC() {
                                 const isExpanded = expandedPartidaId === partida.idPartida;
                                 const subtotalPartida = partida.cantidad * partida.precioUnitario;
                                 const totalImpuestos =
-                                  subtotalPartida * partida.porcentajeIva;
+                                  subtotalPartida * (partida.porcentajeIva / 100);
                                 return (
                                   <Fragment key={partida.idPartida}>
                                     <tr
@@ -1633,9 +1633,9 @@ export default function AutorizacionesOC() {
                                       <td className="px-3 py-2 text-right">
                                         {formatCurrency(partida.precioUnitario)}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
-                                        {partida.porcentajeIva * 100}%
-                                      </td>
+                                       <td className="px-3 py-2 text-right">
+                                         {partida.porcentajeIva}%
+                                       </td>
                                       <td className="px-3 py-2 text-right font-semibold">
                                         {formatCurrency(partida.total)}
                                       </td>
@@ -1680,7 +1680,7 @@ export default function AutorizacionesOC() {
                                              <div className="rounded border bg-background px-2 py-1.5">
                                               <p className="text-muted-foreground">Impuesto</p>
                                               <p className="font-medium">
-                                                {partida.porcentajeIva * 100}% ({formatCurrency(totalImpuestos)})
+                                                 {partida.porcentajeIva}% ({formatCurrency(totalImpuestos)})
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
