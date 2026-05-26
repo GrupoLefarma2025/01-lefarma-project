@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { API } from '@/services/api';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -608,12 +609,15 @@ export default function EnvioConcentrado() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Componente PDF oculto (solo se muestra al imprimir) ── */}
-      <EnvioConcentradoPDF
-        ordenes={ordenesSeleccionadas}
-        agrupacion={agrupacion}
-        generadoPor={user?.nombre ?? user?.username}
-      />
+      {/* ── Componente PDF oculto (portal a body, fuera del layout) ── */}
+      {createPortal(
+        <EnvioConcentradoPDF
+          ordenes={ordenesSeleccionadas}
+          agrupacion={agrupacion}
+          generadoPor={user?.nombre ?? user?.username}
+        />,
+        document.body
+      )}
     </div>
   );
 }

@@ -424,7 +424,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
 
       {/* ── GRUPOS ── */}
       {grupos.map(({ grupo, rows, subtotal }) => (
-        <div key={grupo} style={{ marginBottom: 4, pageBreakInside: 'avoid' as const }}>
+        <div key={grupo} style={{ marginBottom: 4 }}>
           <div style={s.groupHeader}>▸ {grupo.toUpperCase()}</div>
           <table style={s.table}>
             <colgroup>
