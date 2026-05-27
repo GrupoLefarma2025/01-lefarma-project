@@ -24,6 +24,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/kibo-ui/combobox';
+import {
   Loader2,
   FileText,
   Search,
@@ -2540,6 +2550,8 @@ export default function AutorizacionesOC() {
 
                 if (campo.tipoControl === 'Selector' && campo.sourceCatalog) {
                   const options = catalogos[campo.sourceCatalog] || [];
+                  const currentValue = String(value ?? '');
+                  const selectedLabel = options.find((o) => o.value === currentValue)?.label;
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label htmlFor={fieldId}>
@@ -2547,25 +2559,43 @@ export default function AutorizacionesOC() {
                         {requerido && <span className="ml-1 text-red-500">*</span>}
                       </Label>
                       {options.length > 0 ? (
-                        <Select
-                          value={String(value ?? '')}
-                          onValueChange={(v) =>
-                            setCamposValues((prev) => ({ ...prev, [inputKey]: v }))
-                          }
+                        <Combobox
+                          data={options.map((o) => ({ value: o.label, label: o.label }))}
+                          type={campo.etiquetaUsuario.toLowerCase()}
+                          value={selectedLabel || ''}
+                          onValueChange={(label) => {
+                            const opt = options.find((o) => o.label === label);
+                            if (opt) {
+                              setCamposValues((prev) => ({ ...prev, [inputKey]: opt.value }));
+                            }
+                          }}
                         >
-                          <SelectTrigger id={fieldId}>
-                            <SelectValue
-                              placeholder={`Seleccionar ${campo.etiquetaUsuario.toLowerCase()}...`}
+                          <ComboboxTrigger className="w-full" />
+                          <ComboboxContent
+                            filter={(value, search) => {
+                              if (!search) return 1;
+                              const v = value.toLowerCase();
+                              const s = search.toLowerCase();
+                              return v.includes(s) ? 1 : 0;
+                            }}
+                          >
+                            <ComboboxInput
+                              placeholder={`Buscar ${campo.etiquetaUsuario.toLowerCase()}...`}
                             />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {options.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            <ComboboxEmpty>
+                              No se encontró {campo.etiquetaUsuario.toLowerCase()}
+                            </ComboboxEmpty>
+                            <ComboboxList>
+                              <ComboboxGroup>
+                                {options.map((opt) => (
+                                  <ComboboxItem key={opt.value} value={opt.label}>
+                                    {opt.label}
+                                  </ComboboxItem>
+                                ))}
+                              </ComboboxGroup>
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       ) : (
                         <Input
                           id={fieldId}
