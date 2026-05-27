@@ -157,6 +157,7 @@ export interface ProveedorCuentaBancaria {
   beneficiario?: string;
   correoNotificacion?: string;
   activo: boolean;
+  tieneOrdenes?: boolean;
 }
 
 // ─── Moneda ───────────────────────────────────────────────────────────────────

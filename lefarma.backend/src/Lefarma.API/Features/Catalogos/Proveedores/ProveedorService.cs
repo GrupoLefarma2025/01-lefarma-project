@@ -13,33 +13,36 @@ using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores;
 
-public partial class ProveedorService : BaseService, IProveedorService
-{
-    private readonly IProveedorRepository _proveedorRepository;
-    private readonly IRegimenFiscalRepository _regimenFiscalRepository;
-    private readonly ILogger<ProveedorService> _logger;
-    private readonly IConfiguration _configuration;
-    private readonly ApplicationDbContext _dbContext;
-    protected override string EntityName => "Proveedor";
-
-    public ProveedorService(
-        IProveedorRepository proveedorRepository,
-        IRegimenFiscalRepository regimenFiscalRepository,
-        IWideEventAccessor wideEventAccessor,
-        ILogger<ProveedorService> logger,
-        IConfiguration configuration,
-        ApplicationDbContext dbContext)
-        : base(wideEventAccessor)
+    public partial class ProveedorService : BaseService, IProveedorService
     {
-        _proveedorRepository = proveedorRepository;
-        _regimenFiscalRepository = regimenFiscalRepository;
-        _logger = logger;
-        _configuration = configuration;
-        _dbContext = dbContext;
-    }
+        private readonly IProveedorRepository _proveedorRepository;
+        private readonly IRegimenFiscalRepository _regimenFiscalRepository;
+        private readonly ILogger<ProveedorService> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly ApplicationDbContext _dbContext;
+        protected override string EntityName => "Proveedor";
+
+        public ProveedorService(
+            IProveedorRepository proveedorRepository,
+            IRegimenFiscalRepository regimenFiscalRepository,
+            IWideEventAccessor wideEventAccessor,
+            ILogger<ProveedorService> logger,
+            IConfiguration configuration,
+            ApplicationDbContext dbContext)
+            : base(wideEventAccessor)
+        {
+            _proveedorRepository = proveedorRepository;
+            _regimenFiscalRepository = regimenFiscalRepository;
+            _logger = logger;
+            _configuration = configuration;
+            _dbContext = dbContext;
+        }
+
+        
 
     public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(ProveedorRequest query)
     {
@@ -88,10 +91,21 @@ public partial class ProveedorService : BaseService, IProveedorService
 
             var response = result.Select(p => p.ToResponse()).ToList();
 
+            // Enriquecer cuentas con información de órdenes asociadas
+            foreach (var proveedor in response)
+            {
+                if (proveedor.CuentasFormaPago != null)
+                {
+                    foreach (var cuenta in proveedor.CuentasFormaPago)
+                    {
+                        cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuen);
+                    }
+                }
+            }
+
             EnrichWideEvent(action: "GetAll", count: response.Count, additionalContext: new Dictionary<string, object>
             {
-                ["filters"] = new { query.RazonSocial, query.RFC, query.OrderBy, query.OrderDirection },
-                ["items"] = response.Select(p => p.RazonSocial).ToList()
+                ["filters"] = new { query.RazonSocial, query.RFC, query.OrderBy, query.OrderDirection }
             });
             return response;
         }
@@ -115,6 +129,16 @@ public partial class ProveedorService : BaseService, IProveedorService
             }
 
             var response = result.ToResponse();
+            
+            // Enriquecer cuentas con información de órdenes asociadas
+            if (response.CuentasFormaPago != null)
+            {
+                foreach (var cuenta in response.CuentasFormaPago)
+                {
+                    cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuen);
+                }
+            }
+            
             EnrichWideEvent(action: "GetById", entityId: id, nombre: response.RazonSocial);
             return response;
         }
@@ -286,25 +310,95 @@ public partial class ProveedorService : BaseService, IProveedorService
             if (request.CuentasFormaPago != null)
             {
                 var cuentasExistentes = proveedor.CuentasFormaPago.ToList();
-                foreach (var cuenta in cuentasExistentes)
+                var cuentasRequest = request.CuentasFormaPago;
+                
+                // Identificar cuentas que se deben eliminar (están en BD pero no en request)
+                var idsEnRequest = cuentasRequest
+                    .Where(c => c.IdCuen > 0)
+                    .Select(c => c.IdCuen)
+                    .ToHashSet();
+                
+                foreach (var cuentaExistente in cuentasExistentes)
                 {
-                    _proveedorRepository.RemoveCuenta(cuenta);
+                    if (!idsEnRequest.Contains(cuentaExistente.IdCuen))
+                    {
+                        // La cuenta se quiere eliminar
+                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
+                        if (tieneOrdenes)
+                        {
+                            // Soft delete: marcar como inactivo
+                            cuentaExistente.Activo = false;
+                            cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                        }
+                        else
+                        {
+                            // Hard delete: eliminar físicamente
+                            _proveedorRepository.RemoveCuenta(cuentaExistente);
+                        }
+                    }
                 }
 
-                foreach (var cuenta in request.CuentasFormaPago)
+                // Procesar cuentas del request
+                foreach (var cuentaRequest in cuentasRequest)
                 {
-                    proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                    if (cuentaRequest.IdCuen > 0)
                     {
-                        IdProveedor = proveedor.IdProveedor,
-                        IdFormaPago = cuenta.IdFormaPago,
-                        IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta,
-                        Clabe = cuenta.Clabe,
-                        NumeroTarjeta = cuenta.NumeroTarjeta,
-                        Beneficiario = cuenta.Beneficiario,
-                        CorreoNotificacion = cuenta.CorreoNotificacion,
-                        FechaCreacion = DateTime.UtcNow
-                    });
+                        // Cuenta existente: buscarla
+                        var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
+                        if (cuentaExistente != null)
+                        {
+                            var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
+                            if (tieneOrdenes)
+                            {
+                                // Si tiene órdenes, crear nueva versión y desactivar la vieja
+                                cuentaExistente.Activo = false;
+                                cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                                
+                                proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                                {
+                                    IdProveedor = proveedor.IdProveedor,
+                                    IdFormaPago = cuentaRequest.IdFormaPago,
+                                    IdBanco = cuentaRequest.IdBanco,
+                                    NumeroCuenta = cuentaRequest.NumeroCuenta,
+                                    Clabe = cuentaRequest.Clabe,
+                                    NumeroTarjeta = cuentaRequest.NumeroTarjeta,
+                                    Beneficiario = cuentaRequest.Beneficiario,
+                                    CorreoNotificacion = cuentaRequest.CorreoNotificacion,
+                                    Activo = true,
+                                    FechaCreacion = DateTime.UtcNow
+                                });
+                            }
+                            else
+                            {
+                                // Sin órdenes: actualizar in-place
+                                cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
+                                cuentaExistente.IdBanco = cuentaRequest.IdBanco;
+                                cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
+                                cuentaExistente.Clabe = cuentaRequest.Clabe;
+                                cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
+                                cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
+                                cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                                cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Nueva cuenta
+                        proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                        {
+                            IdProveedor = proveedor.IdProveedor,
+                            IdFormaPago = cuentaRequest.IdFormaPago,
+                            IdBanco = cuentaRequest.IdBanco,
+                            NumeroCuenta = cuentaRequest.NumeroCuenta,
+                            Clabe = cuentaRequest.Clabe,
+                            NumeroTarjeta = cuentaRequest.NumeroTarjeta,
+                            Beneficiario = cuentaRequest.Beneficiario,
+                            CorreoNotificacion = cuentaRequest.CorreoNotificacion,
+                            Activo = true,
+                            FechaCreacion = DateTime.UtcNow
+                        });
+                    }
                 }
             }
 
@@ -696,30 +790,100 @@ public partial class ProveedorService : BaseService, IProveedorService
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
             }
 
-            // Actualizar cuentas
+            // Actualizar cuentas desde staging
             if (staging.CuentasFormaPago.Any())
             {
                 var cuentasOriginales = proveedor.CuentasFormaPago.ToList();
-                foreach (var cuenta in cuentasOriginales)
+                var cuentasStaging = staging.CuentasFormaPago.ToList();
+                
+                // Identificar cuentas que se deben eliminar (están en BD pero no en staging)
+                var idsEnStaging = cuentasStaging
+                    .Where(c => c.IdCuen > 0)
+                    .Select(c => c.IdCuen)
+                    .ToHashSet();
+                
+                foreach (var cuentaOriginal in cuentasOriginales)
                 {
-                    _proveedorRepository.RemoveCuenta(cuenta);
+                    if (!idsEnStaging.Contains(cuentaOriginal.IdCuen))
+                    {
+                        // La cuenta se quiere eliminar
+                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaOriginal.IdCuen);
+                        if (tieneOrdenes)
+                        {
+                            // Soft delete: marcar como inactivo
+                            cuentaOriginal.Activo = false;
+                            cuentaOriginal.FechaModificacion = DateTime.UtcNow;
+                        }
+                        else
+                        {
+                            // Hard delete: eliminar físicamente
+                            _proveedorRepository.RemoveCuenta(cuentaOriginal);
+                        }
+                    }
                 }
 
-                foreach (var cuentaStaging in staging.CuentasFormaPago)
+                // Procesar cuentas del staging
+                foreach (var cuentaStaging in cuentasStaging)
                 {
-                    proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                    if (cuentaStaging.IdCuen > 0)
                     {
-                        IdProveedor = proveedor.IdProveedor,
-                        IdFormaPago = cuentaStaging.IdFormaPago,
-                        IdBanco = cuentaStaging.IdBanco,
-                        NumeroCuenta = cuentaStaging.NumeroCuenta,
-                        Clabe = cuentaStaging.Clabe,
-                        NumeroTarjeta = cuentaStaging.NumeroTarjeta,
-                        Beneficiario = cuentaStaging.Beneficiario,
-                        CorreoNotificacion = cuentaStaging.CorreoNotificacion,
-                        Activo = cuentaStaging.Activo,
-                        FechaCreacion = DateTime.UtcNow
-                    });
+                        // Cuenta existente: buscarla
+                        var cuentaOriginal = cuentasOriginales.FirstOrDefault(c => c.IdCuen == cuentaStaging.IdCuen);
+                        if (cuentaOriginal != null)
+                        {
+                            var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaOriginal.IdCuen);
+                            if (tieneOrdenes)
+                            {
+                                // Si tiene órdenes, crear nueva versión y desactivar la vieja
+                                cuentaOriginal.Activo = false;
+                                cuentaOriginal.FechaModificacion = DateTime.UtcNow;
+                                
+                                proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                                {
+                                    IdProveedor = proveedor.IdProveedor,
+                                    IdFormaPago = cuentaStaging.IdFormaPago,
+                                    IdBanco = cuentaStaging.IdBanco,
+                                    NumeroCuenta = cuentaStaging.NumeroCuenta,
+                                    Clabe = cuentaStaging.Clabe,
+                                    NumeroTarjeta = cuentaStaging.NumeroTarjeta,
+                                    Beneficiario = cuentaStaging.Beneficiario,
+                                    CorreoNotificacion = cuentaStaging.CorreoNotificacion,
+                                    Activo = cuentaStaging.Activo,
+                                    FechaCreacion = DateTime.UtcNow
+                                });
+                            }
+                            else
+                            {
+                                // Sin órdenes: actualizar in-place
+                                cuentaOriginal.IdFormaPago = cuentaStaging.IdFormaPago;
+                                cuentaOriginal.IdBanco = cuentaStaging.IdBanco;
+                                cuentaOriginal.NumeroCuenta = cuentaStaging.NumeroCuenta;
+                                cuentaOriginal.Clabe = cuentaStaging.Clabe;
+                                cuentaOriginal.NumeroTarjeta = cuentaStaging.NumeroTarjeta;
+                                cuentaOriginal.Beneficiario = cuentaStaging.Beneficiario;
+                                cuentaOriginal.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
+                                cuentaOriginal.Activo = cuentaStaging.Activo;
+                                cuentaOriginal.FechaModificacion = DateTime.UtcNow;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Nueva cuenta desde staging
+                        proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                        {
+                            IdProveedor = proveedor.IdProveedor,
+                            IdFormaPago = cuentaStaging.IdFormaPago,
+                            IdBanco = cuentaStaging.IdBanco,
+                            NumeroCuenta = cuentaStaging.NumeroCuenta,
+                            Clabe = cuentaStaging.Clabe,
+                            NumeroTarjeta = cuentaStaging.NumeroTarjeta,
+                            Beneficiario = cuentaStaging.Beneficiario,
+                            CorreoNotificacion = cuentaStaging.CorreoNotificacion,
+                            Activo = cuentaStaging.Activo,
+                            FechaCreacion = DateTime.UtcNow
+                        });
+                    }
                 }
             }
 
@@ -918,5 +1082,24 @@ public partial class ProveedorService : BaseService, IProveedorService
         }
 
         return diffs;
+    }
+
+    /// <summary>
+    /// Verifica si una cuenta bancaria está siendo usada en órdenes de compra que están en flujo.
+    /// Busca en la columna ids_cuentas_bancarias (JSON) de ordenes_compra y ordenes_compra_partidas.
+    /// </summary>
+    private async Task<bool> CuentaTieneOrdenesAsociadasAsync(int idCuenta)
+    {
+        var cuentaStr = idCuenta.ToString();
+        var tieneEnCabecera = await _dbContext.OrdenesCompra
+            //.Where(p => p.IdEstado != 7 || p.IdEstado != 8 || p.IdEstado != 9) //Cerrada, rechazada, cancelada
+            .AnyAsync(o => o.IdsCuentasBancarias != null && o.IdsCuentasBancarias.Contains(cuentaStr));
+
+        if (tieneEnCabecera) return true;
+
+        var tieneEnPartidas = await _dbContext.OrdenesCompraPartidas
+            .AnyAsync(p => p.IdsCuentasBancarias != null && p.IdsCuentasBancarias.Contains(cuentaStr)); 
+
+        return tieneEnPartidas;
     }
 }

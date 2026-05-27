@@ -16,6 +16,12 @@ import {
   Eye,
   Upload,
   Download,
+  AlertTriangle,
+  Edit3,
+  ChevronDown,
+  ChevronUp,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -151,6 +157,7 @@ interface ProveedorFormaPagoCuenta {
   beneficiario?: string;
   correoNotificacion?: string;
   activo?: boolean;
+  tieneOrdenes?: boolean;
 }
 
 interface CampoDiff {
@@ -205,9 +212,13 @@ export default function ProveedoresList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
   const [rejectMotivo, setRejectMotivo] = useState('');
+  const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [cuentasEditMode, setCuentasEditMode] = useState<Set<number>>(new Set());
+  const [showCuentasInactivas, setShowCuentasInactivas] = useState(false);
   const [deleteCuentaModal, setDeleteCuentaModal] = useState(false);
   const [deleteCuentaIndex, setDeleteCuentaIndex] = useState(-1);
-  const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [editCuentaModal, setEditCuentaModal] = useState(false);
+  const [editCuentaIndex, setEditCuentaIndex] = useState(-1);
   const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
   const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
@@ -312,6 +323,7 @@ export default function ProveedoresList() {
       comentario: '',
     });
     setCuentasFormaPago([]);
+    setCuentasEditMode(new Set());
     setIsEditing(false);
     setModalOpen(true);
   };
@@ -351,6 +363,7 @@ export default function ProveedoresList() {
         comentario: proveedor.detalle?.comentario || '',
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
+      setCuentasEditMode(new Set());
       setCaratulaFile(null);
       const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
       const caratulaPath = proveedor.detalle?.caratulaUrl || null;
@@ -828,7 +841,12 @@ export default function ProveedoresList() {
       <Modal
         id="modal-proveedor"
         open={modalOpen}
-        setOpen={setModalOpen}
+        setOpen={(open) => {
+          if (!open) {
+            setCuentasEditMode(new Set());
+          }
+          setModalOpen(open);
+        }}
         title={isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}
         size="xl"
         footer={
@@ -1078,32 +1096,61 @@ export default function ProveedoresList() {
                 </p>
               ) : (
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {cuentasFormaPago.map((cuenta, index) => (
-                    <div key={index} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
+                  {/* Cuentas Activas */}
+                  {cuentasFormaPago.filter(c => c.activo !== false).map((cuenta, activeIndex) => {
+                    const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
+                    const isEditable = cuenta.idCuen === 0 || cuentasEditMode.has(originalIndex);
+                    return (
+                    <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
                       {/* Header de la tarjeta */}
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100/80 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
-                            {index + 1}
+                            {activeIndex + 1}
                           </span>
                           <span className="text-xs font-medium text-gray-700">
                             {cuenta.formaPagoNombre || 'Forma de pago'}
                             {cuenta.bancoNombre ? ` · ${cuenta.bancoNombre}` : ''}
                           </span>
+                          {cuenta.tieneOrdenes && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                              <AlertTriangle className="h-3 w-3" />
+                              Tiene órdenes asignadas
+                            </span>
+                          )}
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 gap-1 text-xs"
-                          onClick={() => {
-                            setDeleteCuentaIndex(index);
-                            setDeleteCuentaModal(true);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          <span>Eliminar</span>
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {/* Botón Editar (solo cuentas guardadas) */}
+                          {cuenta.idCuen && cuenta.idCuen > 0 && !cuentasEditMode.has(originalIndex) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-50 gap-1 text-xs"
+                              onClick={() => {
+                                setEditCuentaIndex(originalIndex);
+                                setEditCuentaModal(true);
+                              }}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span>Editar</span>
+                            </Button>
+                          )}
+                          {/* Botón Eliminar */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 gap-1 text-xs"
+                            onClick={() => {
+                              setDeleteCuentaIndex(originalIndex);
+                              setDeleteCuentaModal(true);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Eliminar</span>
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Campos de la tarjeta */}
@@ -1117,10 +1164,11 @@ export default function ProveedoresList() {
                               value={String(cuenta.idFormaPago || '')}
                               onValueChange={(val) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].idFormaPago = Number(val);
-                                updated[index].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
+                                updated[originalIndex].idFormaPago = Number(val);
+                                updated[originalIndex].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             >
                               <SelectTrigger className="h-9 text-sm bg-white">
                                 <SelectValue placeholder="Selecciona forma de pago..." />
@@ -1142,10 +1190,11 @@ export default function ProveedoresList() {
                               value={String(cuenta.idBanco || '')}
                               onValueChange={(val) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].idBanco = Number(val);
-                                updated[index].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
+                                updated[originalIndex].idBanco = Number(val);
+                                updated[originalIndex].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             >
                               <SelectTrigger className="h-9 text-sm bg-white">
                                 <SelectValue placeholder="Selecciona banco..." />
@@ -1172,9 +1221,10 @@ export default function ProveedoresList() {
                               value={cuenta.numeroCuenta || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].numeroCuenta = e.target.value;
+                                updated[originalIndex].numeroCuenta = e.target.value;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
 
@@ -1187,9 +1237,10 @@ export default function ProveedoresList() {
                               value={cuenta.clabe || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].clabe = e.target.value;
+                                updated[originalIndex].clabe = e.target.value;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
 
@@ -1202,15 +1253,77 @@ export default function ProveedoresList() {
                               value={cuenta.beneficiario || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].beneficiario = e.target.value;
+                                updated[originalIndex].beneficiario = e.target.value;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
+
+                  {/* Cuentas Inactivas - Sección Colapsable */}
+                  {cuentasFormaPago.some(c => c.activo === false) && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCuentasInactivas(!showCuentasInactivas)}
+                        className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        {showCuentasInactivas ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        <span>
+                          {showCuentasInactivas ? 'Ocultar' : 'Ver'} cuentas inactivas
+                          <span className="ml-1 text-gray-400">
+                            ({cuentasFormaPago.filter(c => c.activo === false).length})
+                          </span>
+                        </span>
+                      </button>
+
+                      {showCuentasInactivas && (
+                        <div className="mt-2 space-y-2">
+                          {cuentasFormaPago.filter(c => c.activo === false).map((cuenta) => {
+                            const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
+                            return (
+                              <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-100/50 overflow-hidden opacity-70">
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100 border-b border-gray-200">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-semibold">
+                                      {originalIndex + 1}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-500">
+                                      {cuenta.formaPagoNombre || 'Forma de pago'}
+                                      {cuenta.bancoNombre ? ` · ${cuenta.bancoNombre}` : ''}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                                      Inactiva
+                                    </span>
+                                  </div>
+
+                                </div>
+                                <div className="p-3 grid grid-cols-3 gap-2">
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">No. Cuenta:</span> {cuenta.numeroCuenta || 'N/A'}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">CLABE:</span> {cuenta.clabe || 'N/A'}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">Beneficiario:</span> {cuenta.beneficiario || 'N/A'}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1242,9 +1355,47 @@ export default function ProveedoresList() {
           </div>
         }
       >
-        <p className="text-sm text-muted-foreground">
-          ¿Estás seguro de eliminar esta cuenta bancaria? Esta acción no se puede deshacer.
-        </p>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Las órdenes de compra que actualmente tienen asignada esta cuenta bancaria seguirán mostrándola en su detalle.     
+        <span className="block mt-3">
+          Si deseas cambiarla, deberás actualizar manualmente la cuenta bancaria en cada orden correspondiente.
+        </span>
+        <span className="block mt-4 font-medium text-foreground">
+          ¿Estás seguro de eliminar esta cuenta bancaria?
+        </span>
+      </p>
+      </Modal>
+
+      {/* Modal confirmación editar cuenta */}
+      <Modal
+        id="modal-edit-cuenta"
+        open={editCuentaModal}
+        setOpen={(open) => { if (!open) { setEditCuentaModal(false); setEditCuentaIndex(-1); } }}
+        title="Editar Cuenta"
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => { setEditCuentaModal(false); setEditCuentaIndex(-1); }}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="default" onClick={() => {
+             setCuentasEditMode((prev) => new Set([...prev, editCuentaIndex]));
+              setEditCuentaModal(false);
+            }}>
+              Editar Cuenta
+            </Button>
+          </div>
+        }
+      >
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Las órdenes de compra que actualmente tienen asignada esta cuenta bancaria seguirán mostrándola en su detalle.     
+        <span className="block mt-3">
+          Si deseas cambiarla, deberás actualizar manualmente la cuenta bancaria en cada orden correspondiente.
+        </span>
+        <span className="block mt-4 font-medium text-foreground">
+          ¿Estás seguro de editar esta cuenta bancaria?
+        </span>
+      </p>
       </Modal>
 
       <Modal
