@@ -551,7 +551,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                 printColorAdjust: 'exact' as const,
                 WebkitPrintColorAdjust: 'exact' as const,
               }}>
-                Partidas totales
+                Ordenes totales
               </td>
               <td style={{
                 padding: '3px 8px',
@@ -584,7 +584,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                   crossOrigin="anonymous"
                 />
               ) : (
-                <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}> #firmad </span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}> sin firma </span>
               )}
             </div>
           </div>

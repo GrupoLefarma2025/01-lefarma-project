@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { API } from '@/services/api';
-import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
 import type { ApiResponse } from '@/types/api.types';
+import { generarConcentradoPDF } from '@/utils/generarConcentradoPDF';
+
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
@@ -34,7 +34,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 
@@ -183,13 +183,73 @@ export default function EnvioConcentrado() {
       }));
   }, [ordenesSeleccionadas, agrupacion]);
 
-  // ── Imprimir PDF ─────────────────────────────────────────────────────────
-  const handlePrint = () => {
+  // ── Vista previa / Imprimir PDF ──────────────────────────────────────────
+  const handlePrint = async () => {
     if (ordenesSeleccionadas.length === 0) return;
-    document.body.classList.remove('print-flujo', 'print-orden');
-    document.body.classList.add('print-envio-concentrado');
-    window.print();
-    setTimeout(() => document.body.classList.remove('print-envio-concentrado'), 500);
+    try {
+      const pdfBlob = await generarPdfBlob();
+      const url = URL.createObjectURL(pdfBlob);
+
+      // Abrir visor de impresión nativo del navegador con el PDF
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.left = '-9999px';
+      iframe.style.top = '0';
+      iframe.style.width = '1px';
+      iframe.style.height = '1px';
+      iframe.src = url;
+
+      iframe.onload = () => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        // Limpiar después de unos segundos
+        setTimeout(() => {
+          if (iframe.parentNode) {
+            document.body.removeChild(iframe);
+          }
+          URL.revokeObjectURL(url);
+        }, 3000);
+      };
+
+      document.body.appendChild(iframe);
+    } catch (error: unknown) {
+      console.error('[EnvioConcentrado] Error generando PDF para impresión:', error);
+    }
+  };
+
+  async function generarPdfBlob(): Promise<Blob> {
+    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    const firmaElaboro = user?.id ? `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png` : undefined;
+    
+    return generarConcentradoPDF({
+      ordenes: ordenesSeleccionadas,
+      agrupacion,
+      generadoPor: user?.nombre ?? user?.username,
+      firmaElaboro,
+    });
+  }
+
+  const handleSimularEnvio = async () => {
+    if (ordenesSeleccionadas.length === 0) return;
+    setEnviando(true);
+    try {
+      const pdfBlob = await generarPdfBlob();
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `concentrado-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      setEnvioError(err.message);
+      console.error('[EnvioConcentrado] Error simulando envío:', error);
+    } finally {
+      setEnviando(false);
+    }
   };
 
   const handleEnviar = async () => {
@@ -198,31 +258,7 @@ export default function EnvioConcentrado() {
     setEnvioResult(null);
     setEnvioError(null);
     try {
-      const pdfElement = document.getElementById('envio-concentrado-pdf-preview');
-      if (!pdfElement) throw new Error('No se encontró el componente PDF del concentrado');
-
-      const canvas = await html2canvas(pdfElement, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const finalWidth = imgWidth * ratio;
-      const finalHeight = imgHeight * ratio;
-      const offsetX = (pdfWidth - finalWidth) / 2;
-      const offsetY = (pdfHeight - finalHeight) / 2;
-      pdf.addImage(imgData, 'PNG', offsetX, offsetY, finalWidth, finalHeight);
-
-      const pdfBlob = pdf.output('blob');
+      const pdfBlob = await generarPdfBlob();
 
       const formData = new FormData();
       for (const id of ordenesSeleccionadas.map((o) => o.idOrden)) {
@@ -249,6 +285,7 @@ export default function EnvioConcentrado() {
     } catch (error: unknown) {
       const err = toApiError(error);
       setEnvioError(err.message);
+      console.error('[EnvioConcentrado] Error:', error);
     } finally {
       setEnviando(false);
     }
@@ -600,6 +637,17 @@ export default function EnvioConcentrado() {
             >
               Cancelar
             </Button>
+            {/* <Button
+              variant="secondary"
+              onClick={async () => {
+                await handleSimularEnvio();
+              }}
+              disabled={enviando}
+              className="gap-1.5"
+            >
+              <Download className="h-4 w-4" />
+              {enviando ? 'Generando…' : 'Simular envío'}
+            </Button> */}
             <Button
               onClick={async () => {
                 await handleEnviar();
@@ -616,17 +664,19 @@ export default function EnvioConcentrado() {
       </Dialog>
 
       {createPortal(
-        <EnvioConcentradoPDF
-          ordenes={ordenesSeleccionadas}
-          agrupacion={agrupacion}
-          generadoPor={user?.nombre ?? user?.username}
-          firmaElaboro={(() => {
-            if (!user?.id) return undefined;
-            const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-            const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-            return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
-          })()}
-        />,
+        <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
+          <EnvioConcentradoPDF
+            ordenes={ordenesSeleccionadas}
+            agrupacion={agrupacion}
+            generadoPor={user?.nombre ?? user?.username}
+            firmaElaboro={(() => {
+              if (!user?.id) return undefined;
+              const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+              const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+              return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
+            })()}
+          />
+        </div>,
         document.body
       )}
     </div>
