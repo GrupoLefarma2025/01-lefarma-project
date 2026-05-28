@@ -54,6 +54,7 @@ public class CreateProveedorDetalleRequest
 
 public class CreateProveedorFormaPagoCuentaRequest
 {
+    public int IdCuen { get; set; }  // 0 = nueva cuenta, >0 = cuenta existente
     public int IdFormaPago { get; set; }
     public int? IdBanco { get; set; }
     public string? NumeroCuenta { get; set; }
@@ -99,6 +100,7 @@ public class ProveedorFormaPagoCuentaResponse
     public string? Beneficiario { get; set; }
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; }
+    public bool TieneOrdenes { get; set; }
 }
 
 public class ProveedorRequest

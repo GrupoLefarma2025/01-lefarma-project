@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
@@ -342,6 +343,7 @@ export default function AutorizacionesOC() {
   const pasosContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = useState('');
+  const [creadorFilter, setCreadorFilter] = useState<number | 'all'>('all');
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [isFirmarModalOpen, setIsFirmarModalOpen] = useState(false);
   const [isSubmittingFirma, setIsSubmittingFirma] = useState(false);
@@ -382,10 +384,25 @@ export default function AutorizacionesOC() {
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
 
+  //Permisos
+  const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
+
   const estados = useMemo(() => {
     const values = workflowEstados.filter(e => e.activo).sort((a, b) => a.idEstado - b.idEstado);
     return ['all', ...values.map(e => String(e.idEstado))];
   }, [workflowEstados]);
+
+  const creadores = useMemo(() => {
+    const map = new Map<number, string>();
+    ordenes.forEach((o) => {
+      if (o.idUsuarioCreador && o.solicitanteNombre) {
+        map.set(o.idUsuarioCreador, o.solicitanteNombre);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }));
+  }, [ordenes]);
 
   const getEstadoInfo = (idEstado: number | null | undefined) => {
     if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
@@ -1089,13 +1106,14 @@ export default function AutorizacionesOC() {
   const filtered = useMemo(() => {
     return ordenes.filter((o) => {
       const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
+      const matchCreador = creadorFilter === 'all' || o.idUsuarioCreador === creadorFilter;
       const q = search.trim().toLowerCase();
       const matchSearch =
         q.length === 0 ||
         o.folio.toLowerCase().includes(q);
-      return matchEstado && matchSearch;
+      return matchEstado && matchCreador && matchSearch;
     });
-  }, [ordenes, estadoFilter, search]);
+  }, [ordenes, estadoFilter, creadorFilter, search]);
 
   const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
@@ -1218,9 +1236,9 @@ export default function AutorizacionesOC() {
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
-              <CardDescription>Filtra por estado o búsqueda rápida</CardDescription>
+              <CardDescription>Filtra por estado, creador o búsqueda rápida</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -1243,6 +1261,20 @@ export default function AutorizacionesOC() {
                   </option>
                 ))}
               </select>
+              {puedeVerTodas && (
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={creadorFilter}
+                  onChange={(e) => setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                >
+                  <option value="all">Todos los creadores</option>
+                  {creadores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </CardContent>
           </Card>
 
@@ -1546,10 +1578,12 @@ export default function AutorizacionesOC() {
                             })}
                             {selectedOrden.idsCuentasBancarias?.map((idCb) => {
                               let cuentaInfo: string | undefined;
+                              let cuentaActiva = true;
                               for (const [, proveedor] of proveedoresMap) {
                                 const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
                                 if (cuenta) {
                                   cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                  cuentaActiva = cuenta.activo;
                                   break;
                                 }
                               }
@@ -1558,6 +1592,7 @@ export default function AutorizacionesOC() {
                                   const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
                                   if (cuenta) {
                                     cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                    cuentaActiva = cuenta.activo;
                                     break;
                                   }
                                 }
@@ -1570,6 +1605,11 @@ export default function AutorizacionesOC() {
                                   <span className="font-medium">
                                     {cuentaInfo ?? `ID ${idCb}`}
                                   </span>
+                                  {!cuentaActiva && (
+                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                      inactiva
+                                    </span>
+                                  )}
                                 </div>
                               );
                             })}
