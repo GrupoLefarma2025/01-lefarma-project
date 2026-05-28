@@ -25,6 +25,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/kibo-ui/combobox';
+import {
   Loader2,
   FileText,
   Search,
@@ -702,7 +712,7 @@ export default function AutorizacionesOC() {
       return;
     }
     setExpandedPasoId(selectedOrden.idPasoActual ?? null);
-    setExpandedPartidaId(selectedOrden.partidas[0]?.idPartida ?? null);
+    setExpandedPartidaId(null);
     if (selectedOrden.idWorkflow) {
       applyWorkflowToState(selectedOrden.idWorkflow);
     }
@@ -1384,6 +1394,50 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
+                    {/* ── Acciones disponibles — siempre visibles arriba de todo ── */}
+                    {selectedOrden && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/80 p-3 shadow-sm backdrop-blur-sm dark:border-blue-800 dark:bg-blue-950/20">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Acciones disponibles
+                            </span>
+                            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300">
+                              Paso actual
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {acciones
+                              .filter(a => !a.enviaConcentrado)
+                              .map((a) => (
+                              <Button
+                                key={a.idAccion}
+                                size="sm"
+                                className={(() => {
+                                  const styles: Record<string, string> = {
+                                    'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                    'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                  };
+                                  return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                })()}
+                                onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                              >
+                                {a.tipoAccionNombre}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <TabsList className="bg-background sticky top-0 z-10 mt-3 grid h-10 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"
@@ -1622,7 +1676,7 @@ export default function AutorizacionesOC() {
                                 const isExpanded = expandedPartidaId === partida.idPartida;
                                 const subtotalPartida = partida.cantidad * partida.precioUnitario;
                                 const totalImpuestos =
-                                  (subtotalPartida * partida.porcentajeIva) / 100;
+                                  subtotalPartida * (partida.porcentajeIva / 100);
                                 return (
                                   <Fragment key={partida.idPartida}>
                                     <tr
@@ -1657,9 +1711,9 @@ export default function AutorizacionesOC() {
                                       <td className="px-3 py-2 text-right">
                                         {formatCurrency(partida.precioUnitario)}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
-                                        {partida.porcentajeIva}%
-                                      </td>
+                                       <td className="px-3 py-2 text-right">
+                                         {partida.porcentajeIva}%
+                                       </td>
                                       <td className="px-3 py-2 text-right font-semibold">
                                         {formatCurrency(partida.total)}
                                       </td>
@@ -1671,32 +1725,40 @@ export default function AutorizacionesOC() {
                                       >
                                         <td colSpan={7} className="px-3 py-2">
                                           <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div className="col-span-2 rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Descripción</p>
+                                              <p className="font-medium">{partida.descripcion}</p>
+                                            </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Unidad de medida (ID)
-                                              </p>
+                                              <p className="text-muted-foreground">Cantidad</p>
+                                              <p className="font-medium">{partida.cantidad}</p>
+                                            </div>
+                                            <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Unidad de medida</p>
                                               <p className="font-medium">
-                                                {partida.idUnidadMedida}
+                                                {partida.unidadMedidaNombre ?? `#${partida.idUnidadMedida}`}
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Subtotal partida
-                                              </p>
-                                              <p className="font-medium">
-                                                {formatCurrency(subtotalPartida)}
-                                              </p>
+                                              <p className="text-muted-foreground">Precio Unitario</p>
+                                              <p className="font-medium">{formatCurrency(partida.precioUnitario)}</p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
                                               <p className="text-muted-foreground">Descuento</p>
-                                              <p className="font-medium">
-                                                {formatCurrency(partida.descuento)}
-                                              </p>
+                                              <p className="font-medium">{formatCurrency(partida.descuento)}</p>
                                             </div>
-                                            <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">IVA calculado</p>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                               <p className="text-muted-foreground">
+                                                 Subtotal partida
+                                               </p>
+                                               <p className="font-medium">
+                                                 {formatCurrency(subtotalPartida)}
+                                               </p>
+                                             </div>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Impuesto</p>
                                               <p className="font-medium">
-                                                {formatCurrency(totalImpuestos)}
+                                                 {partida.porcentajeIva}% ({formatCurrency(totalImpuestos)})
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
@@ -1705,15 +1767,23 @@ export default function AutorizacionesOC() {
                                                 {formatCurrency(partida.totalRetenciones)}
                                               </p>
                                             </div>
-                                             <div className="rounded border bg-background px-2 py-1.5">
-                                               <p className="text-muted-foreground">
-                                                 Otros impuestos
-                                               </p>
-                                               <p className="font-medium">
-                                                 {formatCurrency(partida.otrosImpuestos)}
-                                               </p>
-                                             </div>
-                                             {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Otros impuestos
+                                                </p>
+                                                <p className="font-medium">
+                                                  {formatCurrency(partida.otrosImpuestos)}
+                                                </p>
+                                              </div>
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Requiere Factura
+                                                </p>
+                                                <p className="font-medium">
+                                                  {partida.requiereFactura ? 'Sí' : 'No'}
+                                                </p>
+                                              </div>
+                                              {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
                                                <div className="col-span-2 rounded border border-blue-200 bg-blue-50/50 px-2 py-1.5">
                                                  <div className="flex items-center justify-between">
                                                    <p className="text-muted-foreground">Proveedor de partida</p>
@@ -2520,6 +2590,8 @@ export default function AutorizacionesOC() {
 
                 if (campo.tipoControl === 'Selector' && campo.sourceCatalog) {
                   const options = catalogos[campo.sourceCatalog] || [];
+                  const currentValue = String(value ?? '');
+                  const selectedLabel = options.find((o) => o.value === currentValue)?.label;
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label htmlFor={fieldId}>
@@ -2527,25 +2599,43 @@ export default function AutorizacionesOC() {
                         {requerido && <span className="ml-1 text-red-500">*</span>}
                       </Label>
                       {options.length > 0 ? (
-                        <Select
-                          value={String(value ?? '')}
-                          onValueChange={(v) =>
-                            setCamposValues((prev) => ({ ...prev, [inputKey]: v }))
-                          }
+                        <Combobox
+                          data={options.map((o) => ({ value: o.label, label: o.label }))}
+                          type={campo.etiquetaUsuario.toLowerCase()}
+                          value={selectedLabel || ''}
+                          onValueChange={(label) => {
+                            const opt = options.find((o) => o.label === label);
+                            if (opt) {
+                              setCamposValues((prev) => ({ ...prev, [inputKey]: opt.value }));
+                            }
+                          }}
                         >
-                          <SelectTrigger id={fieldId}>
-                            <SelectValue
-                              placeholder={`Seleccionar ${campo.etiquetaUsuario.toLowerCase()}...`}
+                          <ComboboxTrigger className="w-full" />
+                          <ComboboxContent
+                            filter={(value, search) => {
+                              if (!search) return 1;
+                              const v = value.toLowerCase();
+                              const s = search.toLowerCase();
+                              return v.includes(s) ? 1 : 0;
+                            }}
+                          >
+                            <ComboboxInput
+                              placeholder={`Buscar ${campo.etiquetaUsuario.toLowerCase()}...`}
                             />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {options.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            <ComboboxEmpty>
+                              No se encontró {campo.etiquetaUsuario.toLowerCase()}
+                            </ComboboxEmpty>
+                            <ComboboxList>
+                              <ComboboxGroup>
+                                {options.map((opt) => (
+                                  <ComboboxItem key={opt.value} value={opt.label}>
+                                    {opt.label}
+                                  </ComboboxItem>
+                                ))}
+                              </ComboboxGroup>
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       ) : (
                         <Input
                           id={fieldId}

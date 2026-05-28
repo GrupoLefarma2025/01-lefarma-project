@@ -547,7 +547,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         <div style={s.totalsBox}>
           {[
             { label: 'Subtotal', value: orden.subtotal, bold: false },
-            { label: 'IVA', value: orden.totalIva, bold: false },
+            { label: 'Impuesto', value: orden.totalIva, bold: false },
             { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} style={s.totalRow}>

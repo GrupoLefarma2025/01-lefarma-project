@@ -165,6 +165,26 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
                     : new Dictionary<int, string>();
 
+                var tipoImpuestoIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDict = tipoImpuestoIds.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIds.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa)
+                    : new Dictionary<int, decimal>();
+
+                foreach (var partida in item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                {
+                    if (partida.IdTipoImpuesto.HasValue && impuestosDict.TryGetValue(partida.IdTipoImpuesto.Value, out var tasa))
+                    {
+                        partida.PorcentajeIva = tasa * 100;
+                    }
+                }
+
                 return ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
             }
             catch (Exception ex)
@@ -179,6 +199,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             try
             {
                 var folio = await _repo.GenerarFolioAsync();
+
+                var tipoImpuestoIds = request.Partidas
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDict = tipoImpuestoIds.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIds.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
+                    : new Dictionary<int, decimal>();
+
                 var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
                 {
                     NumeroPartida = i + 1,
@@ -187,7 +220,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdUnidadMedida = p.IdUnidadMedida,
                     PrecioUnitario = p.PrecioUnitario,
                     Descuento = p.Descuento,
-                    PorcentajeIva = p.PorcentajeIva,
+                IdTipoImpuesto = p.IdTipoImpuesto,
+                PorcentajeIva = p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
@@ -346,6 +380,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdMoneda = request.IdMoneda;
                 orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
 
+                var tipoImpuestoIdsUpdate = request.Partidas
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDictUpdate = tipoImpuestoIdsUpdate.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIdsUpdate.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
+                    : new Dictionary<int, decimal>();
+
                 // Recrear partidas: remover existentes y crear nuevas
                 _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas ?? Enumerable.Empty<OrdenCompraPartida>());
                 var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
@@ -357,7 +403,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdUnidadMedida = p.IdUnidadMedida,
                     PrecioUnitario = p.PrecioUnitario,
                     Descuento = p.Descuento,
-                    PorcentajeIva = p.PorcentajeIva,
+                    IdTipoImpuesto = p.IdTipoImpuesto,
+                    PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
@@ -473,6 +520,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 UnidadMedidaNombre = uomNombres != null && uomNombres.TryGetValue(p.IdUnidadMedida, out var un) ? un : null,
                 PrecioUnitario = p.PrecioUnitario,
                 Descuento = p.Descuento,
+                IdTipoImpuesto = p.IdTipoImpuesto,
                 PorcentajeIva = p.PorcentajeIva,
                 TotalRetenciones = p.TotalRetenciones,
                 OtrosImpuestos = p.OtrosImpuestos,

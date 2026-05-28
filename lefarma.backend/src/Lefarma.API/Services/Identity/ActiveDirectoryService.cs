@@ -150,7 +150,9 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.SecureSocketLayer = false;
-            connection.AuthType = AuthType.Basic;
+            connection.AuthType = domainConfig.AuthType == 1
+                ? AuthType.Basic
+                : AuthType.Negotiate;
 
             // Configure timeouts to prevent blocking
             var timeoutSeconds = 30;

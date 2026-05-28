@@ -184,8 +184,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 RazonSocial = request.RazonSocial,
                 RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
-                RFC = request.RFC,
-                CodigoPostal = request.CodigoPostal,
+                RFC = string.IsNullOrWhiteSpace(request.RFC) ? null : request.RFC.Trim(),
+                CodigoPostal = string.IsNullOrWhiteSpace(request.CodigoPostal) ? null : request.CodigoPostal.Trim(),
                 RegimenFiscalId = request.RegimenFiscalId,
                 UsoCfdi = request.UsoCfdi,
                 SinDatosFiscales = request.SinDatosFiscales,
@@ -208,8 +208,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     {
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta,
-                        Clabe = cuenta.Clabe,
+                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
+                        Clabe = cuenta.Clabe?.Replace(" ", ""),
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
@@ -343,62 +343,16 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     if (cuentaRequest.IdCuen > 0)
                     {
-                        // Cuenta existente: buscarla
-                        var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
-                        if (cuentaExistente != null)
-                        {
-                            var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
-                            if (tieneOrdenes)
-                            {
-                                // Si tiene órdenes, crear nueva versión y desactivar la vieja
-                                cuentaExistente.Activo = false;
-                                cuentaExistente.FechaModificacion = DateTime.UtcNow;
-                                
-                                proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
-                                {
-                                    IdProveedor = proveedor.IdProveedor,
-                                    IdFormaPago = cuentaRequest.IdFormaPago,
-                                    IdBanco = cuentaRequest.IdBanco,
-                                    NumeroCuenta = cuentaRequest.NumeroCuenta,
-                                    Clabe = cuentaRequest.Clabe,
-                                    NumeroTarjeta = cuentaRequest.NumeroTarjeta,
-                                    Beneficiario = cuentaRequest.Beneficiario,
-                                    CorreoNotificacion = cuentaRequest.CorreoNotificacion,
-                                    Activo = true,
-                                    FechaCreacion = DateTime.UtcNow
-                                });
-                            }
-                            else
-                            {
-                                // Sin órdenes: actualizar in-place
-                                cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
-                                cuentaExistente.IdBanco = cuentaRequest.IdBanco;
-                                cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
-                                cuentaExistente.Clabe = cuentaRequest.Clabe;
-                                cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
-                                cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
-                                cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
-                                cuentaExistente.FechaModificacion = DateTime.UtcNow;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        // Nueva cuenta
-                        proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
-                        {
-                            IdProveedor = proveedor.IdProveedor,
-                            IdFormaPago = cuentaRequest.IdFormaPago,
-                            IdBanco = cuentaRequest.IdBanco,
-                            NumeroCuenta = cuentaRequest.NumeroCuenta,
-                            Clabe = cuentaRequest.Clabe,
-                            NumeroTarjeta = cuentaRequest.NumeroTarjeta,
-                            Beneficiario = cuentaRequest.Beneficiario,
-                            CorreoNotificacion = cuentaRequest.CorreoNotificacion,
-                            Activo = true,
-                            FechaCreacion = DateTime.UtcNow
-                        });
-                    }
+                        IdProveedor = proveedor.IdProveedor,
+                        IdFormaPago = cuenta.IdFormaPago,
+                        IdBanco = cuenta.IdBanco,
+                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
+                        Clabe = cuenta.Clabe?.Replace(" ", ""),
+                        NumeroTarjeta = cuenta.NumeroTarjeta,
+                        Beneficiario = cuenta.Beneficiario,
+                        CorreoNotificacion = cuenta.CorreoNotificacion,
+                        FechaCreacion = DateTime.UtcNow
+                    });
                 }
             }
 
@@ -515,8 +469,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     {
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta,
-                        Clabe = cuenta.Clabe,
+                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
+                        Clabe = cuenta.Clabe?.Replace(" ", ""),
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,

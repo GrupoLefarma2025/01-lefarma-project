@@ -9,7 +9,8 @@ public class OrdenCompraPartida
         public int IdUnidadMedida { get; set; }
         public decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
-        public decimal PorcentajeIva { get; set; } = 16;
+        public int? IdTipoImpuesto { get; set; }
+        public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; } = true;

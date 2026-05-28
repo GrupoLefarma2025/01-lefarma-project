@@ -8,8 +8,7 @@ import type {
 } from '@/types/archivo.types';
 import type { ApiResponse } from '@/types/api.types';
 
-
-const BASE_URL = '/archivos';
+const BASE_URL = `${import.meta.env.VITE_API_URL || '/api'}/archivos`;
 
 export const archivoService = {
   upload: async (file: File, params: SubirArchivoParams): Promise<Archivo> => {
@@ -48,11 +47,11 @@ export const archivoService = {
   },
 
   getDownloadUrl: (id: number): string => {
-    return `/api${BASE_URL}/${id}/download`;
+    return `${BASE_URL}/${id}/download`;
   },
 
   getPreviewUrl: (id: number): string => {
-    return `/api${BASE_URL}/${id}/preview`;
+    return `${BASE_URL}/${id}/preview`;
   },
 
   delete: async (id: number): Promise<void> => {

@@ -637,13 +637,15 @@ export default function CrearOrdenCompra() {
           const iva16 = tipos.find((t) => t.clave === 'T16');
           if (iva16) {
             setDefaultTipoImpuestoId(iva16.idTipoImpuesto);
-            form.setValue('partidas', [
-              {
-                ...emptyPartida,
-                idTipoImpuesto: iva16.idTipoImpuesto,
-                porcentajeIva: Number((iva16.tasa * 100).toFixed(2)),
-              },
-            ]);
+            if (!isEditing) {
+              form.setValue('partidas', [
+                {
+                  ...emptyPartida,
+                  idTipoImpuesto: iva16.idTipoImpuesto,
+                  porcentajeIva: Number((iva16.tasa * 100).toFixed(2)),
+                },
+              ]);
+            }
           }
         }
       })
@@ -828,7 +830,13 @@ export default function CrearOrdenCompra() {
                     idUnidadMedida: p.idUnidadMedida,
                     precioUnitario: Number(p.precioUnitario),
                     descuento: Number(p.descuento),
-                    idTipoImpuesto: 0,
+                    idTipoImpuesto:
+                      p.idTipoImpuesto && p.idTipoImpuesto > 0
+                        ? p.idTipoImpuesto
+                        : tiposImpuesto.find(
+                            (t) =>
+                              Math.abs(t.tasa * 100 - Number(p.porcentajeIva)) < 0.01
+                          )?.idTipoImpuesto ?? defaultTipoImpuestoId,
                     porcentajeIva: Number(p.porcentajeIva),
                     totalRetenciones: Number(p.totalRetenciones),
                     otrosImpuestos: Number(p.otrosImpuestos),
@@ -960,6 +968,7 @@ export default function CrearOrdenCompra() {
           idUnidadMedida: p.idUnidadMedida,
           precioUnitario: p.precioUnitario,
           descuento: p.descuento,
+          idTipoImpuesto: p.idTipoImpuesto,
           porcentajeIva: p.porcentajeIva,
           totalRetenciones: p.totalRetenciones,
           otrosImpuestos: p.otrosImpuestos,
@@ -2323,10 +2332,76 @@ export default function CrearOrdenCompra() {
                     handleSave(values);
                   },
                   (errors) => {
-                    console.log(
-                      '🔴 [BOTON GUARDAR] ❌ Validación FALLÓ:',
-                      JSON.stringify(errors, null, 2)
-                    );
+                    type FieldErr = { message?: string };
+                    type NestedErr = Record<string, FieldErr | undefined>;
+
+                    const FIELD_NAMES: Record<string, string> = {
+                      idEmpresa: 'Empresa',
+                      idSucursal: 'Sucursal',
+                      idArea: 'Área',
+                      idTipoGasto: 'Tipo de gasto',
+                      fechaLimitePago: 'Fecha límite de pago',
+                      idProveedor: 'Proveedor (Razón Social)',
+                      razonSocialProveedor: 'Buscar por Razón Social',
+                      idCuentaBancaria: 'Cuenta bancaria del proveedor',
+                      idFormaPago: 'Forma de pago',
+                      idMoneda: 'Moneda',
+                    };
+                    const PARTIDA_FIELD_NAMES: Record<string, string> = {
+                      descripcion: 'Descripción',
+                      cantidad: 'Cantidad',
+                      idUnidadMedida: 'Unidad de medida',
+                      precioUnitario: 'Precio unitario',
+                      descuento: 'Descuento',
+                      idTipoImpuesto: 'Tipo de impuesto',
+                      porcentajeIva: '% IVA',
+                      totalRetenciones: 'Retenciones',
+                      otrosImpuestos: 'Otros impuestos',
+                      idProveedor: 'Proveedor de partida',
+                      idCuentaBancaria: 'Cuenta bancaria de partida',
+                    };
+
+                    const missing: string[] = [];
+                    const devDetails: string[] = [];
+
+                    for (const [key, err] of Object.entries(errors as Record<string, unknown>)) {
+                      if (!err) continue;
+
+                      if (key === 'partidas' && typeof err === 'object' && err !== null) {
+                        const partidaErrors = err as Record<string, NestedErr>;
+                        for (const [idx, fields] of Object.entries(partidaErrors)) {
+                          if (!fields) continue;
+                          const n = Number(idx) + 1;
+                          for (const [campo, fieldErr] of Object.entries(fields)) {
+                            if (!fieldErr) continue;
+                            const label = PARTIDA_FIELD_NAMES[campo] ?? campo;
+                            const msg = fieldErr.message ?? 'Requerido';
+                            missing.push(`Partida ${n}: ${label}`);
+                            devDetails.push(`  partidas[${idx}].${campo} → ${msg}`);
+                          }
+                        }
+                      } else if (typeof err === 'object' && 'message' in (err as object)) {
+                        const msg = (err as FieldErr).message ?? 'Requerido';
+                        const label = FIELD_NAMES[key] ?? key;
+                        missing.push(label);
+                        devDetails.push(`  ${key} → ${msg}`);
+                      }
+                    }
+
+                    console.group('🔴 Validación FALLÓ');
+                    console.log('Campos faltantes:', missing);
+                    console.log('Detalle por campo:');
+                    devDetails.forEach((d) => console.log(d));
+                    console.log('Objeto completo:', errors);
+                    console.groupEnd();
+
+                    if (missing.length > 0) {
+                      toast.error('Faltan campos obligatorios', {
+                        description: missing.join(' · '),
+                        duration: 8000,
+                      });
+                    }
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 )();
               }}
