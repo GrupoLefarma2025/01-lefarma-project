@@ -223,6 +223,25 @@ export default function ProveedoresList() {
     razonSocial: string;
   }>>({});
 
+  /** Formatea Número de Cuenta: grupos de 4 dígitos (máx 20) */
+  const formatCuenta = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 20);
+    return d.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  /** Formatea CLABE interbancaria (18 dígitos): XXX XXX XXXX XXXX XXXX */
+  const formatCLABE = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 18);
+    if (d.length === 0) return '';
+    const parts: string[] = [];
+    if (d.length > 0) parts.push(d.slice(0, 3));
+    if (d.length > 3) parts.push(d.slice(3, 6));
+    if (d.length > 6) parts.push(d.slice(6, 10));
+    if (d.length > 10) parts.push(d.slice(10, 14));
+    if (d.length > 14) parts.push(d.slice(14));
+    return parts.join(' ');
+  };
+
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
     defaultValues: {
@@ -243,7 +262,15 @@ export default function ProveedoresList() {
       setLoading(true);
       const response = await API.get<ApiResponse<Proveedor[]>>(ENDPOINT);
       if (response.data.success) {
-        setProveedores(response.data.data || []);
+        const data = (response.data.data || []).map((p) => ({
+          ...p,
+          cuentasFormaPago: p.cuentasFormaPago?.map((c) => ({
+            ...c,
+            numeroCuenta: c.numeroCuenta?.replace(/\s/g, '') ?? c.numeroCuenta,
+            clabe: c.clabe?.replace(/\s/g, '') ?? c.clabe,
+          })),
+        }));
+        setProveedores(data);
       }
     } catch (error: unknown) {
       const err = toApiError(error);
@@ -853,7 +880,7 @@ export default function ProveedoresList() {
         open={modalOpen}
         setOpen={setModalOpen}
         title={isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}
-        size="xl"
+        size="wide"
         footer={
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
@@ -1230,12 +1257,13 @@ export default function ProveedoresList() {
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta *</label>
                             <Input
-                              className="h-9 text-sm bg-white"
-                              placeholder="****1234"
-                              value={cuenta.numeroCuenta || ''}
+                              className="h-9 text-sm bg-white font-mono tracking-wider"
+                              placeholder="0189 8232 5500"
+                              value={formatCuenta(cuenta.numeroCuenta || '')}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 20);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].numeroCuenta = e.target.value.replace(/\s/g, '');
+                                updated[index].numeroCuenta = raw;
                                 setCuentasFormaPago(updated);
                               }}
                             />
@@ -1245,12 +1273,13 @@ export default function ProveedoresList() {
                           <div className="space-y-1">
                             <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria *</label>
                             <Input
-                              className="h-9 text-sm bg-white"
-                              placeholder="18 dígitos"
-                              value={cuenta.clabe || ''}
+                              className="h-9 text-sm bg-white font-mono tracking-wider"
+                              placeholder="072 180 0000 0000 0000"
+                              value={formatCLABE(cuenta.clabe || '')}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 18);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].clabe = e.target.value.replace(/\s/g, '');
+                                updated[index].clabe = raw;
                                 setCuentasFormaPago(updated);
                               }}
                             />

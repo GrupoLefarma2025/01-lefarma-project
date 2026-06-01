@@ -522,7 +522,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
                 {p.precioUnitario.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </td>
               <td style={s.deliveryTdRight}>
-                {p.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                {(p.precioUnitario * p.cantidad).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </td>
             </tr>
           ))}
@@ -546,7 +546,8 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
         <div style={s.totalsBox}>
           {[
-            { label: 'Subtotal', value: orden.subtotal, bold: false },
+            { label: 'Subtotal', value: (orden.partidas ?? []).reduce((sum, p) => sum + (p.precioUnitario * p.cantidad), 0), bold: false },
+            { label: 'Descuentos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
             { label: 'Impuesto', value: orden.totalIva, bold: false },
             { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
