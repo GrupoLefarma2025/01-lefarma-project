@@ -1312,7 +1312,7 @@ export default function ProveedoresList() {
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/\D/g, '').slice(0, 20);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].numeroCuenta = raw;
+                                updated[originalIndex].numeroCuenta = raw;
                                 setCuentasFormaPago(updated);
                               }}
                               disabled={!isEditable}
@@ -1329,7 +1329,7 @@ export default function ProveedoresList() {
                               onChange={(e) => {
                                 const raw = e.target.value.replace(/\D/g, '').slice(0, 18);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].clabe = raw;
+                                updated[originalIndex].clabe = raw;
                                 setCuentasFormaPago(updated);
                               }}
                               disabled={!isEditable}

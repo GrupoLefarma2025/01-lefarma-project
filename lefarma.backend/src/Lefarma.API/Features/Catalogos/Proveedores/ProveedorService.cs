@@ -343,16 +343,38 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     if (cuentaRequest.IdCuen > 0)
                     {
-                        IdProveedor = proveedor.IdProveedor,
-                        IdFormaPago = cuenta.IdFormaPago,
-                        IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
-                        Clabe = cuenta.Clabe?.Replace(" ", ""),
-                        NumeroTarjeta = cuenta.NumeroTarjeta,
-                        Beneficiario = cuenta.Beneficiario,
-                        CorreoNotificacion = cuenta.CorreoNotificacion,
-                        FechaCreacion = DateTime.UtcNow
-                    });
+                        // Actualizar cuenta existente
+                        var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
+                        if (cuentaExistente != null)
+                        {
+                            cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
+                            cuentaExistente.IdBanco = cuentaRequest.IdBanco;
+                            cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta?.Replace(" ", "");
+                            cuentaExistente.Clabe = cuentaRequest.Clabe?.Replace(" ", "");
+                            cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
+                            cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
+                            cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                            cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                        }
+                    }
+                    else
+                    {
+                        // Crear nueva cuenta
+                        var nuevaCuenta = new ProveedorFormaPagoCuenta
+                        {
+                            IdProveedor = proveedor.IdProveedor,
+                            IdFormaPago = cuentaRequest.IdFormaPago,
+                            IdBanco = cuentaRequest.IdBanco,
+                            NumeroCuenta = cuentaRequest.NumeroCuenta?.Replace(" ", ""),
+                            Clabe = cuentaRequest.Clabe?.Replace(" ", ""),
+                            NumeroTarjeta = cuentaRequest.NumeroTarjeta,
+                            Beneficiario = cuentaRequest.Beneficiario,
+                            CorreoNotificacion = cuentaRequest.CorreoNotificacion,
+                            Activo = true,
+                            FechaCreacion = DateTime.UtcNow
+                        };
+                        proveedor.CuentasFormaPago.Add(nuevaCuenta);
+                    }
                 }
             }
 
