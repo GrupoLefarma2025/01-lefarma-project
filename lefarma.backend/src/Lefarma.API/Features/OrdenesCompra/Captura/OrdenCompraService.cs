@@ -232,8 +232,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     Total = CalcularTotalPartida(p)
                 }).ToList();
 
-                var subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
-                var totalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
+                var subtotal = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
+
+                var totalIva = partidas.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
+                var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
 
                 var workflow = await _workflowResolver.ResolveWorkflowIdAsync("ORDEN_COMPRA", idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, request.IdTipoGasto, request.IdProveedor);
 
@@ -272,9 +277,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     FechaCreacion = DateTime.Now,
                     Subtotal = subtotal,
                     TotalIva = totalIva,
-                    TotalRetenciones = partidas.Sum(p => p.TotalRetenciones),
-                    TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos),
-                    Total = partidas.Sum(p => p.Total),
+                    TotalRetenciones = totalRetenciones,
+                    TotalOtrosImpuestos = totalOtrosImpuestos,
+                    Total = total,
                     Partidas = partidas
                 };
 
@@ -416,12 +421,21 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 }).ToList();
                 orden.Partidas = partidas;
 
+                var subtotal = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
+
+                var totalIva = partidas.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
+                var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
+
+
                 // Recalcular totales
-                orden.Subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
-                orden.TotalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
-                orden.TotalRetenciones = partidas.Sum(p => p.TotalRetenciones);
-                orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
-                orden.Total = partidas.Sum(p => p.Total);
+                orden.Subtotal = subtotal;
+                orden.TotalIva = totalIva;
+                orden.TotalRetenciones = totalRetenciones;
+                orden.TotalOtrosImpuestos = totalOtrosImpuestos;
+                orden.Total = total;
 
                 await _context.SaveChangesAsync(ct);
 
@@ -441,7 +455,17 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         }
 
         private static decimal CalcularTotalPartida(CreatePartidaRequest p)
-            => (p.PrecioUnitario * p.Cantidad - p.Descuento) * (1 + p.PorcentajeIva / 100) - p.TotalRetenciones + p.OtrosImpuestos;
+        {
+            // Subtotal = precio base sin impuestos ni retenciones
+            decimal subtotal = (p.PrecioUnitario * p.Cantidad) - p.Descuento;
+
+            // Total = subtotal + impuestos - retenciones
+            decimal total = subtotal * (1 + p.PorcentajeIva / 100)
+                            - p.TotalRetenciones
+                            + p.OtrosImpuestos;
+
+            return total;
+        }
 
         private static OrdenCompraResponse ToResponse(
             OrdenCompra o,
