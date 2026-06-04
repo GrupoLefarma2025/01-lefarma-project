@@ -1220,8 +1220,9 @@ export default function ProveedoresList() {
                               placeholder="****1234"
                               value={cuenta.numeroCuenta || ''}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 18);
                                 const updated = [...cuentasFormaPago];
-                                updated[originalIndex].numeroCuenta = e.target.value;
+                                updated[originalIndex].numeroCuenta = raw;
                                 setCuentasFormaPago(updated);
                               }}
                               disabled={!isEditable}
@@ -1236,8 +1237,9 @@ export default function ProveedoresList() {
                               placeholder="18 dígitos"
                               value={cuenta.clabe || ''}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 18);
                                 const updated = [...cuentasFormaPago];
-                                updated[originalIndex].clabe = e.target.value;
+                                updated[originalIndex].clabe = raw;
                                 setCuentasFormaPago(updated);
                               }}
                               disabled={!isEditable}
