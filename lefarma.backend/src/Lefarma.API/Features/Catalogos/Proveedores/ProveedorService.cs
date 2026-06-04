@@ -347,38 +347,47 @@ public partial class ProveedorService : BaseService, IProveedorService
                         var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
                         if (cuentaExistente != null)
                         {
+                            cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
+                            cuentaExistente.IdBanco = cuentaRequest.IdBanco;
+                            cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
+                            cuentaExistente.Clabe = cuentaRequest.Clabe;
+                            cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
+                            cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
+                            cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                            cuentaExistente.FechaModificacion = DateTime.UtcNow;
+
                             //var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
                             //if (tieneOrdenes)
                             //{
-                                // Si tiene órdenes, crear nueva versión y desactivar la vieja
-                                //cuentaExistente.Activo = false;
-                                //cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                            // Si tiene órdenes, crear nueva versión y desactivar la vieja
+                            //cuentaExistente.Activo = false;
+                            //cuentaExistente.FechaModificacion = DateTime.UtcNow;
 
-                                //proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
-                                //{
-                                //    IdProveedor = proveedor.IdProveedor,
-                                //    IdFormaPago = cuentaRequest.IdFormaPago,
-                                //    IdBanco = cuentaRequest.IdBanco,
-                                //    NumeroCuenta = cuentaRequest.NumeroCuenta,
-                                //    Clabe = cuentaRequest.Clabe,
-                                //    NumeroTarjeta = cuentaRequest.NumeroTarjeta,
-                                //    Beneficiario = cuentaRequest.Beneficiario,
-                                //    CorreoNotificacion = cuentaRequest.CorreoNotificacion,
-                                //    Activo = true,
-                                //    FechaCreacion = DateTime.UtcNow
-                                //});
+                            //proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                            //{
+                            //    IdProveedor = proveedor.IdProveedor,
+                            //    IdFormaPago = cuentaRequest.IdFormaPago,
+                            //    IdBanco = cuentaRequest.IdBanco,
+                            //    NumeroCuenta = cuentaRequest.NumeroCuenta,
+                            //    Clabe = cuentaRequest.Clabe,
+                            //    NumeroTarjeta = cuentaRequest.NumeroTarjeta,
+                            //    Beneficiario = cuentaRequest.Beneficiario,
+                            //    CorreoNotificacion = cuentaRequest.CorreoNotificacion,
+                            //    Activo = true,
+                            //    FechaCreacion = DateTime.UtcNow
+                            //});
                             //}
                             //else
                             //{
                                 // Sin órdenes: actualizar in-place
-                        cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
-                        cuentaExistente.IdBanco = cuentaRequest.IdBanco;
-                        cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
-                        cuentaExistente.Clabe = cuentaRequest.Clabe;
-                        cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
-                        cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
-                        cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
-                        cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                                //cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
+                                //cuentaExistente.IdBanco = cuentaRequest.IdBanco;
+                                //cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
+                                //cuentaExistente.Clabe = cuentaRequest.Clabe;
+                                //cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
+                                //cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
+                                //cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                                //cuentaExistente.FechaModificacion = DateTime.UtcNow;
                             //}
                         }
                     }
