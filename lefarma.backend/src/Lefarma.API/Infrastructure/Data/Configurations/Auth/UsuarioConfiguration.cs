@@ -25,6 +25,10 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
             builder.Property(e => e.Correo)
                 .HasMaxLength(512);
 
+            builder.Property(e => e.Puesto)
+                .HasMaxLength(150)
+                .HasDefaultValue("Sin asignar");
+
             builder.Property(e => e.EsAnonimo)
                 .HasDefaultValue(false);
 

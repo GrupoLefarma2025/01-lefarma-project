@@ -34,6 +34,7 @@ import { ImageCrop, ImageCropContent, ImageCropApply, ImageCropReset } from '@/c
 
 import type { ChangeEvent } from 'react';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 const MAX_FIRMA_SIZE = 2 * 1024 * 1024;
 
@@ -252,7 +253,8 @@ export function PerfilConfig() {
       const response = await API.put('/profile', payload);
       if (response.data.success) {
         toast.success('Perfil actualizado correctamente.');
-        fetchPerfil();
+        await fetchPerfil();
+        form.reset(values, { keepValues: true });
       } else {
         toast.error(response.data.message ?? 'Error al guardar el perfil');
       }
@@ -346,6 +348,7 @@ export function PerfilConfig() {
         </Card>
 
         {/* Contacto */}
+        <PermissionElement  require={['configuracion.editar_contato_propio']}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -418,8 +421,9 @@ export function PerfilConfig() {
             </div>
           </CardContent>
         </Card>
-
+</PermissionElement>
         {/* Notificaciones */}
+<PermissionElement require={['configuracion.editar_notificaciones_propio']}>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -481,10 +485,9 @@ export function PerfilConfig() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Botón guardar */}
+</PermissionElement>
         <div className="flex justify-end">
-          <Button type="submit" disabled={isSaving}>
+          <Button type="submit" disabled={!form.formState.isDirty || isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Guardar Cambios
           </Button>

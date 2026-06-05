@@ -2,7 +2,18 @@ using Lefarma.API.Domain.Entities.Operaciones;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 {
-    public class OrdenCompraResponse
+    /// <summary>
+    /// Representa el JSON almacenado en la columna ids_cuentas_bancarias de la tabla ordenes_compra.
+    /// Formato: {"ids_cuentas_bancarias":[1,2], "ids_forma_pago":[1,2,3], "numero_mensualidades":3}
+    /// </summary>
+    public class CuentasBancariasYFormasPago
+    {
+        public List<int> IdsCuentasBancarias { get; set; } = new();
+        public List<int> IdsFormaPago { get; set; } = new();
+        public int? NumeroMensualidades { get; set; }
+    }
+
+public class OrdenCompraResponse
     {
         public int IdOrden { get; set; }
         public string Folio { get; set; } = string.Empty;
@@ -13,10 +24,21 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdArea { get; set; }
         public string? AreaNombre { get; set; }
         public int IdTipoGasto { get; set; }
+        public string? TipoGastoNombre { get; set; }
         public int? IdProveedor { get; set; }
+        public string? RazonSocialProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
-        public string Estado { get; set; } = string.Empty;
+        public List<int>? IdsFormaPago { get; set; }
+        public List<string>? FormasPagoNombres { get; set; }
+        public int? NumeroMensualidades { get; set; }
+        public int? IdEstado { get; set; }
+        public string? EstadoNombre { get; set; }
+        public string? EstadoColor { get; set; }
+        public int? IdWorkflow { get; set; }
         public int? IdPasoActual { get; set; }
+        public int IdUsuarioCreador { get; set; }
+        public string? SolicitanteNombre { get; set; }
+        public string? SolicitantePuesto { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
@@ -27,8 +49,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? CuentaContableDescripcion { get; set; }
         public bool RequiereComprobacionPago { get; set; }
         public bool RequiereComprobacionGasto { get; set; }
-        public DateTime FechaSolicitud { get; set; }
+        public bool RequierePagoAnticipado { get; set; }
+        public DateTime? FechaSolicitud { get; set; }
         public DateTime FechaLimitePago { get; set; }
+        public DateTime? FechaAutorizacion { get; set; }
+        public DateTime? FechaPago { get; set; }
+        public DateTime? FechaCierre { get; set; }
+        public DateTime? FechaRechazo { get; set; }
+        public DateTime? FechaCancelacion { get; set; }
+        public DateTime FechaCreacion { get; set; }
         public decimal Subtotal { get; set; }
         public decimal TotalIva { get; set; }
         public decimal Total { get; set; }
@@ -43,7 +72,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
     {
         public int? IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
-        public EstadoOC? Estado { get; set; }
+        public int? IdEstado { get; set; }
+        public bool? SoloEnvioConcentrado { get; set; }
+        public int? Max { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";
         public string? OrderDirection { get; set; } = "desc";
     }
@@ -58,7 +89,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public required DateTime FechaLimitePago { get; set; }
         public int? IdProveedor { get; set; }
         public List<int>? IdsCuentasBancarias { get; set; }
+        public List<int>? IdsFormaPago { get; set; }
+        public int? NumeroMensualidades { get; set; }
         public bool SinDatosFiscales { get; set; }
+        public bool RequierePagoAnticipado { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
         public int? IdMoneda { get; set; }
@@ -75,11 +109,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdUnidadMedida { get; set; }
         public decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
+        public int? IdTipoImpuesto { get; set; }
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; }
         public decimal Total { get; set; }
+        public string? UnidadMedidaNombre { get; set; }
         public int? IdProveedor { get; set; }
         public string? IdsCuentasBancarias { get; set; }
         public bool RequiereFactura { get; set; } = true;
@@ -96,7 +132,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public required int IdUnidadMedida { get; set; }
         public required decimal PrecioUnitario { get; set; }
         public decimal Descuento { get; set; }
-        public decimal PorcentajeIva { get; set; } = 16;
+        public int? IdTipoImpuesto { get; set; }
+        public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; } = true;

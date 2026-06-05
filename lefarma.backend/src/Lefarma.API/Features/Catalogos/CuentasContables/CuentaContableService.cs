@@ -20,18 +20,21 @@ public class CuentaContableService : BaseService, ICuentaContableService
     {
         private readonly ICuentaContableRepository _cuentaContableRepository;
         private readonly ICentroCostoRepository _centroCostoRepository;
+        private readonly IEmpresaRepository _empresaRepository;
         private readonly ILogger<CuentaContableService> _logger;
         protected override string EntityName => "CuentaContable";
 
         public CuentaContableService(
             ICuentaContableRepository cuentaContableRepository,
             ICentroCostoRepository centroCostoRepository,
+            IEmpresaRepository empresaRepository,
             IWideEventAccessor wideEventAccessor,
             ILogger<CuentaContableService> logger)
             : base(wideEventAccessor)
         {
             _cuentaContableRepository = cuentaContableRepository;
             _centroCostoRepository = centroCostoRepository;
+            _empresaRepository = empresaRepository;
             _logger = logger;
         }
 
@@ -39,7 +42,9 @@ public class CuentaContableService : BaseService, ICuentaContableService
         {
             try
             {
-                var queryable = _cuentaContableRepository.GetQueryable();
+                IQueryable<CuentaContable> queryable = _cuentaContableRepository.GetQueryable()
+                    .Include(c => c.CentroCosto)
+                    .Include(c => c.Empresa);
 
                 if (!string.IsNullOrWhiteSpace(query.Cuenta))
                     queryable = queryable.Where(c => c.Cuenta.Contains(query.Cuenta));
@@ -97,7 +102,10 @@ public class CuentaContableService : BaseService, ICuentaContableService
         {
             try
             {
-                var result = await _cuentaContableRepository.GetByIdAsync(id);
+                var result = await _cuentaContableRepository.GetQueryable()
+                    .Include(c => c.CentroCosto)
+                    .Include(c => c.Empresa)
+                    .FirstOrDefaultAsync(c => c.IdCuentaContable == id);
 
                 if (result == null)
                 {
@@ -144,7 +152,7 @@ public class CuentaContableService : BaseService, ICuentaContableService
                     DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion),
                     Nivel1 = request.Nivel1,
                     Nivel2 = request.Nivel2,
-                    EmpresaPrefijo = request.EmpresaPrefijo,
+                    IdEmpresa = request.IdEmpresa,
                     CentroCostoId = request.CentroCostoId,
                     Activo = request.Activo,
                     FechaCreacion = DateTime.UtcNow
@@ -170,7 +178,9 @@ public class CuentaContableService : BaseService, ICuentaContableService
         {
             try
             {
-                var cuentaContable = await _cuentaContableRepository.GetByIdAsync(id);
+                var cuentaContable = await _cuentaContableRepository.GetQueryable()
+                    .Include(c => c.CentroCosto)
+                    .FirstOrDefaultAsync(c => c.IdCuentaContable == id);
                 if (cuentaContable == null)
                 {
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
@@ -199,10 +209,32 @@ public class CuentaContableService : BaseService, ICuentaContableService
                 cuentaContable.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
                 cuentaContable.Nivel1 = request.Nivel1;
                 cuentaContable.Nivel2 = request.Nivel2;
-                cuentaContable.EmpresaPrefijo = request.EmpresaPrefijo;
+                cuentaContable.IdEmpresa = request.IdEmpresa;
                 cuentaContable.CentroCostoId = request.CentroCostoId;
                 cuentaContable.Activo = request.Activo;
                 cuentaContable.FechaModificacion = DateTime.UtcNow;
+
+                // Recargar la navegación si hay CentroCostoId
+                if (request.CentroCostoId.HasValue)
+                {
+                    var centroCosto = await _centroCostoRepository.GetByIdAsync(request.CentroCostoId.Value);
+                    cuentaContable.CentroCosto = centroCosto;
+                }
+                else
+                {
+                    cuentaContable.CentroCosto = null;
+                }
+
+                // Recargar la navegación si hay EmpresaId
+                if (request.IdEmpresa.HasValue)
+                {
+                    var empresa = await _empresaRepository.GetByIdAsync(request.IdEmpresa.Value);
+                    cuentaContable.Empresa = empresa;
+                }
+                else
+                {
+                    cuentaContable.Empresa = null;
+                }
 
                 var result = await _cuentaContableRepository.UpdateAsync(cuentaContable);
                 EnrichWideEvent(action: "Update", entityId: id, nombre: result.Cuenta + " - " + result.Descripcion);
@@ -229,7 +261,10 @@ public class CuentaContableService : BaseService, ICuentaContableService
         {
             try
             {
-                var cuentaContable = await _cuentaContableRepository.GetByIdAsync(id);
+                var cuentaContable = await _cuentaContableRepository.GetQueryable()
+                    .Include(c => c.CentroCosto)
+                    .Include(c => c.Empresa)
+                    .FirstOrDefaultAsync(c => c.IdCuentaContable == id);
                 if (cuentaContable == null)
                 {
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);

@@ -69,4 +69,8 @@ public class ArchivoRepository : IArchivoRepository
             await UpdateAsync(archivo, cancellationToken);
         }
     }
+
+    public async Task<int> GetCountAsync(string entidadTipo, int entidadId, string carpeta, CancellationToken cancellationToken = default)
+        => await _context.Archivos
+            .CountAsync(a => a.EntidadTipo == entidadTipo && a.EntidadId == entidadId && a.Carpeta == carpeta && a.Activo, cancellationToken);
 }

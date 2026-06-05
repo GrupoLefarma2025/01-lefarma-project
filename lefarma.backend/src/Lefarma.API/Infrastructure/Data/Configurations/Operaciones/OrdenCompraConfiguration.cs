@@ -17,7 +17,13 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.IdArea).HasColumnName("id_area");
             builder.Property(o => o.IdTipoGasto).HasColumnName("id_tipo_gasto");
             builder.Property(o => o.IdUsuarioCreador).HasColumnName("id_usuario_creador");
-            builder.Property(o => o.Estado).HasColumnName("estado").HasConversion<int>();
+            builder.Property(o => o.IdEstado).HasColumnName("id_estado");
+            builder.HasOne(o => o.Estado)
+                .WithMany()
+                .HasForeignKey(o => o.IdEstado)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(o => o.IdWorkflow).HasColumnName("id_workflow");
             builder.Property(o => o.IdPasoActual).HasColumnName("id_paso_actual");
             builder.Property(o => o.IdProveedor).HasColumnName("id_proveedor");
             builder.Property(o => o.IdsCuentasBancarias).HasColumnName("ids_cuentas_bancarias").HasColumnType("nvarchar(max)");
@@ -28,11 +34,16 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.IdCuentaContable).HasColumnName("id_cuenta_contable");
             builder.Property(o => o.RequiereComprobacionPago).HasColumnName("requiere_comprobacion_pago").HasDefaultValue(true);
             builder.Property(o => o.RequiereComprobacionGasto).HasColumnName("requiere_comprobacion_gasto").HasDefaultValue(true);
+            builder.Property(o => o.RequierePagoAnticipado).HasColumnName("requiere_pago_anticipado").HasDefaultValue(false);
             builder.Property(o => o.FechaSolicitud).HasColumnName("fecha_solicitud");
             builder.Property(o => o.FechaLimitePago).HasColumnName("fecha_limite_pago");
             builder.Property(o => o.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
             builder.Property(o => o.FechaModificacion).HasColumnName("fecha_modificacion");
             builder.Property(o => o.FechaAutorizacion).HasColumnName("fecha_autorizacion");
+            builder.Property(o => o.FechaPago).HasColumnName("fecha_pago");
+            builder.Property(o => o.FechaCierre).HasColumnName("fecha_cierre");
+            builder.Property(o => o.FechaRechazo).HasColumnName("fecha_rechazo");
+            builder.Property(o => o.FechaCancelacion).HasColumnName("fecha_cancelacion");
             builder.Property(o => o.Subtotal).HasColumnName("subtotal").HasColumnType("decimal(18,2)");
             builder.Property(o => o.TotalIva).HasColumnName("total_iva").HasColumnType("decimal(18,2)");
             builder.Property(o => o.TotalRetenciones).HasColumnName("total_retenciones").HasColumnType("decimal(18,2)");

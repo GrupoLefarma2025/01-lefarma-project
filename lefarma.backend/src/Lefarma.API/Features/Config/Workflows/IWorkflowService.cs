@@ -6,8 +6,14 @@ namespace Lefarma.API.Features.Config.Workflows
 public interface IWorkflowService
     {
         Task<ErrorOr<IEnumerable<WorkflowResponse>>> GetAllAsync(WorkflowRequest query);
+        Task<ErrorOr<IEnumerable<WorkflowFlowResponse>>> GetAllFlowAsync();
         Task<ErrorOr<WorkflowResponse>> GetByIdAsync(int id);
         Task<ErrorOr<WorkflowResponse>> GetByCodigoProcesoAsync(string codigoProceso);
+        Task<ErrorOr<IEnumerable<WorkflowScopeTypeResponse>>> GetScopeTypesAsync();
+        Task<ErrorOr<IEnumerable<WorkflowMappingResponse>>> GetMappingsAsync(string? codigoProceso = null, int? idWorkflow = null, int? idScopeType = null, int? scopeId = null);
+        Task<ErrorOr<WorkflowMappingResponse>> CreateMappingAsync(CreateWorkflowMappingRequest request);
+        Task<ErrorOr<WorkflowMappingResponse>> UpdateMappingAsync(int idMapping, UpdateWorkflowMappingRequest request);
+        Task<ErrorOr<bool>> DeleteMappingAsync(int idMapping);
         Task<ErrorOr<WorkflowResponse>> CreateAsync(CreateWorkflowRequest request);
         Task<ErrorOr<WorkflowResponse>> UpdateAsync(int id, UpdateWorkflowRequest request);
         Task<ErrorOr<bool>> DeleteAsync(int id);
@@ -24,9 +30,9 @@ public interface IWorkflowService
         Task<ErrorOr<bool>> DeleteAccionHandlerAsync(int idWorkflow, int idAccion, int idHandler);
 
         // Condiciones
-        Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idPaso, CreateCondicionRequest request);
-        Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idPaso, int idCondicion, UpdateCondicionRequest request);
-        Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idPaso, int idCondicion);
+        Task<ErrorOr<CondicionResponse>> CreateCondicionAsync(int idWorkflow, int idAccion, CreateCondicionRequest request);
+        Task<ErrorOr<CondicionResponse>> UpdateCondicionAsync(int idWorkflow, int idAccion, int idCondicion, UpdateCondicionRequest request);
+        Task<ErrorOr<bool>> DeleteCondicionAsync(int idWorkflow, int idAccion, int idCondicion);
 
         // Participantes
         Task<ErrorOr<ParticipanteResponse>> CreateParticipanteAsync(int idWorkflow, int idPaso, CreateParticipanteRequest request);
@@ -39,14 +45,14 @@ public interface IWorkflowService
         Task<ErrorOr<bool>> DeleteNotificacionAsync(int idWorkflow, int idAccion, int idNotificacion);
 
         // Campos configurables
-        Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(int idWorkflow, CreateWorkflowCampoRequest request);
-        Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflow, int idWorkflowCampo, UpdateWorkflowCampoRequest request);
-        Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflow, int idWorkflowCampo);
+        Task<ErrorOr<WorkflowCampoResponse>> CreateCampoAsync(CreateWorkflowCampoRequest request);
+        Task<ErrorOr<WorkflowCampoResponse>> UpdateCampoAsync(int idWorkflowCampo, UpdateWorkflowCampoRequest request);
+        Task<ErrorOr<bool>> DeleteCampoAsync(int idWorkflowCampo);
 
         // Canal Templates
-        Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync(int idWorkflow);
-        Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(int idWorkflow, CreateCanalTemplateRequest request);
-        Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(int idWorkflow, string codigoCanal, UpsertCanalTemplateRequest request);
+        Task<ErrorOr<IEnumerable<WorkflowCanalTemplateResponse>>> GetCanalTemplatesAsync();
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> CreateCanalTemplateAsync(CreateCanalTemplateRequest request);
+        Task<ErrorOr<WorkflowCanalTemplateResponse>> UpsertCanalTemplateAsync(string codigoCanal, UpsertCanalTemplateRequest request);
 
         // Tipos Notificacion
         Task<ErrorOr<IEnumerable<WorkflowTipoNotificacionResponse>>> GetTiposNotificacionAsync();

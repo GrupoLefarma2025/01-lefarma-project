@@ -2,36 +2,58 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+
 namespace Lefarma.API.Features.Config.Engine
 {
     public class WorkflowEngine : IWorkflowEngine
     {
         private readonly IWorkflowRepository _workflowRepo;
         private readonly ApplicationDbContext _context;
+        private readonly AsokamDbContext _asokamContext;
         private readonly IServiceProvider _serviceProvider;
 
         public WorkflowEngine(
             IWorkflowRepository workflowRepo,
             ApplicationDbContext context,
+            AsokamDbContext asokamcontext,
             IServiceProvider serviceProvider)
         {
             _workflowRepo = workflowRepo;
             _context = context;
+            _asokamContext = asokamcontext;
             _serviceProvider = serviceProvider;
         }
 
         public async Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext ctx)
         {
-            var workflow = await _workflowRepo.GetByCodigoProcesoAsync(ctx.CodigoProceso);
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.AccionHandlers)
+                            .ThenInclude(h => h.Campo)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.TipoAccion)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
             if (workflow is null)
-                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.CodigoProceso}' no encontrado.", null, null);
+                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
 
             var pasoActual = workflow.Pasos
                 .FirstOrDefault(p => p.IdPaso == ctx.Orden.IdPasoActual && p.Activo);
 
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
+
+            // Validar que el usuario es participante del paso actual
+            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
+                return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
                 return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
@@ -73,9 +95,9 @@ namespace Lefarma.API.Features.Config.Engine
 
             // Evaluar condiciones dinámicas (ej: Total > 100,000 → desviar a Firma 5)
             int? idPasoDestino = accion.IdPasoDestino;
-            foreach (var condicion in accion.PasoOrigen!.Condiciones.Where(c => c.Activo))
+            foreach (var condicion in accion.Condiciones.Where(c => c.Activo))
             {
-                if (EvaluarCondicion(condicion, ctx.DatosAdicionales))
+                if (EvaluarCondicion(condicion, ctx))
                 {
                     idPasoDestino = condicion.IdPasoSiCumple;
                     break;
@@ -89,9 +111,10 @@ namespace Lefarma.API.Features.Config.Engine
             // Registrar en bitácora inmutable la transición ejecutada
             var snapshot = new Dictionary<string, object?>
             {
+                ["idWorkflow"] = workflow.IdWorkflow,
                 ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
                 ["idPasoNuevo"] = nuevoPaso?.IdPaso,
-                ["codigoEstadoNuevo"] = nuevoPaso?.CodigoEstado,
+                ["idEstadoNuevo"] = nuevoPaso?.IdEstado,
                 ["datosAdicionales"] = ctx.DatosAdicionales
             };
 
@@ -108,11 +131,18 @@ namespace Lefarma.API.Features.Config.Engine
             });
             await _context.SaveChangesAsync();
 
+            // Si la acción requiere envío concentrado, comunicar con sistema externo
+            if (accion.EnviaConcentrado)
+            {
+                Console.WriteLine($"[EnvioConcentrado] Orden {ctx.IdOrden} - Acción {accion.IdAccion} requiere envío concentrado. Comunicando con sistema externo...");
+                // TODO: Implementar llamada al endpoint del sistema externo
+            }
+
             return new WorkflowEjecucionResult(
                 Exitoso: true,
                 Error: null,
                 NuevoIdPaso: nuevoPaso?.IdPaso,
-                NuevoCodigoEstado: nuevoPaso?.CodigoEstado
+                NuevoIdEstado: nuevoPaso?.IdEstado
             );
         }
 
@@ -122,17 +152,49 @@ namespace Lefarma.API.Features.Config.Engine
             var orden = await _context.OrdenesCompra.FindAsync(idOrden);
             if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
-            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
-            var workflow = await _workflowRepo.GetByCodigoProcesoAsync(codigoProceso);
-            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value);
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
+                .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
+
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
+        }
+
+        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
+            int idWorkflow, int idOrden, int idUsuario)
+        {
+            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
+            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
+
+            var workflow = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.Condiciones)
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
+
+            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
+        }
+
+        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario, int idUsuarioCreador)
+        {
+            var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(idPasoActual);
+            var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
-            // Cuando el paso usa condiciones para enrutar la aprobación (ej. Firma 4 por monto),
-            // se expone una sola acción "Autorizar" para evitar duplicados en UI.
-            if (pasoActual?.Condiciones.Any() == true)
+            // Validar que el usuario es participante del paso actual
+            if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador))
+                return Array.Empty<WorkflowAccion>();
+
+            // Algun accion del paso tiene condiciones de enrutamiento
+            if (pasoActual.AccionesOrigen.Any(a => a.Condiciones.Any()))
             {
                 var aprobaciones = acciones
-                    .Where(a => a.TipoAccion == "APROBACION")
+                    .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
                     .OrderBy(a => a.IdAccion)
                     .ToList();
 
@@ -144,13 +206,11 @@ namespace Lefarma.API.Features.Config.Engine
                         IdAccion = accionBase.IdAccion,
                         IdPasoOrigen = accionBase.IdPasoOrigen,
                         IdPasoDestino = accionBase.IdPasoDestino,
-                        NombreAccion = "Autorizar",
-                        TipoAccion = accionBase.TipoAccion,
-                        ClaseEstetica = accionBase.ClaseEstetica
+                        IdTipoAccion = accionBase.IdTipoAccion
                     };
 
                     var restantes = acciones
-                        .Where(a => a.TipoAccion != "APROBACION")
+                        .Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "APROBAR")
                         .OrderBy(a => a.IdAccion)
                         .ToList();
 
@@ -163,21 +223,64 @@ namespace Lefarma.API.Features.Config.Engine
             return acciones;
         }
 
-        private static bool EvaluarCondicion(WorkflowCondicion c, Dictionary<string, object>? datos)
+        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador)
         {
-            if (datos is null || !datos.TryGetValue(c.CampoEvaluacion, out var valor)) return false;
-            if (!decimal.TryParse(valor.ToString(), out var v) ||
-                !decimal.TryParse(c.ValorComparacion, out var cmp)) return false;
+            // Si es el paso inicial, el creador de la orden siempre puede ejecutar acciones
+            if (paso.EsInicio && idUsuario == idUsuarioCreador)
+                return true;
 
-            return c.Operador switch
+            var participantes = paso.Participantes.Where(p => p.Activo).ToList();
+            if (!participantes.Any()) return true; // Si no hay participantes definidos, permitir a todos
+
+            // Verificar asignación directa por usuario
+            if (participantes.Any(p => p.IdUsuario == idUsuario))
+                return true;
+
+            // Verificar asignación por rol
+            var rolesUsuario = await _asokamContext.UsuariosRoles
+                .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.UtcNow))
+                .Select(ur => ur.IdRol)
+                .ToListAsync();
+
+            return participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
+        }
+
+        private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
+        {
+            // Leer propiedad directa de OrdenCompra (IgnoreCase)
+            var prop = typeof(Domain.Entities.Operaciones.OrdenCompra).GetProperty(
+                c.CampoEvaluacion,
+                System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+
+            if (prop is null) return false;
+
+            var propValue = prop.GetValue(ctx.Orden);
+            if (propValue is null) return false;
+
+            // Booleanos: true/false
+            if (c.Operador is "true" or "false")
             {
-                ">" => v > cmp,
-                ">=" => v >= cmp,
-                "<" => v < cmp,
-                "<=" => v <= cmp,
-                "=" => v == cmp,
-                _ => false
-            };
+                var esVerdadero = propValue is bool b ? b : false;
+                return c.Operador == "true" ? esVerdadero : !esVerdadero;
+            }
+
+            // Numéricos: >, >=, <, <=, =, !=
+            if (decimal.TryParse(propValue.ToString(), out var v) &&
+                decimal.TryParse(c.ValorComparacion, out var cmp))
+            {
+                return c.Operador switch
+                {
+                    ">"  => v > cmp,
+                    ">=" => v >= cmp,
+                    "<"  => v < cmp,
+                    "<=" => v <= cmp,
+                    "="  => v == cmp,
+                    "!=" => v != cmp,
+                    _    => false
+                };
+            }
+
+            return false;
         }
     }
 }

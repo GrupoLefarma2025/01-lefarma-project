@@ -20,6 +20,7 @@ import { useHelpStore } from '@/store/helpStore';
 import { helpService } from '@/services/helpService';
 import type { HelpArticle } from '@/types/help.types';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 
 export default function HelpList() {
@@ -203,6 +204,7 @@ export default function HelpList() {
           <Card>
             <CardContent className="p-2 sm:p-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <PermissionElement require={['help.modificar_articulos']}>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="ghost"
@@ -220,7 +222,8 @@ export default function HelpList() {
                   />
                   <span className="text-sm text-muted-foreground">Sistemas</span>
                 </div>
-
+                </PermissionElement>
+                 <PermissionElement require={['help.editar_articulos']}> 
                 {selectedArticle && (
                    !isEditing ? (
                      <Button variant="outline" size="sm" onClick={handleEdit} className="w-full sm:w-auto">
@@ -240,6 +243,7 @@ export default function HelpList() {
                      </div>
                    )
                 )}
+                </PermissionElement>
               </div>
             </CardContent>
           </Card>

@@ -2,6 +2,7 @@ using ErrorOr;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Features.Dashboard.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -28,20 +29,22 @@ namespace Lefarma.API.Features.Dashboard
         {
             try
             {
-                EnrichWideEvent(action: "GetStats");
+                var estados = await _db.WorkflowEstados
+                    .Where(e => e.Activo)
+                    .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
+                var cards = await GetCardsAsync(estados);
+                var graficaMensual = await GetGraficaMensualAsync(estados);
+                var pagosUrgentes = await GetPagosUrgentesAsync(estados);
 
-                var cards = await GetCardsAsync();
-                var graficaMensual = await GetGraficaMensualAsync();
-                var distribucionArea = await GetDistribucionAreaAsync();
+                var distribucionEmpresa = await GetDistribucionEmpresaAsync();
                 var distribucionSucursal = await GetDistribucionSucursalAsync();
-                var pagosUrgentes = await GetPagosUrgentesAsync();
                 var actividadReciente = await GetActividadRecienteAsync();
 
                 return new DashboardStatsResponse
                 {
                     Cards = cards,
                     GraficaMensual = graficaMensual,
-                    DistribucionArea = distribucionArea,
+                    DistribucionEmpresa = distribucionEmpresa,
                     DistribucionSucursal = distribucionSucursal,
                     PagosUrgentes = pagosUrgentes,
                     ActividadReciente = actividadReciente
@@ -50,61 +53,73 @@ namespace Lefarma.API.Features.Dashboard
             catch (Exception ex)
             {
                 EnrichWideEvent(action: "GetStats", exception: ex);
-                return Error.Failure("Dashboard.GetStats.Error", "Error al obtener las estadísticas del dashboard.");
+                return Error.Failure("Dashboard.GetStats.Error", "Error al obtener las estadisticas del dashboard.");
             }
         }
 
-        private async Task<PipelineCardsStats> GetCardsAsync()
+        private async Task<PipelineCardsStats> GetCardsAsync(Dictionary<string, int> estados)
         {
             var today = DateTime.UtcNow;
+            var startOfMonth = new DateTime(today.Year, today.Month, 1);
 
-            var estadosFirma = new List<EstadoOC>
-            {
-                EstadoOC.EnRevisionF2, EstadoOC.EnRevisionF3,
-                EstadoOC.EnRevisionF4, EstadoOC.EnRevisionF5
-            };
+            int idCreada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CREADA);
+            int idRevision = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION);
+            int idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
+            int idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+            int idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+            int idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+            int idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
 
-            var estadosTerminados = new List<EstadoOC>
-            {
-                EstadoOC.Pagada, EstadoOC.Cerrada, EstadoOC.Cancelada
-            };
+            var allOrdenes = await _db.OrdenesCompra
+                .Select(oc => new { oc.IdEstado, oc.FechaLimitePago, oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado })
+                .ToListAsync();
 
-            var pendientesEnvio = await _db.OrdenesCompra
-                .CountAsync(oc => oc.Estado == EstadoOC.Creada);
+            var pendientesEnvio = allOrdenes.Count(oc => oc.IdEstado == idCreada);
+            var enFirmas = allOrdenes.Count(oc => oc.IdEstado == idRevision);
+            var revisionDirector = allOrdenes.Count(oc => oc.IdEstado == idRevisionDirector);
+            var cerradas = allOrdenes.Count(oc => oc.IdEstado == idCerrada || oc.IdEstado == idPagada);
+            var canceladas = allOrdenes.Count(oc => oc.IdEstado == idCancelada);
+            var rechazadas = allOrdenes.Count(oc => oc.IdEstado == idRechazada);
 
-            var enFirmas = await _db.OrdenesCompra
-                .CountAsync(oc => estadosFirma.Contains(oc.Estado));
+            var idsTerminados = new[] { idCerrada, idPagada, idCancelada, idRechazada };
+            var vencidas = allOrdenes.Count(oc => !idsTerminados.Contains(oc.IdEstado) && oc.FechaLimitePago < today);
 
-            var enTesoreria = await _db.OrdenesCompra
-                .CountAsync(oc => oc.Estado == EstadoOC.EnTesoreria);
+            var totalCreadasMes = allOrdenes.Count(oc => oc.FechaCreacion >= startOfMonth);
 
-            var vencidas = await _db.OrdenesCompra
-                .CountAsync(oc => !estadosTerminados.Contains(oc.Estado) && oc.FechaLimitePago < today);
+            var totalGastado = allOrdenes
+                .Where(oc => oc.IdEstado == idCerrada || oc.IdEstado == idPagada)
+                .Sum(oc => oc.Total * oc.TipoCambioAplicado);
 
             return new PipelineCardsStats
             {
                 PendientesEnvio = pendientesEnvio,
                 EnFirmas = enFirmas,
-                EnTesoreria = enTesoreria,
-                Vencidas = vencidas
+                RevisionDirector = revisionDirector,
+                Cerradas = cerradas,
+                Canceladas = canceladas,
+                Rechazadas = rechazadas,
+                Vencidas = vencidas,
+                TotalCreadasMes = totalCreadasMes,
+                TotalGastado = totalGastado
             };
         }
 
-        private async Task<List<GraficaMensualItem>> GetGraficaMensualAsync()
+        private async Task<List<GraficaMensualItem>> GetGraficaMensualAsync(Dictionary<string, int> estados)
         {
             var now = DateTime.UtcNow;
             var startDate = new DateTime(now.Year, now.Month, 1).AddMonths(-5);
 
-            // Presupuesto total = suma de LimitePresupuesto de todos los centros de costo activos
             var presupuestoTotal = await _db.CentrosCosto
                 .Where(cc => cc.Activo && cc.LimitePresupuesto.HasValue)
                 .SumAsync(cc => cc.LimitePresupuesto ?? 0m);
 
-            var estadosPagados = new List<EstadoOC> { EstadoOC.Pagada, EstadoOC.Cerrada };
+            var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+            var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+            var idsPagados = new[] { idPagada, idCerrada };
 
             var ocData = await _db.OrdenesCompra
                 .Where(oc => oc.FechaCreacion >= startDate)
-                .Select(oc => new { oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado, oc.Estado })
+                .Select(oc => new { oc.FechaCreacion, oc.Total, oc.TipoCambioAplicado, oc.IdEstado })
                 .ToListAsync();
 
             var result = new List<GraficaMensualItem>();
@@ -121,7 +136,7 @@ namespace Lefarma.API.Features.Dashboard
 
                 var solicitado = monthData.Sum(oc => oc.Total * oc.TipoCambioAplicado);
                 var pagado = monthData
-                    .Where(oc => estadosPagados.Contains(oc.Estado))
+                    .Where(oc => idsPagados.Contains(oc.IdEstado))
                     .Sum(oc => oc.Total * oc.TipoCambioAplicado);
 
                 result.Add(new GraficaMensualItem
@@ -136,18 +151,18 @@ namespace Lefarma.API.Features.Dashboard
             return result;
         }
 
-        private async Task<List<DistribucionItem>> GetDistribucionAreaAsync()
+        private async Task<List<DistribucionItem>> GetDistribucionEmpresaAsync()
         {
             var ocData = await _db.OrdenesCompra
-                .Select(oc => new { oc.IdArea, oc.Total, oc.TipoCambioAplicado })
+                .Select(oc => new { oc.IdEmpresa, oc.Total, oc.TipoCambioAplicado })
                 .ToListAsync();
 
-            var areas = await _db.Areas
-                .Select(a => new { a.IdArea, a.Nombre })
-                .ToDictionaryAsync(a => a.IdArea, a => a.Nombre);
+            var empresas = await _db.Empresas
+                .Select(e => new { e.IdEmpresa, e.RazonSocial })
+                .ToDictionaryAsync(e => e.IdEmpresa, e => e.RazonSocial);
 
             return ocData
-                .GroupBy(oc => areas.TryGetValue(oc.IdArea, out var nombre) ? nombre : "Sin área")
+                .GroupBy(oc => empresas.TryGetValue(oc.IdEmpresa, out var nombre) ? nombre : "Sin empresa")
                 .Select(g => new DistribucionItem { Name = g.Key, Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
                 .OrderByDescending(x => x.Value)
                 .Take(8)
@@ -172,11 +187,13 @@ namespace Lefarma.API.Features.Dashboard
                 .ToList();
         }
 
-        private async Task<List<PagoUrgenteItem>> GetPagosUrgentesAsync()
+        private async Task<List<PagoUrgenteItem>> GetPagosUrgentesAsync(Dictionary<string, int> estados)
         {
             var today = DateTime.UtcNow;
+            var idTesoreria = estados.GetValueOrDefault("TESORERIA");
+
             var orders = await _db.OrdenesCompra
-                .Where(oc => oc.Estado == EstadoOC.EnTesoreria)
+                .Where(oc => oc.IdEstado == idTesoreria)
                 .OrderBy(oc => oc.FechaLimitePago)
                 .Take(5)
                 .Select(oc => new
@@ -190,7 +207,6 @@ namespace Lefarma.API.Features.Dashboard
                 })
                 .ToListAsync();
 
-            // Batch fetch proveedores
             var proveedorIds = orders
                 .Where(o => o.IdProveedor.HasValue)
                 .Select(o => o.IdProveedor!.Value)
@@ -237,7 +253,6 @@ namespace Lefarma.API.Features.Dashboard
                 })
                 .ToListAsync();
 
-            // Batch fetch related data
             var usuarioIds = bitacoras.Select(b => b.IdUsuario).Distinct().ToList();
             var accionIds = bitacoras.Select(b => b.IdAccion).Distinct().ToList();
             var ordenIds = bitacoras.Select(b => b.IdOrden).Distinct().ToList();
@@ -249,7 +264,8 @@ namespace Lefarma.API.Features.Dashboard
 
             var acciones = await _db.WorkflowAcciones
                 .Where(a => accionIds.Contains(a.IdAccion))
-                .Select(a => new { a.IdAccion, a.NombreAccion, a.TipoAccion })
+                .Include(a => a.TipoAccion)
+                .Select(a => new { a.IdAccion, NombreAccion = a.TipoAccion != null ? a.TipoAccion.Nombre : null, CodigoTipoAccion = a.TipoAccion != null ? a.TipoAccion.Codigo : null })
                 .ToDictionaryAsync(a => a.IdAccion);
 
             var ordenes = await _db.OrdenesCompra
@@ -265,10 +281,10 @@ namespace Lefarma.API.Features.Dashboard
 
                 var accionNombre = acciones.TryGetValue(b.IdAccion, out var a)
                     ? a.NombreAccion
-                    : "Acción desconocida";
+                    : "Accion desconocida";
 
                 var tipoAccion = acciones.TryGetValue(b.IdAccion, out var ac)
-                    ? MapTipo(ac.TipoAccion)
+                    ? MapTipo(ac.CodigoTipoAccion)
                     : "info";
 
                 var folio = ordenes.TryGetValue(b.IdOrden, out var oc)

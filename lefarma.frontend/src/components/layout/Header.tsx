@@ -27,7 +27,9 @@ export const Header = () => {
   const [modalOpen, setModalOpen] = useState(false);
 
   const handleThemeChange = (tema: string) => {
-    setTema(tema as 'light' | 'dark' | 'system');
+    if (tema === 'light' || tema === 'dark' || tema === 'system') {
+      setTema(tema);
+    }
   };
 
   const handleLogout = async () => {
@@ -139,6 +141,9 @@ export const Header = () => {
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
+              {user?.puesto && (
+                <span className="text-xs font-normal text-muted-foreground">{user.puesto}</span>
+              )}
             </DropdownMenuLabel>
 
             <DropdownMenuSeparator />

@@ -2,13 +2,14 @@
 import { AppSidebar } from './AppSidebar';
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Header } from './Header';
-import { useConfigStore } from '@/store/configStore';
+// import { useConfigStore } from '@/store/configStore';
 
 
 export const MainLayout = () => {
-  const { ui } = useConfigStore();
+  // const { ui } = useConfigStore();
 
-  const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
+  const defaultCollapsed = true;
+  // const defaultCollapsed = ui.componentes?.sidebar?.defaultCollapsed ?? false;
 
   return (
     <SidebarProvider defaultOpen={!defaultCollapsed} className="h-svh overflow-hidden">

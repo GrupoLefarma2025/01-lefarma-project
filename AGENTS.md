@@ -127,6 +127,31 @@ Test projects:
 ### EF Core DbContext
 `lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs`
 
+## Kimi Code CLI Subagents
+
+### `typescript-react-reviewer`
+Custom KimiCode subagent for static code review of TypeScript and React files.
+- **Definition**: `.kimi/subagents/typescript-react-reviewer.yaml`
+- **System prompt**: `.kimi/subagents/typescript-react-reviewer.md`
+- **Usage**: Start Kimi CLI with the project agent file, then delegate review tasks.
+
+```bash
+# Launch Kimi CLI with the project agent (enables the custom subagent)
+kimi --agent-file .kimi/agent.yaml
+```
+
+Once inside the session, the root agent can launch the subagent via:
+
+```
+Tool: Agent
+- subagent_type: typescript-react-reviewer
+- prompt: "Review lefarma.frontend/src/components/UserCard.tsx"
+```
+
+The subagent runs with read-only tools (`ReadFile`, `Grep`, `Glob`, `FetchURL`, `SearchWeb`) and reports findings without modifying code.
+
+---
+
 ## Common Pitfalls
 
 1. **Don't assume backend starts on same port as frontend** - Backend runs on 5174, frontend on 5173 with proxy

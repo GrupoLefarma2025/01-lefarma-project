@@ -1,8 +1,9 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw, /* Store, */ } from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Search, Phone, Mail, Loader2, MapPin, Globe, RefreshCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Loader } from '@/components/ui/loader';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
@@ -25,6 +26,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 // Helper function to normalize text (remove accents and convert to lowercase)
 const normalizeText = (text: string): string => {
@@ -51,10 +53,14 @@ const empresaSchema = z.object({
   paginaWeb: z.string().url('URL invalida').optional().or(z.literal('')),
   numeroEmpleados: z.number().optional().or(z.literal(0)),
   activo: z.boolean(),
+  puedeSeleccionarEmpresas: z.boolean(),
 });
 
 type EmpresaFormValues = z.infer<typeof empresaSchema>;
-type EmpresaRequest = EmpresaFormValues & { idEmpresa: number };
+type EmpresaRequest = Omit<EmpresaFormValues, 'puedeSeleccionarEmpresas'> & {
+  idEmpresa: number;
+  puedeSeleccionarEmpresas: boolean;
+};
 
 export default function EmpresasList() {
   usePageTitle('Empresas', 'Gestión de empresas del catálogo general');
@@ -96,6 +102,7 @@ export default function EmpresasList() {
       paginaWeb: '',
       numeroEmpleados: 0,
       activo: true,
+      puedeSeleccionarEmpresas: false,
     },
   });
 
@@ -146,6 +153,7 @@ export default function EmpresasList() {
         paginaWeb: empresa.paginaWeb || '',
         numeroEmpleados: empresa.numeroEmpleados || 0,
         activo: empresa.activo,
+        puedeSeleccionarEmpresas: empresa.puedeSeleccionarEmpresas ?? false,
       });
       setIsEditing(true);
       toggleModal("newEmpresa", true);
@@ -321,6 +329,7 @@ export default function EmpresasList() {
       header: '',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
+          <PermissionElement require={['empresas.editar']} >
           <Button
             size="sm"
             variant="outline"
@@ -330,6 +339,8 @@ export default function EmpresasList() {
             <Pencil className="h-3.5 w-3.5" />
             Editar
           </Button>
+          </PermissionElement>
+          <PermissionElement require={['empresas.eliminar']} >
           <Button
             size="sm"
             variant="destructive"
@@ -339,6 +350,7 @@ export default function EmpresasList() {
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar
           </Button>
+          </PermissionElement>
         </div>
       ),
     },
@@ -356,9 +368,11 @@ export default function EmpresasList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevaEmpresa}>
-          <Plus className="mr-2 h-4 w-4" /> Nueva Empresa
-        </Button>
+        <PermissionElement require={['empresas.crear']} >
+          <Button onClick={handleNuevaEmpresa}>
+            <Plus className="mr-2 h-4 w-4" /> Nueva Empresa
+          </Button>
+        </PermissionElement>
       </div>
 
       <div className="relative">
@@ -386,9 +400,7 @@ export default function EmpresasList() {
               }}
             />
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-background/60 backdrop-blur-sm">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              </div>
+              <Loader show />
             )}
           </>
         )}
@@ -519,21 +531,36 @@ export default function EmpresasList() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={formEmpresa.control}
-                name="activo"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                    <FormControl>
-                      <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                    <div className="space-y-1 leading-none">
-                      <FormLabel>Activo</FormLabel>
-                      <FormDescription>La empresa aparecera en los catalogos.</FormDescription>
-                    </div>
-                  </FormItem>
-                )}
-              />
+            <FormField
+              control={formEmpresa.control}
+              name="activo"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Activo</FormLabel>
+                    <FormDescription>La empresa aparecera en los catalogos.</FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={formEmpresa.control}
+              name="puedeSeleccionarEmpresas"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                  </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Restringir empresa</FormLabel>
+                    <FormDescription>Los usuarios asignados a esta empresa no podran cambiar a otra empresa o sucursal.</FormDescription>
+                  </div>
+                </FormItem>
+              )}
+            />
             </div>
 
             <FormField

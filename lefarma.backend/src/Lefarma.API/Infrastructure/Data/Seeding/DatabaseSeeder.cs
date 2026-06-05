@@ -479,111 +479,111 @@ public class DatabaseSeeder : IDatabaseSeeder
 
         _logger.LogInformation("Seeding workflow ORDEN_COMPRA...");
 
-        var workflow = new Workflow
-        {
-            Nombre = "Orden de Compra",
-            Descripcion = "Workflow para el proceso de autorización de órdenes de compra",
-            CodigoProceso = "ORDEN_COMPRA",
-            Version = 1,
-            Activo = true,
-            FechaCreacion = DateTime.UtcNow,
-            Pasos = new List<WorkflowPaso>
-            {
-                new()
-                {
-                    Orden = 1,
-                    NombrePaso = "Captura de OC",
-                    CodigoEstado = "Creada",
-                    EsInicio = true,
-                    EsFinal = false,
-                    RequiereFirma = false,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 2,
-                    NombrePaso = "Firma Gerente de Área",
-                    CodigoEstado = "EnRevisionF2",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = true,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 3,
-                    NombrePaso = "Revisión CxP",
-                    CodigoEstado = "EnRevisionF3",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = true,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 4,
-                    NombrePaso = "Firma GAF",
-                    CodigoEstado = "EnRevisionF4",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = true,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 5,
-                    NombrePaso = "Firma Dirección Corporativa",
-                    CodigoEstado = "EnRevisionF5",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = true,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 6,
-                    NombrePaso = "Tesorería",
-                    CodigoEstado = "EnTesoreria",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = false,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                },
-                new()
-                {
-                    Orden = 7,
-                    NombrePaso = "Comprobación",
-                    CodigoEstado = "EnComprobacion",
-                    EsInicio = false,
-                    EsFinal = false,
-                    RequiereFirma = false,
-                    RequiereComentario = true,
-                    RequiereAdjunto = true
-                },
-                new()
-                {
-                    Orden = 8,
-                    NombrePaso = "Cierre",
-                    CodigoEstado = "Cerrada",
-                    EsInicio = false,
-                    EsFinal = true,
-                    RequiereFirma = false,
-                    RequiereComentario = false,
-                    RequiereAdjunto = false
-                }
-            }
-        };
+        //var workflow = new Workflow
+        //{
+        //    Nombre = "Orden de Compra",
+        //    Descripcion = "Workflow para el proceso de autorización de órdenes de compra",
+        //    CodigoProceso = "ORDEN_COMPRA",
+        //    Version = 1,
+        //    Activo = true,
+        //    FechaCreacion = DateTime.UtcNow,
+        //    Pasos = new List<WorkflowPaso>
+        //    {
+        //        new()
+        //        {
+        //            Orden = 1,
+        //            NombrePaso = "Captura de OC",
+        //            IdEstado = 1,
+        //            EsInicio = true,
+        //            EsFinal = false,
+        //            RequiereFirma = false,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 2,
+        //            NombrePaso = "Firma Gerente de Área",
+        //            CodigoEstado = "EnRevisionF2",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = true,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 3,
+        //            NombrePaso = "Revisión CxP",
+        //            CodigoEstado = "EnRevisionF3",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = true,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 4,
+        //            NombrePaso = "Firma GAF",
+        //            CodigoEstado = "EnRevisionF4",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = true,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 5,
+        //            NombrePaso = "Firma Dirección Corporativa",
+        //            CodigoEstado = "EnRevisionF5",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = true,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 6,
+        //            NombrePaso = "Tesorería",
+        //            CodigoEstado = "EnTesoreria",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = false,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        },
+        //        new()
+        //        {
+        //            Orden = 7,
+        //            NombrePaso = "Comprobación",
+        //            CodigoEstado = "EnComprobacion",
+        //            EsInicio = false,
+        //            EsFinal = false,
+        //            RequiereFirma = false,
+        //            RequiereComentario = true,
+        //            RequiereAdjunto = true
+        //        },
+        //        new()
+        //        {
+        //            Orden = 8,
+        //            NombrePaso = "Cierre",
+        //            CodigoEstado = "Cerrada",
+        //            EsInicio = false,
+        //            EsFinal = true,
+        //            RequiereFirma = false,
+        //            RequiereComentario = false,
+        //            RequiereAdjunto = false
+        //        }
+        //    }
+        //};
 
-        await _context.Set<Workflow>().AddAsync(workflow);
+        //await _context.Set<Workflow>().AddAsync(workflow);
         await _context.SaveChangesAsync();
 
-        _logger.LogInformation("Seeded workflow ORDEN_COMPRA with {Count} steps successfully.", workflow.Pasos.Count);
+        //_logger.LogInformation("Seeded workflow ORDEN_COMPRA with {Count} steps successfully.", workflow.Pasos.Count);
     }
 
     private async Task SeedTiposImpuestoAsync()

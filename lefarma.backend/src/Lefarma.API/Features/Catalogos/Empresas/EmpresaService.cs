@@ -96,7 +96,7 @@ public class EmpresaService : BaseService, IEmpresaService
                 var result = await _empresaRepository.GetByIdAsync(id);
                 if (result == null)
                 {
-                    //_logger.LogWarning("Empresa con ID {EmpresaId} no encontrada", id);
+                    //_logger.LogWarning("Empresa con ID {IdEmpresa} no encontrada", id);
                     EnrichWideEvent(action: "GetById", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -107,7 +107,7 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error al obtener empresa {EmpresaId}", id);
+                //_logger.LogError(ex, "Error al obtener empresa {IdEmpresa}", id);
                 EnrichWideEvent(action: "GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError($"obtener la empresa");
             }
@@ -144,6 +144,7 @@ public class EmpresaService : BaseService, IEmpresaService
                     PaginaWeb = request.PaginaWeb,
                     NumeroEmpleados = request.NumeroEmpleados,
                     Activo = request.Activo,
+                    PuedeSeleccionarEmpresas = request.PuedeSeleccionarEmpresas,
                     FechaCreacion = DateTime.UtcNow
                 };
 
@@ -154,6 +155,18 @@ public class EmpresaService : BaseService, IEmpresaService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Create", nombre: request.Nombre, exception: ex);
+                if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx
+                    && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+                {
+                    var message = sqlEx.Message;
+                    if (message.Contains("RFC") || message.Contains("rfc"))
+                        return CommonErrors.AlreadyExists("empresa", "rfc", request.RFC ?? "");
+                    if (message.Contains("Nombre") || message.Contains("nombre"))
+                        return CommonErrors.AlreadyExists("empresa", "nombre", request.Nombre);
+                    if (message.Contains("Clave") || message.Contains("clave"))
+                        return CommonErrors.AlreadyExists("empresa", "clave", request.Clave ?? "");
+                    return CommonErrors.AlreadyExists("empresa", "desconocido", "");
+                }
                 return CommonErrors.DatabaseError($"guardar la empresa");
             }
             catch (Exception ex)
@@ -171,7 +184,7 @@ public class EmpresaService : BaseService, IEmpresaService
                 var empresa = await _empresaRepository.GetByIdAsync(id);
                 if (empresa == null)
                 {
-                    //_logger.LogWarning("Intento de actualizar empresa inexistente: {EmpresaId}", id);
+                    //_logger.LogWarning("Intento de actualizar empresa inexistente: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Update", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -190,7 +203,11 @@ public class EmpresaService : BaseService, IEmpresaService
                 empresa.Descripcion = request.Descripcion;
                 empresa.DescripcionNormalizada = StringExtensions.RemoveDiacritics(request.Descripcion);
                 empresa.Clave = request.Clave;
-                empresa.RFC = request.RFC;
+                // Solo actualizar RFC si viene vacío (frontend lo limpió) o si cambió
+                if (!string.IsNullOrWhiteSpace(request.RFC) || empresa.RFC != request.RFC)
+                {
+                    empresa.RFC = request.RFC;
+                }
                 empresa.Direccion = request.Direccion;
                 empresa.Colonia = request.Colonia;
                 empresa.Ciudad = request.Ciudad;
@@ -202,6 +219,7 @@ public class EmpresaService : BaseService, IEmpresaService
                 empresa.NumeroEmpleados = request.NumeroEmpleados;
                 empresa.FechaModificacion = DateTime.UtcNow;
                 empresa.Activo = request.Activo;
+                empresa.PuedeSeleccionarEmpresas = request.PuedeSeleccionarEmpresas;
 
                 var result = await _empresaRepository.UpdateAsync(empresa);
                 EnrichWideEvent(action: "Update", entityId: id, nombre: result.Nombre);
@@ -215,11 +233,24 @@ public class EmpresaService : BaseService, IEmpresaService
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent(action: "Update", entityId: id, nombre: request.Nombre, exception: ex);
+                if (ex.InnerException is Microsoft.Data.SqlClient.SqlException sqlEx
+                    && (sqlEx.Number == 2601 || sqlEx.Number == 2627))
+                {
+                    // Violación de llave única
+                    var message = sqlEx.Message;
+                    if (message.Contains("RFC") || message.Contains("rfc"))
+                        return CommonErrors.AlreadyExists("empresa", "rfc", request.RFC ?? "");
+                    if (message.Contains("Nombre") || message.Contains("nombre"))
+                        return CommonErrors.AlreadyExists("empresa", "nombre", request.Nombre);
+                    if (message.Contains("Clave") || message.Contains("clave"))
+                        return CommonErrors.AlreadyExists("empresa", "clave", request.Clave ?? "");
+                    return CommonErrors.AlreadyExists("empresa", "desconocido", "");
+                }
                 return CommonErrors.DatabaseError($"actualizar la empresa");
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error inesperado al actualizar empresa: {EmpresaId}", id);
+                //_logger.LogError(ex, "Error inesperado al actualizar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Update", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al actualizar la empresa.");
             }
@@ -232,7 +263,7 @@ public class EmpresaService : BaseService, IEmpresaService
                 var empresa = await _empresaRepository.GetByIdAsync(id);
                 if (empresa == null)
                 {
-                    //_logger.LogWarning("Intento de eliminar empresa inexistente: {EmpresaId}", id);
+                    //_logger.LogWarning("Intento de eliminar empresa inexistente: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Delete", entityId: id, notFound: true);
                     return CommonErrors.NotFound("empresa", id.ToString());
                 }
@@ -240,7 +271,7 @@ public class EmpresaService : BaseService, IEmpresaService
                 var eliminado = await _empresaRepository.DeleteAsync(empresa);
                 if (!eliminado)
                 {
-                    //_logger.LogWarning("No se pudo eliminar empresa: {EmpresaId}", id);
+                    //_logger.LogWarning("No se pudo eliminar empresa: {IdEmpresa}", id);
                     EnrichWideEvent(action: "Delete", entityId: id, deleteFailed: true);
                     return CommonErrors.DeleteFailed("empresa");
                 }
@@ -250,13 +281,13 @@ public class EmpresaService : BaseService, IEmpresaService
             }
             catch (DbUpdateException ex)
             {
-                //_logger.LogError(ex, "Error de base de datos al eliminar empresa: {EmpresaId}", id);
+                //_logger.LogError(ex, "Error de base de datos al eliminar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.HasDependencies("Empresa");
             }
             catch (Exception ex)
             {
-                //_logger.LogError(ex, "Error inesperado al eliminar empresa: {EmpresaId}", id);
+                //_logger.LogError(ex, "Error inesperado al eliminar empresa: {IdEmpresa}", id);
                 EnrichWideEvent(action: "Delete", entityId: id, exception: ex);
                 return CommonErrors.InternalServerError($"Error inesperado al eliminar la empresa.");
             }

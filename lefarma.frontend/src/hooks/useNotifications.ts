@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Hook personalizado para la conexión SSE de notificaciones
  * Maneja la recepción de notificaciones en tiempo real
  */
@@ -7,7 +7,8 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/store/authStore';
-import type { SseEvent, UserNotification } from '@/types/notification.types';
+import { navigateTo } from '@/lib/navigation';
+import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 
 const SSE_NOTIFICATIONS_URL = (() => {
   const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
@@ -18,8 +19,35 @@ const SSE_NOTIFICATIONS_URL = (() => {
   return `${apiPath}/notifications/stream`;
 })();
 
-const MAX_RECONNECT_ATTEMPTS = 3; // Máximo 3 reintentos antes de hacer logout
+const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
 const BASE_RECONNECT_DELAY = 1000; // 1 segundo
+
+interface TicketResponse {
+  ticket?: string;
+}
+
+async function fetchSseTicket(token: string): Promise<string | null> {
+  try {
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
+    const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const response = await fetch(`${cleanUrl}/notifications/ticket`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as TicketResponse;
+    return data.ticket ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export interface UseNotificationsOptions {
   autoConnect?: boolean;
@@ -45,13 +73,12 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     onConnectionChange,
   } = options;
 
-  const { token, isAuthenticated, user } = useAuthStore();
+  const { token, isAuthenticated } = useAuthStore();
   const {
     setConnected,
     addNotification,
     setError,
     clearError,
-    refreshUnreadCount,
   } = useNotificationStore();
 
   const eventSourceRef = useRef<EventSource | null>(null);
@@ -61,56 +88,74 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   const connectRef = useRef<(() => void) | null>(null);
 
   /**
-   * Maneja la apertura de la conexión SSE
+   * Maneja la apertura exitosa de la conexion SSE.
+   * Reinicia el contador de errores porque ya tenemos conexion estable.
    */
   const handleOpen = useCallback(() => {
-    // Reiniciar contador de reintentos cuando la conexión es exitosa
     reconnectAttemptsRef.current = 0;
     setConnected(true);
     setError(undefined);
     onConnectionChange?.(true);
-
-    // NO llamar a refreshUnreadCount automáticamente para evitar loops infinitos
-    // El conteo se actualizará cuando lleguen notificaciones vía SSE
   }, [setConnected, setError, onConnectionChange]);
 
   /**
-   * Maneja errores de la conexión SSE
-   * Detecta 401 (token expirado) y hace logout automático para evitar bucles infinitos
+   * Maneja errores de la conexion SSE.
+   *
+   * IMPORTANTE: EventSource.onerror se dispara para TODO tipo de error:
+   *  - readyState === CONNECTING (0): el navegador esta reintentando automaticamente.
+   *    NO es un error real. Sucede en microcortes de red, WiFi inestable, etc.
+   *    NO contamos estos como fallos.
+   *  - readyState === CLOSED (2): el servidor cerro la conexion definitivamente.
+   *    Esto SI es un error real (401 token expirado, 500 del servidor, etc.)
+   *    SOLO estos los contamos para decidir si hacer logout.
+   *
+   * Antes el contador acumulaba TODOS los errores sin distinguir, causando que
+   * cualquier microcorte de red (4 reconexiones del navegador) forzara logout.
    */
   const handleError = useCallback(() => {
-    console.error('[Notifications SSE] Error en la conexión');
+    const es = eventSourceRef.current;
+    if (!es) return;
 
-    reconnectAttemptsRef.current++;
+    // Solo contar si el servidor CERRÓ la conexion (error real, no reconexion automatica)
+    if (es.readyState === EventSource.CLOSED) {
+      reconnectAttemptsRef.current++;
+    }
 
-    // Si hay demasiados reintentos seguidos, el token probablemente expiró
-    // Hacer logout automático para limpiar la sesión
+    // Solo hacer logout si se acumulan demasiados errores REALES (CLOSED)
     if (reconnectAttemptsRef.current > MAX_RECONNECT_ATTEMPTS) {
-      const error = 'Tu sesión ha expirado. Por favor, inicia sesión nuevamente.';
       setConnected(false);
-      setError(error);
+      setError('Tu sesion ha expirado. Por favor, inicia sesion nuevamente.');
       onConnectionChange?.(false);
-      console.warn('[Notifications SSE] Demasiados reintentos fallidos. Cerrando sesión...');
 
-      // Hacer logout automáticamente
-      useAuthStore.getState().logout();
-
-      // Redirigir a login
-      if (window.location.pathname !== '/login' && window.location.pathname !== '/') {
-        window.location.href = '/login';
+      if (es.readyState !== EventSource.CLOSED) {
+        es.close();
       }
 
+      useAuthStore.getState().logout();
+
+      if (!window.location.pathname.endsWith('/login')) {
+        navigateTo('/login');
+      }
       return;
     }
 
-    const delay = BASE_RECONNECT_DELAY * reconnectAttemptsRef.current;
+    // Si es un error de red/tiempo (CONNECTING), dejar que el navegador reintente
+    // EventSource tiene su propio backoff de reconexion (~3s)
+    if (es.readyState === EventSource.CONNECTING) {
+      setConnected(false);
+      onConnectionChange?.(false);
+      // No programamos reconexion manual, el navegador lo hace solo
+      return;
+    }
 
-    const error = 'Error de conexión. Reintentando...';
+    // Si llego a CLOSED pero aun no excede el limite, marcar desconectado
+    // y programar reconexion manual con backoff exponencial
     setConnected(false);
-    setError(error);
+    setError('Error de conexion. Reintentando...');
     onConnectionChange?.(false);
 
-    // Programar reconexión SOLO si estamos montados y autenticados
+    const delay = BASE_RECONNECT_DELAY * Math.min(reconnectAttemptsRef.current, 30);
+
     if (isMountedRef.current && isAuthenticated) {
       reconnectTimeoutRef.current = setTimeout(() => {
         if (isMountedRef.current) {
@@ -128,7 +173,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       const data: SseEvent = JSON.parse(event.data);
 
       if (data.type === 'notification') {
-        const notification = data.data as UserNotification;
+        const notification = data.data;
         addNotification(notification);
         onNotification?.(notification);
 
@@ -136,10 +181,9 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         playNotificationSound(notification);
       } else if (data.type === 'heartbeat') {
         // Heartbeat recibido, conexión está viva
-        console.debug('[Notifications SSE] Heartbeat recibido');
       }
-    } catch (error) {
-      console.error('[Notifications SSE] Error parseando mensaje:', error);
+    } catch {
+      // Ignorar errores de parseo
     }
   }, [addNotification, onNotification]);
 
@@ -152,7 +196,9 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
         notification.notification?.priority === 'urgent') {
       try {
         // Usar Web Audio API para un beep simple
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const AudioContextCtor = window.AudioContext || (window as unknown as Record<string, unknown>).webkitAudioContext as typeof AudioContext;
+        const audioContext = new AudioContextCtor();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
 
@@ -165,9 +211,8 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
         oscillator.start();
         oscillator.stop(audioContext.currentTime + 0.1);
-      } catch (error) {
+      } catch {
         // Silenciar errores de audio
-        console.debug('No se pudo reproducir sonido de notificación');
       }
     }
   }, []);
@@ -176,8 +221,7 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
    * Establece la conexión SSE
    * SIEMPRE lee el token actual del store para evitar usar tokens expirados
    */
-  const connect = useCallback(() => {
-    // Leer el token actual del store en cada conexión
+  const connect = useCallback(async () => {
     const currentToken = useAuthStore.getState().token;
     const currentAuth = useAuthStore.getState().isAuthenticated;
 
@@ -190,7 +234,11 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     }
 
     try {
-      const url = `${SSE_NOTIFICATIONS_URL}?token=${encodeURIComponent(currentToken)}`;
+      const ticket = await fetchSseTicket(currentToken);
+      const url = ticket
+        ? `${SSE_NOTIFICATIONS_URL}?ticket=${encodeURIComponent(ticket)}`
+        : `${SSE_NOTIFICATIONS_URL}?token=${encodeURIComponent(currentToken)}`;
+
       eventSourceRef.current = new EventSource(url);
 
       eventSourceRef.current.onopen = handleOpen;
@@ -208,12 +256,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 
       // Escuchar eventos de prueba (para debug)
       eventSourceRef.current.addEventListener('test', (event) => {
-        console.log('[Notifications SSE] Test event received:', event.data);
         handleMessage('test', event);
       });
 
-    } catch (error) {
-      console.error('[Notifications SSE] Error creando EventSource:', error);
+    } catch {
       handleError();
     }
   }, [handleOpen, handleError, handleMessage]);
@@ -262,16 +308,14 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   // Solicitar permiso para notificaciones del navegador
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission().then((permission) => {
-        console.log(`Permiso de notificación: ${permission}`);
+      Notification.requestPermission().then(() => {
+        // Permiso solicitado
       });
     }
   }, []);
 
   // Wrapper público para disconnect
   const publicDisconnect = useCallback(() => {
-    console.log('[Notifications SSE] Desconectando (manual)...');
-
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -296,7 +340,15 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
 /**
  * Hook simplificado que solo retorna las notificaciones sin conectar
  */
-export function useNotificationList() {
+export function useNotificationList(): {
+  notifications: UserNotification[];
+  unreadCount: number;
+  isLoading: boolean;
+  error: string | undefined;
+  loadNotifications: (userId?: number, filter?: NotificationFilter) => Promise<void>;
+  markAsRead: (notificationId: number) => Promise<void>;
+  markAllAsRead: () => Promise<void>;
+} {
   const notifications = useNotificationStore((state) => state.notifications);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
   const isLoading = useNotificationStore((state) => state.isLoading);

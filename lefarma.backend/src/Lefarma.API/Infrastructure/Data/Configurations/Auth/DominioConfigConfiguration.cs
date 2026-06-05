@@ -27,6 +27,10 @@ public class DominioConfigConfiguration : IEntityTypeConfiguration<DominioConfig
             builder.Property(e => e.BaseDn)
                 .HasMaxLength(500);
 
+            builder.Property(e => e.AuthType)
+                .IsRequired()
+                .HasDefaultValue(1);
+
             builder.HasIndex(e => e.Dominio)
                 .IsUnique()
                 .HasDatabaseName("IX_DominioConfig_Dominio");

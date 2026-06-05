@@ -11,6 +11,7 @@ using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Lefarma.API.Features.Facturas;
 
@@ -22,6 +23,11 @@ public class ComprobanteService : IComprobanteService
     {
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         WriteIndented = false,
+    };
+
+    private static readonly JsonSerializerOptions _jsonRead = new()
+    {
+        PropertyNameCaseInsensitive = true,
     };
 
     private readonly ApplicationDbContext _db;
@@ -53,10 +59,9 @@ public class ComprobanteService : IComprobanteService
         }
         catch (FormatException)
         {
-            return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI válido o está malformado");
+            return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado");
         }
 
-        // Consultar estado en el SAT si el CFDI tiene los campos mínimos
         if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
         {
             var sat = await _sat.ValidarAsync(preview.Uuid, preview.RfcEmisor, preview.RfcReceptor, preview.Total);
@@ -80,59 +85,42 @@ public class ComprobanteService : IComprobanteService
         CancellationToken ct = default)
     {
         CfdiPreviewResponse? cfdi = null;
-
         bool esCfdi = request.TipoComprobante == "cfdi";
         bool esPago = request.Categoria == "pago";
 
         if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
             try { cfdi = CfdiParser.Parse(xmlContent); }
-            catch (FormatException) { return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI válido o está malformado"); }
+            catch (FormatException) { return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado"); }
 
             if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
                 return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
 
-            // Validación obligatoria con el SAT
             if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
             {
                 var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
                 if (!sat.Contactado)
-                    return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT. Verifique su conexión a internet o intente nuevamente.");
+                    return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT.");
                 if (!sat.EsVigente)
-                    return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}. Solo se aceptan CFDIs con estado Vigente.");
+                    return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}");
             }
         }
 
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
+            var total = cfdi?.Total ?? request.TotalManual ?? request.MontoPago ?? 0m;
+
             var comprobante = new Comprobante
             {
                 IdEmpresa        = request.IdEmpresa,
                 IdUsuarioSubio   = idUsuario,
                 IdPasoWorkflow   = request.IdPasoWorkflow,
+                IdMedioPago      = request.IdMedioPago,
                 Categoria        = request.Categoria,
                 TipoComprobante  = request.TipoComprobante,
-                EsCfdi           = esCfdi,
-                UuidCfdi         = cfdi?.Uuid,
-                VersionCfdi      = cfdi?.Version,
-                Serie            = cfdi?.Serie,
-                FolioCfdi        = cfdi?.FolioCfdi,
-                FechaEmision     = cfdi?.FechaEmision,
-                RfcEmisor        = cfdi?.RfcEmisor,
-                NombreEmisor     = cfdi?.NombreEmisor,
-                RfcReceptor      = cfdi?.RfcReceptor,
-                NombreReceptor   = cfdi?.NombreReceptor,
-                UsoCfdi          = cfdi?.UsoCfdi,
-                MetodoPago       = cfdi?.MetodoPago,
-                FormaPagoCfdi    = cfdi?.FormaPago,
-                Moneda           = cfdi?.Moneda ?? "MXN",
-                Subtotal         = cfdi?.Subtotal ?? 0m,
-                Descuento        = cfdi?.Descuento ?? 0m,
-                TotalIva         = cfdi?.TotalIva ?? 0m,
-                TotalRetenciones = cfdi?.TotalRetenciones ?? 0m,
-                Total            = cfdi?.Total ?? request.TotalManual ?? request.MontoPago ?? 0m,
-                XmlOriginal      = xmlContent,
+                Total            = total,
+                DatosAdicionales = BuildJson(cfdi, request),
                 ReferenciaPago   = request.ReferenciaPago,
                 FechaPago        = request.FechaPago,
                 MontoPago        = request.MontoPago,
@@ -143,35 +131,23 @@ public class ComprobanteService : IComprobanteService
             _db.Comprobantes.Add(comprobante);
             await _db.SaveChangesAsync(ct);
 
-            // Conceptos CFDI
-            if (esCfdi && cfdi != null)
-            {
-                const int maxDescripcionLength = 1000;
-                var conceptos = cfdi.Conceptos.Select(c => new ComprobanteConcepto
-                {
-                    IdComprobante  = comprobante.IdComprobante,
-                    NumeroConcepto = c.Numero,
-                    ClaveProdServ  = c.ClaveProdServ,
-                    ClaveUnidad    = c.ClaveUnidad,
-                    Descripcion    = c.Descripcion?.Length > maxDescripcionLength
-                        ? c.Descripcion[..maxDescripcionLength]
-                        : c.Descripcion ?? "",
-                    Cantidad       = c.Cantidad,
-                    ValorUnitario  = c.ValorUnitario,
-                    Descuento      = c.Descuento,
-                    Importe        = c.Importe,
-                    TasaIva        = c.TasaIva,
-                    ImporteIva     = c.ImporteIva
-                }).ToList();
+            // Obtener folio y contar archivos previos para nombrar archivos
+            var folio = (await _db.OrdenesCompra
+                .Where(o => o.IdOrden == request.IdOrden)
+                .Select(o => o.Folio)
+                .FirstOrDefaultAsync(ct)) ?? $"OC-{request.IdOrden}";
 
-                _db.ComprobantesConceptos.AddRange(conceptos);
-                await _db.SaveChangesAsync(ct);
-                comprobante.Conceptos = conceptos;
-            }
+            var countPrevios = await _db.Comprobantes
+                .CountAsync(c => c.Categoria == request.Categoria
+                    && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.IdOrden), ct);
+
+            var prefijo = esPago ? "Pago" : "Gasto";
+            var n = countPrevios + 1;
 
             // Subir XML si CFDI
             if (esCfdi && xmlContent != null && xmlFileName != null)
             {
+                var xmlName = $"{folio}-{prefijo}-{n}.xml";
                 using var xmlMs = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xmlContent));
                 var meta = JsonSerializer.Serialize(new
                 {
@@ -182,13 +158,13 @@ public class ComprobanteService : IComprobanteService
                     idComprobante = comprobante.IdComprobante,
                     subtipo       = request.TipoComprobante,
                     archivo       = "xml",
-                    monto         = comprobante.Total,
+                    monto         = total,
                     paso          = request.IdPasoWorkflow,
                     nombrePaso    = request.NombrePaso,
                     nombreAccion  = request.NombreAccion
                 }, _jsonUtf8);
                 await _archivoService.SubirAsync(
-                    xmlMs, xmlFileName, "application/xml",
+                    xmlMs, xmlName, "application/xml",
                     new SubirArchivoRequest
                     {
                         EntidadTipo = "OrdenCompra",
@@ -199,10 +175,11 @@ public class ComprobanteService : IComprobanteService
                     idUsuario, ct);
             }
 
-            // Subir archivo adicional (PDF, imagen, etc.)
             if (archivoStream != null && archivoFileName != null && archivoContentType != null)
             {
                 var archivoTipo = esCfdi ? "pdf" : "imagen";
+                var ext = Path.GetExtension(archivoFileName);
+                var pdfName = $"{folio}-{prefijo}-{n}{ext}";
                 var meta = JsonSerializer.Serialize(new
                 {
                     modulo        = "ordenes_compra",
@@ -212,13 +189,13 @@ public class ComprobanteService : IComprobanteService
                     idComprobante = comprobante.IdComprobante,
                     subtipo       = request.TipoComprobante,
                     archivo       = archivoTipo,
-                    monto         = comprobante.Total,
+                    monto         = total,
                     paso          = request.IdPasoWorkflow,
                     nombrePaso    = request.NombrePaso,
                     nombreAccion  = request.NombreAccion
                 }, _jsonUtf8);
                 await _archivoService.SubirAsync(
-                    archivoStream, archivoFileName, archivoContentType,
+                    archivoStream, pdfName, archivoContentType,
                     new SubirArchivoRequest
                     {
                         EntidadTipo = "OrdenCompra",
@@ -230,7 +207,6 @@ public class ComprobanteService : IComprobanteService
             }
 
             await tx.CommitAsync(ct);
-
             return MapToResponse(comprobante);
         }
         catch (Exception ex)
@@ -243,24 +219,22 @@ public class ComprobanteService : IComprobanteService
 
     public async Task<ErrorOr<ComprobanteResponse>> GetByIdAsync(int idComprobante, CancellationToken ct = default)
     {
-        var c = await _repo.GetWithConceptosAsync(idComprobante, ct);
+        var c = await _repo.GetByIdConAsignacionesAsync(idComprobante, ct);
         if (c is null) return CommonErrors.NotFound("Comprobante");
         return MapToResponse(c);
     }
 
     public async Task<ErrorOr<List<ComprobanteConceptoResponse>>> GetConceptosAsync(int idComprobante, CancellationToken ct = default)
     {
-        var c = await _repo.GetWithConceptosAsync(idComprobante, ct);
+        var c = await _repo.GetByIdConAsignacionesAsync(idComprobante, ct);
         if (c is null) return CommonErrors.NotFound("Comprobante");
-        return c.Conceptos.Select(MapConcepto).ToList();
+        return ParseConceptos(c).ToList();
     }
 
     public async Task<ErrorOr<List<PartidaPendienteResponse>>> GetPartidasPendientesAsync(int idOrden, string categoria = "gasto", CancellationToken ct = default)
     {
         if (categoria == "pago")
         {
-            // Para comprobantes de pago: mostrar TODAS las partidas de la orden.
-            // El importe pendiente se calcula en base a los pagos ya asignados (independiente de facturación).
             var partidas = await _db.OrdenesCompraPartidas
                 .Include(p => p.Orden)
                 .Where(p => p.IdOrden == idOrden)
@@ -285,6 +259,7 @@ public class ComprobanteService : IComprobanteService
                         FolioOrden:         p.Orden?.Folio ?? "",
                         Cantidad:           p.Cantidad,
                         PrecioUnitario:     p.PrecioUnitario,
+                        Total:              p.Total,
                         CantidadFacturada:  0m,
                         ImporteFacturado:   importePagado,
                         CantidadPendiente:  importePendiente > 0 ? p.Cantidad : 0m,
@@ -292,21 +267,18 @@ public class ComprobanteService : IComprobanteService
                         EstadoFacturacion:  importePendiente <= 0 ? 2 : (importePagado > 0 ? 1 : 0)
                     );
                 })
-                .Where(p => p.ImportePendiente > 0)
                 .ToList();
         }
 
-        // Gasto: todas las partidas con importe pendiente (sin filtrar por RequiereFactura)
         var gastoPartidas = await _db.OrdenesCompraPartidas
             .Include(p => p.Orden)
-            .Where(p => p.IdOrden == idOrden && p.EstadoFacturacion < 2)
+            .Where(p => p.IdOrden == idOrden)
             .ToListAsync(ct);
 
         return gastoPartidas.Select(p =>
         {
-            var cantFacturada  = p.CantidadFacturada ?? 0m;
+            var cantFacturada   = p.CantidadFacturada ?? 0m;
             var importeFacturado = p.ImporteFacturado ?? 0m;
-            var importeTotal   = p.Total;
             return new PartidaPendienteResponse(
                 IdPartida:          p.IdPartida,
                 NumeroPartida:      p.NumeroPartida,
@@ -314,10 +286,11 @@ public class ComprobanteService : IComprobanteService
                 FolioOrden:         p.Orden?.Folio ?? "",
                 Cantidad:           p.Cantidad,
                 PrecioUnitario:     p.PrecioUnitario,
+                Total:              p.Total,
                 CantidadFacturada:  cantFacturada,
                 ImporteFacturado:   importeFacturado,
                 CantidadPendiente:  p.Cantidad - cantFacturada,
-                ImportePendiente:   importeTotal - importeFacturado,
+                ImportePendiente:   p.Total - importeFacturado,
                 EstadoFacturacion:  p.EstadoFacturacion
             );
         }).ToList();
@@ -330,20 +303,22 @@ public class ComprobanteService : IComprobanteService
         int? idPasoWorkflow,
         CancellationToken ct = default)
     {
-        var comprobante = await _repo.GetWithConceptosAsync(idComprobante, ct);
+        var comprobante = await _repo.GetByIdConAsignacionesAsync(idComprobante, ct);
         if (comprobante is null) return CommonErrors.NotFound("Comprobante");
 
-        // Pre-validar
+        bool esCfdi = comprobante.TipoComprobante == "cfdi";
+
+        // Pre-validar cada partida
         foreach (var item in request.Asignaciones)
         {
             var partida = await _db.OrdenesCompraPartidas
+                .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.IdPartida == item.IdPartida, ct);
 
             if (partida is null) return CommonErrors.NotFound("Partida", item.IdPartida.ToString());
 
             if (comprobante.Categoria == "pago")
             {
-                // Para pagos: validar contra el total pagado en esta partida (independiente de facturación)
                 var importeYaPagado = await _db.ComprobantesPartidas
                     .Where(cp => cp.IdPartida == item.IdPartida
                               && cp.IdComprobante != idComprobante
@@ -351,34 +326,21 @@ public class ComprobanteService : IComprobanteService
                     .SumAsync(cp => cp.ImporteAsignado, ct);
                 var importePendientePago = partida.Total - importeYaPagado;
                 if (item.ImporteAsignado > importePendientePago + Tolerancia)
-                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el importe pendiente en la partida {item.IdPartida}");
+                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el pendiente en la partida {item.IdPartida}");
             }
             else
             {
                 var importePendientePartida = partida.Total - (partida.ImporteFacturado ?? 0m);
 
-                // Para CFDI: validar también cantidad
-                if (comprobante.EsCfdi)
+                if (esCfdi)
                 {
                     var cantPendientePartida = partida.Cantidad - (partida.CantidadFacturada ?? 0m);
                     if (item.CantidadAsignada > cantPendientePartida + Tolerancia)
-                        return CommonErrors.Validation("SobreCantidad", $"La cantidad asignada excede la cantidad pendiente en la partida {item.IdPartida}");
+                        return CommonErrors.Validation("SobreCantidad", $"La cantidad asignada excede la pendiente en la partida {item.IdPartida}");
                 }
 
                 if (item.ImporteAsignado > importePendientePartida + Tolerancia)
-                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el importe pendiente en la partida {item.IdPartida}");
-            }
-
-            if (item.IdConcepto.HasValue)
-            {
-                var concepto = comprobante.Conceptos
-                    .FirstOrDefault(c => c.IdConcepto == item.IdConcepto.Value);
-
-                if (concepto is null) return CommonErrors.NotFound("Concepto", item.IdConcepto.Value.ToString());
-
-                var cantPendienteConcepto = concepto.Cantidad - concepto.CantidadAsignada;
-                if (item.CantidadAsignada > cantPendienteConcepto + Tolerancia)
-                    return CommonErrors.Validation("SobreConcepto", $"La cantidad asignada excede la cantidad pendiente del concepto {item.IdConcepto.Value}");
+                    return CommonErrors.Validation("SobreImporte", $"El importe asignado excede el pendiente en la partida {item.IdPartida}");
             }
         }
 
@@ -387,11 +349,9 @@ public class ComprobanteService : IComprobanteService
         {
             foreach (var item in request.Asignaciones)
             {
-                // Insertar asignación
                 var asignacion = new ComprobantePartida
                 {
                     IdComprobante    = idComprobante,
-                    IdConcepto       = item.IdConcepto,
                     IdPartida        = item.IdPartida,
                     IdUsuarioAsigno  = idUsuario,
                     IdPasoWorkflow   = idPasoWorkflow,
@@ -402,19 +362,7 @@ public class ComprobanteService : IComprobanteService
                 };
                 _db.ComprobantesPartidas.Add(asignacion);
 
-                // Actualizar acumulados en concepto
-                if (item.IdConcepto.HasValue)
-                {
-                    var concepto = comprobante.Conceptos
-                        .First(c => c.IdConcepto == item.IdConcepto.Value);
-                    concepto.CantidadAsignada += item.CantidadAsignada;
-                    concepto.ImporteAsignado  += item.ImporteAsignado;
-                }
-
-                // Actualizar acumulados en partida
-                // Para CFDI: acumular cantidad + importe (facturación).
-                // Para pagos: NO tocar ImporteFacturado (ese campo es de facturación/gasto, no de pagos).
-                if (comprobante.EsCfdi)
+                if (esCfdi)
                 {
                     await _db.OrdenesCompraPartidas
                         .Where(p => p.IdPartida == item.IdPartida)
@@ -424,12 +372,10 @@ public class ComprobanteService : IComprobanteService
                             .SetProperty(p => p.ImporteFacturado,
                                 p => (p.ImporteFacturado ?? 0m) + item.ImporteAsignado),
                             ct);
-                    // Recalcular estado_facturacion de la partida
                     await RecalcularEstadoPartidaAsync(item.IdPartida, ct);
                 }
                 else if (comprobante.Categoria != "pago")
                 {
-                    // Comprobante de gasto sin CFDI (ticket, nota, recibo): actualizar importe
                     await _db.OrdenesCompraPartidas
                         .Where(p => p.IdPartida == item.IdPartida)
                         .ExecuteUpdateAsync(s => s
@@ -438,14 +384,10 @@ public class ComprobanteService : IComprobanteService
                             ct);
                     await RecalcularEstadoPartidaAsync(item.IdPartida, ct);
                 }
-                // Para comprobantes de pago: solo guardar la asignación, sin tocar facturación
             }
 
-            // Actualizar estado del comprobante
-            comprobante.Estado = comprobante.EsCfdi
-                ? (byte)(comprobante.Conceptos.All(c => c.Cantidad - c.CantidadAsignada <= Tolerancia) ? 2 : 1)
-                : (byte)2;
-
+            // Actualizar estado del comprobante: siempre Aplicado cuando todas las asignaciones estan hechas
+            comprobante.Estado = 2;
             comprobante.FechaModificacion = DateTime.UtcNow;
 
             await _db.SaveChangesAsync(ct);
@@ -474,17 +416,100 @@ public class ComprobanteService : IComprobanteService
             EstadoFacturacion: partida.EstadoFacturacion,
             CantidadFacturada: partida.CantidadFacturada ?? 0m,
             ImporteFacturado:  partida.ImporteFacturado  ?? 0m,
-            Asignaciones: asignaciones.Select(a => new ComprobanteAsignacionResponse(
-                IdAsignacion:    a.IdAsignacion,
-                IdComprobante:   a.IdComprobante,
-                TipoComprobante: a.Comprobante?.TipoComprobante ?? "",
-                UuidCfdi:        a.Comprobante?.UuidCfdi,
-                CantidadAsignada: a.CantidadAsignada,
-                ImporteAsignado:  a.ImporteAsignado,
-                FechaAsignacion:  a.FechaAsignacion,
-                Notas:            a.Notas
-            )).ToList()
+            Asignaciones: asignaciones.Select(a =>
+            {
+                var cfdi = TryParseCfdi(a.Comprobante?.DatosAdicionales);
+                return new ComprobanteAsignacionResponse(
+                    IdAsignacion:      a.IdAsignacion,
+                    IdComprobante:     a.IdComprobante,
+                    TipoComprobante:   a.Comprobante?.TipoComprobante ?? "",
+                    UuidCfdi:          cfdi?.Uuid,
+                    CantidadAsignada:  a.CantidadAsignada,
+                    ImporteAsignado:   a.ImporteAsignado,
+                    FechaAsignacion:   a.FechaAsignacion,
+                    Notas:             a.Notas
+                );
+            }).ToList()
         );
+    }
+
+    public async Task<ErrorOr<bool>> EliminarPorOrdenAsync(int idOrden, string categoria, int idUsuario, CancellationToken ct = default)
+    {
+        // Buscar todos los comprobantes de la categoría para esta orden
+        var comprobantes = await _db.Comprobantes
+            .Include(c => c.Asignaciones)
+            .Where(c => c.Categoria == categoria
+                && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == idOrden))
+            .ToListAsync(ct);
+
+        if (!comprobantes.Any()) return CommonErrors.NotFound("Comprobante", "No hay comprobantes para eliminar");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            foreach (var comprobante in comprobantes)
+            {
+                bool esCfdi = comprobante.TipoComprobante == "cfdi";
+                bool esPago = comprobante.Categoria == "pago";
+
+                // Revertir asignaciones en partidas
+                foreach (var asignacion in comprobante.Asignaciones)
+                {
+                    if (esCfdi)
+                    {
+                        await _db.OrdenesCompraPartidas
+                            .Where(p => p.IdPartida == asignacion.IdPartida)
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.CantidadFacturada,
+                                    p => (p.CantidadFacturada ?? 0m) - asignacion.CantidadAsignada)
+                                .SetProperty(p => p.ImporteFacturado,
+                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                                ct);
+                    }
+                    else if (!esPago)
+                    {
+                        await _db.OrdenesCompraPartidas
+                            .Where(p => p.IdPartida == asignacion.IdPartida)
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.ImporteFacturado,
+                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                                ct);
+                    }
+
+                    await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
+                }
+
+                // Eliminar asignaciones 
+                _db.ComprobantesPartidas.RemoveRange(comprobante.Asignaciones);
+
+                // Desactivar archivos relacionados (buscar por idComprobante en metadata)
+                var archivosRelacionados = await _db.Archivos
+                    .Where(a => a.EntidadTipo == "OrdenCompra"
+                        && a.Carpeta == "comprobantes"
+                        && a.Metadata != null
+                        && a.Metadata.Contains($"\"idComprobante\":{comprobante.IdComprobante}"))
+                    .ToListAsync(ct);
+
+                foreach (var archivo in archivosRelacionados)
+                {
+                    await _archivoService.DeleteAsync(archivo.Id, ct);
+                }
+
+                // Eliminar comprobante
+                _db.Comprobantes.Remove(comprobante);
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            _logger.LogError(ex, "Error al eliminar comprobantes de {Categoria} para orden {IdOrden}", categoria, idOrden);
+            throw;
+        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -492,13 +517,13 @@ public class ComprobanteService : IComprobanteService
     private async Task RecalcularEstadoPartidaAsync(int idPartida, CancellationToken ct)
     {
         var p = await _db.OrdenesCompraPartidas
+            .AsNoTracking()
             .FirstOrDefaultAsync(x => x.IdPartida == idPartida, ct);
         if (p is null) return;
 
-        var cantFacturada   = p.CantidadFacturada ?? 0m;
+        var cantFacturada    = p.CantidadFacturada ?? 0m;
         var importeFacturado = p.ImporteFacturado  ?? 0m;
 
-        // Estado 2 (completo) si: cantidad cubierta (CFDI) O importe cubierto (pagos)
         byte estado = (cantFacturada >= p.Cantidad - Tolerancia || importeFacturado >= p.Total - Tolerancia)
             ? (byte)2
             : (cantFacturada > 0m || importeFacturado > 0m)
@@ -510,35 +535,137 @@ public class ComprobanteService : IComprobanteService
             .ExecuteUpdateAsync(s => s.SetProperty(x => x.EstadoFacturacion, estado), ct);
     }
 
-    private static ComprobanteResponse MapToResponse(Comprobante c) => new(
-        IdComprobante:    c.IdComprobante,
-        Categoria:        c.Categoria,
-        TipoComprobante:  c.TipoComprobante,
-        EsCfdi:           c.EsCfdi,
-        UuidCfdi:         c.UuidCfdi,
-        RfcEmisor:        c.RfcEmisor,
-        NombreEmisor:     c.NombreEmisor,
-        Total:            c.Total,
-        Estado:           c.Estado,
-        EstadoDescripcion: c.Estado switch { 0 => "Pendiente", 1 => "Parcial", 2 => "Aplicado", 3 => "Rechazado", _ => "" },
-        FechaCreacion:    c.FechaCreacion,
-        ReferenciaPago:   c.ReferenciaPago,
-        FechaPago:        c.FechaPago,
-        MontoPago:        c.MontoPago,
-        Conceptos: c.Conceptos.Select(MapConcepto).ToList()
-    );
+    private static string? BuildJson(CfdiPreviewResponse? cfdi, SubirComprobanteRequest request)
+    {
+        if (cfdi is null && request.IdMedioPago is null) return null;
 
-    private static ComprobanteConceptoResponse MapConcepto(ComprobanteConcepto c) => new(
-        IdConcepto:        c.IdConcepto,
-        NumeroConcepto:    c.NumeroConcepto,
-        Descripcion:       c.Descripcion,
-        Cantidad:          c.Cantidad,
-        ValorUnitario:     c.ValorUnitario,
-        Importe:           c.Importe,
-        TasaIva:           c.TasaIva,
-        CantidadAsignada:  c.CantidadAsignada,
-        ImporteAsignado:   c.ImporteAsignado,
-        CantidadPendiente: c.Cantidad - c.CantidadAsignada,
-        ImportePendiente:  c.Importe  - c.ImporteAsignado
-    );
+        var obj = new Dictionary<string, object?>();
+
+        if (cfdi is not null)
+        {
+            obj["cfdi"] = new
+            {
+                uuid           = cfdi.Uuid,
+                version        = cfdi.Version,
+                serie          = cfdi.Serie,
+                folio          = cfdi.FolioCfdi,
+                fechaEmision   = cfdi.FechaEmision,
+                emisor         = new { rfc = cfdi.RfcEmisor, nombre = cfdi.NombreEmisor },
+                receptor       = new { rfc = cfdi.RfcReceptor, nombre = cfdi.NombreReceptor },
+                usoCfdi        = cfdi.UsoCfdi,
+                metodoPago     = cfdi.MetodoPago,
+                formaPago      = cfdi.FormaPago,
+                moneda         = cfdi.Moneda,
+                totales        = new { subtotal = cfdi.Subtotal, descuento = cfdi.Descuento, iva = cfdi.TotalIva, retenciones = cfdi.TotalRetenciones }
+            };
+
+            obj["conceptos"] = cfdi.Conceptos.Select(c => new
+            {
+                numero         = c.Numero,
+                claveProdServ  = c.ClaveProdServ,
+                claveUnidad    = c.ClaveUnidad,
+                descripcion    = c.Descripcion,
+                cantidad       = c.Cantidad,
+                valorUnitario  = c.ValorUnitario,
+                descuento      = c.Descuento,
+                importe        = c.Importe,
+                tasaIva        = c.TasaIva,
+                importeIva     = c.ImporteIva
+            });
+        }
+
+        return obj.Count > 0 ? JsonSerializer.Serialize(obj, _jsonUtf8) : null;
+    }
+
+    private static CfdiData? TryParseCfdi(string? datosAdicionales)
+    {
+        if (string.IsNullOrWhiteSpace(datosAdicionales)) return null;
+        try
+        {
+            var doc = JsonDocument.Parse(datosAdicionales);
+            if (!doc.RootElement.TryGetProperty("cfdi", out var cfdiEl)) return null;
+            return JsonSerializer.Deserialize<CfdiData>(cfdiEl.GetRawText(), _jsonRead);
+        }
+        catch { return null; }
+    }
+
+    private static List<ComprobanteConceptoResponse> ParseConceptos(Comprobante c)
+    {
+        var result = new List<ComprobanteConceptoResponse>();
+        if (string.IsNullOrWhiteSpace(c.DatosAdicionales)) return result;
+
+        try
+        {
+            var doc = JsonDocument.Parse(c.DatosAdicionales);
+            if (!doc.RootElement.TryGetProperty("conceptos", out var arr)) return result;
+
+            int idx = 0;
+            foreach (var item in arr.EnumerateArray())
+            {
+                idx++;
+                result.Add(new ComprobanteConceptoResponse(
+                    IdConcepto:        idx,
+                    NumeroConcepto:    idx,
+                    Descripcion:       item.TryGetProperty("descripcion", out var d) ? d.GetString() ?? "" : "",
+                    Cantidad:          item.TryGetProperty("cantidad", out var ct) ? ct.GetDecimal() : 0,
+                    ValorUnitario:     item.TryGetProperty("valorUnitario", out var vu) ? vu.GetDecimal() : 0,
+                    Importe:           item.TryGetProperty("importe", out var im) ? im.GetDecimal() : 0,
+                    TasaIva:           item.TryGetProperty("tasaIva", out var ti) ? ti.GetDecimal() : null,
+                    CantidadAsignada:  0,
+                    ImporteAsignado:   0,
+                    CantidadPendiente: item.TryGetProperty("cantidad", out var cta) ? cta.GetDecimal() : 0,
+                    ImportePendiente:  item.TryGetProperty("importe", out var imp) ? imp.GetDecimal() : 0
+                ));
+            }
+        }
+        catch { /* JSON invalido */ }
+
+        return result;
+    }
+
+    private static ComprobanteResponse MapToResponse(Comprobante c)
+    {
+        var cfdi   = TryParseCfdi(c.DatosAdicionales);
+        var esCfdi = c.TipoComprobante == "cfdi";
+
+        return new ComprobanteResponse(
+            IdComprobante:     c.IdComprobante,
+            Categoria:         c.Categoria,
+            TipoComprobante:   c.TipoComprobante,
+            EsCfdi:            esCfdi,
+            UuidCfdi:          cfdi?.Uuid,
+            RfcEmisor:         cfdi?.Emisor?.Rfc,
+            NombreEmisor:      cfdi?.Emisor?.Nombre,
+            Total:             c.Total,
+            Estado:            c.Estado,
+            EstadoDescripcion: c.Estado switch { 0 => "Pendiente", 1 => "Parcial", 2 => "Aplicado", 3 => "Rechazado", _ => "" },
+            FechaCreacion:     c.FechaCreacion,
+            ReferenciaPago:    c.ReferenciaPago,
+            FechaPago:         c.FechaPago,
+            MontoPago:         c.MontoPago,
+            IdMedioPago:       c.IdMedioPago,
+            MedioPagoNombre:   c.MedioPago?.Nombre,
+            DatosAdicionales:  c.DatosAdicionales,
+            Conceptos:         ParseConceptos(c).ToList()
+        );
+    }
+
+    private class CfdiData
+    {
+        public string? Uuid { get; set; }
+        public EmisorData? Emisor { get; set; }
+        public ReceptorData? Receptor { get; set; }
+    }
+
+    private class EmisorData
+    {
+        public string? Rfc { get; set; }
+        public string? Nombre { get; set; }
+    }
+
+    private class ReceptorData
+    {
+        public string? Rfc { get; set; }
+        public string? Nombre { get; set; }
+    }
 }

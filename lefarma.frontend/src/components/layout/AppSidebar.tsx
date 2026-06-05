@@ -1,4 +1,4 @@
-﻿import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import type { ElementType } from 'react';
 import {
   LayoutDashboard,
@@ -8,7 +8,7 @@ import {
   ChevronRight,
   Database,
   Store,
-  Wallet,
+  // Wallet,
   Ruler,
   Users,
   CreditCard,
@@ -24,6 +24,8 @@ import {
   GitBranch,
   ShoppingCart,
   Receipt,
+  Send,
+  Wallet,
 } from 'lucide-react';
 
 import {
@@ -50,6 +52,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/store/authStore';
+import favicon from '@/assets/favicon.ico';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 import { checkPermission } from '@/utils/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -69,14 +72,14 @@ interface CollapsibleMenuItem extends MenuItemBase {
   items: MenuItem[];
 }
 
-type SidebarMenuItem = MenuItem | CollapsibleMenuItem;
+type SidebarMenuItemConfig = MenuItem | CollapsibleMenuItem;
 
 function hasPermission(permission?: PermissionCheckOptions): boolean {
   if (!permission) return true;
   return checkPermission(permission);
 }
 
-const menuItems: SidebarMenuItem[] = [
+const menuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Dashboard',
     icon: LayoutDashboard,
@@ -88,9 +91,23 @@ const menuItems: SidebarMenuItem[] = [
     isCollapsible: true,
     items: [
       // { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] } },
-      { title: 'Usuarios', icon: Users, path: '/seguridad/usuarios', permission: { require: 'usuarios.ver_detalle' } },
-      { title: 'Roles', icon: Users, path: '/seguridad/roles', permission: { require: 'usuarios.ver_detalle' } },
-      { title: 'Permisos', icon: Key, path: '/seguridad/permisos' },
+      {
+        title: 'Usuarios',
+        icon: Users,
+        path: '/seguridad/usuarios',
+        permission: { require: 'usuarios.ver_listado' },
+      },
+      {
+        title: 'Roles',
+        icon: Users,
+        path: '/seguridad/roles',
+        permission: { require: 'roles.ver_listado' },
+      },
+      { title: 'Permisos', 
+        icon: Key, 
+        path: '/seguridad/permisos',
+        permission: { require: 'permisos.ver_listado' },
+      },
     ],
   },
   {
@@ -98,18 +115,42 @@ const menuItems: SidebarMenuItem[] = [
     icon: Database,
     isCollapsible: true,
     items: [
-      { title: 'Empresas', icon: Building, path: '/catalogos/empresas' },
-      { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales' },
-      { title: 'Áreas', icon: Database, path: '/catalogos/areas' },
-      { title: 'Gastos', icon: Wallet, path: '/catalogos/gastos' },
-      { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas' },
-      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago' },
-      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto' },
-      { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo' },
-      { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables' },
-      { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden' },
-      { title: 'Proveedores', icon: Building, path: '/catalogos/proveedores' },
-      { title: 'Regímenes Fiscales', icon: UserCircle, path: '/catalogos/regimenes-fiscales' },
+      { title: 'Empresas', icon: Building, path: '/catalogos/empresas',
+        permission: { require: 'empresas.ver_listado' }
+       },
+      { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales',
+        permission: { require: 'sucursales.ver_listado' }
+      },
+      { title: 'Áreas', icon: Database, path: '/catalogos/areas',
+        permission: { require: 'areas.ver_listado' }
+      },
+      { title: 'Tipos de Gasto', icon: Wallet, path: '/catalogos/tipos-gasto',
+        permission: { require: 'tipos-gasto.ver_listado' }
+      },
+      { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas',
+        permission: { require: 'medidas.ver_listado' }
+      },
+      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago',
+        permission: { require: 'formas-pago.ver_listado' }
+      },
+      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto',
+        permission: { require: 'tipos-impuesto.ver_listado' }
+      },
+      { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo',
+        permission: { require: 'centros-costo.ver_listado' }
+      },
+      { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables',
+        permission: { require: 'cuentas-contables.ver_listado' }
+      },
+      { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden',
+        permission: { require: 'estatus-orden.ver_listado' }
+      },
+      { title: 'Proveedores', icon: Building, path: '/catalogos/proveedores',
+        permission: { require: 'proveedores.ver_listado' }
+      },
+      { title: 'Regímenes Fiscales', icon: UserCircle, path: '/catalogos/regimenes-fiscales',
+        permission: { require: 'regimenes-fiscales.ver_listado' }
+      },
     ],
   },
   {
@@ -117,19 +158,28 @@ const menuItems: SidebarMenuItem[] = [
     icon: ShoppingCart,
     isCollapsible: true,
     items: [
-      { title: 'Crear orden', icon: FileText, path: '/ordenes/crear' },
-      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones' },
+      { title: 'Crear orden', icon: FileText, path: '/ordenes/crear',
+        permission: { require: 'ordenes.crear' }
+       },
+      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
+        permission: { require: 'ordenes.ver_listado' }
+       },
+      { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado',
+        permission: { require: 'ordenes.envio_concentrado' }
+      },
     ],
   },
   {
     title: 'Notificaciones',
     icon: Bell,
     path: '/notificaciones',
+    permission: { require: 'notificaciones.ver_listado' },
   },
   {
     title: 'Workflows',
     icon: GitBranch,
     path: '/workflows',
+    permission: { require: 'workflows.ver_listado' },
   },
   {
     title: 'Ayuda',
@@ -166,17 +216,13 @@ export function AppSidebar() {
                 <ChevronRight className="ml-auto h-4 w-4" />
               </SidebarMenuButton>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="right"
-              align="start"
-              className="min-w-48"
-            >
+            <DropdownMenuContent side="right" align="start" className="min-w-48">
               {visibleItems.map((subItem) => (
                 <DropdownMenuItem key={subItem.path} asChild>
                   <NavLink
                     to={subItem.path}
                     className={({ isActive }) =>
-                      `flex items-center gap-2 w-full ${isActive ? 'bg-primary/10 font-medium text-primary-foreground' : ''}`
+                      `flex w-full items-center gap-2 ${isActive ? 'bg-primary/10 font-medium text-primary-foreground' : ''}`
                     }
                   >
                     {subItem.icon && <subItem.icon className="h-4 w-4" />}
@@ -231,7 +277,7 @@ export function AppSidebar() {
             <SidebarMenuButton size="lg" asChild>
               <NavLink to="/dashboard">
                 <div className="rounded-lg bg-primary p-1">
-                  <img src="/favicon.ico" alt="LeFarma" className="h-5 w-5" />
+                  <img src={favicon} alt="LeFarma" className="h-5 w-5" />
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col gap-0.5 leading-none">

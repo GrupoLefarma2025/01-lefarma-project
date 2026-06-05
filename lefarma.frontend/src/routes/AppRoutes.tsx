@@ -1,4 +1,4 @@
-﻿import { Routes, Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router-dom';
 import { LandingRoute, ProtectedRoute, PublicOnlyRoute } from './LandingRoute';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
@@ -11,8 +11,9 @@ import RolesList from '@/pages/admin/Roles/RolesList';
 import PermisosList from '@/pages/admin/Permisos/PermisosList';
 import EmpresasList from '@/pages/catalogos/generales/Empresas/EmpresasList';
 import SucursalesList from '@/pages/catalogos/generales/Sucursales/SucursalesList';
-import GastosList from '@/pages/catalogos/generales/Gastos/GastosList';
+
 import MedidasList from '@/pages/catalogos/generales/Medidas/MedidasList';
+import TiposGastoList from '@/pages/catalogos/generales/TiposGasto/TiposGastoList';
 
 import AreasList from '@/pages/catalogos/generales/Areas/AreasList';
 import FormasPagoList from '@/pages/catalogos/generales/FormasPago/FormasPagoList';
@@ -26,6 +27,7 @@ import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
 import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
 import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
+import EnvioConcentrado from '@/pages/ordenes/EnvioConcentrado';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
@@ -50,37 +52,39 @@ export const AppRoutes = () => {
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />
         <Route element={<MainLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/seguridad/usuarios" element={<PermissionGuard requireAny={['usuarios.ver_detalle', 'usuarios.manage']}><UsuariosList /></PermissionGuard>} />
-          <Route
-            path="/seguridad/roles"
-            element={
-              <PermissionGuard require="usuarios.ver_detalle">
-                <RolesList />
-              </PermissionGuard>
-            }
-          />
+          <Route path="/seguridad/usuarios" element={<UsuariosList />} />
+          <Route path="/seguridad/roles"  element={ <RolesList />} />
           <Route path="/seguridad/permisos" element={<PermisosList />} />
-          <Route path="/catalogos/empresas" element={<EmpresasList />} />
-          <Route path="/catalogos/sucursales" element={<SucursalesList />} />
-          <Route path="/catalogos/gastos" element={<GastosList />} />
-          <Route path="/catalogos/medidas" element={<MedidasList />} />
 
-          <Route path="/catalogos/areas" element={<AreasList />} />
-          <Route path="/catalogos/formas-pago" element={<FormasPagoList />} />
-          <Route path="/catalogos/tipos-impuesto" element={<TiposImpuestoList />} />
-          <Route path="/catalogos/centros-costo" element={<CentrosCostoList />} />
-          <Route path="/catalogos/cuentas-contables" element={<CuentasContablesList />} />
-          <Route path="/catalogos/estatus-orden" element={<EstatusOrdenList />} />
-          <Route path="/catalogos/proveedores" element={<ProveedoresList />} />
-          <Route path="/catalogos/regimenes-fiscales" element={<RegimenesFiscalesList />} />
-          <Route path="/configuracion" element={<ConfiguracionGeneral />} />
-          <Route path="/workflows" element={<WorkflowsList />} />
+
+      {/* Catalogos   */}
+          <Route path="/catalogos/empresas" element={<PermissionGuard requireAny={['empresas.ver_listado']}><EmpresasList /></PermissionGuard>} />
+          <Route path="/catalogos/areas" element={<PermissionGuard requireAny={['areas.ver_listado']}><AreasList /></PermissionGuard>} />
+          <Route path="/catalogos/formas-pago" element={<PermissionGuard requireAny={['formas-pago.ver_listado']}><FormasPagoList /></PermissionGuard>} />
+          <Route path="/catalogos/tipos-impuesto" element={<PermissionGuard requireAny={['tipos-impuesto.ver_listado']}><TiposImpuestoList /></PermissionGuard>} />
+          <Route path="/catalogos/centros-costo" element={<PermissionGuard requireAny={['centros-costo.ver_listado']}><CentrosCostoList /></PermissionGuard>} />
+          <Route path="/catalogos/cuentas-contables" element={<PermissionGuard requireAny={['cuentas-contables.ver_listado']}><CuentasContablesList /></PermissionGuard>} />
+          <Route path="/catalogos/estatus-orden" element={<PermissionGuard requireAny={['estatus-orden.ver_listado']}><EstatusOrdenList /></PermissionGuard>} />
+          <Route path="/catalogos/proveedores" element={<PermissionGuard requireAny={['proveedores.ver_listado']}><ProveedoresList /></PermissionGuard>} />
+          <Route path="/catalogos/regimenes-fiscales" element={<PermissionGuard requireAny={['regimenes-fiscales.ver_listado']}><RegimenesFiscalesList /></PermissionGuard>} />
+          <Route path="/catalogos/sucursales" element={<PermissionGuard requireAny={['sucursales.ver_listado']}><SucursalesList /></PermissionGuard>} />
+
+          <Route path="/catalogos/medidas" element={<PermissionGuard requireAny={['medidas.ver_listado']}><MedidasList /></PermissionGuard>} />
+          <Route path="/catalogos/tipos-gasto" element={<PermissionGuard requireAny={['tipos-gasto.ver_listado']}><TiposGastoList /></PermissionGuard>} />
+
+          {/*   Workflows   */}    
+          <Route path="/workflows" element={<PermissionGuard requireAny={['workflows.ver_listado']}><WorkflowsList /></PermissionGuard>} />
           <Route path="/workflows/:id/diagram" element={<WorkflowDiagram />} />
+
+
+          
+          <Route path="/configuracion" element={<ConfiguracionGeneral />} /> 
           <Route path="/ordenes/editar/:id" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
+          <Route path="/ordenes/envio-concentrado" element={<EnvioConcentrado />} />
           <Route path="/perfil" element={<Perfil />} />
-          <Route path="/notificaciones" element={<NotificationsPage />} />
+          <Route path="/notificaciones" element={<PermissionGuard require={['notificaciones.ver_listado']}><NotificationsPage /></PermissionGuard>} />
           <Route path="/help" element={<HelpList />} />
           <Route path="/help/new" element={<HelpEditor />} />
           <Route path="/help/edit/:id" element={<HelpEditor />} />

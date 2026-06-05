@@ -25,6 +25,8 @@ export interface ArchivoListItem {
   metadata?: unknown;
   fechaCreacion: string;
   activo: boolean;
+  usuarioId?: number | null;
+  usuarioSubioNombre?: string | null;
 }
 
 export interface ListarArchivosParams {

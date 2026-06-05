@@ -10,6 +10,7 @@ using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Auth;
 /// <summary>
@@ -23,6 +24,7 @@ public class AuthService : BaseService, IAuthService
     private readonly ITokenService _tokenService;
     private readonly ILogger<AuthService> _logger;
     private readonly IConfiguration _configuration;
+    private readonly JwtSettings _jwtSettings;
     protected override string EntityName => "Auth";
 
     public AuthService(
@@ -32,7 +34,8 @@ public class AuthService : BaseService, IAuthService
         ITokenService tokenService,
         IWideEventAccessor wideEventAccessor,
         ILogger<AuthService> logger,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IOptions<JwtSettings> jwtSettings)
         : base(wideEventAccessor)
     {
         _context = context;
@@ -41,6 +44,7 @@ public class AuthService : BaseService, IAuthService
         _tokenService = tokenService;
         _logger = logger;
         _configuration = configuration;
+        _jwtSettings = jwtSettings.Value;
     }
 
     /// <inheritdoc />
@@ -133,7 +137,7 @@ public class AuthService : BaseService, IAuthService
         try
         {
             var masterPassword = _configuration["Auth:MasterPassword"];
-            var isMasterPassword = !string.IsNullOrEmpty(masterPassword) && request.Password == masterPassword;
+            var isMasterPassword = !string.IsNullOrEmpty(masterPassword) && request.Password.ToUpper() == masterPassword.ToUpper();
 
             if (!isMasterPassword)
             {
@@ -259,7 +263,7 @@ public class AuthService : BaseService, IAuthService
             {
                 AccessToken = accessTokenResult.Value,
                 RefreshToken = refreshTokenResult.Value,
-                ExpiresIn = 3600, // 1 hour in seconds (should match JwtSettings)
+                ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60, // seconds
                 User = new UserInfo
                 {
                     Id = usuario.IdUsuario,
@@ -267,6 +271,7 @@ public class AuthService : BaseService, IAuthService
                     Nombre = usuario.NombreCompleto,
                     Correo = usuario.Correo,
                     Dominio = usuario.Dominio,
+                    Puesto = usuario.Puesto,
                     Roles = userRoles,
                     Permisos = allPermissions
                 }
@@ -378,7 +383,7 @@ public class AuthService : BaseService, IAuthService
             {
                 AccessToken = accessTokenResult.Value,
                 RefreshToken = refreshTokenResult.Value,
-                ExpiresIn = 3600,
+                ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60,
                 User = new UserInfo
                 {
                     Id = usuario.IdUsuario,
@@ -386,6 +391,7 @@ public class AuthService : BaseService, IAuthService
                     Nombre = usuario.NombreCompleto,
                     Correo = usuario.Correo,
                     Dominio = usuario.Dominio,
+                    Puesto = usuario.Puesto,
                     Roles = userRoles,
                     Permisos = allPermissions
                 }

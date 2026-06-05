@@ -145,14 +145,16 @@ SET IDENTITY_INSERT config.workflow_acciones OFF;
 SET IDENTITY_INSERT config.workflow_campos ON;
 
 INSERT INTO config.workflow_campos
-(id_workflow_campo, id_workflow, nombre_tecnico, etiqueta_usuario, tipo_control, source_catalog, propiedad_entidad, validar_fiscal, activo)
+(id_workflow_campo, nombre_tecnico, etiqueta_usuario, tipo_control, source_catalog, propiedad_entidad, validar_fiscal, activo)
 VALUES
-    (1, 1, 'id_centro_costo',             'Centro de costo',               'Selector', 'catalogos/CentrosCosto',     'IdCentroCosto',               0, 1),
-    (2, 1, 'id_cuenta_contable',          'Cuenta contable',               'Selector', 'catalogos/CuentasContables', 'IdCuentaContable',             0, 1),
-    (3, 1, 'requiere_comprobacion_pago',  'Requiere comprobación de pago', 'Checkbox', NULL,                         'RequiereComprobacionPago',     0, 1),
-    (4, 1, 'requiere_comprobacion_gasto', 'Requiere comprobación de gasto','Checkbox', NULL,                         'RequiereComprobacionGasto',    0, 1),
-    (5, 1, 'comprobante_pago',            'Comprobante de Pago',           'Archivo',  NULL,                         NULL,                           0, 1),
-    (6, 1, 'comprobante_gasto',           'Comprobante de Gasto',          'Archivo',  NULL,                         NULL,                           1, 1);  -- validar_fiscal=1: webservice CFDI
+    (1, 'id_centro_costo',             'Centro de costo',               'Selector', 'catalogos/CentrosCosto',     'IdCentroCosto',               0, 1),
+    (2, 'id_cuenta_contable',          'Cuenta contable',               'Selector', 'catalogos/CuentasContables', 'IdCuentaContable',             0, 1),
+    (3, 'requiere_comprobacion_pago',  'Requiere comprobación de pago', 'Checkbox', NULL,                         'RequiereComprobacionPago',     0, 1),
+    (4, 'requiere_comprobacion_gasto', 'Requiere comprobación de gasto','Checkbox', NULL,                         'RequiereComprobacionGasto',    0, 1),
+    (5, 'comprobante_pago',            'Comprobante de Pago',           'Archivo',  NULL,                         NULL,                           0, 1),
+    (6, 'comprobante_gasto',           'Comprobante de Gasto',          'Archivo',  NULL,                         NULL,                           1, 1),
+    (7, 'alerta',                     'Alerta',                        'Alerta',   NULL,                         NULL,                           0, 1),
+    (8, 'estatus_proveedor',          'Estatus del proveedor',         'Validacion',NULL,                         NULL,                           0, 1);
 
 SET IDENTITY_INSERT config.workflow_campos OFF;
 
@@ -441,9 +443,9 @@ VALUES
 SET IDENTITY_INSERT config.workflow_canal_templates ON;
 
 INSERT INTO config.workflow_canal_templates
-    (id_template, id_workflow, codigo_canal, nombre, layout_html, activo, fecha_modificacion)
+    (id_template, codigo_canal, nombre, layout_html, activo, fecha_modificacion)
 VALUES
-(1, 1, 'email', 'Email - Orden de Compra',
+(1, 'email', 'Email - Orden de Compra',
 N'<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -517,7 +519,7 @@ N'<!DOCTYPE html>
 </html>',
 1, GETUTCDATE()),
 
-(2, 1, 'in_app', 'In-App - Orden de Compra',
+(2, 'in_app', 'In-App - Orden de Compra',
 N'{{Contenido}}',
 1, GETUTCDATE());
 

@@ -40,7 +40,6 @@ public class ActiveDirectoryService : IActiveDirectoryService
         return _options.Domains.AsReadOnly();
     }
 
-    // @lat: [[lat.md\auth#Auth#Active Directory]]
     public async Task<DominioConfig?> GetDominioConfigByDominioAsync(string dominio, CancellationToken cancellationToken = default)
     {
         return await _db.DominioConfigs
@@ -151,7 +150,9 @@ public class ActiveDirectoryService : IActiveDirectoryService
 
             connection.SessionOptions.ProtocolVersion = 3;
             connection.SessionOptions.SecureSocketLayer = false;
-            connection.AuthType = AuthType.Basic;
+            connection.AuthType = domainConfig.AuthType == 1
+                ? AuthType.Basic
+                : AuthType.Negotiate;
 
             // Configure timeouts to prevent blocking
             var timeoutSeconds = 30;

@@ -3,6 +3,7 @@ using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -16,7 +17,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     public class FirmasController : ControllerBase
     {
         private readonly IFirmasService _service;
-        public FirmasController(IFirmasService service) => _service = service;
+        private readonly IConfiguration _configuration;
+        public FirmasController(IFirmasService service, IConfiguration configuration)
+        {
+            _service = service;
+            _configuration = configuration;
+        }
 
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
@@ -24,10 +30,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [HttpPost("{id}/firmar")]
         [SwaggerOperation(
             Summary = "Ejecutar acci�n de firma sobre una orden",
-            Description = "Endpoint gen�rico. DatosAdicionales var�a por paso: " +
-                          "Firma3 requiere CentroCosto y CuentaContable. " +
-                          "Firma4 acepta RequiereComprobacionPago y RequiereComprobacionGasto.")]
-        public async Task<IActionResult> Firmar(int id,  FirmarRequest request)
+            Description = "Endpoint gen�rico.")]
+        public async Task<IActionResult> Firmar(int id, FirmarRequest request)
         {
             var result = await _service.FirmarAsync(id, request, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
@@ -50,6 +54,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             var result = await _service.GetAccionMetadataAsync(id, idAccion, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<AccionMetadataResponse>
             { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpPost("envio-concentrado")]
+        [SwaggerOperation(
+            Summary = "Concentrado de órdenes — avanzar en lote desde paso 4",
+            Description = "Ejecuta la acción de Autorizar (acción 8) sobre cada orden indicada. " +
+                          "El motor de workflow enruta automáticamente: Total > 100,000 → Paso 5 (Dirección), " +
+                          "Total ≤ 100,000 → Paso 6 (Tesorería).")]
+        public async Task<IActionResult> EnvioConcentrado([FromBody] EnvioConcentradoRequest request)
+        {
+            var result = await _service.EnvioConcentradoAsync(request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<EnvioConcentradoResponse>
+            { Success = true, Message = $"{data?.Exitosas} orden(es) avanzadas exitosamente.", Data = data }));
         }
 
         [HttpGet("{id}/historial-workflow")]

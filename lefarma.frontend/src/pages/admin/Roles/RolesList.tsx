@@ -8,7 +8,7 @@ import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
-import { Rol, RolConUsuarios, UsuarioBasico } from '@/types/rol.types';
+import { Rol, RolConUsuarios } from '@/types/rol.types';
 import { Permiso } from '@/types/permiso.types';
 import { Usuario } from '@/types/usuario.types';
 import { useForm, useWatch } from 'react-hook-form';
@@ -193,7 +193,7 @@ export default function RolesList() {
   const [roles, setRoles] = useState<Rol[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
-  const [rolConUsuarios, setRolConUsuarios] = useState<RolConUsuarios | null>(null);
+  // const [rolConUsuarios, setRolConUsuarios] = useState<RolConUsuarios | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
@@ -240,7 +240,7 @@ export default function RolesList() {
 
   const handleCreate = () => {
     setSelectedId(null);
-    setRolConUsuarios(null);
+    // setRolConUsuarios(null);
     setCollapsedCategories(new Set());
     form.reset({
       nombreRol: '',
@@ -271,7 +271,7 @@ export default function RolesList() {
     try {
       const response = await API.get<ApiResponse<RolConUsuarios>>(`/Admin/roles/${rol.idRol}/usuarios`);
       if (response.data.success && response.data.data) {
-        setRolConUsuarios(response.data.data);
+        // setRolConUsuarios(response.data.data);
         form.setValue('usuariosIds', response.data.data.usuarios.map(u => u.idUsuario));
       }
     } catch (error) {
@@ -454,14 +454,14 @@ export default function RolesList() {
     },
   ];
 
-  const permisoOptions = useMemo(() => {
-    return permisos.map(p => ({
-      label: `${p.categoria ? `[${p.categoria}] ` : ''}${p.nombrePermiso}`,
-      value: String(p.idPermiso),
-      icon: Key,
-      categoria: p.categoria || 'Sin categoría',
-    }));
-  }, [permisos]);
+  // const permisoOptions = useMemo(() => {
+  //   return permisos.map(p => ({
+  //     label: `${p.categoria ? `[${p.categoria}] ` : ''}${p.nombrePermiso}`,
+  //     value: String(p.idPermiso),
+  //     icon: Key,
+  //     categoria: p.categoria || 'Sin categoría',
+  //   }));
+  // }, [permisos]);
 
   const permisosPorCategoria = useMemo(() => {
     const grupos: Record<string, Permiso[]> = {};

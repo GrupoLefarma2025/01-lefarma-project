@@ -14,6 +14,14 @@ import {
   X,
   FileText,
   Eye,
+  Upload,
+  Download,
+  AlertTriangle,
+  Edit3,
+  ChevronDown,
+  ChevronUp,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,6 +50,9 @@ import {
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
+import { BulkUploadModal } from './BulkUploadModal';
+import { ClavesReferenciaModal } from './ClavesReferenciaModal';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -53,7 +64,7 @@ const RECHAZAR_EDICION_ENDPOINT = (id: number) => `${ENDPOINT}/${id}/rechazar-ed
 
 const proveedorSchema = z.object({
   razonSocial: z.string().min(3, 'La razón social debe tener al menos 3 caracteres'),
-  rfc: z.string().optional(),
+  rfc: z.string().min(1, 'El RFC es requerido'),
   codigoPostal: z.string().optional(),
   regimenFiscalId: z.number().optional(),
   usoCfdi: z.string().optional(),
@@ -146,6 +157,7 @@ interface ProveedorFormaPagoCuenta {
   beneficiario?: string;
   correoNotificacion?: string;
   activo?: boolean;
+  tieneOrdenes?: boolean;
 }
 
 interface CampoDiff {
@@ -200,13 +212,19 @@ export default function ProveedoresList() {
   const [modalOpen, setModalOpen] = useState(false);
   const [rejectModal, setRejectModal] = useState<{ open: boolean; proveedorId: number | null }>({ open: false, proveedorId: null });
   const [rejectMotivo, setRejectMotivo] = useState('');
+  const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [cuentasEditMode, setCuentasEditMode] = useState<Set<number>>(new Set());
+  const [showCuentasInactivas, setShowCuentasInactivas] = useState(false);
   const [deleteCuentaModal, setDeleteCuentaModal] = useState(false);
   const [deleteCuentaIndex, setDeleteCuentaIndex] = useState(-1);
-  const [cuentasFormaPago, setCuentasFormaPago] = useState<ProveedorFormaPagoCuenta[]>([]);
+  const [editCuentaModal, setEditCuentaModal] = useState(false);
+  const [editCuentaIndex, setEditCuentaIndex] = useState(-1);
   const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
   const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [clavesModalOpen, setClavesModalOpen] = useState(false);
   // Valores originales al abrir el modal (para comparar cambios reales)
   const [originalValues, setOriginalValues] = useState<Partial<{
     regimenFiscalId: number | null;
@@ -215,6 +233,25 @@ export default function ProveedoresList() {
     codigoPostal: string | null;
     razonSocial: string;
   }>>({});
+
+  /** Formatea Número de Cuenta: grupos de 4 dígitos (máx 20) */
+  const formatCuenta = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 20);
+    return d.replace(/(\d{4})(?=\d)/g, '$1 ');
+  };
+
+  /** Formatea CLABE interbancaria (18 dígitos): XXX XXX XXXX XXXX XXXX */
+  const formatCLABE = (raw: string): string => {
+    const d = raw.replace(/\D/g, '').slice(0, 18);
+    if (d.length === 0) return '';
+    const parts: string[] = [];
+    if (d.length > 0) parts.push(d.slice(0, 3));
+    if (d.length > 3) parts.push(d.slice(3, 6));
+    if (d.length > 6) parts.push(d.slice(6, 10));
+    if (d.length > 10) parts.push(d.slice(10, 14));
+    if (d.length > 14) parts.push(d.slice(14));
+    return parts.join(' ');
+  };
 
   const form = useForm<ProveedorFormValues>({
     resolver: zodResolver(proveedorSchema),
@@ -236,7 +273,15 @@ export default function ProveedoresList() {
       setLoading(true);
       const response = await API.get<ApiResponse<Proveedor[]>>(ENDPOINT);
       if (response.data.success) {
-        setProveedores(response.data.data || []);
+        const data = (response.data.data || []).map((p) => ({
+          ...p,
+          cuentasFormaPago: p.cuentasFormaPago?.map((c) => ({
+            ...c,
+            numeroCuenta: c.numeroCuenta?.replace(/\s/g, '') ?? c.numeroCuenta,
+            clabe: c.clabe?.replace(/\s/g, '') ?? c.clabe,
+          })),
+        }));
+        setProveedores(data);
       }
     } catch (error: unknown) {
       const err = toApiError(error);
@@ -305,6 +350,7 @@ export default function ProveedoresList() {
       comentario: '',
     });
     setCuentasFormaPago([]);
+    setCuentasEditMode(new Set());
     setIsEditing(false);
     setModalOpen(true);
   };
@@ -344,6 +390,7 @@ export default function ProveedoresList() {
         comentario: proveedor.detalle?.comentario || '',
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
+      setCuentasEditMode(new Set());
       setCaratulaFile(null);
       const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
       const caratulaPath = proveedor.detalle?.caratulaUrl || null;
@@ -359,9 +406,32 @@ export default function ProveedoresList() {
   const handleSaveProveedor = async (_values: ProveedorFormValues) => {
     setIsSaving(true);
     try {
-      // Usar form.getValues() directamente para capturar los valores actuales del formulario,
-      // evitando problemas con Select components que pueden tener field.value desincronizado
       const values = form.getValues();
+
+      if (cuentasFormaPago.length === 0) {
+        toast.error('Debes agregar al menos una cuenta bancaria');
+        setIsSaving(false);
+        return;
+      }
+
+      const cuentaErrors: string[] = [];
+      cuentasFormaPago.forEach((c, i) => {
+        const n = i + 1;
+        if (!c.idFormaPago || c.idFormaPago === 0) cuentaErrors.push(`Cuenta ${n}: Forma de pago`);
+        if (!c.idBanco || c.idBanco === 0) cuentaErrors.push(`Cuenta ${n}: Banco`);
+        if (!c.numeroCuenta?.trim()) cuentaErrors.push(`Cuenta ${n}: No. de Cuenta`);
+        if (!c.clabe?.trim()) cuentaErrors.push(`Cuenta ${n}: CLABE`);
+        if (!c.beneficiario?.trim()) cuentaErrors.push(`Cuenta ${n}: Beneficiario`);
+      });
+      if (cuentaErrors.length > 0) {
+        toast.error('Faltan campos obligatorios en cuentas bancarias', {
+          description: cuentaErrors.join(' · '),
+          duration: 6000,
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const { personaContactoNombre, contactoTelefono, contactoEmail, comentario, ...rest } = values;
 
       // Fallback: si el form tiene undefined/NaN para campos críticos, usar los valores originales
@@ -396,12 +466,12 @@ export default function ProveedoresList() {
       };
 
       const response = isEditing
-        ? await API.put(`${ENDPOINT}/${proveedorId}`, payload)
-        : await API.post(ENDPOINT, payload);
+        ? await API.put<ApiResponse<Proveedor>>(`${ENDPOINT}/${proveedorId}`, payload)
+        : await API.post<ApiResponse<Proveedor>>(ENDPOINT, payload);
 
       if (response.data.success) {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
-        const savedId = isEditing ? proveedorId : (response.data.data as any)?.idProveedor;
+        const savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
 
         // Upload caratula file if present
         if (caratulaFile && savedId) {
@@ -674,15 +744,19 @@ export default function ProveedoresList() {
           <div className="flex items-center gap-2">
             {proveedor.estatus === ESTATUS.NUEVO && (
               <>
+              <PermissionElement require={'proveedores.autorizar'}>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-8 gap-1.5 text-green-600 border-green-600 hover:bg-green-50"
                   onClick={() => handleAutorizar(proveedor.idProveedor)}
                 >
+                  
                   <Check className="h-3.5 w-3.5" />
                   Autorizar
                 </Button>
+                </PermissionElement>
+                <PermissionElement require={'proveedores.rechazar'}>
                 <Button
                   size="sm"
                   variant="outline"
@@ -692,8 +766,10 @@ export default function ProveedoresList() {
                   <X className="h-3.5 w-3.5" />
                   Rechazar
                 </Button>
+                </PermissionElement>
               </>
             )}
+            <PermissionElement require={'proveedores.autorizar'}> 
             {proveedor.estatus === ESTATUS.EDITADO_PENDIENTE && (
               <>
                 <Button
@@ -716,24 +792,29 @@ export default function ProveedoresList() {
                 </Button>
               </>
             )}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5"
-              onClick={() => handleEditProveedor(proveedor.idProveedor)}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Editar
-            </Button>
-            <Button
-              size="sm"
-              variant="destructive"
-              className="h-8 gap-1.5"
-              onClick={() => handleDeleteProveedor(proveedor.idProveedor)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Eliminar
-            </Button>
+            </PermissionElement>
+            <PermissionElement require={'proveedores.editar'}>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5"
+                onClick={() => handleEditProveedor(proveedor.idProveedor)}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
+              </Button>
+            </PermissionElement>
+            <PermissionElement require={'proveedores.eliminar'}>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 gap-1.5"
+                onClick={() => handleDeleteProveedor(proveedor.idProveedor)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Eliminar
+              </Button>
+            </PermissionElement>
           </div>
         );
       },
@@ -752,9 +833,24 @@ export default function ProveedoresList() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <Button onClick={handleNuevoProveedor}>
-          <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
-        </Button>
+        <PermissionElement require={['proveedores.crear']}>
+          <div className="flex items-center gap-2">
+            <PermissionElement require={['proveedores.carga-masiva']}>
+              <Button
+                variant="outline"
+                onClick={() => setClavesModalOpen(true)}
+              >
+                <Download className="mr-2 h-4 w-4" /> Descargar Plantilla
+              </Button>
+              <Button variant="outline" onClick={() => setBulkModalOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Carga Masiva
+              </Button>
+            </PermissionElement>
+            <Button onClick={handleNuevoProveedor}>
+              <Plus className="mr-2 h-4 w-4" /> Nuevo Proveedor
+            </Button>
+          </div>
+        </PermissionElement>
       </div>
 
       <div className="relative">
@@ -795,9 +891,14 @@ export default function ProveedoresList() {
       <Modal
         id="modal-proveedor"
         open={modalOpen}
-        setOpen={setModalOpen}
+        setOpen={(open) => {
+          if (!open) {
+            setCuentasEditMode(new Set());
+          }
+          setModalOpen(open);
+        }}
         title={isEditing ? 'Editar Proveedor' : 'Nuevo Proveedor'}
-        size="xl"
+        size="wide"
         footer={
           <div className="flex gap-2 justify-end pt-2">
             <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>
@@ -806,7 +907,47 @@ export default function ProveedoresList() {
             <Button
               type="button"
               disabled={isSaving}
-              onClick={form.handleSubmit(handleSaveProveedor)}
+              onClick={() => {
+                form.handleSubmit(
+                  handleSaveProveedor,
+                  (errors) => {
+                    type FieldErr = { message?: string };
+                    const FIELD_NAMES: Record<string, string> = {
+                      razonSocial: 'Razón Social',
+                      rfc: 'RFC',
+                      codigoPostal: 'Código Postal',
+                      regimenFiscalId: 'Régimen Fiscal',
+                      usoCfdi: 'Uso CFDI',
+                      personaContactoNombre: 'Contacto',
+                      contactoTelefono: 'Teléfono',
+                      contactoEmail: 'Email',
+                      comentario: 'Comentario',
+                    };
+                    const missing: string[] = [];
+                    const devDetails: string[] = [];
+                    for (const [key, err] of Object.entries(errors as Record<string, unknown>)) {
+                      if (!err) continue;
+                      if (typeof err === 'object' && 'message' in (err as object)) {
+                        const msg = (err as FieldErr).message ?? 'Requerido';
+                        missing.push(FIELD_NAMES[key] ?? key);
+                        devDetails.push(`${key} → ${msg}`);
+                      }
+                    }
+                    console.group('🔴 Validación Proveedor FALLÓ');
+                    devDetails.forEach((d) => console.log(d));
+                    console.log('Objeto completo:', errors);
+                    console.groupEnd();
+                    if (missing.length > 0) {
+                      toast.error('Faltan campos obligatorios', {
+                        description: missing.join(' · '),
+                        duration: 6000,
+                      });
+                    }
+                    const modal = document.getElementById('modal-proveedor');
+                    if (modal) modal.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                )();
+              }}
             >
               {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditing ? 'Guardar Cambios' : 'Crear Proveedor'}
@@ -836,7 +977,7 @@ export default function ProveedoresList() {
                 name="rfc"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>RFC</FormLabel>
+                    <FormLabel>RFC *</FormLabel>
                     <FormControl>
                       <Input placeholder="RFC del proveedor" {...field} />
                     </FormControl>
@@ -1045,32 +1186,61 @@ export default function ProveedoresList() {
                 </p>
               ) : (
                 <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {cuentasFormaPago.map((cuenta, index) => (
-                    <div key={index} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
+                  {/* Cuentas Activas */}
+                  {cuentasFormaPago.filter(c => c.activo !== false).map((cuenta, activeIndex) => {
+                    const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
+                    const isEditable = cuenta.idCuen === 0 || cuentasEditMode.has(originalIndex);
+                    return (
+                    <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
                       {/* Header de la tarjeta */}
                       <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100/80 border-b border-gray-200">
                         <div className="flex items-center gap-2">
                           <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold">
-                            {index + 1}
+                            {activeIndex + 1}
                           </span>
                           <span className="text-xs font-medium text-gray-700">
                             {cuenta.formaPagoNombre || 'Forma de pago'}
                             {cuenta.bancoNombre ? ` · ${cuenta.bancoNombre}` : ''}
                           </span>
+                          {cuenta.tieneOrdenes && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                              <AlertTriangle className="h-3 w-3" />
+                              Tiene órdenes asignadas
+                            </span>
+                          )}
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 gap-1 text-xs"
-                          onClick={() => {
-                            setDeleteCuentaIndex(index);
-                            setDeleteCuentaModal(true);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          <span>Eliminar</span>
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          {/* Botón Editar (solo cuentas guardadas) */}
+                          {cuenta.idCuen && cuenta.idCuen > 0 && !cuentasEditMode.has(originalIndex) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-50 gap-1 text-xs"
+                              onClick={() => {
+                                setEditCuentaIndex(originalIndex);
+                                setEditCuentaModal(true);
+                              }}
+                            >
+                              <Edit3 className="h-3.5 w-3.5" />
+                              <span>Editar</span>
+                            </Button>
+                          )}
+                          {/* Botón Eliminar */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 gap-1 text-xs"
+                            onClick={() => {
+                              setDeleteCuentaIndex(originalIndex);
+                              setDeleteCuentaModal(true);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Eliminar</span>
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Campos de la tarjeta */}
@@ -1079,15 +1249,16 @@ export default function ProveedoresList() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                           {/* Forma de Pago */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Forma de Pago *</label>
                             <Select
                               value={String(cuenta.idFormaPago || '')}
                               onValueChange={(val) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].idFormaPago = Number(val);
-                                updated[index].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
+                                updated[originalIndex].idFormaPago = Number(val);
+                                updated[originalIndex].formaPagoNombre = formasPago.find((fp) => fp.idFormaPago === Number(val))?.nombre || '';
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             >
                               <SelectTrigger className="h-9 text-sm bg-white">
                                 <SelectValue placeholder="Selecciona forma de pago..." />
@@ -1104,15 +1275,16 @@ export default function ProveedoresList() {
 
                           {/* Banco */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Banco *</label>
                             <Select
                               value={String(cuenta.idBanco || '')}
                               onValueChange={(val) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].idBanco = Number(val);
-                                updated[index].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
+                                updated[originalIndex].idBanco = Number(val);
+                                updated[originalIndex].bancoNombre = bancos.find((b) => b.idBanco === Number(val))?.nombre || '';
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             >
                               <SelectTrigger className="h-9 text-sm bg-white">
                                 <SelectValue placeholder="Selecciona banco..." />
@@ -1132,52 +1304,118 @@ export default function ProveedoresList() {
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {/* Número de Cuenta */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">No. de Cuenta *</label>
                             <Input
-                              className="h-9 text-sm bg-white"
-                              placeholder="****1234"
-                              value={cuenta.numeroCuenta || ''}
+                              className="h-9 text-sm bg-white font-mono tracking-wider"
+                              placeholder="0189 8232 5500"
+                              value={formatCuenta(cuenta.numeroCuenta || '')}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 20);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].numeroCuenta = e.target.value;
+                                updated[originalIndex].numeroCuenta = raw;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
 
                           {/* CLABE */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">CLABE Interbancaria *</label>
                             <Input
-                              className="h-9 text-sm bg-white"
-                              placeholder="18 dígitos"
-                              value={cuenta.clabe || ''}
+                              className="h-9 text-sm bg-white font-mono tracking-wider"
+                              placeholder="072 180 0000 0000 0000"
+                              value={formatCLABE(cuenta.clabe || '')}
                               onChange={(e) => {
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 18);
                                 const updated = [...cuentasFormaPago];
-                                updated[index].clabe = e.target.value;
+                                updated[originalIndex].clabe = raw;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
 
                           {/* Beneficiario */}
                           <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario</label>
+                            <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">Beneficiario *</label>
                             <Input
                               className="h-9 text-sm bg-white"
                               placeholder="Nombre del beneficiario"
                               value={cuenta.beneficiario || ''}
                               onChange={(e) => {
                                 const updated = [...cuentasFormaPago];
-                                updated[index].beneficiario = e.target.value;
+                                updated[originalIndex].beneficiario = e.target.value;
                                 setCuentasFormaPago(updated);
                               }}
+                              disabled={!isEditable}
                             />
                           </div>
                         </div>
                       </div>
                     </div>
-                  ))}
+                  )})}
+
+                  {/* Cuentas Inactivas - Sección Colapsable */}
+                  {cuentasFormaPago.some(c => c.activo === false) && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCuentasInactivas(!showCuentasInactivas)}
+                        className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                      >
+                        {showCuentasInactivas ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                        <span>
+                          {showCuentasInactivas ? 'Ocultar' : 'Ver'} cuentas inactivas
+                          <span className="ml-1 text-gray-400">
+                            ({cuentasFormaPago.filter(c => c.activo === false).length})
+                          </span>
+                        </span>
+                      </button>
+
+                      {showCuentasInactivas && (
+                        <div className="mt-2 space-y-2">
+                          {cuentasFormaPago.filter(c => c.activo === false).map((cuenta) => {
+                            const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
+                            return (
+                              <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-100/50 overflow-hidden opacity-70">
+                                <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100 border-b border-gray-200">
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-[10px] font-semibold">
+                                      {originalIndex + 1}
+                                    </span>
+                                    <span className="text-xs font-medium text-gray-500">
+                                      {cuenta.formaPagoNombre || 'Forma de pago'}
+                                      {cuenta.bancoNombre ? ` · ${cuenta.bancoNombre}` : ''}
+                                    </span>
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                                      Inactiva
+                                    </span>
+                                  </div>
+
+                                </div>
+                                <div className="p-3 grid grid-cols-3 gap-2">
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">No. Cuenta:</span> {cuenta.numeroCuenta || 'N/A'}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">CLABE:</span> {cuenta.clabe || 'N/A'}
+                                  </div>
+                                  <div className="text-[10px] text-gray-500">
+                                    <span className="font-medium">Beneficiario:</span> {cuenta.beneficiario || 'N/A'}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1209,9 +1447,47 @@ export default function ProveedoresList() {
           </div>
         }
       >
-        <p className="text-sm text-muted-foreground">
-          ¿Estás seguro de eliminar esta cuenta bancaria? Esta acción no se puede deshacer.
-        </p>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Las órdenes de compra que actualmente tienen asignada esta cuenta bancaria seguirán mostrándola en su detalle.     
+        <span className="block mt-3">
+          Si deseas cambiarla, deberás actualizar manualmente la cuenta bancaria en cada orden correspondiente.
+        </span>
+        <span className="block mt-4 font-medium text-foreground">
+          ¿Estás seguro de eliminar esta cuenta bancaria?
+        </span>
+      </p>
+      </Modal>
+
+      {/* Modal confirmación editar cuenta */}
+      <Modal
+        id="modal-edit-cuenta"
+        open={editCuentaModal}
+        setOpen={(open) => { if (!open) { setEditCuentaModal(false); setEditCuentaIndex(-1); } }}
+        title="Editar Cuenta"
+        size="sm"
+        footer={
+          <div className="flex gap-2 justify-end">
+            <Button type="button" variant="outline" onClick={() => { setEditCuentaModal(false); setEditCuentaIndex(-1); }}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="default" onClick={() => {
+             setCuentasEditMode((prev) => new Set([...prev, editCuentaIndex]));
+              setEditCuentaModal(false);
+            }}>
+              Editar Cuenta
+            </Button>
+          </div>
+        }
+      >
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        Las órdenes de compra que actualmente tienen asignada esta cuenta bancaria seguirán mostrándola en su detalle.     
+        <span className="block mt-3">
+          Si deseas cambiarla, deberás actualizar manualmente la cuenta bancaria en cada orden correspondiente.
+        </span>
+        <span className="block mt-4 font-medium text-foreground">
+          ¿Estás seguro de editar esta cuenta bancaria?
+        </span>
+      </p>
       </Modal>
 
       <Modal
@@ -1332,6 +1608,20 @@ export default function ProveedoresList() {
           <p className="text-sm text-muted-foreground text-center py-4">No hay datos de cambios disponibles.</p>
         )}
       </Modal>
+
+      <BulkUploadModal
+        open={bulkModalOpen}
+        setOpen={setBulkModalOpen}
+        onImported={fetchProveedores}
+      />
+
+      <ClavesReferenciaModal
+        open={clavesModalOpen}
+        setOpen={setClavesModalOpen}
+        formasPago={formasPago}
+        bancos={bancos}
+        regimenesFiscales={regimenesFiscales}
+      />
 
       {/* Fullscreen image viewer */}
       {fullscreenImage && (

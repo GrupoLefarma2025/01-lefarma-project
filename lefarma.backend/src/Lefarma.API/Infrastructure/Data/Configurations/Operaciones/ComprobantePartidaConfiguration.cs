@@ -12,7 +12,6 @@ public class ComprobantePartidaConfiguration : IEntityTypeConfiguration<Comproba
         builder.HasKey(c => c.IdAsignacion);
         builder.Property(c => c.IdAsignacion).HasColumnName("id_asignacion").ValueGeneratedOnAdd();
         builder.Property(c => c.IdComprobante).HasColumnName("id_comprobante").IsRequired();
-        builder.Property(c => c.IdConcepto).HasColumnName("id_concepto");
         builder.Property(c => c.IdPartida).HasColumnName("id_partida").IsRequired();
         builder.Property(c => c.IdUsuarioAsigno).HasColumnName("id_usuario_asigno").IsRequired();
         builder.Property(c => c.IdPasoWorkflow).HasColumnName("id_paso_workflow");

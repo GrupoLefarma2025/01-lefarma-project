@@ -9,6 +9,7 @@ export interface UserInfo {
   nombre?: string;
   correo?: string;
   dominio?: string;
+  puesto?: string;
   roles: RoleInfo[];
   permisos: PermissionInfo[];
 }
@@ -43,6 +44,7 @@ export interface Empresa {
   nombre: string;
   codigo: string;
   activo: boolean;
+  puedeSeleccionarEmpresas: boolean;
 }
 
 export interface Sucursal {
@@ -119,6 +121,8 @@ export interface AuthState {
   area: Area | null;
 
   hasFirma: boolean | null;
+  puedeSeleccionarEmpresas: boolean;
+  usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
 
   // Existing actions
   logout: () => Promise<void>;

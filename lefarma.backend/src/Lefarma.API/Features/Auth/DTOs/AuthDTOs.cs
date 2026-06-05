@@ -120,6 +120,11 @@ public class UserInfo
     public string? Dominio { get; set; }
 
     /// <summary>
+    /// User's job title
+    /// </summary>
+    public string? Puesto { get; set; }
+
+    /// <summary>
     /// User's assigned roles
     /// </summary>
     public List<RoleInfo> Roles { get; set; } = new();

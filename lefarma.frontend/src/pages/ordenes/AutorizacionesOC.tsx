@@ -3,6 +3,7 @@
 import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
@@ -24,6 +25,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/kibo-ui/combobox';
+import {
   Loader2,
   FileText,
   Search,
@@ -36,6 +47,7 @@ import {
   Eye,
   Download,
   Clock,
+  AlertCircle,
   XCircle,
   AlertTriangle,
   UserRound,
@@ -44,17 +56,20 @@ import {
   Send,
   RotateCcw,
   Receipt,
+  Banknote,
   Upload,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
-import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
+import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
-import type { PartidaPendienteResponse, } from '@/types/comprobante.types';
+import type { WorkflowEstado } from '@/types/workflow.types';
+import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
@@ -66,9 +81,40 @@ import { toApiError } from '@/utils/errors';
 
 interface AccionDisponibleResponse {
   idAccion: number;
-  nombreAccion: string;
-  tipoAccion: string;
-  claseEstetica: string;
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
+  enviaConcentrado?: boolean;
+
+  // Requisitos del paso
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto: boolean;
+
+  // Handlers y campos para modal dinámico
+  handlers: AccionHandlerResponse[];
+  camposWorkflow: WorkflowCampoResponse[];
+  camposRequeridos: string[];
+}
+
+interface AccionHandlerResponse {
+  idHandler: number;
+  handlerKey: string;
+  requerido: boolean;
+  configuracionJson?: string | null;
+  ordenEjecucion: number;
+  campo?: WorkflowCampoResponse | null;
+  validacionExito?: boolean | null;
+  validacionMensaje?: string | null;
+}
+
+interface WorkflowCampoResponse {
+  idWorkflowCampo: number;
+  nombreTecnico: string;
+  etiquetaUsuario: string;
+  tipoControl: string;
+  sourceCatalog?: string | null;
 }
 
 interface HistorialWorkflowItemResponse {
@@ -105,7 +151,10 @@ interface WorkflowHandlerConfig {
 interface WorkflowAccionConfig {
   idAccion: number;
   nombreAccion: string;
-  tipoAccion: string;
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
   handlers: WorkflowHandlerConfig[];
 }
 
@@ -157,60 +206,38 @@ interface WorkflowConfigResponse {
   campos: WorkflowCampoConfig[];
 }
 
-const ESTADO_BADGE: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-  Creada: 'outline',
-  EnRevisionF2: 'secondary',
-  EnRevisionF3: 'secondary',
-  EnRevisionF4: 'secondary',
-  EnRevisionF5: 'secondary',
-  Autorizada: 'default',
-  EnTesoreria: 'default',
-  Pagada: 'default',
-  EnComprobacion: 'outline',
-  Cerrada: 'default',
-  Rechazada: 'destructive',
-  Cancelada: 'outline',
-};
+interface WorkflowFlowResponse {
+  idWorkflow: number;
+  nombre: string;
+  codigoProceso: string;
+  version: number;
+  activo: boolean;
+  pasos: WorkflowPasoFlowResponse[];
+}
 
-const ESTADO_LABEL: Record<string, string> = {
-  Creada: 'Creada',
-  EnRevisionF2: 'En revisión - Firma 2',
-  EnRevisionF3: 'En revisión - Firma 3',
-  EnRevisionF4: 'En revisión - Firma 4',
-  EnRevisionF5: 'En revisión - Firma 5',
-  Autorizada: 'Autorizada',
-  EnTesoreria: 'En tesorería',
-  Pagada: 'Pagada',
-  EnComprobacion: 'En comprobación',
-  Cerrada: 'Cerrada',
-  Rechazada: 'Rechazada',
-  Cancelada: 'Cancelada',
-};
+interface WorkflowPasoFlowResponse {
+  idPaso: number;
+  orden: number;
+  nombrePaso: string;
+  idEstado?: number;
+  descripcionAyuda?: string | null;
+  esInicio: boolean;
+  esFinal: boolean;
+  activo: boolean;
+  requiereFirma: boolean;
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto: boolean;
+}
 
-const ESTADO_BADGE_CLASS: Record<string, string> = {
-  Creada: 'border-slate-300 text-slate-700 bg-slate-50 dark:bg-slate-900/40',
-  EnRevisionF2: 'border-blue-300 text-blue-700 bg-blue-50 dark:bg-blue-950/30',
-  EnRevisionF3: 'border-indigo-300 text-indigo-700 bg-indigo-50 dark:bg-indigo-950/30',
-  EnRevisionF4: 'border-violet-300 text-violet-700 bg-violet-50 dark:bg-violet-950/30',
-  EnRevisionF5: 'border-fuchsia-300 text-fuchsia-700 bg-fuchsia-50 dark:bg-fuchsia-950/30',
-  Autorizada: 'border-emerald-300 text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30',
-  EnTesoreria: 'border-cyan-300 text-cyan-700 bg-cyan-50 dark:bg-cyan-950/30',
-  Pagada: 'border-teal-300 text-teal-700 bg-teal-50 dark:bg-teal-950/30',
-  EnComprobacion: 'border-amber-300 text-amber-800 bg-amber-50 dark:bg-amber-950/30',
-  Cerrada: 'border-green-400 text-green-800 bg-green-100 dark:bg-green-950/40',
-  Rechazada: 'border-red-400 text-red-800 bg-red-100 dark:bg-red-950/40',
-  Cancelada: 'border-zinc-400 text-zinc-700 bg-zinc-100 dark:bg-zinc-900/50',
-};
+type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string; validacionExito?: boolean | null; validacionMensaje?: string | null };
 
-type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string };
-
-function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFormItem[] {
-  if (!accionConfig) return [];
+function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoFormItem[] {
+  if (!accion) return [];
   const result: CampoFormItem[] = [];
   const seen = new Set<string>();
 
-  const handlers = [...(accionConfig.handlers || [])]
-    .filter((h) => h.activo)
+  const handlers = [...(accion.handlers || [])]
     .sort((a, b) => a.ordenEjecucion - b.ordenEjecucion);
 
   for (const handler of handlers) {
@@ -220,7 +247,18 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
+          result.push({ 
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: handler.campo.tipoControl,
+              sourceCatalog: handler.campo.sourceCatalog,
+              activo: true
+            }, 
+            requerido: handler.requerido, 
+            inputKey 
+          });
         }
       }
 
@@ -229,7 +267,40 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
+          result.push({ 
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: handler.campo.tipoControl,
+              sourceCatalog: handler.campo.sourceCatalog,
+              activo: true
+            }, 
+            requerido: handler.requerido, 
+            inputKey 
+          });
+        }
+      }
+
+      // Alerta: muestra mensaje de validacion (ej: proveedor no autorizado)
+      if (handler.campo?.tipoControl === 'Alerta') {
+        const inputKey = handler.campo.nombreTecnico;
+        if (!seen.has(inputKey)) {
+          seen.add(inputKey);
+          result.push({
+            campo: {
+              idWorkflowCampo: handler.campo.idWorkflowCampo,
+              nombreTecnico: handler.campo.nombreTecnico,
+              etiquetaUsuario: handler.campo.etiquetaUsuario,
+              tipoControl: 'Alerta',
+              sourceCatalog: null,
+              activo: true
+            },
+            requerido: false,
+            inputKey,
+            validacionExito: handler.validacionExito,
+            validacionMensaje: handler.validacionMensaje
+          });
         }
       }
     } catch {
@@ -238,6 +309,21 @@ function getCamposParaAccion(accionConfig: WorkflowAccionConfig | null): CampoFo
   }
   return result;
 }
+
+// ── helpers de formato ──────────────────────────────────────────────────────
+const fmtFecha = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '-';
+  try {
+    return new Date(dateStr).toLocaleDateString('es-MX', {
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+};
+
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
   const navigate = useNavigate();
@@ -250,16 +336,14 @@ export default function AutorizacionesOC() {
   const [selectedOrden, setSelectedOrden] = useState<OrdenCompraResponse | null>(null);
   const [acciones, setAcciones] = useState<AccionDisponibleResponse[]>([]);
   const [historial, setHistorial] = useState<HistorialWorkflowItemResponse[]>([]);
-  const [pasosWorkflow, setPasosWorkflow] = useState<WorkflowPasoConfig[]>([]);
-  const [workflowCampos, setWorkflowCampos] = useState<WorkflowCampoConfig[]>([]);
-  const [accionesConfig, setAccionesConfig] = useState<Map<number, WorkflowAccionConfig>>(
-    new Map()
-  );
+  const [workflowsMap, setWorkflowsMap] = useState<Map<number, WorkflowFlowResponse>>(new Map());
+  const [pasosWorkflow, setPasosWorkflow] = useState<WorkflowPasoFlowResponse[]>([]);
   const [expandedPasoId, setExpandedPasoId] = useState<number | null>(null);
   const [expandedPartidaId, setExpandedPartidaId] = useState<number | null>(null);
   const pasosContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [search, setSearch] = useState('');
+  const [creadorFilter, setCreadorFilter] = useState<number | 'all'>('all');
   const [estadoFilter, setEstadoFilter] = useState('all');
   const [isFirmarModalOpen, setIsFirmarModalOpen] = useState(false);
   const [isSubmittingFirma, setIsSubmittingFirma] = useState(false);
@@ -288,18 +372,43 @@ export default function AutorizacionesOC() {
   const [loadingFacturacion, setLoadingFacturacion] = useState(false);
   const [isSubirComprobanteOpen, setIsSubirComprobanteOpen] = useState(false);
   const [isSubirComprobantePagoOpen, setIsSubirComprobantePagoOpen] = useState<string | null>(null);
+  const [isSubirAdjuntoOpen, setIsSubirAdjuntoOpen] = useState(false);
+  const [observacionesAdjunto, setObservacionesAdjunto] = useState('');
+  const [isDetailDrawerOpen, setIsDetailDrawerOpen] = useState(false);
 
   const [comprobantesWorkflow, setComprobantesWorkflow] = useState<Record<string, import('@/types/comprobante.types').ComprobanteResponse[]>>({});
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
+  const [allProveedoresMap, setAllProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
+  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+  const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
+
+  //Permisos
+  const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
 
   const estados = useMemo(() => {
-    const values = Array.from(new Set(ordenes.map((o) => o.estado))).sort();
-    return ['all', ...values];
+    const values = workflowEstados.filter(e => e.activo).sort((a, b) => a.idEstado - b.idEstado);
+    return ['all', ...values.map(e => String(e.idEstado))];
+  }, [workflowEstados]);
+
+  const creadores = useMemo(() => {
+    const map = new Map<number, string>();
+    ordenes.forEach((o) => {
+      if (o.idUsuarioCreador && o.solicitanteNombre) {
+        map.set(o.idUsuarioCreador, o.solicitanteNombre);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([id, nombre]) => ({ id, nombre }));
   }, [ordenes]);
 
-  const getEstadoLabel = (estado: string) => ESTADO_LABEL[estado] || estado;
+  const getEstadoInfo = (idEstado: number | null | undefined) => {
+    if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
+    const e = workflowEstados.find((est) => est.idEstado === idEstado);
+    return { nombre: e?.nombre ?? `Estado ${idEstado}`, color: e?.colorHex ?? '#94a3b8' };
+  };
   const formatCurrency = (value: number) =>
     value.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 
@@ -387,7 +496,9 @@ export default function AutorizacionesOC() {
       const [ordenRes, accionesRes, historialRes] = await Promise.all([
         API.get<ApiResponse<OrdenCompraResponse>>(`/ordenes/${idOrden}`),
         API.get<ApiResponse<AccionDisponibleResponse[]>>(`/ordenes/${idOrden}/acciones`).catch(
-          (): { data: { data: [] } } => ({ data: { data: [] } })
+          (err) => {
+            return { data: { data: [] } } as { data: { data: AccionDisponibleResponse[] } };
+          }
         ),
         API.get<ApiResponse<HistorialWorkflowItemResponse[]>>(
           `/ordenes/${idOrden}/historial-workflow`
@@ -399,22 +510,15 @@ export default function AutorizacionesOC() {
       setAcciones(accionesRes.data?.data || []);
       setHistorial(historialRes.data?.data || []);
 
-      if (orden) {
-        cargarProveedoresOrden(orden);
-      }
-
       const historialData = historialRes.data?.data || [];
-      console.log('[Detalle] Historial data:', historialData);
-      if (historialData.length > 0) {
-        console.log('[Detalle] Llamando fetchFirmasUsuarios con', historialData.length, 'items');
-        await fetchFirmasUsuarios(historialData);
-      } else {
-        console.log('[Detalle] Historial vacío, limpiando firmasMap');
-        setFirmasMap(new Map());
-      }
+      console.log(`Bitacora de oriden ${idOrden} :`, historialData);
 
-      fetchArchivosOrden(idOrden);
-      fetchPartidasPendientes(idOrden);
+      await Promise.all([
+        orden ? cargarProveedoresOrden(orden) : Promise.resolve(),
+        fetchFirmasUsuarios(historialData),
+        fetchArchivosOrden(idOrden),
+        fetchPartidasPendientes(idOrden),
+      ]);
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar detalle de orden');
@@ -439,6 +543,33 @@ export default function AutorizacionesOC() {
     }
   };
 
+  const handleEliminarArchivo = async (idArchivo: number) => {
+    if (!window.confirm('¿Deseas borrar este archivo?')) return;
+    try {
+      await archivoService.delete(idArchivo);
+      toast.success('Archivo borrado correctamente');
+      if (selectedOrden) {
+        fetchArchivosOrden(selectedOrden.idOrden);
+      }
+    } catch {
+      toast.error('Error al borrar el archivo');
+    }
+  };
+
+  const handleBorrarTodosComprobantes = async (categoria: 'gasto' | 'pago') => {
+    const label = categoria === 'gasto' ? 'gasto' : 'pago';
+    if (!window.confirm(`¿Deseas borrar TODOS los comprobantes de ${label} para esta orden? Se revertirán todas las asignaciones a las partidas. Esta acción no se puede deshacer.`)) return;
+    try {
+      await comprobanteService.eliminarPorOrden(selectedOrden!.idOrden, categoria);
+      toast.success(`Comprobantes de ${label} borrados correctamente`);
+      // Refrescar datos
+      fetchPartidasPendientes(selectedOrden!.idOrden);
+      fetchArchivosOrden(selectedOrden!.idOrden);
+    } catch {
+      toast.error(`Error al borrar los comprobantes de ${label}`);
+    }
+  };
+
   const fetchPartidasPendientes = async (idOrden: number) => {
     try {
       setLoadingFacturacion(true);
@@ -456,58 +587,143 @@ export default function AutorizacionesOC() {
     }
   };
 
-  const fetchPasosWorkflow = async () => {
+  const fetchAllWorkflowsFlow = async () => {
     try {
-      const listRes = await API.get<ApiResponse<WorkflowListItem[]>>('/config/workflows');
-      const workflows = listRes.data.data || [];
-      const workflowOc = workflows.find((w) => w.codigoProceso === 'ORDEN_COMPRA');
-      if (!workflowOc) return;
-
-      const detailRes = await API.get<ApiResponse<WorkflowConfigResponse>>(
-        `/config/workflows/${workflowOc.idWorkflow}`
-      );
-      const data = detailRes.data.data;
-      if (!data) return;
-
-      const pasos = (data.pasos || []).slice().sort((a, b) => a.orden - b.orden);
-      setPasosWorkflow(pasos);
-      setWorkflowCampos((data.campos || []).filter((c) => c.activo));
-
-      // Build idAccion → WorkflowAccionConfig map for fast lookup
-      const map = new Map<number, WorkflowAccionConfig>();
-      for (const paso of pasos) {
-        for (const accion of paso.acciones || []) {
-          map.set(accion.idAccion, accion);
+      const res = await API.get<ApiResponse<WorkflowFlowResponse[]>>('/config/workflows/flow');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, WorkflowFlowResponse>();
+        for (const w of res.data.data) {
+          map.set(w.idWorkflow, w);
         }
+        setWorkflowsMap(map);
       }
-      setAccionesConfig(map);
     } catch {
+      setWorkflowsMap(new Map());
+    }
+  };
+
+  const applyWorkflowToState = (idWorkflow?: number | null) => {
+    if (!idWorkflow) {
+      setPasosWorkflow([]);
+      return;
+    }
+    const workflow = workflowsMap.get(idWorkflow);
+    if (workflow) {
+      const pasos = (workflow.pasos || []).filter(p => p.activo).sort((a, b) => a.orden - b.orden);
+      setPasosWorkflow(pasos);
+    } else {
       setPasosWorkflow([]);
     }
   };
 
+  const fetchEstados = async () => {
+    try {
+      const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
+      if (res.data?.success) {
+        setWorkflowEstados(res.data.data || []);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
+  // Helper to get formaPago ID regardless of casing (backend uses IdFormaPago/PascalCase)
+  const getFormaPagoId = (fp: Record<string, unknown>): number => {
+    return (fp.idFormaPago ?? fp.IdFormaPago) as number;
+  };
+
+  // Helper to get formaPago nombre regardless of casing
+  const getFormaPagoNombre = (fp: Record<string, unknown>): string => {
+    return (fp.nombre ?? fp.Nombre ?? 'Sin nombre') as string;
+  };
+
+  const fetchFormasPago = async () => {
+    try {
+      const res = await API.get<ApiResponse<FormaPago[]>>('/catalogos/FormasPago');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, FormaPago>();
+        for (const fp of res.data.data) {
+          const fpRecord = fp as unknown as Record<string, unknown>;
+          // Transform from PascalCase (backend) to camelCase (frontend type)
+          const transformed: FormaPago = {
+            idFormaPago: getFormaPagoId(fpRecord),
+            nombre: getFormaPagoNombre(fpRecord),
+          } as FormaPago;
+          map.set(transformed.idFormaPago, transformed);
+        }
+        setFormasPagoMap(map);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
+  const fetchAllProveedores = async () => {
+    try {
+      const res = await API.get<ApiResponse<Proveedor[]>>('/catalogos/Proveedores');
+      if (res.data?.success && res.data.data) {
+        const map = new Map<number, Proveedor>();
+        for (const p of res.data.data) {
+          map.set(p.idProveedor, p);
+        }
+        setAllProveedoresMap(map);
+      }
+    } catch {
+      // silent fail
+    }
+  };
+
   useEffect(() => {
-    fetchOrdenes();
-    fetchPasosWorkflow();
-  }, []);
+  const cargarDatos = async () => {
+    try {
+      // Promise.all dispara todas las peticiones al mismo tiempo
+      await Promise.all([
+        fetchEstados(),
+        fetchAllWorkflowsFlow(),
+        fetchFormasPago(),
+        fetchAllProveedores(),
+      ]);
+
+      await fetchOrdenes()
+      console.log("¡Todo cargado!");
+    } catch (error) {
+      console.error("Error al cargar los datos:", error);
+    }
+  };
+
+  cargarDatos();
+}, [fetchOrdenes]);
 
   useEffect(() => {
     if (selectedId != null) fetchDetalle(selectedId);
   }, [selectedId]);
 
   useEffect(() => {
-    if (!selectedOrden) return;
-    setExpandedPasoId(selectedOrden.idPasoActual ?? null);
-    setExpandedPartidaId(selectedOrden.partidas[0]?.idPartida ?? null);
-  }, [selectedOrden]);
+    if (selectedId != null) {
+      setIsDetailDrawerOpen(true);
+    } else {
+      setIsDetailDrawerOpen(false);
+    }
+  }, [selectedId]);
 
-  const abrirModalFirma = (accion: AccionDisponibleResponse) => {
+  useEffect(() => {
+    if (!selectedOrden) {
+      setPasosWorkflow([]);
+      return;
+    }
+    setExpandedPasoId(selectedOrden.idPasoActual ?? null);
+    setExpandedPartidaId(null);
+    if (selectedOrden.idWorkflow) {
+      applyWorkflowToState(selectedOrden.idWorkflow);
+    }
+  }, [selectedOrden, workflowsMap]);
+
+  const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
     setAccionSeleccionada(accion);
     setComentarioFirma('');
 
     // Pre-populate campos with existing values from the order
-    const accionCfg = accionesConfig.get(accion.idAccion) ?? null;
-    const campos = getCamposParaAccion(accionCfg);
+    const campos = getCamposParaAccion(accion);
     const initialValues: Record<string, unknown> = {};
     if (selectedOrden) {
       const ordenAny = selectedOrden as unknown as Record<string, unknown>;
@@ -570,6 +786,31 @@ export default function AutorizacionesOC() {
       Promise.all(fetches).finally(() => setLoadingCatalogos(false));
     }
 
+    // Cargar comprobantes ya existentes para campos Archivo (subidos desde el tab)
+    const archivoCampos = campos.filter(c => c.campo.tipoControl === 'Archivo');
+    if (archivoCampos.length > 0 && selectedOrden) {
+      try {
+        const [resGasto, resPago] = await Promise.all([
+          API.get<ApiResponse<PartidaPendienteResponse[]>>(`/facturas/partidas-pendientes?idOrden=${selectedOrden.idOrden}&categoria=gasto`),
+          API.get<ApiResponse<PartidaPendienteResponse[]>>(`/facturas/partidas-pendientes?idOrden=${selectedOrden.idOrden}&categoria=pago`),
+        ]);
+        const tieneGasto = (resGasto.data?.data ?? []).some(p => p.importeFacturado > 0);
+        const tienePago = (resPago.data?.data ?? []).some(p => p.importeFacturado > 0);
+        if (tieneGasto) {
+          setComprobantesWorkflow(prev => ({
+            ...prev,
+            comprobante_gasto: [{ idComprobante: 0 } as ComprobanteResponse],
+          }));
+        }
+        if (tienePago) {
+          setComprobantesWorkflow(prev => ({
+            ...prev,
+            comprobante_pago: [{ idComprobante: 0 } as ComprobanteResponse],
+          }));
+        }
+      } catch { /* silent */ }
+    }
+
     setIsFirmarModalOpen(true);
   };
 
@@ -591,8 +832,8 @@ export default function AutorizacionesOC() {
     setComprobantesWorkflow({});
   };
 
-  const esRechazo = accionSeleccionada?.tipoAccion === 'RECHAZO';
-  const esRetorno = accionSeleccionada?.tipoAccion === 'RETORNO';
+  const esRechazo = accionSeleccionada?.tipoAccionCodigo === 'RECHAZAR' || accionSeleccionada?.tipoAccionCodigo === 'CANCELAR' ;
+  const esRetorno = accionSeleccionada?.tipoAccionCodigo === 'DEVOLVER';
   const colorAccion = esRechazo
     ? 'text-red-600'
     : esRetorno
@@ -605,12 +846,9 @@ export default function AutorizacionesOC() {
       : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800';
 
   // Dynamic campos for the modal based on the selected action's handlers
-  const accionConfig = accionSeleccionada
-    ? (accionesConfig.get(accionSeleccionada.idAccion) ?? null)
-    : null;
   const camposParaAccion = useMemo(
-    () => getCamposParaAccion(accionConfig),
-    [accionConfig, workflowCampos]
+    () => getCamposParaAccion(accionSeleccionada),
+    [accionSeleccionada]
   );
 
   const enviarFirma = async () => {
@@ -642,7 +880,7 @@ export default function AutorizacionesOC() {
                 (c.cantidadAsignada ?? 0) > 0 || (c.importeAsignado ?? 0) > 0
             );
             if (!tieneAsignaciones) {
-              toast.error(`El comprobante ${comp.nombreEmisor ?? comp.uuidCfdi ?? comp.tipoComprobante} no tiene asignaciones a partidas. Debes asignarlo antes de firmar.`);
+              toast.error(`El comprobante ${comp.nombreEmisor ?? comp.tipoComprobante?.toUpperCase() ?? 'sin nombre'} no tiene asignaciones. Debes asignarlo antes de firmar.`);
               setIsSubmittingFirma(false);
               return;
             }
@@ -670,8 +908,8 @@ export default function AutorizacionesOC() {
         return;
       }
 
-      // Validate requiereAdjunto from paso config
-      if (currentPaso?.requiereAdjunto && adjuntosLibres.length === 0) {
+      // Validate requiereAdjunto from action config
+      if (accionSeleccionada?.requiereAdjunto && adjuntosLibres.length === 0) {
         toast.error('Debes adjuntar al menos un documento para esta acción');
         setIsSubmittingFirma(false);
         return;
@@ -683,7 +921,7 @@ export default function AutorizacionesOC() {
         datosAdicionales: Object.keys(datosAdicionales).length > 0 ? datosAdicionales : null,
       });
 
-      toast.success(`Acción "${accionSeleccionada.nombreAccion}" ejecutada correctamente`);
+      toast.success(`Acción "${accionSeleccionada.tipoAccionNombre}" ejecutada correctamente`);
       cerrarModalFirma();
       await Promise.all([fetchOrdenes(), fetchDetalle(selectedOrden.idOrden)]);
     } catch (error: unknown) {
@@ -697,7 +935,7 @@ export default function AutorizacionesOC() {
   };
 
   const textoBotonConfirmar = accionSeleccionada
-    ? `Confirmar ${accionSeleccionada.nombreAccion.toLowerCase()}`
+    ? `Confirmar ${accionSeleccionada.tipoAccionNombre?.toLowerCase()}`
     : 'Confirmar';
 
   const pasosMap = useMemo(
@@ -723,9 +961,10 @@ export default function AutorizacionesOC() {
     if (
       actionName.includes('autor') ||
       actionName.includes('enviar') ||
-      actionName.includes('marcar')
+      actionName.includes('marcar')||
+      actionName.includes('aprob')
     )
-      return 'aprobacion';
+      return 'autorizacion';
     return 'otro';
   };
 
@@ -736,10 +975,23 @@ export default function AutorizacionesOC() {
       : null;
     const flujoFinalizado = Boolean(pasoActualConfig?.esFinal);
     const eventosPorPasoLocal = new Map<number, HistorialWorkflowItemResponse[]>();
+    const pasosCompletados = new Set<number>();
     for (const item of historial) {
       const arr = eventosPorPasoLocal.get(item.idPaso) ?? [];
       arr.push(item);
       eventosPorPasoLocal.set(item.idPaso, arr);
+
+      // Extraer idPasoAnterior del snapshot para saber qué pasos fueron completados
+      if (item.datosSnapshot) {
+        try {
+          const snapshot = JSON.parse(item.datosSnapshot);
+          if (snapshot.idPasoAnterior) {
+            pasosCompletados.add(snapshot.idPasoAnterior);
+          }
+        } catch {
+          // ignorar JSON inválido
+        }
+      }
     }
 
     return pasosWorkflow.map((paso) => {
@@ -749,7 +1001,13 @@ export default function AutorizacionesOC() {
       const isActual = selectedOrden?.idPasoActual === paso.idPaso;
       const isRechazado = !isActual && tipoUltimoEvento === 'rechazo';
       const isDevuelto = !isActual && tipoUltimoEvento === 'retorno';
-      const isCompletado = !isActual && tipoUltimoEvento === 'aprobacion';
+      // Un paso está completado si:
+      // 1. Tiene evento de autorización en su historial, O
+      // 2. Aparece como idPasoAnterior en algún snapshot (fue completado al moverse al siguiente paso)
+      const isCompletado = !isActual && (
+        tipoUltimoEvento === 'autorizacion' || pasosCompletados.has(paso.idPaso)
+      );
+      const esAnteriorADevuelto = isCompletado && currentPasoOrden !== null && paso.orden > currentPasoOrden;
       const isOmitido =
         !isActual &&
         !isCompletado &&
@@ -763,7 +1021,7 @@ export default function AutorizacionesOC() {
           ? 'actual'
           : isRechazado
             ? 'rechazado'
-            : isDevuelto
+            : isDevuelto  || esAnteriorADevuelto
               ? 'devuelto'
               : isCompletado
                 ? 'completado'
@@ -847,37 +1105,33 @@ export default function AutorizacionesOC() {
 
   const filtered = useMemo(() => {
     return ordenes.filter((o) => {
-      const matchEstado = estadoFilter === 'all' || o.estado === estadoFilter;
+      const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
+      const matchCreador = creadorFilter === 'all' || o.idUsuarioCreador === creadorFilter;
       const q = search.trim().toLowerCase();
       const matchSearch =
         q.length === 0 ||
         o.folio.toLowerCase().includes(q);
-      return matchEstado && matchSearch;
+      return matchEstado && matchCreador && matchSearch;
     });
-  }, [ordenes, estadoFilter, search]);
+  }, [ordenes, estadoFilter, creadorFilter, search]);
 
   const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
       accessorKey: 'folio',
       header: 'Folio',
-      cell: ({ row }) => (
-        <div className="flex flex-col">
-          <span className="font-medium">{row.original.folio}</span>
-          <span className="text-xs text-muted-foreground">Proveedor #{row.original.idProveedor || 'N/A'}</span>
-        </div>
-      ),
-    },
-    {
-      accessorKey: 'estado',
-      header: 'Paso actual',
-      cell: ({ row }) => (
-        <Badge
-          variant={ESTADO_BADGE[row.original.estado] || 'outline'}
-          className={ESTADO_BADGE_CLASS[row.original.estado]}
-        >
-          {getEstadoLabel(row.original.estado)}
-        </Badge>
-      ),
+      cell: ({ row }) => {
+        const razonSocial = row.original.idProveedor
+          ? allProveedoresMap.get(row.original.idProveedor)?.razonSocial
+          : null;
+        return (
+          <div className="flex flex-col">
+            <span className="font-medium">{row.original.folio}</span>
+            <span className="text-xs text-muted-foreground">
+              {razonSocial ? `Proveedor ${razonSocial}` : `Proveedor #${row.original.idProveedor || 'N/A'}`}
+            </span>
+          </div>
+        );
+      },
     },
     {
       accessorKey: 'total',
@@ -889,13 +1143,61 @@ export default function AutorizacionesOC() {
       ),
     },
     {
+      id: 'descripcionPartidas',
+      header: 'Descripcion',
+      cell: ({ row }) => (
+        <span className="text-xs text-muted-foreground line-clamp-2 max-w-[200px]">
+          {row.original.partidas?.map(p => p.descripcion).filter(Boolean).join(', ') || '-'}
+        </span>
+      ),
+      size: 200,
+    },
+    {
+      accessorKey: 'fechaLimitePago',
+      header: 'Limite de pago',
+      cell: ({ row }) => (
+        <span className="text-sm">
+          {fmtFecha(row.original.fechaLimitePago)}
+        </span>
+      ),
+    },
+    {
       accessorKey: 'fechaSolicitud',
       header: 'Fecha solicitud',
       cell: ({ row }) => (
         <span className="text-sm">
-          {new Date(row.original.fechaSolicitud).toLocaleDateString('es-MX')}
+          {fmtFecha(row.original.fechaSolicitud || row.original.fechaCreacion)}
         </span>
       ),
+    },
+    {
+      accessorKey: 'idEstado',
+      header: 'Estado',
+      cell: ({ row }) => {
+        const info = getEstadoInfo(row.original.idEstado);
+        return (
+          <span
+            className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors"
+            style={{
+              borderColor: info.color,
+              color: info.color,
+              backgroundColor: info.color + '15',
+            }}
+          >
+            {info.nombre}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: 'solicitanteNombre',
+      header: 'Solicitante',
+      cell: ({ row }) => (
+        <span className="text-xs">
+          {row.original.solicitanteNombre ?? '-'}
+        </span>
+      ),
+      size: 150,
     },
     {
       id: 'actions',
@@ -906,12 +1208,12 @@ export default function AutorizacionesOC() {
             size="sm"
             variant="outline"
             className="gap-1.5"
-            onClick={(e) => { e.stopPropagation(); setSelectedId(row.original.idOrden); }}
+            onClick={(e) => { e.stopPropagation(); setSelectedId(row.original.idOrden); setIsDetailDrawerOpen(true); }}
           >
             <Eye className="h-3.5 w-3.5" />
             Revisar
           </Button>
-          {row.original.estado === 'Creada' && (
+          {row.original.idEstado === 1 && (
             <Button
               size="sm"
               variant="outline"
@@ -925,19 +1227,18 @@ export default function AutorizacionesOC() {
         </div>
       ),
     },
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], []);
+  ], [workflowEstados, navigate, allProveedoresMap]);
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="space-y-4 xl:col-span-5">
+        <div className="space-y-4 xl:col-span-12">
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
-              <CardDescription>Filtra por estado o búsqueda rápida</CardDescription>
+              <CardDescription>Filtra por estado, creador o búsqueda rápida</CardDescription>
             </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -954,10 +1255,26 @@ export default function AutorizacionesOC() {
               >
                 {estados.map((e) => (
                   <option key={e} value={e}>
-                    {e === 'all' ? 'Todos los estados' : getEstadoLabel(e)}
+                    {e === 'all'
+                      ? 'Todos los estados'
+                      : getEstadoInfo(Number(e)).nombre}
                   </option>
                 ))}
               </select>
+              {puedeVerTodas && (
+                <select
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  value={creadorFilter}
+                  onChange={(e) => setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                >
+                  <option value="all">Todos los creadores</option>
+                  {creadores.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </CardContent>
           </Card>
 
@@ -976,37 +1293,55 @@ export default function AutorizacionesOC() {
               searchableColumns: ['folio'],
               defaultSearchColumns: ['folio'],
             }}
-            onRowClick={(row) => setSelectedId((row as OrdenCompraResponse).idOrden)}
+            onRowClick={(row) => { setSelectedId((row as OrdenCompraResponse).idOrden); setIsDetailDrawerOpen(true); }}
             isRowSelected={(row) => (row as OrdenCompraResponse).idOrden === selectedId}
             height={460}
           />
         </div>
+      </div>
 
-        <div className="space-y-4 xl:col-span-7">
-          <Card className="xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-6.5rem)] xl:max-h-[calc(100vh-6.5rem)] xl:min-h-[680px] xl:flex-col">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <FileText className="h-4 w-4" /> Detalle de orden de compra
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 xl:min-h-0 xl:flex-1">
-              {loadingDetail && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
-                </div>
-              )}
+      <Modal
+        id="modal-detalle-oc"
+        open={isDetailDrawerOpen}
+        setOpen={(open) => {
+          setIsDetailDrawerOpen(open);
+          if (!open) setSelectedId(null);
+        }}
+        title={
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1">
+              <FileText className="h-5 w-5" />
+              <span>Detalle de orden de compra</span>
+            </div>
+            {selectedOrden && (
+              <span className="text-sm text-muted-foreground ml-3">
+                {selectedOrden.folio} — {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor)
+                  ? proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial
+                  : 'Sin proveedor'}
+              </span>
+            )}
+          </div>
+        }
+        size="full"
+      >
+        <div className="-mx-6 px-4 py-2">
+          {loadingDetail && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando detalle...
+            </div>
+          )}
 
-              {!loadingDetail && !selectedOrden && (
-                <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
-                  <FileText className="h-10 w-10 opacity-30" />
-                  <p className="text-sm font-medium">Aquí se mostrará el detalle de la orden</p>
-                  <p className="text-xs opacity-70">Selecciona una orden de la lista para ver su información</p>
-                </div>
-              )}
+          {!loadingDetail && !selectedOrden && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+              <FileText className="h-10 w-10 opacity-30" />
+              <p className="text-sm font-medium">Aquí se mostrará el detalle de la orden</p>
+              <p className="text-xs opacity-70">Selecciona una orden de la lista para ver su información</p>
+            </div>
+          )}
 
-              {!loadingDetail && selectedOrden && (
-                <>
-                  <Tabs defaultValue="detalle" className="xl:flex xl:h-full xl:min-h-0 xl:flex-col">
+          {!loadingDetail && selectedOrden && (
+            <>
+              <Tabs defaultValue="detalle" className="flex h-full min-h-0 flex-col">
                       <div className="bg-muted/20 rounded-lg border p-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -1026,12 +1361,21 @@ export default function AutorizacionesOC() {
                             </p>
                           )}
                         </div>
-                        <Badge
-                          variant={ESTADO_BADGE[selectedOrden.estado] || 'outline'}
-                          className={ESTADO_BADGE_CLASS[selectedOrden.estado]}
-                        >
-                          {getEstadoLabel(selectedOrden.estado)}
-                        </Badge>
+                        {(() => {
+                          const info = getEstadoInfo(selectedOrden.idEstado);
+                          return (
+                            <span
+                              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                              style={{
+                                borderColor: info.color,
+                                color: info.color,
+                                backgroundColor: info.color + '15',
+                              }}
+                            >
+                              {info.nombre}
+                            </span>
+                          );
+                        })()}
                       </div>
 
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1050,7 +1394,51 @@ export default function AutorizacionesOC() {
                       </div>
                     </div>
 
-                    <TabsList className="bg-muted/70 mt-3 grid h-10 w-full grid-cols-4 border p-1">
+                    {/* ── Acciones disponibles — siempre visibles arriba de todo ── */}
+                    {selectedOrden && acciones.filter(a => !a.enviaConcentrado).length > 0 && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/80 p-3 shadow-sm backdrop-blur-sm dark:border-blue-800 dark:bg-blue-950/20">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              Acciones disponibles
+                            </span>
+                            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300">
+                              Paso actual
+                            </Badge>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {acciones
+                              .filter(a => !a.enviaConcentrado)
+                              .map((a) => (
+                              <Button
+                                key={a.idAccion}
+                                size="sm"
+                                className={(() => {
+                                  const styles: Record<string, string> = {
+                                    'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                    'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                    'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                    'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                    'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                  };
+                                  return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                })()}
+                                onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
+                              >
+                                {a.tipoAccionNombre}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <TabsList className="bg-background sticky top-0 z-10 mt-3 grid h-10 w-full grid-cols-4 border p-1">
                       <TabsTrigger
                         value="detalle"
                         className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
@@ -1065,15 +1453,10 @@ export default function AutorizacionesOC() {
                       </TabsTrigger>
                       <TabsTrigger
                         value="facturacion"
-                        className="hidden border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                        className="border border-transparent text-xs font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
                         onClick={() => selectedOrden && fetchPartidasPendientes(selectedOrden.idOrden)}
                       >
-                        Facturación
-                        {partidasPendientes.some((p) => p.estadoFacturacion < 2) && (
-                          <span className="ml-1.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">
-                            {partidasPendientes.filter((p) => p.estadoFacturacion < 2).length}
-                          </span>
-                        )}
+                        Comprobantes
                       </TabsTrigger>
                       <TabsTrigger
                         value="archivos"
@@ -1135,13 +1518,13 @@ export default function AutorizacionesOC() {
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Solicitud</p>
                           <p className="font-medium">
-                            {new Date(selectedOrden.fechaSolicitud).toLocaleDateString('es-MX')}
+                            {fmtFecha(selectedOrden.fechaSolicitud || selectedOrden.fechaCreacion)}
                           </p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
                           <p className="text-muted-foreground">Límite pago</p>
                           <p className="font-medium">
-                            {new Date(selectedOrden.fechaLimitePago).toLocaleDateString('es-MX')}
+                            {fmtFecha(selectedOrden.fechaLimitePago)}
                           </p>
                         </div>
                         <div className="rounded-md border bg-background px-2 py-1.5">
@@ -1174,6 +1557,75 @@ export default function AutorizacionesOC() {
                           </p>
                         </div>
                       </div>
+
+                      {/* Formas de pago, cuentas bancarias y mensualidades */}
+                      {(selectedOrden.idsFormaPago?.length || selectedOrden.idsCuentasBancarias?.length || selectedOrden.numeroMensualidades) && (
+                        <div className="rounded-md border bg-background px-3 py-2 text-xs">
+                          <p className="mb-2 font-medium text-muted-foreground">Formas de pago</p>
+                          <div className="space-y-1.5">
+                            {selectedOrden.idsFormaPago?.map((idFp) => {
+                              const formaPago = formasPagoMap.get(idFp);
+                              return (
+                                <div key={idFp} className="flex items-center gap-2">
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                                    Forma de pago
+                                  </span>
+                                  <span className="font-medium">
+                                    {formaPago?.nombre ?? `ID ${idFp}`}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                            {selectedOrden.idsCuentasBancarias?.map((idCb) => {
+                              let cuentaInfo: string | undefined;
+                              let cuentaActiva = true;
+                              for (const [, proveedor] of proveedoresMap) {
+                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                if (cuenta) {
+                                  cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                  cuentaActiva = cuenta.activo;
+                                  break;
+                                }
+                              }
+                              if (!cuentaInfo) {
+                                for (const [, proveedor] of allProveedoresMap) {
+                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                  if (cuenta) {
+                                    cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
+                                    cuentaActiva = cuenta.activo;
+                                    break;
+                                  }
+                                }
+                              }
+                              return (
+                                <div key={idCb} className="flex items-center gap-2">
+                                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                                    Cuenta bancaria
+                                  </span>
+                                  <span className="font-medium">
+                                    {cuentaInfo ?? `ID ${idCb}`}
+                                  </span>
+                                  {!cuentaActiva && (
+                                    <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">
+                                      inactiva
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                            {selectedOrden.numeroMensualidades && (
+                              <div className="flex items-center gap-2">
+                                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                                  Parcialidades
+                                </span>
+                                <span className="font-medium">
+                                  {selectedOrden.numeroMensualidades} parcialidad(es)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       {selectedOrden.notaFormaPago && (
                         <div className="rounded-md border bg-background px-3 py-2 text-xs">
@@ -1224,7 +1676,7 @@ export default function AutorizacionesOC() {
                                 const isExpanded = expandedPartidaId === partida.idPartida;
                                 const subtotalPartida = partida.cantidad * partida.precioUnitario;
                                 const totalImpuestos =
-                                  (subtotalPartida * partida.porcentajeIva) / 100;
+                                  subtotalPartida * (partida.porcentajeIva / 100);
                                 return (
                                   <Fragment key={partida.idPartida}>
                                     <tr
@@ -1259,9 +1711,9 @@ export default function AutorizacionesOC() {
                                       <td className="px-3 py-2 text-right">
                                         {formatCurrency(partida.precioUnitario)}
                                       </td>
-                                      <td className="px-3 py-2 text-right">
-                                        {partida.porcentajeIva}%
-                                      </td>
+                                       <td className="px-3 py-2 text-right">
+                                         {partida.porcentajeIva}%
+                                       </td>
                                       <td className="px-3 py-2 text-right font-semibold">
                                         {formatCurrency(partida.total)}
                                       </td>
@@ -1273,32 +1725,40 @@ export default function AutorizacionesOC() {
                                       >
                                         <td colSpan={7} className="px-3 py-2">
                                           <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                            <div className="col-span-2 rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Descripción</p>
+                                              <p className="font-medium">{partida.descripcion}</p>
+                                            </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Unidad de medida (ID)
-                                              </p>
+                                              <p className="text-muted-foreground">Cantidad</p>
+                                              <p className="font-medium">{partida.cantidad}</p>
+                                            </div>
+                                            <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Unidad de medida</p>
                                               <p className="font-medium">
-                                                {partida.idUnidadMedida}
+                                                {partida.unidadMedidaNombre ?? `#${partida.idUnidadMedida}`}
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">
-                                                Subtotal partida
-                                              </p>
-                                              <p className="font-medium">
-                                                {formatCurrency(subtotalPartida)}
-                                              </p>
+                                              <p className="text-muted-foreground">Precio Unitario</p>
+                                              <p className="font-medium">{formatCurrency(partida.precioUnitario)}</p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
                                               <p className="text-muted-foreground">Descuento</p>
-                                              <p className="font-medium">
-                                                {formatCurrency(partida.descuento)}
-                                              </p>
+                                              <p className="font-medium">{formatCurrency(partida.descuento)}</p>
                                             </div>
-                                            <div className="rounded border bg-background px-2 py-1.5">
-                                              <p className="text-muted-foreground">IVA calculado</p>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                               <p className="text-muted-foreground">
+                                                 Subtotal partida
+                                               </p>
+                                               <p className="font-medium">
+                                                 {formatCurrency(subtotalPartida)}
+                                               </p>
+                                             </div>
+                                             <div className="rounded border bg-background px-2 py-1.5">
+                                              <p className="text-muted-foreground">Impuesto</p>
                                               <p className="font-medium">
-                                                {formatCurrency(totalImpuestos)}
+                                                 {partida.porcentajeIva}% ({formatCurrency(totalImpuestos)})
                                               </p>
                                             </div>
                                             <div className="rounded border bg-background px-2 py-1.5">
@@ -1307,15 +1767,23 @@ export default function AutorizacionesOC() {
                                                 {formatCurrency(partida.totalRetenciones)}
                                               </p>
                                             </div>
-                                             <div className="rounded border bg-background px-2 py-1.5">
-                                               <p className="text-muted-foreground">
-                                                 Otros impuestos
-                                               </p>
-                                               <p className="font-medium">
-                                                 {formatCurrency(partida.otrosImpuestos)}
-                                               </p>
-                                             </div>
-                                             {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Otros impuestos
+                                                </p>
+                                                <p className="font-medium">
+                                                  {formatCurrency(partida.otrosImpuestos)}
+                                                </p>
+                                              </div>
+                                              <div className="rounded border bg-background px-2 py-1.5">
+                                                <p className="text-muted-foreground">
+                                                  Requiere Factura
+                                                </p>
+                                                <p className="font-medium">
+                                                  {partida.requiereFactura ? 'Sí' : 'No'}
+                                                </p>
+                                              </div>
+                                              {partida.idProveedor && proveedoresMap.has(partida.idProveedor) && (
                                                <div className="col-span-2 rounded border border-blue-200 bg-blue-50/50 px-2 py-1.5">
                                                  <div className="flex items-center justify-between">
                                                    <p className="text-muted-foreground">Proveedor de partida</p>
@@ -1418,8 +1886,8 @@ export default function AutorizacionesOC() {
                               const isDevuelto = paso.estadoVisual === 'devuelto';
                               const isPendiente = !isActual && !isCompletado && !isOmitido && !isRechazado && !isDevuelto;
                               const isExpanded = expandedPasoId === paso.idPaso;
-                              const isActualRechazada = isActual && selectedOrden?.estado === 'Rechazada';
-                              const isActualCancelada = isActual && selectedOrden?.estado === 'Cancelada';
+                              const isActualRechazada = isActual && selectedOrden?.idEstado === 8;
+                              const isActualCancelada = isActual && selectedOrden?.idEstado === 9;
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
@@ -1523,7 +1991,7 @@ export default function AutorizacionesOC() {
                                     )}
                                     {eventosPaso.length > 0 && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
-                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {new Date(ultimoEvento.fechaEvento).toLocaleString('es-MX')}
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
                                       </p>
                                     )}
 
@@ -1569,7 +2037,7 @@ export default function AutorizacionesOC() {
                                                       {item.nombreAccion || `Acción ${item.idAccion}`}
                                                     </span>
                                                     <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                      {new Date(item.fechaEvento).toLocaleString('es-MX')}
+                                                      {fmtFecha(item.fechaEvento)}
                                                     </span>
                                                   </div>
                                                   {/* Cuerpo con etiquetas */}
@@ -1616,18 +2084,35 @@ export default function AutorizacionesOC() {
                                               Acciones disponibles
                                             </p>
                                             <div className="flex flex-wrap gap-2">
-                                              {acciones.length === 0 ? (
-                                                <p className="text-xs text-muted-foreground">No hay acciones disponibles.</p>
+                                              {acciones.filter(a => !a.enviaConcentrado).length === 0 ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                  No hay acciones disponibles para su usuario en este paso.
+                                                </p>
                                               ) : (
-                                                acciones.map((a) => (
+                                                acciones
+                                                  .filter(a => !a.enviaConcentrado)
+                                                  .map((a) => (
                                                   <Button
-                                                    key={a.idAccion}
-                                                    size="sm"
-                                                    variant={a.tipoAccion === 'RECHAZO' ? 'destructive' : 'default'}
-                                                    onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
-                                                    className={a.nombreAccion.toLowerCase().includes('devolver') ? 'hidden' : undefined}
+                                                   key={a.idAccion}
+                                                   size="sm"
+                                                   className={(() => {
+                                                     const styles: Record<string, string> = {
+                                                       'APROBAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'AUTORIZAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'RECHAZAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'DEVOLVER': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'CANCELAR': 'bg-red-600 hover:bg-red-700 text-white',
+                                                       'CERRAR': 'bg-emerald-600 hover:bg-emerald-700 text-white',
+                                                       'ENVIAR_TESORERIA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'MARCAR_PAGADA': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                       'NOTIFICACION': 'bg-amber-500 hover:bg-amber-600 text-white',
+                                                       'ENVIAR': 'bg-blue-600 hover:bg-blue-700 text-white',
+                                                     };
+                                                     return styles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white';
+                                                   })()}
+                                                   onClick={(e) => { e.stopPropagation(); abrirModalFirma(a); }}
                                                   >
-                                                    {a.nombreAccion}
+                                                    {a.tipoAccionNombre}
                                                   </Button>
                                                 ))
                                               )}
@@ -1647,7 +2132,7 @@ export default function AutorizacionesOC() {
                       </div>
                     </TabsContent>
 
-                    {/* Tab: Facturación */}
+                    {/* Tab: Comprobantes */}
                     <TabsContent
                       value="facturacion"
                       className="mt-3 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:pr-1"
@@ -1655,109 +2140,149 @@ export default function AutorizacionesOC() {
                       <div className="space-y-3">
                         {/* Header del tab */}
                         <div>
-                          <h3 className="text-sm font-semibold">Comprobantes de pago</h3>
+                          <h3 className="text-sm font-semibold">Comprobantes de gasto y pago</h3>
                           <p className="text-muted-foreground text-xs">
-                            Partidas de la orden y su estado de facturación
+                            Estado de comprobacion por partida
                           </p>
                         </div>
 
-                        {loadingFacturacion ? (
-                          <div className="flex items-center justify-center py-10">
-                            <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
-                          </div>
-                        ) : partidasPendientes.length === 0 ? (
-                          <div className="text-muted-foreground flex flex-col items-center gap-2 py-10 text-sm">
-                            <Receipt className="h-8 w-8 opacity-30" />
-                            <p>No hay partidas con requisito de facturación</p>
-                          </div>
-                        ) : (
-                          <div className="space-y-2">
-                            {partidasPendientes.map((partida) => {
-                              const pctFacturado =
-                                partida.cantidad > 0
-                                  ? Math.min(
-                                      100,
-                                      (partida.cantidadFacturada / partida.cantidad) * 100
-                                    )
-                                  : 0;
-                              const estadoConfig = {
-                                0: {
-                                  label: 'Pendiente',
-                                  className: 'bg-amber-100 text-amber-700 border-amber-200',
-                                  barColor: 'bg-amber-400',
-                                },
-                                1: {
-                                  label: 'Parcial',
-                                  className: 'bg-blue-100 text-blue-700 border-blue-200',
-                                  barColor: 'bg-blue-400',
-                                },
-                                2: {
-                                  label: 'Completa',
-                                  className: 'bg-green-100 text-green-700 border-green-200',
-                                  barColor: 'bg-green-500',
-                                },
-                              }[partida.estadoFacturacion] ?? {
-                                label: 'Desconocido',
-                                className: 'bg-muted text-muted-foreground border-muted',
-                                barColor: 'bg-muted',
-                              };
-
-                              return (
-                                <div
-                                  key={partida.idPartida}
-                                  className="bg-card rounded-lg border p-3 shadow-sm"
-                                >
-                                  <div className="mb-2 flex items-start justify-between gap-2">
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-muted-foreground text-xs font-mono">
-                                          #{partida.numeroPartida}
-                                        </span>
-                                        <p className="truncate text-sm font-medium">
-                                          {partida.descripcionPartida}
-                                        </p>
-                                      </div>
-                                      <p className="text-muted-foreground mt-0.5 text-xs">
-                                        {partida.folioOrden}
-                                      </p>
-                                    </div>
-                                    <span
-                                      className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}
-                                    >
-                                      {estadoConfig.label}
-                                    </span>
+                        {selectedOrden && (() => {
+                          const ordenCerrada = selectedOrden.idEstado === 10;
+                          const gastoCompleto = partidasPendientes.length > 0 && partidasPendientes.every(p => p.estadoFacturacion === 2);
+                          const pagoCompleto = partidasPendientesPago.length > 0 && partidasPendientesPago.every(p => p.importePendiente <= 0);
+                          return (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Columna Gasto */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Receipt className="h-4 w-4" />
+                                    Comprobantes de Gasto
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" disabled={gastoCompleto || ordenCerrada} onClick={() => setIsSubirComprobanteOpen(true)}>
+                                      Subir
+                                    </Button>
+                                    {!ordenCerrada && partidasPendientes.some(p => p.importeFacturado > 0) && (
+                                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleBorrarTodosComprobantes('gasto')}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
                                   </div>
-
-                                  {/* Barra de progreso */}
-                                  <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                                    <div
-                                      className={`h-full rounded-full transition-all ${estadoConfig.barColor}`}
-                                      style={{ width: `${pctFacturado}%` }}
-                                    />
-                                  </div>
-
-                                  {/* Cantidades */}
-                                  <div className="text-muted-foreground flex items-center justify-between text-xs">
-                                    <span>
-                                      {partida.cantidadFacturada} / {partida.cantidad} unidades
-                                    </span>
-                                    <span>
-                                      ${partida.importeFacturado.toLocaleString('es-MX', { minimumFractionDigits: 2 })} /{' '}
-                                      ${(partida.cantidad * partida.precioUnitario).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                    </span>
-                                  </div>
-
-                                  {partida.cantidadPendiente > 0 && (
-                                    <p className="mt-1 text-[10px] text-amber-600">
-                                      Pendiente: {partida.cantidadPendiente} unidades · $
-                                      {partida.importePendiente.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                    </p>
-                                  )}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                                {partidasPendientes.length === 0 ? (
+                                  <div className="text-muted-foreground text-xs text-center py-4">Sin partidas de gasto</div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {partidasPendientes.map((partida) => {
+                                      const pctFacturado = partida.total > 0
+                                        ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                        : 0;
+                                      const estadoConfig = {
+                                        0: { label: 'Pendiente', className: 'bg-amber-100 text-amber-700 border-amber-200', barColor: 'bg-amber-400' },
+                                        1: { label: 'Parcial', className: 'bg-blue-100 text-blue-700 border-blue-200', barColor: 'bg-blue-400' },
+                                        2: { label: 'Completa', className: 'bg-green-100 text-green-700 border-green-200', barColor: 'bg-green-500' },
+                                      }[partida.estadoFacturacion] ?? { label: 'Desconocido', className: 'bg-muted text-muted-foreground border-muted', barColor: 'bg-muted' };
+
+                                      return (
+                                        <div key={`gasto-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
+                                          <div className="mb-2 flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                                <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                              </div>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${estadoConfig.className}`}>{estadoConfig.label}</span>
+                                          </div>
+                                          <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                            <div className={`h-full rounded-full transition-all ${estadoConfig.barColor}`} style={{ width: `${pctFacturado}%` }} />
+                                          </div>
+                                          <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                            {partida.cantidadFacturada > 0 && (
+                                              <span>{partida.cantidadFacturada} / {partida.cantidad} unid.</span>
+                                            )}
+                                            <span>
+                                              {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                              {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          </div>
+                                          {partida.importePendiente > 0 && (
+                                            <p className="mt-1 text-[10px] text-amber-600">
+                                              Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Columna Pago */}
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                                    <Banknote className="h-4 w-4" />
+                                    Comprobantes de Pago
+                                  </h4>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="outline" disabled={pagoCompleto || ordenCerrada} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
+                                      Subir
+                                    </Button>
+                                    {!ordenCerrada && partidasPendientesPago.some(p => p.importeFacturado > 0) && (
+                                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => handleBorrarTodosComprobantes('pago')}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                                {partidasPendientesPago.length === 0 ? (
+                                  <div className="text-muted-foreground text-xs text-center py-4">Sin partidas de pago</div>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {partidasPendientesPago.map((partida) => {
+                                      const pctPagado = partida.total > 0
+                                        ? Math.min(100, (partida.importeFacturado / partida.total) * 100)
+                                        : 0;
+                                      const estadoPago = partida.importePendiente <= 0 ? 'Completa' : partida.importeFacturado > 0 ? 'Parcial' : 'Pendiente';
+                                      const colorPago = estadoPago === 'Completa' ? 'bg-green-100 text-green-700 border-green-200' : estadoPago === 'Parcial' ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200';
+                                      const barPago = estadoPago === 'Completa' ? 'bg-green-500' : estadoPago === 'Parcial' ? 'bg-blue-400' : 'bg-amber-400';
+
+                                      return (
+                                        <div key={`pago-${partida.idPartida}`} className="bg-card rounded-lg border p-3 shadow-sm">
+                                          <div className="mb-2 flex items-start justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-muted-foreground text-xs font-mono">#{partida.numeroPartida}</span>
+                                                <p className="truncate text-sm font-medium">{partida.descripcionPartida}</p>
+                                              </div>
+                                            </div>
+                                            <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${colorPago}`}>{estadoPago}</span>
+                                          </div>
+                                          <div className="mb-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                            <div className={`h-full rounded-full transition-all ${barPago}`} style={{ width: `${pctPagado}%` }} />
+                                          </div>
+                                          <div className="text-muted-foreground flex items-center justify-between text-xs">
+                                            <span>
+                                              {partida.importeFacturado.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })} /{' '}
+                                              {partida.total.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          </div>
+                                          {partida.importePendiente > 0 && (
+                                            <p className="mt-1 text-[10px] text-amber-600">
+                                              Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                     </TabsContent>
@@ -1798,51 +2323,7 @@ export default function AutorizacionesOC() {
                           gif:  'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300',
                         };
 
-                        const TIPO_BADGE: Record<string, string> = {
-                          comprobante:       'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-                          comprobante_pago:  'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-                          comprobante_gasto: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
-                          factura:           'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
-                          contrato:          'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
-                          cotizacion:        'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300',
-                          autorizacion:      'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-                        };
-
-                        const tipoBadgeClass = (tipo?: string) =>
-                          tipo ? (TIPO_BADGE[tipo.toLowerCase()] ?? 'bg-primary/10 text-primary') : '';
-
-                        // ── agrupar por paso/origen ───────────────────────
-                        type Grupo = { paso: string | null; nombrePaso?: string; origen?: string; items: typeof archivosOrden };
-                        const grupos: Grupo[] = [];
-                        const pasoMap = new Map<string, typeof archivosOrden>();
-                        const pasoNombreMap = new Map<string, string>();
-                        const pasoOrigenMap = new Map<string, string>();
-
-                        archivosOrden.forEach((a) => {
-                          const { paso, nombrePaso, origen } = parseMetaArchivo(a.metadata);
-                          // Archivos de creación van a un grupo especial '__creacion__'
-                          const key = origen === 'creacion' ? '__creacion__' : (paso ?? '__general__');
-                          if (!pasoMap.has(key)) pasoMap.set(key, []);
-                          pasoMap.get(key)!.push(a);
-                          if (nombrePaso && !pasoNombreMap.has(key)) pasoNombreMap.set(key, nombrePaso);
-                          if (origen && !pasoOrigenMap.has(key)) pasoOrigenMap.set(key, origen);
-                        });
-
-                        // Orden: pasos numéricos → creación → general
-                        const keys = Array.from(pasoMap.keys()).sort((a, b) => {
-                          if (a === '__general__') return 1;
-                          if (b === '__general__') return -1;
-                          if (a === '__creacion__') return 1;
-                          if (b === '__creacion__') return -1;
-                          return Number(a) - Number(b);
-                        });
-                        keys.forEach((k) => grupos.push({
-                          paso: k === '__general__' || k === '__creacion__' ? null : k,
-                          nombrePaso: pasoNombreMap.get(k),
-                          origen: pasoOrigenMap.get(k) ?? (k === '__creacion__' ? 'creacion' : undefined),
-                          items: pasoMap.get(k)!,
-                        }));
-
+                        // ── lista plana de archivos (sin agrupar por paso) ─────
                         return (
                           <div className="space-y-2">
                             {/* Encabezado */}
@@ -1856,15 +2337,52 @@ export default function AutorizacionesOC() {
                                 )}
                               </p>
                               <Button
-                                variant="ghost"
                                 size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => fetchArchivosOrden(selectedOrden.idOrden)}
-                                disabled={loadingArchivos}
+                                variant="outline"
+                                onClick={() => setIsSubirAdjuntoOpen(!isSubirAdjuntoOpen)}
                               >
-                                {loadingArchivos ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCcw className="h-3 w-3" />}
+                                <Paperclip className="mr-1 h-3.5 w-3.5" />
+                                Subir
                               </Button>
                             </div>
+
+                            {/* Uploader desplegable */}
+                            {isSubirAdjuntoOpen && (
+                              <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-muted-foreground">Observaciones</Label>
+                                  <Textarea
+                                    value={observacionesAdjunto}
+                                    onChange={e => setObservacionesAdjunto(e.target.value)}
+                                    placeholder="Ej: Contrato firmado, cotizacion..."
+                                    rows={2}
+                                    className="text-xs"
+                                  />
+                                </div>
+                                <FileUploader
+                                  inline open multiple cantidadMaxima={5}
+                                  entidadTipo="OrdenCompra" entidadId={selectedOrden.idOrden}
+                                  carpeta="ordenes-compra"
+                                  metadata={{
+                                    modulo: 'ordenes_compra', origen: 'workflow',
+                                    tipo: 'adjunto_libre',
+                                    paso: selectedOrden.idPasoActual ?? undefined,
+                                    nombrePaso: selectedOrden.idPasoActual != null
+                                      ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? undefined)
+                                      : undefined,
+                                    observaciones: observacionesAdjunto || undefined,
+                                  }}
+                                  tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']}
+                                  descripcion="Arrastra o selecciona documentos de soporte"
+                                  onUploadComplete={(nuevos) => {
+                                    if (nuevos.length > 0) fetchArchivosOrden(selectedOrden.idOrden);
+                                    setIsSubirAdjuntoOpen(false);
+                                    setObservacionesAdjunto('');
+                                  }}
+                                  onClose={() => { setIsSubirAdjuntoOpen(false); setObservacionesAdjunto(''); }}
+                                />
+                              </div>
+                            )}
 
                             {/* Loading */}
                             {loadingArchivos ? (
@@ -1881,111 +2399,85 @@ export default function AutorizacionesOC() {
                                 </p>
                               </div>
                             ) : (
-                              <div className="space-y-3">
-                                {grupos.map(({ paso, nombrePaso, origen, items }) => (
-                                  <div key={paso ?? origen ?? 'general'}>
-                                    {/* Separador de grupo */}
-                                    <div className="mb-1.5 flex items-center gap-2">
-                                      <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground shrink-0">
-                                        {paso
-                                          ? `Paso ${paso}`
-                                          : origen === 'creacion'
-                                          ? 'Creación de orden'
-                                          : 'General'}
+                              <div className="space-y-1">
+                                {archivosOrden.map((archivo) => {
+                                  const meta = parseMetaArchivo(archivo.metadata);
+                                  const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
+                                  const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
+                                  let tipoLabel: string | undefined;
+                                  if (esComprobante) {
+                                    const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
+                                    const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
+                                    tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
+                                  } else {
+                                    tipoLabel = meta.tipo ?? meta.observaciones;
+                                  }
+
+                                  return (
+                                    <div
+                                      key={archivo.id}
+                                      className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
+                                    >
+                                      <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
+                                        {ext || '?'}
                                       </span>
-                                      {nombrePaso && (
-                                        <span className="text-[10px] text-muted-foreground truncate">
-                                          — {nombrePaso}
-                                        </span>
-                                      )}
-                                      <div className="h-px flex-1 bg-border" />
-                                      <span className="text-[10px] text-muted-foreground shrink-0">{items.length}</span>
-                                    </div>
 
-                                    {/* Archivos del grupo */}
-                                    <div className="space-y-1">
-                                       {items.map((archivo) => {
-                                        const meta = parseMetaArchivo(archivo.metadata);
-                                        const ext = archivo.extension?.toLowerCase().replace('.', '') ?? '';
-                                        // Label: para comprobantes usar subtipo + tipo de archivo
-                                        const esComprobante = meta.tipo === 'comprobante_pago' || meta.tipo === 'comprobante_gasto';
-                                        let tipoLabel: string | undefined;
-                                        if (esComprobante) {
-                                          const subLabel = meta.subtipo ? meta.subtipo.toUpperCase() : '';
-                                          const archLabel = meta.archivo === 'xml' ? 'XML' : meta.archivo === 'pdf' ? 'PDF' : '';
-                                          tipoLabel = [subLabel, archLabel].filter(Boolean).join(' · ') || (meta.tipo === 'comprobante_pago' ? 'Pago' : 'Gasto');
-                                        } else {
-                                          tipoLabel = meta.observaciones ?? meta.tipo;
-                                        }
-
-                                        return (
-                                          <div
-                                            key={archivo.id}
-                                            className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
-                                          >
-                                            {/* Badge extensión */}
-                                            <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
-                                              {ext || '?'}
+                                      <div className="min-w-0 flex-1 space-y-0.5">
+                                        <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
+                                          {archivo.nombreOriginal}
+                                        </p>
+                                        {meta.observaciones && (
+                                          <p className="text-xs text-blue-800 dark:text-blue-200 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded px-2 py-1 leading-tight">
+                                            {meta.observaciones}
+                                          </p>
+                                        )}
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                          {tipoLabel && (
+                                            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'`}>
+                                              {tipoLabel}
                                             </span>
+                                          )}
+                                          {esComprobante && meta.monto != null && (
+                                            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                              {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                                            </span>
+                                          )}
+                                          {archivo.usuarioSubioNombre && (
+                                            <span className="text-[10px] text-muted-foreground/60">
+                                              {archivo.usuarioSubioNombre}
+                                            </span>
+                                          )}
+                                          <span className="text-[10px] text-muted-foreground/40">
+                                            {fmtFecha(archivo.fechaCreacion)}
+                                          </span>
+                                        </div>
+                                      </div>
 
-                                            {/* Contenido */}
-                                            <div className="min-w-0 flex-1 space-y-0.5">
-                                              <p className="truncate font-medium leading-tight" title={archivo.nombreOriginal}>
-                                                {archivo.nombreOriginal}
-                                              </p>
-                                              <div className="flex flex-wrap items-center gap-1.5">
-                                                {tipoLabel && (
-                                                  <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${tipoBadgeClass(meta.tipo)}`}>
-                                                    {tipoLabel}
-                                                  </span>
-                                                )}
-                                                {/* Monto del comprobante */}
-                                                {esComprobante && meta.monto != null && (
-                                                  <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                                                    {(meta.monto as number).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
-                                                  </span>
-                                                )}
-                                                <span className="text-muted-foreground">{fmtSize(archivo.tamanoBytes)}</span>
-                                                <span className="text-muted-foreground/40">·</span>
-                                                <span className="text-muted-foreground">
-                                                  {new Date(archivo.fechaCreacion).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                </span>
-                                              </div>
-                                              {meta.nombreAccion && (
-                                                <p className="text-[10px] text-muted-foreground/60 leading-tight">
-                                                  {meta.nombreAccion}
-                                                </p>
-                                              )}
-                                            </div>
-
-                                            {/* Acciones */}
-                                            <div className="flex shrink-0 items-center gap-0.5">
-                                              <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                                                title="Ver documento"
-                                                onClick={() => setViewerArchivoId(archivo.id)}
-                                              >
-                                                <Eye className="h-3.5 w-3.5" />
-                                              </Button>
-                                              <a
-                                                href={archivoService.getDownloadUrl(archivo.id)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                title="Descargar"
-                                              >
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
-                                                  <Download className="h-3.5 w-3.5" />
-                                                </Button>
-                                              </a>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                      <div className="flex shrink-0 items-center gap-0.5">
+                                        <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" title="Ver documento"
+                                          onClick={() => setViewerArchivoId(archivo.id)}>
+                                          <Eye className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <a href={archivoService.getDownloadUrl(archivo.id)} target="_blank" rel="noopener noreferrer" title="Descargar">
+                                          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground">
+                                            <Download className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </a>
+                                        {!esComprobante && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                                            title="Borrar archivo"
+                                            onClick={() => handleEliminarArchivo(archivo.id)}
+                                          >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                          </Button>
+                                        )}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1995,10 +2487,8 @@ export default function AutorizacionesOC() {
                   </Tabs>
                 </>
               )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+            </div>
+      </Modal>
 
       <Modal
         id="modal-firmar-oc"
@@ -2007,7 +2497,7 @@ export default function AutorizacionesOC() {
           setIsFirmarModalOpen(open);
           if (!open) cerrarModalFirma();
         }}
-        title={accionSeleccionada ? `${accionSeleccionada.nombreAccion} orden` : 'Procesar firma'}
+        title={accionSeleccionada ? `${accionSeleccionada.tipoAccionNombre} orden` : 'Procesar firma'}
         size="lg"
         footer={
           <div className="flex w-full justify-end gap-2">
@@ -2029,8 +2519,8 @@ export default function AutorizacionesOC() {
           <div className={`rounded-md border p-3 ${bgAccion}`}>
             <p className={`text-sm font-semibold ${colorAccion}`}>{selectedOrden?.folio}</p>
             <p className="text-xs text-muted-foreground">
-              Estado actual: {selectedOrden?.estado}{' '}
-              {accionSeleccionada ? `• Acción: ${accionSeleccionada.nombreAccion}` : ''}
+              Estado actual: {selectedOrden ? getEstadoInfo(selectedOrden.idEstado).nombre : '-'}{' '}
+              {accionSeleccionada ? `• Acción: ${accionSeleccionada.tipoAccionNombre}` : ''}
             </p>
             {(esRechazo || esRetorno) && (
               <p className="mt-2 text-xs text-muted-foreground">
@@ -2043,12 +2533,40 @@ export default function AutorizacionesOC() {
           {camposParaAccion.length > 0 && (
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-semibold">
-                Información requerida
+                Informacion requerida
                 {loadingCatalogos && (
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
               </h4>
-              {camposParaAccion.map(({ campo, requerido, inputKey }) => {
+
+              {/* Mensajes de validacion de todos los handlers que tengan uno */}
+              {camposParaAccion.some(c => c.validacionMensaje) && (
+                <div className="space-y-1.5">
+                  {camposParaAccion.filter(c => c.validacionMensaje).map(({ campo, validacionExito, validacionMensaje }) => (
+                    <div
+                      key={campo.nombreTecnico}
+                      className={`rounded-md border px-3 py-2 text-sm ${
+                        validacionExito === false
+                          ? 'border-red-300 bg-red-50 text-red-800 dark:bg-red-950/20 dark:text-red-400'
+                          : 'border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:text-amber-400'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="font-semibold">{campo.etiquetaUsuario}</p>
+                          <p className="mt-0.5 text-xs opacity-90">{validacionMensaje}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Inputs y otros controles */}
+              {camposParaAccion
+                .filter(c => c.campo.tipoControl !== 'Alerta' && c.campo.tipoControl !== 'Validacion')
+                .map(({ campo, requerido, inputKey, validacionExito, validacionMensaje }) => {
                 const fieldId = `campo-${inputKey}`;
                 const value = camposValues[inputKey];
 
@@ -2072,6 +2590,8 @@ export default function AutorizacionesOC() {
 
                 if (campo.tipoControl === 'Selector' && campo.sourceCatalog) {
                   const options = catalogos[campo.sourceCatalog] || [];
+                  const currentValue = String(value ?? '');
+                  const selectedLabel = options.find((o) => o.value === currentValue)?.label;
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label htmlFor={fieldId}>
@@ -2079,25 +2599,43 @@ export default function AutorizacionesOC() {
                         {requerido && <span className="ml-1 text-red-500">*</span>}
                       </Label>
                       {options.length > 0 ? (
-                        <Select
-                          value={String(value ?? '')}
-                          onValueChange={(v) =>
-                            setCamposValues((prev) => ({ ...prev, [inputKey]: v }))
-                          }
+                        <Combobox
+                          data={options.map((o) => ({ value: o.label, label: o.label }))}
+                          type={campo.etiquetaUsuario.toLowerCase()}
+                          value={selectedLabel || ''}
+                          onValueChange={(label) => {
+                            const opt = options.find((o) => o.label === label);
+                            if (opt) {
+                              setCamposValues((prev) => ({ ...prev, [inputKey]: opt.value }));
+                            }
+                          }}
                         >
-                          <SelectTrigger id={fieldId}>
-                            <SelectValue
-                              placeholder={`Seleccionar ${campo.etiquetaUsuario.toLowerCase()}...`}
+                          <ComboboxTrigger className="w-full" />
+                          <ComboboxContent
+                            filter={(value, search) => {
+                              if (!search) return 1;
+                              const v = value.toLowerCase();
+                              const s = search.toLowerCase();
+                              return v.includes(s) ? 1 : 0;
+                            }}
+                          >
+                            <ComboboxInput
+                              placeholder={`Buscar ${campo.etiquetaUsuario.toLowerCase()}...`}
                             />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {options.map((opt) => (
-                              <SelectItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                            <ComboboxEmpty>
+                              No se encontró {campo.etiquetaUsuario.toLowerCase()}
+                            </ComboboxEmpty>
+                            <ComboboxList>
+                              <ComboboxGroup>
+                                {options.map((opt) => (
+                                  <ComboboxItem key={opt.value} value={opt.label}>
+                                    {opt.label}
+                                  </ComboboxItem>
+                                ))}
+                              </ComboboxGroup>
+                            </ComboboxList>
+                          </ComboboxContent>
+                        </Combobox>
                       ) : (
                         <Input
                           id={fieldId}
@@ -2129,7 +2667,7 @@ export default function AutorizacionesOC() {
                         onChange={(e) =>
                           setCamposValues((prev) => ({
                             ...prev,
-                            [inputKey]: e.target.value === '' ? '' : Number(e.target.value),
+                            [inputKey]: e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')),
                           }))
                         }
                         placeholder={`Ingresa ${campo.etiquetaUsuario.toLowerCase()}`}
@@ -2157,118 +2695,25 @@ export default function AutorizacionesOC() {
                   );
                 }
 
-                // Archivo (DocumentRequired) — inline uploader dentro del modal
+                // Archivo: comprobantes se suben desde el tab Comprobantes
                 if (campo.tipoControl === 'Archivo') {
-
-                  // ── comprobante_gasto → flujo CFDI con SubirComprobanteModal ──────
-                  if (campo.nombreTecnico === 'comprobante_gasto') {
-                    const comprobantesGasto = comprobantesWorkflow['comprobante_gasto'] ?? [];
-                    return (
-                      <div key={inputKey} className="space-y-1.5">
-                        <Label>
-                          {campo.etiquetaUsuario}
-                          {requerido && <span className="ml-1 text-red-500">*</span>}
-                        </Label>
-
-                        {/* Lista de comprobantes ya registrados */}
-                        {comprobantesGasto.length > 0 && (
-                          <div className="space-y-1.5">
-                            {comprobantesGasto.map((cg, idx) => (
-                              <div key={cg.idComprobante} className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs dark:bg-green-950/20">
-                                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-600" />
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-green-700 dark:text-green-400 truncate">
-                                    {cg.nombreEmisor ?? 'Factura CFDI'}
-                                  </p>
-                                  <p className="text-green-600/80 dark:text-green-500/80">
-                                    {cg.uuidCfdi ? `UUID: ${cg.uuidCfdi.slice(0, 8)}…` : 'Sin UUID'}
-                                    {' · '}
-                                    ${cg.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                                  </p>
-                                </div>
-                                <button
-                                  type="button"
-                                  title="Quitar"
-                                  className="text-muted-foreground hover:text-destructive shrink-0"
-                                  onClick={() =>
-                                    setComprobantesWorkflow((prev) => ({
-                                      ...prev,
-                                      comprobante_gasto: (prev['comprobante_gasto'] ?? []).filter((_, i) => i !== idx),
-                                    }))
-                                  }
-                                >
-                                  <X className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Botón agregar */}
-                        <button
-                          type="button"
-                          onClick={() => setIsSubirComprobanteOpen(true)}
-                          className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
-                        >
-                          <Receipt className="h-4 w-4 shrink-0" />
-                          <span>{comprobantesGasto.length > 0 ? 'Agregar otro comprobante de gasto' : 'Subir comprobante de gasto (factura, ticket, recibo...)'}</span>
-                        </button>
-                      </div>
-                    );
-                  }
-
-                  // ── comprobante_pago → modal SubirComprobantePagoModal ─────────
-                  const comprobantesP = comprobantesWorkflow[inputKey] ?? [];
+                  const comprobantes = comprobantesWorkflow[inputKey] ?? [];
                   return (
                     <div key={inputKey} className="space-y-1.5">
                       <Label>
                         {campo.etiquetaUsuario}
                         {requerido && <span className="ml-1 text-red-500">*</span>}
                       </Label>
-
-                      {/* Lista de comprobantes ya registrados */}
-                      {comprobantesP.length > 0 && (
-                        <div className="space-y-1.5">
-                          {comprobantesP.map((cp, idx) => (
-                            <div key={cp.idComprobante} className="flex items-center gap-2 rounded-md border border-green-300 bg-green-50 px-3 py-2 text-xs dark:bg-green-950/20">
-                              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate font-medium text-green-700 dark:text-green-400">
-                                  {cp.tipoComprobante?.toUpperCase()} — {
-                                    new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(cp.total)
-                                  }
-                                </p>
-                                {cp.referenciaPago && (
-                                  <p className="text-muted-foreground">Ref: {cp.referenciaPago}</p>
-                                )}
-                              </div>
-                              <button
-                                type="button"
-                                title="Quitar"
-                                className="text-muted-foreground hover:text-destructive shrink-0"
-                                onClick={() =>
-                                  setComprobantesWorkflow((prev) => ({
-                                    ...prev,
-                                    [inputKey]: (prev[inputKey] ?? []).filter((_, i) => i !== idx),
-                                  }))
-                                }
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
+                      {comprobantes.length > 0 ? (
+                        <p className="text-xs text-emerald-600 flex items-center gap-1">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          {comprobantes.length} comprobante(s) cargado(s)
+                        </p>
+                      ) : (
+                        <p className="text-xs text-amber-600">
+                          Sube el comprobante desde la pestaña Comprobantes.
+                        </p>
                       )}
-
-                      {/* Botón para agregar */}
-                      <button
-                        type="button"
-                        onClick={() => setIsSubirComprobantePagoOpen(inputKey)}
-                        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-2 border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition hover:border-primary hover:bg-muted/30"
-                      >
-                        <Upload className="h-4 w-4 shrink-0" />
-                        <span>{comprobantesP.length > 0 ? 'Agregar otro comprobante de pago' : 'Registrar comprobante de pago (SPEI, cheque, transferencia...)'}</span>
-                      </button>
                     </div>
                   );
                 }
@@ -2298,11 +2743,11 @@ export default function AutorizacionesOC() {
             <div className="flex items-center justify-between">
               <Label htmlFor="comentario-firma">
                 Comentario
-                {(esRechazo || esRetorno || currentPaso?.requiereComentario) && (
+                {(esRechazo || esRetorno || accionSeleccionada?.requiereComentario) && (
                   <span className="ml-1 text-red-500">*</span>
                 )}
               </Label>
-              {!esRechazo && !esRetorno && !currentPaso?.requiereComentario && (
+              {!esRechazo && !esRetorno && !accionSeleccionada?.requiereComentario && (
                 <span className="text-xs text-muted-foreground">Opcional</span>
               )}
             </div>
@@ -2326,13 +2771,13 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Adjunto libre — visible when paso allows free attachments */}
-          {currentPaso?.permiteAdjunto && selectedOrden && (
+          {/* Adjunto libre — visible when action allows free attachments */}
+          {accionSeleccionada?.permiteAdjunto && selectedOrden && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label>
                   Documentos adjuntos
-                  {currentPaso.requiereAdjunto && (
+                  {accionSeleccionada.requiereAdjunto && (
                     <span className="ml-1 text-red-500">*</span>
                   )}
                   {adjuntosLibres.length > 0 && (
@@ -2341,7 +2786,7 @@ export default function AutorizacionesOC() {
                     </span>
                   )}
                 </Label>
-                {!currentPaso.requiereAdjunto && (
+                {!accionSeleccionada?.requiereAdjunto && (
                   <span className="text-xs text-muted-foreground">Opcional</span>
                 )}
               </div>
@@ -2358,13 +2803,6 @@ export default function AutorizacionesOC() {
                       <span className="flex-1 truncate text-green-800 dark:text-green-300">
                         {archivo.nombreOriginal}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setAdjuntosLibres((prev) => prev.filter((a) => a.id !== archivo.id))}
-                        className="text-green-600 hover:text-red-500 dark:text-green-400 dark:hover:text-red-400"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -2386,7 +2824,8 @@ export default function AutorizacionesOC() {
                     tipo: 'adjunto_libre',
                     paso: selectedOrden.idPasoActual ?? undefined,
                     nombrePaso: currentPaso?.nombrePaso ?? undefined,
-                    nombreAccion: accionSeleccionada?.nombreAccion ?? undefined,
+                    nombreAccion: accionSeleccionada?.tipoAccionNombre ?? undefined,
+                    observaciones: comentarioFirma || undefined,
                   }}
                   tiposPermitidos={['.pdf', '.xml', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']}
                   descripcion="Arrastra o selecciona documentos de soporte"
@@ -2422,14 +2861,13 @@ export default function AutorizacionesOC() {
               ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
               : null
           }
-          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           partidasPendientes={partidasPendientes}
           onComprobanteSubido={(c) => {
             setComprobantesWorkflow((prev) => ({
               ...prev,
               comprobante_gasto: [...(prev['comprobante_gasto'] ?? []), c],
             }));
-            setIsSubirComprobanteOpen(false);
             fetchPartidasPendientes(selectedOrden.idOrden);
           }}
         />
@@ -2448,7 +2886,7 @@ export default function AutorizacionesOC() {
               ? (pasosMap.get(selectedOrden.idPasoActual)?.nombrePaso ?? null)
               : null
           }
-          nombreAccion={accionSeleccionada?.nombreAccion ?? null}
+          nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
           totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
@@ -2459,7 +2897,6 @@ export default function AutorizacionesOC() {
               ...prev,
               [key]: [...(prev[key] ?? []), c],
             }));
-            setIsSubirComprobantePagoOpen(null);
             fetchPartidasPendientes(selectedOrden.idOrden);
             fetchArchivosOrden(selectedOrden.idOrden);
           }}
@@ -2491,8 +2928,10 @@ export default function AutorizacionesOC() {
         <OrdenCompraPDF
           orden={selectedOrden}
           historial={historial}
+          pasosWorkflow={pasosWorkflow}
           proveedoresMap={proveedoresMap}
           firmasMap={firmasMap}
+          formasPagoMap={formasPagoMap}
         />,
         document.body
       )}

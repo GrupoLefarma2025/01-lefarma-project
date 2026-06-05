@@ -122,7 +122,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var ordenes = await query.ToListAsync(ct);
 
                 if (rec.MinDiasEnPaso.HasValue)
-                    ordenes = ordenes.Where(o => (ahora - o.FechaSolicitud).TotalDays >= rec.MinDiasEnPaso.Value).ToList();
+                    ordenes = ordenes.Where(o => ((ahora - o.FechaSolicitud)?.TotalDays ?? 1) >= rec.MinDiasEnPaso.Value).ToList();
 
                 if (!ordenes.Any())
                 {
@@ -155,7 +155,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     if (rec.MinOrdenesPendientes.HasValue && ordenesDelUsuario.Count < rec.MinOrdenesPendientes.Value)
                         continue;
 
-                    var diasEspera = ordenesDelUsuario.Max(o => (int)(ahora - o.FechaSolicitud).TotalDays);
+                    var diasEspera = ordenesDelUsuario.Max(o => (int)((ahora - o.FechaSolicitud)?.TotalDays ?? 1));
 
                     var canalEmailTemplate = rec.Canales.FirstOrDefault(c => c.CodigoCanal == "email" && c.Activo);
                     var canalInAppTemplate = rec.Canales.FirstOrDefault(c => c.CodigoCanal == "in_app" && c.Activo);
@@ -210,7 +210,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                             ctx["Asunto"] = asuntoEmail;
 
                             var layoutWrapper = await _db.WorkflowCanalTemplates
-                                .FirstOrDefaultAsync(t => t.IdWorkflow == rec.IdWorkflow && t.CodigoCanal == "email" && t.Activo, ct);
+                                .FirstOrDefaultAsync(t => t.CodigoCanal == "email" && t.Activo, ct);
                             if (layoutWrapper != null)
                             {
                                 cuerpoEmail = layoutWrapper.LayoutHtml.Replace("{{Contenido}}", cuerpoEmail, StringComparison.OrdinalIgnoreCase);
@@ -305,13 +305,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         ["Folio"] = o.Folio,
                         ["Proveedor"] = o.Proveedor?.RazonSocial ?? "",
                         ["Total"] = o.Total.ToString("C2"),
-                        ["DiasEspera"] = ((int)(DateTime.UtcNow - o.FechaSolicitud).TotalDays).ToString()
+                        ["DiasEspera"] = ((int)((DateTime.Now - o.FechaSolicitud)?.TotalDays ?? 1)).ToString()
                     };
                     sb.Append(Interpolate(rowTemplate, rowCtx));
                 }
                 else
                 {
-                    var dias = (int)(DateTime.UtcNow - o.FechaSolicitud).TotalDays;
+                    var dias = (int)((DateTime.Now - o.FechaSolicitud)?.TotalDays ?? 1);
                     sb.Append($"<tr style='border-top:1px solid #e5e7eb'>" +
                         $"<td style='padding:6px 10px'>{o.Folio}</td>" +
                         $"<td style='padding:6px 10px'>{o.Proveedor?.RazonSocial}</td>" +

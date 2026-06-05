@@ -9,6 +9,8 @@ using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
@@ -16,31 +18,49 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
     {
         private readonly IOrdenCompraRepository _repo;
         private readonly IWorkflowRepository _workflowRepo;
+        private readonly IWorkflowResolver _workflowResolver;
         private readonly ApplicationDbContext _context;
+        private readonly AsokamDbContext _asokamContext;
         protected override string EntityName => "OrdenCompra";
-        private const string CODIGO_PROCESO = "ORDEN_COMPRA";
+
+        private record UsuarioInfo(string Nombre, string? Puesto);
 
         public OrdenCompraService(
             IOrdenCompraRepository repo,
             IWorkflowRepository workflowRepo,
+            IWorkflowResolver workflowResolver,
             ApplicationDbContext context,
+            AsokamDbContext asokamContext,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
             _repo = repo;
             _workflowRepo = workflowRepo;
+            _workflowResolver = workflowResolver;
             _context = context;
+            _asokamContext = asokamContext;
         }
 
         public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
         {
             try
             {
-                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).AsQueryable();
+                var q = _repo.GetQueryable().Include(o => o.Partidas).Include(o => o.Proveedor).Include(o => o.CentroCosto).Include(o => o.CuentaContable).Include(o => o.Empresa).Include(o => o.Sucursal).Include(o => o.Area).Include(o => o.TipoGasto).Include(o => o.Estado).AsQueryable();
 
                 if (query.IdEmpresa.HasValue) q = q.Where(o => o.IdEmpresa == query.IdEmpresa.Value);
                 if (query.IdSucursal.HasValue) q = q.Where(o => o.IdSucursal == query.IdSucursal.Value);
-                if (query.Estado.HasValue) q = q.Where(o => o.Estado == query.Estado.Value);
+                if (query.IdEstado.HasValue) q = q.Where(o => o.IdEstado == query.IdEstado.Value);
+
+                if (query.SoloEnvioConcentrado == true)
+                {
+                    var pasosConEnvioConcentrado = await _context.WorkflowAcciones
+                        .Where(a => a.Activo && a.EnviaConcentrado)
+                        .Select(a => a.IdPasoOrigen)
+                        .Distinct()
+                        .ToListAsync();
+
+                    q = q.Where(o => o.IdPasoActual.HasValue && pasosConEnvioConcentrado.Contains(o.IdPasoActual.Value));
+                }
 
                 // Si NO tiene el permiso de ver todas, filtrar por usuario/rol participante
                 if (!puedeVerTodas)
@@ -60,9 +80,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     q = q.Where(o =>
                         o.IdUsuarioCreador == idUsuario ||
                         (pasosParticipante.Contains(o.IdPasoActual ?? 0) &&
-                         o.Estado != EstadoOC.Creada &&
-                         o.Estado != EstadoOC.Rechazada &&
-                         o.Estado != EstadoOC.Cancelada));
+                         o.IdEstado != 1 && // Creada
+                         o.IdEstado != 7 && // Rechazada
+                         o.IdEstado != 9)); // Cancelada
                 }
 
                 q = query.OrderBy?.ToLower() switch
@@ -73,9 +93,36 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     _ => q.OrderByDescending(o => o.FechaCreacion)
                 };
 
+                if (query.Max.HasValue && query.Max.Value > 0)
+                    q = q.Take(query.Max.Value);
+
                 var items = await q.ToListAsync();
 
-                var response = items.Select(ToResponse).ToList();
+                var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
+                var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => userIds.Contains(u.IdUsuario))
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
+
+                var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                                  .Select(p => p.IdUnidadMedida)
+                                  .Distinct()
+                                  .ToList();
+                var uomNombres = await _context.UnidadesMedida.AsNoTracking()
+                    .Where(u => uomIds.Contains(u.IdUnidadMedida))
+                    .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
+
+                var formaPagoIds = items
+                    .Where(o => !string.IsNullOrEmpty(o.IdsCuentasBancarias))
+                    .SelectMany(o => DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago ?? Enumerable.Empty<int>())
+                    .Distinct()
+                    .ToList();
+                var formasPagoNombres = formaPagoIds.Count > 0
+                    ? await _context.FormasPago.AsNoTracking()
+                        .Where(fp => formaPagoIds.Contains(fp.IdFormaPago))
+                        .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
+                    : new Dictionary<int, string>();
+
+                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres)).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }
@@ -97,8 +144,48 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
-                EnrichWideEvent("GetById", entityId: id, nombre: item.Folio);
-                return ToResponse(item);
+                var usuariosInfo = new Dictionary<int, UsuarioInfo>();
+                var uInfo = await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => u.IdUsuario == item.IdUsuarioCreador)
+                    .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto })
+                    .FirstOrDefaultAsync();
+                if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto);
+
+                var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
+                var uomNombres = await _context.UnidadesMedida.AsNoTracking()
+                    .Where(u => uomIds.Contains(u.IdUnidadMedida))
+                    .ToDictionaryAsync(u => u.IdUnidadMedida, u => u.Abreviatura ?? u.Nombre);
+
+                var formaPagoIds = !string.IsNullOrEmpty(item.IdsCuentasBancarias)
+                    ? DeserializeCuentasYFormasPago(item.IdsCuentasBancarias)?.IdsFormaPago ?? new List<int>()
+                    : new List<int>();
+                var formasPagoNombres = formaPagoIds.Count > 0
+                    ? await _context.FormasPago.AsNoTracking()
+                        .Where(fp => formaPagoIds.Contains(fp.IdFormaPago))
+                        .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
+                    : new Dictionary<int, string>();
+
+                var tipoImpuestoIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDict = tipoImpuestoIds.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIds.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa)
+                    : new Dictionary<int, decimal>();
+
+                foreach (var partida in item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
+                {
+                    if (partida.IdTipoImpuesto.HasValue && impuestosDict.TryGetValue(partida.IdTipoImpuesto.Value, out var tasa))
+                    {
+                        partida.PorcentajeIva = tasa * 100;
+                    }
+                }
+
+                return ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
             }
             catch (Exception ex)
             {
@@ -112,6 +199,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             try
             {
                 var folio = await _repo.GenerarFolioAsync();
+
+                var tipoImpuestoIds = request.Partidas
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDict = tipoImpuestoIds.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIds.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
+                    : new Dictionary<int, decimal>();
+
                 var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
                 {
                     NumeroPartida = i + 1,
@@ -120,7 +220,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdUnidadMedida = p.IdUnidadMedida,
                     PrecioUnitario = p.PrecioUnitario,
                     Descuento = p.Descuento,
-                    PorcentajeIva = p.PorcentajeIva,
+                IdTipoImpuesto = p.IdTipoImpuesto,
+                PorcentajeIva = p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
@@ -131,24 +232,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     Total = CalcularTotalPartida(p)
                 }).ToList();
 
-                var subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
-                var totalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
+                var subtotal = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
 
-                var workflow = await _workflowRepo.GetQueryable()
-                    .Include(w => w.Pasos)
-                        .ThenInclude(p => p.AccionesOrigen)
-                    .FirstOrDefaultAsync(w => w.CodigoProceso == CODIGO_PROCESO && w.Activo);
+                var totalIva = partidas.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
+                var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
+
+                var workflow = await _workflowResolver.ResolveWorkflowIdAsync("ORDEN_COMPRA", idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, request.IdTipoGasto, request.IdProveedor);
 
                 if (workflow is null)
-                    return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para '{CODIGO_PROCESO}'.");
+                    return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");
 
-                var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio);
+                var pasoInicio = workflow.Pasos?.FirstOrDefault(p => p.EsInicio);
                 if (pasoInicio is null)
                     return CommonErrors.Conflict("Workflow", "El workflow no tiene un paso inicial configurado.");
 
-                var accionInicial = pasoInicio.AccionesOrigen
-                    .OrderBy(a => a.IdAccion)
-                    .FirstOrDefault();
+                var accionInicial = pasoInicio.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
 
                 if (accionInicial is null)
                     return CommonErrors.Conflict("Workflow", "El paso inicial no tiene acciones configuradas para registrar bitácora.");
@@ -161,25 +262,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdArea = request.IdArea,
                     IdTipoGasto = request.IdTipoGasto,
                     IdUsuarioCreador = idUsuario,
-                    Estado = EstadoOC.Creada,
+                    IdEstado = 1, // Creada
+                    IdWorkflow = workflow.IdWorkflow,
                     IdPasoActual = pasoInicio?.IdPaso,
                     IdProveedor = request.IdProveedor,
-                    IdsCuentasBancarias = request.IdsCuentasBancarias != null
-                        ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
-                        : null,
+                    IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades),
                     SinDatosFiscales = request.SinDatosFiscales,
+                    RequierePagoAnticipado = request.RequierePagoAnticipado,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
                     IdMoneda = request.IdMoneda,
                     TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m,
-                    FechaSolicitud = DateTime.UtcNow,
                     FechaLimitePago = request.FechaLimitePago,
-                    FechaCreacion = DateTime.UtcNow,
+                    FechaCreacion = DateTime.Now,
                     Subtotal = subtotal,
                     TotalIva = totalIva,
-                    TotalRetenciones = partidas.Sum(p => p.TotalRetenciones),
-                    TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos),
-                    Total = partidas.Sum(p => p.Total),
+                    TotalRetenciones = totalRetenciones,
+                    TotalOtrosImpuestos = totalOtrosImpuestos,
+                    Total = total,
                     Partidas = partidas
                 };
 
@@ -187,9 +287,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var snapshot = new Dictionary<string, object?>
                 {
+                    ["idWorkflow"] = workflow.IdWorkflow,
                     ["idPasoAnterior"] = null,
                     ["idPasoNuevo"] = result.IdPasoActual,
-                    ["codigoEstadoNuevo"] = result.Estado.ToString(),
+                    ["idEstadoNuevo"] = result.IdEstado,
                     ["datosAdicionales"] = null
                 };
 
@@ -235,7 +336,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
                 }
 
-                if (orden.Estado != EstadoOC.Creada)
+                if (orden.Estado?.IdEstado != 1) // 1 = Creada
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden eliminar órdenes en estado Creada.");
 
                 var eliminado = await _repo.DeleteAsync(orden);
@@ -263,7 +364,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
 
-                if (orden.Estado != EstadoOC.Creada)
+                if (orden.IdUsuarioCreador != idUsuario) // Solo creador puede modificar su orden
+                    return CommonErrors.Conflict("OrdenCompra", "Solo el creador de la orden puede modificarla.");
+
+                if (orden.Estado?.IdEstado != 1) // 1 = Creada
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
 
                 // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
@@ -273,17 +377,28 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdTipoGasto = request.IdTipoGasto;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
-                orden.IdsCuentasBancarias = request.IdsCuentasBancarias != null
-                    ? System.Text.Json.JsonSerializer.Serialize(request.IdsCuentasBancarias)
-                    : null;
+                orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
                 orden.SinDatosFiscales = request.SinDatosFiscales;
+                orden.RequierePagoAnticipado = request.RequierePagoAnticipado;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
                 orden.IdMoneda = request.IdMoneda;
                 orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
 
+                var tipoImpuestoIdsUpdate = request.Partidas
+                    .Where(p => p.IdTipoImpuesto.HasValue)
+                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Distinct()
+                    .ToList();
+
+                var impuestosDictUpdate = tipoImpuestoIdsUpdate.Count > 0
+                    ? await _context.TiposImpuesto.AsNoTracking()
+                        .Where(ti => tipoImpuestoIdsUpdate.Contains(ti.IdTipoImpuesto))
+                        .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
+                    : new Dictionary<int, decimal>();
+
                 // Recrear partidas: remover existentes y crear nuevas
-                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas);
+                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas ?? Enumerable.Empty<OrdenCompraPartida>());
                 var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
                 {
                     IdOrden = orden.IdOrden,
@@ -293,7 +408,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdUnidadMedida = p.IdUnidadMedida,
                     PrecioUnitario = p.PrecioUnitario,
                     Descuento = p.Descuento,
-                    PorcentajeIva = p.PorcentajeIva,
+                    IdTipoImpuesto = p.IdTipoImpuesto,
+                    PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
                     Deducible = p.Deducible,
@@ -305,12 +421,21 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 }).ToList();
                 orden.Partidas = partidas;
 
+                var subtotal = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
+
+                var totalIva = partidas.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
+                var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
+                var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
+
+
                 // Recalcular totales
-                orden.Subtotal = partidas.Sum(p => p.PrecioUnitario * p.Cantidad - p.Descuento);
-                orden.TotalIva = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad - p.Descuento) * p.PorcentajeIva / 100);
-                orden.TotalRetenciones = partidas.Sum(p => p.TotalRetenciones);
-                orden.TotalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
-                orden.Total = partidas.Sum(p => p.Total);
+                orden.Subtotal = subtotal;
+                orden.TotalIva = totalIva;
+                orden.TotalRetenciones = totalRetenciones;
+                orden.TotalOtrosImpuestos = totalOtrosImpuestos;
+                orden.Total = total;
 
                 await _context.SaveChangesAsync(ct);
 
@@ -330,9 +455,23 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         }
 
         private static decimal CalcularTotalPartida(CreatePartidaRequest p)
-            => (p.PrecioUnitario * p.Cantidad - p.Descuento) * (1 + p.PorcentajeIva / 100) - p.TotalRetenciones + p.OtrosImpuestos;
+        {
+            // Subtotal = precio base sin impuestos ni retenciones
+            decimal subtotal = (p.PrecioUnitario * p.Cantidad) - p.Descuento;
 
-        private static OrdenCompraResponse ToResponse(OrdenCompra o) => new()
+            // Total = subtotal + impuestos - retenciones
+            decimal total = subtotal * (1 + p.PorcentajeIva / 100)
+                            - p.TotalRetenciones
+                            + p.OtrosImpuestos;
+
+            return total;
+        }
+
+        private static OrdenCompraResponse ToResponse(
+            OrdenCompra o,
+            Dictionary<int, UsuarioInfo>? usuariosInfo = null,
+            Dictionary<int, string>? uomNombres = null,
+            Dictionary<int, string>? formasPagoNombres = null) => new()
         {
             IdOrden = o.IdOrden,
             Folio = o.Folio,
@@ -343,12 +482,32 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdArea = o.IdArea,
             AreaNombre = o.Area?.NombreNormalizado ?? o.Area?.Nombre,
             IdTipoGasto = o.IdTipoGasto,
+            TipoGastoNombre = o.TipoGasto?.Nombre,
             IdsCuentasBancarias = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
-                : System.Text.Json.JsonSerializer.Deserialize<List<int>>(o.IdsCuentasBancarias),
-            Estado = o.Estado.ToString(),
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsCuentasBancarias,
+            IdsFormaPago = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago,
+            FormasPagoNombres = formasPagoNombres != null && !string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.IdsFormaPago?
+                    .Where(id => formasPagoNombres.ContainsKey(id))
+                    .Select(id => formasPagoNombres[id])
+                    .ToList()
+                : null,
+            NumeroMensualidades = string.IsNullOrEmpty(o.IdsCuentasBancarias)
+                ? null
+                : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.NumeroMensualidades,
+            IdEstado = o.IdEstado,
+            EstadoNombre = o.Estado?.Nombre,
+            EstadoColor = o.Estado?.ColorHex,
+            IdWorkflow = o.IdWorkflow,
             IdPasoActual = o.IdPasoActual,
             IdProveedor = o.IdProveedor,
+            RazonSocialProveedor = o.Proveedor?.RazonSocial,
+            IdUsuarioCreador = o.IdUsuarioCreador,
+            SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
+            SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto : null,
             SinDatosFiscales = o.SinDatosFiscales,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,
@@ -359,8 +518,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             CuentaContableDescripcion = o.CuentaContable?.Descripcion,
             RequiereComprobacionPago = o.RequiereComprobacionPago,
             RequiereComprobacionGasto = o.RequiereComprobacionGasto,
+            RequierePagoAnticipado = o.RequierePagoAnticipado,
             FechaSolicitud = o.FechaSolicitud,
             FechaLimitePago = o.FechaLimitePago,
+            FechaAutorizacion = o.FechaAutorizacion,
+            FechaPago = o.FechaPago,
+            FechaCierre = o.FechaCierre,
+            FechaRechazo = o.FechaRechazo,
+            FechaCancelacion = o.FechaCancelacion,
+            FechaCreacion = o.FechaCreacion,
             Subtotal = o.Subtotal,
             TotalIva = o.TotalIva,
             Total = o.Total,
@@ -368,15 +534,17 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             MonedaCodigo = o.Moneda?.Codigo,
             MonedaSimbolo = o.Moneda?.Simbolo,
             TipoCambioAplicado = o.TipoCambioAplicado,
-            Partidas = o.Partidas.OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
+            Partidas = (o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
             {
                 IdPartida = p.IdPartida,
                 NumeroPartida = p.NumeroPartida,
                 Descripcion = p.Descripcion,
                 Cantidad = p.Cantidad,
                 IdUnidadMedida = p.IdUnidadMedida,
+                UnidadMedidaNombre = uomNombres != null && uomNombres.TryGetValue(p.IdUnidadMedida, out var un) ? un : null,
                 PrecioUnitario = p.PrecioUnitario,
                 Descuento = p.Descuento,
+                IdTipoImpuesto = p.IdTipoImpuesto,
                 PorcentajeIva = p.PorcentajeIva,
                 TotalRetenciones = p.TotalRetenciones,
                 OtrosImpuestos = p.OtrosImpuestos,
@@ -391,5 +559,38 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EstadoFacturacion = p.EstadoFacturacion
             }).ToList()
         };
+
+        private static string? SerializeCuentasYFormasPago(List<int>? idsCuentas, List<int>? idsFormasPago, int? numeroMensualidades)
+        {
+            if (idsCuentas == null && idsFormasPago == null && numeroMensualidades == null) return null;
+            var obj = new CuentasBancariasYFormasPago
+            {
+                IdsCuentasBancarias = idsCuentas ?? new List<int>(),
+                IdsFormaPago = idsFormasPago ?? new List<int>(),
+                NumeroMensualidades = numeroMensualidades
+            };
+            return System.Text.Json.JsonSerializer.Serialize(obj);
+        }
+
+        private static CuentasBancariasYFormasPago? DeserializeCuentasYFormasPago(string? json)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            try
+            {
+                return System.Text.Json.JsonSerializer.Deserialize<CuentasBancariasYFormasPago>(json);
+            }
+            catch
+            {
+                try
+                {
+                    var idsAntiguo = System.Text.Json.JsonSerializer.Deserialize<List<int>>(json);
+                    return new CuentasBancariasYFormasPago { IdsCuentasBancarias = idsAntiguo ?? new List<int>() };
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+        }
     }
 }

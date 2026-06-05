@@ -2,6 +2,7 @@
 import { authService } from './authService';
 import { useAuthStore } from '@/store/authStore';
 import { ApiError } from '@/types/api.types';
+import { navigateTo } from '@/lib/navigation';
 
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -88,11 +89,8 @@ apiClient.interceptors.response.use(
         useAuthStore.getState().logout();
         refreshSubscribers = [];
 
-        if (
-          window.location.pathname !== '/login' &&
-          window.location.pathname !== '/'
-        ) {
-          window.location.href = '/';
+        if (!window.location.pathname.endsWith('/login')) {
+          navigateTo('/login');
         }
 
         return Promise.reject(refreshError);
@@ -102,7 +100,7 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      console.error('No tienes permisos');
+      // Permiso denegado - el backend ya responde con el mensaje apropiado
     }
 
     const apiError: ApiError = {
@@ -128,6 +126,13 @@ export const proveedorApi = {
   autorizar: (id: number) => apiClient.post(`/catalogos/Proveedores/${id}/autorizar`),
   rechazar: (id: number, motivo: string) =>
     apiClient.post(`/catalogos/Proveedores/${id}/rechazar`, { motivo }),
+  bulkUpload: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post('/catalogos/Proveedores/bulk-upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 export default apiClient;

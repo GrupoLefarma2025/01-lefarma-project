@@ -7,5 +7,7 @@ public record ArchivoListItemResponse(
     long TamanoBytes,
     string? Metadata,
     DateTime FechaCreacion,
+    int? UsuarioId,
+    string? UsuarioSubioNombre,
     bool Activo
 );

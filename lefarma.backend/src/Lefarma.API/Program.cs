@@ -17,7 +17,7 @@ using Lefarma.API.Features.Catalogos.RegimenesFiscales;
 using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.Empresas;
 using Lefarma.API.Features.Catalogos.FormasPago;
-using Lefarma.API.Features.Catalogos.Gastos;
+using Lefarma.API.Features.Catalogos.TiposGasto;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.MediosPago;
 using Lefarma.API.Features.Catalogos.Sucursales;
@@ -50,6 +50,7 @@ using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
+using Lefarma.API.Shared.ModelBinders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
@@ -120,7 +121,7 @@ builder.Services.AddDbContext<AsokamDbContext>(options =>
 // Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();
-builder.Services.AddScoped<IGastoRepository, GastoRepository>();
+builder.Services.AddScoped<ITipoGastoRepository, TipoGastoRepository>();
 builder.Services.AddScoped<IAreaRepository, AreaRepository>();
 builder.Services.AddScoped<IMedidaRepository, MedidaRepository>();
 builder.Services.AddScoped<IUnidadMedidaRepository, UnidadMedidaRepository>();
@@ -165,6 +166,7 @@ builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+            builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
 
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
@@ -176,11 +178,13 @@ builder.Services.AddScoped<WorkflowReminderService>();
 // Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, ProviderAuthorizationWorkflowHandler>("ProviderAuthorization");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, AlertaWorkflowHandler>("Alerta");
 
 // Servicios
 builder.Services.AddScoped<IEmpresaService, EmpresaService>();
 builder.Services.AddScoped<ISucursalService, SucursalService>();
-builder.Services.AddScoped<IGastoService, GastoService>();
+builder.Services.AddScoped<ITipoGastoService, TipoGastoService>();
 builder.Services.AddScoped<IAreaService, AreaService>();
 builder.Services.AddScoped<IMedidaService, MedidaService>();
 builder.Services.AddScoped<IUnidadMedidaService, UnidadMedidaService>();
@@ -213,6 +217,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
 builder.Services.AddSingleton<ISseService, SseService>();
+builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
+builder.Services.AddMemoryCache();
 
 // Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
@@ -374,6 +380,7 @@ builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
 builder.Services.AddControllers(options =>
 {
     options.Filters.Add<ValidationFilter>();
+    options.ModelBinderProviders.Insert(0, new DecimalModelBinderProvider());
 })
 .AddJsonOptions(options =>
 {
@@ -441,6 +448,12 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
+var pathBase = builder.Configuration["AppSettings:PathBase"];
+if (!string.IsNullOrEmpty(pathBase))
+{
+    app.UsePathBase(pathBase);
+}
+
 // Use CORS
 app.UseCors("CorsPolicy");
 // Configure the HTTP request pipeline.
@@ -450,7 +463,7 @@ app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Lefarma API v1");
+    c.SwaggerEndpoint($"{pathBase}/swagger/v1/swagger.json", "Lefarma API v1");
     // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }

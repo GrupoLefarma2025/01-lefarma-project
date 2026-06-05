@@ -28,4 +28,6 @@ public interface IComprobanteService
         CancellationToken ct = default);
 
     Task<ErrorOr<PartidaFacturacionResponse>> GetFacturacionPartidaAsync(int idPartida, CancellationToken ct = default);
+
+    Task<ErrorOr<bool>> EliminarPorOrdenAsync(int idOrden, string categoria, int idUsuario, CancellationToken ct = default);
 }

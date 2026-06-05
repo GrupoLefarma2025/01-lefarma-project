@@ -141,6 +141,7 @@ export interface SseHeartbeatEvent {
 }
 
 export type SseEvent = SseNotificationEvent | SseHeartbeatEvent;
+export type NotificationSseEvent = SseEvent;
 
 // ============= UI State =============
 

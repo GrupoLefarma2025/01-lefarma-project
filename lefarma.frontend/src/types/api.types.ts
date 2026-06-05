@@ -6,7 +6,7 @@ export interface ErrorDetail {
   field?: string | null;
 }
 
-export interface ApiResponse<T> {
+export interface ApiResponse<T = unknown> {
   data: T;
   message: string;
   success: boolean;
@@ -19,7 +19,7 @@ export interface ApiError {
   statusCode: number;
 }
 
-export interface PaginatedResponse<T> {
+export interface PaginatedResponse<T = unknown> {
   data: T[];
   total: number;
   page: number;

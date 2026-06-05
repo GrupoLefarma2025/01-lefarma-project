@@ -6,15 +6,17 @@ export interface OrdenCompraPartidaResponse {
   descripcion: string;
   cantidad: number;
   idUnidadMedida: number;
+  unidadMedidaNombre?: string | null;
   precioUnitario: number;
   descuento: number;
+  idTipoImpuesto?: number | null;
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;
   deducible: boolean;
   total: number;
   idProveedor?: number | null;
-  idsCuentasBancarias?: string | null; // JSON string array, ej: "[1,2,3]"
+  idCuentaBancaria?: number | null;
   requiereFactura: boolean;
   tipoComprobante?: string | null;
   cantidadFacturada?: number | null;
@@ -34,12 +36,25 @@ export interface OrdenCompraResponse {
   idArea: number;
   areaNombre?: string | null;
   idTipoGasto: number;
-  estado: string;
+  tipoGastoNombre?: string | null;
+  idEstado: number;
+  estadoNombre?: string | null;
+  estadoColor?: string | null;
+  idWorkflow?: number | null;
   idPasoActual?: number | null;
-  // Proveedor
   idProveedor?: number | null;
   idsCuentasBancarias?: number[] | null;
+  idsFormaPago?: number[] | null;
+  formasPagoNombres?: string[] | null;
+  numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
+  razonSocialProveedor?: string | null;
+  rfcProveedor?: string | null;
+  codigoPostalProveedor?: string | null;
+  personaContacto?: string | null;
+  idUsuarioCreador?: number;
+  solicitanteNombre?: string | null;
+  solicitantePuesto?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idCentroCosto?: number | null;
@@ -49,8 +64,15 @@ export interface OrdenCompraResponse {
   cuentaContableDescripcion?: string | null;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
-  fechaSolicitud: string;
+  requierePagoAnticipado: boolean;
+  fechaSolicitud?: string | null;
   fechaLimitePago: string;
+  fechaAutorizacion?: string | null;
+  fechaPago?: string | null;
+  fechaCierre?: string | null;
+  fechaRechazo?: string | null;
+  fechaCancelacion?: string | null;
+  fechaCreacion: string;
   subtotal: number;
   totalIva: number;
   total: number;
@@ -74,7 +96,7 @@ export interface CreatePartidaRequest {
   otrosImpuestos: number;
   deducible: boolean;
   idProveedor?: number | null;
-  idsCuentasBancarias?: number[] | null;
+  idCuentaBancaria?: number | null;
   requiereFactura?: boolean;
   tipoComprobante?: string | null;
 }
@@ -85,12 +107,14 @@ export interface CreateOrdenCompraRequest {
   idEmpresa: number;
   idSucursal: number;
   idArea: number;
-  idTipoGasto: number;
+  idTipoGasto: number | null;
   fechaLimitePago: string;
-  // Proveedor
   idProveedor?: number | null;
-  idsCuentasBancarias?: number[] | null;
+idsCuentasBancarias?: number[] | null;
+  idsFormaPago?: number[] | null;
+  numeroMensualidades?: number | null;
   sinDatosFiscales: boolean;
+  requierePagoAnticipado: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   idMoneda?: number | null;
@@ -103,7 +127,7 @@ export interface CreateOrdenCompraRequest {
 export interface OrdenCompraListRequest {
   idEmpresa?: number | null;
   idSucursal?: number | null;
-  estado?: string | null;
+  idEstado?: number | null;
   orderBy?: string;
   orderDirection?: 'asc' | 'desc';
 }

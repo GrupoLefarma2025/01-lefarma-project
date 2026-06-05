@@ -1,6 +1,4 @@
-﻿import type { UserInfo, PermissionInfo } from '@/types/auth.types';
-
-const USER_KEY = 'user';
+const TOKEN_KEY = 'accessToken';
 
 export interface PermissionCheckOptions {
   require?: string | string[];
@@ -13,32 +11,40 @@ function normalizeCodes(codes: string | string[]): string[] {
   return arr.map((c) => c.toLowerCase());
 }
 
-function extractPermissionSet(permisos: PermissionInfo[]): Set<string> {
-  return new Set(permisos.map((p) => p.codigoPermiso.toLowerCase()));
-}
+/**
+ * Extrae los permisos desde los claims del JWT almacenado en localStorage.
+ * NO usa el objeto user (que se desincroniza con los permisos reales al refrescar token).
+ */
+function extractPermissionsFromJwt(): Set<string> {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return new Set();
 
-function getUserFromStorage(): UserInfo | null {
-  const raw = localStorage.getItem(USER_KEY);
-  if (!raw) return null;
   try {
-    return JSON.parse(raw) as UserInfo;
+    const payloadBase64 = token.split('.')[1];
+    if (!payloadBase64) return new Set();
+
+    const payload: { permission?: string | string[] } = JSON.parse(atob(payloadBase64));
+
+    // Los permisos vienen como claim 'permission' (puede ser string o array)
+    const raw = payload.permission;
+    if (!raw) return new Set();
+
+    const items: string[] = Array.isArray(raw) ? raw : [raw];
+    return new Set(items.map((p) => p.toLowerCase()));
   } catch {
-    return null;
+    return new Set();
   }
 }
 
 /**
- * Returns the list of permission codes for the current user from localStorage.
- * Returns an empty array if no user is found or has no permissions.
+ * Returns the list of permission codes for the current user from JWT claims.
  */
 export function getUserPermissions(): string[] {
-  const user = getUserFromStorage();
-  if (!user?.permisos?.length) return [];
-  return user.permisos.map((p) => p.codigoPermiso);
+  return Array.from(extractPermissionsFromJwt());
 }
 
 /**
- * Checks permissions against the current user stored in localStorage.
+ * Checks permissions against the JWT claims (siempre actualizados).
  * Works outside React components (routes, interceptors, sidebar logic).
  *
  * Evaluation order:
@@ -48,11 +54,9 @@ export function getUserPermissions(): string[] {
  * 4. If no options provided → allow (no restrictions)
  */
 export function checkPermission(options: PermissionCheckOptions): boolean {
-  const user = getUserFromStorage();
+  const codes = extractPermissionsFromJwt();
 
-  if (!user?.permisos?.length) return false;
-
-  const codes = extractPermissionSet(user.permisos);
+  if (codes.size === 0) return false;
 
   if (options.exclude) {
     const excluded = normalizeCodes(options.exclude);

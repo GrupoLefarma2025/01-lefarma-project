@@ -50,6 +50,7 @@ export interface UIConfig {
   presetId: UIPresetId;
   visual: VisualPreferences;
   componentes: ComponentPreferences;
+  sidebarCollapsed: boolean;
 
   notificaciones: {
     tiposHabilitados: TipoNotificacion[];
@@ -126,6 +127,7 @@ export interface ConfigState {
   setPreset: (presetId: UIPresetId) => void;
   updateVisualPreferences: (updates: Partial<VisualPreferences>) => void;
   updateComponentPreferences: (updates: Partial<ComponentPreferences>) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
   updateNotificacion: (tipo: TipoNotificacion, enabled: boolean) => void;
   setNotificacionPreferida: (tipo: TipoNotificacion) => void;
   updatePerfil: (perfil: Partial<PerfilConfig>) => void;

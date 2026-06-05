@@ -3,6 +3,7 @@ using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -16,7 +17,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
     public class OrdenCompraController : ControllerBase
     {
         private readonly IOrdenCompraService _service;
-        public OrdenCompraController(IOrdenCompraService service) => _service = service;
+        private readonly IConfiguration _configuration;
+
+        public OrdenCompraController(IOrdenCompraService service, IConfiguration configuration)
+        {
+            _service = service;
+            _configuration = configuration;
+        }
 
         private int GetUserId() =>
             int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
@@ -26,7 +33,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
         [HttpGet]
         [SwaggerOperation(Summary = "Obtener ordenes de compra con filtros")]
-        public async Task<IActionResult> GetAll(OrdenCompraRequest? query)
+        public async Task<IActionResult> GetAll([FromQuery] OrdenCompraRequest? query)
         {
             if(query == null)
             {
@@ -52,16 +59,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             { Success = true, Message = "Orden obtenida exitosamente.", Data = data }));
         }
 
-        [HttpPost]
-    //    [HasPermission(Permissions.OrdenesCompra.Create)]
-        [SwaggerOperation(Summary = "Crear nueva orden de compra")]
-        public async Task<IActionResult> Create( CreateOrdenCompraRequest? request)
-        {
-            var result = await _service.CreateAsync(request, GetUserId(), HttpContext.RequestAborted);
-            return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
-                new { id = data.IdOrden },
-                new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
-        }
+            [HttpPost]
+        //    [HasPermission(Permissions.OrdenesCompra.Create)]
+            [SwaggerOperation(Summary = "Crear nueva orden de compra")]
+            public async Task<IActionResult> Create( CreateOrdenCompraRequest request)
+            {
+                var result = await _service.CreateAsync(request, GetUserId(), HttpContext.RequestAborted);
+                return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
+                    new { id = data.IdOrden },
+                    new ApiResponse<OrdenCompraResponse> { Success = true, Message = "Orden creada exitosamente.", Data = data }));
+            }
+
+
 
         [HttpDelete("{id}")]
     //    [HasPermission(Permissions.OrdenesCompra.Delete)]
@@ -84,5 +93,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             return result.ToActionResult(this, data => Ok(new ApiResponse<OrdenCompraResponse>
             { Success = true, Message = "Orden actualizada exitosamente.", Data = data }));
         }
+
+
     }
 }

@@ -1,14 +1,20 @@
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
+using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
@@ -20,9 +26,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IConfiguration _configuration;
         protected override string EntityName => "Firma";
-
-        private const string CODIGO_PROCESO = "ORDEN_COMPRA";
 
         public FirmasService(
             IOrdenCompraRepository ordenRepo,
@@ -31,6 +38,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
             IServiceScopeFactory scopeFactory,
+            IServiceProvider serviceProvider,
+            IHttpClientFactory httpClientFactory,
+            IConfiguration configuration,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -40,6 +50,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             _context = context;
             _asokamContext = asokamContext;
             _scopeFactory = scopeFactory;
+            _serviceProvider = serviceProvider;
+            _httpClientFactory = httpClientFactory;
+            _configuration = configuration;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
@@ -53,12 +66,48 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
-                if (orden.Estado is EstadoOC.Cerrada or EstadoOC.Cancelada)
+                if (orden.IdEstado == 7 || orden.IdEstado == 9) // 7 = CERRADA, 9 = CANCELADA
                     return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
-                var workflowConfig = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
+                var workflowConfig = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                        .ThenInclude(p => p.AccionesOrigen)
+                            .ThenInclude(a => a.Notificaciones)
+                                .ThenInclude(n => n.Canales)
+                    .Include(w => w.Pasos)
+                        .ThenInclude(p => p.Participantes)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
 
-                var estadoAnterior = orden.Estado.ToString();
+                if (workflowConfig is null)
+                    return CommonErrors.NotFound("Workflow", orden.IdWorkflow.ToString());
+
+                var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
+                if (pasoActual is null || !pasoActual.Activo)
+                    return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
+
+                //// Validar que el usuario es participante del paso actual
+                //// Si es el paso inicial, el creador de la orden siempre puede ejecutar
+                /// Si se manda para autorizacion
+                if ((!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador))
+                {
+                    var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
+                    if (participantes.Any())
+                    {
+                        var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
+                        if (!esParticipante)
+                        {
+                            var rolesUsuario = await _asokamContext.UsuariosRoles
+                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.Now))
+                              .Select(ur => ur.IdRol)
+                              .ToListAsync();
+                            esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
+                        }
+                        if (!esParticipante)
+                            return CommonErrors.Validation("Autorizacion", "No eres participante de este paso del workflow.");
+                    }
+                }
+
+                var estadoAnterior = orden.Estado?.Codigo;
 
                 // Construir contexto pasando el Total para que las condiciones puedan evaluarlo
                 var datosAdicionales = request.DatosAdicionales ?? new Dictionary<string, object>();
@@ -66,7 +115,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Ejecutar el motor de workflow
                 var ctx = new WorkflowContext(
-                    CodigoProceso: CODIGO_PROCESO,
+                    IdWorkflow: orden.IdWorkflow,
                     IdOrden: idOrden,
                     IdAccion: request.IdAccion,
                     IdUsuario: idUsuario,
@@ -79,16 +128,93 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
-                // Actualizar estado de la orden
-                if (TryMapEstado(resultado.NuevoCodigoEstado, out var nuevoEstado))
+                // Si la accion es DEVOLVER, resetear facturacion y anular comprobantes
+                var accionEntity = workflowConfig.Pasos
+                    .SelectMany(p => p.AccionesOrigen)
+                    .FirstOrDefault(a => a.IdAccion == request.IdAccion);
+
+                if (accionEntity?.TipoAccion?.Codigo == "DEVOLVER")
                 {
-                    orden.Estado = nuevoEstado;
-                    if (nuevoEstado == EstadoOC.Autorizada)
-                        orden.FechaAutorizacion = DateTime.UtcNow;
+                    // Resetear acumulados de facturacion en todas las partidas
+                    var idPartidas = await _context.OrdenesCompraPartidas
+                        .Where(p => p.IdOrden == idOrden)
+                        .Select(p => p.IdPartida)
+                        .ToListAsync();
+
+                    if (idPartidas.Count > 0)
+                    {
+                        await _context.OrdenesCompraPartidas
+                            .Where(p => idPartidas.Contains(p.IdPartida))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(p => p.CantidadFacturada, 0m)
+                                .SetProperty(p => p.ImporteFacturado, 0m)
+                                .SetProperty(p => p.EstadoFacturacion, (byte)0));
+                    }
+
+                    // Anular comprobantes asociados a esta orden
+                    var idsComprobantes = await _context.ComprobantesPartidas
+                        .Where(cp => idPartidas.Contains(cp.IdPartida))
+                        .Select(cp => cp.IdComprobante)
+                        .Distinct()
+                        .ToListAsync();
+
+                    if (idsComprobantes.Count > 0)
+                    {
+                        await _context.Comprobantes
+                            .Where(c => idsComprobantes.Contains(c.IdComprobante))
+                            .ExecuteUpdateAsync(s => s
+                                .SetProperty(c => c.Estado, (byte)3)       // Rechazado
+                                .SetProperty(c => c.FechaModificacion, DateTime.Now));
+                    }
+                }
+
+                // Actualizar estado de la orden
+                var nuevoIdEstado = resultado.NuevoIdEstado;
+                if (nuevoIdEstado.HasValue)
+                {
+                    orden.IdEstado = nuevoIdEstado.Value;
+
+                    // Registrar fechas del ciclo de vida segun el nuevo estado
+                    var estados = await _context.WorkflowEstados
+                        .Where(e => e.Activo)
+                        .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
+
+                    var idAprobacion = estados.GetValueOrDefault(WorkflowEstadoCodigo.APROBACION);
+                    var idTesoreria = estados.GetValueOrDefault(WorkflowEstadoCodigo.TESORERIA);
+                    var idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
+                    var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+                    var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+                    var idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
+                    var idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+
+                    // FechaSolicitud: cuando la orden se envia a aprobacion por el creador (pasa a APROBACION)
+                    if (nuevoIdEstado == idAprobacion)
+                        orden.FechaSolicitud = DateTime.Now;
+
+                    // FechaAutorizacion: cuando el director firmo (aprobo)y pasa a TESORERIA
+                    if (nuevoIdEstado == idTesoreria) // nuevoIdEstado == idRevisionDirector
+                        orden.FechaAutorizacion = DateTime.Now;
+
+                    // FechaPago: cuando la orden se marca como PAGADA
+                    // si la orden va directo de Tesoreria a Cerrada sin pasar por Comprobacion ni subir comprobantes de gasto
+                    if (nuevoIdEstado == idPagada || (nuevoIdEstado == idCerrada && orden.IdEstado == idTesoreria))
+                        orden.FechaPago = DateTime.Now;
+
+                    // FechaCierre: cuando la orden se Cierra definitivamente
+                    if (nuevoIdEstado == idCerrada)
+                        orden.FechaCierre = DateTime.Now;
+
+                    // FechaRechazo: cuando la orden es Rechazada
+                    if (nuevoIdEstado == idRechazada)
+                        orden.FechaRechazo = DateTime.Now;
+
+                    // FechaCancelacion: cuando la orden es Cancelada
+                    if (nuevoIdEstado == idCancelada)
+                        orden.FechaCancelacion = DateTime.Now;
                 }
 
                 orden.IdPasoActual = resultado.NuevoIdPaso;
-                orden.FechaModificacion = DateTime.UtcNow;
+                orden.FechaModificacion = DateTime.Now;
                 await _ordenRepo.UpdateAsync(orden);
 
                 // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
@@ -116,7 +242,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     additionalContext: new Dictionary<string, object>
                     {
                         ["estadoAnterior"] = estadoAnterior,
-                        ["nuevoEstado"] = orden.Estado.ToString(),
+                        ["nuevoEstado"] = orden.IdEstado,
                         ["idAccion"] = request.IdAccion,
                         ["idPasoDestino"] = resultado.NuevoIdPaso,
                         ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
@@ -127,7 +253,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     Exitoso = true,
                     Folio = orden.Folio,
                     EstadoAnterior = estadoAnterior,
-                    NuevoEstado = orden.Estado.ToString(),
+                    NuevoEstado = orden.IdEstado.ToString(),
                     Mensaje = $"Acción ejecutada exitosamente. Estado: {orden.Estado}"
                 };
             }
@@ -137,22 +263,133 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 return CommonErrors.InternalServerError("Error inesperado al procesar la firma.");
             }
         }
-
         public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesAsync(int idOrden, int idUsuario)
         {
             try
             {
-                var acciones = await _engine.GetAccionesDisponiblesAsync(CODIGO_PROCESO, idOrden, idUsuario);
-                if (!acciones.Any())
-                    return CommonErrors.NotFound("Accion");
+                var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                if (orden is null)
+                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
+                
+                if (orden.IdWorkflow == 0)
+                    return CommonErrors.Conflict("orden", "La orden no tiene workflow asignado.");
 
-                return acciones.Select(a => new AccionDisponibleResponse
+                var acciones = await _engine.GetAccionesDisponiblesAsync(orden.IdWorkflow, idOrden, idUsuario);
+
+                var workflow = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
+                var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
+                
+                // Obtener campos del workflow una sola vez
+                var camposWorkflow = (await _workflowRepo.GetCamposAsync()).ToList();
+
+                var result = new List<AccionDisponibleResponse>();
+                foreach (var a in acciones)
                 {
-                    IdAccion = a.IdAccion,
-                    NombreAccion = a.NombreAccion,
-                    TipoAccion = a.TipoAccion,
-                    ClaseEstetica = a.ClaseEstetica
-                }).ToList();
+                    var handlers = (await _workflowRepo.GetAccionHandlersAsync(a.IdAccion)).ToList();
+                    var camposRequeridos = handlers
+                        .Where(h => h.Requerido && h.Campo != null)
+                        .Select(h => h.Campo!.NombreTecnico)
+                        .ToList();
+
+                    result.Add(new AccionDisponibleResponse
+                    {
+                        IdAccion = a.IdAccion,
+                        IdTipoAccion = a.IdTipoAccion,
+                        TipoAccionCodigo = a.TipoAccion != null ? a.TipoAccion.Codigo : null,
+                        TipoAccionNombre = a.TipoAccion != null ? a.TipoAccion.Nombre : null,
+                        TipoAccionCambiaEstado = a.TipoAccion != null ? a.TipoAccion.CambiaEstado : null,
+                        EnviaConcentrado = a.EnviaConcentrado,
+                        Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
+                        {
+                            IdHandler = h.IdHandler,
+                            HandlerKey = h.HandlerKey,
+                            Requerido = h.Requerido,
+                            ConfiguracionJson = h.ConfiguracionJson,
+                            OrdenEjecucion = h.OrdenEjecucion,
+                            Campo = h.Campo != null ? new WorkflowCampoMetadataResponse
+                            {
+                                IdWorkflowCampo = h.Campo.IdWorkflowCampo,
+                                NombreTecnico = h.Campo.NombreTecnico,
+                                EtiquetaUsuario = h.Campo.EtiquetaUsuario,
+                                TipoControl = h.Campo.TipoControl,
+                                SourceCatalog = h.Campo.SourceCatalog
+                            } : null
+                        }).ToList(),
+                        CamposWorkflow = camposWorkflow.Select(c => new WorkflowCampoMetadataResponse
+                        {
+                            IdWorkflowCampo = c.IdWorkflowCampo,
+                            NombreTecnico = c.NombreTecnico,
+                            EtiquetaUsuario = c.EtiquetaUsuario,
+                            TipoControl = c.TipoControl,
+                            SourceCatalog = c.SourceCatalog
+                        }).ToList(),
+                        CamposRequeridos = camposRequeridos,
+                        RequiereComentario = pasoActual?.RequiereComentario ?? false,
+                        RequiereAdjunto = pasoActual?.RequiereAdjunto ?? false,
+                        PermiteAdjunto = pasoActual?.PermiteAdjunto ?? false
+                    });
+                }
+
+                // Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
+                foreach (var response in result)
+                {
+                    foreach (var handlerMeta in response.Handlers)
+                    {
+                        string? mensaje = null;
+                        if (!string.IsNullOrWhiteSpace(handlerMeta.ConfiguracionJson))
+                        {
+                            try
+                            {
+                                using var doc = JsonDocument.Parse(handlerMeta.ConfiguracionJson);
+                                if (doc.RootElement.TryGetProperty("mensaje", out var m))
+                                    mensaje = m.GetString();
+                            }
+                            catch { }
+                        }
+
+                        if (mensaje is null) continue;
+
+                        // Alerta: solo informativo, siempre exito
+                        if (handlerMeta.HandlerKey == "Alerta")
+                        {
+                            handlerMeta.ValidacionExito = true;
+                            handlerMeta.ValidacionMensaje = mensaje;
+                            continue;
+                        }
+
+                        // Demas handlers: ejecutar el handler real para saber si pasa o falla
+                        try
+                        {
+                            var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(handlerMeta.HandlerKey);
+                            if (actionHandler == null) continue;
+
+                            var handlerEntity = await _workflowRepo.GetAccionHandlersAsync(response.IdAccion);
+                            var h = handlerEntity.FirstOrDefault(x => x.IdHandler == handlerMeta.IdHandler);
+
+                            var ctx = new WorkflowHandlerContext(
+                                Orden: orden,
+                                IdOrden: orden.IdOrden,
+                                IdAccion: response.IdAccion,
+                                IdUsuario: idUsuario,
+                                Comentario: null,
+                                DatosAdicionales: null,
+                                Handler: h);
+
+                            var vr = await actionHandler.ProcessAsync(ctx, h?.ConfiguracionJson);
+                            handlerMeta.ValidacionExito = vr.Exitoso;
+                            handlerMeta.ValidacionMensaje = vr.Exitoso ? mensaje : (vr.Error ?? mensaje);
+                        }
+                        catch
+                        {
+                            handlerMeta.ValidacionExito = null;
+                            handlerMeta.ValidacionMensaje = mensaje;
+                        }
+                    }
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -169,9 +406,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (orden is null)
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
 
-                var workflow = await _workflowRepo.GetByCodigoProcesoAsync(CODIGO_PROCESO);
+                var workflow = await _workflowRepo.GetQueryable()
+                    .Include(w => w.Pasos)
+                        .ThenInclude(p => p.AccionesOrigen)
+                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
                 if (workflow is null)
-                    return CommonErrors.NotFound("workflow", CODIGO_PROCESO);
+                    return CommonErrors.NotFound("workflow", orden.IdWorkflow.ToString());
 
                 if (!orden.IdPasoActual.HasValue)
                     return CommonErrors.Conflict("orden", "La orden no tiene paso actual configurado.");
@@ -185,7 +425,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("acción", idAccion.ToString());
 
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
-                var campos = (await _workflowRepo.GetCamposByWorkflowAsync(workflow.IdWorkflow)).ToList();
+                var campos = (await _workflowRepo.GetCamposAsync()).ToList();
 
                 // CamposRequeridos: nombres técnicos de campos vinculados a handlers requeridos activos
                 var camposRequeridos = handlers
@@ -197,8 +437,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 {
                     IdOrden = idOrden,
                     IdAccion = accion.IdAccion,
-                    NombreAccion = accion.NombreAccion,
-                    TipoAccion = accion.TipoAccion,
+                    IdTipoAccion = accion.IdTipoAccion,
+                    TipoAccionCodigo = accion.TipoAccion != null ? accion.TipoAccion.Codigo : null,
+                    TipoAccionNombre = accion.TipoAccion != null ? accion.TipoAccion.Nombre : null,
+                    TipoAccionCambiaEstado = accion.TipoAccion != null ? accion.TipoAccion.CambiaEstado : null,
                     RequiereComentario = pasoActual.RequiereComentario,
                     RequiereAdjunto = pasoActual.RequiereAdjunto,
                     PermiteAdjunto = pasoActual.PermiteAdjunto,
@@ -250,7 +492,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         IdPaso = b.IdPaso,
                         NombrePaso = b.Paso != null ? b.Paso.NombrePaso : null,
                         IdAccion = b.IdAccion,
-                        NombreAccion = b.Accion != null ? b.Accion.NombreAccion : null,
+                        NombreAccion = b.Accion != null && b.Accion.TipoAccion != null ? b.Accion.TipoAccion.Nombre : null,
                         IdUsuario = b.IdUsuario,
                         NombreUsuario = null,
                         Comentario = b.Comentario,
@@ -288,31 +530,509 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             }
         }
 
-        private static bool TryMapEstado(string? codigoEstado, out EstadoOC estado)
+        public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoAsync(EnvioConcentradoRequest request, int idUsuario)
         {
-            estado = default;
-            if (string.IsNullOrWhiteSpace(codigoEstado))
-                return false;
-
-            if (Enum.TryParse<EstadoOC>(codigoEstado, ignoreCase: true, out estado))
-                return true;
-
-            return codigoEstado.Trim().ToUpperInvariant() switch
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+            
+            try
             {
-                "CREADA" => (estado = EstadoOC.Creada) == EstadoOC.Creada,
-                "EN_REVISION_F2" or "ENFIRMA1" or "ENFIRMA2" => (estado = EstadoOC.EnRevisionF2) == EstadoOC.EnRevisionF2,
-                "EN_REVISION_F3" or "ENFIRMA3" => (estado = EstadoOC.EnRevisionF3) == EstadoOC.EnRevisionF3,
-                "EN_REVISION_F4" or "ENFIRMA4" => (estado = EstadoOC.EnRevisionF4) == EstadoOC.EnRevisionF4,
-                "EN_REVISION_F5" or "ENFIRMA5" => (estado = EstadoOC.EnRevisionF5) == EstadoOC.EnRevisionF5,
-                "AUTORIZADA" => (estado = EstadoOC.Autorizada) == EstadoOC.Autorizada,
-                "EN_TESORERIA" => (estado = EstadoOC.EnTesoreria) == EstadoOC.EnTesoreria,
-                "PAGADA" => (estado = EstadoOC.Pagada) == EstadoOC.Pagada,
-                "EN_COMPROBACION" => (estado = EstadoOC.EnComprobacion) == EstadoOC.EnComprobacion,
-                "CERRADA" => (estado = EstadoOC.Cerrada) == EstadoOC.Cerrada,
-                "RECHAZADA" => (estado = EstadoOC.Rechazada) == EstadoOC.Rechazada,
-                "CANCELADA" => (estado = EstadoOC.Cancelada) == EstadoOC.Cancelada,
-                _ => false
-            };
+                var resultados = new List<EnvioConcentradoItemResult>();
+
+                foreach (var idOrden in request.IdsOrdenes)
+                {
+                    var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                    if (orden is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = $"OC-{idOrden}",
+                            Exitoso = false,
+                            Error = "Orden no encontrada."
+                        });
+                        continue;
+                    }
+
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accionEnviar = accionesPaso.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
+
+                    if (accionEnviar is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene una acción de envío concentrado disponible en su paso actual."
+                        });
+                        continue;
+                    }
+
+                    var firmarReq = new FirmarRequest
+                    {
+                        IdAccion = accionEnviar.IdAccion,
+                        Comentario = request.Comentario ?? "Enviado en lote desde Concentrado de Órdenes"
+                    };
+
+                    var resultado = await FirmarAsync(idOrden, firmarReq, idUsuario);
+
+                    if (resultado.IsError)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = resultado.FirstError.Description
+                        });
+                    }
+                    else
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = resultado.Value.Folio,
+                            Exitoso = true,
+                            NuevoEstado = resultado.Value.NuevoEstado
+                        });
+                    }
+                }
+
+                var exitosas = resultados.Count(r => r.Exitoso);
+                var idsExitosas = resultados.Where(r => r.Exitoso).Select(r => r.IdOrden).ToList();
+                
+                if (exitosas == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return new EnvioConcentradoResponse
+                    {
+                        Total = request.IdsOrdenes.Count,
+                        Exitosas = 0,
+                        Fallidas = request.IdsOrdenes.Count,
+                        Resultados = resultados
+                    };
+                }
+
+                // Obtener ordenes exitosas para calcular total
+                var ordenesExitosas = await _context.OrdenesCompra
+                    .Where(o => idsExitosas.Contains(o.IdOrden))
+                    .ToListAsync();
+                var total = ordenesExitosas.Sum(o => o.Total);
+
+                // Crear registro de envio concentrado
+                var token = Guid.NewGuid().ToString("N");
+                var envioConcentrado = new EnvioConcentrado
+                {
+                    IdUsuarioEnvio = idUsuario,
+                    Estado = "PENDIENTE",
+                    TokenSeguridad = token,
+                    Total = total,
+                    CantidadOrdenes = ordenesExitosas.Count,
+                    FechaCreacion = DateTime.Now,    
+                    Ordenes = ordenesExitosas
+                };
+
+                _context.EnviosConcentrado.Add(envioConcentrado);
+                await _context.SaveChangesAsync();
+
+                string? metadataJson = null;
+                try
+                {
+                    var metadata = new Dictionary<string, string>();
+                    if (metadata.Count > 0)
+                    {
+                        metadataJson = System.Text.Json.JsonSerializer.Serialize(metadata);
+                    }
+                }
+                catch
+                {
+                    metadataJson = null;
+                }
+
+                var documento = new Domain.Entities.Asokam.Documento
+                {
+                    Id = Guid.NewGuid(),
+                    NombreArchivo = $"Concentrado-{envioConcentrado.IdEnvioConcentrado}.pdf",
+                    MimeType = "application/pdf",
+                    TamanoBytes = 0,
+                    PDFBinario = Array.Empty<byte>(),
+                    PDFBinarioAutorizado = null,
+                    Estatus = 1,
+                    FechaSubida = DateTime.Now,
+                    SubidoPorUsuario = idUsuario.ToString(),
+                    FechaAutorizacion = null,
+                    AutorizadoPorUsuario = null,
+                    FechaRechazo = null,
+                    RechazadoPorUsuario = null,
+                    ComentariosSubida = request.Comentario,
+                    ComentariosDecision = null,
+                    Activo = true,
+                    IpOrigen = "189.206.67.214",
+                    HashSHA256Autorizado = null,
+                    EnviadoParaAutorizacion = false,
+                    NotificacionEnviada = false,
+                    MetadataJSON = metadataJson,
+                    TieneDocumentoLigado = false,
+                    PDFBinarioAdicional = null
+                };
+
+                _asokamContext.Documentos.Add(documento);
+                await _asokamContext.SaveChangesAsync();
+
+
+
+                await transaction.CommitAsync();
+
+                EnrichWideEvent("EnvioConcentrado", additionalContext: new Dictionary<string, object>
+                {
+                    ["idConcentrado"] = envioConcentrado.IdEnvioConcentrado,
+                    ["total"] = request.IdsOrdenes.Count,
+                    ["exitosas"] = exitosas,
+                    ["fallidas"] = resultados.Count - exitosas
+                });
+
+                return new EnvioConcentradoResponse
+                {
+                    Total = request.IdsOrdenes.Count,
+                    Exitosas = exitosas,
+                    Fallidas = resultados.Count - exitosas,
+                    Resultados = resultados
+                };
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                EnrichWideEvent("EnvioConcentrado", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al procesar el envío concentrado.");
+            }
+        }
+
+        public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoConPdfAsync(EnvioConcentradoConPdfRequest request, int idUsuario)
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            try
+            {
+                var resultados = new List<EnvioConcentradoItemResult>();
+
+                foreach (var idOrden in request.IdsOrdenes)
+                {
+                    var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
+                    if (orden is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = $"OC-{idOrden}",
+                            Exitoso = false,
+                            Error = "Orden no encontrada."
+                        });
+                        continue;
+                    }
+
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accionEnviar = accionesPaso.FirstOrDefault(a => a.EnviaConcentrado && a.Activo);
+
+                    if (accionEnviar is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene una acción de envío concentrado disponible."
+                        });
+                        continue;
+                    }
+
+                    var firmarReq = new FirmarRequest
+                    {
+                        IdAccion = accionEnviar.IdAccion,
+                        Comentario = request.Comentario ?? "Enviado en lote desde Concentrado de Órdenes"
+                    };
+
+                    var resultado = await FirmarAsync(idOrden, firmarReq, idUsuario);
+
+                    if (resultado.IsError)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = resultado.FirstError.Description
+                        });
+                    }
+                    else
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = idOrden,
+                            Folio = resultado.Value.Folio,
+                            Exitoso = true,
+                            NuevoEstado = resultado.Value.NuevoEstado
+                        });
+                    }
+                }
+
+                var exitosas = resultados.Count(r => r.Exitoso);
+                var idsExitosas = resultados.Where(r => r.Exitoso).Select(r => r.IdOrden).ToList();
+
+                if (exitosas == 0)
+                {
+                    await transaction.RollbackAsync();
+                    return new EnvioConcentradoResponse
+                    {
+                        Total = request.IdsOrdenes.Count,
+                        Exitosas = 0,
+                        Fallidas = request.IdsOrdenes.Count,
+                        Resultados = resultados
+                    };
+                }
+
+                var ordenesExitosas = await _context.OrdenesCompra
+                    .Where(o => idsExitosas.Contains(o.IdOrden))
+                    .ToListAsync();
+                var total = ordenesExitosas.Sum(o => o.Total);
+
+                var token = Guid.NewGuid().ToString("N");
+                var envioConcentrado = new EnvioConcentrado
+                {
+                    IdUsuarioEnvio = idUsuario,
+                    Estado = "PENDIENTE",
+                    TokenSeguridad = token,
+                    Total = total,
+                    CantidadOrdenes = ordenesExitosas.Count,
+                    FechaCreacion = DateTime.Now,
+                    Ordenes = ordenesExitosas
+                };
+
+                _context.EnviosConcentrado.Add(envioConcentrado);
+                await _context.SaveChangesAsync();
+
+                if (request.Archivo != null)
+                {
+                    using var ms = new MemoryStream();
+                    await request.Archivo.CopyToAsync(ms);
+                    var pdfBytes = ms.ToArray();
+
+                    byte[]? soporteBytes = null;
+                    if (request.TieneDocumentoSoporte && request.ArchivoSoporte != null)
+                    {
+                        using var msSoporte = new MemoryStream();
+                        await request.ArchivoSoporte.CopyToAsync(msSoporte);
+                        soporteBytes = msSoporte.ToArray();
+                    }
+
+                    string? metadataJson = null;
+                    try
+                    {
+                        var toRaw = string.IsNullOrWhiteSpace(request.Correo) ? string.Empty : request.Correo.Trim();
+                        var ccRaw = string.IsNullOrWhiteSpace(request.CorreoCC) ? string.Empty : request.CorreoCC.Trim();
+
+                        var metadata = new Dictionary<string, string>();
+                        if (!string.IsNullOrEmpty(toRaw)) metadata["to"] = toRaw;
+                        if (!string.IsNullOrEmpty(ccRaw)) metadata["cc"] = ccRaw;
+
+                        if (metadata.Count > 0)
+                        {
+                            metadataJson = System.Text.Json.JsonSerializer.Serialize(metadata);
+                        }
+                    }
+                    catch
+                    {
+                        metadataJson = null;
+                    }
+
+                    var documento = new Domain.Entities.Asokam.Documento
+                    {
+                        Id = Guid.NewGuid(),
+                        NombreArchivo = request.Nombre + ".pdf",
+                        MimeType = "application/pdf",
+                        TamanoBytes = pdfBytes.Length,
+                        PDFBinario = pdfBytes,
+                        PDFBinarioAutorizado = null,
+                        Estatus = 1,
+                        FechaSubida = DateTime.Now,
+                        SubidoPorUsuario = request.Usuario ?? idUsuario.ToString(),
+                        FechaAutorizacion = null,
+                        AutorizadoPorUsuario = null,
+                        FechaRechazo = null,
+                        RechazadoPorUsuario = null,
+                        ComentariosSubida = request.Comentario,
+                        ComentariosDecision = null,
+                        Activo = true,
+                        IpOrigen = "189.206.67.214",
+                        HashSHA256Autorizado = null,
+                        EnviadoParaAutorizacion = false,
+                        NotificacionEnviada = false,
+                        MetadataJSON = metadataJson,
+                        TieneDocumentoLigado = request.TieneDocumentoSoporte,
+                        PDFBinarioAdicional = soporteBytes
+                    };
+
+                    _asokamContext.Documentos.Add(documento);
+                    await _asokamContext.SaveChangesAsync();
+
+                    var documentoInterfase = new Domain.Entities.Asokam.DocumentoInterfaseOC
+                    {
+                        IdDocumentoFirmar = documento.Id,
+                        IdEnvioConcentrado = envioConcentrado.IdEnvioConcentrado
+                    };
+                    _asokamContext.DocumentosInterfaseOC.Add(documentoInterfase);
+                    await _asokamContext.SaveChangesAsync();
+                }
+
+                await transaction.CommitAsync();
+
+                EnrichWideEvent("EnvioConcentradoConPdf", additionalContext: new Dictionary<string, object>
+                {
+                    ["idConcentrado"] = envioConcentrado.IdEnvioConcentrado,
+                    ["total"] = request.IdsOrdenes.Count,
+                    ["exitosas"] = exitosas,
+                    ["fallidas"] = resultados.Count - exitosas
+                });
+
+                return new EnvioConcentradoResponse
+                {
+                    Total = request.IdsOrdenes.Count,
+                    Exitosas = exitosas,
+                    Fallidas = resultados.Count - exitosas,
+                    Resultados = resultados
+                };
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                EnrichWideEvent("EnvioConcentradoConPdf", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al procesar el envío concentrado con PDF.");
+            }
+        }
+
+        public async Task<ErrorOr<RespuestaConcentradoResponse>> ProcesarRespuestaConcentradoAsync(RespuestaConcentradoExternoRequest request)
+        {
+            try
+            {
+                var concentrado = await _context.EnviosConcentrado
+                    .Include(e => e.Ordenes)
+                    .FirstOrDefaultAsync(e => e.IdEnvioConcentrado == request.IdConcentrado
+                        && e.TokenSeguridad == request.TokenSeguridad);
+
+                if (concentrado is null)
+                    return CommonErrors.NotFound("Concentrado", $"ID: {request.IdConcentrado}");
+
+                if (concentrado.Estado != "PENDIENTE")
+                    return CommonErrors.Conflict("Concentrado", $"El concentrado ya fue {concentrado.Estado}.");
+
+                var resultados = new List<EnvioConcentradoItemResult>();
+                var esAprobar = request.Accion.ToUpper() == "AUTORIZAR";
+
+                foreach (var orden in concentrado.Ordenes)
+                {
+                    if (!orden.IdPasoActual.HasValue)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = orden.IdOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = "La orden no tiene paso actual."
+                        });
+                        continue;
+                    }
+
+                    var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
+                    var accion = esAprobar
+                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "AUTORIZAR" && a.Activo)
+                        : accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "DEVOLVER" && a.Activo);
+
+                    if (accion is null)
+                    {
+                        resultados.Add(new EnvioConcentradoItemResult
+                        {
+                            IdOrden = orden.IdOrden,
+                            Folio = orden.Folio,
+                            Exitoso = false,
+                            Error = $"No hay acción {(esAprobar ? "AUTORIZAR" : "DEVOLVER")} disponible."
+                        });
+                        continue;
+                    }
+
+                    var ctx = new WorkflowContext(
+                        IdWorkflow: orden.IdWorkflow,
+                        IdOrden: orden.IdOrden,
+                        IdAccion: accion.IdAccion,
+                        IdUsuario: request.IdUsuario,
+                        Orden: orden,
+                        Comentario: request.Comentario
+                    );
+
+                    var resultado = await FirmarAsync(orden.IdOrden, new FirmarRequest { IdAccion = accion.IdAccion, Comentario = request.Comentario }, request.IdUsuario);
+
+
+                    //var resultado = await _engine.EjecutarAccionAsync(ctx);
+
+                    resultados.Add(new EnvioConcentradoItemResult
+                    {
+                        IdOrden = orden.IdOrden,
+                        Folio = orden.Folio,
+                        Exitoso = resultado.Value.Exitoso,
+                        Error = resultado.Value.Mensaje,
+                        NuevoEstado = resultado.Value.NuevoEstado?.ToString()
+                    });
+                }
+
+                // Actualizar concentrado
+
+                concentrado.Estado = esAprobar ? "APROBADO" : "DEVUELTO";
+                concentrado.FechaRespuesta = DateTime.Now;
+                concentrado.ComentarioRespuesta = request.Comentario;
+                concentrado.FechaModificacion = DateTime.Now;
+                await _context.SaveChangesAsync();
+
+                return new RespuestaConcentradoResponse
+                {
+                    Total = concentrado.Ordenes.Count,
+                    Exitosas = resultados.Count(r => r.Exitoso),
+                    Fallidas = resultados.Count - resultados.Count(r => r.Exitoso),
+                    Resultados = resultados
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("RespuestaConcentrado", exception: ex);
+                return CommonErrors.InternalServerError("Error inesperado al procesar respuesta del concentrado.");
+            }
+        }
+        private async Task<int?> GetEstadoIdByCodigoAsync(string codigo)
+        {
+            var estado = await _context.WorkflowEstados
+                .FirstOrDefaultAsync(e => e.Codigo == codigo.ToUpper());
+            return estado?.IdEstado;
         }
 
         private static Domain.Entities.Config.WorkflowNotificacion? ResolveWorkflowNotification(

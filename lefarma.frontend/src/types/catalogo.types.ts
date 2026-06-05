@@ -19,6 +19,7 @@ export interface Empresa {
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
+  puedeSeleccionarEmpresas?: boolean;
 }
 
 // ─── Sucursal ─────────────────────────────────────────────────────────────────
@@ -49,6 +50,7 @@ export interface Sucursal {
 export interface Area {
   idArea: number;
   idEmpresa: number;
+  idSucursal?: number;
   idSupervisorResponsable?: number;
   nombre: string;
   nombreNormalizado?: string;
@@ -113,29 +115,22 @@ export interface TipoImpuesto {
   fechaModificacion?: string;
 }
 
-// ─── Gasto ────────────────────────────────────────────────────────────────────
+// ─── Tipo de Gasto ────────────────────────────────────────────────────────────
 
-export interface Gasto {
-  idGasto: number;
+export interface TipoGasto {
+  idTipoGasto: number;
   nombre: string;
   nombreNormalizado?: string;
   descripcion?: string;
   clave?: string;
-  concepto?: string;
-  cuenta?: string;
-  subCuenta?: string;
-  analitica?: string;
-  integracion?: string;
-  cuentaCatalogo?: string;
   requiereComprobacionPago: boolean;
   requiereComprobacionGasto: boolean;
-  permiteSinDatosFiscales: boolean;
-  diasLimiteComprobacion: number;
   activo: boolean;
   fechaCreacion: string;
   fechaModificacion?: string;
-  unidadesMedida?: UnidadMedida[];
 }
+
+
 
 // ─── Banco ────────────────────────────────────────────────────────────────────
 
@@ -153,8 +148,8 @@ export interface ProveedorCuentaBancaria {
   idCuen: number;
   idProveedor: number;
   idFormaPago: number;
-  formaPagoNombre?: string;
   idBanco?: number;
+  formaPagoNombre?: string;
   bancoNombre?: string;
   numeroCuenta?: string;
   clabe?: string;
@@ -162,6 +157,7 @@ export interface ProveedorCuentaBancaria {
   beneficiario?: string;
   correoNotificacion?: string;
   activo: boolean;
+  tieneOrdenes?: boolean;
 }
 
 // ─── Moneda ───────────────────────────────────────────────────────────────────

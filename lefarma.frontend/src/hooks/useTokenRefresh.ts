@@ -13,7 +13,7 @@ import { authService } from '@/services/authService';
  * Solo funciona cuando el usuario está autenticado y se limpia
  * automáticamente al hacer logout o desmontar el componente.
  */
-export function useTokenRefresh() {
+export function useTokenRefresh(): void {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 

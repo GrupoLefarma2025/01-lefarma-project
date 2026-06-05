@@ -1,12 +1,12 @@
-﻿/**
+/**
  * Servicio para el sistema de notificaciones de Lefarma
  * Maneja el envío y recepción de notificaciones a través de múltiples canales
  */
 
 
 import { API } from './api';
-import { ApiResponse } from '@/types/api.types';
-import {
+import type { ApiResponse } from '@/types/api.types';
+import type {
   SendNotificationRequest,
   SendNotificationResponse,
   BulkNotificationRequest,
@@ -84,12 +84,11 @@ class NotificationService {
       params.append('unreadOnly', 'true');
     }
 
-    const response = await API.get<ApiResponse<UserNotification[]>>(
+    const response = await API.get<UserNotification[]>(
       `${this.basePath}/user/${userId}`,
       { params }
     );
-    // response.data YA es el array de notificaciones, no response.data.data
-    return response.data as unknown as UserNotification[];
+    return response.data;
   }
 
   /**
@@ -98,21 +97,14 @@ class NotificationService {
   async markAsRead(notificationId: number, userId: number): Promise<void> {
     // Backend espera UserId con mayúscula (C# naming convention)
     const payload = { UserId: userId };
-    console.log('[notificationService] Marking as read:', { notificationId, payload });
-    try {
-      const response = await API.patch(`${this.basePath}/${notificationId}/read`, payload);
-      console.log('[notificationService] Mark as read response:', response);
-    } catch (error) {
-      console.error('[notificationService] Mark as read error:', error);
-      throw error;
-    }
+    await API.patch<ApiResponse<void>>(`${this.basePath}/${notificationId}/read`, payload);
   }
 
   /**
    * Marca todas las notificaciones del usuario como leídas
    */
   async markAllAsRead(userId: number): Promise<void> {
-    await API.patch(`${this.basePath}/user/${userId}/read-all`);
+    await API.patch<ApiResponse<void>>(`${this.basePath}/user/${userId}/read-all`);
   }
 
   /**

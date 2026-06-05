@@ -20,11 +20,10 @@ public class ApplicationDbContext : DbContext
         // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
-        public DbSet<Gasto> Gastos { get; set; }
+        public DbSet<TipoGasto> TiposGasto { get; set; }
         public DbSet<Area> Areas { get; set; }
         public DbSet<Medida> Medidas { get; set; }
         public DbSet<UnidadMedida> UnidadesMedida { get; set; }
-        public DbSet<GastoUnidadMedida> GastosUnidadesMedida { get; set; }
         public DbSet<UsuarioDetalle> UsuariosDetalle { get; set; }
         public DbSet<FormaPago> FormasPago { get; set; }
 
@@ -45,12 +44,17 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowRecordatorioCanal> WorkflowRecordatorioCanales { get; set; }
         public DbSet<WorkflowNotificacionCanal> WorkflowNotificacionCanales { get; set; }
         public DbSet<WorkflowNotificacionesPlantillas> WorkflowNotificacionesPlantillas { get; set; }
+        public DbSet<WorkflowScopeType> WorkflowScopeTypes { get; set; }
+        public DbSet<WorkflowMapping> WorkflowMappings { get; set; }
+        public DbSet<WorkflowEstados> WorkflowEstados { get; set; }
+        public DbSet<WorkflowTipoAccion> WorkflowTiposAccion { get; set; }
 
         // DbSets - Operaciones
         public DbSet<OrdenCompra> OrdenesCompra { get; set; }
         public DbSet<OrdenCompraPartida> OrdenesCompraPartidas { get; set; }
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Comprobacion> Comprobaciones { get; set; }
+        public DbSet<EnvioConcentrado> EnviosConcentrado { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }
@@ -100,9 +104,8 @@ public class ApplicationDbContext : DbContext
         // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }
 
-        // DbSets - Comprobantes (CFDI / facturas)
+        // DbSets - Comprobantes
         public DbSet<Comprobante> Comprobantes { get; set; }
-        public DbSet<ComprobanteConcepto> ComprobantesConceptos { get; set; }
         public DbSet<ComprobantePartida> ComprobantesPartidas { get; set; }
 
         // Configuración mediante Fluent API
@@ -132,6 +135,16 @@ public class ApplicationDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(o => o.IdArea)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<OrdenCompra>()
+                .HasOne(o => o.TipoGasto)
+                .WithMany()
+                .HasForeignKey(o => o.IdTipoGasto)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<Empresa>()
+                .Property(e => e.PuedeSeleccionarEmpresas)
+                .HasColumnName("puede_seleccionar_empresas");
         }
     }
 }

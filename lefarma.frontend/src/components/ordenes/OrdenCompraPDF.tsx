@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import logoImage from '@/assets/logo.png';
 
 interface HistorialWorkflowItem {
@@ -18,13 +19,24 @@ interface ProveedorInfo {
   idProveedor: number;
   razonSocial: string;
   rfc?: string;
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
+}
+
+interface PasoFlowItem {
+  idPaso: number;
+  orden: number;
+  nombrePaso: string;
+  esInicio: boolean;
+  esFinal: boolean;
 }
 
 interface Props {
   orden: OrdenCompraResponse;
   historial?: HistorialWorkflowItem[];
+  pasosWorkflow?: PasoFlowItem[];
   proveedoresMap?: Map<number, ProveedorInfo>;
   firmasMap?: Map<number, string>;
+  formasPagoMap?: Map<number, { idFormaPago: number; nombre: string }>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -41,9 +53,9 @@ function fmtDate(dateStr: string) {
   }
 }
 
-function fmtMoney(n: number) {
-  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-}
+// function fmtMoney(n: number) {
+//   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+// }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
@@ -52,7 +64,7 @@ const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
 const BORDER = '#4a7aad';
 const WHITE = '#ffffff';
-const LIGHT_GRAY = '#f5f5f5';
+// const LIGHT_GRAY = '#f5f5f5';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
@@ -339,25 +351,46 @@ const Logo: React.FC = () => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMap }: Props) {
+export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], proveedoresMap, firmasMap, formasPagoMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
-  const firmas = historial.filter((h) => {
-    const accion = (h.nombreAccion || '').toLowerCase();
-    const paso = (h.nombrePaso || '').toLowerCase();
-    if (accion.includes('creada')) return false;
-    if (paso.includes('cxp') || paso.includes('cuentas por pagar')) return false;
-    return accion.includes('autoriz') || accion.includes('aproba') || accion.includes('firm');
-  });
+  const historialPorPaso = new Map<number, HistorialWorkflowItem[]>();
+  for (const h of historial) {
+    const arr = historialPorPaso.get(h.idPaso) ?? [];
+    arr.push(h);
+    historialPorPaso.set(h.idPaso, arr);
+  }
 
-  const tieneFirma = firmas.some((f) => firmasMap?.get(f.idUsuario));
+  const flujoPasos = pasosWorkflow.map((paso) => {
+    const eventos = historialPorPaso.get(paso.idPaso) ?? [];
+    const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
+    return {
+      idPaso: paso.idPaso,
+      orden: paso.orden,
+      nombrePaso: paso.nombrePaso,
+      esInicio: paso.esInicio,
+      esFinal: paso.esFinal,
+      participante: ultimo ? (ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`) : null,
+      idUsuario: ultimo?.idUsuario ?? null,
+      accion: ultimo ? (ultimo.nombreAccion ?? '') : null,
+      fecha: ultimo?.fechaEvento ?? null,
+      tieneEvento: eventos.length > 0,
+    };
+  });
 
   const fmt = (n: number) =>
     n === 0
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  console.log(fmt)
+
+  // DEBUG: formas de pago en PDF
+  console.log('[OrdenCompraPDF] idsFormaPago:', orden.idsFormaPago);
+  console.log('[OrdenCompraPDF] idsCuentasBancarias:', orden.idsCuentasBancarias);
+  console.log('[OrdenCompraPDF] numeroMensualidades:', orden.numeroMensualidades);
+  console.log('[OrdenCompraPDF] formasPagoMap:', formasPagoMap);
+  console.log('[OrdenCompraPDF] proveedoresMap:', proveedoresMap);
+
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
@@ -396,9 +429,9 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>
-            <td style={s.tdValue}>-</td>
+            <td style={s.tdValue}>{orden.solicitanteNombre ?? '-'}</td>
             <td style={s.thBlue}>Puesto</td>
-            <td style={s.tdValue}>-</td>
+            <td style={s.tdValue}>{orden.solicitantePuesto ?? '-'}</td>
             <td style={s.thBlue}>Fecha máxima de pago</td>
             <td style={s.tdValue}>
               {orden.fechaLimitePago ? fmtDate(orden.fechaLimitePago) : '-'}
@@ -413,31 +446,56 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
         <tbody>
           <tr>
             <td style={s.thBlue}>Nombre, Denominación o Razón social</td>
-            <td style={{ ...s.tdValue, width: '30%' }}>
+            <td style={s.tdValue} colSpan={5}>
               {orden.idProveedor
                 ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? '-')
                 : '-'}
             </td>
-            <td style={s.thBlue}>Teléfono de contacto</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Correo electrónico</td>
-            <td style={s.tdLink}>-</td>
           </tr>
           <tr>
-            <td style={s.thBlue}>Dirección</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Código postal</td>
-            <td style={s.tdValue}>-</td>
-            <td style={s.thBlue}>Tipo de persona</td>
-            <td style={s.tdValue}>-</td>
-          </tr>
-          <tr>
-            <td style={s.thBlue}>Régimen fiscal</td>
-            <td style={s.tdValue}>-</td>
             <td style={s.thBlue}>Forma de pago</td>
-            <td style={s.tdValue}>{orden.notaFormaPago ?? '-'}</td>
-            <td style={s.thBlue}>¿Se obtendra factura?</td>
-            <td style={s.tdValue}>-</td>
+            <td style={s.tdValue} colSpan={5}>
+              {orden.idsFormaPago?.map((idFp) => {
+                const fp = formasPagoMap?.get(idFp);
+                return fp?.nombre ?? `ID ${idFp}`;
+              }).join(', ') ?? '-'}
+            </td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Cuenta bancaria</td>
+            <td style={s.tdValue} colSpan={5}>
+              {orden.idsCuentasBancarias?.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {orden.idsCuentasBancarias.map((idCb, idx) => {
+                    let cuenta: ProveedorCuentaBancaria | undefined;
+                    proveedoresMap?.forEach((prov) => {
+                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
+                      if (found) cuenta = found;
+                    });
+                    if (!cuenta) return <span key={idx}>ID {idCb}</span>;
+                    return (
+                      <span key={idx}>
+                        {cuenta.bancoNombre ?? 'Banco'} • {cuenta.numeroCuenta ?? 'Sin cuenta'}
+                        {cuenta.clabe ? ` • CLABE: ${cuenta.clabe}` : ''}
+                        {cuenta.numeroTarjeta ? ` • Tarjeta: ${cuenta.numeroTarjeta}` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : '-'}
+            </td>
+          </tr>
+          {orden.numeroMensualidades !== 1 && (
+            <tr>
+              <td style={s.thBlue}>Parcialidades</td>
+              <td style={s.tdValue} colSpan={5}>
+                {orden.numeroMensualidades ? `${orden.numeroMensualidades} parcialidad(es)` : '-'}
+              </td>
+            </tr>
+          )}
+          <tr>
+            <td style={s.thBlue}>Comentarios sobre el pago</td>
+            <td style={{ ...s.tdValue, textAlign: 'justify' }} colSpan={5}>{orden.notaFormaPago ?? '-'}</td>
           </tr>
         </tbody>
       </table>
@@ -458,13 +516,13 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
           {(orden.partidas ?? []).map((p, i) => (
             <tr key={p.idPartida ?? i}>
               <td style={s.deliveryTd}>{p.cantidad}</td>
-              <td style={s.deliveryTd}>{p.idUnidadMedida}</td>
+              <td style={s.deliveryTd}>{p.unidadMedidaNombre ?? p.idUnidadMedida}</td>
               <td style={s.deliveryTdDesc}>{p.descripcion}</td>
               <td style={s.deliveryTdRight}>
                 {p.precioUnitario.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </td>
               <td style={s.deliveryTdRight}>
-                {p.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                {(p.precioUnitario * p.cantidad).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </td>
             </tr>
           ))}
@@ -488,8 +546,9 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
         </div>
         <div style={s.totalsBox}>
           {[
-            { label: 'Subtotal', value: orden.subtotal, bold: false },
-            { label: 'IVA', value: orden.totalIva, bold: false },
+            { label: 'Subtotal', value: (orden.partidas ?? []).reduce((sum, p) => sum + (p.precioUnitario * p.cantidad), 0), bold: false },
+            { label: 'Descuentos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
+            { label: 'Impuesto', value: orden.totalIva, bold: false },
             { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} style={s.totalRow}>
@@ -502,40 +561,57 @@ export function OrdenCompraPDF({ orden, historial = [], proveedoresMap, firmasMa
         </div>
       </div>
 
-      {/* ── FIRMAS ── */}
-      {firmas.length > 0 && (
-        <table style={s.firmasTable}>
+      {/* ── FLUJO DINÁMICO ── */}
+      {flujoPasos.length > 0 && (
+        <table style={{ ...s.firmasTable, width: '100%' }}>
           <thead>
             <tr style={s.firmaThRow}>
-              <th style={s.firmaTh}>Puesto</th>
-              <th style={s.firmaTh}>Nombre</th>
-              {tieneFirma && <th style={s.firmaTh}>Firma</th>}
+              <th style={{ ...s.firmaTh, width: '5%' }}>#</th>
+              <th style={{ ...s.firmaTh, width: '20%' }}>Paso</th>
+              <th style={{ ...s.firmaTh, width: '22%' }}>Participante</th>
+              <th style={{ ...s.firmaTh, width: '18%' }}>Acción</th>
+              <th style={{ ...s.firmaTh, width: '15%' }}>Fecha</th>
+              <th style={{ ...s.firmaTh, width: '20%' }}>Firma</th>
             </tr>
           </thead>
           <tbody>
-            {firmas.map((f) => {
-              const firmaUrl = firmasMap?.get(f.idUsuario);
+            {flujoPasos.filter((paso, idx) => {
+              if (paso.esInicio) return false;
+              const siguiente = idx < flujoPasos.length - 1 ? flujoPasos[idx + 1] : null;
+              return siguiente?.tieneEvento ?? false;
+            }).map((paso, idx) => {
+              const originalIdx = flujoPasos.indexOf(paso);
+              const siguiente = flujoPasos[originalIdx + 1];
               return (
-                <tr key={f.idEvento}>
-                  <td style={s.firmaTd}>{f.nombrePaso ?? '-'}</td>
-                  <td style={s.firmaTd}>{f.nombreUsuario ?? `Usuario ${f.idUsuario}`}</td>
-                  {tieneFirma && (
-                    <td style={s.firmaTd}>
-                      {firmaUrl ? (
-                        <img
-                          src={firmaUrl}
-                          alt="Firma"
-                          style={{
-                            height: 30,
-                            width: 80,
-                            objectFit: 'cover',
-                            display: 'block',
-                            marginLeft: 'auto',
-                          }}
-                        />
-                      ) : null}
-                    </td>
-                  )}
+                <tr key={paso.idPaso}>
+                  <td style={{ ...s.firmaTd, textAlign: 'center' }}>{paso.orden}</td>
+                  <td style={s.firmaTd}>{paso.nombrePaso}</td>
+                  <td style={s.firmaTd}>{siguiente?.participante ?? '—'}</td>
+                  <td style={s.firmaTd}>{siguiente?.accion ?? '—'}</td>
+                  <td style={s.firmaTd}>
+                    {siguiente?.fecha
+                      ? new Date(siguiente.fecha).toLocaleDateString('es-MX', {
+                          day: '2-digit', month: '2-digit', year: '2-digit',
+                        })
+                      : '—'}
+                  </td>
+                  <td style={s.firmaTd}>
+                    {siguiente?.idUsuario != null && firmasMap?.get(siguiente.idUsuario) ? (
+                      <img
+                        src={firmasMap.get(siguiente.idUsuario)}
+                        alt="Firma"
+                        style={{
+                          height: 28,
+                          width: 80,
+                          objectFit: 'contain',
+                          display: 'block',
+                          marginLeft: 'auto',
+                          printColorAdjust: 'exact',
+                          WebkitPrintColorAdjust: 'exact',
+                        }}
+                      />
+                    ) : null}
+                  </td>
                 </tr>
               );
             })}

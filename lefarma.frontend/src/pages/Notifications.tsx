@@ -27,6 +27,7 @@ import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import type { NotificationType, NotificationPriority, NotificationCategory, NotificationChannelType } from '@/types/notification.types';
 import { toApiError } from '@/utils/errors';
+import { PermissionElement } from '@/components/permissions/PermissionElement';
 
 export default function NotificationsPage() {
   usePageTitle('Notificaciones', 'Gestión de notificaciones del sistema');
@@ -96,6 +97,8 @@ export default function NotificationsPage() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Panel de prueba */}
+        <PermissionElement require={['notificaciones.enviar_prueba']}>
+        
         <Card className="lg:col-span-1">
           <CardHeader>
             <CardTitle>Enviar Notificación de Prueba</CardTitle>
@@ -252,6 +255,7 @@ export default function NotificationsPage() {
             </div>
           </CardContent>
         </Card>
+          </PermissionElement>
 
         {/* Lista de notificaciones */}
         <div className="lg:col-span-2">

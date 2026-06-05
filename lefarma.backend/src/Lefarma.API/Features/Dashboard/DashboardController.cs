@@ -21,7 +21,7 @@ public class DashboardController : ControllerBase
     }
 
     [HttpGet("stats")]
-    [SwaggerOperation(Summary = "Obtener estadísticas del dashboard", Description = "Retorna KPIs, gráficas y actividad reciente para el panel principal de CxP")]
+    [SwaggerOperation(Summary = "Obtener estadisticas del dashboard", Description = "Retorna KPIs, graficas y actividad reciente para el panel principal de CxP")]
     public async Task<IActionResult> GetStats()
     {
         var result = await _dashboardService.GetStatsAsync();
@@ -29,7 +29,7 @@ public class DashboardController : ControllerBase
         return result.ToActionResult(this, data => Ok(new ApiResponse<DashboardStatsResponse>
         {
             Success = true,
-            Message = "Estadísticas obtenidas exitosamente.",
+            Message = "Estadisticas obtenidas exitosamente.",
             Data = data
         }));
     }

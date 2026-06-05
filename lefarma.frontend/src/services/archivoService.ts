@@ -1,14 +1,14 @@
 ﻿import { API } from './api';
-import type { 
-  Archivo, 
-  ArchivoListItem, 
-  ListarArchivosParams, 
+import type {
+  Archivo,
+  ArchivoListItem,
+  ListarArchivosParams,
   SubirArchivoParams,
-  ReemplazarArchivoParams 
+  ReemplazarArchivoParams
 } from '@/types/archivo.types';
+import type { ApiResponse } from '@/types/api.types';
 
-
-const BASE_URL = '/archivos';
+const BASE_URL = `${import.meta.env.VITE_API_URL || '/api'}/archivos`;
 
 export const archivoService = {
   upload: async (file: File, params: SubirArchivoParams): Promise<Archivo> => {
@@ -21,7 +21,7 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/upload`, formData);
+    const { data } = await API.post<ApiResponse<Archivo>>(`${BASE_URL}/upload`, formData);
     return data.data;
   },
 
@@ -32,29 +32,29 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/${id}/reemplazar`, formData);
+    const { data } = await API.post<ApiResponse<Archivo>>(`${BASE_URL}/${id}/reemplazar`, formData);
     return data.data;
   },
 
   getById: async (id: number): Promise<Archivo> => {
-    const { data } = await API.get<{ success: boolean; message: string; data: Archivo }>(`${BASE_URL}/${id}`);
+    const { data } = await API.get<ApiResponse<Archivo>>(`${BASE_URL}/${id}`);
     return data.data;
   },
 
   getAll: async (params: ListarArchivosParams): Promise<ArchivoListItem[]> => {
-    const { data } = await API.get<{ success: boolean; message: string; data: ArchivoListItem[] }>(BASE_URL, { params });
+    const { data } = await API.get<ApiResponse<ArchivoListItem[]>>(BASE_URL, { params });
     return data.data;
   },
 
   getDownloadUrl: (id: number): string => {
-    return `/api${BASE_URL}/${id}/download`;
+    return `${BASE_URL}/${id}/download`;
   },
 
   getPreviewUrl: (id: number): string => {
-    return `/api${BASE_URL}/${id}/preview`;
+    return `${BASE_URL}/${id}/preview`;
   },
 
   delete: async (id: number): Promise<void> => {
-    await API.delete(`${BASE_URL}/${id}`);
+    await API.delete<ApiResponse<void>>(`${BASE_URL}/${id}`);
   }
 };

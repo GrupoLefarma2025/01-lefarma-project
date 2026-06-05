@@ -4,7 +4,7 @@ namespace Lefarma.API.Features.Dashboard.DTOs
     {
         public PipelineCardsStats Cards { get; set; } = null!;
         public List<GraficaMensualItem> GraficaMensual { get; set; } = [];
-        public List<DistribucionItem> DistribucionArea { get; set; } = [];
+        public List<DistribucionItem> DistribucionEmpresa { get; set; } = [];
         public List<DistribucionItem> DistribucionSucursal { get; set; } = [];
         public List<PagoUrgenteItem> PagosUrgentes { get; set; } = [];
         public List<ActividadRecienteItem> ActividadReciente { get; set; } = [];
@@ -14,8 +14,13 @@ namespace Lefarma.API.Features.Dashboard.DTOs
     {
         public int PendientesEnvio { get; set; }
         public int EnFirmas { get; set; }
-        public int EnTesoreria { get; set; }
+        public int RevisionDirector { get; set; }
+        public int Cerradas { get; set; }
+        public int Canceladas { get; set; }
+        public int Rechazadas { get; set; }
         public int Vencidas { get; set; }
+        public int TotalCreadasMes { get; set; }
+        public decimal TotalGastado { get; set; }
     }
 
     public class GraficaMensualItem
@@ -49,6 +54,6 @@ namespace Lefarma.API.Features.Dashboard.DTOs
         public string Accion { get; set; } = null!;
         public string Entidad { get; set; } = null!;
         public DateTime FechaEvento { get; set; }
-        public string Tipo { get; set; } = null!;  // success, error, warning, info
+        public string Tipo { get; set; } = null!;
     }
 }

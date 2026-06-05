@@ -6,6 +6,7 @@ public class Usuario
     public string? Dominio { get; set; }
     public string? NombreCompleto { get; set; }
     public string? Correo { get; set; }
+    public string? Puesto { get; set; }
     public bool EsAnonimo { get; set; }
     public bool EsActivo { get; set; } = true;
     public bool EsRobot { get; set; }

@@ -23,6 +23,7 @@ const DEFAULT_UI_CONFIG: UIConfig = {
       defaultCollapsed: false,
     },
   },
+  sidebarCollapsed: false,
   notificaciones: {
     tiposHabilitados: ['in-app'],
     preferencias: [
@@ -207,6 +208,12 @@ export const useConfigStore = create<ConfigState>()(
         }));
       },
 
+      setSidebarCollapsed: (collapsed: boolean) => {
+        set((state) => ({
+          ui: { ...state.ui, sidebarCollapsed: collapsed },
+        }));
+      },
+
       setNotificacionPreferida: (tipo) => {
         set((state) => ({
           perfil: {
@@ -247,6 +254,7 @@ export const useConfigStore = create<ConfigState>()(
             presetId: 'estandar',
             visual: defaultPreset.config.visual,
             componentes: defaultPreset.config.componentes,
+            sidebarCollapsed: false,
             notificaciones: {
               tiposHabilitados: ['in-app'],
               preferencias: [
@@ -292,6 +300,11 @@ export const useConfigStore = create<ConfigState>()(
           perfil: {
             ...currentState.perfil,
             ...persisted.perfil,
+          },
+          globalConfig: {
+            ...DEFAULT_GLOBAL_CONFIG,
+            ...currentState.globalConfig,
+            ...persisted.globalConfig,
           },
         });
       },

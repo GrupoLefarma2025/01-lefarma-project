@@ -29,6 +29,8 @@ import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
 import { Rol } from '@/types/rol.types';
 import { Permiso } from '@/types/permiso.types';
+import { Empresa, Sucursal } from '@/types/auth.types';
+import type { Area } from '@/types/catalogo.types';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -64,7 +66,7 @@ const RolesSection = memo(function RolesSection({
   onAddRoles,
 }: {
   rolesIds: number[];
-  roles: any[];
+  roles: Rol[];
   onRemoveRol: (rolId: number) => void;
   onAddRoles: () => void;
 }) {
@@ -220,11 +222,11 @@ export default function UsuariosList() {
   const [search, setSearch] = useState('');
   
   // Catálogos
-  const [roles, setRoles] = useState<any[]>([]);
+  const [roles, setRoles] = useState<Rol[]>([]);
   const [permisos, setPermisos] = useState<Permiso[]>([]);
-  const [empresas, setEmpresas] = useState<any[]>([]);
-  const [sucursales, setSucursales] = useState<any[]>([]);
-  const [areas, setAreas] = useState<any[]>([]);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
 
   const [selectedUsuarioId, setSelectedUsuarioId] = useState<number | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -262,6 +264,8 @@ export default function UsuariosList() {
   });
 
   const watchedIdEmpresa = useWatch({ control: form.control, name: 'detalle.idEmpresa' });
+  const watchedRolesIds = useWatch({ control: form.control, name: 'rolesIds' }) || [];
+  const watchedPermisosIds = useWatch({ control: form.control, name: 'permisosIds' }) || [];
   const { formState: { errors } } = form;
 
   const tabErrors = useMemo(() => ({
@@ -299,11 +303,11 @@ export default function UsuariosList() {
   const fetchCatalogos = async () => {
     try {
       const [rRoles, rPermisos, rEmpresas, rSucursales, rAreas] = await Promise.all([
-        API.get<ApiResponse<any[]>>('/Admin/roles'),
+        API.get<ApiResponse<Rol[]>>('/Admin/roles'),
         API.get<ApiResponse<Permiso[]>>('/Admin/permisos'),
-        API.get<ApiResponse<any[]>>('/catalogos/Empresas'),
-        API.get<ApiResponse<any[]>>('/catalogos/Sucursales'),
-        API.get<ApiResponse<any[]>>('/catalogos/Areas'),
+        API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas'),
+        API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales'),
+        API.get<ApiResponse<Area[]>>('/catalogos/Areas'),
       ]);
 
       if (rRoles.data.success) setRoles(rRoles.data.data);
@@ -311,8 +315,8 @@ export default function UsuariosList() {
       if (rEmpresas.data.success) setEmpresas(rEmpresas.data.data);
       if (rSucursales.data.success) setSucursales(rSucursales.data.data);
       if (rAreas.data.success) setAreas(rAreas.data.data);
-    } catch (error) {
-      console.error('Error al cargar catálogos', error);
+    } catch {
+      // Silencioso: los catálogos se cargan bajo demanda
     }
   };
 
@@ -654,13 +658,13 @@ export default function UsuariosList() {
                   />
                   <div className="md:col-span-2 space-y-4">
                     <RolesSection
-                      rolesIds={useWatch({ control: form.control, name: 'rolesIds' }) || []}
+                      rolesIds={watchedRolesIds}
                       roles={roles}
                       onRemoveRol={handleRemoveRol}
                       onAddRoles={handleAddRoles}
                     />
                     <PermisosSection
-                      permisosIds={useWatch({ control: form.control, name: 'permisosIds' }) || []}
+                      permisosIds={watchedPermisosIds}
                       permisosPorCategoria={permisosPorCategoria}
                       collapsedCategories={collapsedCategories}
                       onToggleCategory={toggleCategory}

@@ -3,6 +3,12 @@
 
 const STORAGE_KEY = 'table-configs';
 
+declare global {
+  interface Window {
+    clearTableConfigs?: () => void;
+  }
+}
+
 /**
  * Get all table configs from localStorage
  */
@@ -10,8 +16,8 @@ export function getAllConfigs(): TableConfig[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) ? parsed : [];
+    const parsed: unknown = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as TableConfig[]) : [];
   } catch (error) {
     console.error('[tableConfigStorage] Error reading configs:', error);
     return [];
@@ -66,7 +72,7 @@ export function resetConfig(tableId: string): void {
 export function clearAllConfigs(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-    console.log('[tableConfigStorage] All table configs cleared - reload page to see all columns');
+    // Configs cleared successfully
   } catch (error) {
     console.error('[tableConfigStorage] Error clearing configs:', error);
   }
@@ -76,7 +82,7 @@ export function clearAllConfigs(): void {
  * Expose function to global window object for console access
  */
 if (typeof window !== 'undefined') {
-  (window as any).clearTableConfigs = clearAllConfigs;
+  window.clearTableConfigs = clearAllConfigs;
 }
 
 export function createDefaultConfig(

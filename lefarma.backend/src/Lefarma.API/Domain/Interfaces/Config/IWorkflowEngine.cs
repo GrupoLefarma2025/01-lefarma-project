@@ -7,10 +7,13 @@ namespace Lefarma.API.Domain.Interfaces.Config
     {
         Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext context);
         Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(string codigoProceso, int idOrden, int idUsuario);
+        
+        // Sobrecarga por idWorkflow
+        Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idWorkflow, int idOrden, int idUsuario);
     }
 
     public record WorkflowContext(
-        string CodigoProceso,
+        int IdWorkflow,
         int IdOrden,
         int IdAccion,
         int IdUsuario,
@@ -23,6 +26,6 @@ namespace Lefarma.API.Domain.Interfaces.Config
         bool Exitoso,
         string? Error,
         int? NuevoIdPaso,
-        string? NuevoCodigoEstado
+        int? NuevoIdEstado
     );
 }

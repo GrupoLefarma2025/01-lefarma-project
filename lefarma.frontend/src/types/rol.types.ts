@@ -1,4 +1,4 @@
-﻿import { Permiso } from './permiso.types';
+import type { Permiso } from './permiso.types';
 
 
 export interface UsuarioBasico {

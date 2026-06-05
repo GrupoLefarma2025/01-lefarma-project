@@ -4,7 +4,7 @@ using Lefarma.API.Features.Admin.DTOs;
 using Lefarma.API.Features.Catalogos.Areas.DTOs;
 using Lefarma.API.Features.Catalogos.Bancos.DTOs;
 using Lefarma.API.Features.Catalogos.Empresas.DTOs;
-using Lefarma.API.Features.Catalogos.Gastos.DTOs;
+using Lefarma.API.Features.Catalogos.TiposGasto.DTOs;
 using Lefarma.API.Features.Catalogos.Medidas.DTOs;
 using Lefarma.API.Features.Catalogos.Sucursales.DTOs;
 using Lefarma.API.Features.Catalogos.UnidadesMedida.DTOs;
@@ -37,6 +37,7 @@ namespace Lefarma.API.Shared.Extensions
             PaginaWeb = entity.PaginaWeb ?? string.Empty,
             NumeroEmpleados = entity.NumeroEmpleados ?? 0,
             Activo = entity.Activo,
+            PuedeSeleccionarEmpresas = entity.PuedeSeleccionarEmpresas,
             FechaCreacion = entity.FechaCreacion,
             FechaModificacion = entity.FechaModificacion
         };
@@ -64,41 +65,6 @@ namespace Lefarma.API.Shared.Extensions
             Activo = entity.Activo,
             FechaCreacion = entity.FechaCreacion,
             FechaModificacion = entity.FechaModificacion
-        };
-
-        #endregion
-
-        #region Gasto Mappings
-
-        public static GastoResponse ToResponse(this Gasto entity) => new()
-        {
-            IdGasto = entity.IdGasto,
-            Nombre = entity.Nombre,
-            Descripcion = entity.Descripcion ?? string.Empty,
-            Clave = entity.Clave ?? string.Empty,
-            Concepto = entity.Concepto ?? string.Empty,
-            Cuenta = entity.Cuenta ?? string.Empty,
-            SubCuenta = entity.SubCuenta ?? string.Empty,
-            Analitica = entity.Analitica ?? string.Empty,
-            Integracion = entity.Integracion ?? string.Empty,
-            CuentaCatalogo = entity.CuentaCatalogo ?? string.Empty,
-            RequiereComprobacionPago = entity.RequiereComprobacionPago,
-            RequiereComprobacionGasto = entity.RequiereComprobacionGasto,
-            PermiteSinDatosFiscales = entity.PermiteSinDatosFiscales,
-            DiasLimiteComprobacion = entity.DiasLimiteComprobacion,
-            Activo = entity.Activo,
-            FechaCreacion = entity.FechaCreacion,
-            FechaModificacion = entity.FechaModificacion,
-            UnidadesMedida = entity.GastoUnidadesMedida
-                .Where(gu => gu.Activo && gu.UnidadMedida != null)
-                .Select(gu => new UnidadMedidaGastoResponse
-                {
-                    IdUnidadMedida = gu.IdUnidadMedida,
-                    Nombre = gu.UnidadMedida!.Nombre,
-                    Abreviatura = gu.UnidadMedida.Abreviatura,
-                    Activo = gu.Activo
-                })
-                .ToList()
         };
 
         #endregion
@@ -141,7 +107,7 @@ namespace Lefarma.API.Shared.Extensions
         {
             IdUnidadMedida = entity.IdUnidadMedida,
             IdMedida = entity.IdMedida,
-            NombreMedida = null, // Navegación no incluida para evitar carga
+            NombreMedida = entity.Medida?.Nombre,
             Nombre = entity.Nombre,
             Descripcion = entity.Descripcion ?? string.Empty,
             Abreviatura = entity.Abreviatura,
@@ -303,7 +269,29 @@ namespace Lefarma.API.Shared.Extensions
             IdMedioPago = entity.IdMedioPago,
             Nombre = entity.Nombre,
             Clave = entity.Clave ?? string.Empty,
+            CodigoSAT = entity.CodigoSAT ?? string.Empty,
             Descripcion = entity.Descripcion ?? string.Empty,
+            RequiereReferencia = entity.RequiereReferencia,
+            RequiereAutorizacion = entity.RequiereAutorizacion,
+            Orden = entity.Orden,
+            Activo = entity.Activo,
+            FechaCreacion = entity.FechaCreacion,
+            FechaModificacion = entity.FechaModificacion
+        };
+
+        #endregion
+
+        #region TipoGasto Mappings
+
+        public static TipoGastoResponse ToResponse(this TipoGasto entity) => new()
+        {
+            IdTipoGasto = entity.IdTipoGasto,
+            Nombre = entity.Nombre,
+            NombreNormalizado = entity.NombreNormalizado ?? string.Empty,
+            Descripcion = entity.Descripcion ?? string.Empty,
+            Clave = entity.Clave ?? string.Empty,
+            RequiereComprobacionPago = entity.RequiereComprobacionPago,
+            RequiereComprobacionGasto = entity.RequiereComprobacionGasto,
             Activo = entity.Activo,
             FechaCreacion = entity.FechaCreacion,
             FechaModificacion = entity.FechaModificacion

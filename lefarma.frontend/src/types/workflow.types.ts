@@ -19,7 +19,7 @@ export interface WorkflowPaso {
   idWorkflow: number;
   orden: number;
   nombrePaso: string;
-  codigoEstado?: string; // 'EN_REVISION_F2', 'AUTORIZADA', etc.
+  idEstado?: number; // FK a WorkflowEstados
   descripcionAyuda?: string;
   esInicio: boolean;
   esFinal: boolean;
@@ -34,13 +34,24 @@ export interface WorkflowPaso {
 
 // ─── WorkflowAccion ───────────────────────────────────────────────────────────
 
+export interface WorkflowTipoAccion {
+  idTipoAccion: number;
+  codigo?: string;
+  nombre?: string;
+  descripcion?: string;
+  cambiaEstado: boolean;
+  activo: boolean;
+}
+
 export interface WorkflowAccion {
   idAccion: number;
   idPasoOrigen: number;
   idPasoDestino?: number; // null si finaliza el flujo
-  nombreAccion: string; // 'Autorizar', 'Rechazar', etc.
-  tipoAccion: 'APROBACION' | 'RECHAZO' | 'RETORNO' | 'CANCELACION';
-  claseEstetica?: string; // 'success', 'danger', 'warning', 'primary'
+  idTipoAccion: number;
+  tipoAccionCodigo?: string;
+  tipoAccionNombre?: string;
+  tipoAccionCambiaEstado?: boolean;
+  enviaConcentrado?: boolean;
   activo: boolean;
   handlers?: WorkflowAccionHandler[];
   notificaciones?: WorkflowNotificacion[]; // Notificaciones que dispara esta acción
@@ -49,20 +60,23 @@ export interface WorkflowAccion {
 export interface WorkflowAccionHandler {
   idHandler: number;
   handlerKey: string;
-  configuracionJson?: string;
+  requerido: boolean;
+  configuracionJson?: string | null;
   ordenEjecucion: number;
   activo: boolean;
+  idWorkflowCampo?: number | null;
+  campo?: WorkflowCampo | null;
 }
 
 export interface WorkflowCampo {
   idWorkflowCampo: number;
-  idWorkflow: number;
   nombreTecnico: string;
   etiquetaUsuario: string;
   tipoControl: string;
   sourceCatalog?: string;
   propiedadEntidad?: string;
   validarFiscal?: boolean;
+  usarEnCondiciones: boolean;
   activo: boolean;
 }
 
@@ -70,9 +84,9 @@ export interface WorkflowCampo {
 
 export interface WorkflowCondicion {
   idCondicion: number;
-  idPaso: number;
+  idAccion: number;
   campoEvaluacion: string; // 'Total', 'TipoGasto', etc.
-  operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN';
+  operador: '>' | '<' | '=' | '>=' | '<=' | '!=' | 'IN' | 'true' | 'false';
   valorComparacion: string;
   idPasoSiCumple: number;
   activo: boolean;
@@ -118,6 +132,40 @@ export interface WorkflowNotificacion {
 
 // ─── WorkflowBitacora ─────────────────────────────────────────────────────────
 
+export interface WorkflowEstado {
+  idEstado: number;
+  codigo?: string;
+  nombre?: string;
+  colorHex?: string;
+  activo: boolean;
+}
+
+export interface WorkflowTipoNotificacion {
+  idTipo: number;
+  idTipoNotificacion?: number;
+  codigoTipo?: string;
+  nombre?: string;
+  icono?: string;
+  activo?: boolean;
+}
+
+export interface CanalTemplate {
+  idTemplate?: number;
+  codigoCanal: string;
+  nombre: string;
+  layoutHtml: string;
+  activo: boolean;
+}
+
+export interface WorkflowRecordatorio {
+  idRecordatorio?: number;
+  idTipoNotificacion: number;
+  diasAntes?: number;
+  horaEnvio?: string;
+  activo: boolean;
+  canales?: WorkflowNotificacionCanal[];
+}
+
 export interface WorkflowBitacora {
   idEvento: number;
   idOrden: number;
@@ -137,8 +185,37 @@ export interface WorkflowStats {
   totalAcciones: number;
   totalCondiciones: number;
   totalNotificaciones: number;
+  totalMappings: number;
 }
 
 export interface WorkflowWithStats extends Workflow {
   stats?: WorkflowStats;
+}
+
+// Scope types and mappings (backend additions)
+export interface WorkflowScopeType {
+  idScopeType: number;
+  codigo: string;
+  nombre: string;
+  nivelPrioridad: number;
+  descripcion?: string;
+  activo: boolean;
+  fechaCreacion: string;
+}
+
+export interface WorkflowMapping {
+  idMapping: number;
+  codigoProceso: string;
+  idScopeType: number;
+  scopeTypeNombre?: string;
+  scopeId?: number | null;
+  scopeNombre?: string;
+  idWorkflow: number;
+  workflowNombre?: string;
+  prioridadManual: number;
+  activo: boolean;
+  observaciones?: string | null;
+  fechaCreacion: string;
+  creadoPor?: number | null;
+  fechaActualizacion?: string | null;
 }

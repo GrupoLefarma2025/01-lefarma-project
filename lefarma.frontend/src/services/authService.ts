@@ -1,5 +1,5 @@
 ﻿import { API } from './api';
-import {
+import type {
   LoginStepOneRequest,
   LoginStepOneResponse,
   LoginStepTwoRequest,
@@ -10,7 +10,7 @@ import {
   Sucursal,
 } from '@/types/auth.types';
 import type { Area } from '@/types/catalogo.types';
-import { ApiResponse } from '@/types/api.types';
+import type { ApiResponse } from '@/types/api.types';
 
 
 const ACCESS_TOKEN_KEY = 'accessToken';
@@ -24,7 +24,7 @@ export const authService = {
   loginStepOne: async (username: string): Promise<LoginStepOneResponse> => {
     const response = await API.post<ApiResponse<LoginStepOneResponse>>(
       '/auth/login-step-one',
-      { username } as LoginStepOneRequest
+      { username } satisfies LoginStepOneRequest
     );
     return response.data.data;
   },
@@ -47,7 +47,7 @@ export const authService = {
   refreshToken: async (refreshToken: string): Promise<LoginStepTwoResponse> => {
     const response = await API.post<ApiResponse<LoginStepTwoResponse>>(
       '/auth/refresh',
-      { refreshToken } as RefreshTokenRequest
+      { refreshToken } satisfies RefreshTokenRequest
     );
 
     const { accessToken, refreshToken: newRefreshToken } = response.data.data;
@@ -62,7 +62,7 @@ export const authService = {
     try {
       const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
       if (refreshToken) {
-        await API.post('/auth/logout', { refreshToken });
+        await API.post<ApiResponse<void>>('/auth/logout', { refreshToken });
       }
     } finally {
       // Limpiar SOLO datos de autenticación
@@ -129,15 +129,8 @@ export const authService = {
   },
 
   getEmpresas: async (): Promise<Empresa[]> => {
-    try{
     const response = await API.get<ApiResponse<Empresa[]>>('/catalogos/empresas');
     return response.data.data;
-    }
-    catch(error){
-      console.error('Error al obtener empresas:', error);
-      throw error;
-    }
-   
   },
 
   getSucursales: async (): Promise<Sucursal[]> => {
