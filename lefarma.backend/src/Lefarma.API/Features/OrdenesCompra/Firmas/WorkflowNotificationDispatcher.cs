@@ -97,7 +97,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             var contextoTemplate = new Dictionary<string, string>
             {
                 ["Folio"] = orden.Folio,
-                ["Total"] = orden.Total.ToString("C2"),
+                ["Total"] = FormatearDinero(orden.Total, orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true),
                 ["Proveedor"] = orden.Proveedor?.RazonSocial ?? "",
                 ["Solicitante"] = nombreCreador,
                 ["NombreCreador"] = nombreCreador,
@@ -115,6 +115,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 ["Icono"]      = tipoNotif?.Icono ?? "🔔",
                 ["Partidas"]   = notificacion.IncluirPartidas
                     ? BuildPartidasTable(orden.Partidas,
+                        orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true,
                         notificacion.Canales.FirstOrDefault(c => c.Activo && !string.IsNullOrWhiteSpace(c.ListadoRowHtml))?.ListadoRowHtml)
                     : "",
             };
@@ -323,7 +324,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         return Interpolate(withContent, ctx);
     }
 
-    private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? rowTemplate = null)
+    private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? simboloMoneda, bool posicionIzquierda, string? rowTemplate = null)
     {
         if (partidas == null || partidas.Count == 0)
             return "<p style=\"color:#6b7280;font-size:13px\">Sin partidas registradas.</p>";
@@ -336,16 +337,16 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     .Replace("{{NumeroPartida}}", p.NumeroPartida.ToString())
                     .Replace("{{Descripcion}}", p.Descripcion ?? "")
                     .Replace("{{Cantidad}}", p.Cantidad.ToString("G"))
-                    .Replace("{{PrecioUnitario}}", p.PrecioUnitario.ToString("C2"))
-                    .Replace("{{Total}}", p.Total.ToString("C2"));
+                    .Replace("{{PrecioUnitario}}", FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda))
+                    .Replace("{{Total}}", FormatearDinero(p.Total, simboloMoneda, posicionIzquierda));
             }
             return $"""
                 <tr>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.NumeroPartida}</td>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.Descripcion}</td>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.Cantidad:G}</td>
-                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.PrecioUnitario:C2}</td>
-                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{p.Total:C2}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda)}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{FormatearDinero(p.Total, simboloMoneda, posicionIzquierda)}</td>
                 </tr>
                 """;
         }
@@ -457,5 +458,14 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             </html>
             """;
     }
+
+    private static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true) {
+        return 
+        string.IsNullOrEmpty(simboloMoneda)
+        ? value.ToString("N2")
+        : posicionIzquierda
+            ? $"{simboloMoneda} {value:N2}"
+            : $"{value:N2} {simboloMoneda}";
+    } 
 }
 
