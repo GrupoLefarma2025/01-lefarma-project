@@ -13,9 +13,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Integraciones
     [Authorize]
     public class EnvioConcentradoExternoController : ControllerBase
     {
-        private readonly IFirmasService _firmasService;
+        private readonly IOrdenCompraFirmasService _firmasService;
 
-        public EnvioConcentradoExternoController(IFirmasService firmasService)
+        public EnvioConcentradoExternoController(IOrdenCompraFirmasService firmasService)
         {
             _firmasService = firmasService;
         }

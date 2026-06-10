@@ -3,62 +3,60 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
+using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Config.Workflows.Handlers;
+using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
-using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Json;
 using System.Text.Json;
 
 namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
-    public class FirmasService : BaseService, IFirmasService
+    public class OrdenCompraFirmasService : BaseService, IOrdenCompraFirmasService
     {
+        private readonly ApplicationDbContext _context;
+        private readonly AsokamDbContext _asokamContext;
         private readonly IOrdenCompraRepository _ordenRepo;
         private readonly IWorkflowEngine _engine;
         private readonly IWorkflowRepository _workflowRepo;
-        private readonly ApplicationDbContext _context;
-        private readonly AsokamDbContext _asokamContext;
+        private readonly IWorkflowQueryService _queryService;
         private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IServiceProvider _serviceProvider;
-        private readonly IHttpClientFactory _httpClientFactory;
-        private readonly IConfiguration _configuration;
         protected override string EntityName => "Firma";
 
-        public FirmasService(
+        public OrdenCompraFirmasService(
+            ApplicationDbContext context,
+            AsokamDbContext asokamContext,
             IOrdenCompraRepository ordenRepo,
             IWorkflowEngine engine,
             IWorkflowRepository workflowRepo,
-            ApplicationDbContext context,
-            AsokamDbContext asokamContext,
+            IWorkflowQueryService queryService,
             IServiceScopeFactory scopeFactory,
-            IServiceProvider serviceProvider,
-            IHttpClientFactory httpClientFactory,
-            IConfiguration configuration,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
+            _context = context;
+            _asokamContext = asokamContext;
             _ordenRepo = ordenRepo;
             _engine = engine;
             _workflowRepo = workflowRepo;
-            _context = context;
-            _asokamContext = asokamContext;
+            _queryService = queryService;
             _scopeFactory = scopeFactory;
-            _serviceProvider = serviceProvider;
-            _httpClientFactory = httpClientFactory;
-            _configuration = configuration;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
         {
             try
             {
+                // 1. Cargar orden con partidas
                 var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
                 if (orden is null)
                 {
@@ -66,9 +64,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
-                if (orden.IdEstado == 7 || orden.IdEstado == 9) // 7 = CERRADA, 9 = CANCELADA
+                // 2. Validar estado no terminal
+                if (orden.IdEstado == 7 || orden.IdEstado == 9)
                     return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
+                // 3. Cargar workflow config con todas las navegaciones necesarias
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
@@ -81,162 +81,63 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (workflowConfig is null)
                     return CommonErrors.NotFound("Workflow", orden.IdWorkflow.ToString());
 
+                // 4. Validar paso actual
                 var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
-                //// Validar que el usuario es participante del paso actual
-                //// Si es el paso inicial, el creador de la orden siempre puede ejecutar
-                /// Si se manda para autorizacion
-                if ((!pasoActual.EsInicio || idUsuario != orden.IdUsuarioCreador))
-                {
-                    var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
-                    if (participantes.Any())
-                    {
-                        var esParticipante = participantes.Any(p => p.IdUsuario == idUsuario);
-                        if (!esParticipante)
-                        {
-                            var rolesUsuario = await _asokamContext.UsuariosRoles
-                              .Where(ur => ur.IdUsuario == idUsuario && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.Now))
-                              .Select(ur => ur.IdRol)
-                              .ToListAsync();
-                            esParticipante = participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
-                        }
-                        if (!esParticipante)
-                            return CommonErrors.Validation("Autorizacion", "No eres participante de este paso del workflow.");
-                    }
-                }
+                // 5. ★ Validar participante (USANDO HELPER)
+                var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
+                    pasoActual, idUsuario, orden.IdUsuarioCreador, _asokamContext);
+                if (validacion.IsError)
+                    return validacion.Errors;
 
                 var estadoAnterior = orden.Estado?.Codigo;
 
-                // Construir contexto pasando el Total para que las condiciones puedan evaluarlo
+                // 6. Construir contexto con datos adicionales (Total para condiciones)
                 var datosAdicionales = request.DatosAdicionales ?? new Dictionary<string, object>();
                 datosAdicionales["Total"] = orden.Total;
 
-                // Ejecutar el motor de workflow
+                // 7. Ejecutar motor de workflow
                 var ctx = new WorkflowContext(
                     IdWorkflow: orden.IdWorkflow,
-                    IdOrden: idOrden,
+                    IdEntidad: orden.IdOrden,
+                    TipoEntidad: CodigoProceso.ORDEN_COMPRA,
+                    Entidad: orden,
                     IdAccion: request.IdAccion,
                     IdUsuario: idUsuario,
                     Orden: orden,
                     Comentario: request.Comentario,
-                    DatosAdicionales: datosAdicionales
-                );
-
+                    DatosAdicionales: datosAdicionales);
                 var resultado = await _engine.EjecutarAccionAsync(ctx);
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
-                // Si la accion es DEVOLVER, resetear facturacion y anular comprobantes
-                var accionEntity = workflowConfig.Pasos
-                    .SelectMany(p => p.AccionesOrigen)
-                    .FirstOrDefault(a => a.IdAccion == request.IdAccion);
+                // 8. Lógica específica OC: reset facturación en DEVOLVER
+                await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
 
-                if (accionEntity?.TipoAccion?.Codigo == "DEVOLVER")
-                {
-                    // Resetear acumulados de facturacion en todas las partidas
-                    var idPartidas = await _context.OrdenesCompraPartidas
-                        .Where(p => p.IdOrden == idOrden)
-                        .Select(p => p.IdPartida)
-                        .ToListAsync();
+                // 9. Actualizar estado de la orden + fechas de ciclo de vida
+                await ActualizarEstadoYFechasAsync(orden, resultado);
 
-                    if (idPartidas.Count > 0)
-                    {
-                        await _context.OrdenesCompraPartidas
-                            .Where(p => idPartidas.Contains(p.IdPartida))
-                            .ExecuteUpdateAsync(s => s
-                                .SetProperty(p => p.CantidadFacturada, 0m)
-                                .SetProperty(p => p.ImporteFacturado, 0m)
-                                .SetProperty(p => p.EstadoFacturacion, (byte)0));
-                    }
+                // 10. Resolver notificación a disparar
+                var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
+                    workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-                    // Anular comprobantes asociados a esta orden
-                    var idsComprobantes = await _context.ComprobantesPartidas
-                        .Where(cp => idPartidas.Contains(cp.IdPartida))
-                        .Select(cp => cp.IdComprobante)
-                        .Distinct()
-                        .ToListAsync();
-
-                    if (idsComprobantes.Count > 0)
-                    {
-                        await _context.Comprobantes
-                            .Where(c => idsComprobantes.Contains(c.IdComprobante))
-                            .ExecuteUpdateAsync(s => s
-                                .SetProperty(c => c.Estado, (byte)3)       // Rechazado
-                                .SetProperty(c => c.FechaModificacion, DateTime.Now));
-                    }
-                }
-
-                // Actualizar estado de la orden
-                var nuevoIdEstado = resultado.NuevoIdEstado;
-                if (nuevoIdEstado.HasValue)
-                {
-                    orden.IdEstado = nuevoIdEstado.Value;
-
-                    // Registrar fechas del ciclo de vida segun el nuevo estado
-                    var estados = await _context.WorkflowEstados
-                        .Where(e => e.Activo)
-                        .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
-
-                    var idAprobacion = estados.GetValueOrDefault(WorkflowEstadoCodigo.APROBACION);
-                    var idTesoreria = estados.GetValueOrDefault(WorkflowEstadoCodigo.TESORERIA);
-                    var idRevisionDirector = estados.GetValueOrDefault(WorkflowEstadoCodigo.REVISION_DIRECTOR);
-                    var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
-                    var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
-                    var idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
-                    var idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
-
-                    // FechaSolicitud: cuando la orden se envia a aprobacion por el creador (pasa a APROBACION)
-                    if (nuevoIdEstado == idAprobacion)
-                        orden.FechaSolicitud = DateTime.Now;
-
-                    // FechaAutorizacion: cuando el director firmo (aprobo)y pasa a TESORERIA
-                    if (nuevoIdEstado == idTesoreria) // nuevoIdEstado == idRevisionDirector
-                        orden.FechaAutorizacion = DateTime.Now;
-
-                    // FechaPago: cuando la orden se marca como PAGADA
-                    // si la orden va directo de Tesoreria a Cerrada sin pasar por Comprobacion ni subir comprobantes de gasto
-                    if (nuevoIdEstado == idPagada || (nuevoIdEstado == idCerrada && orden.IdEstado == idTesoreria))
-                        orden.FechaPago = DateTime.Now;
-
-                    // FechaCierre: cuando la orden se Cierra definitivamente
-                    if (nuevoIdEstado == idCerrada)
-                        orden.FechaCierre = DateTime.Now;
-
-                    // FechaRechazo: cuando la orden es Rechazada
-                    if (nuevoIdEstado == idRechazada)
-                        orden.FechaRechazo = DateTime.Now;
-
-                    // FechaCancelacion: cuando la orden es Cancelada
-                    if (nuevoIdEstado == idCancelada)
-                        orden.FechaCancelacion = DateTime.Now;
-                }
-
-                orden.IdPasoActual = resultado.NuevoIdPaso;
-                orden.FechaModificacion = DateTime.Now;
-                await _ordenRepo.UpdateAsync(orden);
-
-                // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
-                var notificacionSeleccionada = ResolveWorkflowNotification(workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
-
-                // Dispatch notificación como fire-and-forget con scope propio:
-                // los DbContext son scoped y el scope HTTP termina antes de que este task corra.
-                var notifSnapshot = notificacionSeleccionada;
-                var ordenId = orden.IdOrden;
-                var folioSnapshot = orden.Folio;
-                var pasoDestino = resultado.NuevoIdPaso;
-                var comentarioSnapshot = request.Comentario;
-                _ = Task.Run(async () =>
-                {
-                    using var scope = _scopeFactory.CreateScope();
-                    var dispatcher = scope.ServiceProvider.GetRequiredService<IWorkflowNotificationDispatcher>();
-                    // Necesitamos la orden completa: la recargamos dentro del scope nuevo
-                    var ordenRepo = scope.ServiceProvider.GetRequiredService<IOrdenCompraRepository>();
-                    var ordenFresh = await ordenRepo.GetWithPartidasAsync(ordenId);
-                    if (ordenFresh is null) return;
-                    await dispatcher.DispatchAsync(notifSnapshot, ordenFresh, pasoDestino, idUsuario, comentarioSnapshot);
-                });
+                // 11. ★ Disparar notificación fire-and-forget (USANDO HELPER)
+                var variables = ConstruirVariablesNotificacion(orden);
+                var partidasHtml = BuildPartidasTable(orden.Partidas);
+                WorkflowFirmaHelper.DispatchNotificacionFireAndForget(
+                    scopeFactory: _scopeFactory,
+                    notificacion: notificacion,
+                    tipoEntidad: CodigoProceso.ORDEN_COMPRA,
+                    idEntidad: orden.IdOrden,
+                    folio: orden.Folio,
+                    idUsuarioCreador: orden.IdUsuarioCreador,
+                    variablesExtra: variables,
+                    idPasoDestino: resultado.NuevoIdPaso,
+                    idUsuarioActual: idUsuario,
+                    comentario: request.Comentario,
+                    contenidoAdicionalHtml: partidasHtml);
 
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
                     additionalContext: new Dictionary<string, object>
@@ -244,8 +145,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         ["estadoAnterior"] = estadoAnterior,
                         ["nuevoEstado"] = orden.IdEstado,
                         ["idAccion"] = request.IdAccion,
-                        ["idPasoDestino"] = resultado.NuevoIdPaso,
-                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
+                        ["idPasoDestino"] = resultado.NuevoIdPaso
                     });
 
                 return new FirmarResponse
@@ -263,273 +163,6 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 return CommonErrors.InternalServerError("Error inesperado al procesar la firma.");
             }
         }
-        public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesAsync(int idOrden, int idUsuario)
-        {
-            try
-            {
-                var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
-                if (orden is null)
-                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
-                
-                if (orden.IdWorkflow == 0)
-                    return CommonErrors.Conflict("orden", "La orden no tiene workflow asignado.");
-
-                var acciones = await _engine.GetAccionesDisponiblesAsync(orden.IdWorkflow, idOrden, idUsuario);
-
-                var workflow = await _workflowRepo.GetQueryable()
-                    .Include(w => w.Pasos)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
-                var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
-                
-                // Obtener campos del workflow una sola vez
-                var camposWorkflow = (await _workflowRepo.GetCamposAsync()).ToList();
-
-                var result = new List<AccionDisponibleResponse>();
-                foreach (var a in acciones)
-                {
-                    var handlers = (await _workflowRepo.GetAccionHandlersAsync(a.IdAccion)).ToList();
-                    var camposRequeridos = handlers
-                        .Where(h => h.Requerido && h.Campo != null)
-                        .Select(h => h.Campo!.NombreTecnico)
-                        .ToList();
-
-                    result.Add(new AccionDisponibleResponse
-                    {
-                        IdAccion = a.IdAccion,
-                        IdTipoAccion = a.IdTipoAccion,
-                        TipoAccionCodigo = a.TipoAccion != null ? a.TipoAccion.Codigo : null,
-                        TipoAccionNombre = a.TipoAccion != null ? a.TipoAccion.Nombre : null,
-                        TipoAccionCambiaEstado = a.TipoAccion != null ? a.TipoAccion.CambiaEstado : null,
-                        EnviaConcentrado = a.EnviaConcentrado,
-                        Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
-                        {
-                            IdHandler = h.IdHandler,
-                            HandlerKey = h.HandlerKey,
-                            Requerido = h.Requerido,
-                            ConfiguracionJson = h.ConfiguracionJson,
-                            OrdenEjecucion = h.OrdenEjecucion,
-                            Campo = h.Campo != null ? new WorkflowCampoMetadataResponse
-                            {
-                                IdWorkflowCampo = h.Campo.IdWorkflowCampo,
-                                NombreTecnico = h.Campo.NombreTecnico,
-                                EtiquetaUsuario = h.Campo.EtiquetaUsuario,
-                                TipoControl = h.Campo.TipoControl,
-                                SourceCatalog = h.Campo.SourceCatalog
-                            } : null
-                        }).ToList(),
-                        CamposWorkflow = camposWorkflow.Select(c => new WorkflowCampoMetadataResponse
-                        {
-                            IdWorkflowCampo = c.IdWorkflowCampo,
-                            NombreTecnico = c.NombreTecnico,
-                            EtiquetaUsuario = c.EtiquetaUsuario,
-                            TipoControl = c.TipoControl,
-                            SourceCatalog = c.SourceCatalog
-                        }).ToList(),
-                        CamposRequeridos = camposRequeridos,
-                        RequiereComentario = pasoActual?.RequiereComentario ?? false,
-                        RequiereAdjunto = pasoActual?.RequiereAdjunto ?? false,
-                        PermiteAdjunto = pasoActual?.PermiteAdjunto ?? false
-                    });
-                }
-
-                // Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
-                foreach (var response in result)
-                {
-                    foreach (var handlerMeta in response.Handlers)
-                    {
-                        string? mensaje = null;
-                        if (!string.IsNullOrWhiteSpace(handlerMeta.ConfiguracionJson))
-                        {
-                            try
-                            {
-                                using var doc = JsonDocument.Parse(handlerMeta.ConfiguracionJson);
-                                if (doc.RootElement.TryGetProperty("mensaje", out var m))
-                                    mensaje = m.GetString();
-                            }
-                            catch { }
-                        }
-
-                        if (mensaje is null) continue;
-
-                        // Alerta: solo informativo, siempre exito
-                        if (handlerMeta.HandlerKey == "Alerta")
-                        {
-                            handlerMeta.ValidacionExito = true;
-                            handlerMeta.ValidacionMensaje = mensaje;
-                            continue;
-                        }
-
-                        // Demas handlers: ejecutar el handler real para saber si pasa o falla
-                        try
-                        {
-                            var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(handlerMeta.HandlerKey);
-                            if (actionHandler == null) continue;
-
-                            var handlerEntity = await _workflowRepo.GetAccionHandlersAsync(response.IdAccion);
-                            var h = handlerEntity.FirstOrDefault(x => x.IdHandler == handlerMeta.IdHandler);
-
-                            var ctx = new WorkflowHandlerContext(
-                                Orden: orden,
-                                IdOrden: orden.IdOrden,
-                                IdAccion: response.IdAccion,
-                                IdUsuario: idUsuario,
-                                Comentario: null,
-                                DatosAdicionales: null,
-                                Handler: h);
-
-                            var vr = await actionHandler.ProcessAsync(ctx, h?.ConfiguracionJson);
-                            handlerMeta.ValidacionExito = vr.Exitoso;
-                            handlerMeta.ValidacionMensaje = vr.Exitoso ? mensaje : (vr.Error ?? mensaje);
-                        }
-                        catch
-                        {
-                            handlerMeta.ValidacionExito = null;
-                            handlerMeta.ValidacionMensaje = mensaje;
-                        }
-                    }
-                }
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("GetAcciones", entityId: idOrden, exception: ex);
-                return CommonErrors.DatabaseError("obtener las acciones disponibles");
-            }
-        }
-
-        public async Task<ErrorOr<AccionMetadataResponse>> GetAccionMetadataAsync(int idOrden, int idAccion, int idUsuario)
-        {
-            try
-            {
-                var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
-                if (orden is null)
-                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
-
-                var workflow = await _workflowRepo.GetQueryable()
-                    .Include(w => w.Pasos)
-                        .ThenInclude(p => p.AccionesOrigen)
-                    .FirstOrDefaultAsync(w => w.IdWorkflow == orden.IdWorkflow);
-                if (workflow is null)
-                    return CommonErrors.NotFound("workflow", orden.IdWorkflow.ToString());
-
-                if (!orden.IdPasoActual.HasValue)
-                    return CommonErrors.Conflict("orden", "La orden no tiene paso actual configurado.");
-
-                var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual.Value && p.Activo);
-                if (pasoActual is null)
-                    return CommonErrors.NotFound("PasoWorkflow", orden.IdPasoActual.Value.ToString());
-
-                var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == idAccion && a.Activo);
-                if (accion is null)
-                    return CommonErrors.NotFound("acción", idAccion.ToString());
-
-                var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
-                var campos = (await _workflowRepo.GetCamposAsync()).ToList();
-
-                // CamposRequeridos: nombres técnicos de campos vinculados a handlers requeridos activos
-                var camposRequeridos = handlers
-                    .Where(h => h.Requerido && h.Campo != null)
-                    .Select(h => h.Campo!.NombreTecnico)
-                    .ToList();
-
-                return new AccionMetadataResponse
-                {
-                    IdOrden = idOrden,
-                    IdAccion = accion.IdAccion,
-                    IdTipoAccion = accion.IdTipoAccion,
-                    TipoAccionCodigo = accion.TipoAccion != null ? accion.TipoAccion.Codigo : null,
-                    TipoAccionNombre = accion.TipoAccion != null ? accion.TipoAccion.Nombre : null,
-                    TipoAccionCambiaEstado = accion.TipoAccion != null ? accion.TipoAccion.CambiaEstado : null,
-                    RequiereComentario = pasoActual.RequiereComentario,
-                    RequiereAdjunto = pasoActual.RequiereAdjunto,
-                    PermiteAdjunto = pasoActual.PermiteAdjunto,
-                    Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
-                    {
-                        IdHandler = h.IdHandler,
-                        HandlerKey = h.HandlerKey,
-                        Requerido = h.Requerido,
-                        ConfiguracionJson = h.ConfiguracionJson,
-                        OrdenEjecucion = h.OrdenEjecucion
-                    }).ToList(),
-                    CamposWorkflow = campos.Select(c => new WorkflowCampoMetadataResponse
-                    {
-                        IdWorkflowCampo = c.IdWorkflowCampo,
-                        NombreTecnico = c.NombreTecnico,
-                        EtiquetaUsuario = c.EtiquetaUsuario,
-                        TipoControl = c.TipoControl,
-                        SourceCatalog = c.SourceCatalog
-                    }).ToList(),
-                    CamposRequeridos = camposRequeridos.ToList()
-                };
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("GetAccionMetadata", entityId: idOrden, exception: ex, additionalContext: new Dictionary<string, object> { ["idAccion"] = idAccion });
-                return CommonErrors.DatabaseError("obtener metadatos de acción");
-            }
-        }
-
-        public async Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialWorkflowAsync(int idOrden)
-        {
-            try
-            {
-                var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
-                if (orden is null)
-                {
-                    EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, notFound: true);
-                    return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
-                }
-
-                var historial = await _context.WorkflowBitacoras
-                    .AsNoTracking()
-                    .Where(b => b.IdOrden == idOrden)
-                    .OrderByDescending(b => b.FechaEvento)
-                    .Select(b => new HistorialWorkflowItemResponse
-                    {
-                        IdEvento = b.IdEvento,
-                        IdOrden = b.IdOrden,
-                        IdPaso = b.IdPaso,
-                        NombrePaso = b.Paso != null ? b.Paso.NombrePaso : null,
-                        IdAccion = b.IdAccion,
-                        NombreAccion = b.Accion != null && b.Accion.TipoAccion != null ? b.Accion.TipoAccion.Nombre : null,
-                        IdUsuario = b.IdUsuario,
-                        NombreUsuario = null,
-                        Comentario = b.Comentario,
-                        DatosSnapshot = b.DatosSnapshot,
-                        FechaEvento = b.FechaEvento
-                    })
-                    .ToListAsync();
-
-                if (!historial.Any())
-                {
-                    EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, count: 0);
-                    return CommonErrors.NotFound("HistorialWorkflow");
-                }
-
-                var userIds = historial.Select(h => h.IdUsuario).Distinct().ToList();
-                var userMap = await _asokamContext.Usuarios
-                    .AsNoTracking()
-                    .Where(u => userIds.Contains(u.IdUsuario))
-                    .Select(u => new { u.IdUsuario, u.NombreCompleto })
-                    .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto);
-
-                foreach (var item in historial)
-                {
-                    if (userMap.TryGetValue(item.IdUsuario, out var nombre))
-                        item.NombreUsuario = nombre;
-                }
-
-                EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, count: historial.Count);
-                return historial;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, exception: ex);
-                return CommonErrors.DatabaseError("obtener historial de workflow");
-            }
-        }
-
         public async Task<ErrorOr<EnvioConcentradoResponse>> EnvioConcentradoAsync(EnvioConcentradoRequest request, int idUsuario)
         {
             await using var transaction = await _context.Database.BeginTransactionAsync();
@@ -984,7 +617,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     var ctx = new WorkflowContext(
                         IdWorkflow: orden.IdWorkflow,
-                        IdOrden: orden.IdOrden,
+                        IdEntidad: orden.IdOrden,
+                        TipoEntidad: CodigoProceso.ORDEN_COMPRA,
+                        Entidad: orden,
                         IdAccion: accion.IdAccion,
                         IdUsuario: request.IdUsuario,
                         Orden: orden,
@@ -1028,27 +663,175 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 return CommonErrors.InternalServerError("Error inesperado al procesar respuesta del concentrado.");
             }
         }
+        
+        public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(
+            int idOrden, int idUsuario)
+        {
+            var orden = await _ordenRepo.GetByIdAsync(idOrden);
+            if (orden is null)
+                return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
+
+            if (!orden.IdPasoActual.HasValue)
+                return CommonErrors.Conflict("OrdenCompra", "La orden no tiene paso actual.");
+
+            return await _queryService.GetAccionesDisponiblesAsync(
+                idWorkflow: orden.IdWorkflow,
+                idEntidad: orden.IdOrden,
+                idPasoActual: orden.IdPasoActual.Value,
+                idUsuario: idUsuario,
+                tipoEntidad: CodigoProceso.ORDEN_COMPRA,
+                entidadParaHandlers: orden);
+        }
+
+        public async Task<ErrorOr<AccionMetadataResponse>> GetAccionMetadataAsync(
+            int idOrden, int idAccion, int idUsuario)
+        {
+            var orden = await _ordenRepo.GetByIdAsync(idOrden);
+            if (orden is null)
+                return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
+
+            if (!orden.IdPasoActual.HasValue)
+                return CommonErrors.Conflict("OrdenCompra", "La orden no tiene paso actual.");
+
+            return await _queryService.GetAccionMetadataAsync(
+                idWorkflow: orden.IdWorkflow,
+                idPasoActual: orden.IdPasoActual.Value,
+                idAccion: idAccion,
+                idEntidad: orden.IdOrden);
+        }
+
+        public Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idOrden)
+            => _queryService.GetHistorialWorkflowAsync(idOrden, CodigoProceso.ORDEN_COMPRA);
+
+
         private async Task<int?> GetEstadoIdByCodigoAsync(string codigo)
         {
             var estado = await _context.WorkflowEstados
                 .FirstOrDefaultAsync(e => e.Codigo == codigo.ToUpper());
             return estado?.IdEstado;
         }
-
-        private static Domain.Entities.Config.WorkflowNotificacion? ResolveWorkflowNotification(
-            Domain.Entities.Config.Workflow? workflow,
-            int idAccion,
-            int? idPasoDestino)
+        private async Task ProcesarDevolucionAsync(Workflow workflow, int idAccion, int idOrden)
         {
-            var accion = workflow?.Pasos
+            var accionEntity = workflow.Pasos
                 .SelectMany(p => p.AccionesOrigen)
-                .FirstOrDefault(a => a.IdAccion == idAccion && a.Activo);
+                .FirstOrDefault(a => a.IdAccion == idAccion);
+            if (accionEntity?.TipoAccion?.Codigo != "DEVOLVER") return;
 
-            if (accion is null)
-                return null;
+            var idPartidas = await _context.OrdenesCompraPartidas
+                .Where(p => p.IdOrden == idOrden)
+                .Select(p => p.IdPartida)
+                .ToListAsync();
 
-            return accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == idPasoDestino)
-                ?? accion.Notificaciones.FirstOrDefault(n => n.Activo && n.IdPasoDestino == null);
+            if (idPartidas.Count == 0) return;
+
+            await _context.OrdenesCompraPartidas
+                .Where(p => idPartidas.Contains(p.IdPartida))
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.CantidadFacturada, 0m)
+                    .SetProperty(p => p.ImporteFacturado, 0m)
+                    .SetProperty(p => p.EstadoFacturacion, (byte)0));
+
+            var idsComprobantes = await _context.ComprobantesPartidas
+                .Where(cp => idPartidas.Contains(cp.IdPartida))
+                .Select(cp => cp.IdComprobante)
+                .Distinct()
+                .ToListAsync();
+
+            if (idsComprobantes.Count > 0)
+            {
+                await _context.Comprobantes
+                    .Where(c => idsComprobantes.Contains(c.IdComprobante))
+                    .ExecuteUpdateAsync(s => s
+                        .SetProperty(c => c.Estado, (byte)3)
+                        .SetProperty(c => c.FechaModificacion, DateTime.Now));
+            }
         }
+        private async Task ActualizarEstadoYFechasAsync(OrdenCompra orden, WorkflowEjecucionResult resultado)
+        {
+            var nuevoIdEstado = resultado.NuevoIdEstado;
+            if (nuevoIdEstado.HasValue)
+            {
+                orden.IdEstado = nuevoIdEstado.Value;
+
+                var estados = await _context.WorkflowEstados
+                    .Where(e => e.Activo)
+                    .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado);
+
+                var idAprobacion = estados.GetValueOrDefault(WorkflowEstadoCodigo.APROBACION);
+                var idTesoreria = estados.GetValueOrDefault(WorkflowEstadoCodigo.TESORERIA);
+                var idPagada = estados.GetValueOrDefault(WorkflowEstadoCodigo.PAGADA);
+                var idCerrada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CERRADA);
+                var idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
+                var idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+
+                if (nuevoIdEstado == idAprobacion) orden.FechaSolicitud = DateTime.Now;
+                if (nuevoIdEstado == idTesoreria) orden.FechaAutorizacion = DateTime.Now;
+                if (nuevoIdEstado == idPagada || (nuevoIdEstado == idCerrada && orden.IdEstado == idTesoreria))
+                    orden.FechaPago = DateTime.Now;
+                if (nuevoIdEstado == idCerrada) orden.FechaCierre = DateTime.Now;
+                if (nuevoIdEstado == idRechazada) orden.FechaRechazo = DateTime.Now;
+                if (nuevoIdEstado == idCancelada) orden.FechaCancelacion = DateTime.Now;
+            }
+
+            orden.IdPasoActual = resultado.NuevoIdPaso;
+            orden.FechaModificacion = DateTime.Now;
+            await _ordenRepo.UpdateAsync(orden);
+        }
+        private static Dictionary<string, string> ConstruirVariablesNotificacion(OrdenCompra orden) => new()
+        {
+            ["Total"] = orden.Total.ToString("C2"),
+            ["Proveedor"] = orden.Proveedor?.RazonSocial ?? "",
+            ["CentroCosto"] = orden.CentroCosto?.Nombre ?? orden.IdCentroCosto?.ToString() ?? "",
+            ["CuentaContable"] = orden.CuentaContable?.Cuenta ?? orden.IdCuentaContable?.ToString() ?? "",
+            ["ImportePagado"] = ""
+        };
+        private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? rowTemplate = null)
+        {
+            if (partidas == null || partidas.Count == 0)
+                return "<p style=\"color:#6b7280;font-size:13px\">Sin partidas registradas.</p>";
+
+            string BuildRow(OrdenCompraPartida p)
+            {
+                if (!string.IsNullOrWhiteSpace(rowTemplate))
+                {
+                    return rowTemplate
+                        .Replace("{{NumeroPartida}}", p.NumeroPartida.ToString())
+                        .Replace("{{Descripcion}}", p.Descripcion ?? "")
+                        .Replace("{{Cantidad}}", p.Cantidad.ToString("G"))
+                        .Replace("{{PrecioUnitario}}", p.PrecioUnitario.ToString("C2"))
+                        .Replace("{{Total}}", p.Total.ToString("C2"));
+                }
+                return $"""
+                <tr>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.NumeroPartida}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.Descripcion}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.Cantidad:G}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.PrecioUnitario:C2}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{p.Total:C2}</td>
+                </tr>
+                """;
+            }
+
+            var rows = string.Concat(partidas.OrderBy(p => p.NumeroPartida).Select(BuildRow));
+
+            return $"""
+            <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:inherit">
+              <thead>
+                <tr style="background-color:#f3f4f6">
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">#</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Descripción</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Cant.</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Precio Unit.</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows}
+              </tbody>
+            </table>
+            """;
+        }
+
+
     }
 }

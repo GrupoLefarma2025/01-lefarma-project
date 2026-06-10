@@ -6,6 +6,7 @@ using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -296,6 +297,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 _context.WorkflowBitacoras.Add(new WorkflowBitacora
                 {
+                    TipoEntidad = CodigoProceso.ORDEN_COMPRA,
+                    IdEntidad = result.IdOrden,
                     IdOrden = result.IdOrden,
                     IdWorkflow = workflow.IdWorkflow,
                     IdPaso = pasoInicio.IdPaso,

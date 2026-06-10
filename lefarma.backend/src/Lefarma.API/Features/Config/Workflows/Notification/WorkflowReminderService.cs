@@ -1,14 +1,14 @@
 using Lefarma.API.Domain.Entities.Config;
-using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
-namespace Lefarma.API.Features.OrdenesCompra.Firmas
+namespace Lefarma.API.Features.Config.Workflows.Notification
 {
     public class WorkflowReminderService
     {
@@ -101,38 +101,20 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             int enviados = 0;
             try
             {
-                var query = _db.OrdenesCompra.Include(o => o.Proveedor).Where(o => o.IdPasoActual != null);
-
-                if (rec.IdPaso.HasValue)
-                {
-                    query = query.Where(o => o.IdPasoActual == rec.IdPaso.Value);
-                }
-                else
-                {
-                    var pasosIds = await _db.WorkflowPasos
-                        .Where(p => p.IdWorkflow == rec.IdWorkflow)
-                        .Select(p => p.IdPaso)
-                        .ToListAsync(ct);
-                    query = query.Where(o => pasosIds.Contains(o.IdPasoActual!.Value));
-                }
-
-                if (rec.MontoMinimo.HasValue) query = query.Where(o => o.Total >= rec.MontoMinimo.Value);
-                if (rec.MontoMaximo.HasValue) query = query.Where(o => o.Total <= rec.MontoMaximo.Value);
-
-                var ordenes = await query.ToListAsync(ct);
+                var entities = await ResolveEntitiesAsync(rec, ahora, ct);
 
                 if (rec.MinDiasEnPaso.HasValue)
-                    ordenes = ordenes.Where(o => ((ahora - o.FechaSolicitud)?.TotalDays ?? 1) >= rec.MinDiasEnPaso.Value).ToList();
+                    entities = entities.Where(e => e.FechaEnPaso.HasValue && (ahora - e.FechaEnPaso.Value).TotalDays >= rec.MinDiasEnPaso.Value).ToList();
 
-                if (!ordenes.Any())
+                if (!entities.Any())
                 {
-                    _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — sin órdenes pendientes, omitiendo", rec.IdRecordatorio);
+                    _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — sin entidades pendientes, omitiendo", rec.IdRecordatorio);
                     return 0;
                 }
 
-                var pasosConOrdenes = ordenes.Select(o => o.IdPasoActual!.Value).Distinct().ToList();
+                var pasosConEntidades = entities.Select(e => e.IdPasoActual!.Value).Distinct().ToList();
                 var participantes = await _db.WorkflowParticipantes
-                    .Where(p => pasosConOrdenes.Contains(p.IdPaso) && p.Activo)
+                    .Where(p => pasosConEntidades.Contains(p.IdPaso) && p.Activo)
                     .ToListAsync(ct);
 
                 var usuariosDirectos = participantes
@@ -145,17 +127,15 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     .Where(u => usuariosDirectos.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? $"Usuario {u.IdUsuario}", ct);
 
-                _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — {CantOrdenes} orden(es), {CantUsuarios} usuario(s)",
-                    rec.IdRecordatorio, ordenes.Count, usuariosDirectos.Count);
+                _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — {CantEntidades} entidad(es), {CantUsuarios} usuario(s)",
+                    rec.IdRecordatorio, entities.Count, usuariosDirectos.Count);
 
                 foreach (var idUsuario in usuariosDirectos)
                 {
-                    var ordenesDelUsuario = ordenes;
-
-                    if (rec.MinOrdenesPendientes.HasValue && ordenesDelUsuario.Count < rec.MinOrdenesPendientes.Value)
+                    if (rec.MinOrdenesPendientes.HasValue && entities.Count < rec.MinOrdenesPendientes.Value)
                         continue;
 
-                    var diasEspera = ordenesDelUsuario.Max(o => (int)((ahora - o.FechaSolicitud)?.TotalDays ?? 1));
+                    var diasEspera = entities.Max(e => e.FechaEnPaso.HasValue ? (int)(ahora - e.FechaEnPaso.Value).TotalDays : 1);
 
                     var canalEmailTemplate = rec.Canales.FirstOrDefault(c => c.CodigoCanal == "email" && c.Activo);
                     var canalInAppTemplate = rec.Canales.FirstOrDefault(c => c.CodigoCanal == "in_app" && c.Activo);
@@ -168,25 +148,21 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         continue;
                     }
 
-                    var listadoHtml = BuildListadoHtml(ordenesDelUsuario, canalEmailTemplate?.ListadoRowHtml ?? canalInAppTemplate?.ListadoRowHtml);
-                    var folios = string.Join(", ", ordenesDelUsuario.Select(o => o.Folio));
+                    var listadoHtml = BuildListadoHtml(entities, canalEmailTemplate?.ListadoRowHtml ?? canalInAppTemplate?.ListadoRowHtml);
+                    var folios = string.Join(", ", entities.Select(e => e.Folio));
 
-                    var urlOrden = string.IsNullOrEmpty(_frontendBaseUrl)
-                        ? "#"
-                        : ordenesDelUsuario.Count == 1
-                            ? $"{_frontendBaseUrl}/autorizaciones?idOrden={ordenesDelUsuario[0].IdOrden}"
-                            : $"{_frontendBaseUrl}/autorizaciones";
+                    var urlEntidad = BuildEntityUrl(entities);
 
                     var ctx = new Dictionary<string, string>
                     {
                         ["NombreResponsable"] = nombresUsuarios.TryGetValue(idUsuario, out var nombre) ? nombre : $"Usuario {idUsuario}",
-                        ["CantidadPendientes"] = ordenesDelUsuario.Count.ToString(),
+                        ["CantidadPendientes"] = entities.Count.ToString(),
                         ["DiasEspera"] = diasEspera.ToString(),
                         ["ListadoPendientes"] = listadoHtml,
                         ["Folios"] = folios,
-                        ["Folio"] = ordenesDelUsuario.Count == 1 ? ordenesDelUsuario[0].Folio : folios,
-                        ["Total"] = ordenesDelUsuario.Count == 1 ? ordenesDelUsuario[0].Total.ToString("C2") : "",
-                        ["UrlOrden"] = urlOrden,
+                        ["Folio"] = entities.Count == 1 ? entities[0].Folio : folios,
+                        ["Total"] = entities.Count == 1 && entities[0].MontoTotal.HasValue ? entities[0].MontoTotal.Value.ToString("C2") : "",
+                        ["UrlOrden"] = urlEntidad,
                         ["ColorTema"] = "#d97706",
                         ["Icono"] = "⏰",
                         ["Asunto"] = canalInAppTemplate?.AsuntoTemplate ?? canalEmailTemplate?.AsuntoTemplate ?? "Recordatorio",
@@ -223,7 +199,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     {
                         IdRecordatorio = rec.IdRecordatorio,
                         IdUsuario = idUsuario,
-                        OrdenesIncluidas = ordenesDelUsuario.Count,
+                        OrdenesIncluidas = entities.Count,
                         FechaEnvio = ahora,
                         Canal = rec.EnviarEmail ? "email" : "inapp",
                         Estado = "enviado"
@@ -268,8 +244,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         }, ct);
 
                         enviados++;
-                        _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] enviado a usuario {IdUsuario} ({CantOrdenes} órdenes)",
-                            rec.IdRecordatorio, idUsuario, ordenesDelUsuario.Count);
+                        _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] enviado a usuario {IdUsuario} ({CantEntidades} entidades)",
+                            rec.IdRecordatorio, idUsuario, entities.Count);
                     }
                     catch (Exception ex)
                     {
@@ -291,37 +267,129 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             return enviados;
         }
 
-        private static string BuildListadoHtml(List<OrdenCompra> ordenes, string? rowTemplate = null)
+        private async Task<List<ReminderEntity>> ResolveEntitiesAsync(
+            WorkflowRecordatorio rec, DateTime ahora, CancellationToken ct)
+        {
+            var workflow = rec.Workflow ?? await _db.Workflows.FindAsync(rec.IdWorkflow);
+            if (workflow == null)
+            {
+                _logger.LogWarning("WorkflowReminderService: recordatorio [{Id}] — workflow {IdWorkflow} no encontrado", rec.IdRecordatorio, rec.IdWorkflow);
+                return new();
+            }
+
+            var pasosIds = rec.IdPaso.HasValue
+                ? new List<int> { rec.IdPaso.Value }
+                : await _db.WorkflowPasos
+                    .Where(p => p.IdWorkflow == rec.IdWorkflow)
+                    .Select(p => p.IdPaso)
+                    .ToListAsync(ct);
+
+            return workflow.CodigoProceso switch
+            {
+                CodigoProceso.ORDEN_COMPRA => await ResolveOrdenesCompraAsync(pasosIds, rec, ahora, ct),
+                CodigoProceso.SOLICITUD_PERSONAL => await ResolveSolicitudesPersonalAsync(pasosIds, rec, ahora, ct),
+                _ => new()
+            };
+        }
+
+        private async Task<List<ReminderEntity>> ResolveOrdenesCompraAsync(
+            List<int> pasosIds, WorkflowRecordatorio rec, DateTime ahora, CancellationToken ct)
+        {
+            var query = _db.OrdenesCompra
+                .Include(o => o.Proveedor)
+                .Where(o => o.IdPasoActual != null && pasosIds.Contains(o.IdPasoActual.Value));
+
+            if (rec.MontoMinimo.HasValue) query = query.Where(o => o.Total >= rec.MontoMinimo.Value);
+            if (rec.MontoMaximo.HasValue) query = query.Where(o => o.Total <= rec.MontoMaximo.Value);
+
+            var ordenes = await query.ToListAsync(ct);
+
+            return ordenes.Select(o => new ReminderEntity
+            {
+                Id = o.IdOrden,
+                IdWorkflow = o.IdWorkflow,
+                IdPasoActual = o.IdPasoActual,
+                Folio = o.Folio,
+                MontoTotal = o.Total,
+                FechaEnPaso = o.FechaSolicitud,
+                EtiquetaExtra = o.Proveedor?.RazonSocial,
+                TipoEntidad = CodigoProceso.ORDEN_COMPRA
+            }).ToList();
+        }
+
+        private async Task<List<ReminderEntity>> ResolveSolicitudesPersonalAsync(
+            List<int> pasosIds, WorkflowRecordatorio rec, DateTime ahora, CancellationToken ct)
+        {
+            var query = _db.SolicitudesPersonal
+                .Where(s => s.IdPasoActual != null && pasosIds.Contains(s.IdPasoActual.Value));
+
+            var solicitudes = await query.ToListAsync(ct);
+
+            return solicitudes.Select(s => new ReminderEntity
+            {
+                Id = s.IdSolicitud,
+                IdWorkflow = s.IdWorkflow,
+                IdPasoActual = s.IdPasoActual,
+                Folio = s.Folio,
+                MontoTotal = null,
+                FechaEnPaso = s.FechaEnvio,
+                EtiquetaExtra = s.Area?.Nombre,
+                TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL
+            }).ToList();
+        }
+
+        private string BuildEntityUrl(List<ReminderEntity> entities)
+        {
+            if (string.IsNullOrEmpty(_frontendBaseUrl))
+                return "#";
+
+            if (entities.Count == 1)
+            {
+                var e = entities[0];
+                return e.TipoEntidad switch
+                {
+                    CodigoProceso.ORDEN_COMPRA => $"{_frontendBaseUrl}/autorizaciones?idOrden={e.Id}",
+                    CodigoProceso.SOLICITUD_PERSONAL => $"{_frontendBaseUrl}/autorizaciones?idSolicitud={e.Id}",
+                    _ => $"{_frontendBaseUrl}/autorizaciones"
+                };
+            }
+
+            return $"{_frontendBaseUrl}/autorizaciones";
+        }
+
+        private static string BuildListadoHtml(List<ReminderEntity> entities, string? rowTemplate = null)
         {
             var sb = new StringBuilder();
             sb.Append("<table style='width:100%;border-collapse:collapse;font-size:13px'>");
-            sb.Append("<tr style='background:#f3f4f6'><th style='padding:6px 10px;text-align:left'>Folio</th><th style='padding:6px 10px;text-align:left'>Proveedor</th><th style='padding:6px 10px;text-align:right'>Total</th><th style='padding:6px 10px;text-align:right'>Días</th></tr>");
-            foreach (var o in ordenes.Take(10))
+            sb.Append("<tr style='background:#f3f4f6'><th style='padding:6px 10px;text-align:left'>Folio</th><th style='padding:6px 10px;text-align:left'>Detalle</th><th style='padding:6px 10px;text-align:right'>Monto</th><th style='padding:6px 10px;text-align:right'>Días</th></tr>");
+            foreach (var e in entities.Take(10))
             {
                 if (!string.IsNullOrWhiteSpace(rowTemplate))
                 {
                     var rowCtx = new Dictionary<string, string>
                     {
-                        ["Folio"] = o.Folio,
-                        ["Proveedor"] = o.Proveedor?.RazonSocial ?? "",
-                        ["Total"] = o.Total.ToString("C2"),
-                        ["DiasEspera"] = ((int)((DateTime.Now - o.FechaSolicitud)?.TotalDays ?? 1)).ToString()
+                        ["Folio"] = e.Folio,
+                        ["Proveedor"] = e.EtiquetaExtra ?? "",
+                        ["Detalle"] = e.EtiquetaExtra ?? "",
+                        ["Total"] = e.MontoTotal?.ToString("C2") ?? "",
+                        ["DiasEspera"] = e.FechaEnPaso.HasValue ? ((int)(DateTime.Now - e.FechaEnPaso).Value.TotalDays).ToString() : "0"
                     };
                     sb.Append(Interpolate(rowTemplate, rowCtx));
                 }
                 else
                 {
-                    var dias = (int)((DateTime.Now - o.FechaSolicitud)?.TotalDays ?? 1);
+                    var dias = e.FechaEnPaso.HasValue ? (int)(DateTime.Now - e.FechaEnPaso).Value.TotalDays : 0;
+                    var montoStr = e.MontoTotal?.ToString("C2") ?? "—";
                     sb.Append($"<tr style='border-top:1px solid #e5e7eb'>" +
-                        $"<td style='padding:6px 10px'>{o.Folio}</td>" +
-                        $"<td style='padding:6px 10px'>{o.Proveedor?.RazonSocial}</td>" +
-                        $"<td style='padding:6px 10px;text-align:right'>{o.Total:C2}</td>" +
+                        $"<td style='padding:6px 10px'>{e.Folio}</td>" +
+                        $"<td style='padding:6px 10px'>{e.EtiquetaExtra ?? ""}</td>" +
+                        $"<td style='padding:6px 10px;text-align:right'>{montoStr}</td>" +
                         $"<td style='padding:6px 10px;text-align:right;color:{(dias > 3 ? "#dc2626" : "#374151")}'>{dias}d</td>" +
                         $"</tr>");
                 }
             }
-            if (ordenes.Count > 10)
-                sb.Append($"<tr><td colspan='4' style='padding:6px 10px;color:#6b7280'>... y {ordenes.Count - 10} más</td></tr>");
+            if (entities.Count > 10)
+                sb.Append($"<tr><td colspan='4' style='padding:6px 10px;color:#6b7280'>... y {entities.Count - 10} más</td></tr>");
             sb.Append("</table>");
             return sb.ToString();
         }
@@ -331,6 +399,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             foreach (var (key, value) in ctx)
                 template = template.Replace($"{{{{{key}}}}}", value, StringComparison.OrdinalIgnoreCase);
             return template;
+        }
+
+        public sealed class ReminderEntity
+        {
+            public int Id { get; init; }
+            public int IdWorkflow { get; init; }
+            public int? IdPasoActual { get; init; }
+            public string Folio { get; init; } = null!;
+            public decimal? MontoTotal { get; init; }
+            public DateTime? FechaEnPaso { get; init; }
+            public string? EtiquetaExtra { get; init; }
+            public string TipoEntidad { get; init; } = null!;
         }
     }
 }
