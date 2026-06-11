@@ -8,6 +8,7 @@ namespace Lefarma.API.Domain.Entities.Catalogos
         public string Simbolo { get; set; } = null!;       // "$", "L", "€"
         public string Locale { get; set; } = null!;        // "es-MX", "en-US"
         public decimal TipoCambio { get; set; } = 1;       // Relativo a la moneda base
+        public bool PosicionIzquierda { get; set; } = true;
         public bool EsDefault { get; set; }
         public bool Activo { get; set; }
         public DateTime FechaCreacion { get; set; }
