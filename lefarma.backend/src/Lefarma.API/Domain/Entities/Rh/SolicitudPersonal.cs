@@ -30,6 +30,9 @@ namespace Lefarma.API.Domain.Entities.Rh
         public virtual Sucursal? Sucursal { get; set; }
         public virtual Area? Area { get; set; }
 
+        // Detalle de fechas
+        public virtual ICollection<SolicitudPersonalDetalle> Detalle { get; set; } = new List<SolicitudPersonalDetalle>();
+
         public DateTime? FechaEnvio { get; set; } // Fecha en que el usuario envia la solicitud (se asigna al ejecutar la acción de envío)
 
         public DateTime? FechaInicio { get; set; }

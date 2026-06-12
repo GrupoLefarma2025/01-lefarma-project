@@ -51,19 +51,19 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
             if (idWorkflow == 0)
                 return CommonErrors.Conflict("Workflow", "La entidad no tiene workflow asignado.");
 
-            // 1. Acciones que el motor permite (filtra por participante, estado, etc.)
+            //Acciones que el motor permite (filtra por participante, estado, etc.)
             var acciones = await _engine.GetAccionesDisponiblesAsync(
                 idWorkflow, idEntidad, idUsuario, tipoEntidad);
 
-            // 2. Cargar paso actual para metadata (RequiereComentario, etc.)
+            //Cargar paso actual para metadata (RequiereComentario, etc.)
             var pasoActual = await _context.WorkflowPasos
                 .AsNoTracking()
                 .FirstOrDefaultAsync(p => p.IdPaso == idPasoActual, ct);
 
-            // 3. Cargar todos los campos del workflow una sola vez
+            // Cargar todos los campos del workflow una sola vez
             var camposWorkflow = (await _workflowRepo.GetCamposAsync()).ToList();
 
-            // 4. Por cada acción, cargar sus handlers y construir DTO
+            // Por cada acción, cargar sus handlers y construir DTO
             var result = new List<AccionDisponibleResponse>();
             foreach (var a in acciones)
             {
@@ -112,7 +112,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                 });
             }
 
-            // 5. Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
+            //Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
             await PreEvaluarHandlersAsync(result, entidadParaHandlers, idEntidad, tipoEntidad, idUsuario, ct);
 
             EnrichWideEvent("GetAccionesDisponibles", entityId: idEntidad, count: result.Count);

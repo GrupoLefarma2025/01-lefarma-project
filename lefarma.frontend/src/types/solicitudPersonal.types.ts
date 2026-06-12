@@ -11,6 +11,12 @@ export interface CreateSolicitudPersonalRequest {
   diasSolicitados?: number | null;
   fechaRegreso?: string | null;
   fechaReposicion?: string | null;
+  detalle?: SolicitudPersonalDetalleDto[];
+}
+
+export interface SolicitudPersonalDetalleDto {
+  fecha: string;
+  comentario?: string | null;
 }
 
 export interface SolicitudPersonalResponse {
@@ -43,6 +49,7 @@ export interface SolicitudPersonalResponse {
   fechaRegreso?: string;
   fechaCreacion: string;
   fechaModificacion?: string;
+  detalle?: SolicitudPersonalDetalleDto[];
 }
 
 export interface TipoSolicitudResponse {
@@ -50,6 +57,7 @@ export interface TipoSolicitudResponse {
   nombre: string;
   clave: string;
   categoria: string;
+  descripcion: string;
   esIncidencia: boolean;
   esPermiso: boolean;
   requiereReposicionTiempo: boolean;

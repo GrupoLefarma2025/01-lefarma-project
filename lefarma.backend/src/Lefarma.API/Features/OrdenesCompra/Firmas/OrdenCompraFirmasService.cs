@@ -56,7 +56,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         {
             try
             {
-                // 1. Cargar orden con partidas
+                // Cargar orden con partidas
                 var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
                 if (orden is null)
                 {
@@ -64,11 +64,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     return CommonErrors.NotFound("OrdenCompra", idOrden.ToString());
                 }
 
-                // 2. Validar estado no terminal
+                // Validar estado no terminal
                 if (orden.IdEstado == 7 || orden.IdEstado == 9)
                     return CommonErrors.Conflict("OrdenCompra", $"La orden {orden.Folio} ya está cerrada o cancelada.");
 
-                // 3. Cargar workflow config con todas las navegaciones necesarias
+                // Cargar workflow config con todas las navegaciones necesarias
                 var workflowConfig = await _workflowRepo.GetQueryable()
                     .Include(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
@@ -81,12 +81,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (workflowConfig is null)
                     return CommonErrors.NotFound("Workflow", orden.IdWorkflow.ToString());
 
-                // 4. Validar paso actual
+                // Validar paso actual
                 var pasoActual = workflowConfig.Pasos.FirstOrDefault(p => p.IdPaso == orden.IdPasoActual);
                 if (pasoActual is null || !pasoActual.Activo)
                     return CommonErrors.Conflict("orden", "La orden no tiene un paso activo válido.");
 
-                // 5. ★ Validar participante (USANDO HELPER)
+                // Validar participante (USANDO HELPER)
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
                     pasoActual, idUsuario, orden.IdUsuarioCreador, _asokamContext);
                 if (validacion.IsError)
@@ -94,11 +94,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 var estadoAnterior = orden.Estado?.Codigo;
 
-                // 6. Construir contexto con datos adicionales (Total para condiciones)
+                // Construir contexto con datos adicionales (Total para condiciones)
                 var datosAdicionales = request.DatosAdicionales ?? new Dictionary<string, object>();
                 datosAdicionales["Total"] = orden.Total;
 
-                // 7. Ejecutar motor de workflow
+                // Ejecutar motor de workflow
                 var ctx = new WorkflowContext(
                     IdWorkflow: orden.IdWorkflow,
                     IdEntidad: orden.IdOrden,
@@ -113,19 +113,23 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
-                // 8. Lógica específica OC: reset facturación en DEVOLVER
+                // Lógica específica OC: reset facturación en DEVOLVER
                 await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
 
-                // 9. Actualizar estado de la orden + fechas de ciclo de vida
+                // Actualizar estado de la orden + fechas de ciclo de vida
                 await ActualizarEstadoYFechasAsync(orden, resultado);
 
-                // 10. Resolver notificación a disparar
+                // Resolver notificación a disparar
                 var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                     workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-                // 11. ★ Disparar notificación fire-and-forget (USANDO HELPER)
+                // Disparar notificación fire-and-forget (USANDO HELPER)
                 var variables = ConstruirVariablesNotificacion(orden);
-                var partidasHtml = BuildPartidasTable(orden.Partidas);
+                var partidasHtml = notificacion.IncluirPartidas
+                    ? BuildPartidasTable(orden.Partidas,
+                        orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true,
+                        notificacion.Canales.FirstOrDefault(c => c.Activo && !string.IsNullOrWhiteSpace(c.ListadoRowHtml))?.ListadoRowHtml)
+                    : "";
                 WorkflowFirmaHelper.DispatchNotificacionFireAndForget(
                     scopeFactory: _scopeFactory,
                     notificacion: notificacion,
@@ -779,13 +783,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         }
         private static Dictionary<string, string> ConstruirVariablesNotificacion(OrdenCompra orden) => new()
         {
-            ["Total"] = orden.Total.ToString("C2"),
+            ["Total"] = FormatearDinero(orden.Total, orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true),
             ["Proveedor"] = orden.Proveedor?.RazonSocial ?? "",
             ["CentroCosto"] = orden.CentroCosto?.Nombre ?? orden.IdCentroCosto?.ToString() ?? "",
             ["CuentaContable"] = orden.CuentaContable?.Cuenta ?? orden.IdCuentaContable?.ToString() ?? "",
             ["ImportePagado"] = ""
         };
-        private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? rowTemplate = null)
+        private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? simboloMoneda, bool posicionIzquierda, string? rowTemplate = null)
         {
             if (partidas == null || partidas.Count == 0)
                 return "<p style=\"color:#6b7280;font-size:13px\">Sin partidas registradas.</p>";
@@ -798,16 +802,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         .Replace("{{NumeroPartida}}", p.NumeroPartida.ToString())
                         .Replace("{{Descripcion}}", p.Descripcion ?? "")
                         .Replace("{{Cantidad}}", p.Cantidad.ToString("G"))
-                        .Replace("{{PrecioUnitario}}", p.PrecioUnitario.ToString("C2"))
-                        .Replace("{{Total}}", p.Total.ToString("C2"));
+                        .Replace("{{PrecioUnitario}}", FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda))
+                        .Replace("{{Total}}", FormatearDinero(p.Total, simboloMoneda, posicionIzquierda));
                 }
                 return $"""
                 <tr>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.NumeroPartida}</td>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.Descripcion}</td>
                   <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.Cantidad:G}</td>
-                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.PrecioUnitario:C2}</td>
-                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{p.Total:C2}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda)}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{FormatearDinero(p.Total, simboloMoneda, posicionIzquierda)}</td>
                 </tr>
                 """;
             }
@@ -830,6 +834,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
               </tbody>
             </table>
             """;
+        }
+
+        private static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true)
+        {
+            return
+            string.IsNullOrEmpty(simboloMoneda)
+            ? value.ToString("N2")
+            : posicionIzquierda
+                ? $"{simboloMoneda} {value:N2}"
+                : $"{value:N2} {simboloMoneda}";
         }
 
 

@@ -13,27 +13,37 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal
             _context = context;
         }
 
+        public async Task<SolicitudPersonal?> GetWithDetalleAsync(int idSolicitud)
+        {
+            return await _context.SolicitudesPersonal
+                .Include(s => s.Estado)
+                .Include(s => s.Empresa)
+                .Include(s => s.Sucursal)
+                .Include(s => s.Area)
+                .Include(s => s.Detalle)
+                .FirstOrDefaultAsync(s => s.IdSolicitud == idSolicitud);
+        }
+
+        public async Task<List<TipoSolicitud>> GetTiposActivosAsync()
+        {
+            return await _context.TiposSolicitud
+                .Where(t => t.Activo)
+                .OrderBy(t => t.Nombre)
+                .ToListAsync();
+        }
+
         public async Task<TipoSolicitud?> GetTipoSolicitudAsync(int idTipoSolicitud)
         {
-            return await _context.TiposSolicitud.FindAsync(idTipoSolicitud);
+            return await _context.TiposSolicitud
+                .FirstOrDefaultAsync(t => t.IdTipoSolicitud == idTipoSolicitud && t.Activo);
         }
 
         public async Task<string> GenerarFolioAsync(CategoriaSolicitud categoria)
         {
-            var prefijo = categoria switch
-            {
-                CategoriaSolicitud.Incidencia => "INC",
-                CategoriaSolicitud.Permiso => "PER",
-                CategoriaSolicitud.Vacaciones => "VAC",
-                CategoriaSolicitud.GoceDeSueldo => "GDS",
-                _ => "SOL"
-            };
-
-            var year = DateTime.UtcNow.Year;
-            var prefix = $"{prefijo}-{year}-";
+            var year = DateTime.Now.Year;
+            var prefix = $"SOL-{year}-";
 
             var ultimoFolio = await _context.SolicitudesPersonal
-                .Where(s => s.Folio.StartsWith(prefix))
                 .OrderByDescending(s => s.IdSolicitud)
                 .Select(s => s.Folio)
                 .FirstOrDefaultAsync();

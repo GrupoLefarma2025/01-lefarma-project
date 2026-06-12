@@ -5,7 +5,7 @@ import * as z from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { API } from '@/services/api';
 import { ApiResponse } from '@/types/api.types';
-import type { SolicitudPersonalResponse, TipoSolicitudResponse, CreateSolicitudPersonalRequest } from '@/types/solicitudPersonal.types';
+import type { SolicitudPersonalResponse, TipoSolicitudResponse, CreateSolicitudPersonalRequest, SolicitudPersonalDetalleDto } from '@/types/solicitudPersonal.types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { authService } from '@/services/authService';
@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { DatePicker } from '@/components/ui/date-picker';
+import { MultiDatePicker } from '@/components/ui/multi-date-picker';
 import {
   Loader2,
   Save,
@@ -64,29 +66,28 @@ function FormSection({
   );
 }
 
-const solicitudSchema = z
-  .object({
-    idEmpresa: z.number().positive('Seleccione una empresa'),
-    idSucursal: z.number().positive('Seleccione una sucursal'),
-    idArea: z.number().positive('Seleccione un área'),
-    idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
-    motivo: z.string().optional(),
-    lugarComision: z.string().optional(),
-    fechaInicio: z.string().optional(),
-    fechaFin: z.string().optional(),
-    diasSolicitados: z.number().optional(),
-    fechaRegreso: z.string().optional(),
-    fechaReposicion: z.string().optional(),
-  })
-  .superRefine((data, ctx) => {
-    if (!data.fechaInicio) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'La fecha de inicio es requerida',
-        path: ['fechaInicio'],
-      });
-    }
-  });
+const CATEGORIAS = [
+  { value: 'Incidencia', label: 'Incidencia' },
+  { value: 'Permiso', label: 'Permiso' },
+  { value: 'Vacaciones', label: 'Vacaciones' },
+  { value: 'GoceDeSueldo', label: 'Goce de Sueldo' },
+];
+
+const solicitudSchema = z.object({
+  idEmpresa: z.number().positive('Seleccione una empresa'),
+  idSucursal: z.number().positive('Seleccione una sucursal'),
+  idArea: z.number().positive('Seleccione un área'),
+  categoria: z.string().min(1, 'Seleccione una categoría'),
+  idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
+  motivo: z.string().optional(),
+  lugarComision: z.string().optional(),
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  diasSolicitados: z.number().optional(),
+  fechaRegreso: z.string().optional(),
+  fechaReposicion: z.string().optional(),
+  detalle: z.array(z.string()).optional(),
+});
 
 type FormValues = z.infer<typeof solicitudSchema>;
 
@@ -118,6 +119,7 @@ export default function CrearSolicitudPersonal() {
       idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
+      categoria: '',
       idTipoSolicitud: 0,
       motivo: '',
       lugarComision: '',
@@ -126,18 +128,23 @@ export default function CrearSolicitudPersonal() {
       diasSolicitados: undefined,
       fechaRegreso: '',
       fechaReposicion: '',
+      detalle: [],
     },
   });
 
   const selectedEmpresaId = form.watch('idEmpresa');
+  const selectedCategoria = form.watch('categoria');
   const selectedTipoSolicitudId = form.watch('idTipoSolicitud');
   const watchedFechaInicio = form.watch('fechaInicio');
   const watchedFechaFin = form.watch('fechaFin');
+  const watchedDetalle = form.watch('detalle');
 
   const selectedTipoSolicitud = useMemo(
     () => tiposSolicitud.find((t) => t.idTipoSolicitud === selectedTipoSolicitudId),
     [tiposSolicitud, selectedTipoSolicitudId]
   );
+
+  const esMultiDia = selectedTipoSolicitud?.requiereFechaFin ?? false;
 
   const filteredSucursales = useMemo(() => {
     if (!selectedEmpresaId) return sucursales;
@@ -149,18 +156,50 @@ export default function CrearSolicitudPersonal() {
     return areas.filter((a) => a.idEmpresa === selectedEmpresaId);
   }, [areas, selectedEmpresaId]);
 
-  // Auto-calculate diasSolicitados
+  const tiposPorCategoria = useMemo(() => {
+    if (!selectedCategoria) return [];
+    return tiposSolicitud.filter((t) => t.categoria === selectedCategoria);
+  }, [tiposSolicitud, selectedCategoria]);
+
+  // Reset idTipoSolicitud when category changes
   useEffect(() => {
-    if (watchedFechaInicio && watchedFechaFin) {
-      const inicio = new Date(watchedFechaInicio);
-      const fin = new Date(watchedFechaFin);
-      const diffMs = fin.getTime() - inicio.getTime();
-      const dias = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
-      if (dias > 0) {
-        form.setValue('diasSolicitados', dias);
+    if (selectedCategoria && selectedTipoSolicitud?.categoria !== selectedCategoria) {
+      form.setValue('idTipoSolicitud', 0);
+    }
+  }, [selectedCategoria, selectedTipoSolicitud, form]);
+
+  // Auto-calculate from detalle (Vacaciones) or fechaInicio/fechaFin (others)
+  useEffect(() => {
+    const det = watchedDetalle ?? [];
+    if (esMultiDia && det.length > 0) {
+      const sorted = [...det].sort();
+      const inicio = sorted[0];
+      const fin = sorted[sorted.length - 1];
+      form.setValue('fechaInicio', inicio);
+      form.setValue('fechaFin', fin);
+      form.setValue('diasSolicitados', sorted.length);
+      form.setValue('fechaRegreso', '');
+    } else if (!esMultiDia && watchedFechaInicio) {
+      form.setValue('detalle', [watchedFechaInicio]);
+      if (watchedFechaFin) {
+        const inicio = new Date(watchedFechaInicio);
+        const fin = new Date(watchedFechaFin);
+        const diffMs = fin.getTime() - inicio.getTime();
+        const dias = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
+        if (dias > 0) form.setValue('diasSolicitados', dias);
+        const allDates: string[] = [];
+        const current = new Date(inicio);
+        while (current <= fin) {
+          allDates.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+        form.setValue('detalle', allDates);
+      } else {
+        form.setValue('diasSolicitados', 1);
+        form.setValue('detalle', [watchedFechaInicio]);
       }
     }
-  }, [watchedFechaInicio, watchedFechaFin, form]);
+  }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin, form]);
 
   const fetchCatalogs = () => {
     const errors: string[] = [];
@@ -191,6 +230,7 @@ export default function CrearSolicitudPersonal() {
     API.get<ApiResponse<TipoSolicitudResponse[]>>('/solicitudes-personal/tipos-solicitud')
       .then((res) => {
         if (res.data.success) setTiposSolicitud(res.data.data || []);
+        console.log('Tipos de Solicitud cargados:', res.data.data); 
       })
       .catch((err) => {
         console.warn('[fetchCatalogs] Error al cargar TiposSolicitud:', err);
@@ -213,7 +253,7 @@ export default function CrearSolicitudPersonal() {
 
   // Load data for edit mode
   useEffect(() => {
-    if (!isEditing || !id || loadingCatalogs) return;
+    if (!isEditing || !id || loadingCatalogs || tiposSolicitud.length === 0) return;
 
     const loadSolicitud = async () => {
       try {
@@ -222,10 +262,12 @@ export default function CrearSolicitudPersonal() {
         );
         if (response.data.success && response.data.data) {
           const sp = response.data.data;
+          const tipo = tiposSolicitud.find((t) => t.idTipoSolicitud === sp.idTipoSolicitud);
           form.reset({
             idEmpresa: sp.idEmpresa,
             idSucursal: sp.idSucursal,
             idArea: sp.idArea,
+            categoria: tipo?.categoria ?? '',
             idTipoSolicitud: sp.idTipoSolicitud,
             motivo: sp.motivo ?? '',
             lugarComision: sp.lugarComision ?? '',
@@ -234,6 +276,7 @@ export default function CrearSolicitudPersonal() {
             diasSolicitados: sp.diasSolicitados ?? undefined,
             fechaRegreso: sp.fechaRegreso ? sp.fechaRegreso.split('T')[0] : '',
             fechaReposicion: sp.fechaReposicion ? sp.fechaReposicion.split('T')[0] : '',
+            detalle: sp.detalle?.map((d) => d.fecha.split('T')[0]) ?? [],
           });
         } else {
           toast.error('No se pudo cargar la solicitud');
@@ -247,9 +290,18 @@ export default function CrearSolicitudPersonal() {
 
     loadSolicitud();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, id, loadingCatalogs]);
+  }, [isEditing, id, loadingCatalogs, tiposSolicitud]);
 
   const handleSave = async (values: FormValues) => {
+    if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
+      toast.error('Seleccione al menos un día');
+      return;
+    }
+    if (!esMultiDia && !values.fechaInicio) {
+      toast.error('La fecha es requerida');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload: CreateSolicitudPersonalRequest = {
@@ -265,6 +317,7 @@ export default function CrearSolicitudPersonal() {
         diasSolicitados: values.diasSolicitados ?? null,
         fechaRegreso: values.fechaRegreso || null,
         fechaReposicion: values.fechaReposicion || null,
+        detalle: (values.detalle ?? []).map((fecha) => ({ fecha })),
       };
 
       const response = isEditing
@@ -295,6 +348,20 @@ export default function CrearSolicitudPersonal() {
       setIsSaving(false);
     }
   };
+
+  const fechaInicioLabel = useMemo(() => {
+    if (esMultiDia) return 'Días del período *';
+    switch (selectedCategoria) {
+      case 'Incidencia':
+        return 'Fecha de Incidencia *';
+      case 'Permiso':
+        return 'Fecha del Permiso *';
+      case 'GoceDeSueldo':
+        return 'Fecha de Goce de Sueldo *';
+      default:
+        return 'Fecha Inicio *';
+    }
+  }, [selectedCategoria, esMultiDia]);
 
   if (loadingCatalogs) {
     return (
@@ -425,6 +492,34 @@ export default function CrearSolicitudPersonal() {
             <CardContent className="space-y-6">
               <FormField
                 control={form.control}
+                name="categoria"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Categoría *</FormLabel>
+                    <Select
+                      onValueChange={(val) => field.onChange(val)}
+                      value={field.value || ''}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona categoría..." />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CATEGORIAS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
                 name="idTipoSolicitud"
                 render={({ field }) => (
                   <FormItem>
@@ -432,25 +527,24 @@ export default function CrearSolicitudPersonal() {
                     <Select
                       onValueChange={(val) => field.onChange(Number(val))}
                       value={field.value ? String(field.value) : ''}
+                      disabled={!selectedCategoria}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona tipo de solicitud..." />
+                          <SelectValue placeholder={selectedCategoria ? 'Selecciona tipo de solicitud...' : 'Primero selecciona una categoría'} />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {tiposSolicitud.map((t) => (
+                        {tiposPorCategoria.map((t) => (
                           <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>
                             {t.nombre}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    {selectedTipoSolicitud && (
+                    {selectedTipoSolicitud && selectedTipoSolicitud.descripcion && (
                       <FormDescription className="text-xs">
-                        Categoría: {selectedTipoSolicitud.categoria}
-                        {selectedTipoSolicitud.descuentaNomina && ' · Descuenta nómina'}
-                        {selectedTipoSolicitud.descuentaVacaciones && ' · Descuenta vacaciones'}
+                        {selectedTipoSolicitud.descripcion}
                       </FormDescription>
                     )}
                     <FormMessage />
@@ -503,63 +597,91 @@ export default function CrearSolicitudPersonal() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <FormSection icon={Calendar} title="Período">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  <FormField
-                    control={form.control}
-                    name="fechaInicio"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Fecha Inicio *</FormLabel>
-                        <FormControl>
-                          <Input type="date" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  {selectedTipoSolicitud?.requiereFechaFin && (
+              {esMultiDia ? (
+                <FormField
+                  control={form.control}
+                  name="detalle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{fechaInicioLabel}</FormLabel>
+                      <FormControl>
+                        <MultiDatePicker
+                          value={field.value ?? []}
+                          onChange={field.onChange}
+                          placeholder="Seleccionar días del período..."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              ) : (
+                <FormSection icon={Calendar} title="Período">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <FormField
                       control={form.control}
-                      name="fechaFin"
+                      name="fechaInicio"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Fecha Fin *</FormLabel>
+                          <FormLabel>{fechaInicioLabel}</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Seleccionar fecha..."
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
                     />
-                  )}
 
-                  <FormField
-                    control={form.control}
-                    name="diasSolicitados"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Días Solicitados</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="number"
-                            min={1}
-                            {...field}
-                            value={field.value ?? ''}
-                            onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                            readOnly
-                          />
-                        </FormControl>
-                        <FormDescription className="text-xs">
-                          Se calcula automáticamente
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
+                    {selectedTipoSolicitud?.requiereFechaFin && (
+                      <FormField
+                        control={form.control}
+                        name="fechaFin"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Fecha Fin *</FormLabel>
+                            <FormControl>
+                              <DatePicker
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Seleccionar fecha fin..."
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     )}
-                  />
-                </div>
-              </FormSection>
+
+                    <FormField
+                      control={form.control}
+                      name="diasSolicitados"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Días Solicitados</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min={1}
+                              {...field}
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
+                              readOnly
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">
+                            Se calcula automáticamente
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </FormSection>
+              )}
 
               {selectedTipoSolicitud?.requiereFechaRegreso && (
                 <FormSection icon={Calendar} title="Regreso">
@@ -571,7 +693,11 @@ export default function CrearSolicitudPersonal() {
                         <FormItem>
                           <FormLabel>Fecha de Regreso</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Seleccionar fecha de regreso..."
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>
@@ -591,7 +717,11 @@ export default function CrearSolicitudPersonal() {
                         <FormItem>
                           <FormLabel>Fecha de Reposición</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Seleccionar fecha de reposición..."
+                            />
                           </FormControl>
                           <FormDescription className="text-xs">
                             Fecha en que el empleado repone el día perdido
@@ -626,9 +756,11 @@ export default function CrearSolicitudPersonal() {
                       idEmpresa: 'Empresa',
                       idSucursal: 'Sucursal',
                       idArea: 'Área',
+                      categoria: 'Categoría',
                       idTipoSolicitud: 'Tipo de Solicitud',
-                      fechaInicio: 'Fecha de Inicio',
+                      fechaInicio: 'Fecha',
                       lugarComision: 'Lugar de Comisión',
+                      detalle: 'Días del período',
                     };
 
                     const missing: string[] = [];

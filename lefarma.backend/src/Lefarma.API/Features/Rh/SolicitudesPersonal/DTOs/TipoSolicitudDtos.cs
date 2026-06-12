@@ -6,6 +6,7 @@
         public string Nombre { get; set; }
         public string Clave { get; set; }
         public string Categoria { get; set; }
+        public string? Descripcion { get; set; }
         public bool EsIncidencia { get; set; }
         public bool EsPermiso { get; set; }
         public bool RequiereReposicionTiempo { get; set; }

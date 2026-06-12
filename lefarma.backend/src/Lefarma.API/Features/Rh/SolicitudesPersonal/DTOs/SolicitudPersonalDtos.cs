@@ -35,6 +35,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public DateTime? FechaRegreso { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
+        public List<SolicitudPersonalDetalleDto> Detalle { get; set; } = new();
     }
 
     public class SolicitudPersonalRequest
@@ -63,5 +64,12 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? DiasSolicitados { get; set; }
         public DateTime? FechaRegreso { get; set; }
         public DateTime? FechaReposicion { get; set; }
+        public List<SolicitudPersonalDetalleDto> Detalle { get; set; } = new();
+    }
+
+    public class SolicitudPersonalDetalleDto
+    {
+        public DateTime Fecha { get; set; }
+        public string? Comentario { get; set; }
     }
 }

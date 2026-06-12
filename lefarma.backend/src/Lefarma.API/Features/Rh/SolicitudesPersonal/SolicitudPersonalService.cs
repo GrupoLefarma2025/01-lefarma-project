@@ -115,7 +115,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var soli = await _repository.GetByIdAsync(id);
+                var soli = await _repository.GetWithDetalleAsync(id);
 
                 if (soli is null)
                 {
@@ -150,8 +150,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var tipo = await _context.TiposSolicitud
-                    .FirstOrDefaultAsync(t => t.IdTipoSolicitud == request.IdTipoSolicitud && t.Activo);
+                var tipo = await _repository.GetTipoSolicitudAsync(request.IdTipoSolicitud);
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
 
@@ -197,18 +196,36 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     IdArea = request.IdArea,
                     Motivo = request.Motivo,
                     LugarComision = request.LugarComision,
-                    FechaInicio = request.FechaInicio,
-                    FechaFin = request.FechaFin,
-                    DiasSolicitados = request.DiasSolicitados,
-                    FechaRegreso = request.FechaRegreso,
                     FechaReposicion = request.FechaReposicion,
-                    FechaCreacion = DateTime.UtcNow
+                    FechaRegreso = request.FechaRegreso,
+                    FechaCreacion = DateTime.Now
                 };
 
-                var result = await _repository.AddAsync(solicitud);
+                var detalleSoli = request.Detalle.Select(d => new SolicitudPersonalDetalle
+                {
+                    IdSolicitud = solicitud.IdSolicitud,
+                    Fecha = d.Fecha,
+                    Comentario = d.Comentario,
+                    FechaCreacion = DateTime.Now
+                }).ToList();
 
-                EnrichWideEvent("Create", entityId: result.IdSolicitud, nombre: result.Folio);
-                return await MapToDto(result, pasoInicial.NombrePaso, estadoInicial.Codigo, null);
+                if (detalleSoli.Any())
+                {
+                    solicitud.Detalle = new List<SolicitudPersonalDetalle>(detalleSoli);
+                    CalcularFechas(solicitud, tipo, detalleSoli);
+                }
+                else
+                {
+                    solicitud.FechaInicio = request.FechaInicio;
+                    solicitud.FechaFin = request.FechaFin;
+                    solicitud.DiasSolicitados = request.DiasSolicitados;
+                    solicitud.FechaRegreso = request.FechaRegreso;
+                }
+
+                await _repository.AddAsync(solicitud);
+
+                EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
+                return await MapToDto(solicitud, pasoInicial.NombrePaso, estadoInicial.Codigo, null);
             }
             catch (DbUpdateException ex)
             {
@@ -227,27 +244,47 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var soli = await _repository.GetByIdAsync(id);
-                if (soli is null)
-                {
-                    EnrichWideEvent("Update", entityId: id, notFound: true);
+                var soli = await _repository.GetWithDetalleAsync(id);
+                if (soli == null)
                     return CommonErrors.NotFound("SolicitudPersonal", id.ToString());
-                }
 
-                if (!soli.FechaEnvio.HasValue)
+                if (soli.IdUsuarioCreador != idUsuario)
+                    return CommonErrors.Conflict("SolicitudPersonal", "Solo el creador de la solicitud puede modificarla.");
+
+                if (soli.Estado?.IdEstado != 1)
+                    return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
+
+                soli.IdTipoSolicitud = request.IdTipoSolicitud;
+                soli.Motivo = request.Motivo;
+                soli.LugarComision = request.LugarComision;
+                soli.FechaReposicion = request.FechaReposicion;
+                soli.FechaModificacion = DateTime.Now;
+                soli.FechaRegreso = request.FechaRegreso;
+
+                var nuevos = request.Detalle.Select(d => new SolicitudPersonalDetalle
                 {
-                    soli.IdTipoSolicitud = request.IdTipoSolicitud;
-                    soli.Motivo = request.Motivo;
-                    soli.LugarComision = request.LugarComision;
+                    IdSolicitud = id,
+                    Fecha = d.Fecha,
+                    Comentario = d.Comentario,
+                    FechaCreacion = DateTime.Now
+                }).ToList();
+
+                if (nuevos.Any())
+                {
+                    soli.Detalle = nuevos;
+                    var tipoActual = await _repository.GetTipoSolicitudAsync(soli.IdTipoSolicitud);
+                    if (tipoActual is not null)
+                        CalcularFechas(soli, tipoActual, nuevos);
+                }
+                else
+                {
+                    soli.Detalle = new List<SolicitudPersonalDetalle>();
                     soli.FechaInicio = request.FechaInicio;
                     soli.FechaFin = request.FechaFin;
                     soli.DiasSolicitados = request.DiasSolicitados;
-                    soli.FechaRegreso = request.FechaRegreso;
-                    soli.FechaReposicion = request.FechaReposicion;
-                    soli.FechaModificacion = DateTime.UtcNow;
-
-                    await _repository.UpdateAsync(soli);
                 }
+
+                await _repository.UpdateAsync(soli);
 
                 EnrichWideEvent("Update", entityId: soli.IdSolicitud, nombre: soli.Folio);
                 return await MapToDto(soli, null, null, null);
@@ -268,7 +305,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var soli = await _repository.GetByIdAsync(id);
+                var soli = await _repository.GetWithDetalleAsync(id);
                 if (soli is null)
                 {
                     EnrichWideEvent("Delete", entityId: id, notFound: true);
@@ -299,10 +336,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var tipos = await _context.TiposSolicitud
-                    .Where(t => t.Activo)
-                    .OrderBy(t => t.Nombre)
-                    .ToListAsync();
+                var tipos = await _repository.GetTiposActivosAsync();
 
                 var response = tipos.Select(t => new TipoSolicitudResponse
                 {
@@ -310,6 +344,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     Nombre = t.Nombre,
                     Clave = t.Clave,
                     Categoria = t.Categoria.ToString(),
+                    Descripcion = t.Descripcion,
                     RequiereReposicionTiempo = t.RequiereReposicionTiempo,
                     RequiereFechaFin = t.RequiereFechaFin,
                     RequiereFechaRegreso = t.RequiereFechaRegreso,
@@ -329,10 +364,30 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
+        private static void CalcularFechas(
+            SolicitudPersonal solicitud, TipoSolicitud tipo, List<SolicitudPersonalDetalle> detalle)
+        {
+            if (!detalle.Any()) return;
+
+            var fechas = detalle.Select(d => d.Fecha.Date).OrderBy(f => f).ToList();
+
+            solicitud.FechaInicio = fechas.First();
+
+            if (tipo.RequiereFechaFin)
+                solicitud.FechaFin = fechas.Last();
+
+            solicitud.DiasSolicitados = fechas.Count;
+
+            if (tipo.RequiereFechaRegreso && !solicitud.FechaRegreso.HasValue)
+            {
+                solicitud.FechaRegreso = fechas.Last().AddDays(1);
+            }
+        }
+
         private async Task<SolicitudPersonalResponse> MapToDto(
             SolicitudPersonal s, string? paso, string? estado, string? usuario)
         {
-            var tipo = await _context.TiposSolicitud.FindAsync(s.IdTipoSolicitud);
+            var tipo = await _repository.GetTipoSolicitudAsync(s.IdTipoSolicitud);
 
             return new SolicitudPersonalResponse
             {
@@ -364,7 +419,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 DiasSolicitados = s.DiasSolicitados,
                 FechaRegreso = s.FechaRegreso,
                 FechaCreacion = s.FechaCreacion,
-                FechaModificacion = s.FechaModificacion
+                FechaModificacion = s.FechaModificacion,
+                Detalle = s.Detalle?
+                    .OrderBy(d => d.Fecha)
+                    .Select(d => new SolicitudPersonalDetalleDto
+                    {
+                        Fecha = d.Fecha,
+                        Comentario = d.Comentario
+                    }).ToList() ?? new List<SolicitudPersonalDetalleDto>()
             };
         }
     }
