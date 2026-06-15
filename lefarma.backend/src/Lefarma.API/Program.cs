@@ -448,11 +448,11 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-var pathBase = builder.Configuration["AppSettings:PathBase"];
-if (!string.IsNullOrEmpty(pathBase))
-{
-    app.UsePathBase(pathBase);
-}
+//var pathBase = builder.Configuration["AppSettings:PathBase"];
+//if (!string.IsNullOrEmpty(pathBase))
+//{
+//    app.UsePathBase(pathBase);
+//}
 
 // Use CORS
 app.UseCors("CorsPolicy");
@@ -463,7 +463,7 @@ app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint($"{pathBase}/swagger/v1/swagger.json", "Lefarma API v1");
+    c.SwaggerEndpoint($"/swagger/v1/swagger.json", "Lefarma API v1");
     // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }
