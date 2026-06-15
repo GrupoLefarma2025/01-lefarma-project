@@ -129,6 +129,7 @@ public class FirmarRequest
         public string? Comentario { get; set; }
         public string? DatosSnapshot { get; set; }
         public DateTime FechaEvento { get; set; }
+        public bool FirmaDocumento { get; set; } = true;
     }
 
     // ── Respuesta del Sistema Externo ────────────────────────────────────────

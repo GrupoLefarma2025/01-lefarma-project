@@ -129,6 +129,7 @@ interface HistorialWorkflowItemResponse {
   comentario?: string | null;
   datosSnapshot?: string | null;
   fechaEvento: string;
+  firmaDocumento?: boolean;
 }
 
 interface WorkflowListItem {
@@ -479,8 +480,18 @@ export default function AutorizacionesOC() {
       const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
 
+      // Build map of userId → firmaDocumento (default true if not present)
+      const firmaDocumentoByUser = new Map<number, boolean>();
+      for (const h of historialData) {
+        if (h.idUsuario > 0 && !firmaDocumentoByUser.has(h.idUsuario)) {
+          firmaDocumentoByUser.set(h.idUsuario, h.firmaDocumento !== false);
+        }
+      }
+
       const newFirmasMap = new Map<number, string>();
       userIds.forEach(userId => {
+        // Skip users where firmaDocumento is explicitly false
+        if (firmaDocumentoByUser.get(userId) === false) return;
         newFirmasMap.set(userId, `${apiUrl}/media/archivos/firmas_usuarios/${userId}.png?t=${Date.now()}`);
       });
 

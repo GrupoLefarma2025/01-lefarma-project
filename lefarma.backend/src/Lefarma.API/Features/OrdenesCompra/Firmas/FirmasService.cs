@@ -514,10 +514,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     .Select(u => new { u.IdUsuario, u.NombreCompleto })
                     .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto);
 
+                var firmaDocumentoMap = await _context.UsuariosDetalle
+                    .AsNoTracking()
+                    .Where(ud => userIds.Contains(ud.IdUsuario))
+                    .Select(ud => new { ud.IdUsuario, ud.FirmaDocumento })
+                    .ToDictionaryAsync(ud => ud.IdUsuario, ud => ud.FirmaDocumento);
+
                 foreach (var item in historial)
                 {
                     if (userMap.TryGetValue(item.IdUsuario, out var nombre))
                         item.NombreUsuario = nombre;
+
+                    item.FirmaDocumento = firmaDocumentoMap.TryGetValue(item.IdUsuario, out var firmaDoc) ? firmaDoc : true;
                 }
 
                 EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, count: historial.Count);
