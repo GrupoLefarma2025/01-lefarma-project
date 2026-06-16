@@ -27,6 +27,9 @@ public class AuthService : BaseService, IAuthService
     private readonly JwtSettings _jwtSettings;
     protected override string EntityName => "Auth";
 
+    // ponytail: 60s is enough to redirect + exchange; short window limits the URL-leak risk.
+    private const int HandoffTokenTtlSeconds = 60;
+
     public AuthService(
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
@@ -204,91 +207,15 @@ public class AuthService : BaseService, IAuthService
 
             await _asokamContext.SaveChangesAsync(cancellationToken);
 
-            // 4. Get roles and permissions
-            var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
-
-            // 6. Create session in app.Sesiones
-            var session = new Sesion
+            // Issue session + tokens (shared with the handoff exchange flow)
+            var result = await IssueSessionAsync(usuario, ipAddress, userAgent, "Login", cancellationToken);
+            if (!result.IsError)
             {
-                IdUsuario = usuario.IdUsuario,
-                SessionId = Guid.NewGuid().ToString(),
-                UserAgent = userAgent,
-                IpAddress = ipAddress,
-                FechaInicio = DateTime.UtcNow,
-                FechaUltimaActividad = DateTime.UtcNow,
-                EsActiva = true
-            };
-            _asokamContext.Sesiones.Add(session);
-            await _asokamContext.SaveChangesAsync(cancellationToken);
-
-            // 7. Generate JWT access token
-            var roleNames = userRoles.Select(r => r.NombreRol).ToList();
-            var permissionCodes = allPermissions.Select(p => p.CodigoPermiso).ToList();
-            var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
-                usuario, session.IdSesion, roleNames, permissionCodes, cancellationToken);
-            if (accessTokenResult.IsError)
-            {
-                return accessTokenResult.Errors;
+                _logger.LogInformation("User {Username} logged in successfully from {IpAddress}",
+                    request.Username, ipAddress);
             }
 
-            // 8. Create refresh token
-            var refreshTokenResult = await _tokenService.GenerateRefreshTokenAsync(usuario, session.IdSesion, null, cancellationToken);
-            if (refreshTokenResult.IsError)
-            {
-                return refreshTokenResult.Errors;
-            }
-
-            // 9. Log to app.AuditLog
-            var auditLog = new AuditLog
-            {
-                IdUsuario = usuario.IdUsuario,
-                Usuario = usuario.SamAccountName,
-                Accion = "Login",
-                Recurso = "Auth",
-                Detalles = JsonSerializer.Serialize(new
-                {
-                    domain = request.Domain,
-                    sessionId = session.SessionId,
-                    roles = userRoles.Select(r => r.NombreRol).ToList()
-                }),
-                Fecha = DateTime.UtcNow,
-                IpAddress = ipAddress,
-                UserAgent = userAgent,
-                Exitoso = true
-            };
-            _asokamContext.AuditLogs.Add(auditLog);
-            await _asokamContext.SaveChangesAsync(cancellationToken);
-
-            var response = new LoginResponse
-            {
-                AccessToken = accessTokenResult.Value,
-                RefreshToken = refreshTokenResult.Value,
-                ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60, // seconds
-                User = new UserInfo
-                {
-                    Id = usuario.IdUsuario,
-                    Username = usuario.SamAccountName ?? request.Username,
-                    Nombre = usuario.NombreCompleto,
-                    Correo = usuario.Correo,
-                    Dominio = usuario.Dominio,
-                    Puesto = usuario.Puesto,
-                    Roles = userRoles,
-                    Permisos = allPermissions
-                }
-            };
-
-            EnrichWideEvent(action: "LoginStepTwo", additionalContext: new Dictionary<string, object>
-            {
-                ["username"] = request.Username,
-                ["domain"] = request.Domain,
-                ["sessionId"] = session.SessionId,
-                ["roles"] = userRoles.Select(r => r.NombreRol).ToList()
-            });
-
-            _logger.LogInformation("User {Username} logged in successfully from {IpAddress}",
-                request.Username, ipAddress);
-
-            return response;
+            return result;
         }
         catch (Exception ex)
         {
@@ -516,6 +443,182 @@ public class AuthService : BaseService, IAuthService
             EnrichWideEvent(action: "Logout", exception: ex);
             return CommonErrors.InternalServerError("Error al cerrar sesion");
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<ErrorOr<HandoffTokenResponse>> GenerateHandoffAsync(
+        int usuarioId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var usuario = await _asokamContext.Usuarios
+                .FirstOrDefaultAsync(u => u.IdUsuario == usuarioId, cancellationToken);
+
+            if (usuario == null)
+            {
+                return CommonErrors.NotFound("Usuario", usuarioId.ToString());
+            }
+
+            if (!usuario.EsActivo)
+            {
+                return CommonErrors.Validation("usuario", "El usuario esta inactivo");
+            }
+
+            var tokenResult = await _tokenService.GenerateHandoffTokenAsync(usuario, HandoffTokenTtlSeconds, cancellationToken);
+            if (tokenResult.IsError)
+            {
+                return tokenResult.Errors;
+            }
+
+            EnrichWideEvent(action: "GenerateHandoff", additionalContext: new Dictionary<string, object>
+            {
+                ["userId"] = usuario.IdUsuario
+            });
+
+            _logger.LogInformation("Handoff token generated for user {UserId}", usuario.IdUsuario);
+
+            return new HandoffTokenResponse
+            {
+                Token = tokenResult.Value,
+                ExpiresIn = HandoffTokenTtlSeconds
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating handoff token for user {UserId}", usuarioId);
+            EnrichWideEvent(action: "GenerateHandoff", exception: ex);
+            return CommonErrors.InternalServerError("Error al generar el token de handoff");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ErrorOr<LoginResponse>> ExchangeHandoffAsync(
+        string token,
+        string? ipAddress = null,
+        string? userAgent = null,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var consumeResult = await _tokenService.ConsumeHandoffTokenAsync(token, cancellationToken);
+            if (consumeResult.IsError)
+            {
+                EnrichWideEvent(action: "ExchangeHandoff", error: consumeResult.FirstError.Description);
+                return consumeResult.Errors;
+            }
+
+            var usuario = consumeResult.Value.Usuario; // always Included by ConsumeHandoffTokenAsync
+
+            if (!usuario.EsActivo)
+            {
+                return CommonErrors.Validation("usuario", "El usuario esta inactivo");
+            }
+
+            var result = await IssueSessionAsync(usuario, ipAddress, userAgent, "HandoffExchange", cancellationToken);
+            if (!result.IsError)
+            {
+                _logger.LogInformation("User {Username} authenticated via handoff from {IpAddress}",
+                    usuario.SamAccountName, ipAddress);
+            }
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error exchanging handoff token");
+            EnrichWideEvent(action: "ExchangeHandoff", exception: ex);
+            return CommonErrors.InternalServerError("Error al canjear el token de handoff");
+        }
+    }
+
+    /// <summary>
+    /// Creates a session, issues access + refresh tokens, writes an audit log and builds the
+    /// login response. Shared by the password login (step two) and the handoff exchange.
+    /// </summary>
+    private async Task<ErrorOr<LoginResponse>> IssueSessionAsync(
+        Usuario usuario,
+        string? ipAddress,
+        string? userAgent,
+        string accion,
+        CancellationToken cancellationToken)
+    {
+        var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
+
+        var session = new Sesion
+        {
+            IdUsuario = usuario.IdUsuario,
+            SessionId = Guid.NewGuid().ToString(),
+            UserAgent = userAgent,
+            IpAddress = ipAddress,
+            FechaInicio = DateTime.UtcNow,
+            FechaUltimaActividad = DateTime.UtcNow,
+            EsActiva = true
+        };
+        _asokamContext.Sesiones.Add(session);
+        await _asokamContext.SaveChangesAsync(cancellationToken);
+
+        var roleNames = userRoles.Select(r => r.NombreRol).ToList();
+        var permissionCodes = allPermissions.Select(p => p.CodigoPermiso).ToList();
+
+        var accessTokenResult = await _tokenService.GenerateAccessTokenAsync(
+            usuario, session.IdSesion, roleNames, permissionCodes, cancellationToken);
+        if (accessTokenResult.IsError)
+        {
+            return accessTokenResult.Errors;
+        }
+
+        var refreshTokenResult = await _tokenService.GenerateRefreshTokenAsync(usuario, session.IdSesion, null, cancellationToken);
+        if (refreshTokenResult.IsError)
+        {
+            return refreshTokenResult.Errors;
+        }
+
+        var auditLog = new AuditLog
+        {
+            IdUsuario = usuario.IdUsuario,
+            Usuario = usuario.SamAccountName,
+            Accion = accion,
+            Recurso = "Auth",
+            Detalles = JsonSerializer.Serialize(new
+            {
+                domain = usuario.Dominio,
+                sessionId = session.SessionId,
+                roles = roleNames
+            }),
+            Fecha = DateTime.UtcNow,
+            IpAddress = ipAddress,
+            UserAgent = userAgent,
+            Exitoso = true
+        };
+        _asokamContext.AuditLogs.Add(auditLog);
+        await _asokamContext.SaveChangesAsync(cancellationToken);
+
+        EnrichWideEvent(action: accion, additionalContext: new Dictionary<string, object>
+        {
+            ["username"] = usuario.SamAccountName ?? string.Empty,
+            ["domain"] = usuario.Dominio ?? string.Empty,
+            ["sessionId"] = session.SessionId,
+            ["roles"] = roleNames
+        });
+
+        return new LoginResponse
+        {
+            AccessToken = accessTokenResult.Value,
+            RefreshToken = refreshTokenResult.Value,
+            ExpiresIn = _jwtSettings.AccessTokenExpirationMinutes * 60, // seconds
+            User = new UserInfo
+            {
+                Id = usuario.IdUsuario,
+                Username = usuario.SamAccountName ?? string.Empty,
+                Nombre = usuario.NombreCompleto,
+                Correo = usuario.Correo,
+                Dominio = usuario.Dominio,
+                Puesto = usuario.Puesto,
+                Roles = userRoles,
+                Permisos = allPermissions
+            }
+        };
     }
 
     /// <summary>

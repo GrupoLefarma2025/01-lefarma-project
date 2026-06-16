@@ -17,6 +17,8 @@ namespace Lefarma.API.Services.Identity;
 /// </summary>
 public class TokenService : ITokenService
 {
+    private const string HandoffScope = "handoff";
+
     private readonly JwtSettings _jwtSettings;
     private readonly AsokamDbContext _context;
     private readonly ILogger<TokenService> _logger;
@@ -255,6 +257,13 @@ public class TokenService : ITokenService
                 return CommonErrors.NotFound("RefreshToken", "token");
             }
 
+            // Scope confusion guard: handoff tokens are exchange-only, never refreshable.
+            if (refreshToken.Scope == HandoffScope)
+            {
+                _logger.LogWarning("Handoff token presented to refresh flow for user {UserId}", refreshToken.IdUsuario);
+                return CommonErrors.Validation("token", "El refresh token es invalido");
+            }
+
             if (refreshToken.EsRevocado)
             {
                 _logger.LogWarning("Refresh token is revoked for user {UserId}", refreshToken.IdUsuario);
@@ -267,9 +276,21 @@ public class TokenService : ITokenService
                 return CommonErrors.Validation("token", "El refresh token ha expirado");
             }
 
-            // Mark as used
-            refreshToken.FechaUso = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            // Single-use claim: atomic UPDATE ... WHERE FechaUso IS NULL.
+            // claimed == 0 means a concurrent request claimed it first (closes the TOCTOU race
+            // that the in-memory check above cannot). ponytail: DB-atomic CAS, no rowversion column needed.
+            var claimTime = DateTime.UtcNow;
+            var claimed = await _context.RefreshTokens
+                .Where(rt => rt.IdRefreshToken == refreshToken.IdRefreshToken && rt.FechaUso == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.FechaUso, claimTime), cancellationToken);
+
+            if (claimed == 0)
+            {
+                _logger.LogWarning("Refresh token claim lost concurrency race for user {UserId}", refreshToken.IdUsuario);
+                return CommonErrors.Validation("token", "El refresh token ya fue utilizado");
+            }
+
+            refreshToken.FechaUso = claimTime;
 
             _logger.LogDebug("Refresh token validated successfully for user {UserId}", refreshToken.IdUsuario);
 
@@ -279,6 +300,98 @@ public class TokenService : ITokenService
         {
             _logger.LogError(ex, "Error validating refresh token");
             return CommonErrors.InternalServerError("Error al validar el refresh token");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ErrorOr<string>> GenerateHandoffTokenAsync(
+        Usuario usuario,
+        int ttlSeconds,
+        CancellationToken cancellationToken = default)
+    {
+        if (usuario == null)
+        {
+            return CommonErrors.Validation("usuario", "El usuario es requerido");
+        }
+
+        try
+        {
+            var tokenValue = GenerateSecureToken();
+
+            var handoff = new RefreshToken
+            {
+                TokenHash = HashToken(tokenValue),
+                JtiAccess = Guid.NewGuid().ToString(), // column is NOT NULL even though handoff has no JWT yet
+                IdUsuario = usuario.IdUsuario,
+                Scope = HandoffScope,
+                FechaCreacion = DateTime.UtcNow,
+                FechaExpiracion = DateTime.UtcNow.AddSeconds(ttlSeconds),
+                EsRevocado = false
+            };
+
+            _context.RefreshTokens.Add(handoff);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            _logger.LogDebug(
+                "Generated handoff token for user {UserId}, expires at {Expiration}",
+                usuario.IdUsuario, handoff.FechaExpiracion);
+
+            return tokenValue;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating handoff token for user {UserId}", usuario.IdUsuario);
+            return CommonErrors.InternalServerError("Error al generar el token de handoff");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task<ErrorOr<RefreshToken>> ConsumeHandoffTokenAsync(
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return CommonErrors.Validation("token", "El token es requerido");
+        }
+
+        try
+        {
+            var tokenHash = HashToken(token);
+
+            var handoff = await _context.RefreshTokens
+                .Include(rt => rt.Usuario)
+                .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
+
+            // Same generic error for every failure mode: never reveal why a token was rejected.
+            if (handoff == null || handoff.Scope != HandoffScope || handoff.EsRevocado
+                || handoff.FechaExpiracion < DateTime.UtcNow || handoff.FechaUso != null)
+            {
+                _logger.LogWarning("Handoff token rejected (notFound/scope/revoked/expired/used)");
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+
+            // Single-use claim: atomic UPDATE ... WHERE FechaUso IS NULL (closes the TOCTOU race).
+            var claimTime = DateTime.UtcNow;
+            var claimed = await _context.RefreshTokens
+                .Where(rt => rt.IdRefreshToken == handoff.IdRefreshToken && rt.FechaUso == null)
+                .ExecuteUpdateAsync(s => s.SetProperty(rt => rt.FechaUso, claimTime), cancellationToken);
+
+            if (claimed == 0)
+            {
+                _logger.LogWarning("Handoff token claim lost concurrency race for user {UserId}", handoff.IdUsuario);
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+
+            handoff.FechaUso = claimTime;
+            _logger.LogDebug("Handoff token consumed for user {UserId}", handoff.IdUsuario);
+
+            return handoff;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error consuming handoff token");
+            return CommonErrors.InternalServerError("Error al validar el token de handoff");
         }
     }
 
