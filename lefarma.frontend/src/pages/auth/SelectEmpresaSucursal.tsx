@@ -30,35 +30,58 @@ export default function SelectEmpresaSucursal() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  const [sucursalesFiltradas, setSucursalesFiltradas] = useState<Sucursal[]>([]);
-  const [selectedEmpresa, setSelectedEmpresa] = useState('');
-  const [selectedSucursal, setSelectedSucursal] = useState('');
-  const [selectedArea, setSelectedArea] = useState('');
+  // Pre-cargar la ubicacion actual del usuario como DEFAULT via lazy init (sin efecto).
+  const [selectedEmpresa, setSelectedEmpresa] = useState(() => {
+    const s = authService.getEmpresa();
+    return s ? String(s.idEmpresa) : '';
+  });
+  const [selectedSucursal, setSelectedSucursal] = useState(() => {
+    const s = authService.getSucursal();
+    return s ? String(s.idSucursal) : '';
+  });
+  const [selectedArea, setSelectedArea] = useState(() => {
+    const a = authService.getArea();
+    return a ? String(a.idArea) : '';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Pre-cargar la ubicacion actual del usuario como DEFAULT (pueda o no cambiarla).
-  // Si puede seleccionar quedan editables; si no, quedan bloqueados (ver disabled de cada Select).
   useEffect(() => {
-    const storedEmpresa = authService.getEmpresa();
-    const storedSucursal = authService.getSucursal();
-    const storedArea = authService.getArea();
-    if (storedEmpresa) {
-      setSelectedEmpresa(String(storedEmpresa.idEmpresa));
-    }
-    if (storedSucursal) {
-      setSelectedSucursal(String(storedSucursal.idSucursal));
-    }
-    if (storedArea) {
-      setSelectedArea(String(storedArea.idArea));
-    }
-  }, [puedeSeleccionarEmpresas]);
+    loadData();
+  }, []);
 
-  // Auto-submit si el usuario no puede seleccionar empresa/sucursal
+  // Listas derivadas en el render (sin estado redundante ni efectos de sincronizacion)
+  const sucursalesFiltradas = selectedEmpresa
+    ? sucursales.filter(
+        (s) => s.idSucursal != null && s.idEmpresa != null && String(s.idEmpresa) === String(selectedEmpresa)
+      )
+    : [];
+  const areasFiltradas = selectedEmpresa
+    ? areas.filter((a) => String(a.idEmpresa) === String(selectedEmpresa))
+    : [];
+
+  // Ajuste de estado durante el render (recomendado vs. setState dentro de useEffect).
+  // Si la sucursal/area seleccionada no es valida para la empresa, caer al primero [0].
+  if (selectedEmpresa) {
+    if (
+      sucursalesFiltradas.length > 0 &&
+      !sucursalesFiltradas.some((s) => String(s.idSucursal) === selectedSucursal)
+    ) {
+      setSelectedSucursal(String(sucursalesFiltradas[0].idSucursal));
+    }
+    if (
+      areasFiltradas.length > 0 &&
+      !areasFiltradas.some((a) => String(a.idArea) === selectedArea)
+    ) {
+      setSelectedArea(String(areasFiltradas[0].idArea));
+    }
+  }
+
+  const areaLista = areasFiltradas.length === 0 || !!selectedArea;
+
+  // Auto-submit si el usuario no puede seleccionar empresa/sucursal (efecto: side-effect real)
   useEffect(() => {
-    const areasDeEmpresa = areas.filter((a) => String(a.idEmpresa) === String(selectedEmpresa));
-    const areaLista = areasDeEmpresa.length === 0 || !!selectedArea;
     if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal && areaLista) {
       const form = formRef.current;
       if (form) {
@@ -69,50 +92,7 @@ export default function SelectEmpresaSucursal() {
         return () => clearTimeout(timer);
       }
     }
-  }, [puedeSeleccionarEmpresas, selectedEmpresa, selectedSucursal, selectedArea, areas]);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  // Filtrar sucursales cuando se selecciona una empresa
-  useEffect(() => {
-    if (selectedEmpresa) {
-      const filtradas = sucursales.filter((s) => {
-        if (!s.idSucursal || s.idSucursal === undefined) return false;
-        if (!s.idEmpresa || s.idEmpresa === undefined) return false;
-        return String(s.idEmpresa) === String(selectedEmpresa);
-      });
-      setSucursalesFiltradas(filtradas);
-
-      // Auto-seleccionar si solo hay una; si hay varias, conservar la pre-cargada si es valida
-      if (filtradas.length === 1) {
-        const sucursal = filtradas[0];
-        if (sucursal.idSucursal && sucursal.idSucursal !== undefined) {
-          setSelectedSucursal(String(sucursal.idSucursal));
-        }
-      } else if (!filtradas.some((s) => String(s.idSucursal) === selectedSucursal)) {
-        setSelectedSucursal('');
-      }
-    } else {
-      setSucursalesFiltradas([]);
-      setSelectedSucursal('');
-    }
-  }, [selectedEmpresa, sucursales, selectedSucursal]);
-
-  // Filtrar/auto-seleccionar área cuando se selecciona una empresa
-  useEffect(() => {
-    if (!selectedEmpresa) {
-      setSelectedArea('');
-      return;
-    }
-    const filtradas = areas.filter((a) => String(a.idEmpresa) === String(selectedEmpresa));
-    if (filtradas.length === 1) {
-      setSelectedArea(String(filtradas[0].idArea));
-    } else if (selectedArea && !filtradas.some((a) => String(a.idArea) === selectedArea)) {
-      setSelectedArea('');
-    }
-  }, [selectedEmpresa, areas, selectedArea]);
+  }, [puedeSeleccionarEmpresas, selectedEmpresa, selectedSucursal, areaLista]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -182,10 +162,6 @@ export default function SelectEmpresaSucursal() {
 
   const empresaSeleccionada = empresas.find(
     (e) => String(e.idEmpresa) === String(selectedEmpresa)
-  );
-
-  const areasFiltradas = areas.filter(
-    (a) => String(a.idEmpresa) === String(selectedEmpresa)
   );
 
   return (
