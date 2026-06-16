@@ -721,6 +721,15 @@ export default function CrearOrdenCompra() {
   const [numeroMensualidades, setNumeroMensualidades] = useState<number>(1);
   const [formasPago, setFormasPago] = useState<FormaPago[]>([]);
 
+  // Anticipo/Contado = pago unico: numero de pagos fijo en 1 (cubre seleccion y orden cargada)
+  const esFormaPagoUnico = (() => {
+    const f = formasPago.find((fp) => fp.idFormaPago === selectedFormaPagoId);
+    return !!f && /anticipo|contado/i.test(f.nombre);
+  })();
+  useEffect(() => {
+    if (esFormaPagoUnico) setNumeroMensualidades(1);
+  }, [esFormaPagoUnico]);
+
   const obtenerProveedorPorId = async (id: number): Promise<Proveedor | null> => {
     try {
       const response = await API.get<ApiResponse<Proveedor>>(`/catalogos/Proveedores/${id}`);
@@ -1510,7 +1519,8 @@ export default function CrearOrdenCompra() {
                                 type="number"
                                 min={1}
                                 max={48}
-                                value={numeroMensualidades}
+                                value={esFormaPagoUnico ? 1 : numeroMensualidades}
+                                disabled={esFormaPagoUnico}
                                 onChange={(e) => {
                                   const val = parseInt(e.target.value) || 1;
                                   setNumeroMensualidades(Math.max(1, Math.min(48, val)));
@@ -1518,7 +1528,9 @@ export default function CrearOrdenCompra() {
                                 className="w-32"
                               />
                               <p className="text-xs text-muted-foreground">
-                                ¿En cuántos meses se realizará el pago? (1-48 meses)
+                                {esFormaPagoUnico
+                                  ? 'Pago único (anticipo/contado): fijo en 1.'
+                                  : '¿En cuántos meses se realizará el pago? (1-48 meses)'}
                               </p>
                             </div>
                           </div>

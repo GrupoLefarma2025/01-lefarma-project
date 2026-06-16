@@ -131,7 +131,7 @@ export interface AuthState {
   setToken: (token: string) => void;
   setUser: (user: UserInfo) => void;
   initialize: () => void;
-  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal) => void;
+  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => void;
 
   // New actions for 3-step flow
   loginStepOne: (username: string) => Promise<void>;

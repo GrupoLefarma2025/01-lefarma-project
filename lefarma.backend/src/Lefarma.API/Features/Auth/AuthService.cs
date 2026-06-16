@@ -27,8 +27,8 @@ public class AuthService : BaseService, IAuthService
     private readonly JwtSettings _jwtSettings;
     protected override string EntityName => "Auth";
 
-    // ponytail: 60s is enough to redirect + exchange; short window limits the URL-leak risk.
-    private const int HandoffTokenTtlSeconds = 60;
+    // ponytail: 300s covers a redirect chain + manual testing; single-use already limits replay.
+    private const int HandoffTokenTtlSeconds = 300;
 
     public AuthService(
         ApplicationDbContext context,

@@ -284,10 +284,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ sucursal });
   },
 
-  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal) => {
+  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => {
     authService.setEmpresa(empresa);
     authService.setSucursal(sucursal);
-    set({ empresa, sucursal });
+    if (area) authService.setArea(area);
+    set({ empresa, sucursal, ...(area ? { area } : {}) });
   },
 
   setToken: (token: string) => {

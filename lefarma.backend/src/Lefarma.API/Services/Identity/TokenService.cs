@@ -316,7 +316,10 @@ public class TokenService : ITokenService
 
         try
         {
-            var tokenValue = GenerateSecureToken();
+            // URL-safe (base64url): the handoff token travels in a query string, where
+            // base64's '+' decodes to a space and '/'/'=' need escaping. -_ have no such issue.
+            var tokenValue = GenerateSecureToken()
+                .Replace('+', '-').Replace('/', '_').TrimEnd('=');
 
             var handoff = new RefreshToken
             {
@@ -357,17 +360,40 @@ public class TokenService : ITokenService
 
         try
         {
+            // Defensive: if a base64 token's '+' got decoded to a space in transit (URL query),
+            // restore it before hashing. New tokens are url-safe, so this is a no-op for them.
+            token = token.Replace(' ', '+');
             var tokenHash = HashToken(token);
 
             var handoff = await _context.RefreshTokens
                 .Include(rt => rt.Usuario)
                 .FirstOrDefaultAsync(rt => rt.TokenHash == tokenHash, cancellationToken);
 
-            // Same generic error for every failure mode: never reveal why a token was rejected.
-            if (handoff == null || handoff.Scope != HandoffScope || handoff.EsRevocado
-                || handoff.FechaExpiracion < DateTime.UtcNow || handoff.FechaUso != null)
+            // Client always gets the same generic error (no oracle), but the LOG names the exact reason.
+            if (handoff == null)
             {
-                _logger.LogWarning("Handoff token rejected (notFound/scope/revoked/expired/used)");
+                _logger.LogWarning("Handoff rejected: token NOT FOUND (hash mismatch). Received token length={Len}", token.Length);
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+            if (handoff.Scope != HandoffScope)
+            {
+                _logger.LogWarning("Handoff rejected: WRONG SCOPE '{Scope}' for user {UserId}", handoff.Scope, handoff.IdUsuario);
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+            if (handoff.EsRevocado)
+            {
+                _logger.LogWarning("Handoff rejected: REVOKED for user {UserId}", handoff.IdUsuario);
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+            if (handoff.FechaExpiracion < DateTime.UtcNow)
+            {
+                _logger.LogWarning("Handoff rejected: EXPIRED at {Exp} (now {Now}) for user {UserId}",
+                    handoff.FechaExpiracion, DateTime.UtcNow, handoff.IdUsuario);
+                return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
+            }
+            if (handoff.FechaUso != null)
+            {
+                _logger.LogWarning("Handoff rejected: ALREADY USED at {Used} for user {UserId}", handoff.FechaUso, handoff.IdUsuario);
                 return CommonErrors.Validation("token", "Token de handoff invalido o expirado");
             }
 

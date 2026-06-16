@@ -128,6 +128,16 @@ export default function Login() {
     }
   }, [requiresDomainSelection, availableDomains]);
 
+  // Pre-cargar empresa/sucursal/area del usuario como DEFAULT cuando puede seleccionar
+  // (cuando no puede, ya se resuelven via autoSelected*). Editable: solo siembra valores.
+  useEffect(() => {
+    if (loginStep === 3 && puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
+      if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
+      if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
+      if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
+    }
+  }, [loginStep, puedeSeleccionarEmpresas, usuarioDetalle, selectedEmpresa]);
+
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
     setError('');
