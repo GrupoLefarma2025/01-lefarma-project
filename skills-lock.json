@@ -51,6 +51,7 @@
     "dotnet-best-practices": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
+      "skillPath": "skills/dotnet-best-practices/SKILL.md",
       "computedHash": "9ef94db7f06c167d544369817e5a4415eeb7886dcff0d47026837a1aada260e3"
     },
     "dotnet-core-expert": {
@@ -62,6 +63,12 @@
       "source": "hieutrtr/ai1-skills",
       "sourceType": "github",
       "computedHash": "589373c5db3a01dcb5dfdd22b8fa7a07ee4b6650056c08742227d5e8996eaa03"
+    },
+    "ef-core": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/ef-core/SKILL.md",
+      "computedHash": "23f0a7c7e8c050337d67303f0af339da1ab8f0aa6a334f13112c3f85250c329c"
     },
     "efcore-patterns": {
       "source": "aaronontheweb/dotnet-skills",
