@@ -21,6 +21,12 @@
       "sourceType": "github",
       "computedHash": "a3b5b920d92339e73b46ea95333646d7d37c868a990be573d5f64bfb27792ea4"
     },
+    "clerk-react-router-patterns": {
+      "source": "clerk/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frameworks/clerk-react-router-patterns/SKILL.md",
+      "computedHash": "43e707b42ad44fc6d7f7b97656903e038edb8f4573c344a7e47fac4a6491e4de"
+    },
     "create-pull-request": {
       "source": "cline/cline",
       "sourceType": "github",
