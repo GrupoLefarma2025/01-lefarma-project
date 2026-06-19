@@ -506,7 +506,14 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/media/archivos",
     OnPrepareResponse = ctx =>
     {
-        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        //ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        // OPCIÓN A: Para desarrollo (No guarda caché)
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+
+        // OPCIÓN B: Guardar caché pero obligar al navegador a preguntar al servidor si cambió (Recomendado)
+        // ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=0, must-revalidate");
     }
 });
 
