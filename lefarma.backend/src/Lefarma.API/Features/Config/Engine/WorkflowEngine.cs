@@ -112,7 +112,7 @@ namespace Lefarma.API.Features.Config.Engine
             var snapshot = new Dictionary<string, object?>
             {
                 ["idWorkflow"] = workflow.IdWorkflow,
-                ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
+                ["idPasoAnterior"] = accion.PasoOrigen?.IdPaso,
                 ["idPasoNuevo"] = nuevoPaso?.IdPaso,
                 ["idEstadoNuevo"] = nuevoPaso?.IdEstado,
                 ["datosAdicionales"] = ctx.DatosAdicionales
@@ -122,7 +122,7 @@ namespace Lefarma.API.Features.Config.Engine
             {
                 IdOrden = ctx.IdOrden,
                 IdWorkflow = workflow.IdWorkflow,
-                IdPaso = nuevoPaso?.IdPaso ?? accion.PasoOrigen.IdPaso,
+                IdPaso = nuevoPaso?.IdPaso ?? accion.PasoOrigen!.IdPaso,
                 IdAccion = accion.IdAccion,
                 IdUsuario = ctx.IdUsuario,
                 Comentario = ctx.Comentario,

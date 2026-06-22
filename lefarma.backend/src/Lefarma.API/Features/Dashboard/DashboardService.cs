@@ -163,7 +163,7 @@ namespace Lefarma.API.Features.Dashboard
 
             return ocData
                 .GroupBy(oc => empresas.TryGetValue(oc.IdEmpresa, out var nombre) ? nombre : "Sin empresa")
-                .Select(g => new DistribucionItem { Name = g.Key, Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
+                .Select(g => new DistribucionItem { Name = g.Key ?? "Sin empresa", Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
                 .OrderByDescending(x => x.Value)
                 .Take(8)
                 .ToList();
@@ -181,7 +181,7 @@ namespace Lefarma.API.Features.Dashboard
 
             return ocData
                 .GroupBy(oc => sucursales.TryGetValue(oc.IdSucursal, out var nombre) ? nombre : "Sin sucursal")
-                .Select(g => new DistribucionItem { Name = g.Key, Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
+                .Select(g => new DistribucionItem { Name = g.Key ?? "Sin sucursal", Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
                 .OrderByDescending(x => x.Value)
                 .Take(8)
                 .ToList();
@@ -284,7 +284,7 @@ namespace Lefarma.API.Features.Dashboard
                     : "Accion desconocida";
 
                 var tipoAccion = acciones.TryGetValue(b.IdAccion, out var ac)
-                    ? MapTipo(ac.CodigoTipoAccion)
+                    ? MapTipo(ac.CodigoTipoAccion ?? "")
                     : "info";
 
                 var folio = ordenes.TryGetValue(b.IdOrden, out var oc)
@@ -295,7 +295,7 @@ namespace Lefarma.API.Features.Dashboard
                 {
                     Id = b.IdEvento,
                     Usuario = usuarioNombre,
-                    Accion = accionNombre,
+                    Accion = accionNombre ?? "Acción desconocida",
                     Entidad = folio,
                     FechaEvento = b.FechaEvento,
                     Tipo = tipoAccion

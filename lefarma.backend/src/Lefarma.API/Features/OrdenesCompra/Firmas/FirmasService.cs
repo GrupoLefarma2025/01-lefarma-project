@@ -241,18 +241,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
                     additionalContext: new Dictionary<string, object>
                     {
-                        ["estadoAnterior"] = estadoAnterior,
+                        ["estadoAnterior"] = estadoAnterior ?? string.Empty,
                         ["nuevoEstado"] = orden.IdEstado,
                         ["idAccion"] = request.IdAccion,
-                        ["idPasoDestino"] = resultado.NuevoIdPaso,
-                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
+                        ["idPasoDestino"] = resultado.NuevoIdPaso ?? 0,
+                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion ?? 0
                     });
 
                 return new FirmarResponse
                 {
                     Exitoso = true,
                     Folio = orden.Folio,
-                    EstadoAnterior = estadoAnterior,
+                    EstadoAnterior = estadoAnterior ?? string.Empty,
                     NuevoEstado = orden.IdEstado.ToString(),
                     Mensaje = $"Acción ejecutada exitosamente. Estado: {orden.Estado}"
                 };

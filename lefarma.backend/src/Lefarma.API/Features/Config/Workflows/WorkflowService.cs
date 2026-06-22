@@ -577,7 +577,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (request.IdEstado.HasValue
                     && workflow.Pasos.Any(p => p.IdEstado == request.IdEstado))
                 {
-                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.ToString());
+                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.Value.ToString());
                 }
 
                 var paso = new WorkflowPaso
@@ -1050,7 +1050,7 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 // Buscar condicion directamente por ID
                 var condicion = await _context.WorkflowCondiciones
-                    .Include(c => c.Accion).ThenInclude(a => a.PasoOrigen)
+                    .Include(c => c.Accion).ThenInclude(a => a!.PasoOrigen)
                     .FirstOrDefaultAsync(c => c.IdCondicion == idCondicion);
 
                 if (condicion == null)
