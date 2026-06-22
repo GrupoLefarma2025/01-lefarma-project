@@ -1,134 +1,101 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
-// Mutable auth state read by the mocked store on each render. Tests flip
-// `isAuthenticated` directly. The `mock`-prefix lets Vitest's hoisted vi.mock
-// factory legally reference this top-level binding.
-const mockAuthState = { isAuthenticated: false };
-
-vi.mock('@/shared/auth/authStore', () => ({
-  useAuthStore: vi.fn(
-    <T,>(selector: (state: { isAuthenticated: boolean }) => T): T =>
-      selector(mockAuthState)
-  ),
+// Real authStore is used; tests flip `isAuthenticated` directly via setState.
+vi.mock('@/shared/api/apiClient', () => ({
+  API: {
+    get: vi.fn().mockResolvedValue({ data: { success: true, data: null } }),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
+  proveedorApi: { autorizar: vi.fn(), rechazar: vi.fn(), bulkUpload: vi.fn() },
+  default: {
+    get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+  },
 }));
 
 import { RequireAuth } from '@/shared/auth/RequireAuth';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 /**
- * jsdom's window.location is a non-mockable Location in many versions. We replace
- * it with a configurable stub so RequireAuth's `window.location.href = ...` can be
- * observed without triggering jsdom's "navigation not implemented" error.
+ * Foundation test (updated for PR2.6): RequireAuth now uses `<Navigate>` instead
+ * of `window.location.href`. We assert the redirect by mounting the guard inside
+ * a `MemoryRouter` with explicit destination routes — the destination route
+ * renders when `<Navigate>` resolves, and the protected subtree never renders.
  */
-interface LocationStub {
-  href: string;
-  pathname: string;
-  search: string;
-  hash: string;
-  origin: string;
-  assign: ReturnType<typeof vi.fn>;
-  replace: ReturnType<typeof vi.fn>;
-  reload: ReturnType<typeof vi.fn>;
-}
-
-function stubLocation(pathname: string, search = ''): LocationStub {
-  const stub: LocationStub = {
-    href: `http://localhost${pathname}${search}`,
-    pathname,
-    search,
-    hash: '',
-    origin: 'http://localhost',
-    assign: vi.fn(),
-    replace: vi.fn(),
-    reload: vi.fn(),
-  };
-  Object.defineProperty(window, 'location', {
-    configurable: true,
-    value: stub,
-  });
-  return stub;
-}
-
-function renderWithRouter(ui: ReactNode) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
+function renderGuard(initialPath: string, props: { children?: ReactNode; loginPath?: string }) {
+  return render(
+    <MemoryRouter initialEntries={[initialPath]}>
+      <Routes>
+        <Route
+          path="/CxP/perfil"
+          element={
+            <RequireAuth loginPath={props.loginPath}>
+              {props.children ?? <div>secret-dashboard</div>}
+            </RequireAuth>
+          }
+        />
+        <Route path="/login" element={<div>LOGIN_DESTINATION</div>} />
+        <Route path="/alt-login" element={<div>ALT_LOGIN_DESTINATION</div>} />
+      </Routes>
+    </MemoryRouter>
+  );
 }
 
 describe('RequireAuth — app-routing guard', () => {
-  let originalLocation: Location;
-  let locationStub: LocationStub;
-
   beforeEach(() => {
-    originalLocation = window.location;
-    locationStub = stubLocation('/CxP/perfil');
-    mockAuthState.isAuthenticated = false;
+    localStorage.clear();
+    useAuthStore.setState({ isAuthenticated: false });
   });
 
-  afterEach(() => {
-    Object.defineProperty(window, 'location', {
-      configurable: true,
-      value: originalLocation,
-    });
-    vi.clearAllMocks();
-  });
+  it('Scenario: Unauthenticated user is redirected to login via <Navigate>', () => {
+    renderGuard('/CxP/perfil', {});
 
-  it('Scenario: Unauthenticated user is redirected to login and the return URL is preserved', () => {
-    // Protected content that must never render for an unauthenticated session.
-    renderWithRouter(
-      <RequireAuth>
-        <div>secret-dashboard</div>
-      </RequireAuth>
-    );
-
-    // The guard redirects via full-page nav to the existing root login, carrying
-    // the protected route's full path (incl. basename) as the `return` param.
-    const expectedReturn = encodeURIComponent('/CxP/perfil');
-    expect(locationStub.href).toBe(`/login?return=${expectedReturn}`);
+    // The /login destination route rendered via <Navigate to="/login" replace/>.
+    expect(screen.getByText('LOGIN_DESTINATION')).toBeInTheDocument();
     // Protected subtree must not be rendered.
     expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();
   });
 
   it('Scenario: Authenticated user passes through and no redirect occurs', () => {
-    mockAuthState.isAuthenticated = true;
+    useAuthStore.setState({ isAuthenticated: true });
 
-    renderWithRouter(
-      <RequireAuth>
-        <div>secret-dashboard</div>
-      </RequireAuth>
-    );
+    renderGuard('/CxP/perfil', {});
 
-    // No redirect: href stays at its initial value.
-    expect(locationStub.href).toBe('http://localhost/CxP/perfil');
-    // Children render normally.
+    // Children render normally; no redirect to /login.
     expect(screen.getByText('secret-dashboard')).toBeInTheDocument();
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('Scenario: Guard checks authentication, not context selection (authed without empresa/sucursal/area context still passes)', () => {
-    // Authenticated, but NO empresa/sucursal/area context selected. The guard MUST
-    // NOT block on context — context is deferred to per-app logic (base-app spec:
-    // "No Global Context Assumption").
-    mockAuthState.isAuthenticated = true;
+    // Authenticated, but explicitly NO empresa/sucursal/area context. The guard
+    // MUST NOT block on context — context is deferred to per-app logic (base-app
+    // spec: "No Global Context Assumption").
+    useAuthStore.setState({
+      isAuthenticated: true,
+      empresa: null,
+      sucursal: null,
+      area: null,
+    });
 
-    renderWithRouter(
-      <RequireAuth>
-        <div>shell-home</div>
-      </RequireAuth>
-    );
+    renderGuard('/CxP/perfil', { children: <div>shell-home</div> });
 
-    expect(locationStub.href).toBe('http://localhost/CxP/perfil');
     expect(screen.getByText('shell-home')).toBeInTheDocument();
+    expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('honors a custom loginPath when provided', () => {
-    locationStub = stubLocation('/CxP/', '');
+    renderGuard('/CxP/perfil', { loginPath: '/alt-login' });
 
-    renderWithRouter(
-      <RequireAuth loginPath="/alt-login">
-        <div>never</div>
-      </RequireAuth>
-    );
-
-    expect(locationStub.href).toBe(`/alt-login?return=${encodeURIComponent('/CxP/')}`);
+    expect(screen.getByText('ALT_LOGIN_DESTINATION')).toBeInTheDocument();
+    expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();
   });
 });

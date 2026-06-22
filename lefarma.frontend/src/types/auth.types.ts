@@ -135,7 +135,20 @@ export interface AuthState {
 
   // New actions for 3-step flow
   loginStepOne: (username: string) => Promise<void>;
-  loginStepTwo: (password: string, domain: string) => Promise<void>;
+  /**
+   * Validate credentials and either advance to step 3 (default Gastos flow) or
+   * finalize the session (global 2-step flow).
+   *
+   * @param options.requireContextSelection When `false`, marks the session
+   *   authenticated right after credentials and SKIPS the empresa/sucursal/area
+   *   load. Used by the global `/CxP/login` flow. Default behavior (no option)
+   *   preserves the 3-step Gastos flow.
+   */
+  loginStepTwo: (
+    password: string,
+    domain: string,
+    options?: { requireContextSelection?: boolean }
+  ) => Promise<void>;
   loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
   resetLoginFlow: () => void;
 

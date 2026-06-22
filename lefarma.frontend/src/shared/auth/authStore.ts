@@ -69,7 +69,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  loginStepTwo: async (password: string, domain: string) => {
+  loginStepTwo: async (
+    password: string,
+    domain: string,
+    options?: { requireContextSelection?: boolean }
+  ) => {
     const { pendingUsername } = get();
     if (!pendingUsername) {
       throw new Error('No hay usuario pendiente');
@@ -84,6 +88,32 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
 
       sessionStorage.removeItem('loginFlow');
+
+      // Sync display profile consumed by the shell layout / header.
+      useConfigStore.getState().updatePerfil({
+        nombre: response.user.nombre || '',
+        correo: response.user.correo || '',
+      });
+
+      // Global 2-step login (e.g. `/CxP/login`): finalize the session right
+      // after credentials. Step-3 context data (empresas/sucursales/areas) is
+      // intentionally NOT loaded so the global flow never enters partial
+      // context state — context is owned by per-app logic (base-app spec:
+      // "No Global Context Assumption").
+      if (options?.requireContextSelection === false) {
+        set({
+          user: response.user,
+          token: response.accessToken,
+          isAuthenticated: true,
+          isLoading: false,
+          loginStep: 1,
+          availableDomains: [],
+          requiresDomainSelection: false,
+          displayName: null,
+          pendingUsername: null,
+        });
+        return;
+      }
 
       // Cargar empresas y sucursales para el paso 3
       const [empresas, sucursales, areas] = await Promise.all([

@@ -102,3 +102,24 @@ The routing capability SHALL support mounting an app subtree under the prefix wi
 - GIVEN the Gastos subtree registered under `/CxP/gastos/`
 - WHEN a user navigates to a route inside that subtree
 - THEN routing resolves within the subtree with the shell layout and guard unchanged
+
+### Requirement: `/CxP/` Deployment Prefix
+
+The SPA SHALL be deployable under the `/CxP/` IIS virtual application prefix. Built asset URLs SHALL resolve relative to `/CxP/`, and client-side routing SHALL treat `/CxP/` as the route root.
+(Previously: /CxP/ was the shell Home launcher; now it is a redirect — shell home moved to /CxP/hub.)
+
+#### Scenario: Built assets use the prefix
+
+- GIVEN a production build of the SPA
+- WHEN the build output is served from the `/CxP/` virtual application
+- THEN every referenced asset URL begins with `/CxP/`
+- AND deep links reload correctly without 404 on refresh
+
+#### Scenario: Router treats prefix as root
+
+- GIVEN the SPA loaded at `/CxP/`
+- WHEN the router resolves the active route
+- THEN the prefix `/CxP/` still reaches the SPA and the router treats it as the route root
+- AND the index `/CxP/` is a redirect, not the home surface
+- AND child routes resolve as `/CxP/{child}`
+- AND the shell home is `/CxP/hub`

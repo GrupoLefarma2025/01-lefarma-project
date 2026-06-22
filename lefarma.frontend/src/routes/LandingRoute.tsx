@@ -9,40 +9,69 @@ const PageLoader = () => (
   </div>
 );
 
-export const LandingRoute = () => {
+export interface LandingRouteProps {
+  /**
+   * Where authenticated users land from the root index. Defaults to
+   * '/dashboard' to preserve the historical root-build behavior. The shell
+   * subtree does not render <LandingRoute/> (it uses its own index resolver).
+   */
+  authenticatedRedirect?: string;
+}
+
+export const LandingRoute = ({ authenticatedRedirect = '/dashboard' }: LandingRouteProps = {}) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
 
   if (!isInitialized) return <PageLoader />;
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={authenticatedRedirect} replace />;
   }
 
   return <Hero />;
 };
 
-export const ProtectedRoute = () => {
+export interface ProtectedRouteProps {
+  /**
+   * Where unauthenticated users are sent. Defaults to '/' (the Hero landing) to
+   * preserve the historical root-build behavior — the landing itself presents
+   * the login entry. The shell subtree overrides this with its per-app login.
+   */
+  unauthRedirect?: string;
+}
+
+export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {}) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
 
   if (!isInitialized) return <PageLoader />;
 
   if (!isAuthenticated) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={unauthRedirect} replace />;
   }
 
   return <Outlet />;
 };
 
-export const PublicOnlyRoute = () => {
+export interface PublicOnlyRouteProps {
+  /**
+   * Where authenticated users are sent when they hit a public-only route (e.g.
+   * the login page). Defaults to '/dashboard' (root behavior). The shell
+   * subtree overrides this with a subtree-relative destination.
+   */
+  authenticatedRedirect?: string;
+}
+
+export const PublicOnlyRoute = ({
+  authenticatedRedirect = '/dashboard',
+}: PublicOnlyRouteProps = {}) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
 
   if (!isInitialized) return <PageLoader />;
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={authenticatedRedirect} replace />;
   }
 
   return <Outlet />;

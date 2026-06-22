@@ -32,7 +32,25 @@ const DOMAIN_NAMES: Record<string, string> = {
   DC: 'Distribuidora Central',
 };
 
-export default function Login() {
+export interface LoginProps {
+  /**
+   * When `true` (default), present the 3-step flow that collects
+   * empresa/sucursal/area context after credentials (Gastos login).
+   * When `false`, the session is finalized right after credentials and the
+   * context-selection step is cleanly skipped (global `/CxP/login` flow).
+   */
+  requireContextSelection?: boolean;
+  /**
+   * Post-login navigation target. Defaults to `'dashboard'` (the Gastos
+   * landing). The global login overrides this with `'/hub'`.
+   */
+  redirectTo?: string;
+}
+
+export default function Login({
+  requireContextSelection = true,
+  redirectTo = 'dashboard',
+}: LoginProps = {}) {
   const navigate = useNavigate();
   const {
     loginStep,
@@ -160,8 +178,8 @@ export default function Login() {
       window.location.href = safeReturn;
       return;
     }
-    navigate('/dashboard', { replace: true });
-  }, [isAuthenticated, navigate, safeReturn]);
+    navigate(redirectTo, { replace: true });
+  }, [isAuthenticated, navigate, safeReturn, redirectTo]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
@@ -197,7 +215,7 @@ export default function Login() {
     const domain = requiresDomainSelection ? selectedDomain : availableDomains[0];
 
     try {
-      await loginStepTwo(password, domain);
+      await loginStepTwo(password, domain, { requireContextSelection });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Credenciales incorrectas';
       setError(message);
@@ -234,7 +252,7 @@ export default function Login() {
         window.location.href = safeReturn;
         return;
       }
-      navigate('/dashboard', { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
       setError(message);
