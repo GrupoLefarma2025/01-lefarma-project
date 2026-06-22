@@ -1,31 +1,8 @@
 import { NavLink } from 'react-router-dom';
-import type { ElementType } from 'react';
 import {
-  LayoutDashboard,
-  Shield,
-  Key,
-  User,
   ChevronRight,
-  Database,
-  Store,
-  // Wallet,
-  Ruler,
-  Users,
-  CreditCard,
-  FileCheck2,
-  Bell,
-  MapPin,
-  FileText,
-  List,
-  Building,
-  UserCircle,
+  User,
   LogOut,
-  HelpCircle,
-  GitBranch,
-  ShoppingCart,
-  Receipt,
-  Send,
-  Wallet,
 } from 'lucide-react';
 
 import {
@@ -53,142 +30,27 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/shared/auth/authStore';
 import favicon from '@/assets/favicon.ico';
-import type { PermissionCheckOptions } from '@/utils/permissions';
 import { checkPermission } from '@/utils/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import type { SidebarMenuItemConfig, CollapsibleMenuItem } from '@/components/layout/sidebar-types';
 
-interface MenuItemBase {
-  title: string;
-  icon: ElementType;
-  permission?: PermissionCheckOptions;
-}
-
-interface MenuItem extends MenuItemBase {
-  path: string;
-}
-
-interface CollapsibleMenuItem extends MenuItemBase {
-  isCollapsible: true;
-  items: MenuItem[];
-}
-
-type SidebarMenuItemConfig = MenuItem | CollapsibleMenuItem;
-
-function hasPermission(permission?: PermissionCheckOptions): boolean {
+function hasPermission(permission?: Parameters<typeof checkPermission>[0]): boolean {
   if (!permission) return true;
   return checkPermission(permission);
 }
 
-const menuItems: SidebarMenuItemConfig[] = [
-  {
-    title: 'Dashboard',
-    icon: LayoutDashboard,
-    path: '/dashboard',
-  },
-  {
-    title: 'Admin',
-    icon: Shield,
-    isCollapsible: true,
-    items: [
-      // { title: 'Usuarios', icon: User, path: '/seguridad/usuarios', permission: { requireAny: ['usuarios.ver_detalle', 'usuarios.manage'] } },
-      {
-        title: 'Usuarios',
-        icon: Users,
-        path: '/seguridad/usuarios',
-        permission: { require: 'usuarios.ver_listado' },
-      },
-      {
-        title: 'Roles',
-        icon: Users,
-        path: '/seguridad/roles',
-        permission: { require: 'roles.ver_listado' },
-      },
-      { title: 'Permisos', 
-        icon: Key, 
-        path: '/seguridad/permisos',
-        permission: { require: 'permisos.ver_listado' },
-      },
-    ],
-  },
-  {
-    title: 'Catálogos',
-    icon: Database,
-    isCollapsible: true,
-    items: [
-      { title: 'Empresas', icon: Building, path: '/catalogos/empresas',
-        permission: { require: 'empresas.ver_listado' }
-       },
-      { title: 'Sucursales', icon: Store, path: '/catalogos/sucursales',
-        permission: { require: 'sucursales.ver_listado' }
-      },
-      { title: 'Áreas', icon: Database, path: '/catalogos/areas',
-        permission: { require: 'areas.ver_listado' }
-      },
-      { title: 'Tipos de Gasto', icon: Wallet, path: '/catalogos/tipos-gasto',
-        permission: { require: 'tipos-gasto.ver_listado' }
-      },
-      { title: 'Medidas', icon: Ruler, path: '/catalogos/medidas',
-        permission: { require: 'medidas.ver_listado' }
-      },
-      { title: 'Formas de Pago', icon: CreditCard, path: '/catalogos/formas-pago',
-        permission: { require: 'formas-pago.ver_listado' }
-      },
-      { title: 'Tipos de Impuesto', icon: Receipt, path: '/catalogos/tipos-impuesto',
-        permission: { require: 'tipos-impuesto.ver_listado' }
-      },
-      { title: 'Centros de Costo', icon: MapPin, path: '/catalogos/centros-costo',
-        permission: { require: 'centros-costo.ver_listado' }
-      },
-      { title: 'Cuentas Contables', icon: FileText, path: '/catalogos/cuentas-contables',
-        permission: { require: 'cuentas-contables.ver_listado' }
-      },
-      { title: 'Estatus de Orden', icon: List, path: '/catalogos/estatus-orden',
-        permission: { require: 'estatus-orden.ver_listado' }
-      },
-      { title: 'Proveedores', icon: Building, path: '/catalogos/proveedores',
-        permission: { require: 'proveedores.ver_listado' }
-      },
-      { title: 'Regímenes Fiscales', icon: UserCircle, path: '/catalogos/regimenes-fiscales',
-        permission: { require: 'regimenes-fiscales.ver_listado' }
-      },
-    ],
-  },
-  {
-    title: 'Órdenes de compra',
-    icon: ShoppingCart,
-    isCollapsible: true,
-    items: [
-      { title: 'Crear orden', icon: FileText, path: '/ordenes/crear',
-        permission: { require: 'ordenes.crear' }
-       },
-      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/ordenes/autorizaciones',
-        permission: { require: 'ordenes.ver_listado' }
-       },
-      { title: 'Concentrado de órdenes', icon: Send, path: '/ordenes/envio-concentrado',
-        permission: { require: 'ordenes.envio_concentrado' }
-      },
-    ],
-  },
-  {
-    title: 'Notificaciones',
-    icon: Bell,
-    path: '/notificaciones',
-    permission: { require: 'notificaciones.ver_listado' },
-  },
-  {
-    title: 'Workflows',
-    icon: GitBranch,
-    path: '/workflows',
-    permission: { require: 'workflows.ver_listado' },
-  },
-  {
-    title: 'Ayuda',
-    icon: HelpCircle,
-    path: '/help',
-  },
-];
+export interface AppSidebarProps {
+  /** Navigation menu items for this app. */
+  items: SidebarMenuItemConfig[];
+  /** Brand text shown in the sidebar header (e.g. "Grupo Lefarma CxP"). */
+  brandTitle: string;
+  /** Where the header logo links to (e.g. "/cxp/dashboard"). */
+  brandPath: string;
+  /** Optional user-config link in the footer (e.g. "/cxp/configuracion"). */
+  configPath?: string;
+}
 
-export function AppSidebar() {
+export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSidebarProps) {
   const { user, logout, hasFirma } = useAuthStore();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
@@ -269,19 +131,43 @@ export function AppSidebar() {
     );
   };
 
+  const footerUserContent = (
+    <>
+      <span className="relative">
+        <User className="h-4 w-4" />
+        {hasFirma === false && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">
+                <p>Falta subir firma digital</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
+      </span>
+      <span>{user?.nombre || 'Usuario'}</span>
+    </>
+  );
+
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <NavLink to="/dashboard">
+              <NavLink to={brandPath}>
                 <div className="rounded-lg bg-primary p-1">
                   <img src={favicon} alt="LeFarma" className="h-5 w-5" />
                 </div>
                 {!isCollapsed && (
                   <div className="flex flex-col gap-0.5 leading-none">
-                    <span className="font-bold text-white">Grupo Lefarma CxP</span>
+                    <span className="font-bold text-white">{brandTitle}</span>
                     <span className="text-xs text-white">v1.0.0</span>
                   </div>
                 )}
@@ -295,7 +181,7 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel>Navegación</SidebarGroupLabel>
           <SidebarMenu>
-            {menuItems.map((item) => {
+            {items.map((item) => {
               if ('isCollapsible' in item) {
                 return <div key={item.title}>{renderCollapsibleItem(item)}</div>;
               }
@@ -324,31 +210,20 @@ export function AppSidebar() {
 
       <SidebarFooter>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="sm" asChild tooltip="Configuración">
-              <NavLink to="/configuracion">
-                <span className="relative">
-                  <User className="h-4 w-4" />
-                  {hasFirma === false && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="absolute -right-1 -top-1 flex h-2.5 w-2.5">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
-                            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-amber-500" />
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="text-xs">
-                          <p>Falta subir firma digital</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </span>
-                <span>{user?.nombre || 'Usuario'}</span>
-              </NavLink>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+          {configPath && (
+            <SidebarMenuItem>
+              <SidebarMenuButton size="sm" asChild tooltip="Configuración">
+                <NavLink to={configPath}>{footerUserContent}</NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
+          {!configPath && (
+            <SidebarMenuItem>
+              <SidebarMenuButton size="sm" tooltip="Usuario">
+                {footerUserContent}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           <SidebarMenuItem>
             <SidebarMenuButton size="sm" onClick={handleLogout} tooltip="Cerrar Sesión">
               <LogOut className="h-4 w-4" />

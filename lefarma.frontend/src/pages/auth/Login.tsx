@@ -183,7 +183,7 @@ export default function Login({
     // Honor a same-origin return target if present; otherwise default to the
     // configured redirect (CxP dashboard or /hub for the global login).
     if (safeReturn) {
-      window.location.href = safeReturn;
+      navigate(safeReturn, { replace: true });
       return;
     }
     navigate(redirectTo, { replace: true });
@@ -258,7 +258,7 @@ export default function Login({
       // Honor a same-origin return target if present; otherwise default to the
       // configured redirect (CxP dashboard).
       if (safeReturn) {
-        window.location.href = safeReturn;
+        navigate(safeReturn, { replace: true });
         return;
       }
       navigate(redirectTo, { replace: true });

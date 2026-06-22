@@ -19,7 +19,18 @@ import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
-export const Header = () => {
+export interface HeaderProps {
+  /**
+   * Show empresa/sucursal/area context info and the "Cambiar Ubicación"
+   * modal. CxP sets true (3-step login collects context); RH and other
+   * apps default false (no context).
+   */
+  showContext?: boolean;
+  /** Configuración page path (e.g. "/cxp/configuracion"). Omit to hide. */
+  configPath?: string;
+}
+
+export const Header = ({ showContext = false, configPath }: HeaderProps = {}) => {
   const { user, empresa, sucursal, area, hasFirma, logout } = useAuthStore();
   const { title, subtitle } = usePageStore();
   const { ui, setTema } = useConfigStore();
@@ -34,7 +45,6 @@ export const Header = () => {
 
   const handleLogout = async () => {
     await logout();
-    // logout() ya hace redirect a /login, no necesitamos navegar aquí
   };
 
   const getThemeIcon = () => {
@@ -50,32 +60,34 @@ export const Header = () => {
 
   return (
     <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${hasFirma === false ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
-      {/* Left side: Toggle + Location Info (hidden on mobile) */}
+      {/* Left side: Toggle + Location Info */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
 
-        {/* Empresa + Sucursal: md+ only */}
-        <div className="hidden md:flex items-center gap-4">
-          <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-2 text-sm">
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-            <span className="text-foreground font-medium">{empresa?.nombre || 'Sin empresa'}</span>
+        {/* Empresa + Sucursal + Area: only when app uses context (CxP) */}
+        {showContext && (
+          <div className="hidden md:flex items-center gap-4">
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2 text-sm">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <span className="text-foreground font-medium">{empresa?.nombre || 'Sin empresa'}</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2 text-sm">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
+            </div>
+            {area && (
+              <>
+                <div className="h-4 w-px bg-border" />
+                <div className="flex items-center gap-2 text-sm">
+                  <Layers className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-muted-foreground">{area.nombre}</span>
+                </div>
+              </>
+            )}
           </div>
-          <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-2 text-sm">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
-          </div>
-          {area && (
-            <>
-              <div className="h-4 w-px bg-border" />
-              <div className="flex items-center gap-2 text-sm">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span className="text-muted-foreground">{area.nombre}</span>
-              </div>
-            </>
-          )}
-        </div>
+        )}
 
         {hasFirma === false && (
           <div className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
@@ -124,10 +136,10 @@ export const Header = () => {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notification Bell - always visible */}
+        {/* Notification Bell */}
         <NotificationBell onError={(error) => console.error('Notification error:', error)} />
 
-        {/* User Menu - avatar only (compact) */}
+        {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
@@ -137,7 +149,6 @@ export const Header = () => {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            {/* User Info */}
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
@@ -148,50 +159,56 @@ export const Header = () => {
 
             <DropdownMenuSeparator />
 
-            {/* Current Location Info (mobile-friendly) */}
-            <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-3 w-3" />
-                <span className="truncate">{empresa?.nombre || 'Sin empresa'}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-3 w-3" />
-                <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
-              </div>
-              {area && (
+            {/* Current Location Info (mobile-friendly) — only for context apps */}
+            {showContext && (
+              <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
                 <div className="flex items-center gap-2">
-                  <Layers className="h-3 w-3" />
-                  <span className="truncate">{area.nombre}</span>
+                  <Building2 className="h-3 w-3" />
+                  <span className="truncate">{empresa?.nombre || 'Sin empresa'}</span>
                 </div>
-              )}
-              <div className="flex items-center gap-2">
-                <PenLine className="h-3 w-3" />
-                {hasFirma === true ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
-                ) : hasFirma === false ? (
-                  <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" />
-                    Sin firma digital
-                  </span>
-                ) : (
-                  <span>Verificando firma...</span>
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-3 w-3" />
+                  <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
+                </div>
+                {area && (
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-3 w-3" />
+                    <span className="truncate">{area.nombre}</span>
+                  </div>
                 )}
+                <div className="flex items-center gap-2">
+                  <PenLine className="h-3 w-3" />
+                  {hasFirma === true ? (
+                    <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
+                  ) : hasFirma === false ? (
+                    <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                      <AlertTriangle className="h-3 w-3" />
+                      Sin firma digital
+                    </span>
+                  ) : (
+                    <span>Verificando firma...</span>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
 
-            <DropdownMenuSeparator />
+            {showContext && <DropdownMenuSeparator />}
 
             {/* Actions */}
-            <DropdownMenuItem onClick={() => navigate('/configuracion')}>
-              <User className="mr-2 h-4 w-4" />
-              <span>Configuración</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setModalOpen(true)}>
-              <Building2 className="mr-2 h-4 w-4" />
-              <span>Cambiar Ubicación</span>
-            </DropdownMenuItem>
+            {configPath && (
+              <DropdownMenuItem onClick={() => navigate(configPath)}>
+                <User className="mr-2 h-4 w-4" />
+                <span>Configuración</span>
+              </DropdownMenuItem>
+            )}
+            {showContext && (
+              <DropdownMenuItem onClick={() => setModalOpen(true)}>
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Cambiar Ubicación</span>
+              </DropdownMenuItem>
+            )}
 
-            <DropdownMenuSeparator />
+            {(configPath || showContext) && <DropdownMenuSeparator />}
 
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
@@ -201,7 +218,7 @@ export const Header = () => {
         </DropdownMenu>
       </div>
 
-      <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />
+      {showContext && <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />}
     </header>
   );
 };
