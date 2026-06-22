@@ -44,8 +44,8 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Catalogos
                 .HasDefaultValue(1m);
 
             builder.Property(e => e.PosicionIzquierda)
-              .HasColumnName("posicion_izquierda")
-              .HasDefaultValue(true);
+                .HasColumnName("posicion_izquierda")
+                .HasDefaultValue(true);
 
             builder.Property(e => e.EsDefault)
                 .HasColumnName("es_default")
