@@ -5,20 +5,21 @@ import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 
 /**
- * gastos-migration PR2.1 + PR2.3 + PR2.5 RED tests.
+ * Auth flow tests: loginStepTwo option, Login config-driven step count, and
+ * RequireAuth subtree-aware redirect.
  *
  * Coverage:
- * - authStore.loginStepTwo option `{ requireContextSelection }` (PR2.3):
+ * - authStore.loginStepTwo option `{ requireContextSelection }`:
  *     * default (no option) preserves 3-step flow + loads step-3 data.
  *     * `requireContextSelection:false` authenticates immediately, skips step-3
  *       load, leaves no partial context state.
- * - Login config-driven step count (PR2.1):
+ * - Login config-driven step count:
  *     * default (requireContextSelection=true) presents context step 3.
  *     * global (requireContextSelection=false, redirectTo='/hub') cleanly skips
  *       step 3 and redirects to /hub.
- * - RequireAuth subtree-aware redirect (PR2.1/PR2.5):
+ * - RequireAuth subtree-aware redirect:
  *     * default loginPath redirects to /login.
- *     * custom loginPath '/gastos/login' redirects there.
+ *     * custom loginPath '/cxp/login' redirects there.
  *     * authed session passes through (auth-only check).
  *
  * Mock strategy: real authStore + real router. Only the HTTP edges
@@ -239,7 +240,7 @@ describe('Login — config-driven step count (PR2.1)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PR2.1 / PR2.5 — RequireAuth subtree-aware redirect
+// RequireAuth subtree-aware redirect
 // ---------------------------------------------------------------------------
 
 function renderGuard(initialPath: string, props: { children?: ReactNode; loginPath?: string }) {
@@ -247,7 +248,7 @@ function renderGuard(initialPath: string, props: { children?: ReactNode; loginPa
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route
-          path="/CxP/perfil"
+          path="/perfil"
           element={
             <RequireAuth loginPath={props.loginPath}>
               {props.children ?? <div>PROTECTED_SURFACE</div>}
@@ -255,38 +256,38 @@ function renderGuard(initialPath: string, props: { children?: ReactNode; loginPa
           }
         />
         <Route path="/login" element={<div>LOGIN_DESTINATION</div>} />
-        <Route path="/gastos/login" element={<div>GASTOS_LOGIN_DESTINATION</div>} />
+        <Route path="/cxp/login" element={<div>CXP_LOGIN_DESTINATION</div>} />
       </Routes>
     </MemoryRouter>
   );
 }
 
-describe('RequireAuth — subtree-aware redirect (PR2.1/PR2.5)', () => {
+describe('RequireAuth — subtree-aware redirect', () => {
   beforeEach(() => {
     localStorage.clear();
     useAuthStore.setState({ isAuthenticated: false });
   });
 
   it('redirects unauthenticated session to default /login via <Navigate>', () => {
-    renderGuard('/CxP/perfil', {});
+    renderGuard('/perfil', {});
     expect(screen.getByText('LOGIN_DESTINATION')).toBeInTheDocument();
     expect(screen.queryByText('PROTECTED_SURFACE')).not.toBeInTheDocument();
   });
 
-  it('redirects unauthenticated session to custom /gastos/login via <Navigate>', () => {
-    renderGuard('/CxP/perfil', { loginPath: '/gastos/login' });
-    expect(screen.getByText('GASTOS_LOGIN_DESTINATION')).toBeInTheDocument();
+  it('redirects unauthenticated session to custom /cxp/login via <Navigate>', () => {
+    renderGuard('/perfil', { loginPath: '/cxp/login' });
+    expect(screen.getByText('CXP_LOGIN_DESTINATION')).toBeInTheDocument();
     expect(screen.queryByText('PROTECTED_SURFACE')).not.toBeInTheDocument();
   });
 
   it('auth-only check: authenticated session without context still passes through', () => {
     useAuthStore.setState({ isAuthenticated: true, empresa: null, sucursal: null, area: null });
-    renderGuard('/CxP/perfil', {});
+    renderGuard('/perfil', {});
     expect(screen.getByText('PROTECTED_SURFACE')).toBeInTheDocument();
     expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
-  it('PR2 remediation: preserves the return URL via ?return= on redirect (spec: Authentication Guard)', () => {
+  it('preserves the return URL via ?return= on redirect (spec: Authentication Guard)', () => {
     // Probe at the login destination that surfaces the router location so we
     // can assert the `?return=` query param carries the original protected path.
     function LoginProbe() {
@@ -295,17 +296,17 @@ describe('RequireAuth — subtree-aware redirect (PR2.1/PR2.5)', () => {
     }
 
     render(
-      <MemoryRouter initialEntries={['/CxP/gastos/dashboard']}>
+      <MemoryRouter initialEntries={['/cxp/dashboard']}>
         <Routes>
           <Route
-            path="/CxP/gastos/dashboard"
+            path="/cxp/dashboard"
             element={
-              <RequireAuth loginPath="/CxP/login">
+              <RequireAuth loginPath="/login">
                 <div>PROTECTED_DASHBOARD</div>
               </RequireAuth>
             }
           />
-          <Route path="/CxP/login" element={<LoginProbe />} />
+          <Route path="/login" element={<LoginProbe />} />
         </Routes>
       </MemoryRouter>
     );
@@ -315,7 +316,7 @@ describe('RequireAuth — subtree-aware redirect (PR2.1/PR2.5)', () => {
     expect(screen.queryByText('PROTECTED_DASHBOARD')).not.toBeInTheDocument();
     // The login destination received the original protected route via ?return=.
     expect(screen.getByTestId('login-probe').textContent).toBe(
-      `/CxP/login?return=${encodeURIComponent('/CxP/gastos/dashboard')}`
+      `/login?return=${encodeURIComponent('/cxp/dashboard')}`
     );
   });
 });

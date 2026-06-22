@@ -42,7 +42,7 @@ describe('apps/_registry — static app registry module', () => {
     const candidate: AppRegistryEntry = {
       id: 'cxp',
       label: 'Cuentas por Pagar',
-      path: '/CxP/cxp/',
+      path: '/cxp/',
       description: 'Future CxP app',
       disabled: true,
     };

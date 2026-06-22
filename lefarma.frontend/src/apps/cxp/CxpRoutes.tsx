@@ -1,9 +1,10 @@
-import { Navigate, Route } from 'react-router-dom';
+import { Navigate, Route, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { LandingRoute, ProtectedRoute, PublicOnlyRoute } from '@/routes/LandingRoute';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { useAuthStore } from '@/shared/auth/authStore';
+import type { SubtreeRoutesProps } from '@/shared/router/types';
 
 import Login from '@/pages/auth/Login';
 import HandoffLogin from '@/pages/auth/HandoffLogin';
@@ -42,13 +43,6 @@ import HelpEditor from '@/pages/help/HelpEditor';
 import NotFound from '@/pages/NotFound';
 import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 
-export interface GastosRoutesProps {
-  /** Root keeps the <Hero> index landing; subtree redirects the index to login. */
-  variant: 'root' | 'subtree';
-  /** Subtree login destination. Defaults to '/login' (root) or '/gastos/login' (subtree). */
-  loginPath?: string;
-}
-
 const PageLoader = () => (
   <div className="flex h-screen w-full items-center justify-center">
     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -57,54 +51,72 @@ const PageLoader = () => (
 
 /**
  * Subtree index resolver: authenticated users land on the Dashboard (auth-only
- * gate, per gastos-app spec "Gastos Dashboard Landing"); unauthenticated users
+ * gate, per cxp-app spec "CxP Dashboard Landing"); unauthenticated users
  * are redirected to the subtree login. The root variant does NOT use this — it
  * keeps <LandingRoute/> so the unauthenticated <Hero> landing is preserved.
  */
-function GastosSubtreeIndex({ loginPath }: { loginPath: string }) {
+function CxpSubtreeIndex({ loginPath }: { loginPath: string }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
+  const location = useLocation();
 
   if (!isInitialized) return <PageLoader />;
   if (isAuthenticated) return <Navigate to="dashboard" replace />;
-  return <Navigate to={loginPath} replace />;
+  // Preserve the intended destination via `?return=` (cxp-app spec:
+  // "Unauthenticated index redirects to CxP login" with the destination
+  // preserved; app-routing spec: "preserving the return URL").
+  const from = location.pathname + location.search;
+  return <Navigate to={`${loginPath}?return=${encodeURIComponent(from)}`} replace />;
 }
 
 /**
- * Reusable Gastos route table — the single source of truth for every Gastos URL
- * (gastos-app spec: "GastosRoutes Module Reuse"). Returns a Fragment of
+ * Reusable CxP route table — the single source of truth for every CxP URL
+ * (cxp-app spec: "CxPRoutes Module Reuse"). Returns a Fragment of
  * <Route> elements intended to be inlined as the children of <Routes> (root
- * mount) or of a <Route path="gastos"> wrapper (shell subtree mount).
+ * mount) or of a <Route path="cxp"> wrapper (shell subtree mount).
  *
  * IMPORTANT — invocation contract:
  * React Router's `createRoutesFromChildren` flattens React.Fragment children
  * but REJECTS non-<Route> component elements (it asserts "is not a <Route>").
  * Therefore this module MUST be invoked as a plain function call that returns
- * the Fragment — `{GastosRoutes({ variant: 'root' })}` — and NOT as JSX
- * `<GastosRoutes/>`. The returned Fragment is transparent to the router.
+ * the Fragment — `{CxpRoutes({ variant: 'root' })}` — and NOT as JSX
+ * `<CxpRoutes/>`. The returned Fragment is transparent to the router.
  *
- * All route paths are RELATIVE (no leading slash). Under basename "/" a path
- * like `dashboard` resolves to `/dashboard` (identical to today's root build).
- * Under basename "/CxP/" mounted inside <Route path="gastos"> the same
- * `dashboard` resolves to `/CxP/gastos/dashboard`. This is what makes one
- * module serve both builds (design Decision 1).
+ * All route paths are RELATIVE (no leading slash). Under the root basename "/"
+ * a path like `dashboard` resolves to `/dashboard`. Mounted inside
+ * <Route path="cxp"> the same `dashboard` resolves to `/cxp/dashboard`. This
+ * is what makes one module serve both mounts (design Decision 1).
  *
  * The `variant` prop gates the ONE behavior that cannot be unified: the index
  * landing. Root keeps <LandingRoute/> (Hero for unauthenticated, redirect to
- * dashboard for authenticated — byte-identical to today). Subtree redirects
- * authenticated users straight to the Dashboard and unauthenticated users to
- * the subtree login.
+ * dashboard for authenticated). Subtree redirects authenticated users straight
+ * to the Dashboard and unauthenticated users to the subtree login.
+ *
+ * NOTE: CxP is the ONLY app that uses the 3-step login (empresa/sucursal/area
+ * context selection). The default <Login> import keeps
+ * `requireContextSelection={true}`, which is why no explicit prop is passed
+ * below. RH and other future apps override with
+ * `requireContextSelection={false}`.
  */
-export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
-  const resolvedLoginPath = loginPath ?? (variant === 'root' ? '/login' : '/gastos/login');
+export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
+  const resolvedLoginPath = loginPath ?? (variant === 'root' ? '/login' : '/cxp/login');
 
-  // Root preserves today's byte-identical guard behavior (no props → defaults):
+  // Permission-failure destination per variant. Root keeps the default
+  // `/bloqueado` (absolute) by passing `undefined` so PermissionGuard applies
+  // its own default. Subtree overrides with `/cxp/bloqueado` — an absolute
+  // path relative to the router basename, identical in form to
+  // `resolvedLoginPath`. Under the root basename it resolves to
+  // `/cxp/bloqueado`, matching the `bloqueado` child route declared below
+  // (app-routing spec: "Permission checks preserved under subtree mounting").
+  const resolvedBlockedPath = variant === 'root' ? undefined : '/cxp/bloqueado';
+
+  // Root preserves the historical guard behavior (no props → defaults):
   //   - LandingRoute auth → '/dashboard'
   //   - ProtectedRoute unauth → '/' (the Hero landing)
   //   - PublicOnlyRoute auth → '/dashboard'
   // Subtree re-points the guards at the subtree login / dashboard.
   const indexElement =
-    variant === 'root' ? <LandingRoute /> : <GastosSubtreeIndex loginPath={resolvedLoginPath} />;
+    variant === 'root' ? <LandingRoute /> : <CxpSubtreeIndex loginPath={resolvedLoginPath} />;
 
   const publicOnlyRoute =
     variant === 'root' ? (
@@ -121,6 +133,11 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
       <Route index element={indexElement} />
 
       <Route element={publicOnlyRoute}>
+        {/*
+          CxP login — 3-step flow (credentials, password, empresa/sucursal/area).
+          CxP is the ONLY app that collects context; the default <Login> import
+          keeps requireContextSelection={true}, so no prop override is needed.
+        */}
         <Route path="login" element={<Login />} />
       </Route>
 
@@ -138,7 +155,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/empresas"
             element={
-              <PermissionGuard requireAny={['empresas.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['empresas.ver_listado']}>
                 <EmpresasList />
               </PermissionGuard>
             }
@@ -146,7 +163,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/areas"
             element={
-              <PermissionGuard requireAny={['areas.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['areas.ver_listado']}>
                 <AreasList />
               </PermissionGuard>
             }
@@ -154,7 +171,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/formas-pago"
             element={
-              <PermissionGuard requireAny={['formas-pago.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['formas-pago.ver_listado']}>
                 <FormasPagoList />
               </PermissionGuard>
             }
@@ -162,7 +179,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/tipos-impuesto"
             element={
-              <PermissionGuard requireAny={['tipos-impuesto.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['tipos-impuesto.ver_listado']}>
                 <TiposImpuestoList />
               </PermissionGuard>
             }
@@ -170,7 +187,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/centros-costo"
             element={
-              <PermissionGuard requireAny={['centros-costo.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['centros-costo.ver_listado']}>
                 <CentrosCostoList />
               </PermissionGuard>
             }
@@ -178,7 +195,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/cuentas-contables"
             element={
-              <PermissionGuard requireAny={['cuentas-contables.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['cuentas-contables.ver_listado']}>
                 <CuentasContablesList />
               </PermissionGuard>
             }
@@ -186,7 +203,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/estatus-orden"
             element={
-              <PermissionGuard requireAny={['estatus-orden.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['estatus-orden.ver_listado']}>
                 <EstatusOrdenList />
               </PermissionGuard>
             }
@@ -194,7 +211,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/proveedores"
             element={
-              <PermissionGuard requireAny={['proveedores.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['proveedores.ver_listado']}>
                 <ProveedoresList />
               </PermissionGuard>
             }
@@ -202,7 +219,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/regimenes-fiscales"
             element={
-              <PermissionGuard requireAny={['regimenes-fiscales.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['regimenes-fiscales.ver_listado']}>
                 <RegimenesFiscalesList />
               </PermissionGuard>
             }
@@ -210,7 +227,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/sucursales"
             element={
-              <PermissionGuard requireAny={['sucursales.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['sucursales.ver_listado']}>
                 <SucursalesList />
               </PermissionGuard>
             }
@@ -219,7 +236,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/medidas"
             element={
-              <PermissionGuard requireAny={['medidas.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['medidas.ver_listado']}>
                 <MedidasList />
               </PermissionGuard>
             }
@@ -227,7 +244,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="catalogos/tipos-gasto"
             element={
-              <PermissionGuard requireAny={['tipos-gasto.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['tipos-gasto.ver_listado']}>
                 <TiposGastoList />
               </PermissionGuard>
             }
@@ -237,7 +254,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="workflows"
             element={
-              <PermissionGuard requireAny={['workflows.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['workflows.ver_listado']}>
                 <WorkflowsList />
               </PermissionGuard>
             }
@@ -253,7 +270,7 @@ export function GastosRoutes({ variant, loginPath }: GastosRoutesProps) {
           <Route
             path="notificaciones"
             element={
-              <PermissionGuard require={['notificaciones.ver_listado']}>
+              <PermissionGuard blockedPath={resolvedBlockedPath} require={['notificaciones.ver_listado']}>
                 <NotificationsPage />
               </PermissionGuard>
             }

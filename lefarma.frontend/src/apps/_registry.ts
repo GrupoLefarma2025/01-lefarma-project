@@ -10,11 +10,11 @@ import type { ReactNode } from 'react';
  * is code-only").
  */
 export interface AppRegistryEntry {
-  /** Stable identifier, e.g. 'gastos' | 'cxp'. */
+  /** Stable identifier, e.g. 'cxp' | 'rh'. */
   id: string;
   /** Tile label shown in the launcher. */
   label: string;
-  /** Absolute navigation target, e.g. '/CxP/gastos/'. */
+  /** Absolute navigation target, e.g. '/cxp/'. */
   path: string;
   /** Optional leading icon node. */
   icon?: ReactNode;
@@ -25,17 +25,25 @@ export interface AppRegistryEntry {
 }
 
 /**
- * Placeholder registry. Real entries arrive in later changes as each app is
- * migrated under `/CxP/`. Gastos continues to run from the ROOT deployment in
- * this change, so it is listed as disabled — present in the launcher but not yet
- * addressable under `/CxP/gastos/`.
+ * Static app registry (nav-reorg). The former gastos-migration app is renamed
+ * to "CxP" and lives at `/cxp/` (one level up from the prior nested path). The
+ * RH (Recursos Humanos) app lives at `/rh/` (one level up from the prior nested
+ * path). Both are ENABLED as shell-launchable targets. Future apps append here
+ * under their own root-relative prefix.
  */
 export const appRegistry: AppRegistryEntry[] = [
   {
-    id: 'gastos',
-    label: 'Gastos',
-    path: '/CxP/gastos/',
-    description: 'Órdenes de compra (pendiente de migración bajo /CxP/)',
-    disabled: true,
+    id: 'cxp',
+    label: 'CxP',
+    path: '/cxp/',
+    description: 'Órdenes de compra',
+    disabled: false,
+  },
+  {
+    id: 'rh',
+    label: 'Recursos Humanos',
+    path: '/rh/',
+    description: 'Gestión de personal',
+    disabled: false,
   },
 ];

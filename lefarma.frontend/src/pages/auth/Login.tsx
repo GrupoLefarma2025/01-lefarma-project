@@ -35,13 +35,14 @@ const DOMAIN_NAMES: Record<string, string> = {
 export interface LoginProps {
   /**
    * When `true` (default), present the 3-step flow that collects
-   * empresa/sucursal/area context after credentials (Gastos login).
-   * When `false`, the session is finalized right after credentials and the
-   * context-selection step is cleanly skipped (global `/CxP/login` flow).
+   * empresa/sucursal/area context after credentials (CxP login — CxP is the
+   * ONLY app that collects context). When `false`, the session is finalized
+   * right after credentials and the context-selection step is cleanly skipped
+   * (global `/login` flow and the RH per-app login).
    */
   requireContextSelection?: boolean;
   /**
-   * Post-login navigation target. Defaults to `'dashboard'` (the Gastos
+   * Post-login navigation target. Defaults to `'dashboard'` (the CxP
    * landing). The global login overrides this with `'/hub'`.
    */
   redirectTo?: string;
@@ -71,13 +72,19 @@ export default function Login({
     resetLoginFlow,
   } = useAuthStore();
 
-  // Optional post-login return target, set by the `/CxP/` shell's RequireAuth
+  // Optional post-login return target, set by the shell's RequireAuth
   // guard when it redirects an unauthenticated session here. Open-redirect guard:
-  // only honor return paths scoped to the `/CxP/` prefix (the shell build). The
-  // default Gastos flow (no return param) is unchanged.
+  // only honor same-origin absolute paths (root-relative, NOT protocol-relative
+  // `//evil.com`). The shell is now served from root (`/`), so valid return
+  // targets look like `/hub`, `/perfil`, `/cxp/dashboard`, `/rh/dashboard`, etc.
+  // The default CxP flow (no return param) is unchanged.
   const returnSearchParam = new URLSearchParams(window.location.search).get('return');
   const safeReturn =
-    returnSearchParam && returnSearchParam.startsWith('/CxP/') ? returnSearchParam : null;
+    returnSearchParam &&
+    returnSearchParam.startsWith('/') &&
+    !returnSearchParam.startsWith('//')
+      ? returnSearchParam
+      : null;
 
   const [username, setUsername] = useState(pendingUsername || '');
   const [syncedPending, setSyncedPending] = useState<string | null>(pendingUsername || null);
@@ -173,7 +180,8 @@ export default function Login({
   // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
     if (!isAuthenticated) return;
-    // Honor a `/CxP/`-scoped return target if present; otherwise default to Gastos.
+    // Honor a same-origin return target if present; otherwise default to the
+    // configured redirect (CxP dashboard or /hub for the global login).
     if (safeReturn) {
       window.location.href = safeReturn;
       return;
@@ -247,7 +255,8 @@ export default function Login({
 
     try {
       await loginStepThree(emp, suc, ar);
-      // Honor a `/CxP/`-scoped return target if present; otherwise default to Gastos.
+      // Honor a same-origin return target if present; otherwise default to the
+      // configured redirect (CxP dashboard).
       if (safeReturn) {
         window.location.href = safeReturn;
         return;

@@ -95,7 +95,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         correo: response.user.correo || '',
       });
 
-      // Global 2-step login (e.g. `/CxP/login`): finalize the session right
+      // Global 2-step login (e.g. `/login`): finalize the session right
       // after credentials. Step-3 context data (empresas/sucursales/areas) is
       // intentionally NOT loaded so the global flow never enters partial
       // context state — context is owned by per-app logic (base-app spec:

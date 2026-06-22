@@ -25,20 +25,20 @@ describe('Home launcher (base-app)', () => {
 
   it('Scenario: Launcher lists registry apps — one tile per entry with a navigation affordance', () => {
     setRegistry([
-      { id: 'gastos', label: 'Gastos', path: '/CxP/gastos/' },
-      { id: 'cxp', label: 'Cuentas por Pagar', path: '/CxP/cxp/' },
+      { id: 'cxp', label: 'CxP', path: '/cxp/' },
+      { id: 'contabilidad', label: 'Contabilidad', path: '/contabilidad/' },
     ]);
 
     render(<Home />);
 
     // One launcher entry per registry item.
-    const gastosLink = screen.getByRole('link', { name: /gastos/i });
-    const cxpLink = screen.getByRole('link', { name: /cuentas por pagar/i });
-    expect(gastosLink).toBeInTheDocument();
+    const cxpLink = screen.getByRole('link', { name: /cxp/i });
+    const contabilidadLink = screen.getByRole('link', { name: /contabilidad/i });
     expect(cxpLink).toBeInTheDocument();
+    expect(contabilidadLink).toBeInTheDocument();
     // Each entry exposes navigation to that app's path.
-    expect(gastosLink).toHaveAttribute('href', '/CxP/gastos/');
-    expect(cxpLink).toHaveAttribute('href', '/CxP/cxp/');
+    expect(cxpLink).toHaveAttribute('href', '/cxp/');
+    expect(contabilidadLink).toHaveAttribute('href', '/contabilidad/');
   });
 
   it('Scenario: Empty registry renders gracefully — empty state, no crash', () => {
@@ -51,7 +51,7 @@ describe('Home launcher (base-app)', () => {
   });
 
   it('Scenario: Adding an app entry is code-only — Home renders a newly added entry without component changes', () => {
-    setRegistry([{ id: 'nomina', label: 'Nómina', path: '/CxP/nomina/' }]);
+    setRegistry([{ id: 'nomina', label: 'Nómina', path: '/nomina/' }]);
 
     const { rerender } = render(<Home />);
     expect(screen.getByRole('link', { name: /nómina/i })).toBeInTheDocument();
@@ -59,8 +59,8 @@ describe('Home launcher (base-app)', () => {
     // "Add" another entry (simulating a developer appending to the registry) and
     // re-render: the new tile appears with zero changes to Home itself.
     setRegistry([
-      { id: 'nomina', label: 'Nómina', path: '/CxP/nomina/' },
-      { id: 'activos', label: 'Activos Fijos', path: '/CxP/activos/' },
+      { id: 'nomina', label: 'Nómina', path: '/nomina/' },
+      { id: 'activos', label: 'Activos Fijos', path: '/activos/' },
     ]);
     rerender(<Home />);
 
@@ -69,13 +69,13 @@ describe('Home launcher (base-app)', () => {
   });
 
   it('renders a disabled entry without a navigable href', () => {
-    setRegistry([{ id: 'gastos', label: 'Gastos', path: '/CxP/gastos/', disabled: true }]);
+    setRegistry([{ id: 'cxp', label: 'CxP', path: '/cxp/', disabled: true }]);
 
     render(<Home />);
 
     // A disabled app is shown but must not expose a live navigation target.
-    const item = screen.getByText(/gastos/i);
+    const item = screen.getByText(/cxp/i);
     expect(item).toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: /gastos/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /cxp/i })).not.toBeInTheDocument();
   });
 });

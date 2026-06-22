@@ -60,10 +60,35 @@ describe('ShellLayout (base-app authenticated shell)', () => {
     );
 
     // The base-app shell MUST NOT surface user/role/permission administration
-    // (base-app spec: "Excludes Administration UI"). Admin stays in the Gastos
-    // build at its current location.
+    // (base-app spec: "Excludes Administration UI"). Admin stays in the CxP
+    // app at its current location.
     expect(screen.queryByRole('link', { name: /usuarios/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /roles/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /permisos/i })).not.toBeInTheDocument();
+  });
+
+  it('PR3.3: nav-brand and Inicio link point to /hub (not to the / index redirect)', () => {
+    // app-routing spec "Root Index Redirect" + base-app spec "Authenticated
+    // Shell Layout": `/` is now a redirect, so no nav affordance may target it.
+    // The shell home is `/hub`; both the brand and the Inicio item must link
+    // there (design Decision 3: ShellLayout nav `/`→`/hub`).
+    renderWithRouter(
+      <ShellLayout>
+        <div>content</div>
+      </ShellLayout>
+    );
+
+    // The brand is a link to the hub launcher.
+    const brandLink = screen.getByRole('link', { name: 'Lefarma' });
+    expect(brandLink).toHaveAttribute('href', '/hub');
+
+    // The Inicio nav item also points to the hub (previously pointed to `/`).
+    const inicioLink = screen.getByRole('link', { name: /inicio/i });
+    expect(inicioLink).toHaveAttribute('href', '/hub');
+
+    // No nav link targets the bare `/` index (which is a redirect now).
+    const allLinks = screen.getAllByRole('link');
+    const rootLinks = allLinks.filter((l) => l.getAttribute('href') === '/');
+    expect(rootLinks).toHaveLength(0);
   });
 });

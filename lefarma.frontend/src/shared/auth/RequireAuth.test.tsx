@@ -26,8 +26,8 @@ import { RequireAuth } from '@/shared/auth/RequireAuth';
 import { useAuthStore } from '@/shared/auth/authStore';
 
 /**
- * Foundation test (updated for PR2.6): RequireAuth now uses `<Navigate>` instead
- * of `window.location.href`. We assert the redirect by mounting the guard inside
+ * Foundation test: RequireAuth uses `<Navigate>` instead of
+ * `window.location.href`. We assert the redirect by mounting the guard inside
  * a `MemoryRouter` with explicit destination routes — the destination route
  * renders when `<Navigate>` resolves, and the protected subtree never renders.
  */
@@ -36,7 +36,7 @@ function renderGuard(initialPath: string, props: { children?: ReactNode; loginPa
     <MemoryRouter initialEntries={[initialPath]}>
       <Routes>
         <Route
-          path="/CxP/perfil"
+          path="/perfil"
           element={
             <RequireAuth loginPath={props.loginPath}>
               {props.children ?? <div>secret-dashboard</div>}
@@ -57,7 +57,7 @@ describe('RequireAuth — app-routing guard', () => {
   });
 
   it('Scenario: Unauthenticated user is redirected to login via <Navigate>', () => {
-    renderGuard('/CxP/perfil', {});
+    renderGuard('/perfil', {});
 
     // The /login destination route rendered via <Navigate to="/login" replace/>.
     expect(screen.getByText('LOGIN_DESTINATION')).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('RequireAuth — app-routing guard', () => {
   it('Scenario: Authenticated user passes through and no redirect occurs', () => {
     useAuthStore.setState({ isAuthenticated: true });
 
-    renderGuard('/CxP/perfil', {});
+    renderGuard('/perfil', {});
 
     // Children render normally; no redirect to /login.
     expect(screen.getByText('secret-dashboard')).toBeInTheDocument();
@@ -86,14 +86,14 @@ describe('RequireAuth — app-routing guard', () => {
       area: null,
     });
 
-    renderGuard('/CxP/perfil', { children: <div>shell-home</div> });
+    renderGuard('/perfil', { children: <div>shell-home</div> });
 
     expect(screen.getByText('shell-home')).toBeInTheDocument();
     expect(screen.queryByText('LOGIN_DESTINATION')).not.toBeInTheDocument();
   });
 
   it('honors a custom loginPath when provided', () => {
-    renderGuard('/CxP/perfil', { loginPath: '/alt-login' });
+    renderGuard('/perfil', { loginPath: '/alt-login' });
 
     expect(screen.getByText('ALT_LOGIN_DESTINATION')).toBeInTheDocument();
     expect(screen.queryByText('secret-dashboard')).not.toBeInTheDocument();

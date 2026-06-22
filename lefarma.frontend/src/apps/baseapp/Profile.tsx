@@ -1,5 +1,5 @@
 /**
- * Minimal profile page for the `/CxP/` base-app shell (base-app spec:
+ * Minimal profile page for the root base-app shell (base-app spec:
  * "Profile Page"). Placeholder surface that renders for any authenticated user.
  *
  * Rendered inside ShellLayout, so the shell chrome stays present around it.

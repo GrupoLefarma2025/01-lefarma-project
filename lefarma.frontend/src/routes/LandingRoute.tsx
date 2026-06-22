@@ -1,4 +1,4 @@
-﻿import { Navigate, Outlet } from 'react-router-dom';
+﻿import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/shared/auth/authStore';
 import Hero from '@/pages/Hero';
@@ -34,8 +34,8 @@ export const LandingRoute = ({ authenticatedRedirect = '/dashboard' }: LandingRo
 export interface ProtectedRouteProps {
   /**
    * Where unauthenticated users are sent. Defaults to '/' (the Hero landing) to
-   * preserve the historical root-build behavior — the landing itself presents
-   * the login entry. The shell subtree overrides this with its per-app login.
+   * preserve the historical behavior — the landing itself presents the login
+   * entry. The shell subtree overrides this with its per-app login.
    */
   unauthRedirect?: string;
 }
@@ -43,11 +43,18 @@ export interface ProtectedRouteProps {
 export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {}) => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
+  const location = useLocation();
 
   if (!isInitialized) return <PageLoader />;
 
   if (!isAuthenticated) {
-    return <Navigate to={unauthRedirect} replace />;
+    // Preserve the intended destination via `?return=` so the login page can
+    // redirect back after a successful authentication (app-routing spec:
+    // Authentication Guard "preserving the return URL"). Mirrors the RequireAuth
+    // pattern. Additive for the root variant (unauthRedirect defaults to '/';
+    // the Hero landing ignores the query param).
+    const from = location.pathname + location.search;
+    return <Navigate to={`${unauthRedirect}?return=${encodeURIComponent(from)}`} replace />;
   }
 
   return <Outlet />;
