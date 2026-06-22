@@ -170,6 +170,19 @@ const menuItems: SidebarMenuItemConfig[] = [
     ],
   },
   {
+    title: 'Recursos Humanos',
+    icon: Users,
+    isCollapsible: true,
+    items: [
+      { title: 'Crear solicitud', icon: FileText, path: '/rh/solicitudes/crear',
+        permission: { require: 'ordenes.crear' }
+       },
+      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/rh/solicitudes/autorizaciones',
+        permission: { require: 'solicitudes.ver_listado' }
+       },
+    ],
+  },
+  {
     title: 'Notificaciones',
     icon: Bell,
     path: '/notificaciones',

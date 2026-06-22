@@ -5,44 +5,47 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Domain.Interfaces.Operaciones;
+using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
 using Lefarma.API.Features.Admin;
+using Lefarma.API.Features.Archivos.Services;
+using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
 using Lefarma.API.Features.Catalogos.Bancos;
 using Lefarma.API.Features.Catalogos.CentrosCosto;
 using Lefarma.API.Features.Catalogos.CuentasContables;
-using Lefarma.API.Features.Catalogos.EstatusOrden;
-using Lefarma.API.Features.Catalogos.Proveedores;
-using Lefarma.API.Features.Catalogos.RegimenesFiscales;
-using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.Empresas;
+using Lefarma.API.Features.Catalogos.EstatusOrden;
 using Lefarma.API.Features.Catalogos.FormasPago;
-using Lefarma.API.Features.Catalogos.TiposGasto;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.MediosPago;
+using Lefarma.API.Features.Catalogos.Proveedores;
+using Lefarma.API.Features.Catalogos.RegimenesFiscales;
 using Lefarma.API.Features.Catalogos.Sucursales;
+using Lefarma.API.Features.Catalogos.TiposGasto;
+using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Config.Engine;
 using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Config.Workflows.Handlers;
+using Lefarma.API.Features.Config.Workflows.Notification;
+using Lefarma.API.Features.Facturas;
+using Lefarma.API.Features.Help.Services;
 using Lefarma.API.Features.Logging;
 using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
-using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Features.Profile;
-using Lefarma.API.Features.Help.Services;
-using Lefarma.API.Features.Archivos.Services;
-using Lefarma.API.Features.Archivos.Settings;
-using Lefarma.API.Features.Facturas;
-using Microsoft.Extensions.FileProviders;
+using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Infrastructure.Data.Repositories;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
 using Lefarma.API.Infrastructure.Data.Repositories.Config;
 using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
 using Lefarma.API.Infrastructure.Data.Repositories.Operaciones;
-using Lefarma.API.Infrastructure.Data.Repositories;
+using Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
@@ -55,6 +58,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
@@ -159,6 +163,8 @@ builder.Services.AddScoped<IPagoRepository, PagoRepository>();
 builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
+builder.Services.AddScoped<ISolicitudPersonalRepository, SolicitudPersonalRepository>();
+
 // Comprobantes / Facturas CFDI
 builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
                                Lefarma.API.Features.Facturas.SatValidation.SatValidationService>();
@@ -170,8 +176,14 @@ builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
 
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
+
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
-builder.Services.AddScoped<IFirmasService, FirmasService>();
+builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
+
+builder.Services.AddScoped<ISolicitudPersonalService, SolicitudPersonalService>();
+builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFirmasService>();
+
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
 

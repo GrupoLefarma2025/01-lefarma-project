@@ -1,4 +1,4 @@
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
+namespace Lefarma.API.Features.Config.Workflows.Handlers
 {
     public record HandlerResult(bool Exitoso, string? Error = null)
     {

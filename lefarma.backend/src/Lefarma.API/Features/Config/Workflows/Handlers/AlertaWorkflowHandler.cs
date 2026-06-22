@@ -1,4 +1,4 @@
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
+namespace Lefarma.API.Features.Config.Workflows.Handlers;
 
 /// <summary>
 /// Handler puramente informativo. Muestra un mensaje de alerta en el modal de firma
@@ -13,6 +13,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 public class AlertaWorkflowHandler : IWorkflowActionHandler
 {
     public string HandlerKey => "Alerta";
+    public IReadOnlySet<string> TiposEntidadCompatibles => new HashSet<string> { "ALL" };
 
     public Task<HandlerResult> ProcessAsync(WorkflowHandlerContext context, string? configJson)
     {

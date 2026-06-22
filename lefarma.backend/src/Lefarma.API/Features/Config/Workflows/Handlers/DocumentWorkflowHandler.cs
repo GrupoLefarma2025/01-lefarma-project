@@ -1,7 +1,8 @@
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
+namespace Lefarma.API.Features.Config.Workflows.Handlers
 {
 /// <summary>
 /// Maneja campos de tipo Archivo (comprobante_pago, comprobante_gasto/factura).
@@ -18,6 +19,8 @@ public class DocumentWorkflowHandler : IWorkflowActionHandler
     }
 
     public string HandlerKey => "Document";
+
+    public IReadOnlySet<string> TiposEntidadCompatibles => new HashSet<string> { CodigoProceso.ORDEN_COMPRA };
 
     public async Task<HandlerResult> ProcessAsync(WorkflowHandlerContext context, string? configJson)
     {
@@ -41,9 +44,9 @@ public class DocumentWorkflowHandler : IWorkflowActionHandler
                 .AnyAsync(c =>
                     (campo.NombreTecnico == "comprobante_gasto" && c.Categoria == "gasto" ||
                      campo.NombreTecnico == "comprobante_pago"  && c.Categoria == "pago")
-                    && c.Asignaciones.Any(a => a.Partida!.IdOrden == context.IdOrden));
+                     && c.Asignaciones.Any(a => a.Partida!.IdOrden == context.IdEntidad));
 
-        if (tieneComprobante)
+            if (tieneComprobante)
             return HandlerResult.Ok();
 
         return HandlerResult.Fail($"No hay {campo.EtiquetaUsuario.ToLower()} registrado.");

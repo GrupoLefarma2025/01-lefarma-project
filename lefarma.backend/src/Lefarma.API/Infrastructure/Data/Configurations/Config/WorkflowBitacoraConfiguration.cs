@@ -10,7 +10,7 @@ public class WorkflowBitacoraConfiguration : IEntityTypeConfiguration<WorkflowBi
             builder.ToTable("workflow_bitacora", "config");
             builder.HasKey(b => b.IdEvento);
             builder.Property(b => b.IdEvento).HasColumnName("id_evento").ValueGeneratedOnAdd();
-            builder.Property(b => b.IdOrden).HasColumnName("id_orden");
+            builder.Property(b => b.IdOrden).HasColumnName("id_orden").IsRequired(false);
             builder.Property(b => b.IdWorkflow).HasColumnName("id_workflow");
             builder.Property(b => b.IdPaso).HasColumnName("id_paso");
             builder.Property(b => b.IdAccion).HasColumnName("id_accion");
@@ -18,6 +18,11 @@ public class WorkflowBitacoraConfiguration : IEntityTypeConfiguration<WorkflowBi
             builder.Property(b => b.Comentario).HasColumnName("comentario").HasMaxLength(500);
             builder.Property(b => b.DatosSnapshot).HasColumnName("datos_snapshot");
             builder.Property(b => b.FechaEvento).HasColumnName("fecha_evento").HasDefaultValueSql("GETDATE()");
+
+
+            builder.Property(x => x.IdOrden).HasColumnName("id_orden").IsRequired(false);  // nullable ahora
+            builder.Property(x => x.TipoEntidad).HasColumnName("tipo_entidad").HasMaxLength(30).IsRequired();
+            builder.Property(x => x.IdEntidad).HasColumnName("id_entidad").IsRequired();
 
             builder.HasIndex(b => b.IdOrden).HasDatabaseName("IX_workflow_bitacora_orden");
             builder.HasIndex(b => b.FechaEvento).HasDatabaseName("IX_workflow_bitacora_fecha");

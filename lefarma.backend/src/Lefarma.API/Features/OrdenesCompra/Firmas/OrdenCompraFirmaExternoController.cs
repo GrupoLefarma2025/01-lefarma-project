@@ -1,3 +1,4 @@
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
@@ -10,12 +11,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas;
 [ApiController]
 [Route("api/ordenes/externo")]
 [EndpointGroupName("OrdenesCompra-Externo")]
-public class FirmaExternoController : ControllerBase
+public class OrdenCompraFirmaExternoController : ControllerBase
 {
-    private readonly IFirmasService _service;
+    private readonly IOrdenCompraFirmasService _service;
     private readonly IConfiguration _configuration;
 
-    public FirmaExternoController(IFirmasService service, IConfiguration configuration)
+    public OrdenCompraFirmaExternoController(IOrdenCompraFirmasService service, IConfiguration configuration)
     {
         _service = service;
         _configuration = configuration;
@@ -77,7 +78,7 @@ public class FirmaExternoController : ControllerBase
         if (userId == 0)
             userId = int.TryParse(_configuration["Auth:AnonymousUserId"], out var defaultUid) ? defaultUid : 0;
 
-        var result = await _service.GetAccionesAsync(id, userId);
+        var result = await _service.GetAccionesDisponiblesAsync(id, userId);
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
         { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
     }
@@ -107,7 +108,7 @@ public class FirmaExternoController : ControllerBase
         if (!ValidateApiKey(out var errorResponse))
             return errorResponse!;
 
-        var result = await _service.GetHistorialWorkflowAsync(id);
+        var result = await _service.GetHistorialAsync(id);
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
         { Success = true, Message = "Historial obtenido exitosamente.", Data = data }));
     }

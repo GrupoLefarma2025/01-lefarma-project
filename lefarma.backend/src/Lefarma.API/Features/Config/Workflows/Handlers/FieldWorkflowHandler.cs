@@ -1,6 +1,6 @@
-using Lefarma.API.Domain.Entities.Operaciones;
+using Lefarma.API.Domain.Interfaces.Config;
 
-namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
+namespace Lefarma.API.Features.Config.Workflows.Handlers
 {
     /// <summary>
     /// Maneja campos de entrada (Selector, Checkbox, Texto, Número) vinculados a una acción.
@@ -11,6 +11,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
     public class FieldWorkflowHandler : IWorkflowActionHandler
     {
         public string HandlerKey => "Field";
+
+        public IReadOnlySet<string> TiposEntidadCompatibles => new HashSet<string> { "ALL" };
 
         public Task<HandlerResult> ProcessAsync(WorkflowHandlerContext context, string? configJson)
         {
@@ -33,9 +35,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
             if (tieneValor)
             {
                 var rawValue = context.DatosAdicionales![campo.NombreTecnico]?.ToString();
-                var prop = typeof(OrdenCompra).GetProperty(campo.PropiedadEntidad);
+                var prop = context.Entidad.GetType().GetProperty(campo.PropiedadEntidad);
                 if (prop is null)
-                    return Task.FromResult(HandlerResult.Fail($"Field: propiedad '{campo.PropiedadEntidad}' no existe en OrdenCompra."));
+                    return Task.FromResult(HandlerResult.Fail($"Field: propiedad '{campo.PropiedadEntidad}' no existe en {context.Entidad.GetType().Name}."));
 
                 try
                 {
@@ -49,7 +51,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas.Handlers
                     if (typed is null)
                         return Task.FromResult(HandlerResult.Fail($"Field: valor inválido para '{campo.EtiquetaUsuario}'."));
 
-                    prop.SetValue(context.Orden, typed);
+                    prop.SetValue(context.Entidad, typed);
                 }
                 catch (Exception ex)
                 {

@@ -1,7 +1,8 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
+using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -41,18 +42,18 @@ namespace Lefarma.API.Features.Config.Engine
                         .ThenInclude(a => a.Condiciones)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.Participantes)
-                .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Orden.IdWorkflow);
+                .FirstOrDefaultAsync(w => w.IdWorkflow == ctx.Entidad.IdWorkflow);
             if (workflow is null)
-                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Orden.IdWorkflow}' no encontrado.", null, null);
+                return new WorkflowEjecucionResult(false, $"Workflow '{ctx.Entidad.IdWorkflow}' no encontrado.", null, null);
 
             var pasoActual = workflow.Pasos
-                .FirstOrDefault(p => p.IdPaso == ctx.Orden.IdPasoActual && p.Activo);
+                .FirstOrDefault(p => p.IdPaso == ctx.Entidad.IdPasoActual && p.Activo);
 
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
             // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Orden.IdUsuarioCreador))
+            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Entidad.IdUsuarioCreador))
                 return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
@@ -72,8 +73,9 @@ namespace Lefarma.API.Features.Config.Engine
             if (actionHandlers.Any())
             {
                 var handlerContext = new WorkflowHandlerContext(
-                    Orden: ctx.Orden,
-                    IdOrden: ctx.IdOrden,
+                    Entidad: ctx.Entidad,
+                    IdEntidad: ctx.IdEntidad,
+                    TipoEntidad: ctx.TipoEntidad,
                     IdAccion: ctx.IdAccion,
                     IdUsuario: ctx.IdUsuario,
                     Comentario: ctx.Comentario,
@@ -84,6 +86,10 @@ namespace Lefarma.API.Features.Config.Engine
                     var actionHandler = _serviceProvider.GetKeyedService<IWorkflowActionHandler>(configured.HandlerKey);
                     if (actionHandler is null)
                         return new WorkflowEjecucionResult(false, $"Handler '{configured.HandlerKey}' no está registrado.", null, null);
+                    
+                    if (!actionHandler.TiposEntidadCompatibles.Contains("ALL") && !actionHandler.TiposEntidadCompatibles.Contains(ctx.TipoEntidad))
+                        return new WorkflowEjecucionResult(false,
+                            $"Handler '{configured.HandlerKey}' no es compatible con '{ctx.TipoEntidad}'.", null, null);
 
                     var result = await actionHandler.ProcessAsync(
                         handlerContext with { Handler = configured },
@@ -120,22 +126,23 @@ namespace Lefarma.API.Features.Config.Engine
 
             _context.WorkflowBitacoras.Add(new WorkflowBitacora
             {
-                IdOrden = ctx.IdOrden,
+                TipoEntidad = ctx.TipoEntidad,
+                IdEntidad = ctx.IdEntidad,
+                IdOrden = ctx.TipoEntidad == CodigoProceso.ORDEN_COMPRA ? ctx.IdEntidad : null, // Se mantiene para no romper compatibilidad con bitácora existente de órdenes
                 IdWorkflow = workflow.IdWorkflow,
                 IdPaso = nuevoPaso?.IdPaso ?? accion.PasoOrigen.IdPaso,
                 IdAccion = accion.IdAccion,
                 IdUsuario = ctx.IdUsuario,
                 Comentario = ctx.Comentario,
                 DatosSnapshot = System.Text.Json.JsonSerializer.Serialize(snapshot),
-                FechaEvento = DateTime.UtcNow
+                FechaEvento = DateTime.Now
             });
             await _context.SaveChangesAsync();
 
             // Si la acción requiere envío concentrado, comunicar con sistema externo
             if (accion.EnviaConcentrado)
             {
-                Console.WriteLine($"[EnvioConcentrado] Orden {ctx.IdOrden} - Acción {accion.IdAccion} requiere envío concentrado. Comunicando con sistema externo...");
-                // TODO: Implementar llamada al endpoint del sistema externo
+                Console.WriteLine($"[EnvioConcentrado] Entidad {ctx.IdEntidad} #{ctx.IdEntidad} - Acción {accion.IdAccion} requiere envío concentrado. Comunicando con sistema externo");
             }
 
             return new WorkflowEjecucionResult(
@@ -146,29 +153,19 @@ namespace Lefarma.API.Features.Config.Engine
             );
         }
 
-        public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
-            string codigoProceso, int idOrden, int idUsuario)
-        {
-            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
-            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
-
-            var workflow = await _workflowRepo.GetQueryable()
-                .Include(w => w.Pasos)
-                    .ThenInclude(p => p.AccionesOrigen)
-                        .ThenInclude(a => a.Condiciones)
-                .Include(w => w.Pasos)
-                    .ThenInclude(p => p.Participantes)
-                .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso);
-
-            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
-        }
 
         public async Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(
-            int idWorkflow, int idOrden, int idUsuario)
+            int idWorkflow, int idEntidad, int idUsuario, string tipoEntidad)
         {
-            var orden = await _context.OrdenesCompra.FindAsync(idOrden);
-            if (orden?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
+            // Resolver el contexto de la entidad segun tipo
+            var entityContext = await ResolveEntityContextAsync(tipoEntidad, idEntidad);
+            if (entityContext?.IdPasoActual is null) return Array.Empty<WorkflowAccion>();
 
+            // Validar que el idWorkflow guardado en la entidad coincida
+            if (entityContext.IdWorkflow != idWorkflow)
+                return Array.Empty<WorkflowAccion>();
+
+            // Cargar workflow con pasos, acciones y participantes por el idWorkflow
             var workflow = await _workflowRepo.GetQueryable()
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
@@ -177,7 +174,7 @@ namespace Lefarma.API.Features.Config.Engine
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
-            return await ResolveAccionesAsync(orden.IdPasoActual.Value, workflow, idUsuario, orden.IdUsuarioCreador);
+            return await ResolveAccionesAsync(entityContext.IdPasoActual.Value, workflow, idUsuario, entityContext.IdUsuarioCreador);
         }
 
         private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario, int idUsuarioCreador)
@@ -245,16 +242,39 @@ namespace Lefarma.API.Features.Config.Engine
             return participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value));
         }
 
+        private async Task<WorkflowEntityContext> ResolveEntityContextAsync(string tipoEntidad, int idEntidad)
+        {
+            return tipoEntidad switch
+            {
+                CodigoProceso.ORDEN_COMPRA => await _context.OrdenesCompra
+                    .Where(o => o.IdOrden == idEntidad)
+                    .Select(o => new WorkflowEntityContext(
+                        o.IdWorkflow, o.IdPasoActual, o.IdUsuarioCreador))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0),
+
+                CodigoProceso.SOLICITUD_PERSONAL => await _context.SolicitudesPersonal
+                    .Where(i => i.IdSolicitud == idEntidad)
+                    .Select(i => new WorkflowEntityContext(
+                        i.IdWorkflow, i.IdPasoActual, i.IdUsuarioCreador))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0),
+
+                _ => throw new NotSupportedException(
+                    $"TipoEntidad '{tipoEntidad}' no soportado por el engine.")
+            };
+        }
+        private record WorkflowEntityContext(
+            int IdWorkflow, int? IdPasoActual, int IdUsuarioCreador);
+
         private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
         {
             // Leer propiedad directa de OrdenCompra (IgnoreCase)
-            var prop = typeof(Domain.Entities.Operaciones.OrdenCompra).GetProperty(
+            var prop = ctx.Entidad.GetType().GetProperty(
                 c.CampoEvaluacion,
                 System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
 
             if (prop is null) return false;
 
-            var propValue = prop.GetValue(ctx.Orden);
+            var propValue = prop.GetValue(ctx.Entidad);
             if (propValue is null) return false;
 
             // Booleanos: true/false

@@ -27,6 +27,7 @@ import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
 import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
 import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
 import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
+import CrearSolicitudPersonal from '@/pages/rh/solicitudes/CrearSolicitudPersonal';
 import EnvioConcentrado from '@/pages/ordenes/EnvioConcentrado';
 import Perfil from '@/pages/Perfil';
 import Roadmap from '@/pages/Roadmap';
@@ -81,6 +82,8 @@ export const AppRoutes = () => {
           <Route path="/configuracion" element={<ConfiguracionGeneral />} /> 
           <Route path="/ordenes/editar/:id" element={<CrearOrdenCompra />} />
           <Route path="/ordenes/crear" element={<CrearOrdenCompra />} />
+          <Route path="/rh/solicitudes/crear" element={<CrearSolicitudPersonal />} />
+          <Route path="/rh/solicitudes/editar/:id" element={<CrearSolicitudPersonal />} />
           <Route path="/ordenes/autorizaciones" element={<AutorizacionesOC />} />
           <Route path="/ordenes/envio-concentrado" element={<EnvioConcentrado />} />
           <Route path="/perfil" element={<Perfil />} />

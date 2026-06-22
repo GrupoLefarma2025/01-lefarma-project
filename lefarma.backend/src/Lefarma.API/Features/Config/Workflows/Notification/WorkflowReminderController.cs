@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Lefarma.API.Features.OrdenesCompra.Firmas
+namespace Lefarma.API.Features.Config.Workflows.Notification
 {
     [Route("api/workflow/recordatorios")]
     [ApiController]
