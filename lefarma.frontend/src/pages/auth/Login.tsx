@@ -1,6 +1,6 @@
 ﻿import { useState, FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
@@ -52,6 +52,14 @@ export default function Login() {
     loginStepThree,
     resetLoginFlow,
   } = useAuthStore();
+
+  // Optional post-login return target, set by the `/CxP/` shell's RequireAuth
+  // guard when it redirects an unauthenticated session here. Open-redirect guard:
+  // only honor return paths scoped to the `/CxP/` prefix (the shell build). The
+  // default Gastos flow (no return param) is unchanged.
+  const returnSearchParam = new URLSearchParams(window.location.search).get('return');
+  const safeReturn =
+    returnSearchParam && returnSearchParam.startsWith('/CxP/') ? returnSearchParam : null;
 
   const [username, setUsername] = useState(pendingUsername || '');
   const [syncedPending, setSyncedPending] = useState<string | null>(pendingUsername || null);
@@ -146,8 +154,14 @@ export default function Login() {
 
   // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
-    if (isAuthenticated) navigate('/dashboard', { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (!isAuthenticated) return;
+    // Honor a `/CxP/`-scoped return target if present; otherwise default to Gastos.
+    if (safeReturn) {
+      window.location.href = safeReturn;
+      return;
+    }
+    navigate('/dashboard', { replace: true });
+  }, [isAuthenticated, navigate, safeReturn]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
@@ -215,6 +229,11 @@ export default function Login() {
 
     try {
       await loginStepThree(emp, suc, ar);
+      // Honor a `/CxP/`-scoped return target if present; otherwise default to Gastos.
+      if (safeReturn) {
+        window.location.href = safeReturn;
+        return;
+      }
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';

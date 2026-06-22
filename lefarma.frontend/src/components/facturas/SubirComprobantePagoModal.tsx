@@ -21,7 +21,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { comprobanteService } from '@/services/comprobanteService';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { toast } from 'sonner';
 import type { ApiResponse } from '@/types/api.types';

@@ -7,7 +7,7 @@ import { Loader } from '@/components/ui/loader';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { Empresa } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';

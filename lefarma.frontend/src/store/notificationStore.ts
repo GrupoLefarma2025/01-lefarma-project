@@ -13,7 +13,7 @@ import {
   SendNotificationRequest,
 } from '@/types/notification.types';
 import { notificationService } from '@/services/notificationService';
-import { useAuthStore } from './authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 interface NotificationState extends NotificationUiState {
   // Actions

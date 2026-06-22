@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';

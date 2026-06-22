@@ -1,6 +1,6 @@
-﻿import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { authService } from './authService';
-import { useAuthStore } from '@/store/authStore';
+import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { authService } from '@/shared/auth/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { ApiError } from '@/types/api.types';
 import { navigateTo } from '@/lib/navigation';
 

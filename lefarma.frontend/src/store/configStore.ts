@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { ConfigState, UIConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
 import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/types/config.types';
 import { UI_PRESETS } from '@/constants/uiPresets';
-import { useAuthStore } from './authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 
 const DEFAULT_UI_CONFIG: UIConfig = {

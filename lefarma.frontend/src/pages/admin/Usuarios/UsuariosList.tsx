@@ -24,7 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
 import { Rol } from '@/types/rol.types';

@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import {
   AuthState,
   UserInfo,
@@ -8,11 +8,11 @@ import {
 import type { Area } from '@/types/catalogo.types';
 import type { SseUserInfo } from '@/types/sse.types';
 import { navigateTo } from '@/lib/navigation';
-import { authService } from '@/services/authService';
-import { API } from '@/services/api';
+import { authService } from '@/shared/auth/authService';
+import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type { Usuario } from '@/types/usuario.types';
-import { useConfigStore } from './configStore';
+import { useConfigStore } from '@/store/configStore';
 import { toast } from 'sonner';
 
 

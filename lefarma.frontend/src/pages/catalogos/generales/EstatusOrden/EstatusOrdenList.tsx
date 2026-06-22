@@ -5,7 +5,7 @@ import { List, Search, Loader2, RefreshCcw, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';

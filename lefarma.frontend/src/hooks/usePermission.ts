@@ -1,5 +1,5 @@
 ﻿import { useMemo } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 
 

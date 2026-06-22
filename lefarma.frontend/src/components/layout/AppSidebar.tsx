@@ -51,7 +51,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import favicon from '@/assets/favicon.ico';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 import { checkPermission } from '@/utils/permissions';

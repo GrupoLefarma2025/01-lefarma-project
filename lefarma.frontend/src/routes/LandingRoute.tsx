@@ -1,6 +1,6 @@
 ﻿import { Navigate, Outlet } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import Hero from '@/pages/Hero';
 
 const PageLoader = () => (

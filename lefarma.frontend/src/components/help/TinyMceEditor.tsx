@@ -1,7 +1,7 @@
 ﻿import { useRef, useEffect } from 'react';
 import { Editor } from '@tinymce/tinymce-react';
 import type { Editor as TinyMCEEditor } from 'tinymce';
-import { authService } from '@/services/authService';
+import { authService } from '@/shared/auth/authService';
 
 
 interface TinyMceEditorProps {

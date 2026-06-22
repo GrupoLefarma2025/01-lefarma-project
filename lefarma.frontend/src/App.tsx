@@ -1,7 +1,8 @@
 ﻿import { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
 import { AppRoutes } from './routes/AppRoutes';
-import { useAuthStore } from './store/authStore';
+import { BaseAppRoutes } from './apps/baseapp/BaseAppRoutes';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { useConfigStore } from './store/configStore';
 import { Toaster } from '@/components/ui/sonner';
 import { AutoVerify } from '@/components/AutoVerify';
@@ -43,10 +44,15 @@ function App() {
     return <AutoVerify />;
   }
 
+  // App tree selection (design: "App tree selection — branch on BASE_URL").
+  // The `/CxP/` build renders the base-app shell; every other base renders the
+  // existing Gastos route tree unchanged.
+  const isBaseAppShell = import.meta.env.BASE_URL === '/CxP/';
+
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <NavigationRegistrar />
-      <AppRoutes />
+      {isBaseAppShell ? <BaseAppRoutes /> : <AppRoutes />}
       <Toaster />
     </BrowserRouter>
   );

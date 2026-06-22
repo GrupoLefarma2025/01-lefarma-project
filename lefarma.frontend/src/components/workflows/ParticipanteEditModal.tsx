@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import type { Workflow, WorkflowPaso, WorkflowParticipante } from '@/types/workflow.types';

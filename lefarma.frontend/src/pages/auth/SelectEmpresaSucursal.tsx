@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { authService } from '@/shared/auth/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';
 import type { Area } from '@/types/catalogo.types';
 import { Button } from '@/components/ui/button';

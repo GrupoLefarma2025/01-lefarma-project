@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
-import { authService } from '@/services/authService';
-import { useAuthStore } from '@/store/authStore';
+import { authService } from '@/shared/auth/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 /**
  * Headless SSO landing. Reads ?token=<handoff>&page=<ruta> from the URL,

@@ -1,4 +1,4 @@
-﻿import { useAuthStore } from '@/store/authStore';
+﻿import { useAuthStore } from '@/shared/auth/authStore';
 import { usePageStore } from '@/store/pageStore';
 import { useConfigStore } from '@/store/configStore';
 import { useNavigate } from 'react-router-dom';

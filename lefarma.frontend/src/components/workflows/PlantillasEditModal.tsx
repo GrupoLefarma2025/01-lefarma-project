@@ -3,7 +3,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { toast } from 'sonner';
 import type { ApiResponse } from '@/types/api.types';
 import type { WorkflowNotificacionCanal } from '@/types/workflow.types';
