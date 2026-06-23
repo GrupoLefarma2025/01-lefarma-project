@@ -2,12 +2,12 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 
-// Unmount any components rendered by RTL between tests so the DOM is isolated.
+// Desmontar los componentes renderizados por RTL entre tests para mantener el DOM aislado.
 afterEach(() => {
   cleanup();
 });
 
-// jsdom does not implement matchMedia (used by use-mobile hook and theme logic).
+// jsdom no implementa matchMedia (usado por el hook use-mobile y la lógica de tema).
 if (!window.matchMedia) {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
     matches: false,
@@ -21,7 +21,7 @@ if (!window.matchMedia) {
   })) as unknown as typeof window.matchMedia;
 }
 
-// jsdom has no IntersectionObserver (used by lazy-mounting Radix primitives).
+// jsdom no tiene IntersectionObserver (usado por primitivas Radix de montaje lazy).
 if (typeof window.IntersectionObserver === 'undefined') {
   class IntersectionObserverStub {
     observe = vi.fn();
@@ -36,7 +36,7 @@ if (typeof window.IntersectionObserver === 'undefined') {
     IntersectionObserverStub as unknown as typeof window.IntersectionObserver;
 }
 
-// jsdom has no ResizeObserver (used by recharts ResponsiveContainer and kibo-ui).
+// jsdom no tiene ResizeObserver (usado por ResponsiveContainer de recharts y kibo-ui).
 if (typeof window.ResizeObserver === 'undefined') {
   class ResizeObserverStub {
     observe = vi.fn();
@@ -46,8 +46,8 @@ if (typeof window.ResizeObserver === 'undefined') {
   window.ResizeObserver = ResizeObserverStub as unknown as typeof window.ResizeObserver;
 }
 
-// Pointer / scroll APIs missing in jsdom but required by @testing-library/user-event
-// and focusable Radix triggers.
+// APIs de pointer / scroll faltantes en jsdom pero requeridas por @testing-library/user-event
+// y triggers enfocables de Radix.
 if (!Element.prototype.hasPointerCapture) {
   Element.prototype.hasPointerCapture = vi.fn();
 }

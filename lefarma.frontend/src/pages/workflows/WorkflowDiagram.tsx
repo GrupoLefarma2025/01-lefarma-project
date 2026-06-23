@@ -541,7 +541,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     }));
   };
 
-  // Scope types and mappings state (read-only scope types; mappings CRUD)
+  // Estado de tipos de scope y asignaciones (tipos de scope solo lectura; CRUD de asignaciones)
   const [scopeTypes, setScopeTypes] = useState<WorkflowScopeType[]>([]);
   const [mappings, setMappings] = useState<WorkflowMapping[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -564,7 +564,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       const res = await API.get<any>('/config/workflows/scope-types');
       setScopeTypes(res.data?.data ?? []);
     } catch (e) {
-      // ignore
+      // ignorar
     }
   };
 
@@ -575,7 +575,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     } catch { }
   };
 
-  // Load catalogs dynamically when scope type selection changes in the mapping form
+  // Cargar catálogos dinámicamente cuando cambia la selección de tipo de scope en el formulario de asignación
   useEffect(() => {
     const loadCatalogo = async () => {
       const id = mappingPayload.idScopeType;

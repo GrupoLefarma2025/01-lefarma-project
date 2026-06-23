@@ -2,7 +2,7 @@
 import type { Area } from './catalogo.types';
 
 
-// User info from backend (matches UserInfo in backend DTOs)
+// Información del usuario desde el backend (coincide con UserInfo en los DTOs del backend)
 export interface UserInfo {
   id: number;
   username: string;
@@ -29,7 +29,7 @@ export interface PermissionInfo {
   accion?: string;
 }
 
-// Legacy User interface (for backward compatibility)
+// Interfaz User legacy (para compatibilidad hacia atrás)
 export interface User {
   id: string;
   username: string;
@@ -57,7 +57,7 @@ export interface Sucursal {
   activo: boolean;
 }
 
-// Legacy types (for backward compatibility)
+// Tipos legacy (para compatibilidad hacia atrás)
 export interface LoginCredentials {
   username: string;
   password: string;
@@ -69,7 +69,7 @@ export interface LoginResponse {
   empresas: Empresa[];
 }
 
-// New 2-step login types
+// Nuevos tipos para login de 2 pasos
 export interface LoginStepOneRequest {
   username: string;
 }
@@ -98,9 +98,9 @@ export interface RefreshTokenRequest {
   refreshToken: string;
 }
 
-// Updated AuthState with 2-step flow
+// AuthState actualizado con flujo de 2 pasos
 export interface AuthState {
-  // Existing state
+  // Estado existente
   user: UserInfo | null;
   token: string | null;
   empresa: Empresa | null;
@@ -109,7 +109,7 @@ export interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
 
-  // New state for 3-step flow
+  // Nuevo state para flujo de 3 pasos
   loginStep: 1 | 2 | 3;
   availableDomains: string[];
   requiresDomainSelection: boolean;
@@ -124,7 +124,7 @@ export interface AuthState {
   puedeSeleccionarEmpresas: boolean;
   usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
 
-  // Existing actions
+  // Acciones existentes
   logout: () => Promise<void>;
   setEmpresa: (empresa: Empresa) => void;
   setSucursal: (sucursal: Sucursal) => void;
@@ -133,16 +133,17 @@ export interface AuthState {
   initialize: () => void;
   changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => void;
 
-  // New actions for 3-step flow
+  // Nuevas acciones para flujo de 3 pasos
   loginStepOne: (username: string) => Promise<void>;
   /**
-   * Validate credentials and either advance to step 3 (default CxP flow) or
-   * finalize the session (global 2-step flow).
+   * Valida credenciales y ya sea avanza al paso 3 (flujo CxP por defecto) o
+   * finaliza la sesión (flujo global de 2 pasos).
    *
-   * @param options.requireContextSelection When `false`, marks the session
-   *   authenticated right after credentials and SKIPS the empresa/sucursal/area
-   *   load. Used by the global `/login` flow and the RH per-app login. Default
-   *   behavior (no option) preserves the 3-step CxP flow.
+   * @param options.requireContextSelection Cuando es `false`, marca la sesión
+   *   como autenticada justo después de las credenciales y OMITE la carga de
+   *   empresa/sucursal/area. Usado por el flujo `/login` global y el login
+   *   por-app de RH. El comportamiento por defecto (sin opción) preserva el
+   *   flujo CxP de 3 pasos.
    */
   loginStepTwo: (
     password: string,
@@ -152,7 +153,7 @@ export interface AuthState {
   loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
   resetLoginFlow: () => void;
 
-  // Firma signature actions
+  // Acciones de firma de firma
   setHasFirma: (has: boolean) => void;
   fetchProfileSignature: () => Promise<void>;
 
