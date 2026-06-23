@@ -1,4 +1,4 @@
-import { LayoutDashboard, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, HelpCircle, Users,  FileCheck2, FileText } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
@@ -14,6 +14,15 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     title: 'Dashboard',
     icon: LayoutDashboard,
     path: '/rh/dashboard',
+  },
+  {
+    title: 'Solicitudes de personal',
+    icon: Users,
+    isCollapsible: true,
+    items: [
+      { title: 'Crear solicitud', icon: FileText, path: '/rh/solicitudes/crear', permission: { require: 'solicitudes_personal.crear' } },
+      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/rh/solicitudes/autorizaciones', permission: { require: 'solicitudes_personal.ver_listado' } },
+    ],
   },
   {
     title: 'Ayuda',
