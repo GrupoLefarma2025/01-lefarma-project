@@ -462,7 +462,7 @@ export default function CuentasContablesList() {
           </PermissionElement>
         </div>
 
-        {/* Table */}
+        {/* Tabla */}
         <div className="relative">
           {!loading && cuentas.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">

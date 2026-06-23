@@ -11,9 +11,10 @@ const PageLoader = () => (
 
 export interface LandingRouteProps {
   /**
-   * Where authenticated users land from the root index. Defaults to
-   * '/dashboard' to preserve the historical root-build behavior. The shell
-   * subtree does not render <LandingRoute/> (it uses its own index resolver).
+   * Dónde aterrizan los usuarios autenticados desde el índice raíz. Por
+   * defecto '/dashboard' para preservar el comportamiento histórico del
+   * root-build. El subárbol del shell no renderiza <LandingRoute/> (usa su
+   * propio resolvedor de índice).
    */
   authenticatedRedirect?: string;
 }
@@ -33,9 +34,10 @@ export const LandingRoute = ({ authenticatedRedirect = '/dashboard' }: LandingRo
 
 export interface ProtectedRouteProps {
   /**
-   * Where unauthenticated users are sent. Defaults to '/' (the Hero landing) to
-   * preserve the historical behavior — the landing itself presents the login
-   * entry. The shell subtree overrides this with its per-app login.
+   * A dónde se envía a los usuarios no autenticados. Por defecto '/' (el
+   * landing Hero) para preservar el comportamiento histórico — el landing
+   * mismo presenta la entrada de login. El subárbol del shell sobrescribe
+   * esto con su login por-app.
    */
   unauthRedirect?: string;
 }
@@ -48,11 +50,11 @@ export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {
   if (!isInitialized) return <PageLoader />;
 
   if (!isAuthenticated) {
-    // Preserve the intended destination via `?return=` so the login page can
-    // redirect back after a successful authentication (app-routing spec:
-    // Authentication Guard "preserving the return URL"). Mirrors the RequireAuth
-    // pattern. Additive for the root variant (unauthRedirect defaults to '/';
-    // the Hero landing ignores the query param).
+    // Preserva el destino deseado vía `?return=` para que la página de login
+    // pueda redirigir de vuelta tras una autenticación exitosa (spec
+    // app-routing: Authentication Guard "preserving the return URL"). Refleja
+    // el patrón de RequireAuth. Aditivo para el variant root (unauthRedirect
+    // por defecto '/'; el landing Hero ignora el query param).
     const from = location.pathname + location.search;
     return <Navigate to={`${unauthRedirect}?return=${encodeURIComponent(from)}`} replace />;
   }
@@ -62,9 +64,10 @@ export const ProtectedRoute = ({ unauthRedirect = '/' }: ProtectedRouteProps = {
 
 export interface PublicOnlyRouteProps {
   /**
-   * Where authenticated users are sent when they hit a public-only route (e.g.
-   * the login page). Defaults to '/dashboard' (root behavior). The shell
-   * subtree overrides this with a subtree-relative destination.
+   * A dónde se envía a los usuarios autenticados cuando tocan una ruta
+   * solo-pública (ej. la página de login). Por defecto '/dashboard'
+   * (comportamiento root). El subárbol del shell sobrescribe esto con un
+   * destino relativo al subárbol.
    */
   authenticatedRedirect?: string;
 }

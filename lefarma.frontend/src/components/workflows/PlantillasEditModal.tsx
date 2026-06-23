@@ -46,7 +46,7 @@ interface PlantillasEditModalProps {
   listadoRowHtmlPlaceholder?: string;
   listadoRowHtmlExample?: string;
   bodyVars?: string[];
-  /** Variable name (e.g. '{{Partidas}}') — when set, shows a per-canal toggle that inserts/removes the var from the body template */
+  /** Nombre de variable (p. ej. '{{Partidas}}') — cuando se establece, muestra un toggle por canal que inserta/elimina la variable de la plantilla del cuerpo */
   tablaVarName?: string;
   tipoNotificacion?: string;
   onChange: (canales: WorkflowNotificacionCanal[]) => void;

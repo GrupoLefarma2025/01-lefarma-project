@@ -2,9 +2,9 @@ import { LayoutDashboard, User } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
- * Shell sidebar navigation config. The root base-app shell (hub, perfil) uses
- * the same MainLayout + AppSidebar + Header as the apps, but with shell-only
- * items and no context (showContext=false).
+ * Config de navegación del sidebar del shell. El shell del base-app raíz
+ * (hub, perfil) usa el mismo MainLayout + AppSidebar + Header que las apps,
+ * pero con items solo del shell y sin contexto (showContext=false).
  */
 export const shellMenuItems: SidebarMenuItemConfig[] = [
   {

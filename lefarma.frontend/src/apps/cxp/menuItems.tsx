@@ -24,9 +24,9 @@ import {
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
- * CxP sidebar navigation config. Extracted from AppSidebar to make the
- * sidebar configurable per-app. Paths are absolute with the `/cxp/` prefix
- * (nav-reorg: CxP is mounted at `/cxp/`, not root).
+ * Config de navegación del sidebar CxP. Extraído de AppSidebar para hacer el
+ * sidebar configurable por app. Los paths son absolutos con el prefijo `/cxp/`
+ * (nav-reorg: CxP está montado en `/cxp/`, no en la raíz).
  */
 export const cxpMenuItems: SidebarMenuItemConfig[] = [
   {

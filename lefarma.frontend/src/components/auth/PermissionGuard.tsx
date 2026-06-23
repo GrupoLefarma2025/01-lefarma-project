@@ -9,11 +9,11 @@ interface PermissionGuardProps {
   exclude?: string | string[];
   fallback?: ReactNode;
   /**
-   * Where to redirect when the permission check fails. Defaults to `/bloqueado`
-   * (the blocked page). Mounted subtrees override with a
-   * subtree-scoped destination so a permission failure under `/cxp/`
-   * resolves to `/cxp/bloqueado` instead of leaking to `/bloqueado`
-   * (app-routing spec: "Permission checks preserved under subtree mounting").
+   * Ruta de redirección cuando falla la verificación de permisos. Por defecto `/bloqueado`
+   * (la página de bloqueo). Los subárboles montados sobrescriben con un
+   * destino con alcance de subárbol, de modo que un fallo de permiso bajo `/cxp/`
+   * resuelve a `/cxp/bloqueado` en lugar de escapar a `/bloqueado`
+   * (spec de app-routing: "Permission checks preserved under subtree mounting").
    */
   blockedPath?: string;
   children: ReactNode;

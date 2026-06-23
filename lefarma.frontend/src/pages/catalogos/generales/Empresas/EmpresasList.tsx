@@ -28,11 +28,11 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 
-// Helper function to normalize text (remove accents and convert to lowercase)
+// Función de utilidad para normalizar texto (quitar acentos y convertir a minúsculas)
 const normalizeText = (text: string): string => {
   return text
-    .normalize('NFD') // Decompose accented characters
-    .replace(/[\u0300-\u036f]/g, '') // Remove diacritical marks
+    .normalize('NFD') // Descomponer caracteres acentuados
+    .replace(/[\u0300-\u036f]/g, '') // Quitar marcas diacríticas
     .toLowerCase();
 };
 
@@ -68,7 +68,7 @@ export default function EmpresasList() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
-  const [, forceUpdate] = useState({}); // Force re-render when needed
+  const [, forceUpdate] = useState({}); // Forzar re-render cuando se necesita
   const [isEditing, setIsEditing] = useState(false);
 
   const [modalStates, setModalStates] = useState({
@@ -205,11 +205,11 @@ export default function EmpresasList() {
   };
 
   const filteredEmpresas = useMemo(() => {
-    // Read search columns from localStorage
+    // Leer columnas de búsqueda desde localStorage
     const getSearchColumns = () => {
       try {
         const stored = localStorage.getItem('table-configs');
-        if (!stored) return ['nombre']; // Default
+        if (!stored) return ['nombre']; // Por defecto
         const parsed = JSON.parse(stored);
         const empresasConfig = parsed.find((c: any) => c.tableId === 'empresas');
         return empresasConfig?.searchColumns || ['nombre'];
@@ -226,7 +226,7 @@ export default function EmpresasList() {
     }
 
     return empresas.filter((e) => {
-      // Map column IDs to actual object properties
+      // Mapear IDs de columnas a las propiedades reales del objeto
       const columnToValue: Record<string, string> = {
         'nombre': e.nombre,
         'razonSocial': e.razonSocial || '',
@@ -235,13 +235,13 @@ export default function EmpresasList() {
         'activo': e.activo ? 'Activo' : 'Inactivo',
       };
 
-      // Check if any selected column matches (with accent-insensitive search)
+      // Verificar si alguna columna seleccionada coincide (búsqueda insensible a acentos)
       return searchColumns.some((columnId: string) => {
         const value = columnToValue[columnId];
         return value && normalizeText(value).includes(searchNormalized);
       });
     });
-  }, [empresas, search, forceUpdate]); // forceUpdate ensures re-read on localStorage change
+  }, [empresas, search, forceUpdate]); // forceUpdate asegura re-leer al cambiar localStorage
 
   const columns: ColumnDef<Empresa>[] = [
     {

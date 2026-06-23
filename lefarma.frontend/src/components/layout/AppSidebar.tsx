@@ -40,13 +40,13 @@ function hasPermission(permission?: Parameters<typeof checkPermission>[0]): bool
 }
 
 export interface AppSidebarProps {
-  /** Navigation menu items for this app. */
+  /** Elementos del menú de navegación de esta aplicación. */
   items: SidebarMenuItemConfig[];
-  /** Brand text shown in the sidebar header (e.g. "Grupo Lefarma CxP"). */
+  /** Texto de marca mostrado en el encabezado del sidebar (p. ej. "Grupo Lefarma CxP"). */
   brandTitle: string;
-  /** Where the header logo links to (e.g. "/cxp/dashboard"). */
+  /** Destino del enlace del logo del encabezado (p. ej. "/cxp/dashboard"). */
   brandPath: string;
-  /** Optional user-config link in the footer (e.g. "/cxp/configuracion"). */
+  /** Enlace opcional de configuración de usuario en el pie (p. ej. "/cxp/configuracion"). */
   configPath?: string;
 }
 

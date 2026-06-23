@@ -9,7 +9,7 @@ export interface MainLayoutProps {
   brandTitle: string;
   brandPath: string;
   configPath?: string;
-  /** Show empresa/sucursal/area context in the header (CxP=true, RH=false). */
+  /** Muestra el contexto de empresa/sucursal/área en el encabezado (CxP=true, RH=false). */
   showContext?: boolean;
 }
 

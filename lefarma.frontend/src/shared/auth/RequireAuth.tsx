@@ -3,29 +3,31 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
 
 /**
- * Route guard for the root base-app shell and any mounted app subtree.
+ * Guard de ruta para el shell del base-app raíz y cualquier subárbol de app
+ * montado.
  *
- * When the session is NOT authenticated, the guard renders a `<Navigate>` to
- * the configured `loginPath`, preserving the intended destination via a
- * `?return=` query param (app-routing spec: Authentication Guard "preserving
- * the return URL"). The shell build is a single bundle, so an in-app navigation
- * is sufficient (no full-page reload).
+ * Cuando la sesión NO está autenticada, el guard renderiza un `<Navigate>` al
+ * `loginPath` configurado, preservando el destino deseado vía un query param
+ * `?return=` (spec app-routing: Authentication Guard "preserving the return
+ * URL"). El build del shell es un bundle único, así que una navegación in-app
+ * es suficiente (sin recarga de página completa).
  *
- * The `?return=` form integrates with `Login.tsx`'s existing `safeReturn`
- * handling (reads `window.location.search`, accepts same-origin absolute
- * paths as an open-redirect guard). No changes to `Login.tsx` are required
- * beyond the nav-reorg scope.
+ * La forma `?return=` se integra con el manejo existente de `safeReturn` de
+ * `Login.tsx` (lee `window.location.search`, acepta paths absolutos same-origin
+ * como guardia contra open-redirect). No se requieren cambios a `Login.tsx`
+ * más allá del alcance del nav-reorg.
  *
- * The guard checks AUTHENTICATION ONLY. It deliberately does NOT block on
- * empresa/sucursal/area context selection — that is deferred to per-app logic
- * (see base-app spec: "No Global Context Assumption").
+ * El guard verifica SOLO AUTENTICACIÓN. Deliberadamente NO bloquea por
+ * selección de contexto empresa/sucursal/area — eso se difiere a la lógica
+ * por-app (ver spec base-app: "No Global Context Assumption").
  */
 export interface RequireAuthProps {
-  /** Protected subtree rendered when authenticated. */
+  /** Subárbol protegido renderizado cuando está autenticado. */
   children: ReactNode;
   /**
-   * Login destination. Defaults to `/login` (shell global login). Mounted app
-   * subtrees override with their own login (e.g. `/cxp/login`).
+   * Destino de login. Por defecto `/login` (login global del shell). Los
+   * subárboles de app montados sobrescriben con su propio login (ej.
+   * `/cxp/login`).
    */
   loginPath?: string;
 }
@@ -35,12 +37,12 @@ export function RequireAuth({ children, loginPath = '/login' }: RequireAuthProps
   const location = useLocation();
 
   if (!isAuthenticated) {
-    // In-app redirect within the single-bundle shell.
+    // Redirección in-app dentro del shell de bundle único.
     //
-    // Preserve the intended destination so the login page can redirect back
-    // after a successful authentication (app-routing spec: Authentication Guard
-    // "preserving the return URL"). `?return=` integrates with Login.tsx's
-    // existing `safeReturn` handling without requiring Login changes.
+    // Preserva el destino deseado para que la página de login pueda redirigir
+    // de vuelta tras una autenticación exitosa (spec app-routing: Authentication
+    // Guard "preserving the return URL"). `?return=` se integra con el manejo
+    // existente de `safeReturn` de Login.tsx sin requerir cambios en Login.
     const from = location.pathname + location.search;
     return <Navigate to={`${loginPath}?return=${encodeURIComponent(from)}`} replace />;
   }

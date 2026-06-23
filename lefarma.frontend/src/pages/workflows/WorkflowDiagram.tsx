@@ -153,7 +153,7 @@ export default function WorkflowDiagram() {
                       }`}
                       onClick={() => setSelectedPaso(paso)}
                     >
-                      {/* Step Header */}
+                      {/* Encabezado del paso */}
                       <div className="p-4 border-b border-border/50">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -271,7 +271,7 @@ export default function WorkflowDiagram() {
 
   return (
     <div className="space-y-4 h-full">
-      {/* Header */}
+      {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -334,7 +334,7 @@ export default function WorkflowDiagram() {
       {/* Content */}
       {viewMode === 'diagram' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-280px)]">
-          {/* Main canvas */}
+          {/* Lienzo principal */}
           <div className="lg:col-span-2 relative flex flex-col gap-4">
             {/* Legend - Simplified */}
             <div className="bg-card rounded-lg border border-border p-3 shrink-0">
@@ -365,7 +365,7 @@ export default function WorkflowDiagram() {
             </div>
           </div>
 
-          {/* Side panel - Sticky */}
+          {/* Panel lateral — fijo (sticky) */}
           <div className="lg:sticky lg:top-4 lg:self-start bg-card rounded-lg border border-border p-4 overflow-auto max-h-[calc(100vh-280px)]">
             {selectedPaso ? (
               <div className="space-y-4">
@@ -1598,7 +1598,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       </Dialog>
     )}
 
-    {/* Step Edit Form */}
+    {/* Formulario de edición de paso */}
       {editingPaso && (
         <StepEditForm
           paso={editingPaso}
@@ -1613,7 +1613,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         />
       )}
       
-      {/* Action Edit Modal */}
+      {/* Modal de edición de acción */}
       <ActionEditModal
         workflow={workflow}
         accion={editingAccion}
@@ -1640,7 +1640,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Condicion Edit Modal */}
+      {/* Modal de edición de condición */}
       <CondicionEditModal
         workflow={workflow}
         condicion={editingCondicion}
@@ -1653,7 +1653,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Participante Edit Modal */}
+      {/* Modal de edición de participante */}
       <ParticipanteEditModal
         key={editingParticipante ? `p-${editingParticipante.idParticipante}` : 'p-closed'}
         workflow={workflow}
@@ -1669,7 +1669,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Notificacion Edit Modal */}
+      {/* Modal de edición de notificación */}
       <NotificacionEditModal
         workflow={workflow}
         notificacion={editingNotificacion}
@@ -1775,7 +1775,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 
 
 
-      {/* Plantillas Modal */}
+      {/* Modal de plantillas */}
       <Dialog open={modalStates.plantillasModal} onOpenChange={(open) => toggleModal('plantillasModal', open)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1842,7 +1842,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           </div>
         </DialogContent>
       </Dialog>
-      {/* Template Edit Modal */}
+      {/* Modal de edición de plantilla */}
       <TemplateEditModal
         template={editingCanalTemplate}
         open={modalStates.canalTemplateModal}
@@ -1858,7 +1858,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           setEditingCanalTemplate(null);
         }}
       />
-      {/* Recordatorio Edit Modal */}
+      {/* Modal de edición de recordatorio */}
       <RecordatorioEditModal
         workflow={workflow}
         recordatorio={editingRecordatorio}

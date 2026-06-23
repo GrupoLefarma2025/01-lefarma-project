@@ -1,10 +1,11 @@
 /**
- * Minimal profile page for the root base-app shell (base-app spec:
- * "Profile Page"). Placeholder surface that renders for any authenticated user.
+ * Página de perfil mínima para el shell del base-app raíz (spec base-app:
+ * "Profile Page"). Superficie de placeholder que renderiza para cualquier
+ * usuario autenticado.
  *
- * Rendered inside MainLayout (shell config), so the shell chrome stays present
- * around it. Does NOT assume empresa/sucursal/area context (base-app spec:
- * "No Global Context Assumption").
+ * Renderizada dentro de MainLayout (config del shell), así el chrome del shell
+ * se mantiene presente alrededor. NO asume contexto empresa/sucursal/area
+ * (spec base-app: "No Global Context Assumption").
  */
 export function Profile() {
   return (

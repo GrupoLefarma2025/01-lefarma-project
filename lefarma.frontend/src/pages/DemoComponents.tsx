@@ -911,7 +911,7 @@ const EjemploArchivos = () => {
         </Button>
       </div>
 
-      {/* FileUploader Modal */}
+      {/* Modal de FileUploader */}
       <FileUploader
         open={uploaderOpen}
         onClose={() => setUploaderOpen(false)}
@@ -922,7 +922,7 @@ const EjemploArchivos = () => {
         onError={(error) => toast.error(error)}
       />
 
-      {/* FileViewer Modal */}
+      {/* Modal de FileViewer */}
       <FileViewer
         open={viewerOpen && archivoId !== null}
         onClose={() => {

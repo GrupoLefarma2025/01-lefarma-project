@@ -60,11 +60,11 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
   return (
     <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${hasFirma === false ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
-      {/* Left side: Toggle + Location Info */}
+      {/* Lado izquierdo: Toggle + Información de ubicación */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
 
-        {/* Empresa + Sucursal + Area: only when app uses context (CxP) */}
+        {/* Empresa + Sucursal + Área: solo cuando la app usa contexto (CxP) */}
         {showContext && (
           <div className="hidden md:flex items-center gap-4">
             <div className="h-4 w-px bg-border" />
@@ -97,7 +97,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
         )}
       </div>
 
-      {/* Center: Page Title (md+ only) */}
+      {/* Centro: Título de la página (solo md+) */}
       {title && (
         <div className="absolute left-1/2 -translate-x-1/2 text-center hidden md:block">
           <p className="text-sm font-semibold text-foreground leading-tight">{title}</p>
@@ -107,7 +107,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
         </div>
       )}
 
-      {/* Right side: Theme + Notifications + User Menu */}
+      {/* Lado derecho: Tema + Notificaciones + Menú de usuario */}
       <div className="flex items-center gap-2">
         {/* Theme Dropdown */}
         <DropdownMenu>
@@ -159,7 +159,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
             <DropdownMenuSeparator />
 
-            {/* Current Location Info (mobile-friendly) — only for context apps */}
+            {/* Información de ubicación actual (móvil) — solo para apps con contexto */}
             {showContext && (
               <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
                 <div className="flex items-center gap-2">

@@ -290,7 +290,7 @@ export function SubirComprobantePagoModal({
         </div>
       }
     >
-      {/* Step indicators */}
+      {/* Indicadores de pasos */}
       <div className="mb-4 flex items-center gap-1 text-xs">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-1">

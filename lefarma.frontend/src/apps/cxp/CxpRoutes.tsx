@@ -41,19 +41,19 @@ import HelpEditor from '@/pages/help/HelpEditor';
 import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
 
 /**
- * CxP route table — delegates ALL scaffolding (index resolver, login
- * wrapper, protected wrapper, MainLayout, bloqueado, NotFound) to the
- * generic `createAppRoutes` factory. This module only declares the
- * CxP-specific page routes and the extras that don't fit the standard
- * pattern (handoff-login, select-empresa, public ayuda).
+ * Tabla de rutas CxP — delega TODA la infraestructura (resolvedor de índice,
+ * wrapper de login, wrapper protegido, MainLayout, bloqueado, NotFound) a la
+ * fábrica genérica `createAppRoutes`. Este módulo solo declara las rutas de
+ * páginas específicas de CxP y los extras que no encajan en el patrón
+ * estándar (handoff-login, select-empresa, ayuda pública).
  *
- * Invocation contract (unchanged): React Router's createRoutesFromChildren
- * flattens Fragment children but rejects non-<Route> component elements, so
- * this module MUST be invoked as a function call — `{CxpRoutes({ variant,
- * loginPath })}` — NOT as JSX `<CxpRoutes/>`.
+ * Contrato de invocación (sin cambios): createRoutesFromChildren de React
+ * Router aplana los hijos de Fragment pero rechaza elementos componentes
+ * no-<Route>, por lo que este módulo DEBE invocarse como llamada de función —
+ * `{CxpRoutes({ variant, loginPath })}` — NO como JSX `<CxpRoutes/>`.
  *
- * CxP is the ONLY app that uses the 3-step login (empresa/sucursal/area
- * context selection), so `requireContextSelection` is set to true.
+ * CxP es la ÚNICA app que usa el login de 3 pasos (selección de contexto
+ * empresa/sucursal/area), así que `requireContextSelection` se setea en true.
  */
 export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/cxp/bloqueado';

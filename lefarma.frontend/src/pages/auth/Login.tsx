@@ -34,16 +34,17 @@ const DOMAIN_NAMES: Record<string, string> = {
 
 export interface LoginProps {
   /**
-   * When `true` (default), present the 3-step flow that collects
-   * empresa/sucursal/area context after credentials (CxP login — CxP is the
-   * ONLY app that collects context). When `false`, the session is finalized
-   * right after credentials and the context-selection step is cleanly skipped
-   * (global `/login` flow and the RH per-app login).
+   * Cuando es `true` (por defecto), presenta el flujo de 3 pasos que recopila
+   * el contexto de empresa/sucursal/area después de las credenciales (login
+   * CxP — CxP es la ÚNICA app que recopila contexto). Cuando es `false`, la
+   * sesión se finaliza justo después de las credenciales y el paso de selección
+   * de contexto se omite limpiamente (flujo `/login` global y el login por-app
+   * de RH).
    */
   requireContextSelection?: boolean;
   /**
-   * Post-login navigation target. Defaults to `'dashboard'` (the CxP
-   * landing). The global login overrides this with `'/hub'`.
+   * Destino de navegación post-login. Por defecto `'dashboard'` (el landing
+   * de CxP). El login global lo sobrescribe con `'/hub'`.
    */
   redirectTo?: string;
 }
@@ -72,12 +73,13 @@ export default function Login({
     resetLoginFlow,
   } = useAuthStore();
 
-  // Optional post-login return target, set by the shell's RequireAuth
-  // guard when it redirects an unauthenticated session here. Open-redirect guard:
-  // only honor same-origin absolute paths (root-relative, NOT protocol-relative
-  // `//evil.com`). The shell is now served from root (`/`), so valid return
-  // targets look like `/hub`, `/perfil`, `/cxp/dashboard`, `/rh/dashboard`, etc.
-  // The default CxP flow (no return param) is unchanged.
+  // Destino de retorno post-login opcional, establecido por el guard
+  // RequireAuth del shell cuando redirige aquí una sesión no autenticada.
+  // Guarda contra open-redirect: solo honra rutas absolutas del mismo origen
+  // (relativas a la raíz, NO relativas al protocolo como `//evil.com`). El
+  // shell ahora se sirve desde la raíz (`/`), así que los destinos de retorno
+  // válidos se ven como `/hub`, `/perfil`, `/cxp/dashboard`, `/rh/dashboard`, etc.
+  // El flujo por defecto de CxP (sin parámetro return) no cambia.
   const returnSearchParam = new URLSearchParams(window.location.search).get('return');
   const safeReturn =
     returnSearchParam &&
@@ -180,8 +182,8 @@ export default function Login({
   // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
     if (!isAuthenticated) return;
-    // Honor a same-origin return target if present; otherwise default to the
-    // configured redirect (CxP dashboard or /hub for the global login).
+    // Honrar un destino de retorno del mismo origen si existe; de lo contrario
+    // usar el redirect configurado (dashboard de CxP o /hub para el login global).
     if (safeReturn) {
       navigate(safeReturn, { replace: true });
       return;
@@ -255,8 +257,8 @@ export default function Login({
 
     try {
       await loginStepThree(emp, suc, ar);
-      // Honor a same-origin return target if present; otherwise default to the
-      // configured redirect (CxP dashboard).
+      // Honrar un destino de retorno del mismo origen si existe; de lo contrario
+      // usar el redirect configurado (dashboard de CxP).
       if (safeReturn) {
         navigate(safeReturn, { replace: true });
         return;
@@ -297,7 +299,7 @@ export default function Login({
             />
           </div>
 
-          {/* Progress steps */}
+          {/* Pasos de progreso */}
           <div className="my-4 flex items-center justify-center gap-2">
             <div
               className={`flex items-center gap-2 ${

@@ -15,10 +15,10 @@ const PageLoader = () => (
 );
 
 /**
- * Auth-aware subtree index resolver. Identical logic for every app:
- * authenticated users land on `dashboard`; unauthenticated users are
- * redirected to the subtree login with the intended destination preserved
- * via `?return=` (app-routing spec: "preserving the return URL").
+ * Resolvedor de índice de subárbol consciente de auth. Lógica idéntica para
+ * cada app: usuarios autenticados aterrizan en `dashboard`; usuarios no
+ * autenticados son redirigidos al login del subárbol con el destino deseado
+ * preservado vía `?return=` (spec app-routing: "preserving the return URL").
  */
 function AppSubtreeIndex({ loginPath }: { loginPath: string }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -32,62 +32,62 @@ function AppSubtreeIndex({ loginPath }: { loginPath: string }) {
 }
 
 /**
- * Configuration for the generic app-route factory. Every app (CxP, RH,
- * future apps) provides its page routes and optional extras; the factory
- * handles ALL scaffolding (index resolver, login wrapper, protected
- * wrapper, MainLayout, bloqueado, NotFound).
+ * Configuración para la fábrica genérica de rutas de app. Cada app (CxP, RH,
+ * apps futuras) provee sus rutas de página y extras opcionales; la fábrica
+ * maneja TODA la infraestructura (resolvedor de índice, wrapper de login,
+ * wrapper protegido, MainLayout, bloqueado, NotFound).
  */
 export interface AppRoutesConfig {
-  /** Stable identifier, e.g. 'cxp' | 'rh'. Derives default paths. */
+  /** Identificador estable, ej. 'cxp' | 'rh'. Deriva los paths por defecto. */
   appKey: string;
-  /** Root keeps an app-specific index; subtree uses the auth-aware resolver. */
+  /** Root mantiene un índice específico de app; el subárbol usa el resolvedor consciente de auth. */
   variant: 'root' | 'subtree';
-  /** Override the default login path (defaults to `/{appKey}/login`). */
+  /** Sobrescribe el path de login por defecto (por defecto `/{appKey}/login`). */
   loginPath?: string;
-  /** CxP sets true (3-step login); all other apps default false (2-step). */
+  /** CxP setea true (login de 3 pasos); todas las demás apps por defecto false (2 pasos). */
   requireContextSelection?: boolean;
   /**
-   * Root-variant index element. CxP passes <LandingRoute/> (Hero landing);
-   * apps without a landing default to a redirect to the login path.
+   * Elemento índice del variant root. CxP pasa <LandingRoute/> (landing Hero);
+   * las apps sin landing por defecto redirigen al path de login.
    */
   rootIndexElement?: ReactElement;
   /**
-   * Protected routes OUTSIDE <MainLayout> (inside <ProtectedRoute>).
-   * CxP uses this for `select-empresa`.
+   * Rutas protegidas FUERA de <MainLayout> (dentro de <ProtectedRoute>).
+   * CxP usa esto para `select-empresa`.
    */
   preLayoutRoutes?: ReactNode;
-  /** Page routes INSIDE <MainLayout> — the bulk of each app's pages. */
+  /** Rutas de páginas DENTRO de <MainLayout> — el grueso de las páginas de cada app. */
   routes: ReactNode;
   /**
-   * Layout element wrapping the protected page routes. Each app passes its
-   * own configured <MainLayout> with app-specific sidebar items and branding.
-   * Must render an <Outlet/> for the child routes.
+   * Elemento layout que envuelve las rutas de páginas protegidas. Cada app pasa
+   * su propio <MainLayout> configurado con items de sidebar y branding
+   * específicos de la app. Debe renderizar un <Outlet/> para las rutas hijas.
    */
   layout: ReactElement;
   /**
-   * Public routes outside the standard wrappers (e.g. handoff-login,
-   * public ayuda). React Router v6+ uses ranking-based matching, so
-   * placement between wrappers does not affect route resolution.
+   * Rutas públicas fuera de los wrappers estándar (ej. handoff-login,
+   * ayuda pública). React Router v6+ usa matching basado en ranking, así que
+   * la ubicación entre wrappers no afecta la resolución de rutas.
    */
   extraRoutes?: ReactNode;
 }
 
 /**
- * Generic app-route factory — the single source of truth for the standard
- * subtree scaffold. Replaces the former per-app CxpRoutes/RhRoutes
- * duplication (PageLoader, SubtreeIndex, resolvedLoginPath, variant logic,
- * publicOnlyRoute, protectedRoute — all identical across apps).
+ * Fábrica genérica de rutas de app — la única fuente de verdad para el
+ * scaffold estándar de subárbol. Reemplaza la anterior duplicación por-app
+ * CxpRoutes/RhRoutes (PageLoader, SubtreeIndex, resolvedLoginPath, lógica de
+ * variant, publicOnlyRoute, protectedRoute — todos idénticos entre apps).
  *
- * Each app module calls this factory with its page routes; the factory
- * produces the Fragment of <Route> elements that the shell inlines via
- * the function-call pattern `{createAppRoutes({...})}` (required because
- * React Router's createRoutesFromChildren rejects non-<Route> component
- * children — see the RR7 invariant discovery).
+ * Cada módulo de app llama a esta fábrica con sus rutas de página; la fábrica
+ * produce el Fragment de elementos <Route> que el shell inlinea vía el
+ * patrón de llamada de función `{createAppRoutes({...})}` (requerido porque
+ * createRoutesFromChildren de React Router rechaza hijos componentes
+ * no-<Route> — ver el descubrimiento del invariante RR7).
  *
- * All route paths are RELATIVE (no leading slash) so the module serves
- * both root and subtree mounts. Under the root basename `/`, `dashboard`
- * resolves to `/dashboard`; inside <Route path="cxp"> it resolves to
- * `/cxp/dashboard`.
+ * Todos los paths de rutas son RELATIVOS (sin slash inicial) para que el
+ * módulo sirva tanto para montajes root como subárbol. Bajo el basename raíz
+ * `/`, `dashboard` resuelve a `/dashboard`; dentro de <Route path="cxp">
+ * resuelve a `/cxp/dashboard`.
  */
 export function createAppRoutes(config: AppRoutesConfig): ReactNode {
   const {

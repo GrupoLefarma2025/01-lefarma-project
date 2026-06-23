@@ -89,16 +89,17 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       sessionStorage.removeItem('loginFlow');
 
-      // Sync display profile consumed by the shell layout / header.
+      // Sincronizar el perfil de display consumido por el layout / header del shell.
       useConfigStore.getState().updatePerfil({
         nombre: response.user.nombre || '',
         correo: response.user.correo || '',
       });
 
-      // Global 2-step login (e.g. `/login`): finalize the session right
-      // after credentials. Step-3 context data (empresas/sucursales/areas) is
-      // intentionally NOT loaded so the global flow never enters partial
-      // context state — context is owned by per-app logic (base-app spec:
+      // Login global de 2 pasos (ej. `/login`): finaliza la sesión justo
+      // después de las credenciales. Los datos de contexto del paso 3
+      // (empresas/sucursales/areas) NO se cargan intencionalmente para que
+      // el flujo global nunca entre en estado de contexto parcial — el
+      // contexto es propiedad de la lógica por-app (spec base-app:
       // "No Global Context Assumption").
       if (options?.requireContextSelection === false) {
         set({
@@ -412,7 +413,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       get().fetchProfileSignature();
     } else {
-      // No auth data
+      // Sin datos de auth
       set({
         isAuthenticated: false,
       });

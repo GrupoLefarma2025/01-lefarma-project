@@ -2,7 +2,7 @@ namespace Lefarma.API.Domain.Entities.Config {
 public class WorkflowBitacora
     {
         public int IdEvento { get; set; }
-        public int IdOrden { get; set; }
+        public int? IdOrden { get; set; }
         public int IdWorkflow { get; set; }
         public int IdPaso { get; set; }
         public int IdAccion { get; set; }

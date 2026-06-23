@@ -243,6 +243,7 @@ namespace Lefarma.API.Features.Dashboard
             try
             {
                 var bitacoras = await _db.WorkflowBitacoras
+                .Where(b => b.IdOrden.HasValue)
                 .OrderByDescending(b => b.FechaEvento)
                 .Take(10)
                 .Select(b => new
@@ -289,7 +290,7 @@ namespace Lefarma.API.Features.Dashboard
                         ? MapTipo(ac.CodigoTipoAccion ?? "")
                         : "info";
 
-                    var folio = ordenes.TryGetValue(b.IdOrden, out var oc)
+                    var folio = b.IdOrden.HasValue && ordenes.TryGetValue(b.IdOrden.Value, out var oc)
                         ? oc.Folio
                         : $"OC-{b.IdOrden}";
 

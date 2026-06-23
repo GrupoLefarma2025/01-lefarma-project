@@ -219,7 +219,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </div>
         </div>
 
-        {/* Info Box */}
+        {/* Cuadro de información */}
         <div className="p-4 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />

@@ -34,8 +34,8 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     routes: (
       <>
         {/*
-          TODO: add future RH pages as sibling <Route> entries. Wrap
-          permission-gated routes with <PermissionGuard blockedPath="/rh/bloqueado" ...>.
+          TODO: agregar futuras páginas de RH como <Route> hermanas. Envolver
+          rutas con permisos en <PermissionGuard blockedPath="/rh/bloqueado" ...>.
         */}
         <Route path="dashboard" element={<RhDashboard />} />
       </>

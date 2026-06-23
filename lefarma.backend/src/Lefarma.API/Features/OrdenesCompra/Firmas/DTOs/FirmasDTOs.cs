@@ -119,7 +119,7 @@ public class FirmarRequest
     public class HistorialWorkflowItemResponse
     {
         public int IdEvento { get; set; }
-        public int IdOrden { get; set; }
+        public int? IdOrden { get; set; }
         public int IdPaso { get; set; }
         public string? NombrePaso { get; set; }
         public int IdAccion { get; set; }

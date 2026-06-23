@@ -5,13 +5,13 @@ import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
 /**
- * Shell home launcher (base-app spec: "Home Launcher"). Renders one tile per
- * entry in the static app registry. The launcher is the default landing surface
- * of the shell.
+ * Launcher home del shell (spec base-app: "Home Launcher"). Renderiza un tile
+ * por cada entrada en el registro estático de apps. El launcher es la
+ * superficie de aterrizaje por defecto del shell.
  *
- * The launcher does NOT assume any empresa/sucursal/area context is selected
- * (base-app spec: "No Global Context Assumption") — context is deferred to the
- * individual apps.
+ * El launcher NO asume que haya ningún contexto empresa/sucursal/area
+ * seleccionado (spec base-app: "No Global Context Assumption") — el contexto
+ * se difiere a las apps individuales.
  */
 export function Home() {
   if (appRegistry.length === 0) {
@@ -65,7 +65,7 @@ function LauncherTile({
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      {/* Subtle gradient accent that appears on hover */}
+      {/* Acento de gradiente sutil que aparece al hacer hover */}
       <div
         className={cn(
           'pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent',
@@ -113,7 +113,7 @@ function LauncherTile({
     </Card>
   );
 
-  // Disabled entries are shown but must not expose a navigation target.
+  // Las entradas deshabilitadas se muestran pero no deben exponer un destino de navegación.
   if (app.disabled) {
     return tile;
   }

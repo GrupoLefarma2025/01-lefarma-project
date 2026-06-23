@@ -10,51 +10,54 @@ import { RhRoutes } from '@/apps/rh/RhRoutes';
 import Login from '@/pages/auth/Login';
 
 /**
- * Route tree for the root base-app shell — the corrected navigation model
- * (app-routing spec: "Root Index Redirect" + "Global Login Route" +
- * "App Subtree Mounting"; base-app spec: "Authenticated Shell Layout" +
+ * Árbol de rutas para el shell del base-app raíz — el modelo de navegación
+ * corregido (spec app-routing: "Root Index Redirect" + "Global Login Route" +
+ * "App Subtree Mounting"; spec base-app: "Authenticated Shell Layout" +
  * "Home Launcher").
  *
- * The shell is served from the root basename (`/`), which React Router composes
- * automatically. So `/` matches `/`, `/hub` matches `/hub`, and
- * `cxp/dashboard` (nested under the `cxp` wrapper) matches `/cxp/dashboard`.
+ * El shell se sirve desde el basename raíz (`/`), el cual React Router compone
+ * automáticamente. Así `/` coincide con `/`, `/hub` coincide con `/hub`, y
+ * `cxp/dashboard` (anidado bajo el wrapper `cxp`) coincide con `/cxp/dashboard`.
  *
- * Navigation model (nav-reorg):
- * - `/` is a REDIRECT — auth→`/hub`, unauth→`/login`. It renders NO home
- *   surface (base-app spec: "Index route is not a home surface").
- * - `/login` is the GLOBAL login — outside `RequireAuth` so unauthenticated
- *   sessions can reach it. It uses the 2-step flow (no context selection) and
- *   redirects to `/hub` on success (app-routing spec: "Global Login Route").
- * - `/hub` + `/perfil` are shell pages rendered inside `MainLayout` with
- *   `shellMenuItems` and no context (`showContext` defaults false). This gives
- *   the shell the same sidebar + header look as the apps.
- * - `cxp/*` mounts the CxP subtree via the reusable `<CxpRoutes>` module
- *   (design Decision 1). The subtree keeps its own auth handling
- *   (ProtectedRoute + CxpSubtreeIndex) and its own MainLayout config.
+ * Modelo de navegación (nav-reorg):
+ * - `/` es una REDIRECCIÓN — auth→`/hub`, sin auth→`/login`. No renderiza
+ *   ninguna superficie home (spec base-app: "Index route is not a home
+ *   surface").
+ * - `/login` es el login GLOBAL — fuera de `RequireAuth` para que sesiones no
+ *   autenticadas puedan alcanzarlo. Usa el flujo de 2 pasos (sin selección de
+ *   contexto) y redirige a `/hub` al éxito (spec app-routing: "Global Login
+ *   Route").
+ * - `/hub` + `/perfil` son páginas del shell renderizadas dentro de
+ *   `MainLayout` con `shellMenuItems` y sin contexto (`showContext` por
+ *   defecto false). Esto le da al shell el mismo aspecto de sidebar + header
+ *   que las apps.
+ * - `cxp/*` monta el subárbol CxP vía el módulo reutilizable `<CxpRoutes>`
+ *   (Decisión de diseño 1). El subárbol conserva su propio manejo de auth
+ *   (ProtectedRoute + CxpSubtreeIndex) y su propia config de MainLayout.
  *
- * The CxP subtree is invoked via the FUNCTION-CALL pattern
- * `{CxpRoutes({ variant: 'subtree', loginPath: '/cxp/login' })}` because
- * React Router rejects non-`<Route>` component children of `<Routes>` (see
- * CxpRoutes.tsx JSDoc for the full rationale).
+ * El subárbol CxP se invoca vía el patrón FUNCTION-CALL
+ * `{CxpRoutes({ variant: 'subtree', loginPath: '/cxp/login' })}` porque
+ * React Router rechaza hijos componentes no-`<Route>` de `<Routes>` (ver
+ * el JSDoc de CxpRoutes.tsx para la justificación completa).
  */
 export function BaseAppRoutes() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
     <Routes>
-      {/* Index redirect — never renders a home surface (app-routing spec). */}
+      {/* Redirect del índice — nunca renderiza un home (spec app-routing). */}
       <Route
         path="/"
         element={<Navigate to={isAuthenticated ? '/hub' : '/login'} replace />}
       />
 
-      {/* Global login — public (outside RequireAuth), 2-step, lands on /hub. */}
+      {/* Login global — público (fuera de RequireAuth), 2 pasos, aterriza en /hub. */}
       <Route
         path="/login"
         element={<Login requireContextSelection={false} redirectTo="/hub" />}
       />
 
-      {/* Shell layout route — guarded, uses MainLayout with shell sidebar. */}
+      {/* Ruta del layout shell — protegida, usa MainLayout con el sidebar del shell. */}
       <Route
         element={
           <RequireAuth loginPath="/login">

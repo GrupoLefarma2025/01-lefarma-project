@@ -322,7 +322,7 @@ export default function WorkflowsList() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Encabezado */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Workflows</h1>
@@ -332,7 +332,7 @@ export default function WorkflowsList() {
         </div>
       </div>
 
-      {/* Search & Actions */}
+      {/* Búsqueda y acciones */}
       <div className="flex items-center justify-between gap-4">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -348,7 +348,7 @@ export default function WorkflowsList() {
         </Button>
       </div>
 
-      {/* Table */}
+      {/* Tabla */}
       <div className="relative">
         {!loading && workflows.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">
