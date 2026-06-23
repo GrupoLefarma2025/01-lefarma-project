@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import type { AppRegistryEntry } from '@/apps/_registry';
 
 // Home reads the registry directly; we control it per-test to exercise both the
@@ -29,7 +30,7 @@ describe('Home launcher (base-app)', () => {
       { id: 'contabilidad', label: 'Contabilidad', path: '/contabilidad/' },
     ]);
 
-    render(<Home />);
+    render(<MemoryRouter><Home /></MemoryRouter>);
 
     // One launcher entry per registry item.
     const cxpLink = screen.getByRole('link', { name: /cxp/i });
@@ -44,7 +45,7 @@ describe('Home launcher (base-app)', () => {
   it('Scenario: Empty registry renders gracefully — empty state, no crash', () => {
     setRegistry([]);
 
-    render(<Home />);
+    render(<MemoryRouter><Home /></MemoryRouter>);
 
     // Graceful empty state rather than a blank/broken surface.
     expect(screen.getByText(/no hay aplicaciones disponibles|sin aplicaciones/i)).toBeInTheDocument();
@@ -53,7 +54,7 @@ describe('Home launcher (base-app)', () => {
   it('Scenario: Adding an app entry is code-only — Home renders a newly added entry without component changes', () => {
     setRegistry([{ id: 'nomina', label: 'Nómina', path: '/nomina/' }]);
 
-    const { rerender } = render(<Home />);
+    const { rerender } = render(<MemoryRouter><Home /></MemoryRouter>);
     expect(screen.getByRole('link', { name: /nómina/i })).toBeInTheDocument();
 
     // "Add" another entry (simulating a developer appending to the registry) and
@@ -62,7 +63,7 @@ describe('Home launcher (base-app)', () => {
       { id: 'nomina', label: 'Nómina', path: '/nomina/' },
       { id: 'activos', label: 'Activos Fijos', path: '/activos/' },
     ]);
-    rerender(<Home />);
+    rerender(<MemoryRouter><Home /></MemoryRouter>);
 
     expect(screen.getByRole('link', { name: /nómina/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /activos fijos/i })).toBeInTheDocument();
@@ -71,7 +72,7 @@ describe('Home launcher (base-app)', () => {
   it('renders a disabled entry without a navigable href', () => {
     setRegistry([{ id: 'cxp', label: 'CxP', path: '/cxp/', disabled: true }]);
 
-    render(<Home />);
+    render(<MemoryRouter><Home /></MemoryRouter>);
 
     // A disabled app is shown but must not expose a live navigation target.
     const item = screen.getByText(/cxp/i);

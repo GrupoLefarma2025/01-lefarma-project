@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { ReceiptText, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 /**
  * Static app registry — the single source of truth for the shell launcher
@@ -16,8 +17,8 @@ export interface AppRegistryEntry {
   label: string;
   /** Absolute navigation target, e.g. '/cxp/'. */
   path: string;
-  /** Optional leading icon node. */
-  icon?: ReactNode;
+  /** Optional leading icon component (rendered by the launcher tile). */
+  icon?: LucideIcon;
   /** Optional helper text shown under the label. */
   description?: string;
   /** When true the entry is rendered but not navigable (e.g. not migrated yet). */
@@ -37,6 +38,7 @@ export const appRegistry: AppRegistryEntry[] = [
     label: 'CxP',
     path: '/cxp/',
     description: 'Órdenes de compra',
+    icon: ReceiptText,
     disabled: false,
   },
   {
@@ -44,6 +46,7 @@ export const appRegistry: AppRegistryEntry[] = [
     label: 'Recursos Humanos',
     path: '/rh/',
     description: 'Gestión de personal',
+    icon: Users,
     disabled: false,
   },
 ];
