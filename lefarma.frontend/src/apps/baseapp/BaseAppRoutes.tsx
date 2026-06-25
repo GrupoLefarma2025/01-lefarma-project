@@ -34,7 +34,8 @@ import BaseAppLogin from './BaseAppLogin';
  *   que las apps.
  * - `cxp/*` monta el subárbol CxP vía el módulo reutilizable `<CxpRoutes>`
  *   (Decisión de diseño 1). El subárbol conserva su propio manejo de auth
- *   (ProtectedRoute + CxpSubtreeIndex) y su propia config de MainLayout.
+ *   (ProtectedRoute + el resolvedor de índice AppSubtreeIndex de la fábrica)
+ *   y su propia config de MainLayout.
  *
  * El subárbol CxP se invoca vía el patrón FUNCTION-CALL
  * `{CxpRoutes({ variant: 'subtree', loginPath: '/cxp/login' })}` porque
@@ -78,7 +79,7 @@ export function BaseAppRoutes() {
         CxP subtree (cxp-app spec: "CxP Subtree Mounting"). The wrapper
         renders an <Outlet/> for the subtree children produced by the reusable
         CxpRoutes module. The subtree owns its auth handling
-        (ProtectedRoute for protected routes, CxpSubtreeIndex for the index)
+        (ProtectedRoute for protected routes, AppSubtreeIndex for the index)
         and its own MainLayout config. Wrapping this subtree in a shell-level
         RequireAuth would be incorrect: it would also guard `/cxp/login`
         (public) and produce a redirect loop, defeating the per-app login.
@@ -91,7 +92,7 @@ export function BaseAppRoutes() {
         RH (Recursos Humanos) subtree — mirrors the CxP subtree mount. The
         wrapper renders an <Outlet/> for the subtree children produced by the
         reusable RhRoutes module. The subtree owns its auth handling
-        (ProtectedRoute for protected routes, RhSubtreeIndex for the index) and
+        (ProtectedRoute for protected routes, AppSubtreeIndex for the index) and
         shares the same MainLayout as CxP. RH login uses the 2-step global
         flow (no context-selection step). See CxpRoutes/RhRoutes JSDoc for
         the function-call invocation rationale.
@@ -105,7 +106,7 @@ export function BaseAppRoutes() {
         wrapper renderiza un <Outlet/> para los hijos del subárbol producidos
         por el módulo reutilizable EducacionMedicaRoutes. El subárbol conserva
         su propio manejo de auth (ProtectedRoute para rutas protegidas,
-        EducacionMedicaSubtreeIndex para el índice) y comparte el mismo
+        AppSubtreeIndex para el índice) y comparte el mismo
         MainLayout que CxP y RH. El login de Educación Médica usa el flujo
         global de 2 pasos (sin paso de selección de contexto). Ver el JSDoc de
         CxpRoutes/RhRoutes/EducacionMedicaRoutes para la justificación de la

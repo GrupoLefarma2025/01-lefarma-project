@@ -7,17 +7,17 @@ import { rhMenuItems } from './menuItems';
 import { RhDashboard } from './pages/RhDashboard';
 
 /**
- * RH (Recursos Humanos) route table — delegates ALL scaffolding to the
- * generic `createAppRoutes` factory. RH currently ships a single dashboard
- * page; future RH pages (empleados, nóminas, vacaciones, etc.) are added as
- * sibling <Route> entries inside the `routes` prop.
+ * RH (Recursos Humanos) route table — delega TODO el scaffolding a la fábrica
+ * genérica `createAppRoutes`. RH actualmente expone un único dashboard;
+ * futuras páginas (empleados, nóminas, vacaciones, etc.) se agregan como
+ * <Route> hermanas dentro de la prop `routes`.
  *
- * Invocation contract (unchanged): must be called as a function —
- * `{RhRoutes({ variant, loginPath })}` — NOT as JSX `<RhRoutes/>`.
+ * Contrato de invocación (sin cambios): debe invocarse como función —
+ * `{RhRoutes({ variant, loginPath })}` — NO como JSX `<RhRoutes/>`.
  *
- * RH login uses the 2-step global flow (no empresa/sucursal/area step) —
- * step 3 is CxP-only, so RH omits the `step3` slot (2-step flow is the
- * factory default).
+ * El login de RH usa el flujo global de 2 pasos (sin paso de
+ * empresa/sucursal/area) — el paso 3 es exclusivo de CxP, por lo que RH
+ * omite el slot `step3` (el flujo de 2 pasos es el default de la fábrica).
  */
 export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   return createAppRoutes({
