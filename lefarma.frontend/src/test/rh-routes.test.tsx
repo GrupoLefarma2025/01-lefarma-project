@@ -11,8 +11,8 @@ import { BaseAppRoutes } from '@/apps/baseapp/BaseAppRoutes';
  * Coverage (mirrors the baseapp-routes / cxp-app contract):
  * - RH subtree mounting: `/rh/*` resolves within the subtree; index auth→
  *   `dashboard`, unauth→`/rh/login` with `?return=` preserved.
- * - RH login: `/rh/login` renders <Login> wired with the 2-step global flow
- *   (`requireContextSelection={false}`) — step 3 is CxP-only.
+ * - RH login: `/rh/login` renders <MultiStepLogin> wired with the 2-step
+ *   global flow (no `step3` slot) — step 3 is CxP-only.
  * - Authed `/rh/dashboard` resolves inside the subtree.
  * - Return-URL preservation on unauthenticated protected-route hits.
  *
@@ -20,11 +20,12 @@ import { BaseAppRoutes } from '@/apps/baseapp/BaseAppRoutes';
  * `MainLayout` becomes an `<Outlet/>` passthrough, and `PermissionGuard` is
  * bypassed so route resolution is isolated from page-implementation noise.
  *
- * NOTE on the Login probe: Login is NOT mocked to a static <div> (that hides
- * routing probes). Instead it is mocked to a probe that captures both the
- * props it was invoked with and the router location (URL + `?return=`) via
- * data attributes. This lets us assert the 2-step wiring AND the redirect
- * destination without rendering the full Login form tree.
+ * NOTE on the MultiStepLogin probe: MultiStepLogin is NOT mocked to a static
+ * <div> (that hides routing probes). Instead it is mocked to a probe that
+ * captures both the props it was invoked with and the router location
+ * (URL + `?return=`) via data attributes. This lets us assert the 2-step
+ * wiring (no step3 slot) AND the redirect destination without rendering the
+ * full MultiStepLogin form tree.
  */
 
 vi.mock('@/pages/Hero', () => ({
@@ -52,27 +53,34 @@ vi.mock('@/apps/rh/pages/RhDashboard', () => ({
   RhDashboard: () => <div>RH_DASHBOARD_MARK</div>,
 }));
 
-// Login probe — captures invocation props + router location. NOT a static div.
-vi.mock('@/pages/auth/Login', async () => {
+// MultiStepLogin probe — captures invocation props + router location. NOT a
+// static div. The factory now renders <MultiStepLogin> (not <Login>), so the
+// probe targets the new shell component.
+vi.mock('@/components/baseapp/MultiStepLogin', async () => {
   const { useLocation } = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   // Declared inside the factory (PascalCase) so react-hooks/rules-of-hooks
-  // recognizes it as a component — the `default` property name would otherwise
-  // trip the rule.
-  const LoginProbe = (props: { requireContextSelection?: boolean; redirectTo?: string }) => {
+  // recognizes it as a component — the `MultiStepLogin` property name would
+  // otherwise trip the rule if it were a lowercase local.
+  const MultiStepLoginProbe = (props: {
+    redirectTo?: string;
+    step3?: ReactNode;
+    step3Label?: string;
+    step3Description?: string;
+  }) => {
     const loc = useLocation();
     const url = loc.pathname + loc.search;
     return (
       <div
         data-testid="login-probe"
         data-url={url}
-        data-ctx={String(props.requireContextSelection)}
+        data-has-step3={String(props.step3 !== undefined)}
         data-redirect={props.redirectTo ?? 'undefined'}
       >
         LOGIN_PROBE {url}
       </div>
     );
   };
-  return { default: LoginProbe };
+  return { MultiStepLogin: MultiStepLoginProbe };
 });
 
 // MainLayout pulls in the full sidebar/header tree; reduce it to a passthrough
@@ -145,7 +153,7 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
   });
 
   describe('RH login — 2-step global flow (no context-selection step)', () => {
-    it('renders Login at /rh/login for an unauthenticated session', () => {
+    it('renders MultiStepLogin at /rh/login for an unauthenticated session', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/rh/login');
       // The login page is public (outside ProtectedRoute) — reachable unauth.
@@ -153,12 +161,13 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
       expect(probe).toBeInTheDocument();
     });
 
-    it('wires Login with requireContextSelection=false (step 3 is CxP-only)', () => {
+    it('wires MultiStepLogin with no step3 slot (2-step flow; step 3 is CxP-only)', () => {
       useAuthStore.setState({ isInitialized: true, isAuthenticated: false });
       renderAt('/rh/login');
       const probe = screen.getByTestId('login-probe');
-      // 2-step flow: no empresa/sucursal/area collection.
-      expect(probe.getAttribute('data-ctx')).toBe('false');
+      // 2-step flow: RH omits the step3 slot, so MultiStepLogin authenticates
+      // right after credentials (no empresa/sucursal/area collection).
+      expect(probe.getAttribute('data-has-step3')).toBe('false');
       // Post-login target is the RH dashboard (subtree-relative).
       expect(probe.getAttribute('data-redirect')).toBe('dashboard');
     });

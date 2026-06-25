@@ -16,14 +16,14 @@ import { RhDashboard } from './pages/RhDashboard';
  * `{RhRoutes({ variant, loginPath })}` — NOT as JSX `<RhRoutes/>`.
  *
  * RH login uses the 2-step global flow (no empresa/sucursal/area step) —
- * step 3 is CxP-only, so `requireContextSelection` defaults to false.
+ * step 3 is CxP-only, so RH omits the `step3` slot (2-step flow is the
+ * factory default).
  */
 export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   return createAppRoutes({
     appKey: 'rh',
     variant,
     loginPath,
-    requireContextSelection: false,
     layout: (
       <MainLayout
         items={rhMenuItems}

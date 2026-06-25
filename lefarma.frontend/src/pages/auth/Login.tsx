@@ -23,6 +23,18 @@ import {
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
+/**
+ * @legacy Login monolítico — SUPERSEDO por `<MultiStepLogin>` (pasos 1 y 2)
+ * más el slot `step3` inyectado por cada app (ej. `CxpContextSelection` para
+ * CxP). La fábrica genérica `createAppRoutes` ahora renderiza `<MultiStepLogin>`
+ * en lugar de este componente.
+ *
+ * Se conserva ÍNTEGRO (sin cambios de lógica) únicamente porque sus pruebas
+ * unitarias directas (`require-auth.test.tsx`, `login.smoke.test.tsx`) lo
+ * importan y ejercen. No agregar nuevos consumidores — usar
+ * `<MultiStepLogin>` + slot `step3` para cualquier login nuevo.
+ */
+
 const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-HN': 'LeFarma Honduras',
   'LEFARMA-GT': 'LeFarma Guatemala',

@@ -4,7 +4,7 @@ import { Navigate, Route, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ProtectedRoute, PublicOnlyRoute } from '@/routes/LandingRoute';
 import { useAuthStore } from '@/shared/auth/authStore';
-import Login from '@/pages/auth/Login';
+import { MultiStepLogin } from '@/components/baseapp/MultiStepLogin';
 import BlockedPage from '@/pages/auth/BlockedPage';
 import NotFound from '@/pages/NotFound';
 
@@ -44,8 +44,27 @@ export interface AppRoutesConfig {
   variant: 'root' | 'subtree';
   /** Sobrescribe el path de login por defecto (por defecto `/{appKey}/login`). */
   loginPath?: string;
-  /** CxP setea true (login de 3 pasos); todas las demás apps por defecto false (2 pasos). */
-  requireContextSelection?: boolean;
+  /**
+   * Contenido del paso 3 inyectado por la app consumidora (ej. selección de
+   * empresa/sucursal/área de CxP). Su PRESENCIA equivale al antiguo
+   * `requireContextSelection: true`: el login ejecuta el flujo de 3 pasos.
+   * Si se omite (RH, Educación Médica), el login es de 2 pasos y autentica
+   * al instante tras las credenciales.
+   *
+   * El booleano `requireContextSelection` fue reemplazado por este slot: la
+   * app ya no declara "quiero 3 pasos" sino que provee el contenido del paso
+   * 3, y `MultiStepLogin` deriva el flujo de su presencia.
+   *
+   * El slot es responsable de su propio estado/formulario y de finalizar la
+   * sesión escribiendo `isAuthenticated` en el authStore (típicamente vía
+   * `loginStepThree`). `MultiStepLogin` observa ese flag y ejecuta el
+   * redirect; el slot NO debe navegar por sí mismo.
+   */
+  step3?: ReactNode;
+  /** Etiqueta del 3er punto del indicador de progreso. Default: 'Contexto'. */
+  step3Label?: string;
+  /** Descripción bajo el indicador cuando se muestra el paso 3. */
+  step3Description?: string;
   /**
    * Elemento índice del variant root. CxP pasa <LandingRoute/> (landing Hero);
    * las apps sin landing por defecto redirigen al path de login.
@@ -94,7 +113,9 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
     appKey,
     variant,
     loginPath,
-    requireContextSelection = false,
+    step3,
+    step3Label,
+    step3Description,
     rootIndexElement,
     preLayoutRoutes,
     routes,
@@ -132,7 +153,14 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
       <Route element={publicOnlyRoute}>
         <Route
           path="login"
-          element={<Login requireContextSelection={requireContextSelection} redirectTo="dashboard" />}
+          element={
+            <MultiStepLogin
+              redirectTo="dashboard"
+              step3={step3}
+              step3Label={step3Label}
+              step3Description={step3Description}
+            />
+          }
         />
       </Route>
 

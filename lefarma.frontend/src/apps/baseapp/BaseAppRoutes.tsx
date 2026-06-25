@@ -7,7 +7,8 @@ import { Home } from './Home';
 import { Profile } from './Profile';
 import { CxpRoutes } from '@/apps/cxp/CxpRoutes';
 import { RhRoutes } from '@/apps/rh/RhRoutes';
-import Login from '@/pages/auth/Login';
+import { EducacionMedicaRoutes } from '@/apps/educacion-medica/EducacionMedicaRoutes';
+import BaseAppLogin from './BaseAppLogin';
 
 /**
  * Árbol de rutas para el shell del base-app raíz — el modelo de navegación
@@ -54,7 +55,7 @@ export function BaseAppRoutes() {
       {/* Login global — público (fuera de RequireAuth), 2 pasos, aterriza en /hub. */}
       <Route
         path="/login"
-        element={<Login requireContextSelection={false} redirectTo="/hub" />}
+        element={<BaseAppLogin />}
       />
 
       {/* Ruta del layout shell — protegida, usa MainLayout con el sidebar del shell. */}
@@ -97,6 +98,21 @@ export function BaseAppRoutes() {
       */}
       <Route path="rh" element={<Outlet />}>
         {RhRoutes({ variant: 'subtree', loginPath: '/rh/login' })}
+      </Route>
+
+      {/*
+        Educación Médica subtree — espejo del montaje del subárbol de RH. El
+        wrapper renderiza un <Outlet/> para los hijos del subárbol producidos
+        por el módulo reutilizable EducacionMedicaRoutes. El subárbol conserva
+        su propio manejo de auth (ProtectedRoute para rutas protegidas,
+        EducacionMedicaSubtreeIndex para el índice) y comparte el mismo
+        MainLayout que CxP y RH. El login de Educación Médica usa el flujo
+        global de 2 pasos (sin paso de selección de contexto). Ver el JSDoc de
+        CxpRoutes/RhRoutes/EducacionMedicaRoutes para la justificación de la
+        invocación por llamada de función.
+      */}
+      <Route path="educacion-medica" element={<Outlet />}>
+        {EducacionMedicaRoutes({ variant: 'subtree', loginPath: '/educacion-medica/login' })}
       </Route>
     </Routes>
   );

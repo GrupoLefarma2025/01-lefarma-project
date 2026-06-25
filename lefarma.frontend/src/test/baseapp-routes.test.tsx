@@ -31,8 +31,18 @@ vi.mock('@/pages/Hero', () => ({
 vi.mock('@/pages/Dashboard', () => ({
   default: () => <div>DASHBOARD_MARK</div>,
 }));
+// The CxP/RH subtree logins render via HandoffLogin → Login
+// (@/pages/auth/Login); mock it so /cxp/login resolves to a marker.
 vi.mock('@/pages/auth/Login', () => ({
   default: () => <div>LOGIN_MARK</div>,
+}));
+
+// /login (baseapp) now mounts <BaseAppLogin> → <MultiStepLogin> (the
+// refactored shell). Mock the rendered leaf so route resolution stays
+// isolated from the login implementation, matching the "heavy leaf pages
+// reduce to text markers" strategy used across this suite.
+vi.mock('@/components/baseapp/MultiStepLogin', () => ({
+  MultiStepLogin: () => <div>LOGIN_MARK</div>,
 }));
 vi.mock('@/pages/catalogos/generales/Proveedores/ProveedoresList', () => ({
   default: () => <div>PROVEEDORES_MARK</div>,

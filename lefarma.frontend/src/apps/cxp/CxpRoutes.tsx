@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { cxpMenuItems } from './menuItems';
+import { CxpContextSelection } from './CxpContextSelection';
 
 import HandoffLogin from '@/pages/auth/HandoffLogin';
 import SelectEmpresaSucursal from '@/pages/auth/SelectEmpresaSucursal';
@@ -53,7 +54,10 @@ import UsuariosList from '@/pages/admin/Usuarios/UsuariosList';
  * `{CxpRoutes({ variant, loginPath })}` — NO como JSX `<CxpRoutes/>`.
  *
  * CxP es la ÚNICA app que usa el login de 3 pasos (selección de contexto
- * empresa/sucursal/area), así que `requireContextSelection` se setea en true.
+ * empresa/sucursal/area). Inyecta esa selección como el slot `step3` de
+ * `<MultiStepLogin>` (flujo de 3 pasos); RH y Educación Médica omiten el slot
+ * (flujo de 2 pasos). El antiguo booleano `requireContextSelection` fue
+ * reemplazado por la presencia del slot en la fábrica genérica.
  */
 export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
   const resolvedBlockedPath = variant === 'root' ? undefined : '/cxp/bloqueado';
@@ -62,7 +66,9 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     appKey: 'cxp',
     variant,
     loginPath,
-    requireContextSelection: true,
+    step3: <CxpContextSelection />,
+    step3Label: 'Ubicación',
+    step3Description: 'Selecciona la ubicación desde la cual generarás órdenes de compra',
     rootIndexElement: <LandingRoute />,
     layout: (
       <MainLayout
