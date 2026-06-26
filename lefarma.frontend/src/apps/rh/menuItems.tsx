@@ -20,8 +20,7 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     icon: Users,
     isCollapsible: true,
     items: [
-      { title: 'Crear solicitud', icon: FileText, path: '/rh/solicitudes/crear', permission: { require: 'solicitudes_personal.crear' } },
-      { title: 'Bandeja de autorizaciones', icon: FileCheck2, path: '/rh/solicitudes/autorizaciones', permission: { require: 'solicitudes_personal.ver_listado' } },
+      { title: 'Solicitudes', icon: FileCheck2, path: '/rh/solicitudes', permission: { require: 'solicitud_personal.ver_listado' } },
     ],
   },
   {

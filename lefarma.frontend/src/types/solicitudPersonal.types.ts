@@ -1,8 +1,25 @@
+export const CATEGORIAS_SOLICITUD: Record<string, string> = {
+  '1': 'Incidencia',
+  '2': 'Permiso',
+  '3': 'Vacaciones',
+  '4': 'Goce de Sueldo',
+  'Incidencia': 'Incidencia',
+  'Permiso': 'Permiso',
+  'Vacaciones': 'Vacaciones',
+  'GoceDeSueldo': 'Goce de Sueldo',
+};
+
+export function getCategoriaNombre(categoria?: string | number | null): string {
+  if (categoria == null || categoria === '') return '-';
+  const key = String(categoria);
+  return CATEGORIAS_SOLICITUD[key] ?? String(categoria);
+}
+
 export interface CreateSolicitudPersonalRequest {
   idSolicitud: number;
   idEmpresa: number;
   idSucursal: number;
-  idArea: number;
+  idArea?: number | null;
   idTipoSolicitud: number;
   motivo?: string | null;
   lugarComision?: string | null;
@@ -35,7 +52,8 @@ export interface SolicitudPersonalResponse {
   idPasoActual?: number;
   pasoActual?: string;
   idUsuarioCreador: number;
-  usuarioCreador?: string;
+  solicitanteNombre?: string;
+  solicitantePuesto?: string;
   idTipoSolicitud: number;
   tipoSolicitudNombre?: string;
   categoria: string;

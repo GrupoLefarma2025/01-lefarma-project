@@ -2,16 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useNavigate, useParams } from 'react-router-dom';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
-import type { SolicitudPersonalResponse, TipoSolicitudResponse, CreateSolicitudPersonalRequest, SolicitudPersonalDetalleDto } from '@/types/solicitudPersonal.types';
-import { usePageTitle } from '@/hooks/usePageTitle';
+import type { SolicitudPersonalResponse, TipoSolicitudResponse, CreateSolicitudPersonalRequest } from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
 import { authService } from '@/shared/auth/authService';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
@@ -40,6 +37,7 @@ import {
   Calendar,
   FileText,
   ChevronDown,
+  ClipboardList,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Empresa, Sucursal, Area } from '@/types/catalogo.types';
@@ -76,14 +74,13 @@ const CATEGORIAS = [
 const solicitudSchema = z.object({
   idEmpresa: z.number().positive('Seleccione una empresa'),
   idSucursal: z.number().positive('Seleccione una sucursal'),
-  idArea: z.number().positive('Seleccione un área'),
+  idArea: z.number().optional(),
   categoria: z.string().min(1, 'Seleccione una categoría'),
   idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
   motivo: z.string().optional(),
   lugarComision: z.string().optional(),
   fechaInicio: z.string().optional(),
   fechaFin: z.string().optional(),
-  diasSolicitados: z.number().optional(),
   fechaRegreso: z.string().optional(),
   fechaReposicion: z.string().optional(),
   detalle: z.array(z.string()).optional(),
@@ -91,14 +88,14 @@ const solicitudSchema = z.object({
 
 type FormValues = z.infer<typeof solicitudSchema>;
 
-export default function CrearSolicitudPersonal() {
-  const navigate = useNavigate();
-  const { id } = useParams<{ id: string }>();
-  const isEditing = Boolean(id);
-  usePageTitle(
-    'Solicitud de personal',
-    isEditing ? 'Edición de solicitud de personal' : 'Captura de solicitud de personal'
-  );
+interface CrearSolicitudProps {
+  idSolicitud?: number;
+  onClose: () => void;
+  onSaved?: () => void;
+}
+
+export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitudProps) {
+  const isEditing = Boolean(idSolicitud);
   const {
     empresa: empresaSession,
     sucursal: sucursalSession,
@@ -125,7 +122,6 @@ export default function CrearSolicitudPersonal() {
       lugarComision: '',
       fechaInicio: '',
       fechaFin: '',
-      diasSolicitados: undefined,
       fechaRegreso: '',
       fechaReposicion: '',
       detalle: [],
@@ -133,10 +129,14 @@ export default function CrearSolicitudPersonal() {
   });
 
   const selectedEmpresaId = form.watch('idEmpresa');
+  const selectedSucursalId = form.watch('idSucursal');
+  const selectedAreaId = form.watch('idArea');
   const selectedCategoria = form.watch('categoria');
   const selectedTipoSolicitudId = form.watch('idTipoSolicitud');
   const watchedFechaInicio = form.watch('fechaInicio');
   const watchedFechaFin = form.watch('fechaFin');
+  const watchedFechaRegreso = form.watch('fechaRegreso');
+  const watchedFechaReposicion = form.watch('fechaReposicion');
   const watchedDetalle = form.watch('detalle');
 
   const selectedTipoSolicitud = useMemo(
@@ -144,7 +144,33 @@ export default function CrearSolicitudPersonal() {
     [tiposSolicitud, selectedTipoSolicitudId]
   );
 
+  const selectedEmpresa = useMemo(
+    () => empresas.find((e) => e.idEmpresa === selectedEmpresaId),
+    [empresas, selectedEmpresaId]
+  );
+  const selectedSucursal = useMemo(
+    () => sucursales.find((s) => s.idSucursal === selectedSucursalId),
+    [sucursales, selectedSucursalId]
+  );
+  const selectedArea = useMemo(
+    () => areas.find((a) => a.idArea === selectedAreaId),
+    [areas, selectedAreaId]
+  );
+
   const esMultiDia = selectedTipoSolicitud?.requiereFechaFin ?? false;
+
+  const diasCalculados = useMemo(() => {
+    const det = watchedDetalle ?? [];
+    if (esMultiDia && det.length > 0) return det.length;
+    if (!esMultiDia && watchedFechaInicio && watchedFechaFin) {
+      const inicio = new Date(watchedFechaInicio);
+      const fin = new Date(watchedFechaFin);
+      const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+      return dias > 0 ? dias : 1;
+    }
+    if (!esMultiDia && watchedFechaInicio) return 1;
+    return 0;
+  }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin]);
 
   const filteredSucursales = useMemo(() => {
     if (!selectedEmpresaId) return sucursales;
@@ -161,14 +187,12 @@ export default function CrearSolicitudPersonal() {
     return tiposSolicitud.filter((t) => t.categoria === selectedCategoria);
   }, [tiposSolicitud, selectedCategoria]);
 
-  // Reset idTipoSolicitud when category changes
   useEffect(() => {
     if (selectedCategoria && selectedTipoSolicitud?.categoria !== selectedCategoria) {
       form.setValue('idTipoSolicitud', 0);
     }
   }, [selectedCategoria, selectedTipoSolicitud, form]);
 
-  // Auto-calculate from detalle (Vacaciones) or fechaInicio/fechaFin (others)
   useEffect(() => {
     const det = watchedDetalle ?? [];
     if (esMultiDia && det.length > 0) {
@@ -177,16 +201,11 @@ export default function CrearSolicitudPersonal() {
       const fin = sorted[sorted.length - 1];
       form.setValue('fechaInicio', inicio);
       form.setValue('fechaFin', fin);
-      form.setValue('diasSolicitados', sorted.length);
       form.setValue('fechaRegreso', '');
     } else if (!esMultiDia && watchedFechaInicio) {
-      form.setValue('detalle', [watchedFechaInicio]);
       if (watchedFechaFin) {
         const inicio = new Date(watchedFechaInicio);
         const fin = new Date(watchedFechaFin);
-        const diffMs = fin.getTime() - inicio.getTime();
-        const dias = Math.ceil(diffMs / (1000 * 60 * 60 * 24)) + 1;
-        if (dias > 0) form.setValue('diasSolicitados', dias);
         const allDates: string[] = [];
         const current = new Date(inicio);
         while (current <= fin) {
@@ -195,15 +214,12 @@ export default function CrearSolicitudPersonal() {
         }
         form.setValue('detalle', allDates);
       } else {
-        form.setValue('diasSolicitados', 1);
         form.setValue('detalle', [watchedFechaInicio]);
       }
     }
   }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin, form]);
 
   const fetchCatalogs = () => {
-    const errors: string[] = [];
-
     Promise.all([
       authService.getEmpresas().catch((err) => {
         console.error('[fetchCatalogs] Error al cargar Empresas:', err);
@@ -223,74 +239,62 @@ export default function CrearSolicitudPersonal() {
     ]).then(([empresasData, sucursalesData, areasData]) => {
       setEmpresas((empresasData as unknown as Empresa[]) || []);
       setSucursales((sucursalesData as unknown as Sucursal[]) || []);
-      setAreas(areasData || []);
+      setAreas((areasData as unknown as Area[]) || []);
       setLoadingCatalogs(false);
     });
-
-    API.get<ApiResponse<TipoSolicitudResponse[]>>('/solicitudes-personal/tipos-solicitud')
-      .then((res) => {
-        if (res.data.success) setTiposSolicitud(res.data.data || []);
-        console.log('Tipos de Solicitud cargados:', res.data.data); 
-      })
-      .catch((err) => {
-        console.warn('[fetchCatalogs] Error al cargar TiposSolicitud:', err);
-        errors.push('Tipos de Solicitud');
-      });
-
-    setTimeout(() => {
-      if (errors.length > 0) {
-        toast.warning(`No se pudieron cargar: ${errors.join(', ')}`);
-      }
-    }, 1000);
   };
 
   useEffect(() => {
-    if (catalogFetched.current) return;
-    catalogFetched.current = true;
-    fetchCatalogs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const loadTipos = async () => {
+      try {
+        const res = await API.get<ApiResponse<TipoSolicitudResponse[]>>('/solicitudes-personal/tipos-solicitud');
+        if (res.data.success) {
+          setTiposSolicitud(res.data.data || []);
+        }
+      } catch {
+        toast.error('Error al cargar tipos de solicitud');
+      }
+    };
+
+    if (!catalogFetched.current) {
+      catalogFetched.current = true;
+      fetchCatalogs();
+      loadTipos();
+    }
   }, []);
 
-  // Load data for edit mode
   useEffect(() => {
-    if (!isEditing || !id || loadingCatalogs || tiposSolicitud.length === 0) return;
+    if (!isEditing || !idSolicitud || loadingCatalogs || tiposSolicitud.length === 0) return;
 
     const loadSolicitud = async () => {
       try {
-        const response = await API.get<ApiResponse<SolicitudPersonalResponse>>(
-          `/solicitudes-personal/${id}`
-        );
-        if (response.data.success && response.data.data) {
-          const sp = response.data.data;
-          const tipo = tiposSolicitud.find((t) => t.idTipoSolicitud === sp.idTipoSolicitud);
+        const res = await API.get<ApiResponse<SolicitudPersonalResponse>>(`/solicitudes-personal/${idSolicitud}`);
+        if (res.data.success && res.data.data) {
+          const sp = res.data.data;
           form.reset({
             idEmpresa: sp.idEmpresa,
             idSucursal: sp.idSucursal,
             idArea: sp.idArea,
-            categoria: tipo?.categoria ?? '',
+            categoria: sp.categoria,
             idTipoSolicitud: sp.idTipoSolicitud,
             motivo: sp.motivo ?? '',
             lugarComision: sp.lugarComision ?? '',
             fechaInicio: sp.fechaInicio ? sp.fechaInicio.split('T')[0] : '',
             fechaFin: sp.fechaFin ? sp.fechaFin.split('T')[0] : '',
-            diasSolicitados: sp.diasSolicitados ?? undefined,
             fechaRegreso: sp.fechaRegreso ? sp.fechaRegreso.split('T')[0] : '',
             fechaReposicion: sp.fechaReposicion ? sp.fechaReposicion.split('T')[0] : '',
             detalle: sp.detalle?.map((d) => d.fecha.split('T')[0]) ?? [],
           });
         } else {
           toast.error('No se pudo cargar la solicitud');
-          navigate('/rh/solicitudes');
         }
       } catch {
         toast.error('Error al cargar la solicitud');
-        navigate('/rh/solicitudes');
       }
     };
 
     loadSolicitud();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditing, id, loadingCatalogs, tiposSolicitud]);
+  }, [isEditing, idSolicitud, loadingCatalogs, tiposSolicitud, form]);
 
   const handleSave = async (values: FormValues) => {
     if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
@@ -305,7 +309,7 @@ export default function CrearSolicitudPersonal() {
     setIsSaving(true);
     try {
       const payload: CreateSolicitudPersonalRequest = {
-        idSolicitud: isEditing ? Number(id) : 0,
+        idSolicitud: isEditing ? Number(idSolicitud) : 0,
         idEmpresa: values.idEmpresa,
         idSucursal: values.idSucursal,
         idArea: values.idArea,
@@ -314,14 +318,14 @@ export default function CrearSolicitudPersonal() {
         lugarComision: values.lugarComision || null,
         fechaInicio: values.fechaInicio || null,
         fechaFin: values.fechaFin || null,
-        diasSolicitados: values.diasSolicitados ?? null,
+        diasSolicitados: null,
         fechaRegreso: values.fechaRegreso || null,
         fechaReposicion: values.fechaReposicion || null,
         detalle: (values.detalle ?? []).map((fecha) => ({ fecha })),
       };
 
       const response = isEditing
-        ? await API.put<ApiResponse<void>>(`/solicitudes-personal/${id}`, payload)
+        ? await API.put<ApiResponse<void>>(`/solicitudes-personal/${idSolicitud}`, payload)
         : await API.post<ApiResponse<void>>('/solicitudes-personal', payload);
 
       if (response.data.success) {
@@ -330,7 +334,8 @@ export default function CrearSolicitudPersonal() {
             ? 'Solicitud de personal actualizada correctamente.'
             : 'Solicitud de personal creada correctamente.'
         );
-        navigate('/rh/solicitudes');
+        onSaved?.();
+        onClose();
       } else {
         toast.error(response.data.message ?? 'Error al guardar la solicitud');
       }
@@ -375,7 +380,6 @@ export default function CrearSolicitudPersonal() {
     <div className="space-y-6">
       <Form {...form}>
         <form className="space-y-6">
-          {/* Card: Datos Generales */}
           <Collapsible defaultOpen={false}>
             <Card>
               <CollapsibleTrigger asChild>
@@ -400,12 +404,12 @@ export default function CrearSolicitudPersonal() {
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              onValueChange={(val) => field.onChange(Number(val))}
                               value={field.value ? String(field.value) : ''}
+                              onValueChange={(v) => field.onChange(Number(v))}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona empresa..." />
+                                  <SelectValue placeholder="Seleccionar empresa" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
@@ -427,12 +431,12 @@ export default function CrearSolicitudPersonal() {
                           <FormItem>
                             <FormLabel>Sucursal *</FormLabel>
                             <Select
-                              onValueChange={(val) => field.onChange(Number(val))}
                               value={field.value ? String(field.value) : ''}
+                              onValueChange={(v) => field.onChange(Number(v))}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona sucursal..." />
+                                  <SelectValue placeholder="Seleccionar sucursal" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
@@ -452,14 +456,14 @@ export default function CrearSolicitudPersonal() {
                         name="idArea"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Área *</FormLabel>
+                            <FormLabel>Área</FormLabel>
                             <Select
-                              onValueChange={(val) => field.onChange(Number(val))}
                               value={field.value ? String(field.value) : ''}
+                              onValueChange={(v) => field.onChange(Number(v))}
                             >
                               <FormControl>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona área..." />
+                                  <SelectValue placeholder="Seleccionar área" />
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
@@ -481,7 +485,6 @@ export default function CrearSolicitudPersonal() {
             </Card>
           </Collapsible>
 
-          {/* Card: Tipo de Solicitud */}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -490,105 +493,107 @@ export default function CrearSolicitudPersonal() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <FormField
-                control={form.control}
-                name="categoria"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Categoría *</FormLabel>
-                    <Select
-                      onValueChange={(val) => field.onChange(val)}
-                      value={field.value || ''}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecciona categoría..." />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {CATEGORIAS.map((c) => (
-                          <SelectItem key={c.value} value={c.value}>
-                            {c.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="idTipoSolicitud"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tipo de Solicitud *</FormLabel>
-                    <Select
-                      onValueChange={(val) => field.onChange(Number(val))}
-                      value={field.value ? String(field.value) : ''}
-                      disabled={!selectedCategoria}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder={selectedCategoria ? 'Selecciona tipo de solicitud...' : 'Primero selecciona una categoría'} />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {tiposPorCategoria.map((t) => (
-                          <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>
-                            {t.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {selectedTipoSolicitud && selectedTipoSolicitud.descripcion && (
-                      <FormDescription className="text-xs">
-                        {selectedTipoSolicitud.descripcion}
-                      </FormDescription>
+              <FormSection icon={FileText} title="Tipo de Solicitud">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="categoria"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Categoría *</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar categoría" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {CATEGORIAS.map((c) => (
+                              <SelectItem key={c.value} value={c.value}>
+                                {c.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                  />
+                  <FormField
+                    control={form.control}
+                    name="idTipoSolicitud"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Tipo *</FormLabel>
+                        <Select
+                          value={field.value ? String(field.value) : ''}
+                          onValueChange={(v) => field.onChange(Number(v))}
+                          disabled={!selectedCategoria}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar tipo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {tiposPorCategoria.map((t) => (
+                              <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>
+                                {t.nombre}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </FormSection>
 
-              <FormField
-                control={form.control}
-                name="motivo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Motivo</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Describe el motivo de la solicitud..."
-                        rows={3}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {selectedTipoSolicitud?.requiereLugarComision && (
+              <FormSection icon={FileText} title="Motivo">
                 <FormField
                   control={form.control}
-                  name="lugarComision"
+                  name="motivo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Lugar de Comisión *</FormLabel>
+                      <FormLabel>Motivo</FormLabel>
                       <FormControl>
-                        <Input placeholder="Ej: Monterrey, Nuevo León" {...field} />
+                        <Textarea
+                          placeholder="Describa el motivo de la solicitud..."
+                          rows={3}
+                          {...field}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+              </FormSection>
+
+              {selectedTipoSolicitud?.requiereLugarComision && (
+                <FormSection icon={Building2} title="Comisión">
+                  <FormField
+                    control={form.control}
+                    name="lugarComision"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Lugar de Comisión *</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="Lugar de la comisión..."
+                            rows={2}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </FormSection>
               )}
             </CardContent>
           </Card>
 
-          {/* Card: Fechas */}
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
@@ -598,26 +603,31 @@ export default function CrearSolicitudPersonal() {
             </CardHeader>
             <CardContent className="space-y-6">
               {esMultiDia ? (
-                <FormField
-                  control={form.control}
-                  name="detalle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{fechaInicioLabel}</FormLabel>
-                      <FormControl>
-                        <MultiDatePicker
-                          value={field.value ?? []}
-                          onChange={field.onChange}
-                          placeholder="Seleccionar días del período..."
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <FormSection icon={Calendar} title="Días del período">
+                  <FormField
+                    control={form.control}
+                    name="detalle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Seleccione los días *</FormLabel>
+                        <FormControl>
+                          <MultiDatePicker
+                            value={field.value ?? []}
+                            onChange={field.onChange}
+                            placeholder="Seleccionar días..."
+                          />
+                        </FormControl>
+                        <FormDescription className="text-xs">
+                          Puede seleccionar uno o varios días del período
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </FormSection>
               ) : (
                 <FormSection icon={Calendar} title="Período">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <FormField
                       control={form.control}
                       name="fechaInicio"
@@ -635,7 +645,6 @@ export default function CrearSolicitudPersonal() {
                         </FormItem>
                       )}
                     />
-
                     {selectedTipoSolicitud?.requiereFechaFin && (
                       <FormField
                         control={form.control}
@@ -655,30 +664,6 @@ export default function CrearSolicitudPersonal() {
                         )}
                       />
                     )}
-
-                    <FormField
-                      control={form.control}
-                      name="diasSolicitados"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Días Solicitados</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              min={1}
-                              {...field}
-                              value={field.value ?? ''}
-                              onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)}
-                              readOnly
-                            />
-                          </FormControl>
-                          <FormDescription className="text-xs">
-                            Se calcula automáticamente
-                          </FormDescription>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
                   </div>
                 </FormSection>
               )}
@@ -736,12 +721,65 @@ export default function CrearSolicitudPersonal() {
             </CardContent>
           </Card>
 
-          {/* Botones de Acción */}
+          <Card>
+            <CardContent className="space-y-3 pt-6">
+              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 shadow-sm">
+                <div className="mb-2 flex items-center gap-2 border-b border-primary/20 pb-2">
+                  <ClipboardList className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-semibold">Resumen de la solicitud</span>
+                </div>
+                <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Empresa</span>
+                    <span className="font-medium">{selectedEmpresa?.nombre ?? '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Sucursal</span>
+                    <span className="font-medium">{selectedSucursal?.nombre ?? '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Área</span>
+                    <span className="font-medium">{selectedArea?.nombre ?? '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Tipo</span>
+                    <span className="font-medium">{selectedTipoSolicitud?.nombre ?? '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Fecha inicio</span>
+                    <span className="font-medium">{watchedFechaInicio || '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Fecha fin</span>
+                    <span className="font-medium">{watchedFechaFin || '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Fecha regreso</span>
+                    <span className="font-medium">{watchedFechaRegreso || '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Fecha reposición</span>
+                    <span className="font-medium">{watchedFechaReposicion || '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Días solicitados</span>
+                    <span className="font-bold text-primary">{diasCalculados > 0 ? `${diasCalculados} día(s)` : '-'}</span>
+                  </div>
+                  <div className="flex justify-between gap-2">
+                    <span className="text-muted-foreground">Fechas seleccionadas</span>
+                    <span className="font-medium">{(watchedDetalle ?? []).length > 0 ? `${(watchedDetalle ?? []).length} día(s)` : '-'}</span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/rh/solicitudes')}
+              onClick={onClose}
+              disabled={isSaving}
             >
               <X className="mr-2 h-4 w-4" /> Cancelar
             </Button>
@@ -776,7 +814,6 @@ export default function CrearSolicitudPersonal() {
                         duration: 8000,
                       });
                     }
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }
                 )();
               }}

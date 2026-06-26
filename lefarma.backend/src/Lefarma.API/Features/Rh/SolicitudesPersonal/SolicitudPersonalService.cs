@@ -1,4 +1,5 @@
 ﻿using ErrorOr;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
@@ -274,18 +275,55 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 {
                     solicitud.FechaInicio = request.FechaInicio;
                     solicitud.FechaFin = request.FechaFin;
-                    solicitud.DiasSolicitados = request.DiasSolicitados;
                     solicitud.FechaRegreso = request.FechaRegreso;
+
+                    if (solicitud.FechaInicio.HasValue && solicitud.FechaFin.HasValue)
+                    {
+                        var dias = (solicitud.FechaFin.Value.Date - solicitud.FechaInicio.Value.Date).Days + 1;
+                        solicitud.DiasSolicitados = dias > 0 ? dias : 1;
+                    }
+                    else if (solicitud.FechaInicio.HasValue)
+                    {
+                        solicitud.DiasSolicitados = 1;
+                    }
                 }
 
                 await _repository.AddAsync(solicitud);
+
+                var accionInicial = pasoInicial.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
+
+                if (accionInicial is not null)
+                {
+                    var snapshot = new Dictionary<string, object?>
+                    {
+                        ["idWorkflow"] = workflow.IdWorkflow,
+                        ["idPasoAnterior"] = null,
+                        ["idPasoNuevo"] = solicitud.IdPasoActual,
+                        ["idEstadoNuevo"] = solicitud.IdEstado,
+                        ["datosAdicionales"] = null
+                    };
+
+                    _context.WorkflowBitacoras.Add(new WorkflowBitacora
+                    {
+                        TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
+                        IdEntidad = solicitud.IdSolicitud,
+                        IdOrden = null,
+                        IdWorkflow = workflow.IdWorkflow,
+                        IdPaso = pasoInicial.IdPaso,
+                        IdAccion = accionInicial.IdAccion,
+                        IdUsuario = idUsuario,
+                        Comentario = "Solicitud de personal creada",
+                        DatosSnapshot = System.Text.Json.JsonSerializer.Serialize(snapshot),
+                        FechaEvento = solicitud.FechaCreacion
+                    });
+
+                    await _context.SaveChangesAsync(ct);
+                }
 
                 var userIds = new List<int> { solicitud.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
-
-
 
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
                 return await MapToDto(solicitud, usuariosInfo, pasoInicial.NombrePaso, estadoInicial.Codigo);
@@ -344,7 +382,20 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     soli.Detalle = new List<SolicitudPersonalDetalle>();
                     soli.FechaInicio = request.FechaInicio;
                     soli.FechaFin = request.FechaFin;
-                    soli.DiasSolicitados = request.DiasSolicitados;
+
+                    if (soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
+                    {
+                        var dias = (soli.FechaFin.Value.Date - soli.FechaInicio.Value.Date).Days + 1;
+                        soli.DiasSolicitados = dias > 0 ? dias : 1;
+                    }
+                    else if (soli.FechaInicio.HasValue)
+                    {
+                        soli.DiasSolicitados = 1;
+                    }
+                    else
+                    {
+                        soli.DiasSolicitados = null;
+                    }
                 }
 
                 await _repository.UpdateAsync(soli);

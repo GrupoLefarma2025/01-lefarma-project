@@ -6,7 +6,6 @@ import { rhMenuItems } from './menuItems';
 
 import { RhDashboard } from './pages/RhDashboard';
 
-import CrearSolicitudPersonal  from './pages/CrearSolicitudPersonal';
 import SolicitudesPersonal from './pages/SolicitudesPersonal';
 
 /**
@@ -37,9 +36,8 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     routes: (
       <>
         <Route path="dashboard" element={<RhDashboard />} />
-
-        <Route path="solicitudes/crear" element={<CrearSolicitudPersonal />} />
-        <Route path="solicitudes/solicitudes" element={<SolicitudesPersonal />} />
+        
+        <Route path="solicitudes" element={<SolicitudesPersonal />} />
 
       </>
     ),
