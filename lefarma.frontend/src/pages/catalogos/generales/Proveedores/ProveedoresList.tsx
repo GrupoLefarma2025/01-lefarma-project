@@ -27,7 +27,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
-import { API, proveedorApi } from '@/services/api';
+import { API, proveedorApi } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -329,7 +329,7 @@ export default function ProveedoresList() {
     fetchRegimenesFiscales();
     fetchFormasPago();
     fetchBancos();
-    // Reset table config to show all columns including new ones (Contacto, Comentario, Estatus)
+    // Resetear la configuración de la tabla para mostrar todas las columnas incluyendo las nuevas (Contacto, Comentario, Estatus)
     resetConfig('proveedores');
   }, []);
 
@@ -473,7 +473,7 @@ export default function ProveedoresList() {
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
         const savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
 
-        // Upload caratula file if present
+        // Subir el archivo de carátula si está presente
         if (caratulaFile && savedId) {
           const formData = new FormData();
           formData.append('file', caratulaFile);

@@ -337,7 +337,7 @@ export const ImageCropReset = ({
   );
 };
 
-// Keep the original Cropper component for backward compatibility
+// Conserva el componente Cropper original por compatibilidad hacia atrás
 export type CropperProps = Omit<ReactCropProps, "onChange"> & {
   file: File;
   maxImageSize?: number;

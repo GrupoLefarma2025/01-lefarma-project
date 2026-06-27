@@ -142,7 +142,7 @@ export default function HelpEditor() {
         Volver
       </Button>
 
-      {/* Header */}
+      {/* Encabezado */}
       <h1 className="text-3xl font-bold mb-6">
         {isEditMode ? 'Editar Artículo' : 'Crear Nuevo Artículo'}
       </h1>

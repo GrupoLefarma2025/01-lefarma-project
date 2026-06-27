@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import type { WorkflowEstado } from '@/types/workflow.types';
 
 export interface WorkflowRolCatalogo {

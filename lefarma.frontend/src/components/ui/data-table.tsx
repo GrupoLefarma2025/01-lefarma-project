@@ -76,15 +76,15 @@ export interface DataTableProps<TData> {
   onRowClick?: (row: TData) => void;
   isRowSelected?: (row: TData) => boolean;
 
-  // Filter configuration
+  // Configuración de filtros
   filterConfig?: FilterConfigType;
 
-  // NEW: Optional density and page size overrides
+  // NUEVO: Sobrescrituras opcionales de densidad y tamaño de página
   density?: 'compact' | 'standard' | 'comfortable';
-  pageSizeOverride?: number; // renamed to avoid conflict with existing pageSize
+  pageSizeOverride?: number; // renombrado para evitar conflicto con el pageSize existente
 }
 
-// ─── Sorting header helper ─────────────────────────────────────────────────────
+// ─── Función auxiliar de encabezado de ordenamiento ─────────────────────────────────────────────────────
 
 function SortIcon({ direction }: { direction: "asc" | "desc" | false }) {
   if (direction === "asc") return <ArrowUpIcon className="ml-1.5 h-3.5 w-3.5" />;
@@ -92,7 +92,7 @@ function SortIcon({ direction }: { direction: "asc" | "desc" | false }) {
   return <ChevronsUpDownIcon className="ml-1.5 h-3.5 w-3.5 opacity-40" />;
 }
 
-// ─── Filter type helper ─────────────────────────────────────────────────────────
+// ─── Función auxiliar de tipo de filtro ─────────────────────────────────────────────────────────
 
 function getFilterTypeForColumn(columnId: string): 'text' | 'number' | 'boolean' | 'select' | 'date' {
   if (!columnId) return 'text';
@@ -102,7 +102,7 @@ function getFilterTypeForColumn(columnId: string): 'text' | 'number' | 'boolean'
   return 'text';
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Componente ────────────────────────────────────────────────────────────────
 
 export function DataTable<TData>({
   columns,
@@ -131,7 +131,7 @@ export function DataTable<TData>({
 }: DataTableProps<TData>) {
   const { ui } = useConfigStore();
 
-  // Use config if not explicitly provided
+  // Usa la configuración si no se proporciona explícitamente
   const tableDensity = density || ui.componentes.tables.density;
   const tablePageSize = pageSizeOverride || pageSize || ui.componentes.tables.defaultPageSize;
 
@@ -147,7 +147,7 @@ export function DataTable<TData>({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [showColMenu, setShowColMenu] = useState(false);
 
-  // Filter logic
+  // Lógica de filtrado
   const filterEnabled = !!filterConfig;
   const {
     activeFilters,
@@ -169,19 +169,19 @@ export function DataTable<TData>({
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
 
-  // Save handler that receives current values from FilterConfig and saves immediately
+  // Manejador de guardado que recibe los valores actuales de FilterConfig y guarda inmediatamente
   const handleSave = useCallback((currentSearchColumns: string[], currentVisibleColumns: string[]) => {
-    // Save immediately with the current values from FilterConfig
+    // Guarda inmediatamente con los valores actuales de FilterConfig
     saveConfig({
       searchColumns: currentSearchColumns,
       visibleColumns: currentVisibleColumns,
     });
-    // Then update the hook state for consistency
+    // Luego actualiza el estado del hook por consistencia
     setSearchColumns(currentSearchColumns);
     setVisibleColumns(currentVisibleColumns);
   }, [saveConfig, setSearchColumns, setVisibleColumns]);
 
-  // Sync column visibility when filterConfig is enabled and visibleColumnIds change
+  // Sincroniza la visibilidad de columnas cuando filterConfig está habilitado y visibleColumnIds cambia
   useEffect(() => {
     if (filterEnabled && visibleColumnIds.length > 0) {
       const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
@@ -191,9 +191,9 @@ export function DataTable<TData>({
       });
       setColumnVisibility(newVisibility);
     }
-  }, [filterEnabled, visibleColumnIds, columns]); // Run when visibleColumnIds changes
+  }, [filterEnabled, visibleColumnIds, columns]); // Se ejecuta cuando visibleColumnIds cambia
 
-  // Sync function - only called explicitly (Apply button, Reset, etc)
+  // Función de sincronización: solo se llama explícitamente (botón Aplicar, Reset, etc.)
   const syncColumnVisibility = useCallback(() => {
     if (filterEnabled && visibleColumnIds.length > 0) {
       const allColumnIds = columns.map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '')).filter(Boolean);
@@ -205,7 +205,7 @@ export function DataTable<TData>({
     }
   }, [filterEnabled, visibleColumnIds, columns]);
 
-  // Convert activeFilters to TanStack Table format
+  // Convierte activeFilters al formato de TanStack Table
   const computedColumnFilters = useMemo(() => {
     return activeFilters.map(filter => ({
       id: filter.columnId,
@@ -273,7 +273,7 @@ export function DataTable<TData>({
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Global search */}
+          {/* Búsqueda global */}
           {globalFilter && !collapsed && (
             <div className="relative">
               <SearchIcon className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />

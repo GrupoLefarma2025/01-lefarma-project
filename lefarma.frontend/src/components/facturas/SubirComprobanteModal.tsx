@@ -231,7 +231,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
         </div>
       )}
 
-      {/* Step indicators */}
+      {/* Indicadores de pasos */}
       <div className="mb-4 flex items-center gap-1 text-xs">
         {(['datos', 'archivos', 'asignar'] as Step[]).map((s, i) => (
           <div key={s} className="flex items-center gap-1">

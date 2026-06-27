@@ -13,10 +13,10 @@ import {
   SendNotificationRequest,
 } from '@/types/notification.types';
 import { notificationService } from '@/services/notificationService';
-import { useAuthStore } from './authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 interface NotificationState extends NotificationUiState {
-  // Actions
+  // Acciones
   setNotifications: (notifications: UserNotification[]) => void;
   addNotification: (notification: UserNotification) => void;
   removeNotification: (notificationId: number) => void;
@@ -33,20 +33,20 @@ interface NotificationState extends NotificationUiState {
 export const useNotificationStore = create<NotificationState>()(
   devtools(
     (set, get) => ({
-      // Initial state
+      // Estado inicial
       notifications: [],
       unreadCount: 0,
       isConnected: false,
       isLoading: false,
       error: undefined,
 
-      // Set notifications (replaces all)
+      // Establecer notificaciones (reemplaza todas)
       setNotifications: (notifications) => {
         const unreadCount = notifications.filter((n) => !n.isRead).length;
         set({ notifications, unreadCount });
       },
 
-      // Add a single notification
+      // Agregar una notificación individual
       addNotification: (notification) => {
         const { notifications, unreadCount } = get();
 
@@ -110,7 +110,7 @@ export const useNotificationStore = create<NotificationState>()(
         }
       },
 
-      // Remove a notification
+      // Remover una notificación
       removeNotification: (notificationId) => {
         const { notifications } = get();
         const newNotifications = notifications.filter((n) => n.id !== notificationId);
@@ -118,7 +118,7 @@ export const useNotificationStore = create<NotificationState>()(
         set({ notifications: newNotifications, unreadCount });
       },
 
-      // Mark notification as read
+      // Marcar notificación como leída
       markAsRead: async (notificationId) => {
         const { notifications } = get();
         const notification = notifications.find((n) => n.id === notificationId);
@@ -134,7 +134,7 @@ export const useNotificationStore = create<NotificationState>()(
             return;
           }
 
-          // Optimistic update
+          // Update optimista
           set({
             notifications: notifications.map((n) =>
               n.id === notificationId ? { ...n, isRead: true, readAt: new Date().toISOString() } : n
@@ -146,7 +146,7 @@ export const useNotificationStore = create<NotificationState>()(
             await notificationService.markAsRead(notificationId, userId);
           } catch (error) {
             console.error('[notificationStore] Error marking notification as read:', error);
-            // Revert on error
+            // Revertir en caso de error
             set({
               notifications: notifications.map((n) =>
                 n.id === notificationId ? { ...n, isRead: false, readAt: undefined } : n
@@ -158,7 +158,7 @@ export const useNotificationStore = create<NotificationState>()(
         }
       },
 
-      // Mark all notifications as read
+      // Marcar todas las notificaciones como leídas
       markAllAsRead: async () => {
         const { notifications, unreadCount } = get();
         const { user } = useAuthStore.getState();
@@ -169,7 +169,7 @@ export const useNotificationStore = create<NotificationState>()(
           return;
         }
 
-        // Optimistic update
+        // Update optimista
         const updatedNotifications = notifications.map((n) => ({
           ...n,
           isRead: true,
@@ -181,14 +181,14 @@ export const useNotificationStore = create<NotificationState>()(
         try {
           await notificationService.markAllAsRead(userId);
         } catch (error) {
-          // Revert on error
+          // Revertir en caso de error
           set({ notifications, unreadCount });
           set({ error: 'Error al marcar todas las notificaciones como leídas' });
           console.error('Error marking all as read:', error);
         }
       },
 
-      // Load notifications from server
+      // Cargar notificaciones del servidor
       loadNotifications: async (userId, filter) => {
         set({ isLoading: true, error: undefined });
         try {
@@ -201,7 +201,7 @@ export const useNotificationStore = create<NotificationState>()(
           }
 
           const notifications = await notificationService.getUserNotifications(targetUserId, filter);
-          // Defensive: ensure notifications is always an array
+          // Defensivo: asegurar que notifications siempre sea un arreglo
           const safeNotifications = Array.isArray(notifications) ? notifications : [];
           const unreadCount = safeNotifications.filter((n) => !n.isRead).length;
           set({ notifications: safeNotifications, unreadCount, isLoading: false });
@@ -210,27 +210,27 @@ export const useNotificationStore = create<NotificationState>()(
           set({
             error: 'Error al cargar notificaciones',
             isLoading: false,
-            notifications: [], // Ensure notifications is always an array
+            notifications: [], // Asegurar que notifications siempre sea un arreglo
           });
         }
       },
 
-      // Set SSE connection status
+      // Establecer estado de conexión SSE
       setConnected: (isConnected) => {
         set({ isConnected });
       },
 
-      // Set error message
+      // Establecer mensaje de error
       setError: (error) => {
         set({ error });
       },
 
-      // Clear error message
+      // Limpiar mensaje de error
       clearError: () => {
         set({ error: undefined });
       },
 
-      // Send a notification
+      // Enviar una notificación
       sendNotification: async (request) => {
         set({ isLoading: true, error: undefined });
         try {
@@ -243,7 +243,7 @@ export const useNotificationStore = create<NotificationState>()(
         }
       },
 
-      // Refresh unread count
+      // Refrescar conteo de no leídas
       refreshUnreadCount: async (userId) => {
         const { user } = useAuthStore.getState();
         const effectiveUserId = userId ?? user?.id;

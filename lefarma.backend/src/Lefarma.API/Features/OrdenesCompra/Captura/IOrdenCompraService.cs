@@ -3,7 +3,7 @@ using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 
 namespace Lefarma.API.Features.OrdenesCompra.Captura
 {
-public interface IOrdenCompraService
+    public interface IOrdenCompraService
     {
         Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas);
         Task<ErrorOr<OrdenCompraResponse>> GetByIdAsync(int id);

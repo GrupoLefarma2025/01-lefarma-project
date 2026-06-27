@@ -5,7 +5,7 @@
 
 
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 interface VerificationStep {
   id: number;

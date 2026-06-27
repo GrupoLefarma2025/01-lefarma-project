@@ -36,7 +36,6 @@ public record UsuarioDetalleData
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
     public string? FirmaPath { get; init; }
-    public bool FirmaDocumento { get; init; } = true;
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }
     public string? Celular { get; init; }
@@ -71,7 +70,6 @@ public record UpdateProfileRequest
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
     public string? FirmaPath { get; init; }
-    public bool? FirmaDocumento { get; init; }
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }
     public string? Celular { get; init; }

@@ -37,21 +37,21 @@ function extractPermissionsFromJwt(): Set<string> {
 }
 
 /**
- * Returns the list of permission codes for the current user from JWT claims.
+ * Retorna la lista de códigos de permiso del usuario actual desde los claims del JWT.
  */
 export function getUserPermissions(): string[] {
   return Array.from(extractPermissionsFromJwt());
 }
 
 /**
- * Checks permissions against the JWT claims (siempre actualizados).
- * Works outside React components (routes, interceptors, sidebar logic).
+ * Verifica permisos contra los claims del JWT (siempre actualizados).
+ * Funciona fuera de componentes React (rutas, interceptores, lógica del sidebar).
  *
- * Evaluation order:
- * 1. `exclude` — if the user has ANY excluded permission → deny
- * 2. `require` — user must have ALL listed permissions
- * 3. `requireAny` — user must have at least ONE listed permission
- * 4. If no options provided → allow (no restrictions)
+ * Orden de evaluación:
+ * 1. `exclude` — si el usuario tiene ALGÚN permiso excluido → denegar
+ * 2. `require` — el usuario debe tener TODOS los permisos listados
+ * 3. `requireAny` — el usuario debe tener al menos UNO de los permisos listados
+ * 4. Si no se proporcionan opciones → permitir (sin restricciones)
  */
 export function checkPermission(options: PermissionCheckOptions): boolean {
   const codes = extractPermissionsFromJwt();

@@ -21,7 +21,7 @@ interface FileUploaderProps {
   textoErrorTamano?: string;
   textoErrorCantidad?: string;
   open: boolean;
-  /** Render inline (no overlay, no title bar) — for embedding inside an existing modal */
+  /** Renderiza en línea (sin overlay, sin barra de título) — para embeber dentro de un modal existente */
   inline?: boolean;
   onUploadComplete: (archivos: Archivo[]) => void;
   onError?: (error: string) => void;
@@ -255,7 +255,7 @@ export function FileUploader({
                      <ImageIcon className="w-5 h-5" />}
                   </div>
                 )}
-                {/* Info */}
+                {/* Información */}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{formatSize(file.size)}</p>
@@ -290,7 +290,7 @@ export function FileUploader({
         onClose={() => setViewerFile(null)}
       />
 
-      {/* Footer actions */}
+      {/* Acciones del pie */}
       <div className={`flex justify-end gap-2 ${inline ? 'mt-3' : 'mt-4 pt-4 border-t'}`}>
         {!inline && (
           <button
@@ -314,16 +314,16 @@ export function FileUploader({
     </>
   );
 
-  // Inline mode: render content directly (inside existing modal)
+  // Modo inline: renderiza el contenido directamente (dentro de un modal existente)
   if (inline) {
     return <div className="space-y-1">{content}</div>;
   }
 
-  // Dialog mode: render with its own overlay
+  // Modo diálogo: renderiza con su propio overlay
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50">
       <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-lg mx-4">
-        {/* Header */}
+        {/* Encabezado */}
         <div className="flex items-center justify-between p-4 border-b dark:border-zinc-700">
           <h2 className="text-lg font-semibold">{titulo}</h2>
           <button

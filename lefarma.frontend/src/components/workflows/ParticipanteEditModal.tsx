@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import type { Workflow, WorkflowPaso, WorkflowParticipante } from '@/types/workflow.types';
@@ -27,28 +27,32 @@ interface ParticipanteEditModalProps {
 
 export function ParticipanteEditModal({ workflow, participante, roles, usuarios, open, setOpen, onSave }: ParticipanteEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
-  const [tipoAsignacionUI, setTipoAsignacionUI] = useState<'rol' | 'usuario'>('rol');
+  const [tipoAsignacionUI, setTipoAsignacionUI] = useState<'rol' | 'usuario' | 'jefe'>('rol');
   const [formData, setFormData] = useState({
     idPaso: 0,
     idRol: 0,
     idUsuario: 0,
+    requiereJefeInmediato: false,
     activo: true
   });
 
   useEffect(() => {
     if (participante) {
+      const esJefe = participante.requiereJefeInmediato ?? false;
       setFormData({
         idPaso: participante.idPaso,
         idRol: participante.idRol || 0,
         idUsuario: participante.idUsuario || 0,
+        requiereJefeInmediato: esJefe,
         activo: participante.activo ?? true
       });
-      setTipoAsignacionUI(participante.idRol ? 'rol' : 'usuario');
+      setTipoAsignacionUI(esJefe ? 'jefe' : participante.idRol ? 'rol' : 'usuario');
     } else {
       setFormData({
         idPaso: workflow.pasos[0]?.idPaso || 0,
         idRol: 0,
         idUsuario: 0,
+        requiereJefeInmediato: false,
         activo: true
       });
       setTipoAsignacionUI('rol');
@@ -62,6 +66,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
       const payload = {
         idRol: tipoAsignacionUI === 'rol' ? (formData.idRol || null) : null,
         idUsuario: tipoAsignacionUI === 'usuario' ? (formData.idUsuario || null) : null,
+        requiereJefeInmediato: tipoAsignacionUI === 'jefe',
         activo: formData.activo
       };
       if (participante) {
@@ -137,7 +142,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
           </Label>
           <Select
             value={tipoAsignacionUI}
-            onValueChange={(value: 'rol' | 'usuario') => {
+            onValueChange={(value: 'rol' | 'usuario' | 'jefe') => {
               setTipoAsignacionUI(value);
               setFormData(prev => ({
                 ...prev,
@@ -152,53 +157,68 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
             <SelectContent>
               <SelectItem value="rol">Por Rol</SelectItem>
               <SelectItem value="usuario">Por Usuario Específico</SelectItem>
+              <SelectItem value="jefe">Jefe Inmediato del Solicitante</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            {tipoAsignacionUI === 'rol' 
+            {tipoAsignacionUI === 'rol'
               ? 'Cualquier usuario con este rol podrá actuar'
-              : 'Solo el usuario específico podrá actuar'}
+              : tipoAsignacionUI === 'usuario'
+              ? 'Solo el usuario específico podrá actuar'
+              : 'El jefe inmediato del empleado que creó la solicitud actuará'}
           </p>
         </div>
 
         {/* Asignación según tipo */}
-        {tipoAsignacionUI === 'rol' ? (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Rol *
-            </Label>
-            <Select
-              value={formData.idRol.toString()}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, idRol: parseInt(value) }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un rol" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((r: WorkflowRolCatalogo) => (
-                  <SelectItem key={r.idRol} value={String(r.idRol)}>{r.nombreRol}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Usuario *
-            </Label>
-            <Select
-              value={formData.idUsuario.toString()}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, idUsuario: parseInt(value) }))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Selecciona un usuario" />
-              </SelectTrigger>
-              <SelectContent>
-                {usuarios.map((u: WorkflowUsuarioCatalogo) => (
-                  <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>{u.nombreCompleto}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        {tipoAsignacionUI !== 'jefe' && (
+          <>
+            {tipoAsignacionUI === 'rol' ? (
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Rol *
+                </Label>
+                <Select
+                  value={formData.idRol.toString()}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, idRol: parseInt(value) }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un rol" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((r: WorkflowRolCatalogo) => (
+                      <SelectItem key={r.idRol} value={String(r.idRol)}>{r.nombreRol}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Usuario *
+                </Label>
+                <Select
+                  value={formData.idUsuario.toString()}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, idUsuario: parseInt(value) }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un usuario" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usuarios.map((u: WorkflowUsuarioCatalogo) => (
+                      <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>{u.nombreCompleto}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </>
+        )}
+
+        {tipoAsignacionUI === 'jefe' && (
+          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              El sistema resolverá automáticamente al jefe inmediato del empleado que creó la solicitud/orden compra. Cuando este paso sea alcanzado, el jefe del creador será añadido como participante.
+            </p>
           </div>
         )}
 

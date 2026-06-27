@@ -17,32 +17,32 @@ using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 namespace Lefarma.API.Features.Catalogos.Proveedores;
 
-    public partial class ProveedorService : BaseService, IProveedorService
+public partial class ProveedorService : BaseService, IProveedorService
+{
+    private readonly IProveedorRepository _proveedorRepository;
+    private readonly IRegimenFiscalRepository _regimenFiscalRepository;
+    private readonly ILogger<ProveedorService> _logger;
+    private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _dbContext;
+    protected override string EntityName => "Proveedor";
+
+    public ProveedorService(
+        IProveedorRepository proveedorRepository,
+        IRegimenFiscalRepository regimenFiscalRepository,
+        IWideEventAccessor wideEventAccessor,
+        ILogger<ProveedorService> logger,
+        IConfiguration configuration,
+        ApplicationDbContext dbContext)
+        : base(wideEventAccessor)
     {
-        private readonly IProveedorRepository _proveedorRepository;
-        private readonly IRegimenFiscalRepository _regimenFiscalRepository;
-        private readonly ILogger<ProveedorService> _logger;
-        private readonly IConfiguration _configuration;
-        private readonly ApplicationDbContext _dbContext;
-        protected override string EntityName => "Proveedor";
+        _proveedorRepository = proveedorRepository;
+        _regimenFiscalRepository = regimenFiscalRepository;
+        _logger = logger;
+        _configuration = configuration;
+        _dbContext = dbContext;
+    }
 
-        public ProveedorService(
-            IProveedorRepository proveedorRepository,
-            IRegimenFiscalRepository regimenFiscalRepository,
-            IWideEventAccessor wideEventAccessor,
-            ILogger<ProveedorService> logger,
-            IConfiguration configuration,
-            ApplicationDbContext dbContext)
-            : base(wideEventAccessor)
-        {
-            _proveedorRepository = proveedorRepository;
-            _regimenFiscalRepository = regimenFiscalRepository;
-            _logger = logger;
-            _configuration = configuration;
-            _dbContext = dbContext;
-        }
 
-        
 
     public async Task<ErrorOr<IEnumerable<ProveedorResponse>>> GetAllAsync(ProveedorRequest query)
     {
@@ -116,11 +116,11 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         }
     }
 
-        public async Task<ErrorOr<ProveedorResponse>> GetByIdAsync(int id)
+    public async Task<ErrorOr<ProveedorResponse>> GetByIdAsync(int id)
+    {
+        try
         {
-            try
-            {
-                var result = await _proveedorRepository.GetByIdWithDetailsAsync(id);
+            var result = await _proveedorRepository.GetByIdWithDetailsAsync(id);
 
             if (result == null)
             {
@@ -129,7 +129,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             }
 
             var response = result.ToResponse();
-            
+
             // Enriquecer cuentas con información de órdenes asociadas
             if (response.CuentasFormaPago != null)
             {
@@ -138,7 +138,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuen);
                 }
             }
-            
+
             EnrichWideEvent(action: "GetById", entityId: id, nombre: response.RazonSocial);
             return response;
         }
@@ -184,8 +184,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 RazonSocial = request.RazonSocial,
                 RazonSocialNormalizada = StringExtensions.RemoveDiacritics(request.RazonSocial),
-                RFC = string.IsNullOrWhiteSpace(request.RFC) ? null : request.RFC.Trim(),
-                CodigoPostal = string.IsNullOrWhiteSpace(request.CodigoPostal) ? null : request.CodigoPostal.Trim(),
+                RFC = request.RFC,
+                CodigoPostal = request.CodigoPostal,
                 RegimenFiscalId = request.RegimenFiscalId,
                 UsoCfdi = request.UsoCfdi,
                 SinDatosFiscales = request.SinDatosFiscales,
@@ -208,8 +208,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     {
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
-                        Clabe = cuenta.Clabe?.Replace(" ", ""),
+                        NumeroCuenta = cuenta.NumeroCuenta,
+                        Clabe = cuenta.Clabe,
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
@@ -311,13 +311,13 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 var cuentasExistentes = proveedor.CuentasFormaPago.ToList();
                 var cuentasRequest = request.CuentasFormaPago;
-                
+
                 // Identificar cuentas que se deben eliminar (están en BD pero no en request)
                 var idsEnRequest = cuentasRequest
                     .Where(c => c.IdCuen > 0)
                     .Select(c => c.IdCuen)
                     .ToHashSet();
-                
+
                 foreach (var cuentaExistente in cuentasExistentes)
                 {
                     if (!idsEnRequest.Contains(cuentaExistente.IdCuen))
@@ -343,18 +343,52 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     if (cuentaRequest.IdCuen > 0)
                     {
-                        // Actualizar cuenta existente
+                        // Cuenta existente: buscarla
                         var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
                         if (cuentaExistente != null)
                         {
                             cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
                             cuentaExistente.IdBanco = cuentaRequest.IdBanco;
-                            cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta?.Replace(" ", "");
-                            cuentaExistente.Clabe = cuentaRequest.Clabe?.Replace(" ", "");
+                            cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
+                            cuentaExistente.Clabe = cuentaRequest.Clabe;
                             cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
                             cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
                             cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
                             cuentaExistente.FechaModificacion = DateTime.UtcNow;
+
+                            //var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
+                            //if (tieneOrdenes)
+                            //{
+                            // Si tiene órdenes, crear nueva versión y desactivar la vieja
+                            //cuentaExistente.Activo = false;
+                            //cuentaExistente.FechaModificacion = DateTime.UtcNow;
+
+                            //proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                            //{
+                            //    IdProveedor = proveedor.IdProveedor,
+                            //    IdFormaPago = cuentaRequest.IdFormaPago,
+                            //    IdBanco = cuentaRequest.IdBanco,
+                            //    NumeroCuenta = cuentaRequest.NumeroCuenta,
+                            //    Clabe = cuentaRequest.Clabe,
+                            //    NumeroTarjeta = cuentaRequest.NumeroTarjeta,
+                            //    Beneficiario = cuentaRequest.Beneficiario,
+                            //    CorreoNotificacion = cuentaRequest.CorreoNotificacion,
+                            //    Activo = true,
+                            //    FechaCreacion = DateTime.UtcNow
+                            //});
+                            //}
+                            //else
+                            //{
+                                // Sin órdenes: actualizar in-place
+                                //cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
+                                //cuentaExistente.IdBanco = cuentaRequest.IdBanco;
+                                //cuentaExistente.NumeroCuenta = cuentaRequest.NumeroCuenta;
+                                //cuentaExistente.Clabe = cuentaRequest.Clabe;
+                                //cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
+                                //cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
+                                //cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                                //cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                            //}
                         }
                     }
                     else
@@ -491,8 +525,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     {
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
-                        NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
-                        Clabe = cuenta.Clabe?.Replace(" ", ""),
+                        NumeroCuenta = cuenta.NumeroCuenta,
+                        Clabe = cuenta.Clabe,
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
@@ -513,13 +547,14 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             var result = await _proveedorRepository.GetByIdWithDetailsAsync(id);
             EnrichWideEvent(action: "Update → Staging", entityId: id, nombre: result?.RazonSocial);
             return result!.ToResponse();
-        }catch (Exception ex)
+        }
+        catch (Exception ex)
         {
             Console.WriteLine(ex.ToString());
             return CommonErrors.InternalServerError("Error inesperado al guardar los cambios en staging para el proveedor.");
 
         }
-        
+
     }
 
     public async Task<ErrorOr<bool>> DeleteAsync(int id)
@@ -771,13 +806,13 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 var cuentasOriginales = proveedor.CuentasFormaPago.ToList();
                 var cuentasStaging = staging.CuentasFormaPago.ToList();
-                
+
                 // Identificar cuentas que se deben eliminar (están en BD pero no en staging)
                 var idsEnStaging = cuentasStaging
                     .Where(c => c.IdCuen > 0)
                     .Select(c => c.IdCuen)
                     .ToHashSet();
-                
+
                 foreach (var cuentaOriginal in cuentasOriginales)
                 {
                     if (!idsEnStaging.Contains(cuentaOriginal.IdCuen))
@@ -813,7 +848,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                                 // Si tiene órdenes, crear nueva versión y desactivar la vieja
                                 cuentaOriginal.Activo = false;
                                 cuentaOriginal.FechaModificacion = DateTime.UtcNow;
-                                
+
                                 proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
                                 {
                                     IdProveedor = proveedor.IdProveedor,
@@ -1074,7 +1109,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         if (tieneEnCabecera) return true;
 
         var tieneEnPartidas = await _dbContext.OrdenesCompraPartidas
-            .AnyAsync(p => p.IdsCuentasBancarias != null && p.IdsCuentasBancarias.Contains(cuentaStr)); 
+            .AnyAsync(p => p.IdsCuentasBancarias != null && p.IdsCuentasBancarias.Contains(cuentaStr));
 
         return tieneEnPartidas;
     }

@@ -10,8 +10,8 @@ function isApiError(value: unknown): value is ApiError {
 }
 
 /**
- * Narrows an unknown catch-clause error to ApiError.
- * Falls back to a synthetic ApiError when the value doesn't match the shape.
+ * Estrecha un error desconocido de un catch-clause a ApiError.
+ * Recurre a un ApiError sintético cuando el valor no coincide con la forma esperada.
  */
 export function toApiError(error: unknown): ApiError {
   if (isApiError(error)) return error;

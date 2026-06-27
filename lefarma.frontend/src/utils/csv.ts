@@ -192,10 +192,10 @@ function pickIds<T>(
 
 function makeExampleColumn(ids: number[], fallback: string[]): string[] {
   if (ids.length === 0) return fallback;
-  // Row 0: a proveedor with a cuenta → first id of the catalog (if applicable)
-  // Row 1: a proveedor without cuenta → empty
-  // Row 2: a proveedor with a cuenta → first id again (mirrors row 0)
-  // Row 3: same proveedor as row 2 with a SECOND cuenta → different id if available
+  // Fila 0: un proveedor con una cuenta → primer id del catálogo (si aplica)
+  // Fila 1: un proveedor sin cuenta → vacío
+  // Fila 2: un proveedor con una cuenta → primer id nuevamente (espeja fila 0)
+  // Fila 3: mismo proveedor que fila 2 con una SEGUNDA cuenta → id distinto si disponible
   const first = String(ids[0]);
   const second = ids.length > 1 ? String(ids[1]) : first;
   return [first, '', first, second];

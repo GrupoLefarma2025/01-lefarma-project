@@ -8,6 +8,7 @@ using Lefarma.API.Domain.Entities.Help;
 using Lefarma.API.Domain.Entities.Archivos;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
+using Lefarma.API.Domain.Entities.Rh;
 
 namespace Lefarma.API.Infrastructure.Data {
 public class ApplicationDbContext : DbContext
@@ -55,6 +56,11 @@ public class ApplicationDbContext : DbContext
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Comprobacion> Comprobaciones { get; set; }
         public DbSet<EnvioConcentrado> EnviosConcentrado { get; set; }
+
+        // DbSets - Rh
+        public DbSet<SolicitudPersonal> SolicitudesPersonal { get; set; }
+        public DbSet<SolicitudPersonalDetalle> SolicitudesPersonalDetalle { get; set; }
+        public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }
