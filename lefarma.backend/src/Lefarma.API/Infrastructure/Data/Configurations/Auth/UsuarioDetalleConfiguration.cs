@@ -41,6 +41,11 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("firma_path")
             .HasMaxLength(500);
 
+        builder.Property(ud => ud.FirmaDocumento)
+            .HasColumnName("firma_documento")
+            .HasDefaultValue(true)
+            .IsRequired();
+
         // Contacto
         builder.Property(ud => ud.TelefonoOficina)
             .HasColumnName("telefono_oficina")

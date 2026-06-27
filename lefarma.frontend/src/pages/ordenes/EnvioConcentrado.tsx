@@ -34,6 +34,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
@@ -110,6 +112,9 @@ export default function EnvioConcentrado() {
   const [envioResult, setEnvioResult] = useState<EnvioConcentradoResponse | null>(null);
   const [envioError, setEnvioError] = useState<string | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [comentario, setComentario] = useState(
+    'Autorización enviada desde el sistema de control de gastos'
+  );
 
   // ── Fetch órdenes pendientes de envío concentrado ────────────────────────
   // Estado PREPARACION_GAF (id_estado = 11) - paso que tiene envia_concentrado
@@ -264,7 +269,7 @@ export default function EnvioConcentrado() {
       for (const id of ordenesSeleccionadas.map((o) => o.idOrden)) {
         formData.append('IdsOrdenes', String(id));
       }
-      formData.append('comentario', 'Autorización enviada desde el sistema de control de gastos');
+      formData.append('comentario', comentario);
       formData.append('nombre', `concentrado-${new Date().toISOString().split('T')[0]}`);
       formData.append('usuario', '41@Grupolefarma');
       formData.append('correo', '41@grupolefarma.com.mx');
@@ -627,6 +632,23 @@ export default function EnvioConcentrado() {
                 return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
               })()}
             />
+          </div>
+
+          <div className="space-y-1.5 shrink-0">
+            <Label htmlFor="comentario-envio" className="text-sm font-medium">
+              Comentario del envío
+            </Label>
+            <Textarea
+              id="comentario-envio"
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="Escribe el comentario que acompañará el envío..."
+              rows={3}
+              disabled={enviando}
+            />
+            <p className="text-xs text-muted-foreground">
+              Este texto se envía como <code className="font-mono">comentario</code> en la solicitud al backend.
+            </p>
           </div>
 
           <DialogFooter className="gap-2">

@@ -44,6 +44,21 @@ export const authService = {
     return response.data.data;
   },
 
+  exchangeHandoff: async (token: string): Promise<LoginStepTwoResponse> => {
+    const response = await API.post<ApiResponse<LoginStepTwoResponse>>(
+      '/auth/exchange',
+      { token }
+    );
+
+    const { accessToken, refreshToken, user } = response.data.data;
+
+    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    return response.data.data;
+  },
+
   refreshToken: async (refreshToken: string): Promise<LoginStepTwoResponse> => {
     const response = await API.post<ApiResponse<LoginStepTwoResponse>>(
       '/auth/refresh',

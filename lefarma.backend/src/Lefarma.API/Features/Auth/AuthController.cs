@@ -142,6 +142,67 @@ public class AuthController : ControllerBase
         }));
     }
 
+    /// <summary>
+    /// Generate a short-lived single-use handoff token for cross-system SSO.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The handoff token to embed in the target system's URL.</returns>
+    [Authorize]
+    [HttpPost("handoff")]
+    [SwaggerOperation(
+        Summary = "Generar token de handoff",
+        Description = "Genera un token temporal de un solo uso (60s) para autenticarse en otro sistema que comparte este backend, sin volver a ingresar credenciales.")]
+    [SwaggerResponse(200, "Token de handoff generado", typeof(ApiResponse<HandoffTokenResponse>))]
+    [SwaggerResponse(401, "No autorizado", typeof(ApiResponse<object>))]
+    public async Task<IActionResult> GenerateHandoff(CancellationToken cancellationToken)
+    {
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "No autorizado." });
+        }
+
+        var result = await _authService.GenerateHandoffAsync(userId, cancellationToken);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<HandoffTokenResponse>
+        {
+            Success = true,
+            Message = "Token de handoff generado exitosamente.",
+            Data = data
+        }));
+    }
+
+    /// <summary>
+    /// Exchange a handoff token for a full session (access + refresh tokens).
+    /// </summary>
+    /// <param name="request">The handoff token to exchange.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Login response with tokens and user info.</returns>
+    [AllowAnonymous]
+    [HttpPost("exchange")]
+    [SwaggerOperation(
+        Summary = "Canjear token de handoff",
+        Description = "Canjea un token temporal de handoff por una sesion completa con tokens de acceso y refresco.")]
+    [SwaggerResponse(200, "Autenticacion exitosa", typeof(ApiResponse<LoginResponse>))]
+    [SwaggerResponse(400, "Token invalido o expirado", typeof(ApiResponse<object>))]
+    public async Task<IActionResult> ExchangeHandoff(
+        [SwaggerRequestBody(Description = "Token de handoff a canjear", Required = true)]
+        ExchangeHandoffRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ipAddress = GetClientIpAddress();
+        var userAgent = Request.Headers.UserAgent.ToString();
+
+        var result = await _authService.ExchangeHandoffAsync(request.Token, ipAddress, userAgent, cancellationToken);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<LoginResponse>
+        {
+            Success = true,
+            Message = "Autenticacion exitosa.",
+            Data = data
+        }));
+    }
+
 /// <summary>
     /// SSE endpoint for real-time user synchronization.
     /// </summary>

@@ -576,9 +576,10 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
           </thead>
           <tbody>
             {flujoPasos.filter((paso, idx) => {
-              if (paso.esInicio) return false;
               const siguiente = idx < flujoPasos.length - 1 ? flujoPasos[idx + 1] : null;
-              return siguiente?.tieneEvento ?? false;
+              if (!(siguiente?.tieneEvento ?? false)) return false;
+              if (siguiente?.idUsuario != null && firmasMap !== undefined && !firmasMap.has(siguiente.idUsuario)) return false;
+              return true;
             }).map((paso, idx) => {
               const originalIdx = flujoPasos.indexOf(paso);
               const siguiente = flujoPasos[originalIdx + 1];

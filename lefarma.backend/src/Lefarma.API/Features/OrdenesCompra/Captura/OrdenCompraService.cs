@@ -167,7 +167,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Select(p => p.IdTipoImpuesto!.Value)
                     .Distinct()
                     .ToList();
 
@@ -202,7 +202,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIds = request.Partidas
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Select(p => p.IdTipoImpuesto!.Value)
                     .Distinct()
                     .ToList();
 
@@ -298,7 +298,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 {
                     IdOrden = result.IdOrden,
                     IdWorkflow = workflow.IdWorkflow,
-                    IdPaso = pasoInicio.IdPaso,
+                    IdPaso = pasoInicio!.IdPaso,
                     IdAccion = accionInicial.IdAccion,
                     IdUsuario = idUsuario,
                     Comentario = "Orden de compra creada",
@@ -387,7 +387,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIdsUpdate = request.Partidas
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto.Value)
+                    .Select(p => p.IdTipoImpuesto!.Value)
                     .Distinct()
                     .ToList();
 

@@ -448,11 +448,11 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-var pathBase = builder.Configuration["AppSettings:PathBase"];
-if (!string.IsNullOrEmpty(pathBase))
-{
-    app.UsePathBase(pathBase);
-}
+//var pathBase = builder.Configuration["AppSettings:PathBase"];
+//if (!string.IsNullOrEmpty(pathBase))
+//{
+//    app.UsePathBase(pathBase);
+//}
 
 // Use CORS
 app.UseCors("CorsPolicy");
@@ -463,7 +463,7 @@ app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint($"{pathBase}/swagger/v1/swagger.json", "Lefarma API v1");
+    c.SwaggerEndpoint($"/swagger/v1/swagger.json", "Lefarma API v1");
     // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }
@@ -506,7 +506,14 @@ app.UseStaticFiles(new StaticFileOptions
     RequestPath = "/media/archivos",
     OnPrepareResponse = ctx =>
     {
-        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        //ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
+        // OPCIÓN A: Para desarrollo (No guarda caché)
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+
+        // OPCIÓN B: Guardar caché pero obligar al navegador a preguntar al servidor si cambió (Recomendado)
+        // ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=0, must-revalidate");
     }
 });
 

@@ -20,7 +20,6 @@ import {
   Building2,
   Building,
   MapPin,
-  Loader2,
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
@@ -55,6 +54,7 @@ export default function Login() {
   } = useAuthStore();
 
   const [username, setUsername] = useState(pendingUsername || '');
+  const [syncedPending, setSyncedPending] = useState<string | null>(pendingUsername || null);
   const [password, setPassword] = useState('');
   const [selectedDomain, setSelectedDomain] = useState('');
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
@@ -93,7 +93,7 @@ export default function Login() {
       if (existe) return String(idArea);
     }
     return null;
-  }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, areas]);
+  }, [puedeSeleccionarEmpresas, usuarioDetalle, areas]);
 
   // Valores efectivos: auto-selección o los del usuario
   const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;
@@ -113,20 +113,41 @@ export default function Login() {
     });
   }, [areas, effectiveEmpresa]);
 
-  // Sincronizar username del store
-  useEffect(() => {
-    if (pendingUsername) setUsername(pendingUsername);
-  }, [pendingUsername]);
+  // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
 
+  // Sincronizar username cuando el store cambia pendingUsername (sin pisar lo que el usuario tipea)
+  if (pendingUsername && pendingUsername !== syncedPending) {
+    setSyncedPending(pendingUsername);
+    setUsername(pendingUsername);
+  }
+
+  // Auto-seleccionar el dominio cuando hay uno solo
+  if (!requiresDomainSelection && availableDomains.length === 1 && !selectedDomain) {
+    setSelectedDomain(availableDomains[0]);
+  }
+
+  // Pre-cargar empresa/sucursal/area del usuario como DEFAULT cuando puede seleccionar
+  // (cuando no puede, ya se resuelven via autoSelected*). Editable: solo siembra valores.
+  if (loginStep === 3 && puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
+    if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
+    if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
+    if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
+  }
+
+  // Si no hay un área válida para la empresa elegida, caer al primero [0] (no dejar vacío)
+  if (
+    loginStep === 3 &&
+    effectiveEmpresa &&
+    areasFiltradas.length > 0 &&
+    !areasFiltradas.some((a) => String(a.idArea) === effectiveArea)
+  ) {
+    setSelectedArea(String(areasFiltradas[0].idArea));
+  }
+
+  // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
   }, [isAuthenticated, navigate]);
-
-  useEffect(() => {
-    if (!requiresDomainSelection && availableDomains.length === 1) {
-      setSelectedDomain(availableDomains[0]);
-    }
-  }, [requiresDomainSelection, availableDomains]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();

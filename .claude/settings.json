@@ -1,8 +1,0 @@
-{
-  "enabledPlugins": {
-    "claude-mem@thedotmack": true,
-    "learning-output-style@claude-plugins-official": true,
-    "claude-code-setup@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true
-  }
-}

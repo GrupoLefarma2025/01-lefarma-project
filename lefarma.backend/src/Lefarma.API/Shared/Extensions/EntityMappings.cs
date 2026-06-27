@@ -130,6 +130,7 @@ namespace Lefarma.API.Shared.Extensions
             Puesto = entity.Puesto,
             NumeroEmpleado = entity.NumeroEmpleado,
             FirmaPath = entity.FirmaPath,
+            FirmaDocumento = entity.FirmaDocumento,
             TelefonoOficina = entity.TelefonoOficina,
             Extension = entity.Extension,
             Celular = entity.Celular,

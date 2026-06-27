@@ -241,18 +241,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 EnrichWideEvent("Firmar", entityId: idOrden, nombre: orden.Folio,
                     additionalContext: new Dictionary<string, object>
                     {
-                        ["estadoAnterior"] = estadoAnterior,
+                        ["estadoAnterior"] = estadoAnterior ?? string.Empty,
                         ["nuevoEstado"] = orden.IdEstado,
                         ["idAccion"] = request.IdAccion,
-                        ["idPasoDestino"] = resultado.NuevoIdPaso,
-                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion
+                        ["idPasoDestino"] = resultado.NuevoIdPaso ?? 0,
+                        ["idNotificacionSeleccionada"] = notificacionSeleccionada?.IdNotificacion ?? 0
                     });
 
                 return new FirmarResponse
                 {
                     Exitoso = true,
                     Folio = orden.Folio,
-                    EstadoAnterior = estadoAnterior,
+                    EstadoAnterior = estadoAnterior ?? string.Empty,
                     NuevoEstado = orden.IdEstado.ToString(),
                     Mensaje = $"Acción ejecutada exitosamente. Estado: {orden.Estado}"
                 };
@@ -514,10 +514,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     .Select(u => new { u.IdUsuario, u.NombreCompleto })
                     .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto);
 
+                var firmaDocumentoMap = await _context.UsuariosDetalle
+                    .AsNoTracking()
+                    .Where(ud => userIds.Contains(ud.IdUsuario))
+                    .Select(ud => new { ud.IdUsuario, ud.FirmaDocumento })
+                    .ToDictionaryAsync(ud => ud.IdUsuario, ud => ud.FirmaDocumento);
+
                 foreach (var item in historial)
                 {
                     if (userMap.TryGetValue(item.IdUsuario, out var nombre))
                         item.NombreUsuario = nombre;
+
+                    item.FirmaDocumento = firmaDocumentoMap.TryGetValue(item.IdUsuario, out var firmaDoc) ? firmaDoc : true;
                 }
 
                 EnrichWideEvent("GetHistorialWorkflow", entityId: idOrden, count: historial.Count);

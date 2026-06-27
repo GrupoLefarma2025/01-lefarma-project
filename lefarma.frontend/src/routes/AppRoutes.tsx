@@ -4,6 +4,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 
 import Login from '@/pages/auth/Login';
+import HandoffLogin from '@/pages/auth/HandoffLogin';
 import SelectEmpresaSucursal from '@/pages/auth/SelectEmpresaSucursal';
 import BlockedPage from '@/pages/auth/BlockedPage';
 import Dashboard from '@/pages/Dashboard';
@@ -47,6 +48,8 @@ export const AppRoutes = () => {
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<Login />} />
       </Route>
+
+      <Route path="/handoff-login" element={<HandoffLogin />} />
 
       <Route element={<ProtectedRoute />}>
         <Route path="/select-empresa" element={<SelectEmpresaSucursal />} />

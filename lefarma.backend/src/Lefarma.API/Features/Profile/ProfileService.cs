@@ -111,6 +111,7 @@ public class ProfileService : BaseService, IProfileService
                     Puesto = detalle.Puesto,
                     NumeroEmpleado = detalle.NumeroEmpleado,
                     FirmaPath = detalle.FirmaPath,
+                    FirmaDocumento = detalle.FirmaDocumento,
                     TelefonoOficina = detalle.TelefonoOficina,
                     Extension = detalle.Extension,
                     Celular = detalle.Celular,
@@ -175,6 +176,9 @@ public class ProfileService : BaseService, IProfileService
 
             if (!string.IsNullOrWhiteSpace(request.FirmaPath))
                 detalle.FirmaPath = request.FirmaPath;
+
+            if (request.FirmaDocumento.HasValue)
+                detalle.FirmaDocumento = request.FirmaDocumento.Value;
 
 
             if (!string.IsNullOrWhiteSpace(request.TelefonoOficina))
