@@ -1,4 +1,4 @@
-import { ReceiptText, Users } from 'lucide-react';
+import { GraduationCap, ReceiptText, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /**
@@ -49,6 +49,14 @@ export const appRegistry: AppRegistryEntry[] = [
     path: '/rh/',
     description: 'Gestión de personal',
     icon: Users,
+    disabled: false,
+  },
+  {
+    id: 'educacion-medica',
+    label: 'Educación Médica',
+    path: '/educacion-medica/',
+    description: 'Cursos y capacitaciones',
+    icon: GraduationCap,
     disabled: false,
   },
 ];

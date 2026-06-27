@@ -11,7 +11,6 @@ import { navigateTo } from '@/lib/navigation';
 import { authService } from '@/shared/auth/authService';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
-import type { Usuario } from '@/types/usuario.types';
 import { useConfigStore } from '@/store/configStore';
 import { toast } from 'sonner';
 
@@ -225,45 +224,60 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   loginStepThree: async (empresaId: string, sucursalId: string, areaId?: string) => {
-    const { empresas, sucursales, areas } = get();
+    // isLoading ahora refleja el patrón de loginStepOne/Two: se activa al
+    // inicio y se desactiva tanto en la ruta de éxito como en cualquier throw.
+    // Evita el doble-submit del botón del paso 3 y habilita el feedback
+    // "Procesando…" del slot (que lee isLoading del store).
+    set({ isLoading: true });
+    try {
+      const { empresas, sucursales, areas } = get();
 
-    const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
-    const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
+      const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
+      const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
 
-    if (!empresa || !sucursal) {
-      throw new Error('Empresa o sucursal no encontrada');
-    }
-
-    authService.setEmpresa(empresa);
-    authService.setSucursal(sucursal);
-
-    let selectedArea: Area | null = null;
-    if (areaId) {
-      selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
-      if (selectedArea) {
-        authService.setArea(selectedArea);
+      if (!empresa || !sucursal) {
+        throw new Error('Empresa o sucursal no encontrada');
       }
-    }
 
-    set({
-      empresa,
-      sucursal,
-      area: selectedArea,
-      isAuthenticated: true,
-      loginStep: 1,
-      empresas: [],
-      sucursales: [],
-      areas: [],
-    });
+      authService.setEmpresa(empresa);
+      authService.setSucursal(sucursal);
 
-    await get().fetchProfileSignature();
+      let selectedArea: Area | null = null;
+      if (areaId) {
+        selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
+        if (selectedArea) {
+          authService.setArea(selectedArea);
+        }
+      }
 
-    const { hasFirma } = get();
-    if (hasFirma === false) {
-      toast.warning('No has cargado tu firma digital', {
-        description: 'Ve a Configuración para subir tu firma y poder autorizar documentos.',
-        duration: 6000,
+      // isAuthenticated se escribe de forma síncrona aquí; isLoading:false va
+      // en el mismo set para que el botón se rehabilite apenas se confirma la
+      // sesión (coincide con el patrón de loginStepTwo). fetchProfileSignature
+      // traga sus propios errores, por lo que no rompe este flujo.
+      set({
+        empresa,
+        sucursal,
+        area: selectedArea,
+        isAuthenticated: true,
+        isLoading: false,
+        loginStep: 1,
+        empresas: [],
+        sucursales: [],
+        areas: [],
       });
+
+      await get().fetchProfileSignature();
+
+      const { hasFirma } = get();
+      if (hasFirma === false) {
+        toast.warning('No has cargado tu firma digital', {
+          description: 'Ve a Configuración para subir tu firma y poder autorizar documentos.',
+          duration: 6000,
+        });
+      }
+    } catch (error) {
+      set({ isLoading: false });
+      throw error;
     }
   },
 
