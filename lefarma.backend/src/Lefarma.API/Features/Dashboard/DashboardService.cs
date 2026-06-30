@@ -163,7 +163,7 @@ namespace Lefarma.API.Features.Dashboard
 
             return ocData
                 .GroupBy(oc => empresas.TryGetValue(oc.IdEmpresa, out var nombre) ? nombre : "Sin empresa")
-                .Select(g => new DistribucionItem { Name = g.Key ?? "Sin empresa", Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
+                .Select(g => new DistribucionItem { Name = g.Key, Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
                 .OrderByDescending(x => x.Value)
                 .Take(8)
                 .ToList();
@@ -181,7 +181,7 @@ namespace Lefarma.API.Features.Dashboard
 
             return ocData
                 .GroupBy(oc => sucursales.TryGetValue(oc.IdSucursal, out var nombre) ? nombre : "Sin sucursal")
-                .Select(g => new DistribucionItem { Name = g.Key ?? "Sin sucursal", Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
+                .Select(g => new DistribucionItem { Name = g.Key, Value = g.Sum(x => x.Total * x.TipoCambioAplicado) })
                 .OrderByDescending(x => x.Value)
                 .Take(8)
                 .ToList();
@@ -240,10 +240,7 @@ namespace Lefarma.API.Features.Dashboard
 
         private async Task<List<ActividadRecienteItem>> GetActividadRecienteAsync()
         {
-            try
-            {
-                var bitacoras = await _db.WorkflowBitacoras
-                .Where(b => b.IdOrden.HasValue)
+            var bitacoras = await _db.WorkflowBitacoras
                 .OrderByDescending(b => b.FechaEvento)
                 .Take(10)
                 .Select(b => new
@@ -256,61 +253,54 @@ namespace Lefarma.API.Features.Dashboard
                 })
                 .ToListAsync();
 
-                var usuarioIds = bitacoras.Select(b => b.IdUsuario).Distinct().ToList();
-                var accionIds = bitacoras.Select(b => b.IdAccion).Distinct().ToList();
-                var ordenIds = bitacoras.Select(b => b.IdOrden).Distinct().ToList();
+            var usuarioIds = bitacoras.Select(b => b.IdUsuario).Distinct().ToList();
+            var accionIds = bitacoras.Select(b => b.IdAccion).Distinct().ToList();
+            var ordenIds = bitacoras.Select(b => b.IdOrden).Distinct().ToList();
 
-                var usuarios = await _asokamDb.Usuarios
-                    .Where(u => usuarioIds.Contains(u.IdUsuario))
-                    .Select(u => new { u.IdUsuario, u.NombreCompleto, u.SamAccountName })
-                    .ToDictionaryAsync(u => u.IdUsuario);
+            var usuarios = await _asokamDb.Usuarios
+                .Where(u => usuarioIds.Contains(u.IdUsuario))
+                .Select(u => new { u.IdUsuario, u.NombreCompleto, u.SamAccountName })
+                .ToDictionaryAsync(u => u.IdUsuario);
 
-                var acciones = await _db.WorkflowAcciones
-                    .Where(a => accionIds.Contains(a.IdAccion))
-                    .Include(a => a.TipoAccion)
-                    .Select(a => new { a.IdAccion, NombreAccion = a.TipoAccion != null ? a.TipoAccion.Nombre : null, CodigoTipoAccion = a.TipoAccion != null ? a.TipoAccion.Codigo : null })
-                    .ToDictionaryAsync(a => a.IdAccion);
+            var acciones = await _db.WorkflowAcciones
+                .Where(a => accionIds.Contains(a.IdAccion))
+                .Include(a => a.TipoAccion)
+                .Select(a => new { a.IdAccion, NombreAccion = a.TipoAccion != null ? a.TipoAccion.Nombre : null, CodigoTipoAccion = a.TipoAccion != null ? a.TipoAccion.Codigo : null })
+                .ToDictionaryAsync(a => a.IdAccion);
 
-                var ordenes = await _db.OrdenesCompra
-                    .Where(oc => ordenIds.Contains(oc.IdOrden))
-                    .Select(oc => new { oc.IdOrden, oc.Folio })
-                    .ToDictionaryAsync(oc => oc.IdOrden);
+            var ordenes = await _db.OrdenesCompra
+                .Where(oc => ordenIds.Contains(oc.IdOrden))
+                .Select(oc => new { oc.IdOrden, oc.Folio })
+                .ToDictionaryAsync(oc => oc.IdOrden);
 
-                return bitacoras.Select(b =>
-                {
-                    var usuarioNombre = usuarios.TryGetValue(b.IdUsuario, out var u)
-                        ? (u.NombreCompleto ?? u.SamAccountName ?? "Desconocido")
-                        : "Desconocido";
-
-                    var accionNombre = acciones.TryGetValue(b.IdAccion, out var a)
-                        ? a.NombreAccion
-                        : "Accion desconocida";
-
-                    var tipoAccion = acciones.TryGetValue(b.IdAccion, out var ac)
-                        ? MapTipo(ac.CodigoTipoAccion ?? "")
-                        : "info";
-
-                    var folio = b.IdOrden.HasValue && ordenes.TryGetValue(b.IdOrden.Value, out var oc)
-                        ? oc.Folio
-                        : $"OC-{b.IdOrden}";
-
-                    return new ActividadRecienteItem
-                    {
-                        Id = b.IdEvento,
-                        Usuario = usuarioNombre,
-                        Accion = accionNombre ?? "Acción desconocida",
-                        Entidad = folio,
-                        FechaEvento = b.FechaEvento,
-                        Tipo = tipoAccion
-                    };
-                }).ToList();
-            }
-            catch (Exception ex)
+            return bitacoras.Select(b =>
             {
-                EnrichWideEvent(action: "GetActividadReciente", exception: ex);
-                return new List<ActividadRecienteItem>();
+                var usuarioNombre = usuarios.TryGetValue(b.IdUsuario, out var u)
+                    ? (u.NombreCompleto ?? u.SamAccountName ?? "Desconocido")
+                    : "Desconocido";
 
-            }
+                var accionNombre = acciones.TryGetValue(b.IdAccion, out var a)
+                    ? a.NombreAccion
+                    : "Accion desconocida";
+
+                var tipoAccion = acciones.TryGetValue(b.IdAccion, out var ac)
+                    ? MapTipo(ac.CodigoTipoAccion)
+                    : "info";
+
+                //var folio = ordenes.TryGetValue(b.IdOrden, out var oc)
+                 //   ? oc.Folio
+                  //  : $"OC-{b.IdOrden}";
+
+                return new ActividadRecienteItem
+                {
+                    Id = b.IdEvento,
+                    Usuario = usuarioNombre,
+                    Accion = accionNombre,
+                    Entidad = "0",
+                    FechaEvento = b.FechaEvento,
+                    Tipo = tipoAccion
+                };
+            }).ToList();
         }
 
         private static string MapTipo(string tipoAccion) => tipoAccion switch

@@ -12,6 +12,10 @@ public class WorkflowBitacora
 
         public DateTime FechaEvento { get; set; }
 
+        // soportan otros tipos de entidades además de ordenes de compra
+        public string TipoEntidad { get; set; } = null!;
+        public int IdEntidad { get; set; }
+
         public virtual Workflow? Workflow { get; set; }
         public virtual WorkflowPaso? Paso { get; set; }
         public virtual WorkflowAccion? Accion { get; set; }

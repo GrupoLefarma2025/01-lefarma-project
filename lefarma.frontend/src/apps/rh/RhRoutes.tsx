@@ -6,6 +6,8 @@ import { rhMenuItems } from './menuItems';
 
 import { RhDashboard } from './pages/RhDashboard';
 
+import SolicitudesPersonal from './pages/SolicitudesPersonal';
+
 /**
  * RH (Recursos Humanos) route table — delega TODO el scaffolding a la fábrica
  * genérica `createAppRoutes`. RH actualmente expone un único dashboard;
@@ -33,11 +35,10 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     ),
     routes: (
       <>
-        {/*
-          TODO: agregar futuras páginas de RH como <Route> hermanas. Envolver
-          rutas con permisos en <PermissionGuard blockedPath="/rh/bloqueado" ...>.
-        */}
         <Route path="dashboard" element={<RhDashboard />} />
+        
+        <Route path="solicitudes" element={<SolicitudesPersonal />} />
+
       </>
     ),
   });

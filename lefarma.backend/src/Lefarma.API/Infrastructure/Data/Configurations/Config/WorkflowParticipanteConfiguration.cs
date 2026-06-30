@@ -13,6 +13,7 @@ public class WorkflowParticipanteConfiguration : IEntityTypeConfiguration<Workfl
             builder.Property(p => p.IdPaso).HasColumnName("id_paso");
             builder.Property(p => p.IdRol).HasColumnName("id_rol");
             builder.Property(p => p.IdUsuario).HasColumnName("id_usuario");
+            builder.Property(p => p.RequiereJefeInmediato).HasColumnName("requiere_jefe_inmediato").HasDefaultValue(false);
             builder.Property(p => p.Activo).HasColumnName("activo").HasDefaultValue(true);
         }
     }

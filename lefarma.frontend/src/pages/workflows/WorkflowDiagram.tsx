@@ -153,7 +153,7 @@ export default function WorkflowDiagram() {
                       }`}
                       onClick={() => setSelectedPaso(paso)}
                     >
-                      {/* Encabezado del paso */}
+                      {/* Step Header */}
                       <div className="p-4 border-b border-border/50">
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
@@ -271,7 +271,7 @@ export default function WorkflowDiagram() {
 
   return (
     <div className="space-y-4 h-full">
-      {/* Encabezado */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button
@@ -334,7 +334,7 @@ export default function WorkflowDiagram() {
       {/* Content */}
       {viewMode === 'diagram' ? (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 h-[calc(100vh-280px)]">
-          {/* Lienzo principal */}
+          {/* Main canvas */}
           <div className="lg:col-span-2 relative flex flex-col gap-4">
             {/* Legend - Simplified */}
             <div className="bg-card rounded-lg border border-border p-3 shrink-0">
@@ -365,7 +365,7 @@ export default function WorkflowDiagram() {
             </div>
           </div>
 
-          {/* Panel lateral — fijo (sticky) */}
+          {/* Side panel - Sticky */}
           <div className="lg:sticky lg:top-4 lg:self-start bg-card rounded-lg border border-border p-4 overflow-auto max-h-[calc(100vh-280px)]">
             {selectedPaso ? (
               <div className="space-y-4">
@@ -541,7 +541,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     }));
   };
 
-  // Estado de tipos de scope y asignaciones (tipos de scope solo lectura; CRUD de asignaciones)
+  // Scope types and mappings state (read-only scope types; mappings CRUD)
   const [scopeTypes, setScopeTypes] = useState<WorkflowScopeType[]>([]);
   const [mappings, setMappings] = useState<WorkflowMapping[]>([]);
   const [empresas, setEmpresas] = useState<any[]>([]);
@@ -564,7 +564,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       const res = await API.get<any>('/config/workflows/scope-types');
       setScopeTypes(res.data?.data ?? []);
     } catch (e) {
-      // ignorar
+      // ignore
     }
   };
 
@@ -575,7 +575,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
     } catch { }
   };
 
-  // Cargar catálogos dinámicamente cuando cambia la selección de tipo de scope en el formulario de asignación
+  // Load catalogs dynamically when scope type selection changes in the mapping form
   useEffect(() => {
     const loadCatalogo = async () => {
       const id = mappingPayload.idScopeType;
@@ -1173,8 +1173,11 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     <div className="space-y-2">
                       {workflow.pasos.flatMap(paso =>
                         (paso.participantes || []).map(participante => {
+                          const esJefe = participante.requiereJefeInmediato ?? false;
                           const esRol = !!participante.idRol;
-                          const nombre = esRol
+                          const nombre = esJefe
+                            ? 'Jefe Inmediato del Solicitante'
+                            : esRol
                             ? (catalogs.roles.find((r: any) => r.idRol === participante.idRol)?.nombreRol ?? `Rol #${participante.idRol}`)
                             : (catalogs.usuarios.find((u: any) => u.idUsuario === participante.idUsuario)?.nombreCompleto ?? `Usuario #${participante.idUsuario}`);
                           return (
@@ -1182,9 +1185,15 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-semibold text-base">{nombre}</span>
-                                  <Badge variant="outline" className={`text-xs ${esRol ? 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'}`}>
-                                    {esRol ? 'Rol' : 'Usuario'}
-                                  </Badge>
+                                  {esJefe ? (
+                                    <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                                      Jefe Inmediato
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className={`text-xs ${esRol ? 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'}`}>
+                                      {esRol ? 'Rol' : 'Usuario'}
+                                    </Badge>
+                                  )}
                                   <Badge variant={participante.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
                                     {participante.activo !== false ? 'Activo' : 'Inactivo'}
                                   </Badge>
@@ -1598,7 +1607,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       </Dialog>
     )}
 
-    {/* Formulario de edición de paso */}
+    {/* Step Edit Form */}
       {editingPaso && (
         <StepEditForm
           paso={editingPaso}
@@ -1613,7 +1622,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         />
       )}
       
-      {/* Modal de edición de acción */}
+      {/* Action Edit Modal */}
       <ActionEditModal
         workflow={workflow}
         accion={editingAccion}
@@ -1640,7 +1649,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Modal de edición de condición */}
+      {/* Condicion Edit Modal */}
       <CondicionEditModal
         workflow={workflow}
         condicion={editingCondicion}
@@ -1653,7 +1662,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Modal de edición de participante */}
+      {/* Participante Edit Modal */}
       <ParticipanteEditModal
         key={editingParticipante ? `p-${editingParticipante.idParticipante}` : 'p-closed'}
         workflow={workflow}
@@ -1669,7 +1678,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         }}
       />
       
-      {/* Modal de edición de notificación */}
+      {/* Notificacion Edit Modal */}
       <NotificacionEditModal
         workflow={workflow}
         notificacion={editingNotificacion}
@@ -1775,7 +1784,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
 
 
 
-      {/* Modal de plantillas */}
+      {/* Plantillas Modal */}
       <Dialog open={modalStates.plantillasModal} onOpenChange={(open) => toggleModal('plantillasModal', open)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -1842,7 +1851,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           </div>
         </DialogContent>
       </Dialog>
-      {/* Modal de edición de plantilla */}
+      {/* Template Edit Modal */}
       <TemplateEditModal
         template={editingCanalTemplate}
         open={modalStates.canalTemplateModal}
@@ -1858,7 +1867,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           setEditingCanalTemplate(null);
         }}
       />
-      {/* Modal de edición de recordatorio */}
+      {/* Recordatorio Edit Modal */}
       <RecordatorioEditModal
         workflow={workflow}
         recordatorio={editingRecordatorio}
