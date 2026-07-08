@@ -83,6 +83,9 @@ logs/security/
 # Archivos subidos (media)
 lefarma.backend/src/Lefarma.API/wwwroot/media/
 
+# Comprobantes subidos
+lefarma.backend/src/Lefarma.API/wwwroot/comprobantes/
+
 # ── GSD baseline (auto-generated) ──
 .gsd
 *.code-workspace
@@ -102,3 +105,6 @@ tmp/
 
 # KiloCode
 .kilocode/
+
+# ATL (Agent Tooling Layer)
+.atl/

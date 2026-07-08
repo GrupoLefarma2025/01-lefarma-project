@@ -394,9 +394,7 @@ export default function ProveedoresList() {
       setCaratulaFile(null);
       const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
       const caratulaPath = proveedor.detalle?.caratulaUrl || null;
-      const caratulaFullUrl = caratulaPath
-        ? `${apiUrl}/media/archivos/caratulas/${caratulaPath.split('/').pop()}`
-        : null;
+      const caratulaFullUrl = caratulaPath ? `${apiUrl}/media/archivos/${caratulaPath}` : null;
       setCaratulaPreview(caratulaFullUrl);
       setIsEditing(true);
       setModalOpen(true);
@@ -602,9 +600,7 @@ export default function ProveedoresList() {
       cell: ({ row }) => {
         const caratulaUrl = row.original.detalle?.caratulaUrl;
         const apiUrl = import.meta.env.VITE_API_URL || '';
-        const caratulaSrc = caratulaUrl ? `${apiUrl}/media/archivos/caratulas/` : null;
-        const filename = caratulaUrl ? caratulaUrl.split('/').pop() : null;
-        const fullSrc = caratulaSrc && filename ? `${caratulaSrc}${filename}` : null;
+        const fullSrc = caratulaUrl ? `${apiUrl}/media/archivos/${caratulaUrl}` : null;
         return (
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-muted p-2">
@@ -617,7 +613,10 @@ export default function ProveedoresList() {
                     onClick={() => setFullscreenImage(fullSrc)}
                   />
                 ) : (
-                  <FileText className="h-8 w-8 text-blue-600" />
+                  <FileText
+                    className="h-8 w-8 text-blue-600 cursor-pointer hover:opacity-80"
+                    onClick={() => setFullscreenImage(fullSrc)}
+                  />
                 )
               ) : (
                 <Building className="h-4 w-4 text-foreground" />
@@ -1133,9 +1132,18 @@ export default function ProveedoresList() {
                       {caratulaPreview && (
                         <div className="mt-2 p-2 border rounded-md bg-gray-50">
                           {caratulaFile?.type === 'application/pdf' || caratulaPreview.endsWith('.pdf') ? (
-                            <div className="flex items-center gap-2 text-sm text-blue-600">
-                              <FileText className="h-5 w-5" />
-                              <span>{caratulaFile?.name}</span>
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2 text-sm text-blue-600">
+                                <FileText className="h-5 w-5" />
+                                <span>{caratulaFile?.name || 'Carátula PDF'}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setFullscreenImage(caratulaPreview)}
+                                className="text-xs text-blue-600 hover:underline text-left"
+                              >
+                                Ver tamaño completo
+                              </button>
                             </div>
                           ) : (
                             <div className="flex flex-col gap-1">
