@@ -9,6 +9,7 @@
     "build:qa": "tsc && vite build --mode staging",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "publish": "pwsh -ExecutionPolicy Bypass -File scripts/publish.ps1",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\""
   },
   "dependencies": {

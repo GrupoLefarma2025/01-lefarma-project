@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Deploy backups (npm run publish)
+backups/
+
 # AI Agent tools (local development)
 .adal/
 .agents/

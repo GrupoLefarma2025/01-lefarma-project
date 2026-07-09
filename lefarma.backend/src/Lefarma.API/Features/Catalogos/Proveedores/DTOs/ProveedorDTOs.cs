@@ -62,6 +62,7 @@ public class CreateProveedorFormaPagoCuentaRequest
     public string? NumeroTarjeta { get; set; }
     public string? Beneficiario { get; set; }
     public string? CorreoNotificacion { get; set; }
+    public bool Activo { get; set; } = true;
 }
 
 public class UpdateProveedorRequest

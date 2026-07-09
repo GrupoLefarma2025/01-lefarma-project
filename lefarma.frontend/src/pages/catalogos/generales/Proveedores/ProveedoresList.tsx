@@ -1,4 +1,5 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { resetConfig } from '@/lib/tableConfigStorage';
@@ -160,6 +161,56 @@ interface ProveedorFormaPagoCuenta {
   tieneOrdenes?: boolean;
 }
 
+/**
+ * Builds a normalized, comparable signature of a proveedor's editable state.
+ * Used to detect whether an edit actually changed anything before hitting the API
+ * (an unchanged save on an approved proveedor would otherwise create a staging record).
+ * Account order is irrelevant; account/CLABE numbers are compared digits-only.
+ */
+const buildProveedorSnapshot = (data: {
+  razonSocial?: string | null;
+  rfc?: string | null;
+  codigoPostal?: string | null;
+  regimenFiscalId?: number | null;
+  usoCfdi?: string | null;
+  detalle?: {
+    personaContactoNombre?: string | null;
+    contactoTelefono?: string | null;
+    contactoEmail?: string | null;
+    comentario?: string | null;
+  } | null;
+  cuentas?: ProveedorFormaPagoCuenta[];
+}): string => {
+  const str = (v?: string | null) => (v ?? '').trim();
+  const digits = (v?: string | null) => (v ?? '').replace(/\D/g, '');
+
+  const cuentas = (data.cuentas ?? [])
+    .map((c) => ({
+      idFormaPago: c.idFormaPago ?? 0,
+      idBanco: c.idBanco ?? null,
+      numeroCuenta: digits(c.numeroCuenta),
+      clabe: digits(c.clabe),
+      numeroTarjeta: digits(c.numeroTarjeta),
+      beneficiario: str(c.beneficiario),
+      correoNotificacion: str(c.correoNotificacion),
+      activo: c.activo ?? true,
+    }))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+
+  return JSON.stringify({
+    razonSocial: str(data.razonSocial),
+    rfc: str(data.rfc),
+    codigoPostal: str(data.codigoPostal),
+    regimenFiscalId: data.regimenFiscalId ?? null,
+    usoCfdi: str(data.usoCfdi),
+    personaContactoNombre: str(data.detalle?.personaContactoNombre),
+    contactoTelefono: str(data.detalle?.contactoTelefono),
+    contactoEmail: str(data.detalle?.contactoEmail),
+    comentario: str(data.detalle?.comentario),
+    cuentas,
+  });
+};
+
 interface CampoDiff {
   campo: string;
   label: string;
@@ -220,6 +271,7 @@ export default function ProveedoresList() {
   const [editCuentaModal, setEditCuentaModal] = useState(false);
   const [editCuentaIndex, setEditCuentaIndex] = useState(-1);
   const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
+  const [caratulaChanged, setCaratulaChanged] = useState(false);
   const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
@@ -234,9 +286,9 @@ export default function ProveedoresList() {
     razonSocial: string;
   }>>({});
 
-  /** Formatea Número de Cuenta: grupos de 4 dígitos (máx 20) */
+  /** Formatea Número de Cuenta: grupos de 4 dígitos (exactamente 11) */
   const formatCuenta = (raw: string): string => {
-    const d = raw.replace(/\D/g, '').slice(0, 20);
+    const d = raw.replace(/\D/g, '').slice(0, 11);
     return d.replace(/(\d{4})(?=\d)/g, '$1 ');
   };
 
@@ -277,8 +329,8 @@ export default function ProveedoresList() {
           ...p,
           cuentasFormaPago: p.cuentasFormaPago?.map((c) => ({
             ...c,
-            numeroCuenta: c.numeroCuenta?.replace(/\s/g, '') ?? c.numeroCuenta,
-            clabe: c.clabe?.replace(/\s/g, '') ?? c.clabe,
+            numeroCuenta: c.numeroCuenta?.replace(/\D/g, '').slice(0, 11) ?? c.numeroCuenta,
+            clabe: c.clabe?.replace(/\D/g, '').slice(0, 18) ?? c.clabe,
           })),
         }));
         setProveedores(data);
@@ -333,9 +385,27 @@ export default function ProveedoresList() {
     resetConfig('proveedores');
   }, []);
 
+  // Cerrar el visor fullscreen con ESC sin que el evento llegue al modal de Radix.
+  // Radix registra su listener de ESC en `document`; `window` es ancestro de `document`,
+  // por lo que en capture phase nuestro handler se ejecuta PRIMERO y stopPropagation()
+  // impide que el evento llegue a Radix (evitando que cierre también el modal).
+  useEffect(() => {
+    if (!fullscreenImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        setFullscreenImage(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [fullscreenImage]);
+
   const handleNuevoProveedor = () => {
     setProveedorId(0);
     setCaratulaFile(null);
+    setCaratulaChanged(false);
     setCaratulaPreview(null);
     setOriginalValues({});
     form.reset({
@@ -359,6 +429,7 @@ export default function ProveedoresList() {
     const file = e.target.files?.[0];
     if (file) {
       setCaratulaFile(file);
+      setCaratulaChanged(true);
       const reader = new FileReader();
       reader.onloadend = () => {
         setCaratulaPreview(reader.result as string);
@@ -392,6 +463,7 @@ export default function ProveedoresList() {
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
       setCuentasEditMode(new Set());
       setCaratulaFile(null);
+      setCaratulaChanged(false);
       const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
       const caratulaPath = proveedor.detalle?.caratulaUrl || null;
       const caratulaFullUrl = caratulaPath ? `${apiUrl}/media/archivos/${caratulaPath}` : null;
@@ -417,8 +489,12 @@ export default function ProveedoresList() {
         const n = i + 1;
         if (!c.idFormaPago || c.idFormaPago === 0) cuentaErrors.push(`Cuenta ${n}: Forma de pago`);
         if (!c.idBanco || c.idBanco === 0) cuentaErrors.push(`Cuenta ${n}: Banco`);
-        if (!c.numeroCuenta?.trim()) cuentaErrors.push(`Cuenta ${n}: No. de Cuenta`);
-        if (!c.clabe?.trim()) cuentaErrors.push(`Cuenta ${n}: CLABE`);
+        const ncDigitos = (c.numeroCuenta || '').replace(/\D/g, '').slice(0, 11);
+        const clabeDigitos = (c.clabe || '').replace(/\D/g, '').slice(0, 18);
+        if (!ncDigitos) cuentaErrors.push(`Cuenta ${n}: No. de Cuenta`);
+        else if (ncDigitos.length !== 11) cuentaErrors.push(`Cuenta ${n}: No. de Cuenta debe tener 11 dígitos (tiene ${ncDigitos.length})`);
+        if (!clabeDigitos) cuentaErrors.push(`Cuenta ${n}: CLABE`);
+        else if (clabeDigitos.length !== 18) cuentaErrors.push(`Cuenta ${n}: CLABE debe tener 18 dígitos (tiene ${clabeDigitos.length})`);
         if (!c.beneficiario?.trim()) cuentaErrors.push(`Cuenta ${n}: Beneficiario`);
       });
       if (cuentaErrors.length > 0) {
@@ -460,37 +536,83 @@ export default function ProveedoresList() {
         idProveedor: proveedorId,
         ...proveedorData,
         detalle: (personaContactoNombre || contactoTelefono || contactoEmail || comentario) ? detalle : null,
-        cuentasFormaPago,
+        cuentasFormaPago: cuentasFormaPago.map((c) => ({
+          ...c,
+          numeroCuenta: c.numeroCuenta?.replace(/\D/g, '').slice(0, 11),
+          clabe: c.clabe?.replace(/\D/g, '').slice(0, 18),
+        })),
       };
 
-      const response = isEditing
-        ? await API.put<ApiResponse<Proveedor>>(`${ENDPOINT}/${proveedorId}`, payload)
-        : await API.post<ApiResponse<Proveedor>>(ENDPOINT, payload);
-
-      if (response.data.success) {
-        toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
-        const savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
-
-        // Upload caratula file if present
-        if (caratulaFile && savedId) {
-          const formData = new FormData();
-          formData.append('file', caratulaFile);
-          try {
-            await API.post(`${ENDPOINT}/${savedId}/caratula`, formData, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            toast.success('Carátula subida correctamente.');
-          } catch (uploadError: unknown) {
-            const err = toApiError(uploadError);
-            toast.error(err.message ?? 'Error al subir la carátula');
-          }
+      // Detect whether anything actually changed. An unchanged save on an approved
+      // proveedor would otherwise create a redundant staging record.
+      let dataChanged = true;
+      if (isEditing) {
+        const original = proveedores.find((p) => p.idProveedor === proveedorId);
+        if (original) {
+          const originalSnap = buildProveedorSnapshot({
+            razonSocial: original.razonSocial,
+            rfc: original.rfc,
+            codigoPostal: original.codigoPostal,
+            regimenFiscalId: original.regimenFiscalId ?? null,
+            usoCfdi: original.usoCfdi,
+            detalle: original.detalle,
+            cuentas: original.cuentasFormaPago,
+          });
+          const currentSnap = buildProveedorSnapshot({
+            razonSocial: rest.razonSocial,
+            rfc: rest.rfc,
+            codigoPostal: rest.codigoPostal,
+            regimenFiscalId: regimenFiscalIdValue ?? null,
+            usoCfdi: usoCfdiValue,
+            detalle: { personaContactoNombre, contactoTelefono, contactoEmail, comentario },
+            cuentas: cuentasFormaPago,
+          });
+          dataChanged = originalSnap !== currentSnap;
         }
-
-        setModalOpen(false);
-        await fetchProveedores();
-      } else {
-        toast.error(response.data.message ?? 'Error al guardar el proveedor');
       }
+
+      // caratulaChanged flag = user picked a new cover image, which is also a change.
+      if (!dataChanged && !caratulaChanged) {
+        toast.info('No hay cambios para guardar.');
+        setModalOpen(false);
+        setIsSaving(false);
+        return;
+      }
+
+      // Only hit the update/create endpoint when the record data changed.
+      // A cover-only change goes straight to the caratula endpoint (it bypasses staging).
+      let savedId = isEditing ? proveedorId : undefined;
+      if (dataChanged) {
+        const response = isEditing
+          ? await API.put<ApiResponse<Proveedor>>(`${ENDPOINT}/${proveedorId}`, payload)
+          : await API.post<ApiResponse<Proveedor>>(ENDPOINT, payload);
+
+        if (!response.data.success) {
+          toast.error(response.data.message ?? 'Error al guardar el proveedor');
+          setIsSaving(false);
+          return;
+        }
+        toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
+        savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
+      }
+
+      // Upload caratula file if present
+      if (caratulaFile && savedId) {
+        const formData = new FormData();
+        formData.append('file', caratulaFile);
+        try {
+          await API.post(`${ENDPOINT}/${savedId}/caratula`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          });
+          toast.success('Carátula subida correctamente.');
+        } catch (uploadError: unknown) {
+          const err = toApiError(uploadError);
+          toast.error(err.message ?? 'Error al subir la carátula');
+        }
+      }
+
+      setModalOpen(false);
+      await fetchProveedores();
     } catch (error: unknown) {
       const err = toApiError(error);
       const errs: Array<{ description: string }> = err.errors ?? [];
@@ -1318,7 +1440,7 @@ export default function ProveedoresList() {
                               placeholder="0189 8232 5500"
                               value={formatCuenta(cuenta.numeroCuenta || '')}
                               onChange={(e) => {
-                                const raw = e.target.value.replace(/\D/g, '').slice(0, 20);
+                                const raw = e.target.value.replace(/\D/g, '').slice(0, 11);
                                 const updated = [...cuentasFormaPago];
                                 updated[originalIndex].numeroCuenta = raw;
                                 setCuentasFormaPago(updated);
@@ -1631,36 +1753,48 @@ export default function ProveedoresList() {
         regimenesFiscales={regimenesFiscales}
       />
 
-      {/* Fullscreen image viewer */}
-      {fullscreenImage && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
-          onClick={() => setFullscreenImage(null)}
-        >
-          <div className="relative max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center p-4">
+      {/* Fullscreen image viewer — en portal al body. Tres elementos HERMANOS
+          (no anidados) para que el botón cerrar compita con z-index propio en el
+          body y ningún stacking context del padre lo neutralice. */}
+      {fullscreenImage &&
+        createPortal(
+          <>
+            {/* Fondo: cierra al hacer click */}
+            <div
+              className="fixed inset-0 z-[10000] bg-black/80"
+              onClick={() => setFullscreenImage(null)}
+            />
+            {/* Contenido centrado: pointer-events-none salvo la imagen/iframe,
+                para que el click en el área vacía llegue al fondo y cierre */}
+            <div className="pointer-events-none fixed inset-0 z-[10001] flex items-center justify-center p-4">
+              <div className="pointer-events-auto">
+                {fullscreenImage.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={fullscreenImage}
+                    className="h-[85vh] w-[90vw] max-w-4xl rounded"
+                    title="Carátula PDF"
+                  />
+                ) : (
+                  <img
+                    src={fullscreenImage}
+                    alt="Carátula"
+                    className="max-h-[90vh] max-w-full object-contain"
+                  />
+                )}
+              </div>
+            </div>
+            {/* Botón cerrar: hermano del fondo, z propio, pointer-events explícito */}
             <button
-              className="absolute top-2 right-2 text-white hover:text-gray-300 text-4xl font-bold z-10"
+              type="button"
+              aria-label="Cerrar vista previa"
+              className="pointer-events-auto fixed right-4 top-4 z-[10002] flex h-12 w-12 cursor-pointer items-center justify-center rounded-full bg-black/50 text-4xl font-bold leading-none text-white transition-colors hover:bg-black/70 hover:text-gray-200"
               onClick={() => setFullscreenImage(null)}
             >
               ×
             </button>
-            {fullscreenImage.toLowerCase().endsWith('.pdf') ? (
-              <iframe
-                src={fullscreenImage}
-                className="w-full h-full max-h-[85vh] rounded"
-                title="Carátula PDF"
-              />
-            ) : (
-              <img
-                src={fullscreenImage}
-                alt="Carátula"
-                className="max-w-full max-h-[90vh] object-contain"
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-          </div>
-        </div>
-      )}
+          </>,
+          document.body
+        )}
     </div>
   );
 }

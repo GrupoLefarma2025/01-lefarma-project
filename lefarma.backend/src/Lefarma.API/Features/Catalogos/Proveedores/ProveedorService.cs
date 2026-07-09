@@ -76,8 +76,6 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 .Include(p => p.Detalle)
                 .Include(p => p.CuentasFormaPago)
                     .ThenInclude(c => c.FormaPago)
-                .Include(p => p.CuentasFormaPago)
-                    .ThenInclude(c => c.Banco)
                 .ToListAsync();
 
             if (!result.Any())
@@ -213,6 +211,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
+                        Activo = cuenta.Activo,
                         FechaCreacion = DateTime.UtcNow
                     });
                 }
@@ -354,6 +353,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                             cuentaExistente.NumeroTarjeta = cuentaRequest.NumeroTarjeta;
                             cuentaExistente.Beneficiario = cuentaRequest.Beneficiario;
                             cuentaExistente.CorreoNotificacion = cuentaRequest.CorreoNotificacion;
+                            cuentaExistente.Activo = cuentaRequest.Activo;
                             cuentaExistente.FechaModificacion = DateTime.UtcNow;
                         }
                     }
@@ -370,7 +370,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                             NumeroTarjeta = cuentaRequest.NumeroTarjeta,
                             Beneficiario = cuentaRequest.Beneficiario,
                             CorreoNotificacion = cuentaRequest.CorreoNotificacion,
-                            Activo = true,
+                            Activo = cuentaRequest.Activo,
                             FechaCreacion = DateTime.UtcNow
                         };
                         proveedor.CuentasFormaPago.Add(nuevaCuenta);
@@ -489,6 +489,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     var stagingCuenta = new StagingProveedorFormaPagoCuenta
                     {
+                        IdCuen = cuenta.IdCuen > 0 ? cuenta.IdCuen : null,
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
                         NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
@@ -496,7 +497,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
-                        Activo = true
+                        Activo = cuenta.Activo
                     };
 
                     stagingCuenta.StagingProveedor = staging;
@@ -687,7 +688,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 return CommonErrors.Conflict("Proveedor", "No existe caratula para eliminar");
             }
 
-            var basePath = _configuration["Archivos:BasePath"] ?? _configuration["ArchivosBasePath"] ?? "";
+            var basePath = _configuration["ArchivosSettings:BasePath"]
+                ?? "wwwroot/media/archivos";
             var fullPath = Path.GetFullPath(Path.Combine(basePath, proveedor.Detalle.CaratulaPath));
 
             // Validate that the resolved fullPath is within the basePath to prevent path traversal
@@ -845,25 +847,56 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     }
                     else
                     {
-                        // Nueva cuenta desde staging
-                        proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                        // Nueva cuenta desde staging.
+                        // Defensive dedupe: si el staging no preservó IdCuen (frontend sin
+                        // idCuen, datos históricos, etc.), la cuenta "nueva" podría ya
+                        // existir en el proveedor. Validar por CLABE (clave única bancaria)
+                        // o por banco + número de cuenta antes de insertar.
+                        var clabeStaging = (cuentaStaging.Clabe ?? string.Empty).Trim();
+                        var numeroCuentaStaging = (cuentaStaging.NumeroCuenta ?? string.Empty).Trim();
+
+                        var cuentaExistente = proveedor.CuentasFormaPago.FirstOrDefault(c =>
+                            (!string.IsNullOrEmpty(clabeStaging) &&
+                             (c.Clabe ?? string.Empty).Trim() == clabeStaging)
+                            ||
+                            (c.IdBanco == cuentaStaging.IdBanco &&
+                             !string.IsNullOrEmpty(numeroCuentaStaging) &&
+                             (c.NumeroCuenta ?? string.Empty).Trim() == numeroCuentaStaging));
+
+                        if (cuentaExistente != null)
                         {
-                            IdProveedor = proveedor.IdProveedor,
-                            IdFormaPago = cuentaStaging.IdFormaPago,
-                            IdBanco = cuentaStaging.IdBanco,
-                            NumeroCuenta = cuentaStaging.NumeroCuenta,
-                            Clabe = cuentaStaging.Clabe,
-                            NumeroTarjeta = cuentaStaging.NumeroTarjeta,
-                            Beneficiario = cuentaStaging.Beneficiario,
-                            CorreoNotificacion = cuentaStaging.CorreoNotificacion,
-                            Activo = cuentaStaging.Activo,
-                            FechaCreacion = DateTime.UtcNow
-                        });
+                            // Ya existe una cuenta equivalente: actualizar in-place en vez de duplicar.
+                            cuentaExistente.IdFormaPago = cuentaStaging.IdFormaPago;
+                            cuentaExistente.IdBanco = cuentaStaging.IdBanco;
+                            cuentaExistente.NumeroCuenta = cuentaStaging.NumeroCuenta;
+                            cuentaExistente.Clabe = cuentaStaging.Clabe;
+                            cuentaExistente.NumeroTarjeta = cuentaStaging.NumeroTarjeta;
+                            cuentaExistente.Beneficiario = cuentaStaging.Beneficiario;
+                            cuentaExistente.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
+                            cuentaExistente.Activo = cuentaStaging.Activo;
+                            cuentaExistente.FechaModificacion = DateTime.UtcNow;
+                        }
+                        else
+                        {
+                            proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
+                            {
+                                IdProveedor = proveedor.IdProveedor,
+                                IdFormaPago = cuentaStaging.IdFormaPago,
+                                IdBanco = cuentaStaging.IdBanco,
+                                NumeroCuenta = cuentaStaging.NumeroCuenta,
+                                Clabe = cuentaStaging.Clabe,
+                                NumeroTarjeta = cuentaStaging.NumeroTarjeta,
+                                Beneficiario = cuentaStaging.Beneficiario,
+                                CorreoNotificacion = cuentaStaging.CorreoNotificacion,
+                                Activo = cuentaStaging.Activo,
+                                FechaCreacion = DateTime.UtcNow
+                            });
+                        }
                     }
                 }
             }
 
-            // Eliminar staging
+            // Eliminar staging`
             _dbContext.StagingProveedores.Remove(staging);
             await _dbContext.SaveChangesAsync();
 
@@ -1000,19 +1033,19 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
     {
         var diffs = new List<CampoDiff>();
 
-        if (original.RazonSocial != staging.RazonSocial)
+        if (StringsDifieren(original.RazonSocial, staging.RazonSocial))
             diffs.Add(new CampoDiff { Campo = "RazonSocial", Label = "Razón Social", ValorAnterior = original.RazonSocial, ValorNuevo = staging.RazonSocial });
 
-        if (original.RFC != staging.RFC)
+        if (StringsDifieren(original.RFC, staging.RFC))
             diffs.Add(new CampoDiff { Campo = "RFC", Label = "RFC", ValorAnterior = original.RFC, ValorNuevo = staging.RFC });
 
-        if (original.CodigoPostal != staging.CodigoPostal)
+        if (StringsDifieren(original.CodigoPostal, staging.CodigoPostal))
             diffs.Add(new CampoDiff { Campo = "CodigoPostal", Label = "Código Postal", ValorAnterior = original.CodigoPostal, ValorNuevo = staging.CodigoPostal });
 
         if (original.RegimenFiscalId != staging.RegimenFiscalId)
             diffs.Add(new CampoDiff { Campo = "RegimenFiscalId", Label = "Régimen Fiscal", ValorAnterior = original.RegimenFiscal?.Descripcion, ValorNuevo = staging.RegimenFiscal?.Descripcion });
 
-        if (original.UsoCfdi != staging.UsoCfdi)
+        if (StringsDifieren(original.UsoCfdi, staging.UsoCfdi))
             diffs.Add(new CampoDiff { Campo = "UsoCfdi", Label = "Uso CFDI", ValorAnterior = original.UsoCfdi, ValorNuevo = staging.UsoCfdi });
 
         if (original.SinDatosFiscales != staging.SinDatosFiscales)
@@ -1020,44 +1053,72 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
 
         if (original.Detalle != null && staging.Detalle != null)
         {
-            if (original.Detalle.PersonaContactoNombre != staging.Detalle.PersonaContactoNombre)
+            if (StringsDifieren(original.Detalle.PersonaContactoNombre, staging.Detalle.PersonaContactoNombre))
                 diffs.Add(new CampoDiff { Campo = "PersonaContactoNombre", Label = "Contacto", ValorAnterior = original.Detalle.PersonaContactoNombre, ValorNuevo = staging.Detalle.PersonaContactoNombre });
 
-            if (original.Detalle.ContactoTelefono != staging.Detalle.ContactoTelefono)
+            if (StringsDifieren(original.Detalle.ContactoTelefono, staging.Detalle.ContactoTelefono))
                 diffs.Add(new CampoDiff { Campo = "ContactoTelefono", Label = "Teléfono", ValorAnterior = original.Detalle.ContactoTelefono, ValorNuevo = staging.Detalle.ContactoTelefono });
 
-            if (original.Detalle.ContactoEmail != staging.Detalle.ContactoEmail)
+            if (StringsDifieren(original.Detalle.ContactoEmail, staging.Detalle.ContactoEmail))
                 diffs.Add(new CampoDiff { Campo = "ContactoEmail", Label = "Email", ValorAnterior = original.Detalle.ContactoEmail, ValorNuevo = staging.Detalle.ContactoEmail });
 
-            if (original.Detalle.Comentario != staging.Detalle.Comentario)
+            if (StringsDifieren(original.Detalle.Comentario, staging.Detalle.Comentario))
                 diffs.Add(new CampoDiff { Campo = "Comentario", Label = "Comentario", ValorAnterior = original.Detalle.Comentario, ValorNuevo = staging.Detalle.Comentario });
         }
 
-        var originalCuentas = original.CuentasFormaPago.OrderBy(c => c.IdCuen).ToList();
-        var stagingCuentas = staging.CuentasFormaPago.OrderBy(c => c.IdStagingCuenta).ToList();
+        var originalCuentas = original.CuentasFormaPago.ToList();
+        var stagingCuentas = staging.CuentasFormaPago.ToList();
 
-        if (originalCuentas.Count != stagingCuentas.Count)
+        var originalConId = originalCuentas.Where(c => c.IdCuen > 0).ToDictionary(c => c.IdCuen);
+        var stagingConId = stagingCuentas
+            .Where(c => c.IdCuen.HasValue && c.IdCuen.Value > 0)
+            .ToDictionary(c => c.IdCuen!.Value);
+
+        foreach (var id in originalConId.Keys.Except(stagingConId.Keys).OrderBy(id => id))
         {
-            diffs.Add(new CampoDiff { Campo = "CuentasFormaPago", Label = "Cuentas Bancarias", ValorAnterior = $"{originalCuentas.Count} cuenta(s)", ValorNuevo = $"{stagingCuentas.Count} cuenta(s)" });
+            var cuenta = originalConId[id];
+            var valor = !string.IsNullOrWhiteSpace(cuenta.Clabe) ? cuenta.Clabe : cuenta.NumeroCuenta;
+            diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Eliminada", Label = "Cuenta eliminada", ValorAnterior = valor, ValorNuevo = null });
         }
-        else
+
+        foreach (var id in stagingConId.Keys.Except(originalConId.Keys).OrderBy(id => id))
         {
-            for (int i = 0; i < originalCuentas.Count; i++)
-            {
-                var orig = originalCuentas[i];
-                var stag = stagingCuentas[i];
-                if (orig.NumeroCuenta != stag.NumeroCuenta)
-                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].NumeroCuenta", Label = $"Cuenta {i + 1} - Número", ValorAnterior = orig.NumeroCuenta, ValorNuevo = stag.NumeroCuenta });
-                if (orig.Clabe != stag.Clabe)
-                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].Clabe", Label = $"Cuenta {i + 1} - CLABE", ValorAnterior = orig.Clabe, ValorNuevo = stag.Clabe });
-                if (orig.NumeroTarjeta != stag.NumeroTarjeta)
-                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].NumeroTarjeta", Label = $"Cuenta {i + 1} - Tarjeta", ValorAnterior = orig.NumeroTarjeta, ValorNuevo = stag.NumeroTarjeta });
-                if (orig.Beneficiario != stag.Beneficiario)
-                    diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{i}].Beneficiario", Label = $"Cuenta {i + 1} - Beneficiario", ValorAnterior = orig.Beneficiario, ValorNuevo = stag.Beneficiario });
-            }
+            var cuenta = stagingConId[id];
+            var valor = !string.IsNullOrWhiteSpace(cuenta.Clabe) ? cuenta.Clabe : cuenta.NumeroCuenta;
+            diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Nueva", Label = "Nueva cuenta", ValorAnterior = null, ValorNuevo = valor });
+        }
+
+        foreach (var id in originalConId.Keys.Intersect(stagingConId.Keys).OrderBy(id => id))
+        {
+            var orig = originalConId[id];
+            var stag = stagingConId[id];
+
+            if (orig.IdFormaPago != stag.IdFormaPago)
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].IdFormaPago", Label = "Forma de pago", ValorAnterior = orig.FormaPago?.Nombre, ValorNuevo = stag.FormaPago?.Nombre });
+            if (orig.IdBanco != stag.IdBanco)
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].IdBanco", Label = "Banco", ValorAnterior = orig.Banco?.Nombre, ValorNuevo = stag.Banco?.Nombre });
+            if (StringsDifieren(orig.NumeroCuenta, stag.NumeroCuenta))
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].NumeroCuenta", Label = "Número de cuenta", ValorAnterior = orig.NumeroCuenta, ValorNuevo = stag.NumeroCuenta });
+            if (StringsDifieren(orig.Clabe, stag.Clabe))
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Clabe", Label = "CLABE", ValorAnterior = orig.Clabe, ValorNuevo = stag.Clabe });
+            if (StringsDifieren(orig.NumeroTarjeta, stag.NumeroTarjeta))
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].NumeroTarjeta", Label = "Tarjeta", ValorAnterior = orig.NumeroTarjeta, ValorNuevo = stag.NumeroTarjeta });
+            if (StringsDifieren(orig.Beneficiario, stag.Beneficiario))
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Beneficiario", Label = "Beneficiario", ValorAnterior = orig.Beneficiario, ValorNuevo = stag.Beneficiario });
+            if (StringsDifieren(orig.CorreoNotificacion, stag.CorreoNotificacion))
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].CorreoNotificacion", Label = "Correo notificación", ValorAnterior = orig.CorreoNotificacion, ValorNuevo = stag.CorreoNotificacion });
+            if (orig.Activo != stag.Activo)
+                diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Activo", Label = "Activo", ValorAnterior = orig.Activo.ToString(), ValorNuevo = stag.Activo.ToString() });
         }
 
         return diffs;
+    }
+
+    private static bool StringsDifieren(string? a, string? b)
+    {
+        var na = string.IsNullOrWhiteSpace(a) ? null : a.Trim();
+        var nb = string.IsNullOrWhiteSpace(b) ? null : b.Trim();
+        return na != nb;
     }
 
     /// <summary>

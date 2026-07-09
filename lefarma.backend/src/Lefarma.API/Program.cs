@@ -486,7 +486,37 @@ app.UseSerilogRequestLogging(options =>
 app.UseWideEventLogging();
 
 
-// Static files for help images
+// Resolve the configured base path for user-uploaded files (caratulas, etc.)
+var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
+    ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
+
+// Static files for archivos (caratulas, etc.) under /api/media/archivos
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(archivosBasePath),
+    RequestPath = "/api/media/archivos",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+    }
+});
+
+// Static files for archivos (caratulas, etc.) under /media/archivos (legacy URL used by the frontend)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(archivosBasePath),
+    RequestPath = "/media/archivos",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+    }
+});
+
+// Static files for help images under /api/media/help
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
@@ -495,25 +525,6 @@ app.UseStaticFiles(new StaticFileOptions
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
-    }
-});
-
-// Static files for archivos (caratulas, etc.)
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(app.Environment.WebRootPath, "media", "archivos")),
-    RequestPath = "/media/archivos",
-    OnPrepareResponse = ctx =>
-    {
-        //ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
-        // OPCIÓN A: Para desarrollo (No guarda caché)
-        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
-        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
-        ctx.Context.Response.Headers.Append("Expires", "0");
-
-        // OPCIÓN B: Guardar caché pero obligar al navegador a preguntar al servidor si cambió (Recomendado)
-        // ctx.Context.Response.Headers.Append("Cache-Control", "public, max-age=0, must-revalidate");
     }
 });
 
