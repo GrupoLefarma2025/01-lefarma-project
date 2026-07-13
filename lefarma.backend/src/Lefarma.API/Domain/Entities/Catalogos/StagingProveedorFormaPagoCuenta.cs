@@ -41,6 +41,9 @@ public class StagingProveedorFormaPagoCuenta
     [MaxLength(200)]
     public string? CorreoNotificacion { get; set; }
 
+    [MaxLength(500)]
+    public string? CaratulaPath { get; set; }
+
     public bool Activo { get; set; } = true;
 
     [ForeignKey(nameof(IdStaging))]

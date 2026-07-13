@@ -3,10 +3,13 @@ import { createPortal } from 'react-dom';
 import { API } from '@/services/api';
 import type { ApiResponse } from '@/types/api.types';
 import { generarConcentradoPDF } from '@/utils/generarConcentradoPDF';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
+import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -171,6 +174,16 @@ export default function EnvioConcentrado() {
     [ordenesSeleccionadas]
   );
 
+  const isSingleOrden = ordenesSeleccionadas.length === 1;
+  const singleOrden = isSingleOrden ? ordenesSeleccionadas[0] : null;
+
+  const firmaElaboroUrl = (() => {
+    if (!user?.id) return undefined;
+    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
+  })();
+
   // ── Grupos para la vista previa ───────────────────────────────────────────
   const grupos = useMemo(() => {
     const map = new Map<string, OrdenCompraResponse[]>();
@@ -223,15 +236,46 @@ export default function EnvioConcentrado() {
   };
 
   async function generarPdfBlob(): Promise<Blob> {
-    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-    const firmaElaboro = user?.id ? `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png` : undefined;
-    
+    // Single orden: html2canvas → jsPDF portrait
+    if (isSingleOrden) {
+      const portalEl = document.getElementById('envio-concentrado-pdf-portal');
+      if (portalEl) {
+        const canvas = await html2canvas(portalEl, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+        });
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+        const pdfW = pdf.internal.pageSize.getWidth();
+        const pdfH = pdf.internal.pageSize.getHeight();
+        const imgW = pdfW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        if (imgH <= pdfH) {
+          pdf.addImage(imgData, 'PNG', 0, 0, imgW, imgH);
+        } else {
+          // Multi-page
+          let heightLeft = imgH;
+          let position = 0;
+          pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+          heightLeft -= pdfH;
+          while (heightLeft > 0) {
+            position -= pdfH;
+            pdf.addPage();
+            pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+            heightLeft -= pdfH;
+          }
+        }
+        return pdf.output('blob');
+      }
+    }
+
+    // Multiple ordenes: jsPDF landscape concentrado
     return generarConcentradoPDF({
       ordenes: ordenesSeleccionadas,
       agrupacion,
       generadoPor: user?.nombre ?? user?.username,
-      firmaElaboro,
+      firmaElaboro: firmaElaboroUrl,
     });
   }
 
@@ -548,6 +592,10 @@ export default function EnvioConcentrado() {
                   Puedes cambiar la agrupación y ver cómo quedará el documento
                 </span>
               </div>
+            ) : isSingleOrden && singleOrden ? (
+              <div className="bg-white shadow-sm rounded overflow-hidden">
+                <OrdenCompraConcentradoPDF orden={singleOrden} firmaElaboro={firmaElaboroUrl} />
+              </div>
             ) : (
               <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
                 {/* Resumen de grupos en preview */}
@@ -620,18 +668,21 @@ export default function EnvioConcentrado() {
           </DialogHeader>
 
           <div className="flex-1 overflow-auto border rounded-lg bg-white envio-concentrado-preview">
-            <EnvioConcentradoPDF
-              id="envio-concentrado-pdf-preview"
-              ordenes={ordenesSeleccionadas}
-              agrupacion={agrupacion}
-              generadoPor={user?.nombre ?? user?.username}
-              firmaElaboro={(() => {
-                if (!user?.id) return undefined;
-                const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-                const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-                return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
-              })()}
-            />
+            {isSingleOrden && singleOrden ? (
+              <OrdenCompraConcentradoPDF
+                id="envio-concentrado-pdf-preview"
+                orden={singleOrden}
+                firmaElaboro={firmaElaboroUrl}
+              />
+            ) : (
+              <EnvioConcentradoPDF
+                id="envio-concentrado-pdf-preview"
+                ordenes={ordenesSeleccionadas}
+                agrupacion={agrupacion}
+                generadoPor={user?.nombre ?? user?.username}
+                firmaElaboro={firmaElaboroUrl}
+              />
+            )}
           </div>
 
           <div className="space-y-1.5 shrink-0">
@@ -687,17 +738,19 @@ export default function EnvioConcentrado() {
 
       {createPortal(
         <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
-          <EnvioConcentradoPDF
-            ordenes={ordenesSeleccionadas}
-            agrupacion={agrupacion}
-            generadoPor={user?.nombre ?? user?.username}
-            firmaElaboro={(() => {
-              if (!user?.id) return undefined;
-              const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-              const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-              return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
-            })()}
-          />
+          {isSingleOrden && singleOrden ? (
+            <OrdenCompraConcentradoPDF
+              orden={singleOrden}
+              firmaElaboro={firmaElaboroUrl}
+            />
+          ) : (
+            <EnvioConcentradoPDF
+              ordenes={ordenesSeleccionadas}
+              agrupacion={agrupacion}
+              generadoPor={user?.nombre ?? user?.username}
+              firmaElaboro={firmaElaboroUrl}
+            />
+          )}
         </div>,
         document.body
       )}

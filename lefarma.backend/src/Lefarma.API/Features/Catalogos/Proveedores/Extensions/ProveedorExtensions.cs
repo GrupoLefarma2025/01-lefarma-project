@@ -56,7 +56,8 @@ public static class ProveedorExtensions
             NumeroTarjeta = entity.NumeroTarjeta,
             Beneficiario = entity.Beneficiario,
             CorreoNotificacion = entity.CorreoNotificacion,
-            Activo = entity.Activo
+            Activo = entity.Activo,
+            CaratulaUrl = entity.CaratulaPath
         };
     }
 }

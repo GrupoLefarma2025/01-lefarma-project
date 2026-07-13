@@ -13,6 +13,7 @@ public class ProveedorFormaPagoCuenta
     public string? NumeroTarjeta { get; set; }
     public string? Beneficiario { get; set; }
     public string? CorreoNotificacion { get; set; }
+    public string? CaratulaPath { get; set; }
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaModificacion { get; set; }

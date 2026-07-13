@@ -46,6 +46,10 @@ public class ProveedorFormaPagoCuentaConfiguration : IEntityTypeConfiguration<Pr
             .HasColumnName("correo_notificacion")
             .HasMaxLength(100);
 
+        builder.Property(e => e.CaratulaPath)
+            .HasColumnName("caratula_path")
+            .HasMaxLength(500);
+
         builder.Property(e => e.Activo)
             .HasColumnName("activo")
             .HasDefaultValue(true);

@@ -46,6 +46,10 @@ public class StagingProveedorFormaPagoCuentaConfiguration : IEntityTypeConfigura
             .HasColumnName("correo_notificacion")
             .HasMaxLength(255);
 
+        builder.Property(x => x.CaratulaPath)
+            .HasColumnName("caratula_path")
+            .HasMaxLength(500);
+
         builder.Property(x => x.Activo)
             .HasColumnName("activo");
     }

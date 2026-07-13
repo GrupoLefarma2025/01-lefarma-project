@@ -54,6 +54,7 @@ import { toApiError } from '@/utils/errors';
 import { PermissionElement } from '@/components/permissions/PermissionElement';
 import { BulkUploadModal } from './BulkUploadModal';
 import { ClavesReferenciaModal } from './ClavesReferenciaModal';
+import { CaratulasPreviewModal } from './CaratulasPreviewModal';
 
 const ENDPOINT = '/catalogos/Proveedores';
 const REGIMENES_ENDPOINT = '/catalogos/RegimenesFiscales';
@@ -159,6 +160,9 @@ interface ProveedorFormaPagoCuenta {
   correoNotificacion?: string;
   activo?: boolean;
   tieneOrdenes?: boolean;
+  // Per-account carátula (relative path, e.g. "caratulas/cuentas/...").
+  // Backed by ProveedorFormaPagoCuentaResponse.CaratulaUrl (caratulas-proveedor).
+  caratulaUrl?: string;
 }
 
 /**
@@ -270,9 +274,14 @@ export default function ProveedoresList() {
   const [deleteCuentaIndex, setDeleteCuentaIndex] = useState(-1);
   const [editCuentaModal, setEditCuentaModal] = useState(false);
   const [editCuentaIndex, setEditCuentaIndex] = useState(-1);
-  const [caratulaFile, setCaratulaFile] = useState<File | null>(null);
-  const [caratulaChanged, setCaratulaChanged] = useState(false);
-  const [caratulaPreview, setCaratulaPreview] = useState<string | null>(null);
+  // "Ver carátulas" preview modal target (null = closed). The count badge and the
+  // row action are the two entry points to the same modal (design §6).
+  const [caratulasModalProveedorId, setCaratulasModalProveedorId] = useState<number | null>(null);
+  // Per-account carátula upload in progress (by cuenta id) to disable its control.
+  const [caratulaUploadingCuentaId, setCaratulaUploadingCuentaId] = useState<number | null>(null);
+  // Carátulas pendientes de subir: se seleccionan en el account card pero NO se
+  // envían al backend hasta que el usuario hace clic en "Guardar". Map: originalIndex -> File.
+  const [pendingCaratulas, setPendingCaratulas] = useState<Record<number, File>>({});
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [diffModal, setDiffModal] = useState<DiffModalState>({ open: false, stagingData: null, loading: false });
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -404,9 +413,6 @@ export default function ProveedoresList() {
 
   const handleNuevoProveedor = () => {
     setProveedorId(0);
-    setCaratulaFile(null);
-    setCaratulaChanged(false);
-    setCaratulaPreview(null);
     setOriginalValues({});
     form.reset({
       razonSocial: '',
@@ -421,21 +427,9 @@ export default function ProveedoresList() {
     });
     setCuentasFormaPago([]);
     setCuentasEditMode(new Set());
+    setPendingCaratulas({});
     setIsEditing(false);
     setModalOpen(true);
-  };
-
-  const handleCaratulaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setCaratulaFile(file);
-      setCaratulaChanged(true);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setCaratulaPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    }
   };
 
   const handleEditProveedor = (id: number) => {
@@ -462,14 +456,52 @@ export default function ProveedoresList() {
       });
       setCuentasFormaPago(proveedor.cuentasFormaPago || []);
       setCuentasEditMode(new Set());
-      setCaratulaFile(null);
-      setCaratulaChanged(false);
-      const apiUrl = (import.meta.env.VITE_API_URL || '') as string;
-      const caratulaPath = proveedor.detalle?.caratulaUrl || null;
-      const caratulaFullUrl = caratulaPath ? `${apiUrl}/media/archivos/${caratulaPath}` : null;
-      setCaratulaPreview(caratulaFullUrl);
+      setPendingCaratulas({});
       setIsEditing(true);
       setModalOpen(true);
+    }
+  };
+
+  /**
+   * Guarda el archivo de carátula seleccionado en estado local (pendingCaratulas).
+   * NO lo sube al backend inmediatamente — se sube cuando el usuario hace clic en
+   * "Guardar" (handleSaveProveedor), después de que el proveedor y la cuenta existen.
+   */
+  const handleSelectCaratula = (originalIndex: number, file: File) => {
+    setPendingCaratulas((prev) => ({ ...prev, [originalIndex]: file }));
+  };
+
+  /**
+   * Uploads a carátula to a specific persisted account (cuenta-scoped endpoint).
+   * New accounts (idCuen === 0) cannot upload until the supplier is saved. The
+   * upload routes by supplier estatus on the backend (direct write vs staging).
+   * On success, the cuenta's `caratulaUrl` is updated in local state so the
+   * preview shows without a full refetch.
+   */
+  const handleUploadCuentaCaratula = async (
+    cuentaId: number,
+    file: File,
+    originalIndex: number,
+  ) => {
+    if (!proveedorId || !cuentaId) return;
+    setCaratulaUploadingCuentaId(cuentaId);
+    try {
+      const response = await proveedorApi.uploadCuentaCaratula(proveedorId, cuentaId, file);
+      const uploadData = (response.data as ApiResponse<{ url?: string }> | undefined)?.data;
+      const relativePath = uploadData?.url?.replace(/^\/media\/archivos\//, '');
+      if (relativePath) {
+        setCuentasFormaPago((prev) => {
+          const updated = [...prev];
+          updated[originalIndex] = { ...updated[originalIndex], caratulaUrl: relativePath };
+          return updated;
+        });
+      }
+      toast.success('Carátula de cuenta actualizada correctamente.');
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.message ?? 'Error al subir la carátula de la cuenta');
+    } finally {
+      setCaratulaUploadingCuentaId(null);
     }
   };
 
@@ -571,8 +603,9 @@ export default function ProveedoresList() {
         }
       }
 
-      // caratulaChanged flag = user picked a new cover image, which is also a change.
-      if (!dataChanged && !caratulaChanged) {
+      // Detect whether anything actually changed.
+      const hasPendingCaratulas = Object.keys(pendingCaratulas).length > 0;
+      if (!dataChanged && !hasPendingCaratulas) {
         toast.info('No hay cambios para guardar.');
         setModalOpen(false);
         setIsSaving(false);
@@ -580,8 +613,7 @@ export default function ProveedoresList() {
       }
 
       // Only hit the update/create endpoint when the record data changed.
-      // A cover-only change goes straight to the caratula endpoint (it bypasses staging).
-      let savedId = isEditing ? proveedorId : undefined;
+      let savedProveedorData: Proveedor | null = null;
       if (dataChanged) {
         const response = isEditing
           ? await API.put<ApiResponse<Proveedor>>(`${ENDPOINT}/${proveedorId}`, payload)
@@ -592,23 +624,26 @@ export default function ProveedoresList() {
           setIsSaving(false);
           return;
         }
+        savedProveedorData = response.data.data;
         toast.success(isEditing ? 'Proveedor actualizado correctamente.' : 'Proveedor creado correctamente.');
-        savedId = isEditing ? proveedorId : response.data.data?.idProveedor;
       }
 
-      // Upload caratula file if present
-      if (caratulaFile && savedId) {
-        const formData = new FormData();
-        formData.append('file', caratulaFile);
-        try {
-          await API.post(`${ENDPOINT}/${savedId}/caratula`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
-          });
-          toast.success('Carátula subida correctamente.');
-        } catch (uploadError: unknown) {
-          const err = toApiError(uploadError);
-          toast.error(err.message ?? 'Error al subir la carátula');
+      // Upload pending carátulas now that the proveedor and cuentas exist.
+      if (hasPendingCaratulas) {
+        const targetProveedorId = savedProveedorData?.idProveedor ?? proveedorId;
+        const savedCuentas = savedProveedorData?.cuentasFormaPago;
+        for (const [indexStr, file] of Object.entries(pendingCaratulas)) {
+          const index = Number(indexStr);
+          const cuentaId = savedCuentas?.[index]?.idCuen ?? cuentasFormaPago[index]?.idCuen;
+          if (targetProveedorId && cuentaId && cuentaId > 0) {
+            try {
+              await proveedorApi.uploadCuentaCaratula(targetProveedorId, cuentaId, file);
+            } catch {
+              toast.error(`Error al subir carátula de la cuenta ${index + 1}`);
+            }
+          }
         }
+        setPendingCaratulas({});
       }
 
       setModalOpen(false);
@@ -720,32 +755,29 @@ export default function ProveedoresList() {
       accessorKey: 'razonSocial',
       header: 'Razón Social',
       cell: ({ row }) => {
-        const caratulaUrl = row.original.detalle?.caratulaUrl;
-        const apiUrl = import.meta.env.VITE_API_URL || '';
-        const fullSrc = caratulaUrl ? `${apiUrl}/media/archivos/${caratulaUrl}` : null;
+        // Carátula count badge: one per account that holds a carátula.
+        // Zero carátulas → no badge (spec: "Zero carátulas show no badge").
+        const caratulasCount =
+          row.original.cuentasFormaPago?.filter((c) => !!c.caratulaUrl).length ?? 0;
         return (
           <div className="flex items-center gap-3">
             <div className="rounded-lg bg-muted p-2">
-              {fullSrc ? (
-                fullSrc.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                  <img
-                    src={fullSrc}
-                    alt="Carátula"
-                    className="h-8 w-8 object-cover rounded cursor-pointer hover:opacity-80"
-                    onClick={() => setFullscreenImage(fullSrc)}
-                  />
-                ) : (
-                  <FileText
-                    className="h-8 w-8 text-blue-600 cursor-pointer hover:opacity-80"
-                    onClick={() => setFullscreenImage(fullSrc)}
-                  />
-                )
-              ) : (
-                <Building className="h-4 w-4 text-foreground" />
-              )}
+              <Building className="h-4 w-4 text-foreground" />
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">{row.original.razonSocial}</span>
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{row.original.razonSocial}</span>
+                {caratulasCount > 0 && (
+                  <Badge
+                    variant="secondary"
+                    className="cursor-pointer text-xs"
+                    title="Ver carátulas"
+                    onClick={() => setCaratulasModalProveedorId(row.original.idProveedor)}
+                  >
+                    {caratulasCount} carátula{caratulasCount > 1 ? 's' : ''}
+                  </Badge>
+                )}
+              </div>
               {row.original.rfc && (
                 <span className="text-xs text-muted-foreground font-mono">{row.original.rfc}</span>
               )}
@@ -863,6 +895,16 @@ export default function ProveedoresList() {
         const proveedor = row.original;
         return (
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5"
+              onClick={() => setCaratulasModalProveedorId(proveedor.idProveedor)}
+              title="Ver carátulas"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Ver carátulas
+            </Button>
             {proveedor.estatus === ESTATUS.NUEVO && (
               <>
               <PermissionElement require={'proveedores.autorizar'}>
@@ -1239,55 +1281,6 @@ export default function ProveedoresList() {
                     </FormItem>
                   )}
                 />
-
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    Carátula (PDF o imagen)
-                  </label>
-                  <div className="space-y-2">
-                    <Input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={handleCaratulaChange}
-                      className="cursor-pointer"
-                    />
-                      {caratulaPreview && (
-                        <div className="mt-2 p-2 border rounded-md bg-gray-50">
-                          {caratulaFile?.type === 'application/pdf' || caratulaPreview.endsWith('.pdf') ? (
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2 text-sm text-blue-600">
-                                <FileText className="h-5 w-5" />
-                                <span>{caratulaFile?.name || 'Carátula PDF'}</span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setFullscreenImage(caratulaPreview)}
-                                className="text-xs text-blue-600 hover:underline text-left"
-                              >
-                                Ver tamaño completo
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              <img
-                                src={caratulaPreview}
-                                alt="Carátula"
-                                className="h-24 w-auto object-contain rounded cursor-pointer hover:opacity-80"
-                                onClick={() => setFullscreenImage(caratulaPreview)}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setFullscreenImage(caratulaPreview)}
-                                className="text-xs text-blue-600 hover:underline text-left"
-                              >
-                                Ver tamaño completo
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                </div>
               </div>
             </div>
 
@@ -1320,6 +1313,13 @@ export default function ProveedoresList() {
                   {cuentasFormaPago.filter(c => c.activo !== false).map((cuenta, activeIndex) => {
                     const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
                     const isEditable = cuenta.idCuen === 0 || cuentasEditMode.has(originalIndex);
+                    // Per-account carátula (design §6). The file is staged locally
+                    // (pendingCaratulas) and uploaded on "Guardar", not immediately.
+                    const cuentaCaratulaUrl = cuenta.caratulaUrl
+                      ? `${(import.meta.env.VITE_API_URL || '')}/media/archivos/${cuenta.caratulaUrl}`
+                      : null;
+                    const isUploadingCaratula =
+                      !!cuenta.idCuen && caratulaUploadingCuentaId === cuenta.idCuen;
                     return (
                     <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
                       {/* Header de la tarjeta */}
@@ -1481,6 +1481,101 @@ export default function ProveedoresList() {
                               disabled={!isEditable}
                             />
                           </div>
+                        </div>
+
+                        {/* Carátula de la cuenta (per-account, design §6) */}
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <label className="text-[11px] font-medium text-gray-500 uppercase tracking-wide">
+                            Carátula
+                          </label>
+                          {pendingCaratulas[originalIndex] ? (
+                            // Archivo pendiente seleccionado — se sube al guardar
+                            <div className="mt-1 flex items-center gap-3 rounded-md border border-orange-200 bg-orange-50 p-2">
+                              <div className="rounded-md bg-orange-100 p-1.5">
+                                <FileText className="h-7 w-7 text-orange-600" />
+                              </div>
+                              <div className="flex flex-col gap-1 text-xs">
+                                <span className="font-medium text-orange-700 truncate max-w-[160px]" title={pendingCaratulas[originalIndex].name}>
+                                  Pendiente: {pendingCaratulas[originalIndex].name}
+                                </span>
+                                <span className="text-orange-600/70">Se subirá al guardar</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPendingCaratulas((prev) => {
+                                    const next = { ...prev };
+                                    delete next[originalIndex];
+                                    return next;
+                                  });
+                                }}
+                                className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-red-500 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Quitar
+                              </button>
+                            </div>
+                          ) : cuentaCaratulaUrl ? (
+                            // Carátula ya subida — preview + Reemplazar (guarda en pendiente)
+                            <div className="mt-1 flex items-center gap-3 rounded-md border border-gray-200 bg-white p-2">
+                              <div className="rounded-md bg-muted p-1.5">
+                                {cuentaCaratulaUrl.toLowerCase().endsWith('.pdf') ? (
+                                  <FileText className="h-7 w-7 text-blue-600" />
+                                ) : (
+                                  <img
+                                    src={cuentaCaratulaUrl}
+                                    alt="Carátula de la cuenta"
+                                    className="h-10 w-10 rounded object-cover cursor-pointer hover:opacity-80"
+                                    onClick={() => setFullscreenImage(cuentaCaratulaUrl)}
+                                  />
+                                )}
+                              </div>
+                              <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+                                <span>Carátula cargada</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setFullscreenImage(cuentaCaratulaUrl)}
+                                  className="text-left text-blue-600 hover:underline"
+                                >
+                                  Ver tamaño completo
+                                </button>
+                              </div>
+                              <label
+                                className="ml-auto inline-flex h-7 cursor-pointer items-center gap-1 rounded-md px-2 text-xs text-blue-600 hover:bg-blue-50"
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                                Reemplazar
+                                <input
+                                  type="file"
+                                  accept="application/pdf,image/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleSelectCaratula(originalIndex, file);
+                                    e.target.value = '';
+                                  }}
+                                />
+                              </label>
+                            </div>
+                          ) : (
+                            // Sin carátula — Subir (disponible para cuentas nuevas y existentes)
+                            <label
+                              className="mt-1 inline-flex h-7 cursor-pointer items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 text-xs text-gray-600 hover:bg-gray-50"
+                            >
+                              <Upload className="h-3.5 w-3.5" />
+                              Subir carátula
+                              <input
+                                type="file"
+                                accept="application/pdf,image/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleSelectCaratula(originalIndex, file);
+                                  e.target.value = '';
+                                }}
+                              />
+                            </label>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1751,6 +1846,15 @@ export default function ProveedoresList() {
         formasPago={formasPago}
         bancos={bancos}
         regimenesFiscales={regimenesFiscales}
+      />
+
+      <CaratulasPreviewModal
+        proveedorId={caratulasModalProveedorId ?? 0}
+        open={caratulasModalProveedorId !== null}
+        onOpenChange={(open) => {
+          if (!open) setCaratulasModalProveedorId(null);
+        }}
+        onPreview={(url) => setFullscreenImage(url)}
       />
 
       {/* Fullscreen image viewer — en portal al body. Tres elementos HERMANOS

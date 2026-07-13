@@ -15,6 +15,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Lefarma.UnitTests")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("Lefarma.IntegrationTests")]
+
 namespace Lefarma.API.Features.Catalogos.Proveedores;
 
     public partial class ProveedorService : BaseService, IProveedorService
@@ -109,7 +112,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         }
         catch (Exception ex)
         {
-            EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
+            //EnrichWideEvent(action: "GetAll", error: ex.GetDetailedMessage());
             return CommonErrors.DatabaseError("obtener los proveedores");
         }
     }
@@ -497,7 +500,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                         NumeroTarjeta = cuenta.NumeroTarjeta,
                         Beneficiario = cuenta.Beneficiario,
                         CorreoNotificacion = cuenta.CorreoNotificacion,
-                        Activo = cuenta.Activo
+                        Activo = cuenta.Activo,
+                        CaratulaPath = cuenta.CaratulaUrl
                     };
 
                     stagingCuenta.StagingProveedor = staging;
@@ -720,6 +724,218 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         }
     }
 
+    /// <summary>
+    /// Sube (o reemplaza) la carátula de UNA cuenta bancaria específica, enrutando por estatus:
+    /// prospecto (Nuevo/Rechazado) → escritura directa; autorizado (Aprobado/EditadoPendiente) → staging.
+    /// El archivo YA fue persistido en disco por el controller; aquí recibimos la ruta relativa.
+    /// </summary>
+    public async Task<ErrorOr<bool>> SubirCaratulaCuentaAsync(int proveedorId, int cuentaId, string caratulaPath)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(caratulaPath) || caratulaPath.Contains("..") || caratulaPath.Contains("\\"))
+            {
+                EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, error: "Ruta de caratula invalida");
+                return CommonErrors.Validation("CaratulaPath", "La ruta de la caratula contiene caracteres invalidos");
+            }
+
+            var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(proveedorId);
+            if (proveedor == null)
+            {
+                EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, notFound: true);
+                return CommonErrors.NotFound("proveedor", proveedorId.ToString());
+            }
+
+            var cuenta = proveedor.CuentasFormaPago.FirstOrDefault(c => c.IdCuen == cuentaId);
+            if (cuenta is null)
+            {
+                EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, error: "Cuenta no encontrada");
+                return CommonErrors.NotFound("cuenta", cuentaId.ToString());
+            }
+
+            return DeterminarRutaCaratula(proveedor.Estatus) switch
+            {
+                RutaCaratula.Directo => await EscribirCaratulaDirectoAsync(proveedor, cuenta, caratulaPath),
+                RutaCaratula.Staging => await StagearCaratulaAsync(proveedor, cuenta, caratulaPath),
+                _ => Error.Conflict($"Estatus de proveedor no soportado para caratula: {EstatusProveedor.GetDescripcion(proveedor.Estatus)}"),
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, error: ex.GetDetailedMessage());
+            return CommonErrors.DatabaseError("subir la caratula de la cuenta");
+        }
+    }
+
+    /// <summary>
+    /// Devuelve las carátulas que tiene un proveedor (una por cuenta con caratula_path no vacío),
+    /// para alimentar el modal "Ver carátulas" del listado.
+    /// </summary>
+    public async Task<ErrorOr<List<CaratulaCuentaResponse>>> GetCaratulasByProveedorAsync(int proveedorId)
+    {
+        try
+        {
+            var proveedor = await _proveedorRepository.GetByIdWithDetailsAsync(proveedorId);
+            if (proveedor == null)
+            {
+                EnrichWideEvent(action: "GetCaratulas", entityId: proveedorId, notFound: true);
+                return CommonErrors.NotFound("proveedor", proveedorId.ToString());
+            }
+
+            var caratulas = proveedor.CuentasFormaPago
+                .Where(c => !string.IsNullOrWhiteSpace(c.CaratulaPath))
+                .Select(c => new CaratulaCuentaResponse
+                {
+                    CuentaId = c.IdCuen,
+                    Ultimos4 = Ultimos4(c.Clabe, c.NumeroCuenta),
+                    CaratulaUrl = c.CaratulaPath
+                })
+                .ToList();
+
+            return caratulas;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "GetCaratulas", entityId: proveedorId, error: ex.GetDetailedMessage());
+            return CommonErrors.DatabaseError("obtener las caratulas del proveedor");
+        }
+    }
+
+    /// <summary>
+    /// Tabla de decisión estatus → ruta de carátula (binding rule #2/#6).
+    /// Extraída a método puro para test exhaustivo (incluye el guard de exhaustividad runtime).
+    /// </summary>
+    internal enum RutaCaratula { Directo, Staging, Conflict }
+
+    internal static RutaCaratula DeterminarRutaCaratula(int estatus) => estatus switch
+    {
+        EstatusProveedor.Nuevo => RutaCaratula.Directo,
+        EstatusProveedor.Rechazado => RutaCaratula.Directo,
+        EstatusProveedor.Aprobado => RutaCaratula.Staging,
+        EstatusProveedor.EditadoPendiente => RutaCaratula.Staging,
+        _ => RutaCaratula.Conflict,
+    };
+
+    /// <summary>
+    /// Escritura directa de carátula para proveedores NO autorizados (Nuevo/Rechazado).
+    /// Sin staging, sin diff, sin cambio de estatus (binding rule #6).
+    /// </summary>
+    private async Task<ErrorOr<bool>> EscribirCaratulaDirectoAsync(
+        Proveedor proveedor, ProveedorFormaPagoCuenta cuenta, string caratulaPath)
+    {
+        cuenta.CaratulaPath = caratulaPath;
+        cuenta.FechaModificacion = DateTime.UtcNow;
+        await _proveedorRepository.UpdateAsync(proveedor);
+
+        EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedor.IdProveedor, nombre: proveedor.RazonSocial);
+        return true;
+    }
+
+    /// <summary>
+    /// Sube la carátula a staging para proveedores AUTORIZADOS (Aprobado/EditadoPendiente).
+    /// Si NO existe staging previo, clona TODO el estado live a staging para que GenerarDiff
+    /// muestre ÚNICAMENTE el cambio de carátula (diff length == 1). Si existe staging previo
+    /// (un edit pendiente), sólo actualiza la carátula de la cuenta objetivo en ese staging.
+    /// La cuenta LIVE nunca se toca durante staging (reject = no-op por construcción).
+    /// Preserva IdCuen en las cuentas stageadas (depende del fix de drift migration 025 paso 3).
+    /// </summary>
+    private async Task<ErrorOr<bool>> StagearCaratulaAsync(
+        Proveedor proveedor, ProveedorFormaPagoCuenta cuenta, string caratulaPath)
+    {
+        var stagingExistente = await _dbContext.StagingProveedores
+            .Include(s => s.Detalle)
+            .Include(s => s.CuentasFormaPago)
+            .FirstOrDefaultAsync(s => s.IdProveedor == proveedor.IdProveedor);
+
+        if (stagingExistente != null)
+        {
+            // Ya hay un edit pendiente: actualizar la carátula de la cuenta objetivo en el staging existente.
+            var stagedCuenta = stagingExistente.CuentasFormaPago.FirstOrDefault(c => c.IdCuen == cuenta.IdCuen);
+            if (stagedCuenta != null)
+            {
+                stagedCuenta.CaratulaPath = caratulaPath;
+            }
+            else
+            {
+                stagingExistente.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
+                {
+                    IdCuen = cuenta.IdCuen,
+                    IdFormaPago = cuenta.IdFormaPago,
+                    IdBanco = cuenta.IdBanco,
+                    NumeroCuenta = cuenta.NumeroCuenta,
+                    Clabe = cuenta.Clabe,
+                    NumeroTarjeta = cuenta.NumeroTarjeta,
+                    Beneficiario = cuenta.Beneficiario,
+                    CorreoNotificacion = cuenta.CorreoNotificacion,
+                    Activo = cuenta.Activo,
+                    CaratulaPath = caratulaPath,
+                    StagingProveedor = stagingExistente
+                });
+            }
+        }
+        else
+        {
+            // Sin staging previo: clonar TODO el estado live para que el diff sea sólo la carátula.
+            var staging = new StagingProveedor
+            {
+                IdProveedor = proveedor.IdProveedor,
+                RazonSocial = proveedor.RazonSocial,
+                RazonSocialNormalizada = proveedor.RazonSocialNormalizada,
+                RFC = proveedor.RFC,
+                CodigoPostal = proveedor.CodigoPostal,
+                RegimenFiscalId = proveedor.RegimenFiscalId,
+                UsoCfdi = proveedor.UsoCfdi,
+                SinDatosFiscales = proveedor.SinDatosFiscales,
+                Estatus = EstatusProveedor.EditadoPendiente,
+                CambioEstatusPor = proveedor.CambioEstatusPor,
+                FechaRegistro = proveedor.FechaRegistro,
+                FechaStaging = DateTime.UtcNow
+            };
+
+            if (proveedor.Detalle != null)
+            {
+                staging.Detalle = new StagingProveedorDetalle
+                {
+                    IdDetalle = proveedor.Detalle.IdDetalle,
+                    PersonaContactoNombre = proveedor.Detalle.PersonaContactoNombre,
+                    ContactoTelefono = proveedor.Detalle.ContactoTelefono,
+                    ContactoEmail = proveedor.Detalle.ContactoEmail,
+                    Comentario = proveedor.Detalle.Comentario,
+                    CaratulaPath = proveedor.Detalle.CaratulaPath,
+                    FechaCreacion = proveedor.Detalle.FechaCreacion
+                };
+            }
+
+            foreach (var c in proveedor.CuentasFormaPago)
+            {
+                staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
+                {
+                    IdCuen = c.IdCuen,
+                    IdFormaPago = c.IdFormaPago,
+                    IdBanco = c.IdBanco,
+                    NumeroCuenta = c.NumeroCuenta,
+                    Clabe = c.Clabe,
+                    NumeroTarjeta = c.NumeroTarjeta,
+                    Beneficiario = c.Beneficiario,
+                    CorreoNotificacion = c.CorreoNotificacion,
+                    Activo = c.Activo,
+                    // La cuenta objetivo recibe la nueva carátula; las demás se clonan idénticas (diff == 0).
+                    CaratulaPath = c.IdCuen == cuenta.IdCuen ? caratulaPath : c.CaratulaPath,
+                    StagingProveedor = staging
+                });
+            }
+
+            _dbContext.StagingProveedores.Add(staging);
+        }
+
+        proveedor.Estatus = EstatusProveedor.EditadoPendiente;
+        proveedor.FechaModificacion = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        EnrichWideEvent(action: "StagearCaratula", entityId: proveedor.IdProveedor, nombre: proveedor.RazonSocial);
+        return true;
+    }
+
     public async Task<ErrorOr<ProveedorResponse>> AutorizarEdicionAsync(int id, int idUsuario)
     {
         try
@@ -827,6 +1043,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                                     Beneficiario = cuentaStaging.Beneficiario,
                                     CorreoNotificacion = cuentaStaging.CorreoNotificacion,
                                     Activo = cuentaStaging.Activo,
+                                    CaratulaPath = cuentaStaging.CaratulaPath,
                                     FechaCreacion = DateTime.UtcNow
                                 });
                             }
@@ -841,6 +1058,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                                 cuentaOriginal.Beneficiario = cuentaStaging.Beneficiario;
                                 cuentaOriginal.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
                                 cuentaOriginal.Activo = cuentaStaging.Activo;
+                                cuentaOriginal.CaratulaPath = cuentaStaging.CaratulaPath;
                                 cuentaOriginal.FechaModificacion = DateTime.UtcNow;
                             }
                         }
@@ -874,6 +1092,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                             cuentaExistente.Beneficiario = cuentaStaging.Beneficiario;
                             cuentaExistente.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
                             cuentaExistente.Activo = cuentaStaging.Activo;
+                            cuentaExistente.CaratulaPath = cuentaStaging.CaratulaPath;
                             cuentaExistente.FechaModificacion = DateTime.UtcNow;
                         }
                         else
@@ -889,6 +1108,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                                 Beneficiario = cuentaStaging.Beneficiario,
                                 CorreoNotificacion = cuentaStaging.CorreoNotificacion,
                                 Activo = cuentaStaging.Activo,
+                                CaratulaPath = cuentaStaging.CaratulaPath,
                                 FechaCreacion = DateTime.UtcNow
                             });
                         }
@@ -1008,6 +1228,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 CuentasFormaPago = staging.CuentasFormaPago.Select(c => new StagingProveedorFormaPagoCuentaResponse
                 {
                     IdStagingCuenta = c.IdStagingCuenta,
+                    IdCuen = c.IdCuen,
                     IdFormaPago = c.IdFormaPago,
                     FormaPagoNombre = c.FormaPago?.Nombre,
                     IdBanco = c.IdBanco,
@@ -1017,7 +1238,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     NumeroTarjeta = c.NumeroTarjeta,
                     Beneficiario = c.Beneficiario,
                     CorreoNotificacion = c.CorreoNotificacion,
-                    Activo = c.Activo
+                    Activo = c.Activo,
+                    CaratulaUrl = c.CaratulaPath
                 }).ToList(),
                 Diferencias = diffs
             };
@@ -1029,7 +1251,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         }
     }
 
-    private List<CampoDiff> GenerarDiff(Proveedor original, StagingProveedor staging)
+    internal static List<CampoDiff> GenerarDiff(Proveedor original, StagingProveedor staging)
     {
         var diffs = new List<CampoDiff>();
 
@@ -1088,6 +1310,21 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Nueva", Label = "Nueva cuenta", ValorAnterior = null, ValorNuevo = valor });
         }
 
+        // Cuentas NUEVAS (sin IdCuen en staging) que traen carátula: emiten "… agregada".
+        foreach (var cuenta in stagingCuentas.Where(c => !c.IdCuen.HasValue || c.IdCuen.Value <= 0)
+                                             .Where(c => !string.IsNullOrWhiteSpace(c.CaratulaPath))
+                                             .OrderBy(c => c.NumeroCuenta ?? c.Clabe ?? ""))
+        {
+            var last4 = Ultimos4(cuenta.Clabe, cuenta.NumeroCuenta);
+            diffs.Add(new CampoDiff
+            {
+                Campo = "CuentasFormaPago[].Caratula",
+                Label = $"Carátula cuenta ••{last4} agregada",
+                ValorAnterior = null,
+                ValorNuevo = cuenta.CaratulaPath
+            });
+        }
+
         foreach (var id in originalConId.Keys.Intersect(stagingConId.Keys).OrderBy(id => id))
         {
             var orig = originalConId[id];
@@ -1109,9 +1346,37 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].CorreoNotificacion", Label = "Correo notificación", ValorAnterior = orig.CorreoNotificacion, ValorNuevo = stag.CorreoNotificacion });
             if (orig.Activo != stag.Activo)
                 diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Activo", Label = "Activo", ValorAnterior = orig.Activo.ToString(), ValorNuevo = stag.Activo.ToString() });
+
+            // Carátula: emite un CampoDiff propio cuando cambió. El label lleva los últimos 4 dígitos
+            // de la cuenta y el verbo (agregada/eliminada/actualizada) según el sentido del cambio.
+            if (StringsDifieren(orig.CaratulaPath, stag.CaratulaPath))
+            {
+                var last4 = Ultimos4(stag.Clabe ?? orig.Clabe, stag.NumeroCuenta ?? orig.NumeroCuenta);
+                var accion = string.IsNullOrWhiteSpace(orig.CaratulaPath) ? "agregada"
+                           : string.IsNullOrWhiteSpace(stag.CaratulaPath) ? "eliminada"
+                           : "actualizada";
+                diffs.Add(new CampoDiff
+                {
+                    Campo = $"CuentasFormaPago[{id}].Caratula",
+                    Label = $"Carátula cuenta ••{last4} {accion}",
+                    ValorAnterior = orig.CaratulaPath,
+                    ValorNuevo = stag.CaratulaPath
+                });
+            }
         }
 
         return diffs;
+    }
+
+    /// <summary>
+    /// Últimos 4 dígitos del identificador de cuenta (CLABE preferida, luego número de cuenta,
+    /// luego "????"). Coincide con el criterio ya usado por GenerarDiff para el valor visible.
+    /// </summary>
+    internal static string Ultimos4(string? clabe, string? numeroCuenta)
+    {
+        var src = (!string.IsNullOrWhiteSpace(clabe) ? clabe : numeroCuenta) ?? "";
+        if (src.Length == 0) return "????";
+        return src.Length >= 4 ? src[^4..] : src;
     }
 
     private static bool StringsDifieren(string? a, string? b)

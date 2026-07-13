@@ -63,6 +63,12 @@ public class CreateProveedorFormaPagoCuentaRequest
     public string? Beneficiario { get; set; }
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; } = true;
+
+    /// <summary>
+    /// Ruta relativa de la carátula asociada a esta cuenta (cuando la carátula viaja
+    /// dentro de un edit normal). El frontend sube el archivo antes y manda la ruta aquí.
+    /// </summary>
+    public string? CaratulaUrl { get; set; }
 }
 
 public class UpdateProveedorRequest
@@ -102,6 +108,7 @@ public class ProveedorFormaPagoCuentaResponse
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; }
     public bool TieneOrdenes { get; set; }
+    public string? CaratulaUrl { get; set; }
 }
 
 public class ProveedorRequest
@@ -170,6 +177,7 @@ public class StagingProveedorDetalleResponse
 public class StagingProveedorFormaPagoCuentaResponse
 {
     public int IdStagingCuenta { get; set; }
+    public int? IdCuen { get; set; }
     public int IdFormaPago { get; set; }
     public string? FormaPagoNombre { get; set; }
     public int? IdBanco { get; set; }
@@ -180,6 +188,17 @@ public class StagingProveedorFormaPagoCuentaResponse
     public string? Beneficiario { get; set; }
     public string? CorreoNotificacion { get; set; }
     public bool Activo { get; set; }
+    public string? CaratulaUrl { get; set; }
+}
+
+/// <summary>
+/// Carátula de una cuenta bancaria, para el modal "Ver carátulas" del listado.
+/// </summary>
+public class CaratulaCuentaResponse
+{
+    public int CuentaId { get; set; }
+    public string Ultimos4 { get; set; } = string.Empty;
+    public string? CaratulaUrl { get; set; }
 }
 
 public class BulkUploadCsvRow

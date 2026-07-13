@@ -133,6 +133,19 @@ export const proveedorApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  // Per-account carátula (replaces the legacy single-carátula endpoint).
+  uploadCuentaCaratula: (id: number, idCuen: number, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiClient.post(
+      `/catalogos/Proveedores/${id}/cuentas/${idCuen}/caratula`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+  },
+  // Feed for the "Ver carátulas" modal → [{ cuentaId, ultimos4, caratulaUrl }].
+  getCaratulas: (id: number) =>
+    apiClient.get(`/catalogos/Proveedores/${id}/caratulas`),
 };
 
 export default apiClient;
