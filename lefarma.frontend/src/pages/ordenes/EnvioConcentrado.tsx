@@ -266,6 +266,21 @@ export default function EnvioConcentrado() {
             heightLeft -= pdfH;
           }
         }
+
+        // html2canvas rasterizes the React component to an image — no text layer.
+        // PyMuPDF's search_for('#firmad') can't find text inside images, so the
+        // Python signature replacer fails with ERROR_KEYWORD_NOT_FOUND.
+        // Overlay invisible (white) #firmad text at the Visto Bueno box position.
+        const scaleMm = imgW / canvas.width;
+        const firmadYImage = imgH - 40 * scaleMm;
+        const firmadPage = Math.floor(firmadYImage / pdfH);
+        const firmadYPage = firmadYImage - firmadPage * pdfH;
+        pdf.setPage(firmadPage + 1);
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('#firmad', imgW * 0.74, firmadYPage, { align: 'center' });
+
         return pdf.output('blob');
       }
     }
