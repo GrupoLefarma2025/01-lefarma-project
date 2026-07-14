@@ -35,6 +35,10 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
                 .HasForeignKey(s => s.IdArea)
                 .OnDelete(DeleteBehavior.Restrict);
             builder.Property(s => s.IdTipoSolicitud).HasColumnName("id_tipo_solicitud");
+            builder.HasOne(s => s.TipoSolicitud)
+                .WithMany()
+                .HasForeignKey(s => s.IdTipoSolicitud)
+                .OnDelete(DeleteBehavior.Restrict);
             builder.Property(s => s.LugarComision).HasColumnName("lugar_comision").HasMaxLength(100).IsRequired(false);
             builder.Property(s => s.Motivo).HasColumnName("motivo").HasMaxLength(500).IsRequired(false);
             builder.Property(s => s.FechaEnvio).HasColumnName("fecha_envio").IsRequired(false);

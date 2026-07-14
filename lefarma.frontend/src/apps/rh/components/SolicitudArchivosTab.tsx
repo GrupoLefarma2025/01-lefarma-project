@@ -35,10 +35,16 @@ const EXT_BADGE: Record<string, string> = {
   gif: 'bg-violet-100 text-violet-700',
 };
 
-const parseMeta = (meta: unknown): { tipo?: string; observaciones?: string; nombrePaso?: string; nombreAccion?: string } => {
+const parseMeta = (
+  meta: unknown
+): { tipo?: string; observaciones?: string; nombrePaso?: string; nombreAccion?: string } => {
   if (!meta) return {};
   if (typeof meta === 'string') {
-    try { return JSON.parse(meta); } catch { return { observaciones: meta }; }
+    try {
+      return JSON.parse(meta);
+    } catch {
+      return { observaciones: meta };
+    }
   }
   if (typeof meta === 'object') return meta as ReturnType<typeof parseMeta>;
   return {};
@@ -93,7 +99,7 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Documentos adjuntos
           {archivosList.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] normal-case font-medium">
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium normal-case">
               {archivosList.length}
             </span>
           )}
@@ -105,7 +111,7 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
       </div>
 
       {uploaderOpen && (
-        <div className="space-y-3 rounded-lg border bg-muted/20 p-3">
+        <div className="bg-muted/20 space-y-3 rounded-lg border p-3">
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Observaciones</Label>
             <Textarea
@@ -163,9 +169,11 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
             return (
               <div
                 key={archivo.id}
-                className="group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-muted/30"
+                className="hover:border-primary/40 hover:bg-muted/30 group flex items-start gap-2.5 rounded-lg border bg-background px-2.5 py-2 text-xs transition-colors"
               >
-                <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}>
+                <span
+                  className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${EXT_BADGE[ext] ?? 'bg-muted text-muted-foreground'}`}
+                >
                   {ext || '?'}
                 </span>
                 <div className="min-w-0 flex-1 space-y-0.5">
@@ -179,9 +187,13 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
                   )}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {archivo.usuarioSubioNombre && (
-                      <span className="text-[10px] text-muted-foreground/60">{archivo.usuarioSubioNombre}</span>
+                      <span className="text-muted-foreground/60 text-[10px]">
+                        {archivo.usuarioSubioNombre}
+                      </span>
                     )}
-                    <span className="text-[10px] text-muted-foreground/40">{fmtFecha(archivo.fechaCreacion)}</span>
+                    <span className="text-muted-foreground/40 text-[10px]">
+                      {fmtFecha(archivo.fechaCreacion)}
+                    </span>
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-0.5">
@@ -194,7 +206,12 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
                   >
                     <Eye className="h-3.5 w-3.5" />
                   </Button>
-                  <a href={archivoService.getDownloadUrl(archivo.id)} target="_blank" rel="noopener noreferrer" title="Descargar">
+                  <a
+                    href={archivoService.getDownloadUrl(archivo.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Descargar"
+                  >
                     <Button variant="ghost" size="icon" className="h-6 w-6">
                       <Download className="h-3.5 w-3.5" />
                     </Button>
@@ -216,7 +233,11 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
       )}
 
       {viewerId !== null && (
-        <FileViewer archivoId={viewerId} open={viewerId !== null} onClose={() => setViewerId(null)} />
+        <FileViewer
+          archivoId={viewerId}
+          open={viewerId !== null}
+          onClose={() => setViewerId(null)}
+        />
       )}
     </div>
   );

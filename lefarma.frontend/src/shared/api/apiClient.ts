@@ -53,6 +53,10 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiError>) => {
+    if (axios.isCancel(error)) {
+      return Promise.reject({ message: 'REQUEST_CANCELED', statusCode: 0 } as ApiError);
+    }
+
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };

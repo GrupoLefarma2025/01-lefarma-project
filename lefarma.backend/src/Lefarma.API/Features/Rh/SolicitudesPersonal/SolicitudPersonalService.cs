@@ -2,12 +2,16 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh;
+using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Extensions;
+using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
+using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -16,16 +20,16 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
     public class SolicitudPersonalService : BaseService, ISolicitudPersonalService
     {
         private readonly ISolicitudPersonalRepository _repository;
+        private readonly ITipoSolicitudRepository _tipoRepository;
         private readonly IWorkflowResolver _workflowResolver;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         protected override string EntityName => "SolicitudPersonal";
 
-        private record UsuarioInfo(string Nombre, string? Puesto);
-
         public SolicitudPersonalService(
             ISolicitudPersonalRepository repository,
+            ITipoSolicitudRepository tipoRepository,
             IWorkflowResolver workflowResolver,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
@@ -34,13 +38,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             : base(wideEventAccessor)
         {
             _repository = repository;
+            _tipoRepository = tipoRepository;
             _workflowResolver = workflowResolver;
             _context = context;
             _asokamContext = asokamContext;
             _jefeInmediatoResolver = jefeInmediatoResolver;
         }
 
-        public async Task<ErrorOr<IEnumerable<SolicitudPersonalResponse>>> GetAllAsync(
+        public async Task<ErrorOr<PagedResult<SolicitudPersonalResponse>>> GetAllAsync(
             SolicitudPersonalRequest request, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
         {
             try
@@ -50,6 +55,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Include(x => x.Empresa)
                     .Include(x => x.Sucursal)
                     .Include(x => x.Area)
+                    .Include(x => x.TipoSolicitud)
                     .AsQueryable();
 
                 if (request.IdEmpresa.HasValue)
@@ -64,6 +70,77 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     q = q.Where(x => x.IdUsuarioCreador == request.IdUsuarioCreador.Value);
                 if (request.IdTipoSolicitud.HasValue)
                     q = q.Where(x => x.IdTipoSolicitud == request.IdTipoSolicitud.Value);
+
+                if (!string.IsNullOrWhiteSpace(request.Categoria) && int.TryParse(request.Categoria, out var categoriaInt))
+                    q = q.Where(x => x.TipoSolicitud != null && (int)x.TipoSolicitud.Categoria == categoriaInt);
+
+                if (!string.IsNullOrWhiteSpace(request.Estados))
+                {
+                    var estados = request.Estados
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(e => e.ToUpperInvariant())
+                        .Where(e => !string.IsNullOrWhiteSpace(e))
+                        .ToList();
+                    q = q.Where(x => x.Estado != null && x.Estado.Codigo != null && estados.Contains(x.Estado.Codigo!.ToUpperInvariant()));
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.IdsEstados))
+                {
+                    var idsEstados = request.IdsEstados
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .Select(v => int.TryParse(v, out var id) ? id : (int?)null)
+                        .Where(id => id.HasValue)
+                        .Select(id => id!.Value)
+                        .ToList();
+                    if (idsEstados.Count > 0)
+                        q = q.Where(x => idsEstados.Contains(x.IdEstado));
+                }
+
+                if (request.FechaCreacionDesde.HasValue)
+                {
+                    var desde = request.FechaCreacionDesde.Value.Date;
+                    q = q.Where(x => x.FechaCreacion.Date >= desde);
+                }
+                if (request.FechaCreacionHasta.HasValue)
+                {
+                    var hasta = request.FechaCreacionHasta.Value.Date;
+                    q = q.Where(x => x.FechaCreacion.Date <= hasta);
+                }
+
+                if (request.FechaDiasDesde.HasValue || request.FechaDiasHasta.HasValue)
+                {
+                    var desde = request.FechaDiasDesde?.Date;
+                    var hasta = request.FechaDiasHasta?.Date;
+
+                    if (desde.HasValue && hasta.HasValue)
+                    {
+                        var d = desde.Value;
+                        var h = hasta.Value;
+                        q = q.Where(x =>
+                            x.FechaInicio.HasValue && x.FechaInicio.Value.Date <= h &&
+                            (x.FechaFin.HasValue ? x.FechaFin.Value.Date >= d : x.FechaInicio.Value.Date >= d));
+                    }
+                    else if (desde.HasValue)
+                    {
+                        var d = desde.Value;
+                        q = q.Where(x =>
+                            (x.FechaInicio.HasValue && x.FechaInicio.Value.Date >= d) ||
+                            (x.FechaFin.HasValue && x.FechaFin.Value.Date >= d));
+                    }
+                    else if (hasta.HasValue)
+                    {
+                        var h = hasta.Value;
+                        q = q.Where(x =>
+                            (x.FechaInicio.HasValue && x.FechaInicio.Value.Date <= h) ||
+                            (x.FechaFin.HasValue && x.FechaFin.Value.Date <= h));
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.Busqueda))
+                {
+                    var term = request.Busqueda.Trim();
+                    q = q.Where(x => x.Folio != null && x.Folio.Contains(term));
+                }
 
                 // Si no tiene el permiso de ver todas y la solicitud no pide ver todas
                 if (!puedeVerTodas || (puedeVerTodas && !request.VerTodas))
@@ -131,15 +208,19 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     _ => q.OrderByDescending(x => x.FechaCreacion)
                 };
 
-                if (request.Max.HasValue && request.Max.Value > 0)
-                    q = q.Take(request.Max.Value);
+                var page = Math.Max(1, request.Page);
+                var pageSize = Math.Clamp(request.PageSize, 1, 100);
 
-                var items = await q.ToListAsync();
+                var totalCount = await q.CountAsync();
+                var items = await q
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
 
                 var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
                 var pasoIds = items.Select(o => o.IdPasoActual).Distinct().ToList();
 
@@ -153,12 +234,19 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var result = new List<SolicitudPersonalResponse>();
                 foreach (var item in items)
                 {
-                    var dto = await MapToDto(item, usuariosInfo, pasoNombre, item.Estado?.Codigo);
+                    var tipo = await _tipoRepository.GetByIdAsync(item.IdTipoSolicitud);
+                    var dto = item.ToResponse(tipo, usuariosInfo, pasoNombre, item.Estado?.Codigo);
                     result.Add(dto);
                 }
 
                 EnrichWideEvent("GetAll", count: result.Count);
-                return result;
+                return new PagedResult<SolicitudPersonalResponse>
+                {
+                    Items = result,
+                    TotalCount = totalCount,
+                    Page = page,
+                    PageSize = pageSize,
+                };
             }
             catch (Exception ex)
             {
@@ -189,11 +277,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var userIds = new List<int> { soli.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
+
+                var tipo = await _tipoRepository.GetByIdAsync(soli.IdTipoSolicitud);
 
                 EnrichWideEvent("GetById", entityId: id);
-                return await MapToDto(soli, usuariosInfo, paso, soli.Estado?.Codigo);
+                return soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo);
             }
             catch (Exception ex)
             {
@@ -207,16 +297,26 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var tipo = await _repository.GetTipoSolicitudAsync(request.IdTipoSolicitud);
+                var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
 
+                var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuario, tipo);
+                if (validacionLimite.IsError)
+                    return validacionLimite.FirstError;
+
+                //las claves de este diccionario deben coincidir con WorkflowScopeType.Codigo
                 var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
                     CodigoProceso.SOLICITUD_PERSONAL,
-                    idUsuario,
-                    request.IdEmpresa,
-                    request.IdSucursal,
-                    request.IdArea);
+                    new Dictionary<string, int?>
+                    {
+                        ["USUARIO"] = idUsuario,
+                        ["EMPRESA"] = request.IdEmpresa,
+                        ["SUCURSAL"] = request.IdSucursal,
+                        ["AREA"] = request.IdArea,
+                        ["CATEGORIA"] = (int)tipo.Categoria,
+                        ["TIPO_SOLICITUD"] = request.IdTipoSolicitud
+                    });
                 if (workflow is null)
                     return CommonErrors.NotFound("Workflow", CodigoProceso.SOLICITUD_PERSONAL);
 
@@ -323,10 +423,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var userIds = new List<int> { solicitud.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
-                return await MapToDto(solicitud, usuariosInfo, pasoInicial.NombrePaso, estadoInicial.Codigo);
+                return solicitud.ToResponse(tipo, usuariosInfo, pasoInicial.NombrePaso, estadoInicial.Codigo);
             }
             catch (DbUpdateException ex)
             {
@@ -355,6 +455,17 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.Estado?.IdEstado != 1)
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
 
+                var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
+                if (tipo is null)
+                    return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
+
+                if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
+                {
+                    var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuario, tipo, soli.IdSolicitud);
+                    if (validacionLimite.IsError)
+                        return validacionLimite.FirstError;
+                }
+
                 soli.IdTipoSolicitud = request.IdTipoSolicitud;
                 soli.Motivo = request.Motivo;
                 soli.LugarComision = request.LugarComision;
@@ -373,7 +484,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (nuevos.Any())
                 {
                     soli.Detalle = nuevos;
-                    var tipoActual = await _repository.GetTipoSolicitudAsync(soli.IdTipoSolicitud);
+                    var tipoActual = await _tipoRepository.GetByIdAsync(soli.IdTipoSolicitud);
                     if (tipoActual is not null)
                         CalcularFechas(soli, tipoActual, nuevos);
                 }
@@ -401,7 +512,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 await _repository.UpdateAsync(soli);
 
                 EnrichWideEvent("Update", entityId: soli.IdSolicitud, nombre: soli.Folio);
-                return await MapToDto(soli, null, null, null);
+                return soli.ToResponse(tipo, null, null, null);
             }
             catch (DbUpdateException ex)
             {
@@ -446,38 +557,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
-        public async Task<ErrorOr<IEnumerable<TipoSolicitudResponse>>> ListarTiposAsync()
-        {
-            try
-            {
-                var tipos = await _repository.GetTiposActivosAsync();
-
-                var response = tipos.Select(t => new TipoSolicitudResponse
-                {
-                    IdTipoSolicitud = t.IdTipoSolicitud,
-                    Nombre = t.Nombre,
-                    Clave = t.Clave,
-                    Categoria = t.Categoria.ToString(),
-                    Descripcion = t.Descripcion,
-                    RequiereReposicionTiempo = t.RequiereReposicionTiempo,
-                    RequiereFechaFin = t.RequiereFechaFin,
-                    RequiereFechaRegreso = t.RequiereFechaRegreso,
-                    RequiereLugarComision = t.RequiereLugarComision,
-                    DescuentaNomina = t.DescuentaNomina,
-                    DescuentaVacaciones = t.DescuentaVacaciones,
-                    RequiereDocumentacion = t.RequiereDocumentacion,
-                }).ToList();
-
-                EnrichWideEvent("ListarTipos", count: response.Count);
-                return response;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("ListarTipos", exception: ex);
-                return CommonErrors.DatabaseError("obtener los tipos de solicitud");
-            }
-        }
-
         private static void CalcularFechas(
             SolicitudPersonal solicitud, TipoSolicitud tipo, List<SolicitudPersonalDetalle> detalle)
         {
@@ -498,53 +577,220 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
-        private async Task<SolicitudPersonalResponse> MapToDto(
-            SolicitudPersonal s,
-            Dictionary<int, UsuarioInfo>? usuariosInfo = null, 
-            string? paso = null, string? estado = null)
+        private async Task<ErrorOr<Success>> ValidarLimitePorPeriodoAsync(
+            int idUsuario, TipoSolicitud tipo, int? excluirIdSolicitud = null)
         {
-            var tipo = await _repository.GetTipoSolicitudAsync(s.IdTipoSolicitud);
+            if (!tipo.LimitePorPeriodo.HasValue)
+                return Result.Success;
 
-            return new SolicitudPersonalResponse
+            var (inicio, fin, _) = PeriodoHelper.ObtenerPeriodoActual(
+                DateTime.Now, tipo.PeriodoLimite ?? PeriodoHelper.Quincena);
+
+            var cerradas = await _tipoRepository.ContarSolicitudesCerradasEnPeriodoAsync(
+                idUsuario,
+                tipo.IdTipoSolicitud,
+                inicio,
+                fin,
+                WorkflowEstadoCodigo.CERRADA,
+                excluirIdSolicitud);
+
+            if (cerradas >= tipo.LimitePorPeriodo.Value)
             {
-                IdSolicitud = s.IdSolicitud,
-                Folio = s.Folio,
-                IdEmpresa = s.IdEmpresa,
-                EmpresaNombre = s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre,
-                IdSucursal = s.IdSucursal,
-                SucursalNombre = s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre,
-                IdArea = s.IdArea,
-                AreaNombre = s.Area?.NombreNormalizado ?? s.Area?.Nombre,
-                IdTipoSolicitud = s.IdTipoSolicitud,
-                TipoSolicitudNombre = tipo?.Nombre,
-                Categoria = tipo?.Categoria ?? CategoriaSolicitud.Permiso,
-                IdEstado = s.IdEstado,
-                EstadoNombre = estado ?? s.Estado?.Codigo,
-                EstadoColor = s.Estado?.ColorHex,
-                IdWorkflow = s.IdWorkflow,
-                IdPasoActual = s.IdPasoActual,
-                PasoActual = paso,
-                IdUsuarioCreador = s.IdUsuarioCreador,
-                SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
-                SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out ui) ? ui.Puesto : null,
-                LugarComision = s.LugarComision,
-                Motivo = s.Motivo,
-                FechaEnvio = s.FechaEnvio,
-                FechaInicio = s.FechaInicio,
-                FechaFin = s.FechaFin,
-                FechaReposicion = s.FechaReposicion,
-                DiasSolicitados = s.DiasSolicitados,
-                FechaRegreso = s.FechaRegreso,
-                FechaCreacion = s.FechaCreacion,
-                FechaModificacion = s.FechaModificacion,
-                Detalle = s.Detalle?
-                    .OrderBy(d => d.Fecha)
-                    .Select(d => new SolicitudPersonalDetalleDto
+                return CommonErrors.Validation(
+                    "LimitePorPeriodo",
+                    $"Has alcanzado el límite de {tipo.LimitePorPeriodo} solicitudes de tipo '{tipo.Nombre}' para el periodo actual.");
+            }
+
+            return Result.Success;
+        }
+
+        public async Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas)
+        {
+            try
+            {
+                if (idUsuarioObjetivo != idUsuario && !puedeVerTodas)
+                {
+                    return Error.Forbidden("solicitud_personal.puede_ver_todas_solcitudes", "No tiene permiso para consultar los límites de otros usuarios.");
+                }
+
+                var tipos = await _tipoRepository.GetTiposActivosAsync();
+                var ahora = DateTime.Now;
+
+                var limites = new List<LimitePorTipoResponse>();
+                foreach (var tipo in tipos.Where(t => t.LimitePorPeriodo.HasValue))
+                {
+                    var (inicio, fin, etiqueta) = PeriodoHelper.ObtenerPeriodoActual(
+                        ahora, tipo.PeriodoLimite ?? PeriodoHelper.Quincena);
+
+                    var usado = await _tipoRepository.ContarSolicitudesCerradasEnPeriodoAsync(
+                        idUsuarioObjetivo,
+                        tipo.IdTipoSolicitud,
+                        inicio,
+                        fin,
+                        WorkflowEstadoCodigo.CERRADA);
+
+                    limites.Add(new LimitePorTipoResponse
                     {
-                        Fecha = d.Fecha,
-                        Comentario = d.Comentario
-                    }).ToList() ?? new List<SolicitudPersonalDetalleDto>()
-            };
+                        IdTipoSolicitud = tipo.IdTipoSolicitud,
+                        Tipo = tipo.Nombre,
+                        Limite = tipo.LimitePorPeriodo.Value,
+                        Usado = usado,
+                        Disponible = Math.Max(0, tipo.LimitePorPeriodo.Value - usado),
+                        Periodo = etiqueta,
+                        PeriodoInicio = inicio,
+                        PeriodoFin = fin
+                    });
+                }
+
+                var (periodoInicio, periodoFin, periodoEtiqueta) = PeriodoHelper.ObtenerPeriodoActual(
+                    ahora, PeriodoHelper.Quincena);
+
+                return new MisLimitesResponse
+                {
+                    PeriodoActual = periodoEtiqueta,
+                    PeriodoInicio = periodoInicio,
+                    PeriodoFin = periodoFin,
+                    LimitesPorTipo = limites
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("ObtenerLimitesSolicitudes", exception: ex);
+                return CommonErrors.DatabaseError("obtener los límites de solicitudes");
+            }
+        }
+        public async Task<ErrorOr<IEnumerable<CalendarioGlobalEvento>>> ObtenerCalendarioAsync(
+            CalendarioGlobalRequest request, int idUsuarioActual)
+        {
+            try
+            {
+                var estados = (request.Estados != null && request.Estados.Any())
+                    ? request.Estados
+                    : new List<string> { "CERRADA" };
+
+                var query = _repository.GetQueryableConDetalles()
+                    .Where(s => s.Estado != null && estados.Contains(s.Estado.Codigo))
+                    .Where(s => s.IdUsuarioCreador == idUsuarioActual);
+
+                if (request.IdEmpresa.HasValue)
+                    query = query.Where(s => s.IdEmpresa == request.IdEmpresa.Value);
+                if (request.IdSucursal.HasValue)
+                    query = query.Where(s => s.IdSucursal == request.IdSucursal.Value);
+                if (request.IdArea.HasValue)
+                    query = query.Where(s => s.IdArea == request.IdArea.Value);
+                if (request.IdTipoSolicitud.HasValue)
+                    query = query.Where(s => s.IdTipoSolicitud == request.IdTipoSolicitud.Value);
+
+                var solicitudes = await query.ToListAsync();
+
+                var userIds = solicitudes.Select(s => s.IdUsuarioCreador).Distinct().ToList();
+                var usuarios = await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => userIds.Contains(u.IdUsuario))
+                    .ToDictionaryAsync(
+                        u => u.IdUsuario,
+                        u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}");
+
+                var eventos = new List<CalendarioGlobalEvento>();
+                var agruparPor = request.AgruparPor?.ToLowerInvariant();
+
+                foreach (var s in solicitudes)
+                {
+                    var fechas = ExpandirFechasEnMes(s, request.Anio, request.Mes);
+                    var solicitante = usuarios.TryGetValue(s.IdUsuarioCreador, out var nombre) ? nombre : null;
+
+                    foreach (var fecha in fechas)
+                    {
+                        var (grupoClave, grupoNombre) = agruparPor switch
+                        {
+                            "empresa" => (s.IdEmpresa.ToString(), s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre),
+                            "sucursal" => (s.IdSucursal.ToString(), s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre),
+                            "area" => (s.IdArea.ToString(), s.Area?.NombreNormalizado ?? s.Area?.Nombre),
+                            "tipo" => (s.IdTipoSolicitud.ToString(), s.TipoSolicitud?.Nombre),
+                            "usuario" => (s.IdUsuarioCreador.ToString(), solicitante),
+                            _ => (null, null)
+                        };
+
+                        eventos.Add(new CalendarioGlobalEvento
+                        {
+                            IdSolicitud = s.IdSolicitud,
+                            Folio = s.Folio,
+                            Fecha = fecha,
+                            IdTipoSolicitud = s.IdTipoSolicitud,
+                            Tipo = s.TipoSolicitud?.Nombre ?? "",
+                            Categoria = ((int)(s.TipoSolicitud?.Categoria ?? CategoriaSolicitud.Permiso)).ToString(),
+                            Estado = s.Estado?.Codigo ?? "",
+                            EstadoColor = s.Estado?.ColorHex,
+                            IdEmpresa = s.IdEmpresa,
+                            EmpresaNombre = s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre,
+                            IdSucursal = s.IdSucursal,
+                            SucursalNombre = s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre,
+                            IdArea = s.IdArea,
+                            AreaNombre = s.Area?.NombreNormalizado ?? s.Area?.Nombre,
+                            IdUsuarioCreador = s.IdUsuarioCreador,
+                            SolicitanteNombre = solicitante,
+                            GrupoClave = grupoClave,
+                            GrupoNombre = grupoNombre
+                        });
+                    }
+                }
+
+                var resultado = eventos
+                    .OrderBy(e => e.Fecha)
+                    .ThenBy(e => e.GrupoNombre)
+                    .ThenBy(e => e.Folio)
+                    .ToList();
+
+                EnrichWideEvent("ObtenerCalendario", count: resultado.Count);
+                return resultado;
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("ObtenerCalendario", exception: ex);
+                return CommonErrors.DatabaseError("obtener el calendario de solicitudes");
+            }
+        }
+
+        private static List<DateTime> ExpandirFechasEnMes(SolicitudPersonal s, int anio, int mes)
+        {
+            var inicioMes = new DateTime(anio, mes, 1);
+            var finMes = inicioMes.AddMonths(1).AddDays(-1);
+
+            if (s.Detalle != null && s.Detalle.Any())
+            {
+                return s.Detalle
+                    .Where(d => d.Fecha.Year == anio && d.Fecha.Month == mes)
+                    .Select(d => d.Fecha.Date)
+                    .Distinct()
+                    .ToList();
+            }
+
+            if (s.FechaInicio.HasValue && s.FechaFin.HasValue)
+            {
+                var inicio = s.FechaInicio.Value.Date > inicioMes.Date
+                    ? s.FechaInicio.Value.Date
+                    : inicioMes.Date;
+                var fin = s.FechaFin.Value.Date < finMes.Date
+                    ? s.FechaFin.Value.Date
+                    : finMes.Date;
+
+                var fechas = new List<DateTime>();
+                var current = inicio;
+                while (current <= fin)
+                {
+                    fechas.Add(current);
+                    current = current.AddDays(1);
+                }
+                return fechas;
+            }
+
+            if (s.FechaInicio.HasValue
+                && s.FechaInicio.Value.Year == anio
+                && s.FechaInicio.Value.Month == mes)
+            {
+                return new List<DateTime> { s.FechaInicio.Value.Date };
+            }
+
+            return new List<DateTime>();
         }
     }
 }

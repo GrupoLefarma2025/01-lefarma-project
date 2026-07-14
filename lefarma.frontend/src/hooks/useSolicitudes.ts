@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
-import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
+import type { PagedResult, SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { toApiError } from '@/utils/errors';
 import { toast } from 'sonner';
 import type {
@@ -16,7 +16,10 @@ const ESTADOS_TERMINALES = ['cerrada', 'cancelada', 'rechazada'];
 
 function isEstadoTerminal(estadoNombre?: string | null): boolean {
   if (!estadoNombre) return false;
-  const normalized = estadoNombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const normalized = estadoNombre
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
   return ESTADOS_TERMINALES.some((e) => normalized.includes(e));
 }
 
@@ -45,7 +48,12 @@ export interface UseSolicitudesAutorizacionesReturn {
 
   workflowsMap: Map<number, WorkflowFlowResponse>;
   pasosWorkflow: import('@/types/solicitudPersonalWorkflow.types').WorkflowPasoFlowResponse[];
-  getEstadoInfo: (solicitud: Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'> | null | undefined) => { nombre: string; color: string };
+  getEstadoInfo: (
+    solicitud:
+      | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
+      | null
+      | undefined
+  ) => { nombre: string; color: string };
 
   firmar: (request: FirmarRequest, puedeVerTodas: boolean) => Promise<boolean>;
   isSubmittingFirma: boolean;
@@ -58,7 +66,9 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   const [error, setError] = useState<string | null>(null);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudPersonalResponse | null>(null);
+  const [selectedSolicitud, setSelectedSolicitud] = useState<SolicitudPersonalResponse | null>(
+    null
+  );
 
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [loadingAcciones, setLoadingAcciones] = useState(false);
@@ -89,51 +99,59 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   }, []);
 
   const fetchPropias = useCallback(async () => {
-    const res = await API.get<ApiResponse<SolicitudPersonalResponse[]>>(
+    const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
       '/solicitudes-personal',
-      { params: { verTodas: false } }
+      { params: { verTodas: false, pageSize: 100 } }
     );
     if (res.data?.success) {
-      setSolicitudesPropias(res.data.data || []);
+      setSolicitudesPropias(res.data.data?.items ?? []);
     }
   }, []);
 
   const fetchTodas = useCallback(async () => {
-    const res = await API.get<ApiResponse<SolicitudPersonalResponse[]>>(
+    const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
       '/solicitudes-personal',
-      { params: { verTodas: true } }
+      { params: { verTodas: true, pageSize: 100 } }
     );
     if (res.data?.success) {
-      setSolicitudesTodas(res.data.data || []);
+      setSolicitudesTodas(res.data.data?.items ?? []);
     }
   }, []);
 
-  const fetchAll = useCallback(async (puedeVerTodas: boolean) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const promises: Promise<void>[] = [fetchPropias()];
-      if (puedeVerTodas) {
-        promises.push(fetchTodas());
+  const fetchAll = useCallback(
+    async (puedeVerTodas: boolean) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const promises: Promise<void>[] = [fetchPropias()];
+        if (puedeVerTodas) {
+          promises.push(fetchTodas());
+        }
+        await Promise.all(promises);
+      } catch (err: unknown) {
+        const apiErr = toApiError(err);
+        setError(apiErr.message ?? 'Error al cargar solicitudes');
+        toast.error(apiErr.message ?? 'Error al cargar solicitudes');
+      } finally {
+        setLoading(false);
       }
-      await Promise.all(promises);
-    } catch (err: unknown) {
-      const apiErr = toApiError(err);
-      setError(apiErr.message ?? 'Error al cargar solicitudes');
-      toast.error(apiErr.message ?? 'Error al cargar solicitudes');
-    } finally {
-      setLoading(false);
-    }
-  }, [fetchPropias, fetchTodas]);
+    },
+    [fetchPropias, fetchTodas]
+  );
 
-  const refresh = useCallback(async (puedeVerTodas: boolean) => {
-    await fetchAll(puedeVerTodas);
-  }, [fetchAll]);
+  const refresh = useCallback(
+    async (puedeVerTodas: boolean) => {
+      await fetchAll(puedeVerTodas);
+    },
+    [fetchAll]
+  );
 
   const fetchDetalleCompleto = useCallback(async (id: number) => {
     setLoadingDetalle(true);
     try {
-      const res = await API.get<ApiResponse<SolicitudPersonalResponse>>(`/solicitudes-personal/${id}`);
+      const res = await API.get<ApiResponse<SolicitudPersonalResponse>>(
+        `/solicitudes-personal/${id}`
+      );
       if (res.data?.success && res.data.data) {
         setSelectedSolicitud(res.data.data);
       } else {
@@ -170,76 +188,92 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     }
   }, []);
 
-  const fetchHistorial = useCallback(async (id: number) => {
-    setLoadingHistorial(true);
-    try {
-      const [res] = await Promise.all([
-        API.get<ApiResponse<HistorialWorkflowItemResponse[]>>(`/solicitudes-personal/${id}/historial`),
-        ...(workflowsLoaded ? [] : [fetchWorkflowsFlow()]),
-      ]);
-      if (res.data?.success) {
-        setHistorial(res.data.data || []);
-      } else {
-        setHistorial([]);
-        toast.error(res.data.message ?? 'No se pudo cargar el historial');
-      }
-    } catch (err: unknown) {
-      const apiErr = toApiError(err);
-      toast.error(apiErr.message ?? 'Error al cargar el historial');
-      setHistorial([]);
-    } finally {
-      setLoadingHistorial(false);
-    }
-  }, [workflowsLoaded, fetchWorkflowsFlow]);
-
-  const selectSolicitud = useCallback((id: number | null) => {
-    setSelectedId(id);
-    if (id != null) {
-      const fromList =
-        solicitudesPropias.find((s) => s.idSolicitud === id) ??
-        solicitudesTodas.find((s) => s.idSolicitud === id) ??
-        null;
-      setSelectedSolicitud(fromList);
-      setAcciones([]);
-      setHistorial([]);
-    } else {
-      setSelectedSolicitud(null);
-      setAcciones([]);
-      setHistorial([]);
-    }
-  }, [solicitudesPropias, solicitudesTodas]);
-
-  const firmar = useCallback(async (request: FirmarRequest, puedeVerTodas: boolean): Promise<boolean> => {
-    if (!selectedSolicitud) return false;
-    setIsSubmittingFirma(true);
-    try {
-      const res = await API.post<ApiResponse<FirmarResponse>>(
-        `/solicitudes-personal/${selectedSolicitud.idSolicitud}/firmar`,
-        request
-      );
-      if (res.data?.success) {
-        toast.success(res.data.data?.mensaje ?? 'Acción ejecutada correctamente');
-        await fetchAll(puedeVerTodas);
-        await fetchAcciones(selectedSolicitud.idSolicitud);
-        if (selectedId != null) {
-          await fetchDetalleCompleto(selectedId);
+  const fetchHistorial = useCallback(
+    async (id: number) => {
+      setLoadingHistorial(true);
+      try {
+        const [res] = await Promise.all([
+          API.get<ApiResponse<HistorialWorkflowItemResponse[]>>(
+            `/solicitudes-personal/${id}/historial`
+          ),
+          ...(workflowsLoaded ? [] : [fetchWorkflowsFlow()]),
+        ]);
+        if (res.data?.success) {
+          setHistorial(res.data.data || []);
+        } else {
+          setHistorial([]);
+          toast.error(res.data.message ?? 'No se pudo cargar el historial');
         }
-        return true;
+      } catch (err: unknown) {
+        const apiErr = toApiError(err);
+        toast.error(apiErr.message ?? 'Error al cargar el historial');
+        setHistorial([]);
+      } finally {
+        setLoadingHistorial(false);
       }
-      toast.error(res.data.message ?? 'No fue posible procesar la acción');
-      return false;
-    } catch (err: unknown) {
-      const apiErr = toApiError(err);
-      const message = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al firmar';
-      toast.error(message);
-      return false;
-    } finally {
-      setIsSubmittingFirma(false);
-    }
-  }, [selectedSolicitud, selectedId, fetchAll, fetchAcciones, fetchDetalleCompleto]);
+    },
+    [workflowsLoaded, fetchWorkflowsFlow]
+  );
+
+  const selectSolicitud = useCallback(
+    (id: number | null) => {
+      setSelectedId(id);
+      if (id != null) {
+        const fromList =
+          solicitudesPropias.find((s) => s.idSolicitud === id) ??
+          solicitudesTodas.find((s) => s.idSolicitud === id) ??
+          null;
+        setSelectedSolicitud(fromList);
+        setAcciones([]);
+        setHistorial([]);
+      } else {
+        setSelectedSolicitud(null);
+        setAcciones([]);
+        setHistorial([]);
+      }
+    },
+    [solicitudesPropias, solicitudesTodas]
+  );
+
+  const firmar = useCallback(
+    async (request: FirmarRequest, puedeVerTodas: boolean): Promise<boolean> => {
+      if (!selectedSolicitud) return false;
+      setIsSubmittingFirma(true);
+      try {
+        const res = await API.post<ApiResponse<FirmarResponse>>(
+          `/solicitudes-personal/${selectedSolicitud.idSolicitud}/firmar`,
+          request
+        );
+        if (res.data?.success) {
+          toast.success(res.data.data?.mensaje ?? 'Acción ejecutada correctamente');
+          await fetchAll(puedeVerTodas);
+          await fetchAcciones(selectedSolicitud.idSolicitud);
+          if (selectedId != null) {
+            await fetchDetalleCompleto(selectedId);
+          }
+          return true;
+        }
+        toast.error(res.data.message ?? 'No fue posible procesar la acción');
+        return false;
+      } catch (err: unknown) {
+        const apiErr = toApiError(err);
+        const message = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al firmar';
+        toast.error(message);
+        return false;
+      } finally {
+        setIsSubmittingFirma(false);
+      }
+    },
+    [selectedSolicitud, selectedId, fetchAll, fetchAcciones, fetchDetalleCompleto]
+  );
 
   const getEstadoInfo = useCallback(
-    (solicitud: Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'> | null | undefined) => {
+    (
+      solicitud:
+        | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
+        | null
+        | undefined
+    ) => {
       if (!solicitud) return { nombre: 'Desconocido', color: '#94a3b8' };
       return {
         nombre: solicitud.estadoNombre ?? `Estado ${solicitud.idEstado ?? '?'}`,
@@ -253,9 +287,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     if (!selectedSolicitud?.idWorkflow) return [];
     const workflow = workflowsMap.get(selectedSolicitud.idWorkflow);
     if (!workflow) return [];
-    return (workflow.pasos || [])
-      .filter((p) => p.activo)
-      .sort((a, b) => a.orden - b.orden);
+    return (workflow.pasos || []).filter((p) => p.activo).sort((a, b) => a.orden - b.orden);
   }, [selectedSolicitud, workflowsMap]);
 
   return {

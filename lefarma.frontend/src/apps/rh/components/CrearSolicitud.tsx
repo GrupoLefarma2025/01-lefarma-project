@@ -4,7 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
-import type { SolicitudPersonalResponse, TipoSolicitudResponse, CreateSolicitudPersonalRequest } from '@/types/solicitudPersonal.types';
+import type {
+  SolicitudPersonalResponse,
+  TipoSolicitudResponse,
+  CreateSolicitudPersonalRequest,
+} from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
 import { authService } from '@/shared/auth/authService';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -65,10 +69,10 @@ function FormSection({
 }
 
 const CATEGORIAS = [
-  { value: 'Incidencia', label: 'Incidencia' },
-  { value: 'Permiso', label: 'Permiso' },
-  { value: 'Vacaciones', label: 'Vacaciones' },
-  { value: 'GoceDeSueldo', label: 'Goce de Sueldo' },
+  { value: '1', label: 'Incidencia' },
+  { value: '2', label: 'Permiso' },
+  { value: '3', label: 'Vacaciones' },
+  { value: '4', label: 'Goce de Sueldo' },
 ];
 
 const solicitudSchema = z.object({
@@ -96,11 +100,7 @@ interface CrearSolicitudProps {
 
 export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
-  const {
-    empresa: empresaSession,
-    sucursal: sucursalSession,
-    area: areaSession,
-  } = useAuthStore();
+  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession } = useAuthStore();
 
   const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -188,20 +188,13 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
   }, [tiposSolicitud, selectedCategoria]);
 
   useEffect(() => {
-    if (selectedCategoria && selectedTipoSolicitud?.categoria !== selectedCategoria) {
-      form.setValue('idTipoSolicitud', 0);
-    }
-  }, [selectedCategoria, selectedTipoSolicitud, form]);
-
-  useEffect(() => {
     const det = watchedDetalle ?? [];
     if (esMultiDia && det.length > 0) {
       const sorted = [...det].sort();
       const inicio = sorted[0];
       const fin = sorted[sorted.length - 1];
-      form.setValue('fechaInicio', inicio);
-      form.setValue('fechaFin', fin);
-      form.setValue('fechaRegreso', '');
+      form.setValue('fechaInicio', inicio, { shouldValidate: false });
+      form.setValue('fechaFin', fin, { shouldValidate: false });
     } else if (!esMultiDia && watchedFechaInicio) {
       if (watchedFechaFin) {
         const inicio = new Date(watchedFechaInicio);
@@ -212,9 +205,9 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
           allDates.push(current.toISOString().split('T')[0]);
           current.setDate(current.getDate() + 1);
         }
-        form.setValue('detalle', allDates);
+        form.setValue('detalle', allDates, { shouldValidate: false });
       } else {
-        form.setValue('detalle', [watchedFechaInicio]);
+        form.setValue('detalle', [watchedFechaInicio], { shouldValidate: false });
       }
     }
   }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin, form]);
@@ -247,7 +240,9 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
   useEffect(() => {
     const loadTipos = async () => {
       try {
-        const res = await API.get<ApiResponse<TipoSolicitudResponse[]>>('/solicitudes-personal/tipos-solicitud');
+        const res = await API.get<ApiResponse<TipoSolicitudResponse[]>>(
+          '/rh/TiposSolicitud/activos'
+        );
         if (res.data.success) {
           setTiposSolicitud(res.data.data || []);
         }
@@ -263,12 +258,17 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
     }
   }, []);
 
+  const [solicitudCargada, setSolicitudCargada] = useState(false);
+
   useEffect(() => {
     if (!isEditing || !idSolicitud || loadingCatalogs || tiposSolicitud.length === 0) return;
+    if (solicitudCargada) return;
 
     const loadSolicitud = async () => {
       try {
-        const res = await API.get<ApiResponse<SolicitudPersonalResponse>>(`/solicitudes-personal/${idSolicitud}`);
+        const res = await API.get<ApiResponse<SolicitudPersonalResponse>>(
+          `/solicitudes-personal/${idSolicitud}`
+        );
         if (res.data.success && res.data.data) {
           const sp = res.data.data;
           form.reset({
@@ -285,6 +285,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
             fechaReposicion: sp.fechaReposicion ? sp.fechaReposicion.split('T')[0] : '',
             detalle: sp.detalle?.map((d) => d.fecha.split('T')[0]) ?? [],
           });
+          setSolicitudCargada(true);
         } else {
           toast.error('No se pudo cargar la solicitud');
         }
@@ -294,7 +295,13 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
     };
 
     loadSolicitud();
-  }, [isEditing, idSolicitud, loadingCatalogs, tiposSolicitud, form]);
+  }, [isEditing, idSolicitud, loadingCatalogs, tiposSolicitud, form, solicitudCargada]);
+
+  useEffect(() => {
+    if (!isEditing) {
+      setSolicitudCargada(false);
+    }
+  }, [isEditing, idSolicitud]);
 
   const handleSave = async (values: FormValues) => {
     if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
@@ -522,30 +529,38 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                   <FormField
                     control={form.control}
                     name="idTipoSolicitud"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Tipo *</FormLabel>
-                        <Select
-                          value={field.value ? String(field.value) : ''}
-                          onValueChange={(v) => field.onChange(Number(v))}
-                          disabled={!selectedCategoria}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar tipo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {tiposPorCategoria.map((t) => (
-                              <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>
-                                {t.nombre}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
+                    render={({ field }) => {
+                      return (
+                        <FormItem>
+                          <FormLabel>Tipo *</FormLabel>
+                          <Select
+                            value={field.value ? String(field.value) : ''}
+                            onValueChange={(v) => {
+                              if (!v) return;
+                              field.onChange(Number(v));
+                            }}
+                            disabled={!selectedCategoria}
+                          >
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar tipo" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              {tiposPorCategoria.map((t) => (
+                                <SelectItem
+                                  key={t.idTipoSolicitud}
+                                  value={String(t.idTipoSolicitud)}
+                                >
+                                  {t.nombre}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
                   />
                 </div>
               </FormSection>
@@ -579,11 +594,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                       <FormItem>
                         <FormLabel>Lugar de Comisión *</FormLabel>
                         <FormControl>
-                          <Textarea
-                            placeholder="Lugar de la comisión..."
-                            rows={2}
-                            {...field}
-                          />
+                          <Textarea placeholder="Lugar de la comisión..." rows={2} {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -723,8 +734,8 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
 
           <Card>
             <CardContent className="space-y-3 pt-6">
-              <div className="rounded-lg border border-primary/30 bg-primary/10 p-3 shadow-sm">
-                <div className="mb-2 flex items-center gap-2 border-b border-primary/20 pb-2">
+              <div className="border-primary/30 bg-primary/10 rounded-lg border p-3 shadow-sm">
+                <div className="border-primary/20 mb-2 flex items-center gap-2 border-b pb-2">
                   <ClipboardList className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">Resumen de la solicitud</span>
                 </div>
@@ -763,11 +774,17 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Días solicitados</span>
-                    <span className="font-bold text-primary">{diasCalculados > 0 ? `${diasCalculados} día(s)` : '-'}</span>
+                    <span className="font-bold text-primary">
+                      {diasCalculados > 0 ? `${diasCalculados} día(s)` : '-'}
+                    </span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fechas seleccionadas</span>
-                    <span className="font-medium">{(watchedDetalle ?? []).length > 0 ? `${(watchedDetalle ?? []).length} día(s)` : '-'}</span>
+                    <span className="font-medium">
+                      {(watchedDetalle ?? []).length > 0
+                        ? `${(watchedDetalle ?? []).length} día(s)`
+                        : '-'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -775,12 +792,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
           </Card>
 
           <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSaving}
-            >
+            <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
               <X className="mr-2 h-4 w-4" /> Cancelar
             </Button>
             <Button

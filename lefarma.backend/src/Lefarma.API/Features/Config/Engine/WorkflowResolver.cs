@@ -18,57 +18,42 @@ namespace Lefarma.API.Features.Config.Engine
 
         public async Task<Workflow?> ResolveWorkflowIdAsync(
             string codigoProceso,
-            int? idUsuario = null,
-            int? idEmpresa = null,
-            int? idSucursal = null,
-            int? idArea = null,
-            int? idTipoGasto = null,
-            int? idProveedor = null
-            )
+            Dictionary<string, int?> context)
         {
-            // Obtener los tipos de scope activos ordenados por prioridad
+            if (string.IsNullOrWhiteSpace(codigoProceso))
+                return null;
+
             var scopeTypes = await _context.Set<WorkflowScopeType>()
                 .Where(s => s.Activo)
                 .OrderBy(s => s.NivelPrioridad)
                 .ToListAsync();
 
-            // Obtener los mappings activos para el proceso dado e incluimos el Workflow de una vez
             var mappings = await _context.Set<WorkflowMapping>()
-                .Include(m => m.Workflow) // Carga rápida
+                .Include(m => m.Workflow)
                     .ThenInclude(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
                 .Where(m => m.CodigoProceso == codigoProceso && m.Activo && m.Workflow.Activo)
                 .ToListAsync();
 
-            var contextMap = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["USUARIO"] = idUsuario,
-                ["EMPRESA"] = idEmpresa,
-                ["SUCURSAL"] = idSucursal,
-                ["AREA"] = idArea,
-                ["TIPO_GASTO"] = idTipoGasto,
-                ["PROVEEDOR"] = idProveedor,
-                ["DEFAULT"] = null
-            };
-
-            // Iterar por los tipos de scope en orden de prioridad
             foreach (var scopeType in scopeTypes)
             {
                 var code = scopeType.Codigo?.ToUpperInvariant();
-                if (code == null || !contextMap.ContainsKey(code)) continue;
-                // Obtener el valor del contexto para este tipo de scope
-                int? targetId = contextMap[code];
-                // Buscar match (específico o default del scope)
+                if (code == null || !context.TryGetValue(code, out var targetId))
+                    continue;
+
+                if (targetId is null)
+                    continue;
+
                 var selectedMapping = mappings
                     .Where(m => m.IdScopeType == scopeType.IdScopeType && m.ScopeId == targetId)
                     .OrderBy(m => m.PrioridadManual)
                     .ThenByDescending(m => m.FechaCreacion)
                     .FirstOrDefault();
+
                 if (selectedMapping?.Workflow != null)
                     return selectedMapping.Workflow;
             }
 
-            // Si no se encuentra ningún mapping específico, buscar un mapping default sin importar el scope
             return await _workflowRepo.GetByCodigoProcesoAsync(codigoProceso);
         }
     }
