@@ -40,7 +40,7 @@ public class ProveedorCaratulaFlowTests
     }
 
     /// <summary>
-    /// Crea un proveedor en el DbContext InMemory y devuelve los IDs generados (IdProveedor + IdCuen),
+    /// Crea un proveedor en el DbContext InMemory y devuelve los IDs generados (IdProveedor + IdCuenta),
     /// para que cada test use las claves reales que EF asignó (InMemory puede reasignar claves explícitas).
     /// Seedea además los catálogos referenciados (RegimenFiscal, FormaPago, Banco) para que los
     /// Include/ThenInclude del repo resuelvan correctamente en InMemory.
@@ -84,7 +84,7 @@ public class ProveedorCaratulaFlowTests
         db.Proveedores.Add(proveedor);
         db.SaveChanges();
         db.ChangeTracker.Clear();
-        return (proveedor.IdProveedor, proveedor.CuentasFormaPago.First().IdCuen);
+        return (proveedor.IdProveedor, proveedor.CuentasFormaPago.First().IdCuenta);
     }
 
     // ---------------------------------------------------------------------
@@ -102,7 +102,7 @@ public class ProveedorCaratulaFlowTests
         result.IsError.Should().BeFalse();
         result.Value.Should().BeTrue();
 
-        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuen == idCuen);
+        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuenta.CaratulaPath.Should().Be("caratulas/cuentas/new.pdf");
 
         // Sin staging, sin cambio de estatus
@@ -131,7 +131,7 @@ public class ProveedorCaratulaFlowTests
 
         // Staging creado; cuenta LIVE intacta (sigue con old.pdf)
         db.StagingProveedores.Should().ContainSingle();
-        var cuentaLive = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuen == idCuen);
+        var cuentaLive = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuentaLive.CaratulaPath.Should().Be("old.pdf", "la cuenta live no se toca durante staging");
 
         // Diff == 1 (sólo la carátula)
@@ -156,7 +156,7 @@ public class ProveedorCaratulaFlowTests
 
         autorizar.IsError.Should().BeFalse();
 
-        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuen == idCuen);
+        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuenta.CaratulaPath.Should().Be("caratulas/cuentas/new.pdf", "la carátula stagingada se promueve a live");
 
         var proveedor = await db.Proveedores.SingleAsync(p => p.IdProveedor == idProv);
@@ -180,7 +180,7 @@ public class ProveedorCaratulaFlowTests
         rechazar.IsError.Should().BeFalse();
 
         // La cuenta live sigue SIN carátula (nunca se tocó durante staging)
-        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuen == idCuen);
+        var cuenta = await db.ProveedoresFormasPagoCuentas.SingleAsync(c => c.IdCuenta == idCuen);
         cuenta.CaratulaPath.Should().BeNull("el rechazo descarta el staging sin tocar la cuenta live");
 
         var proveedor = await db.Proveedores.SingleAsync(p => p.IdProveedor == idProv);

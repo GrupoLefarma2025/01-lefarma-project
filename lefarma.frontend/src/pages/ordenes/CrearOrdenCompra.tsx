@@ -1443,10 +1443,10 @@ export default function CrearOrdenCompra() {
                                     ) : (
                                       cuentasBancarias.map((cuenta) => (
                                         <label
-                                          key={cuenta.idCuen}
+                                          key={cuenta.idCuenta}
                                           className="flex items-center gap-3 cursor-pointer text-sm border border-slate-200 dark:border-slate-700 rounded-md p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                         >
-                                          <RadioGroupItem value={String(cuenta.idCuen)} />
+                                          <RadioGroupItem value={String(cuenta.idCuenta)} />
                                           <div className="flex flex-col">
                                             <span className="font-medium text-slate-900 dark:text-slate-100">
                                               {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
@@ -2170,8 +2170,8 @@ export default function CrearOrdenCompra() {
                                       ) : (
                                         partidaCuentasBancarias.map((cuenta) => (
                                           <SelectItem
-                                            key={cuenta.idCuen}
-                                            value={String(cuenta.idCuen)}
+                                            key={cuenta.idCuenta}
+                                            value={String(cuenta.idCuenta)}
                                           >
                                             {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
                                             {cuenta.formaPagoNombre ? ` · ${cuenta.formaPagoNombre}` : ''}

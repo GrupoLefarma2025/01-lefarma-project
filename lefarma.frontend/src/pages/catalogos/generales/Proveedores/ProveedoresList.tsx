@@ -21,8 +21,6 @@ import {
   Edit3,
   ChevronDown,
   ChevronUp,
-  Power,
-  PowerOff,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -147,7 +145,7 @@ interface FormaPago {
 }
 
 interface ProveedorFormaPagoCuenta {
-  idCuen?: number;
+  idCuenta?: number;
   idProveedor?: number;
   idFormaPago: number;
   formaPagoNombre?: string;
@@ -454,7 +452,11 @@ export default function ProveedoresList() {
         contactoEmail: proveedor.detalle?.contactoEmail || '',
         comentario: proveedor.detalle?.comentario || '',
       });
-      setCuentasFormaPago(proveedor.cuentasFormaPago || []);
+      // Deep-copy: si compartimos la referencia con `proveedores`, mutar una cuenta
+      // al editar (updated[i].campo = ...) también muta el "original" que usa el
+      // snapshot de change-detection → dataChanged siempre false para cambios solo
+      // de cuenta → "No hay cambios" y no se guarda.
+      setCuentasFormaPago((proveedor.cuentasFormaPago || []).map((c) => ({ ...c })));
       setCuentasEditMode(new Set());
       setPendingCaratulas({});
       setIsEditing(true);
@@ -473,7 +475,7 @@ export default function ProveedoresList() {
 
   /**
    * Uploads a carátula to a specific persisted account (cuenta-scoped endpoint).
-   * New accounts (idCuen === 0) cannot upload until the supplier is saved. The
+   * New accounts (idCuenta === 0) cannot upload until the supplier is saved. The
    * upload routes by supplier estatus on the backend (direct write vs staging).
    * On success, the cuenta's `caratulaUrl` is updated in local state so the
    * preview shows without a full refetch.
@@ -634,7 +636,7 @@ export default function ProveedoresList() {
         const savedCuentas = savedProveedorData?.cuentasFormaPago;
         for (const [indexStr, file] of Object.entries(pendingCaratulas)) {
           const index = Number(indexStr);
-          const cuentaId = savedCuentas?.[index]?.idCuen ?? cuentasFormaPago[index]?.idCuen;
+          const cuentaId = savedCuentas?.[index]?.idCuenta ?? cuentasFormaPago[index]?.idCuenta;
           if (targetProveedorId && cuentaId && cuentaId > 0) {
             try {
               await proveedorApi.uploadCuentaCaratula(targetProveedorId, cuentaId, file);
@@ -1295,7 +1297,7 @@ export default function ProveedoresList() {
                   onClick={() => {
                     setCuentasFormaPago((prev) => [
                       ...prev,
-                      { idCuen: 0, idFormaPago: 0, activo: true },
+                      { idCuenta: 0, idFormaPago: 0, activo: true },
                     ]);
                   }}
                 >
@@ -1312,14 +1314,14 @@ export default function ProveedoresList() {
                   {/* Cuentas Activas */}
                   {cuentasFormaPago.filter(c => c.activo !== false).map((cuenta, activeIndex) => {
                     const originalIndex = cuentasFormaPago.findIndex(c => c === cuenta);
-                    const isEditable = cuenta.idCuen === 0 || cuentasEditMode.has(originalIndex);
+                    const isEditable = cuenta.idCuenta === 0 || cuentasEditMode.has(originalIndex);
                     // Per-account carátula (design §6). The file is staged locally
                     // (pendingCaratulas) and uploaded on "Guardar", not immediately.
                     const cuentaCaratulaUrl = cuenta.caratulaUrl
                       ? `${(import.meta.env.VITE_API_URL || '')}/media/archivos/${cuenta.caratulaUrl}`
                       : null;
                     const isUploadingCaratula =
-                      !!cuenta.idCuen && caratulaUploadingCuentaId === cuenta.idCuen;
+                      !!cuenta.idCuenta && caratulaUploadingCuentaId === cuenta.idCuenta;
                     return (
                     <div key={originalIndex} className="border border-gray-200 rounded-xl bg-gray-50/60 overflow-hidden shadow-sm">
                       {/* Header de la tarjeta */}
@@ -1341,7 +1343,7 @@ export default function ProveedoresList() {
                         </div>
                         <div className="flex items-center gap-1">
                           {/* Botón Editar (solo cuentas guardadas) */}
-                          {cuenta.idCuen && cuenta.idCuen > 0 && !cuentasEditMode.has(originalIndex) && (
+                          {cuenta.idCuenta && cuenta.idCuenta > 0 && !cuentasEditMode.has(originalIndex) && (
                             <Button
                               type="button"
                               variant="ghost"

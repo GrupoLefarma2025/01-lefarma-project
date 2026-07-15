@@ -45,7 +45,7 @@ public static class ProveedorExtensions
     {
         return new ProveedorFormaPagoCuentaResponse
         {
-            IdCuen = entity.IdCuen,
+            IdCuenta = entity.IdCuenta,
             IdProveedor = entity.IdProveedor,
             IdFormaPago = entity.IdFormaPago,
             FormaPagoNombre = entity.FormaPago?.Nombre,

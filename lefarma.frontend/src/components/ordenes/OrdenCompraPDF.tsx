@@ -469,7 +469,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
                   {orden.idsCuentasBancarias.map((idCb, idx) => {
                     let cuenta: ProveedorCuentaBancaria | undefined;
                     proveedoresMap?.forEach((prov) => {
-                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuen === idCb);
+                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuenta === idCb);
                       if (found) cuenta = found;
                     });
                     if (!cuenta) return <span key={idx}>ID {idCb}</span>;

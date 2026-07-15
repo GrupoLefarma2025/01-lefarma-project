@@ -54,7 +54,7 @@ public class CreateProveedorDetalleRequest
 
 public class CreateProveedorFormaPagoCuentaRequest
 {
-    public int IdCuen { get; set; }  // 0 = nueva cuenta, >0 = cuenta existente
+    public int IdCuenta { get; set; }  // 0 = nueva cuenta, >0 = cuenta existente
     public int IdFormaPago { get; set; }
     public int? IdBanco { get; set; }
     public string? NumeroCuenta { get; set; }
@@ -95,7 +95,7 @@ public class UpdateProveedorDetalleRequest
 
 public class ProveedorFormaPagoCuentaResponse
 {
-    public int IdCuen { get; set; }
+    public int IdCuenta { get; set; }
     public int IdProveedor { get; set; }
     public int IdFormaPago { get; set; }
     public string? FormaPagoNombre { get; set; }
@@ -177,7 +177,7 @@ public class StagingProveedorDetalleResponse
 public class StagingProveedorFormaPagoCuentaResponse
 {
     public int IdStagingCuenta { get; set; }
-    public int? IdCuen { get; set; }
+    public int? IdCuenta { get; set; }
     public int IdFormaPago { get; set; }
     public string? FormaPagoNombre { get; set; }
     public int? IdBanco { get; set; }

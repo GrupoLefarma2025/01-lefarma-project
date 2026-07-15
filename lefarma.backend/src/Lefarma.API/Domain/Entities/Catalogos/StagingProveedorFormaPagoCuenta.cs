@@ -10,7 +10,7 @@ public class StagingProveedorFormaPagoCuenta
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int IdStagingCuenta { get; set; }
 
-    public int? IdCuen { get; set; }  // Referencia a la cuenta original (null = nueva cuenta)
+    public int? IdCuenta { get; set; }  // Referencia a la cuenta original (null = nueva cuenta)
 
     [Required]
     public int IdStaging { get; set; }

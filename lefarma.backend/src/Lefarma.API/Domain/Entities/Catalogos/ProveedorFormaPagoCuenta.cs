@@ -4,7 +4,7 @@ namespace Lefarma.API.Domain.Entities.Catalogos;
 
 public class ProveedorFormaPagoCuenta
 {
-    public int IdCuen { get; set; }
+    public int IdCuenta { get; set; }
     public int IdProveedor { get; set; }
     public int IdFormaPago { get; set; }
     public int? IdBanco { get; set; }

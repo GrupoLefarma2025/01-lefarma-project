@@ -99,7 +99,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     foreach (var cuenta in proveedor.CuentasFormaPago)
                     {
-                        cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuen);
+                        cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuenta);
                     }
                 }
             }
@@ -136,7 +136,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 foreach (var cuenta in response.CuentasFormaPago)
                 {
-                    cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuen);
+                    cuenta.TieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuenta.IdCuenta);
                 }
             }
             
@@ -316,16 +316,16 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 
                 // Identificar cuentas que se deben eliminar (están en BD pero no en request)
                 var idsEnRequest = cuentasRequest
-                    .Where(c => c.IdCuen > 0)
-                    .Select(c => c.IdCuen)
+                    .Where(c => c.IdCuenta > 0)
+                    .Select(c => c.IdCuenta)
                     .ToHashSet();
                 
                 foreach (var cuentaExistente in cuentasExistentes)
                 {
-                    if (!idsEnRequest.Contains(cuentaExistente.IdCuen))
+                    if (!idsEnRequest.Contains(cuentaExistente.IdCuenta))
                     {
                         // La cuenta se quiere eliminar
-                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuen);
+                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaExistente.IdCuenta);
                         if (tieneOrdenes)
                         {
                             // Soft delete: marcar como inactivo
@@ -343,10 +343,10 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 // Procesar cuentas del request
                 foreach (var cuentaRequest in cuentasRequest)
                 {
-                    if (cuentaRequest.IdCuen > 0)
+                    if (cuentaRequest.IdCuenta > 0)
                     {
                         // Actualizar cuenta existente
-                        var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuen == cuentaRequest.IdCuen);
+                        var cuentaExistente = cuentasExistentes.FirstOrDefault(c => c.IdCuenta == cuentaRequest.IdCuenta);
                         if (cuentaExistente != null)
                         {
                             cuentaExistente.IdFormaPago = cuentaRequest.IdFormaPago;
@@ -492,7 +492,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 {
                     var stagingCuenta = new StagingProveedorFormaPagoCuenta
                     {
-                        IdCuen = cuenta.IdCuen > 0 ? cuenta.IdCuen : null,
+                        IdCuenta = cuenta.IdCuenta > 0 ? cuenta.IdCuenta : null,
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
                         NumeroCuenta = cuenta.NumeroCuenta?.Replace(" ", ""),
@@ -746,7 +746,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 return CommonErrors.NotFound("proveedor", proveedorId.ToString());
             }
 
-            var cuenta = proveedor.CuentasFormaPago.FirstOrDefault(c => c.IdCuen == cuentaId);
+            var cuenta = proveedor.CuentasFormaPago.FirstOrDefault(c => c.IdCuenta == cuentaId);
             if (cuenta is null)
             {
                 EnrichWideEvent(action: "SubirCaratulaCuenta", entityId: proveedorId, error: "Cuenta no encontrada");
@@ -786,7 +786,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 .Where(c => !string.IsNullOrWhiteSpace(c.CaratulaPath))
                 .Select(c => new CaratulaCuentaResponse
                 {
-                    CuentaId = c.IdCuen,
+                    CuentaId = c.IdCuenta,
                     Ultimos4 = Ultimos4(c.Clabe, c.NumeroCuenta),
                     CaratulaUrl = c.CaratulaPath
                 })
@@ -837,7 +837,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
     /// muestre ÚNICAMENTE el cambio de carátula (diff length == 1). Si existe staging previo
     /// (un edit pendiente), sólo actualiza la carátula de la cuenta objetivo en ese staging.
     /// La cuenta LIVE nunca se toca durante staging (reject = no-op por construcción).
-    /// Preserva IdCuen en las cuentas stageadas (depende del fix de drift migration 025 paso 3).
+    /// Preserva IdCuenta en las cuentas stageadas (depende del fix de drift migration 025 paso 3).
     /// </summary>
     private async Task<ErrorOr<bool>> StagearCaratulaAsync(
         Proveedor proveedor, ProveedorFormaPagoCuenta cuenta, string caratulaPath)
@@ -850,7 +850,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         if (stagingExistente != null)
         {
             // Ya hay un edit pendiente: actualizar la carátula de la cuenta objetivo en el staging existente.
-            var stagedCuenta = stagingExistente.CuentasFormaPago.FirstOrDefault(c => c.IdCuen == cuenta.IdCuen);
+            var stagedCuenta = stagingExistente.CuentasFormaPago.FirstOrDefault(c => c.IdCuenta == cuenta.IdCuenta);
             if (stagedCuenta != null)
             {
                 stagedCuenta.CaratulaPath = caratulaPath;
@@ -859,7 +859,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 stagingExistente.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
                 {
-                    IdCuen = cuenta.IdCuen,
+                    IdCuenta = cuenta.IdCuenta,
                     IdFormaPago = cuenta.IdFormaPago,
                     IdBanco = cuenta.IdBanco,
                     NumeroCuenta = cuenta.NumeroCuenta,
@@ -910,7 +910,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             {
                 staging.CuentasFormaPago.Add(new StagingProveedorFormaPagoCuenta
                 {
-                    IdCuen = c.IdCuen,
+                    IdCuenta = c.IdCuenta,
                     IdFormaPago = c.IdFormaPago,
                     IdBanco = c.IdBanco,
                     NumeroCuenta = c.NumeroCuenta,
@@ -920,7 +920,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                     CorreoNotificacion = c.CorreoNotificacion,
                     Activo = c.Activo,
                     // La cuenta objetivo recibe la nueva carátula; las demás se clonan idénticas (diff == 0).
-                    CaratulaPath = c.IdCuen == cuenta.IdCuen ? caratulaPath : c.CaratulaPath,
+                    CaratulaPath = c.IdCuenta == cuenta.IdCuenta ? caratulaPath : c.CaratulaPath,
                     StagingProveedor = staging
                 });
             }
@@ -980,7 +980,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 proveedor.Detalle.ContactoTelefono = staging.Detalle.ContactoTelefono;
                 proveedor.Detalle.ContactoEmail = staging.Detalle.ContactoEmail;
                 proveedor.Detalle.Comentario = staging.Detalle.Comentario;
-                proveedor.Detalle.CaratulaPath = staging.Detalle.CaratulaPath;
+                //proveedor.Detalle.CaratulaPath = staging.Detalle.CaratulaPath;
                 proveedor.Detalle.FechaModificacion = DateTime.UtcNow;
             }
 
@@ -992,16 +992,16 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 
                 // Identificar cuentas que se deben eliminar (están en BD pero no en staging)
                 var idsEnStaging = cuentasStaging
-                    .Where(c => c.IdCuen > 0)
-                    .Select(c => c.IdCuen)
+                    .Where(c => c.IdCuenta > 0)
+                    .Select(c => c.IdCuenta)
                     .ToHashSet();
                 
                 foreach (var cuentaOriginal in cuentasOriginales)
                 {
-                    if (!idsEnStaging.Contains(cuentaOriginal.IdCuen))
+                    if (!idsEnStaging.Contains(cuentaOriginal.IdCuenta))
                     {
                         // La cuenta se quiere eliminar
-                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaOriginal.IdCuen);
+                        var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaOriginal.IdCuenta);
                         if (tieneOrdenes)
                         {
                             // Soft delete: marcar como inactivo
@@ -1019,54 +1019,34 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 // Procesar cuentas del staging
                 foreach (var cuentaStaging in cuentasStaging)
                 {
-                    if (cuentaStaging.IdCuen > 0)
+                    if (cuentaStaging.IdCuenta > 0)
                     {
                         // Cuenta existente: buscarla
-                        var cuentaOriginal = cuentasOriginales.FirstOrDefault(c => c.IdCuen == cuentaStaging.IdCuen);
+                        var cuentaOriginal = cuentasOriginales.FirstOrDefault(c => c.IdCuenta == cuentaStaging.IdCuenta);
                         if (cuentaOriginal != null)
                         {
-                            var tieneOrdenes = await CuentaTieneOrdenesAsociadasAsync(cuentaOriginal.IdCuen);
-                            if (tieneOrdenes)
-                            {
-                                // Si tiene órdenes, crear nueva versión y desactivar la vieja
-                                cuentaOriginal.Activo = false;
-                                cuentaOriginal.FechaModificacion = DateTime.UtcNow;
-                                
-                                proveedor.CuentasFormaPago.Add(new ProveedorFormaPagoCuenta
-                                {
-                                    IdProveedor = proveedor.IdProveedor,
-                                    IdFormaPago = cuentaStaging.IdFormaPago,
-                                    IdBanco = cuentaStaging.IdBanco,
-                                    NumeroCuenta = cuentaStaging.NumeroCuenta,
-                                    Clabe = cuentaStaging.Clabe,
-                                    NumeroTarjeta = cuentaStaging.NumeroTarjeta,
-                                    Beneficiario = cuentaStaging.Beneficiario,
-                                    CorreoNotificacion = cuentaStaging.CorreoNotificacion,
-                                    Activo = cuentaStaging.Activo,
-                                    CaratulaPath = cuentaStaging.CaratulaPath,
-                                    FechaCreacion = DateTime.UtcNow
-                                });
-                            }
-                            else
-                            {
-                                // Sin órdenes: actualizar in-place
-                                cuentaOriginal.IdFormaPago = cuentaStaging.IdFormaPago;
-                                cuentaOriginal.IdBanco = cuentaStaging.IdBanco;
-                                cuentaOriginal.NumeroCuenta = cuentaStaging.NumeroCuenta;
-                                cuentaOriginal.Clabe = cuentaStaging.Clabe;
-                                cuentaOriginal.NumeroTarjeta = cuentaStaging.NumeroTarjeta;
-                                cuentaOriginal.Beneficiario = cuentaStaging.Beneficiario;
-                                cuentaOriginal.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
-                                cuentaOriginal.Activo = cuentaStaging.Activo;
-                                cuentaOriginal.CaratulaPath = cuentaStaging.CaratulaPath;
-                                cuentaOriginal.FechaModificacion = DateTime.UtcNow;
-                            }
+                            // Actualizar in-place. La orden referencia la cuenta por IdCuenta
+                            // (FK inmutable); cambiar sus datos (CLABE/número/beneficiario) no
+                            // rompe la relación con las órdenes existentes.
+                            // Antes se "versionaba" (desactivar la vieja + crear una nueva)
+                            // cuando la cuenta tenía órdenes, lo que duplicaba la cuenta al
+                            // autorizar la edición.
+                            cuentaOriginal.IdFormaPago = cuentaStaging.IdFormaPago;
+                            cuentaOriginal.IdBanco = cuentaStaging.IdBanco;
+                            cuentaOriginal.NumeroCuenta = cuentaStaging.NumeroCuenta;
+                            cuentaOriginal.Clabe = cuentaStaging.Clabe;
+                            cuentaOriginal.NumeroTarjeta = cuentaStaging.NumeroTarjeta;
+                            cuentaOriginal.Beneficiario = cuentaStaging.Beneficiario;
+                            cuentaOriginal.CorreoNotificacion = cuentaStaging.CorreoNotificacion;
+                            cuentaOriginal.Activo = cuentaStaging.Activo;
+                            cuentaOriginal.CaratulaPath = cuentaStaging.CaratulaPath;
+                            cuentaOriginal.FechaModificacion = DateTime.UtcNow;
                         }
                     }
                     else
                     {
                         // Nueva cuenta desde staging.
-                        // Defensive dedupe: si el staging no preservó IdCuen (frontend sin
+                        // Defensive dedupe: si el staging no preservó IdCuenta (frontend sin
                         // idCuen, datos históricos, etc.), la cuenta "nueva" podría ya
                         // existir en el proveedor. Validar por CLABE (clave única bancaria)
                         // o por banco + número de cuenta antes de insertar.
@@ -1228,7 +1208,7 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
                 CuentasFormaPago = staging.CuentasFormaPago.Select(c => new StagingProveedorFormaPagoCuentaResponse
                 {
                     IdStagingCuenta = c.IdStagingCuenta,
-                    IdCuen = c.IdCuen,
+                    IdCuenta = c.IdCuenta,
                     IdFormaPago = c.IdFormaPago,
                     FormaPagoNombre = c.FormaPago?.Nombre,
                     IdBanco = c.IdBanco,
@@ -1291,10 +1271,10 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
         var originalCuentas = original.CuentasFormaPago.ToList();
         var stagingCuentas = staging.CuentasFormaPago.ToList();
 
-        var originalConId = originalCuentas.Where(c => c.IdCuen > 0).ToDictionary(c => c.IdCuen);
+        var originalConId = originalCuentas.Where(c => c.IdCuenta > 0).ToDictionary(c => c.IdCuenta);
         var stagingConId = stagingCuentas
-            .Where(c => c.IdCuen.HasValue && c.IdCuen.Value > 0)
-            .ToDictionary(c => c.IdCuen!.Value);
+            .Where(c => c.IdCuenta.HasValue && c.IdCuenta.Value > 0)
+            .ToDictionary(c => c.IdCuenta!.Value);
 
         foreach (var id in originalConId.Keys.Except(stagingConId.Keys).OrderBy(id => id))
         {
@@ -1310,8 +1290,8 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
             diffs.Add(new CampoDiff { Campo = $"CuentasFormaPago[{id}].Nueva", Label = "Nueva cuenta", ValorAnterior = null, ValorNuevo = valor });
         }
 
-        // Cuentas NUEVAS (sin IdCuen en staging) que traen carátula: emiten "… agregada".
-        foreach (var cuenta in stagingCuentas.Where(c => !c.IdCuen.HasValue || c.IdCuen.Value <= 0)
+        // Cuentas NUEVAS (sin IdCuenta en staging) que traen carátula: emiten "… agregada".
+        foreach (var cuenta in stagingCuentas.Where(c => !c.IdCuenta.HasValue || c.IdCuenta.Value <= 0)
                                              .Where(c => !string.IsNullOrWhiteSpace(c.CaratulaPath))
                                              .OrderBy(c => c.NumeroCuenta ?? c.Clabe ?? ""))
         {
@@ -1390,18 +1370,69 @@ namespace Lefarma.API.Features.Catalogos.Proveedores;
     /// Verifica si una cuenta bancaria está siendo usada en órdenes de compra que están en flujo.
     /// Busca en la columna ids_cuentas_bancarias (JSON) de ordenes_compra y ordenes_compra_partidas.
     /// </summary>
+    /// <remarks>
+    /// Filtro SQL coarse por substring (barato) para reducir candidatos y luego parseo EXACTO
+    /// del JSON. El match por substring directo (.Contains) producía falsos positivos: la cuenta
+    /// 118 coincidía si una orden referenciaba la 1180/1118/etc., disparando el versioning y
+    /// duplicando la cuenta al autorizar la edición.
+    /// El JSON guarda un objeto {"IdsCuentasBancarias":[...],"IdsFormaPago":[...],...} o,
+    /// en datos legacy, un array suelto de enteros.
+    /// </remarks>
     private async Task<bool> CuentaTieneOrdenesAsociadasAsync(int idCuenta)
     {
         var cuentaStr = idCuenta.ToString();
-        var tieneEnCabecera = await _dbContext.OrdenesCompra
+
+        var candidatasCabecera = await _dbContext.OrdenesCompra
             //.Where(p => p.IdEstado != 7 || p.IdEstado != 8 || p.IdEstado != 9) //Cerrada, rechazada, cancelada
-            .AnyAsync(o => o.IdsCuentasBancarias != null && o.IdsCuentasBancarias.Contains(cuentaStr));
+            .Where(o => o.IdsCuentasBancarias != null && o.IdsCuentasBancarias.Contains(cuentaStr))
+            .Select(o => o.IdsCuentasBancarias!)
+            .ToListAsync();
 
-        if (tieneEnCabecera) return true;
+        if (candidatasCabecera.Any(j => JsonContieneCuenta(j, idCuenta)))
+            return true;
 
-        var tieneEnPartidas = await _dbContext.OrdenesCompraPartidas
-            .AnyAsync(p => p.IdsCuentasBancarias != null && p.IdsCuentasBancarias.Contains(cuentaStr)); 
+        var candidatasPartidas = await _dbContext.OrdenesCompraPartidas
+            .Where(p => p.IdsCuentasBancarias != null && p.IdsCuentasBancarias.Contains(cuentaStr))
+            .Select(p => p.IdsCuentasBancarias!)
+            .ToListAsync();
 
-        return tieneEnPartidas;
+        return candidatasPartidas.Any(j => JsonContieneCuenta(j, idCuenta));
+    }
+
+    /// <summary>
+    /// Parsea el JSON de ids_cuentas_bancarias (objeto con "IdsCuentasBancarias" o array legacy)
+    /// y reporta pertenencia EXACTA de <paramref name="idCuenta"/>. Reemplaza al match por
+    /// substring que confundía 118 con 1180/1118.
+    /// </summary>
+    private static bool JsonContieneCuenta(string? json, int idCuenta)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("IdsCuentasBancarias", out var arr)
+                    && arr.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var el in arr.EnumerateArray())
+                        if (el.TryGetInt32(out var v) && v == idCuenta) return true;
+                }
+                return false;
+            }
+
+            if (root.ValueKind == System.Text.Json.JsonValueKind.Array)
+            {
+                foreach (var el in root.EnumerateArray())
+                    if (el.TryGetInt32(out var v) && v == idCuenta) return true;
+            }
+        }
+        catch
+        {
+            // JSON malformado: no se puede afirmar que contiene la cuenta.
+        }
+        return false;
     }
 }

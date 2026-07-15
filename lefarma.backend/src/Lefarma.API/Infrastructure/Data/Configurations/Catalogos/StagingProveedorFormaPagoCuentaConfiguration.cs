@@ -14,7 +14,7 @@ public class StagingProveedorFormaPagoCuentaConfiguration : IEntityTypeConfigura
         builder.Property(x => x.IdStagingCuenta)
             .HasColumnName("id_staging_cuenta");
 
-        builder.Property(x => x.IdCuen)
+        builder.Property(x => x.IdCuenta)
             .HasColumnName("id_cuen");
 
         builder.Property(x => x.IdStaging)

@@ -10,8 +10,8 @@ public class ProveedorFormaPagoCuentaConfiguration : IEntityTypeConfiguration<Pr
     {
         builder.ToTable("proveedor_forma_pago_cuentas", "catalogos");
 
-        builder.HasKey(e => e.IdCuen);
-        builder.Property(e => e.IdCuen)
+        builder.HasKey(e => e.IdCuenta);
+        builder.Property(e => e.IdCuenta)
             .HasColumnName("id_cuenta")
             .ValueGeneratedOnAdd();
 

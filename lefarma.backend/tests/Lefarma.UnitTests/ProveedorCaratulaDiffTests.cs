@@ -43,7 +43,7 @@ public class ProveedorCaratulaDiffTests
     private static ProveedorFormaPagoCuenta Cuenta(
         int idCuen, string? clabe, string? numeroCuenta, string? caratula = null, bool activo = true) => new()
     {
-        IdCuen = idCuen,
+        IdCuenta = idCuen,
         IdFormaPago = 1,
         IdBanco = 1,
         NumeroCuenta = numeroCuenta,
@@ -81,7 +81,7 @@ public class ProveedorCaratulaDiffTests
         int? idCuen, string? clabe, string? numeroCuenta, string? caratula = null, bool activo = true) => new()
     {
         IdStagingCuenta = (idCuen ?? 0) + 1,
-        IdCuen = idCuen,
+        IdCuenta = idCuen,
         IdFormaPago = 1,
         IdBanco = 1,
         NumeroCuenta = numeroCuenta,
@@ -147,7 +147,7 @@ public class ProveedorCaratulaDiffTests
     [Fact]
     public void GenerarDiff_CuentaNuevaConCaratula_ContieneLabelAgregada()
     {
-        // Cuenta NUEVA (sin IdCuen en staging) que trae carátula → "agregada"
+        // Cuenta NUEVA (sin IdCuenta en staging) que trae carátula → "agregada"
         var p = NewProveedor(1, EstatusProveedor.Aprobado);
 
         var s = StagingCloneOf(p);
