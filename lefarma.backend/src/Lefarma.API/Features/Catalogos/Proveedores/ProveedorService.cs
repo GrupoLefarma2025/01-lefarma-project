@@ -523,6 +523,9 @@ public partial class ProveedorService : BaseService, IProveedorService
                 {
                     var stagingCuenta = new StagingProveedorFormaPagoCuenta
                     {
+                        // Preserva la referencia a la cuenta original para que al autorizar
+                        // se actualice en lugar de duplicarse (null = cuenta nueva)
+                        IdCuen = cuenta.IdCuen > 0 ? cuenta.IdCuen : null,
                         IdFormaPago = cuenta.IdFormaPago,
                         IdBanco = cuenta.IdBanco,
                         NumeroCuenta = cuenta.NumeroCuenta,

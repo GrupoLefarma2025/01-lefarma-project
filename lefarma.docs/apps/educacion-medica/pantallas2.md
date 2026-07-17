@@ -59,13 +59,50 @@ flowchart TD
 - **Documento origen:** `ASK-VEN-FOR-001` · Diagrama `ASK-VEN-DPD-002`.
 - **Roles:** DC: **A** · GG: **CRUD** · GV-D: **R/W (su unidad)** · EV-D: **R (su región)** · EE: **R**.
 
-### 18. Plan de Trabajo Mensual (Descentralizado)
+### 18. Plan de Trabajo Mensual — vista mensual (Descentralizado)
 
 - **Ruta:** `/ventas-desc/plan-trabajo`
-- **Propósito:** Programar las visitas mensuales de cada **EV-D** a las unidades médicas descentralizadas (3 bloques/día + comida, ~5 semanas).
-- **Elementos clave:** Igual que #7; grid semanal Lun–Dom; bloques de visita con unidad médica, área, contacto, objetivo, horarios plantilla. Firmas: Elaboró (EV-D) / Aprobó (GV-D).
+- **Propósito:** Vista de **overview** del plan: el EV-D ve sus visitas ya programadas del mes en grid semanal y entra a cargar/editar cada una. Es navegación + lectura; la **carga real ocurre en el formulario #18.1**.
+- **Elementos clave:**
+  - **Selectores:** Mes, Año, Ejecutivo (fijo al propio EV-D), Región, Unidad de negocio = **Descentralizados** (fija).
+  - **Grid semanal** (Lun–Dom) con fila de fecha por semana; cada celda-día muestra los 3 bloques de visita (Unidad médica + hora) como tarjetas resumidas.
+  - Bloque vacío → botón **+ Planificar visita** que abre **#18.1**. Bloque lleno → click abre **#18.1** en modo edición.
+  - Encabezado con contador: visitas programadas / meta del mes.
+  - Botón **Enviar a aprobación** (cambia estado del plan a *En revisión* para el GV-D). Firmas: Elaboró (EV-D) / Aprobó (GV-D).
 - **Documento origen:** `ASK-VEN-FOR-002`.
-- **Roles:** GV-D: **A** · EV-D: **R/W (propio)** · GG/EE: **R**.
+- **Roles:** GV-D: **A** (aprueba) · EV-D: **R/W (propio)** · GG/EE: **R**.
+
+### 18.1. Planificar Visita — formulario de captura (Descentralizado)
+
+- **Ruta:** `/ventas-desc/plan-trabajo/visita/nueva` y `/ventas-desc/plan-trabajo/visita/:id` (edición). Puede abrirse como **pantalla completa o panel lateral** desde #18.
+- **Propósito:** Cargar **una** visita del plan mensual. Es el formulario de alta/edición que alimenta el grid de #18.
+- **Layout del formulario:**
+
+```text
+┌─ Planificar visita ─────────────────────────────────────────┐
+│                                                             │
+│  Fecha *            [ 12/07/2026        ▾]                   │
+│  Bloque *           ( ) Visita 1   (•) Visita 2   ( ) Visita 3│
+│                                                             │
+│  Unidad médica *    [ Hospital General de Zona No. 1     ▾] │
+│  Dirección           Av. Cuauhtémoc 330, CDMX  (auto)       │
+│  Área / Depto. *    [ Anestesiología                     ▾] │
+│  Contacto           [ Dr. ____________________________ ]    │
+│  Objetivo *         [ ___________________________________ ] │
+│                                                             │
+│  Hora inicio *      [ 11:15 ]      Hora fin *   [ 14:00 ]    │
+│                                                             │
+│  ── nota: campos con * son obligatorios ──                  │
+│                                                             │
+│        [ Cancelar ]   [ Guardar y agregar otra ]  [ Guardar ]│
+└─────────────────────────────────────────────────────────────┘
+```
+
+  - `*` = obligatorio. **Dirección** es de solo lectura (se llena al elegir la unidad).
+  - **Acciones:** **Guardar** · **Guardar y agregar otra** (limpia el form manteniendo la fecha) · **Cancelar** · **Eliminar** (solo en modo edición).
+- **Validaciones:** unidad debe estar asignada al EV-D; bloques del mismo día no se solapan en horario; fecha dentro del periodo del plan; no editable si el plan ya fue **aprobado** por el GV-D.
+- **Documento origen:** `ASK-VEN-FOR-002` (Anexo 2, bloques de visita).
+- **Roles:** EV-D: **R/W (propio, plan no aprobado)** · GV-D: **R** (y aprueba el plan completo en #18).
 
 ### 19. Reporte Semanal de Visitas (Descentralizado)
 
