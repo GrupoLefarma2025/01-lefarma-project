@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
 import { appRegistry, type AppRegistryEntry } from '@/apps/_registry';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -33,7 +32,7 @@ export function Home() {
         </p>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {appRegistry.map((app, index) => (
           <LauncherTile key={app.id} app={app} index={index} />
         ))}
@@ -54,7 +53,8 @@ function LauncherTile({
   const tile = (
     <Card
       className={cn(
-        'group relative overflow-hidden p-6 transition-all duration-200 ease-out',
+        'group relative flex aspect-square flex-col items-center justify-center gap-3 p-5 text-center',
+        'transition-all duration-200 ease-out',
         'animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both',
         !app.disabled && [
           'cursor-pointer hover:-translate-y-1 hover:shadow-lg',
@@ -65,49 +65,27 @@ function LauncherTile({
       )}
       style={{ animationDelay: `${index * 80}ms` }}
     >
-      {/* Acento de gradiente sutil que aparece al hacer hover */}
-      <div
-        className={cn(
-          'pointer-events-none absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent',
-          'opacity-0 transition-opacity duration-200',
-          !app.disabled && 'group-hover:opacity-100'
-        )}
-      />
-
-      <div className="relative flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          {Icon && (
-            <div
-              className={cn(
-                'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
-                'bg-primary/10 text-primary transition-colors duration-200',
-                !app.disabled && 'group-hover:bg-primary/15'
-              )}
-            >
-              <Icon className="h-6 w-6" />
-            </div>
+      {Icon && (
+        <div
+          className={cn(
+            'flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl',
+            'bg-primary/10 text-primary transition-colors duration-200',
+            !app.disabled && 'group-hover:bg-primary group-hover:text-primary-foreground'
           )}
-          <div className="space-y-1">
-            <p className="text-lg font-semibold leading-none tracking-tight">
-              {app.label}
-            </p>
-            {app.description && (
-              <p className="text-sm text-muted-foreground">{app.description}</p>
-            )}
-            {app.disabled && (
-              <span className="text-xs text-muted-foreground">Próximamente</span>
-            )}
-          </div>
+        >
+          <Icon className="h-8 w-8" />
         </div>
+      )}
 
-        {!app.disabled && (
-          <ArrowRight
-            className={cn(
-              'h-5 w-5 shrink-0 text-muted-foreground/40',
-              'transition-all duration-200',
-              'group-hover:translate-x-1 group-hover:text-primary'
-            )}
-          />
+      <div className="space-y-1">
+        <p className="text-base font-semibold leading-tight tracking-tight">
+          {app.label}
+        </p>
+        {app.description && (
+          <p className="text-xs text-muted-foreground">{app.description}</p>
+        )}
+        {app.disabled && (
+          <span className="text-xs text-muted-foreground">Próximamente</span>
         )}
       </div>
     </Card>
