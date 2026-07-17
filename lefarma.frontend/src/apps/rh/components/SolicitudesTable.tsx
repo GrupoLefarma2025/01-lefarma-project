@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { Eye, FileSignature, Paperclip, History } from 'lucide-react';
-import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 interface SolicitudesTableProps {
   data: SolicitudPersonalResponse[];
@@ -86,7 +85,7 @@ export function SolicitudesTable({
           <div className="flex flex-col">
             <span className="font-medium">{row.original.folio}</span>
             <span className="text-xs text-muted-foreground">
-              {getCategoriaNombre(row.original.categoria)}
+              {row.original.categoria}
             </span>
           </div>
         ),
@@ -122,9 +121,9 @@ export function SolicitudesTable({
         },
       },
       {
-        accessorKey: 'solicitanteNombre',
+        accessorKey: 'usuarioCreador',
         header: 'Solicitante',
-        cell: ({ row }) => <span className="text-xs">{row.original.solicitanteNombre ?? '-'}</span>,
+        cell: ({ row }) => <span className="text-xs">{row.original.usuarioCreador ?? '-'}</span>,
       },
       /* {
         id: 'motivo',

@@ -134,8 +134,8 @@ export default function SolicitudesPersonal() {
   const creadores = useMemo(() => {
     const map = new Map<number, string>();
     allSolicitudes.forEach((s) => {
-      if (s.idUsuarioCreador && s.solicitanteNombre) {
-        map.set(s.idUsuarioCreador, s.solicitanteNombre);
+      if (s.idUsuarioCreador && s.usuarioCreador) {
+        map.set(s.idUsuarioCreador, s.usuarioCreador);
       }
     });
     return Array.from(map.entries())
@@ -164,7 +164,7 @@ export default function SolicitudesPersonal() {
       (s) => {
         const matchSearch = term.length === 0 ||
           s.folio.toLowerCase().includes(term) ||
-          (s.solicitanteNombre ?? '').toLowerCase().includes(term) ||
+          (s.usuarioCreador ?? '').toLowerCase().includes(term) ||
           (s.tipoSolicitudNombre ?? '').toLowerCase().includes(term);
         const matchEstado = estadoFilter === 'all' || s.idEstado === Number(estadoFilter);
         const matchCreador = creadorFilter === 'all' || s.idUsuarioCreador === creadorFilter;

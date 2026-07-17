@@ -23,37 +23,34 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 {
     public class OrdenCompraFirmasService : BaseService, IOrdenCompraFirmasService
     {
-    private readonly ApplicationDbContext _context;
-    private readonly AsokamDbContext _asokamContext;
-    private readonly IOrdenCompraRepository _ordenRepo;
-    private readonly IWorkflowEngine _engine;
-    private readonly IWorkflowRepository _workflowRepo;
-    private readonly IWorkflowQueryService _queryService;
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
-    protected override string EntityName => "Firma";
+        private readonly ApplicationDbContext _context;
+        private readonly AsokamDbContext _asokamContext;
+        private readonly IOrdenCompraRepository _ordenRepo;
+        private readonly IWorkflowEngine _engine;
+        private readonly IWorkflowRepository _workflowRepo;
+        private readonly IWorkflowQueryService _queryService;
+        private readonly IServiceScopeFactory _scopeFactory;
+        protected override string EntityName => "Firma";
 
-    public OrdenCompraFirmasService(
-        ApplicationDbContext context,
-        AsokamDbContext asokamContext,
-        IOrdenCompraRepository ordenRepo,
-        IWorkflowEngine engine,
-        IWorkflowRepository workflowRepo,
-        IWorkflowQueryService queryService,
-        IServiceScopeFactory scopeFactory,
-        IJefeInmediatoResolver jefeInmediatoResolver,
-        IWideEventAccessor wideEventAccessor)
-        : base(wideEventAccessor)
-    {
-        _context = context;
-        _asokamContext = asokamContext;
-        _ordenRepo = ordenRepo;
-        _engine = engine;
-        _workflowRepo = workflowRepo;
-        _queryService = queryService;
-        _scopeFactory = scopeFactory;
-        _jefeInmediatoResolver = jefeInmediatoResolver;
-    }
+        public OrdenCompraFirmasService(
+            ApplicationDbContext context,
+            AsokamDbContext asokamContext,
+            IOrdenCompraRepository ordenRepo,
+            IWorkflowEngine engine,
+            IWorkflowRepository workflowRepo,
+            IWorkflowQueryService queryService,
+            IServiceScopeFactory scopeFactory,
+            IWideEventAccessor wideEventAccessor)
+            : base(wideEventAccessor)
+        {
+            _context = context;
+            _asokamContext = asokamContext;
+            _ordenRepo = ordenRepo;
+            _engine = engine;
+            _workflowRepo = workflowRepo;
+            _queryService = queryService;
+            _scopeFactory = scopeFactory;
+        }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
         {
@@ -91,7 +88,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Validar participante (USANDO HELPER)
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                    pasoActual, idUsuario, orden.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);
+                    pasoActual, idUsuario, orden.IdUsuarioCreador, _asokamContext);
                 if (validacion.IsError)
                     return validacion.Errors;
 

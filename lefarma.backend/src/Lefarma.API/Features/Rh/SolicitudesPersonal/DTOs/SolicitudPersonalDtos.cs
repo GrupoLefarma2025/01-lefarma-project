@@ -19,8 +19,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdPasoActual { get; set; }
         public string? PasoActual { get; set; }
         public int IdUsuarioCreador { get; set; }
-        public string? SolicitanteNombre { get; set; }
-        public string? SolicitantePuesto { get; set; }
+        public string? UsuarioCreador { get; set; }
 
         public int IdTipoSolicitud { get; set; }
         public string? TipoSolicitudNombre { get; set; }
@@ -45,7 +44,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdSucursal { get; set; }
         public int? IdArea { get; set; }
         public int? IdEstado { get; set; }
-        public bool VerTodas { get; set; }
         public int? IdUsuarioCreador { get; set; }
         public int? IdTipoSolicitud { get; set; }
         public int? Max { get; set; }

@@ -1,7 +1,6 @@
 ﻿using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Operaciones;
-using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -15,14 +14,13 @@ public static class WorkflowFirmaHelper
     /// <summary>
     /// Valida que el usuario puede ejecutar acciones en el paso actual.
     /// - Si es paso inicial y es el creador: siempre puede
-    /// - Si hay participantes explícitos: debe estar en la lista (por usuario, por rol, o ser jefe inmediato)
+    /// - Si hay participantes explícitos: debe estar en la lista (por usuario o por rol)
     /// </summary>
     public static async Task<ErrorOr<Success>> ValidarParticipanteAsync(
         WorkflowPaso pasoActual,
         int idUsuario,
         int idUsuarioCreador,
         AsokamDbContext asokamContext,
-        IJefeInmediatoResolver jefeInmediatoResolver,
         CancellationToken ct = default)
     {
         // Paso inicial: el creador siempre puede ejecutar (es quien envía)
@@ -48,14 +46,6 @@ public static class WorkflowFirmaHelper
 
         if (participantesActivos.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
             return Result.Success;
-
-        // Verificar si alguno de los participantes requiere jefe inmediato
-        if (participantesActivos.Any(p => p.RequiereJefeInmediato))
-        {
-            var idJefe = await jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioCreador);
-            if (idJefe.HasValue && idJefe.Value == idUsuario)
-                return Result.Success;
-        }
 
         return Error.Validation("Autorizacion", "No eres participante de este paso del workflow.");
     }

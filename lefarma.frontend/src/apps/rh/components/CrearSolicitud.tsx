@@ -74,7 +74,7 @@ const CATEGORIAS = [
 const solicitudSchema = z.object({
   idEmpresa: z.number().positive('Seleccione una empresa'),
   idSucursal: z.number().positive('Seleccione una sucursal'),
-  idArea: z.number().optional(),
+  idArea: z.number().positive('Seleccione un área'),
   categoria: z.string().min(1, 'Seleccione una categoría'),
   idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
   motivo: z.string().optional(),

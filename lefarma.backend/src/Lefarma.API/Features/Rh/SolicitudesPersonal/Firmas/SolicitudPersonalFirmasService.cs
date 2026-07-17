@@ -23,7 +23,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     private readonly IWorkflowRepository _workflowRepo;
     private readonly IWorkflowQueryService _queryService;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     protected override string EntityName => "SolicitudPersonalFirma";
 
     public SolicitudPersonalFirmasService(
@@ -34,7 +33,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         IWorkflowRepository workflowRepo,
         IWorkflowQueryService queryService,
         IServiceScopeFactory scopeFactory,
-        IJefeInmediatoResolver jefeInmediatoResolver,
         IWideEventAccessor wideEventAccessor) : base(wideEventAccessor)
     {
         _context = context;
@@ -44,7 +42,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         _workflowRepo = workflowRepo;
         _queryService = queryService;
         _scopeFactory = scopeFactory;
-        _jefeInmediatoResolver = jefeInmediatoResolver;
     }
 
     public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idSolicitud, FirmarRequest request, int idUsuario)
@@ -84,7 +81,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             // 4. Validar participante
             var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                pasoActual, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);
+                pasoActual, idUsuario, solicitud.IdUsuarioCreador, _asokamContext);
             if (validacion.IsError)
                 return validacion.Errors;
 

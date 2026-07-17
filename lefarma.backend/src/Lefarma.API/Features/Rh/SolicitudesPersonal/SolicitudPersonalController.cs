@@ -39,7 +39,7 @@ public class SolicitudPersonalController : ControllerBase
         if (query == null)
             query = new SolicitudPersonalRequest();
 
-        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas_solcitudes");
+        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas");
         var rolesUsuario = User.Claims
             .Where(c => c.Type == ClaimTypes.Role)
             .Select(c => int.TryParse(c.Value, out var r) ? r : 0)

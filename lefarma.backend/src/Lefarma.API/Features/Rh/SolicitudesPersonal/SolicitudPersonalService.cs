@@ -1,5 +1,4 @@
 ﻿using ErrorOr;
-using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
@@ -19,17 +18,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private readonly IWorkflowResolver _workflowResolver;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
-        private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         protected override string EntityName => "SolicitudPersonal";
-
-        private record UsuarioInfo(string Nombre, string? Puesto);
 
         public SolicitudPersonalService(
             ISolicitudPersonalRepository repository,
             IWorkflowResolver workflowResolver,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
-            IJefeInmediatoResolver jefeInmediatoResolver,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -37,7 +32,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _workflowResolver = workflowResolver;
             _context = context;
             _asokamContext = asokamContext;
-            _jefeInmediatoResolver = jefeInmediatoResolver;
         }
 
         public async Task<ErrorOr<IEnumerable<SolicitudPersonalResponse>>> GetAllAsync(
@@ -65,8 +59,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (request.IdTipoSolicitud.HasValue)
                     q = q.Where(x => x.IdTipoSolicitud == request.IdTipoSolicitud.Value);
 
-                // Si no tiene el permiso de ver todas y la solicitud no pide ver todas
-                if (!puedeVerTodas || (puedeVerTodas && !request.VerTodas))
+                if (!puedeVerTodas)
                 {
                     var rolesLista = rolesUsuario.ToList();
 
@@ -79,45 +72,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .Distinct()
                         .ToListAsync();
 
-                    var pasosConJefeInmediato = await _context.WorkflowParticipantes
-                        .Where(p => p.Activo && p.RequiereJefeInmediato)
-                        .Select(p => p.IdPaso)
-                        .Distinct()
-                        .ToListAsync();
-
-                    var jefesPosibles = new HashSet<int>();
-
-                    if (pasosConJefeInmediato.Count > 0)
-                    {
-                        var solicitudesEnPasosJefe = await _context.SolicitudesPersonal
-                            .Where(s => pasosConJefeInmediato.Contains(s.IdPasoActual ?? 0))
-                            .Select(s => s.IdUsuarioCreador)
-                            .Distinct()
-                            .ToListAsync();
-
-                        foreach (var idCreador in solicitudesEnPasosJefe)
-                        {
-                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
-                            if (idJefe == idUsuario)
-                                jefesPosibles.Add(idCreador);
-                        }
-                    }
-
                     q = q.Where(x =>
                         x.IdUsuarioCreador == idUsuario ||
-                        (
-                            // La solicitud está en un paso que requiere jefe inmediato
-                            // y usuario es jefe inmediato
-                            x.IdPasoActual != null &&
-                            pasosConJefeInmediato.Contains(x.IdPasoActual.Value) &&
-                            jefesPosibles.Contains(x.IdUsuarioCreador)
-                        ) ||
-                        (
-                            // usuario es participante del paso actual 
-                            pasosParticipante.Contains(x.IdPasoActual ?? 0) &&
-                            x.IdEstado != 1 // creada
-                        )
-                    );
+                        (pasosParticipante.Contains(x.IdPasoActual ?? 0) &&
+                         x.IdEstado != 1)); // Creada
                 }
 
                 q = request.OrderBy?.ToLower() switch
@@ -136,24 +94,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 var items = await q.ToListAsync();
 
-                var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
-                var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
-                    .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
-
-                var pasoIds = items.Select(o => o.IdPasoActual).Distinct().ToList();
-
-                var pasoNombre = pasoIds.Any()
-                    ? await _context.WorkflowPasos
-                        .Where(u => pasoIds.Contains(u.IdPaso))
-                        .Select(p => p.NombrePaso)
-                        .FirstOrDefaultAsync()
-                    : null;
-
                 var result = new List<SolicitudPersonalResponse>();
                 foreach (var item in items)
                 {
-                    var dto = await MapToDto(item, usuariosInfo, pasoNombre, item.Estado?.Codigo);
+                    var dto = await MapToDto(item, null, item.Estado?.Codigo, null);
                     result.Add(dto);
                 }
 
@@ -186,14 +130,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .FirstOrDefaultAsync()
                     : null;
 
-                var userIds = new List<int> { soli.IdUsuarioCreador };
-                var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
-                    .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
-
+                var usuarioCreador = await _asokamContext.Usuarios
+                    .Where(u => u.IdUsuario == soli.IdUsuarioCreador)
+                    .Select(u => u.NombreCompleto)
+                    .FirstOrDefaultAsync();
 
                 EnrichWideEvent("GetById", entityId: id);
-                return await MapToDto(soli, usuariosInfo, paso, soli.Estado?.Codigo);
+                return await MapToDto(soli, paso, soli.Estado?.Codigo, usuarioCreador);
             }
             catch (Exception ex)
             {
@@ -275,58 +218,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 {
                     solicitud.FechaInicio = request.FechaInicio;
                     solicitud.FechaFin = request.FechaFin;
+                    solicitud.DiasSolicitados = request.DiasSolicitados;
                     solicitud.FechaRegreso = request.FechaRegreso;
-
-                    if (solicitud.FechaInicio.HasValue && solicitud.FechaFin.HasValue)
-                    {
-                        var dias = (solicitud.FechaFin.Value.Date - solicitud.FechaInicio.Value.Date).Days + 1;
-                        solicitud.DiasSolicitados = dias > 0 ? dias : 1;
-                    }
-                    else if (solicitud.FechaInicio.HasValue)
-                    {
-                        solicitud.DiasSolicitados = 1;
-                    }
                 }
 
                 await _repository.AddAsync(solicitud);
 
-                var accionInicial = pasoInicial.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
-
-                if (accionInicial is not null)
-                {
-                    var snapshot = new Dictionary<string, object?>
-                    {
-                        ["idWorkflow"] = workflow.IdWorkflow,
-                        ["idPasoAnterior"] = null,
-                        ["idPasoNuevo"] = solicitud.IdPasoActual,
-                        ["idEstadoNuevo"] = solicitud.IdEstado,
-                        ["datosAdicionales"] = null
-                    };
-
-                    _context.WorkflowBitacoras.Add(new WorkflowBitacora
-                    {
-                        TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
-                        IdEntidad = solicitud.IdSolicitud,
-                        IdOrden = null,
-                        IdWorkflow = workflow.IdWorkflow,
-                        IdPaso = pasoInicial.IdPaso,
-                        IdAccion = accionInicial.IdAccion,
-                        IdUsuario = idUsuario,
-                        Comentario = "Solicitud de personal creada",
-                        DatosSnapshot = System.Text.Json.JsonSerializer.Serialize(snapshot),
-                        FechaEvento = solicitud.FechaCreacion
-                    });
-
-                    await _context.SaveChangesAsync(ct);
-                }
-
-                var userIds = new List<int> { solicitud.IdUsuarioCreador };
-                var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
-                    .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
-
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
-                return await MapToDto(solicitud, usuariosInfo, pasoInicial.NombrePaso, estadoInicial.Codigo);
+                return await MapToDto(solicitud, pasoInicial.NombrePaso, estadoInicial.Codigo, null);
             }
             catch (DbUpdateException ex)
             {
@@ -382,20 +281,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     soli.Detalle = new List<SolicitudPersonalDetalle>();
                     soli.FechaInicio = request.FechaInicio;
                     soli.FechaFin = request.FechaFin;
-
-                    if (soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
-                    {
-                        var dias = (soli.FechaFin.Value.Date - soli.FechaInicio.Value.Date).Days + 1;
-                        soli.DiasSolicitados = dias > 0 ? dias : 1;
-                    }
-                    else if (soli.FechaInicio.HasValue)
-                    {
-                        soli.DiasSolicitados = 1;
-                    }
-                    else
-                    {
-                        soli.DiasSolicitados = null;
-                    }
+                    soli.DiasSolicitados = request.DiasSolicitados;
                 }
 
                 await _repository.UpdateAsync(soli);
@@ -499,9 +385,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         }
 
         private async Task<SolicitudPersonalResponse> MapToDto(
-            SolicitudPersonal s,
-            Dictionary<int, UsuarioInfo>? usuariosInfo = null, 
-            string? paso = null, string? estado = null)
+            SolicitudPersonal s, string? paso, string? estado, string? usuario)
         {
             var tipo = await _repository.GetTipoSolicitudAsync(s.IdTipoSolicitud);
 
@@ -525,8 +409,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 IdPasoActual = s.IdPasoActual,
                 PasoActual = paso,
                 IdUsuarioCreador = s.IdUsuarioCreador,
-                SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
-                SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out ui) ? ui.Puesto : null,
+                UsuarioCreador = usuario,
                 LugarComision = s.LugarComision,
                 Motivo = s.Motivo,
                 FechaEnvio = s.FechaEnvio,
