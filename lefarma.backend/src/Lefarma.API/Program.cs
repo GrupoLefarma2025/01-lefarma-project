@@ -5,7 +5,8 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Domain.Interfaces.Operaciones;
-using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
+using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Admin;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Archivos.Settings;
@@ -37,6 +38,7 @@ using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.Profile;
+using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
@@ -45,6 +47,7 @@ using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
 using Lefarma.API.Infrastructure.Data.Repositories.Config;
 using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
 using Lefarma.API.Infrastructure.Data.Repositories.Operaciones;
+using Lefarma.API.Infrastructure.Data.Repositories.Rh;
 using Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
@@ -168,6 +171,11 @@ builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
 builder.Services.AddScoped<ISolicitudPersonalRepository, SolicitudPersonalRepository>();
+builder.Services.AddScoped<ITipoSolicitudRepository, TipoSolicitudRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.Calendario.ICalendarioRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.CalendarioRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.Empleados.IEmpleadoRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.EmpleadoRepository>();
+builder.Services.AddScoped<IIncidenciasChecadoPlantillaRepository, IncidenciasChecadoPlantillaRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado.IIncidenciasChecadoRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.IncidenciasChecadoRepository>();
 
 // Comprobantes / Facturas CFDI
 builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
@@ -188,6 +196,11 @@ builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>(
 
 builder.Services.AddScoped<ISolicitudPersonalService, SolicitudPersonalService>();
 builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFirmasService>();
+builder.Services.AddScoped<ITipoSolicitudService, TipoSolicitudService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Empleados.IEmpleadoService, Lefarma.API.Features.Rh.Empleados.EmpleadoService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Calendario.ICalendarioService, Lefarma.API.Features.Rh.Calendario.CalendarioService>();
+builder.Services.AddScoped<IIncidenciasChecadoNotificacionService, IncidenciasChecadoNotificacionService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciasChecadoService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciasChecadoService>();
 
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
@@ -437,9 +450,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 // Wide Event logging accessor
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IWideEventAccessor>(sp =>
@@ -476,7 +486,6 @@ app.UseCors("CorsPolicy");
 // Configure the HTTP request pipeline.
 // if (app.Environment.IsDevelopment())
 // {
-app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
@@ -527,14 +536,15 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Authentication & Authorization - Order matters: Authentication must come before Authorization
+app.UseAuthentication();
+
 // Dev Token middleware for testing (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.UseDevToken();
 }
 
-// Authentication & Authorization - Order matters: Authentication must come before Authorization
-app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

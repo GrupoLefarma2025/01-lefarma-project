@@ -33,19 +33,27 @@ export function SolicitudFirmaTab({
             <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Acciones disponibles
             </span>
-            <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700 dark:border-blue-800 dark:text-blue-300">
+            <Badge
+              variant="outline"
+              className="border-blue-200 text-[10px] text-blue-700 dark:border-blue-800 dark:text-blue-300"
+            >
               Paso actual
             </Badge>
           </div>
           <div className="flex flex-wrap gap-2">
             {acciones.length === 0 ? (
-              <span className="text-xs text-muted-foreground">No hay acciones disponibles para tu usuario en este paso</span>
+              <span className="text-xs text-muted-foreground">
+                No hay acciones disponibles para tu usuario en este paso
+              </span>
             ) : (
               acciones.map((a) => (
                 <Button
                   key={a.idAccion}
                   size="sm"
-                  className={actionStyles[a.tipoAccionCodigo ?? ''] ?? 'bg-blue-600 hover:bg-blue-700 text-white'}
+                  className={
+                    actionStyles[a.tipoAccionCodigo ?? ''] ??
+                    'bg-blue-600 text-white hover:bg-blue-700'
+                  }
                   onClick={() => onAccionClick(a)}
                   disabled={isSubmittingFirma}
                 >

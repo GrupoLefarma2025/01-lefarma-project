@@ -19,11 +19,12 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdPasoActual { get; set; }
         public string? PasoActual { get; set; }
         public int IdUsuarioCreador { get; set; }
-        public string? UsuarioCreador { get; set; }
+        public string? SolicitanteNombre { get; set; }
+        public string? SolicitantePuesto { get; set; }
 
         public int IdTipoSolicitud { get; set; }
         public string? TipoSolicitudNombre { get; set; }
-        public CategoriaSolicitud Categoria { get; set; }
+        public string Categoria { get; set; } = string.Empty;
 
         public string? LugarComision { get; set; }
         public string? Motivo { get; set; }
@@ -44,11 +45,22 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdSucursal { get; set; }
         public int? IdArea { get; set; }
         public int? IdEstado { get; set; }
+        public bool VerTodas { get; set; }
         public int? IdUsuarioCreador { get; set; }
         public int? IdTipoSolicitud { get; set; }
+        public string? Categoria { get; set; }
+        public string? Estados { get; set; }
+        public string? IdsEstados { get; set; }
+        public DateTime? FechaCreacionDesde { get; set; }
+        public DateTime? FechaCreacionHasta { get; set; }
+        public DateTime? FechaDiasDesde { get; set; }
+        public DateTime? FechaDiasHasta { get; set; }
+        public string? Busqueda { get; set; }
         public int? Max { get; set; }
         public string? OrderBy { get; set; } = "FechaCreacion";
-        public string? OrderDirection { get; set; } = "desc";
+        public string? OrderDirection { get; set; } = "asc";
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 20;
     }
     public class CreateSolicitudPersonalRequest
     {

@@ -22,6 +22,7 @@ namespace Lefarma.API.Domain.Entities.Rh
         public int? IdPasoActual { get; set; }
 
         public int IdTipoSolicitud { get; set; }
+        public virtual TipoSolicitud? TipoSolicitud { get; set; }
         public string? LugarComision { get; set; } = null!; // Lugar al que se comisiona al empleado (en caso de ser una comisión)
         public string? Motivo { get; set; } = null!; // Motivo de la solicitud (ej: motivo del accidente o enfermedad, o motivo de la comisión)
 

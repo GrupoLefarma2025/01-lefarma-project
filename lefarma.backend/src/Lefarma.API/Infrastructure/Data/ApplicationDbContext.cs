@@ -61,6 +61,8 @@ public class ApplicationDbContext : DbContext
         public DbSet<SolicitudPersonal> SolicitudesPersonal { get; set; }
         public DbSet<SolicitudPersonalDetalle> SolicitudesPersonalDetalle { get; set; }
         public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
+        public DbSet<IncidenciaChecadoPlantilla> PlantillasIncidenciasChecado { get; set; }
+        public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

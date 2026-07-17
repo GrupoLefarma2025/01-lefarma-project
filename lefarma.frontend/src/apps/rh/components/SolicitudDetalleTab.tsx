@@ -1,4 +1,5 @@
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
+import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -20,31 +21,34 @@ interface SolicitudDetalleTabProps {
 export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
   return (
     <div className="space-y-4">
-
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="rounded-md border bg-background px-2 py-1.5">
-            <p className="text-muted-foreground">Categoría</p>
-            <p className="font-medium">{solicitud.categoria}</p>
-          </div>
-          <div className="rounded-md border bg-background px-2 py-1.5">
-            <p className="text-muted-foreground">Tipo de solicitud</p>
-            <p className="font-medium">{solicitud.tipoSolicitudNombre || `Tipo #${solicitud.idTipoSolicitud}`}</p>
-          </div>
-          <div className="rounded-md border bg-background px-2 py-1.5">
-            <p className="text-muted-foreground">Empresa</p>
-            <p className="font-medium">{solicitud.empresaNombre || `ID ${solicitud.idEmpresa}`}</p>
-          </div>
-          <div className="rounded-md border bg-background px-2 py-1.5">
-            <p className="text-muted-foreground">Sucursal</p>
-            <p className="font-medium">{solicitud.sucursalNombre || `ID ${solicitud.idSucursal}`}</p>
-          </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="rounded-md border bg-background px-2 py-1.5">
+          <p className="text-muted-foreground">Categoría</p>
+          <p className="font-medium">{getCategoriaNombre(solicitud.categoria)}</p>
+        </div>
+        <div className="rounded-md border bg-background px-2 py-1.5">
+          <p className="text-muted-foreground">Tipo de solicitud</p>
+          <p className="font-medium">
+            {solicitud.tipoSolicitudNombre || `Tipo #${solicitud.idTipoSolicitud}`}
+          </p>
+        </div>
+        <div className="rounded-md border bg-background px-2 py-1.5">
+          <p className="text-muted-foreground">Empresa</p>
+          <p className="font-medium">{solicitud.empresaNombre || `ID ${solicitud.idEmpresa}`}</p>
+        </div>
+        <div className="rounded-md border bg-background px-2 py-1.5">
+          <p className="text-muted-foreground">Sucursal</p>
+          <p className="font-medium">{solicitud.sucursalNombre || `ID ${solicitud.idSucursal}`}</p>
+        </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Área</p>
           <p className="font-medium">{solicitud.areaNombre || 'Sin área'}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Solicitante</p>
-          <p className="font-medium">{solicitud.usuarioCreador || `ID ${solicitud.idUsuarioCreador}`}</p>
+          <p className="font-medium">
+            {solicitud.solicitanteNombre || `ID ${solicitud.idUsuarioCreador}`}
+          </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Fecha de solicitud</p>

@@ -2,7 +2,10 @@ import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, AlertTriangle, UserRound, MoveRight } from 'lucide-react';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import type { HistorialWorkflowItemResponse, WorkflowPasoFlowResponse } from '@/types/solicitudPersonalWorkflow.types';
+import type {
+  HistorialWorkflowItemResponse,
+  WorkflowPasoFlowResponse,
+} from '@/types/solicitudPersonalWorkflow.types';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -19,11 +22,14 @@ const fmtFecha = (dateStr?: string | null) => {
   }
 };
 
-const getTipoEvento = (nombreAccion?: string | null): 'rechazo' | 'retorno' | 'autorizacion' | 'otro' => {
+const getTipoEvento = (
+  nombreAccion?: string | null
+): 'rechazo' | 'retorno' | 'autorizacion' | 'otro' => {
   const n = (nombreAccion || '').toLowerCase();
   if (n.includes('rechaz')) return 'rechazo';
   if (n.includes('devuelv') || n.includes('retorn')) return 'retorno';
-  if (n.includes('autor') || n.includes('aprob') || n.includes('envi') || n.includes('firm')) return 'autorizacion';
+  if (n.includes('autor') || n.includes('aprob') || n.includes('envi') || n.includes('firm'))
+    return 'autorizacion';
   return 'otro';
 };
 
@@ -54,7 +60,9 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
         try {
           const snap = JSON.parse(item.datosSnapshot);
           if (snap.idPasoAnterior) set.add(snap.idPasoAnterior);
-        } catch { /* ignore */ }
+        } catch {
+          /* ignore */
+        }
       }
     }
     return set;
@@ -75,17 +83,18 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
       {pasosWorkflow.length === 0 ? (
         <p className="rounded border bg-background p-3 text-xs text-muted-foreground">
           Esta solicitud no tiene un workflow configurado.
-        </p>  
+        </p>
       ) : (
         <div className="relative max-h-[36rem] overflow-y-auto pr-1">
-          <div className="absolute left-[1.1rem] top-4 bottom-4 w-0.5 rounded-full bg-border/60" />
+          <div className="bg-border/60 absolute bottom-4 left-[1.1rem] top-4 w-0.5 rounded-full" />
           <div className="space-y-2">
             {pasosWorkflow.map((paso, idx) => {
               const isActual = solicitud.idPasoActual === paso.idPaso;
               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
               const tipoUltimo = ultimoEvento ? getTipoEvento(ultimoEvento.nombreAccion) : null;
-              const isCompletado = !isActual && (tipoUltimo === 'autorizacion' || pasosCompletados.has(paso.idPaso));
+              const isCompletado =
+                !isActual && (tipoUltimo === 'autorizacion' || pasosCompletados.has(paso.idPaso));
               const isRechazado = !isActual && tipoUltimo === 'rechazo';
               const isDevuelto = !isActual && tipoUltimo === 'retorno';
 
@@ -142,15 +151,28 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
                         <span className="font-medium">{paso.nombrePaso}</span>
                       </div>
                       {isActual ? (
-                        <Badge variant="secondary" className="text-[10px]">● Actual</Badge>
+                        <Badge variant="secondary" className="text-[10px]">
+                          ● Actual
+                        </Badge>
                       ) : isCompletado ? (
-                        <Badge className="text-[10px] bg-emerald-500 hover:bg-emerald-500">✓ Completado</Badge>
+                        <Badge className="bg-emerald-500 text-[10px] hover:bg-emerald-500">
+                          ✓ Completado
+                        </Badge>
                       ) : isRechazado ? (
-                        <Badge variant="destructive" className="text-[10px]">Rechazado</Badge>
+                        <Badge variant="destructive" className="text-[10px]">
+                          Rechazado
+                        </Badge>
                       ) : isDevuelto ? (
-                        <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-600">Devuelto</Badge>
+                        <Badge
+                          variant="outline"
+                          className="border-amber-400 text-[10px] text-amber-600"
+                        >
+                          Devuelto
+                        </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">En espera</Badge>
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          En espera
+                        </Badge>
                       )}
                     </div>
 
@@ -173,41 +195,55 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
                                 idPasoNuevo?: number | null;
                               };
                               transFrom = snap.idPasoAnterior
-                                ? (pasosWorkflow.find(p => p.idPaso === snap.idPasoAnterior)?.nombrePaso ?? null)
+                                ? (pasosWorkflow.find((p) => p.idPaso === snap.idPasoAnterior)
+                                    ?.nombrePaso ?? null)
                                 : null;
                               transTo = snap.idPasoNuevo
-                                ? (pasosWorkflow.find(p => p.idPaso === snap.idPasoNuevo)?.nombrePaso ?? null)
+                                ? (pasosWorkflow.find((p) => p.idPaso === snap.idPasoNuevo)
+                                    ?.nombrePaso ?? null)
                                 : null;
-                            } catch { /* ignore */ }
+                            } catch {
+                              /* ignore */
+                            }
                           }
                           const showTrans = (transFrom || transTo) && transFrom !== transTo;
 
                           return (
-                            <div key={item.idEvento} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
-                              <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
-                                <span className="font-semibold truncate">
+                            <div
+                              key={item.idEvento}
+                              className="bg-background/80 overflow-hidden rounded-lg border text-xs"
+                            >
+                              <div className="border-border/50 bg-muted/30 flex items-center justify-between gap-2 border-b px-3 py-2">
+                                <span className="truncate font-semibold">
                                   {item.nombreAccion || `Acción ${item.idAccion}`}
                                 </span>
-                                <span className="whitespace-nowrap text-[10px] text-muted-foreground flex-shrink-0">
+                                <span className="flex-shrink-0 whitespace-nowrap text-[10px] text-muted-foreground">
                                   {fmtFecha(item.fechaEvento)}
                                 </span>
                               </div>
                               <div className="space-y-1 px-3 py-2">
                                 <div className="flex items-center gap-2">
-                                  <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Realizado por</span>
-                                  <div className="flex items-center gap-1 text-foreground/80">
+                                  <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                    Realizado por
+                                  </span>
+                                  <div className="text-foreground/80 flex items-center gap-1">
                                     <UserRound className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                                     <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
                                   </div>
                                 </div>
                                 {showTrans && (
                                   <div className="flex items-center gap-2">
-                                    <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
-                                    <div className="flex items-center gap-1 text-foreground/80">
+                                    <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                      Movimiento
+                                    </span>
+                                    <div className="text-foreground/80 flex items-center gap-1">
                                       <MoveRight className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
                                       <span>
                                         {transFrom && (
-                                          <><span className="text-foreground/60">{transFrom}</span><span className="mx-1 text-muted-foreground">→</span></>
+                                          <>
+                                            <span className="text-foreground/60">{transFrom}</span>
+                                            <span className="mx-1 text-muted-foreground">→</span>
+                                          </>
                                         )}
                                         <span className="font-medium">{transTo}</span>
                                       </span>
@@ -215,9 +251,13 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
                                   </div>
                                 )}
                                 {item.comentario && (
-                                  <div className="mt-2 rounded-md border border-border/60 bg-muted/60 px-3 py-2.5 shadow-sm">
-                                    <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Comentario</p>
-                                    <p className="text-[11px] leading-relaxed text-foreground/90 italic">{item.comentario}</p>
+                                  <div className="border-border/60 bg-muted/60 mt-2 rounded-md border px-3 py-2.5 shadow-sm">
+                                    <p className="mb-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                      Comentario
+                                    </p>
+                                    <p className="text-foreground/90 text-[11px] italic leading-relaxed">
+                                      {item.comentario}
+                                    </p>
                                   </div>
                                 )}
                               </div>

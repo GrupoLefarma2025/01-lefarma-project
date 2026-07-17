@@ -1,5 +1,5 @@
 ﻿using Lefarma.API.Domain.Entities.Rh;
-using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal
@@ -24,18 +24,16 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal
                 .FirstOrDefaultAsync(s => s.IdSolicitud == idSolicitud);
         }
 
-        public async Task<List<TipoSolicitud>> GetTiposActivosAsync()
+        public IQueryable<SolicitudPersonal> GetQueryableConDetalles()
         {
-            return await _context.TiposSolicitud
-                .Where(t => t.Activo)
-                .OrderBy(t => t.Nombre)
-                .ToListAsync();
-        }
-
-        public async Task<TipoSolicitud?> GetTipoSolicitudAsync(int idTipoSolicitud)
-        {
-            return await _context.TiposSolicitud
-                .FirstOrDefaultAsync(t => t.IdTipoSolicitud == idTipoSolicitud && t.Activo);
+            return _context.SolicitudesPersonal
+                .AsNoTracking()
+                .Include(s => s.Estado)
+                .Include(s => s.Empresa)
+                .Include(s => s.Sucursal)
+                .Include(s => s.Area)
+                .Include(s => s.TipoSolicitud)
+                .Include(s => s.Detalle);
         }
 
         public async Task<string> GenerarFolioAsync(CategoriaSolicitud categoria)

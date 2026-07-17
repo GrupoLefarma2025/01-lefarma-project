@@ -24,6 +24,9 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
             builder.Property(t => t.DescuentaNomina).HasColumnName("descuenta_nomina").HasDefaultValue(false);
             builder.Property(t => t.DescuentaVacaciones).HasColumnName("descuenta_vacaciones").HasDefaultValue(false);
             builder.Property(t => t.RequiereDocumentacion).HasColumnName("requiere_documentacion").HasDefaultValue(false);
+            builder.Property(t => t.LimitePorPeriodo).HasColumnName("limite_por_periodo");
+            builder.Property(t => t.PeriodoLimite).HasColumnName("periodo_limite").HasMaxLength(20).HasDefaultValue("quincena");
+            builder.Property(t => t.TotalParaDescuento).HasColumnName("total_para_descuento");
             builder.Property(t => t.Activo).HasColumnName("activo").HasDefaultValue(true);
             builder.Property(t => t.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
             builder.Property(t => t.FechaModificacion).HasColumnName("fecha_modificacion").IsRequired(false);

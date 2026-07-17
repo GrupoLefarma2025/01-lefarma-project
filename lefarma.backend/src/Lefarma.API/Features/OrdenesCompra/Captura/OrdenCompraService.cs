@@ -269,7 +269,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
 
-                var workflow = await _workflowResolver.ResolveWorkflowIdAsync("ORDEN_COMPRA", idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, request.IdTipoGasto, request.IdProveedor);
+                //las claves de este diccionario deben coincidir con WorkflowScopeType.Codigo
+                // Si se agrega un nuevo scope dinámico, incluirlo aquí con su valor
+                var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
+                    CodigoProceso.ORDEN_COMPRA,
+                    new Dictionary<string, int?>
+                    {
+                        ["USUARIO"] = idUsuario,
+                        ["EMPRESA"] = request.IdEmpresa,
+                        ["SUCURSAL"] = request.IdSucursal,
+                        ["AREA"] = request.IdArea,
+                        ["TIPO_GASTO"] = request.IdTipoGasto,
+                        ["PROVEEDOR"] = request.IdProveedor
+                    });
 
                 if (workflow is null)
                     return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");

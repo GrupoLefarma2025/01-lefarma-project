@@ -3,7 +3,10 @@ import { Modal } from '@/components/ui/modal';
 import { FileSignature } from 'lucide-react';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import type { AccionDisponibleResponse, FirmarRequest } from '@/types/solicitudPersonalWorkflow.types';
+import type {
+  AccionDisponibleResponse,
+  FirmarRequest,
+} from '@/types/solicitudPersonalWorkflow.types';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudFirmaTab } from './SolicitudFirmaTab';
 import { SolicitudFirmaModal } from './SolicitudFirmaModal';
@@ -14,7 +17,12 @@ interface SolicitudAccionesModalProps {
   loading: boolean;
   solicitud: SolicitudPersonalResponse | null;
   acciones: AccionDisponibleResponse[];
-  getEstadoInfo: (solicitud: Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'> | null | undefined) => { nombre: string; color: string };
+  getEstadoInfo: (
+    solicitud:
+      | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
+      | null
+      | undefined
+  ) => { nombre: string; color: string };
   onFirmar: (req: FirmarRequest) => Promise<boolean>;
   isSubmittingFirma: boolean;
 }
@@ -43,7 +51,9 @@ export function SolicitudAccionesModal({
       <Modal
         id="modal-solicitud-acciones"
         open={open}
-        setOpen={(o) => { if (!o) handleClose(); }}
+        setOpen={(o) => {
+          if (!o) handleClose();
+        }}
         title={
           <div className="flex items-center gap-2">
             <FileSignature className="h-5 w-5" />

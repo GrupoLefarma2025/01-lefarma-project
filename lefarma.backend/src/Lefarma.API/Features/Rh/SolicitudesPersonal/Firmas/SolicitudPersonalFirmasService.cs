@@ -2,7 +2,7 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Domain.Interfaces.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Config.Workflows;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Infrastructure.Data;
@@ -19,6 +19,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
     private readonly ISolicitudPersonalRepository _solicitudRepo;
+    private readonly ITipoSolicitudRepository _tipoRepository;
     private readonly IWorkflowEngine _engine;
     private readonly IWorkflowRepository _workflowRepo;
     private readonly IWorkflowQueryService _queryService;
@@ -29,6 +30,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
         ISolicitudPersonalRepository solicitudRepo,
+        ITipoSolicitudRepository tipoRepository,
         IWorkflowEngine engine,
         IWorkflowRepository workflowRepo,
         IWorkflowQueryService queryService,
@@ -38,6 +40,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         _context = context;
         _asokamContext = asokamContext;
         _solicitudRepo = solicitudRepo;
+        _tipoRepository = tipoRepository;
         _engine = engine;
         _workflowRepo = workflowRepo;
         _queryService = queryService;
@@ -200,7 +203,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
     private async Task<Dictionary<string, string>> ConstruirVariablesNotificacionAsync(SolicitudPersonal solicitud)
     {
-        var tipo = await _solicitudRepo.GetTipoSolicitudAsync(solicitud.IdTipoSolicitud);
+        var tipo = await _tipoRepository.GetByIdAsync(solicitud.IdTipoSolicitud);
         return new Dictionary<string, string>
         {
             ["TipoSolicitud"] = tipo?.Nombre ?? "",

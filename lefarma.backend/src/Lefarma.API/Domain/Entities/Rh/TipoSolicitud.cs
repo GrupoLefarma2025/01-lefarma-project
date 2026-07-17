@@ -16,6 +16,9 @@
         public bool DescuentaNomina { get; set; } 
         public bool DescuentaVacaciones { get; set; } 
         public bool RequiereDocumentacion { get; set; } 
+        public int? LimitePorPeriodo { get; set; }
+        public string? PeriodoLimite { get; set; }
+        public int? TotalParaDescuento { get; set; }
         public bool Activo { get; set; }
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }

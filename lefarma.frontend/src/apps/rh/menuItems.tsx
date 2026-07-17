@@ -1,4 +1,14 @@
-import { LayoutDashboard, HelpCircle, Users,  FileCheck2, FileText } from 'lucide-react';
+import {
+  LayoutDashboard,
+  HelpCircle,
+  Users,
+  FileCheck2,
+  FileText,
+  List,
+  Settings,
+  AlertTriangle,
+  TimerIcon,
+} from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 /**
@@ -20,7 +30,44 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     icon: Users,
     isCollapsible: true,
     items: [
-      { title: 'Solicitudes', icon: FileCheck2, path: '/rh/solicitudes', permission: { require: 'solicitud_personal.ver_listado' } },
+      {
+        title: 'Solicitudes',
+        icon: FileCheck2,
+        path: '/rh/solicitudes',
+        permission: { require: 'solicitud_personal.ver_listado' },
+      },
+      {
+        title: 'Gestión',
+        icon: Settings,
+        path: '/rh/solicitudes/gestion',
+        permission: { require: 'solicitud_personal.puede_ver_todas_solcitudes' },
+      },
+    ],
+  },
+  {
+    title: 'Catálogos',
+    icon: List,
+    isCollapsible: true,
+    items: [
+      {
+        title: 'Tipos de Solicitud',
+        icon: FileText,
+        path: '/rh/catalogos/tipos-solicitud',
+        permission: { require: 'tipos-solicitud.ver_listado' },
+      },
+    ],
+  },
+  {
+    title: 'Biometrico',
+    icon: TimerIcon,
+    isCollapsible: true,
+    items: [
+      {
+        title: 'Incidencias de checado',
+        icon: AlertTriangle,
+        path: '/rh/incidencias-checado',
+        permission: { require: 'incidencias_checado.ver_todas' },
+      },
     ],
   },
   {

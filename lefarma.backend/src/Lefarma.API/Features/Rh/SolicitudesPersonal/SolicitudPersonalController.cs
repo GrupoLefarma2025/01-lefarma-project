@@ -2,7 +2,6 @@
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -12,18 +11,20 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal;
 [Route("api/solicitudes-personal")]
 [ApiController]
 [EndpointGroupName("SolicitudesPersonal")]
-//[Authorize]
 public class SolicitudPersonalController : ControllerBase
 {
     private readonly ISolicitudPersonalService _service;
     private readonly ISolicitudPersonalFirmasService _firmasService;
+    private readonly ITipoSolicitudService _tipoSolicitudService;
 
     public SolicitudPersonalController(
         ISolicitudPersonalService service,
-        ISolicitudPersonalFirmasService firmasService)
+        ISolicitudPersonalFirmasService firmasService,
+        ITipoSolicitudService tipoSolicitudService)
     {
         _service = service;
         _firmasService = firmasService;
+        _tipoSolicitudService = tipoSolicitudService;
     }
 
     private int GetUserId() =>
@@ -47,7 +48,7 @@ public class SolicitudPersonalController : ControllerBase
             .ToList();
 
         var result = await _service.GetAllAsync(query, GetUserId(), rolesUsuario, puedeVerTodas);
-        return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<SolicitudPersonalResponse>>
+        return result.ToActionResult(this, data => Ok(new ApiResponse<PagedResult<SolicitudPersonalResponse>>
         { Success = true, Message = "Solicitudes obtenidas exitosamente.", Data = data }));
     }
 
@@ -128,11 +129,34 @@ public class SolicitudPersonalController : ControllerBase
     }
 
     [HttpGet("tipos-solicitud")]
-    [SwaggerOperation(Summary = "Listar tipos de solicitud disponibles")]
+    [SwaggerOperation(Summary = "Listar tipos de solicitud activos disponibles")]
     public async Task<IActionResult> ListarTipos()
     {
-        var result = await _service.ListarTiposAsync();
+        var result = await _tipoSolicitudService.GetActivosAsync();
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<TipoSolicitudResponse>>
         { Success = true, Message = "Tipos de solicitud obtenidos.", Data = data }));
+    }
+
+    [HttpGet("limites-solicitudes")]
+    [SwaggerOperation(Summary = "Obtener límites de solicitudes del usuario para el periodo actual. Si se envía idUsuario, devuelve los del usuario indicado (requiere ver todas).")]
+    public async Task<IActionResult> ObtenerLimitesSolicitudes([FromQuery] int? idUsuario)
+    {
+        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas_solcitudes");
+        var idActual = GetUserId();
+        var idObjetivo = idUsuario ?? idActual;
+
+        var result = await _service.ObtenerLimitesSolicitudesAsync(idActual, idObjetivo, puedeVerTodas);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<MisLimitesResponse>
+        { Success = true, Message = "Límites obtenidos exitosamente.", Data = data }));
+    }
+
+    [HttpGet("calendario")]
+    [SwaggerOperation(Summary = "Obtener calendario mensual de solicitudes del usuario autenticado.")]
+    public async Task<IActionResult> ObtenerCalendario([FromQuery] CalendarioGlobalRequest request)
+    {
+        var idUsuario = GetUserId();
+        var result = await _service.ObtenerCalendarioAsync(request, idUsuario);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<CalendarioGlobalEvento>>
+        { Success = true, Message = "Calendario obtenido exitosamente.", Data = data }));
     }
 }

@@ -1,23 +1,39 @@
 import { useMemo } from 'react';
+import type { PaginationState } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import { Eye, FileSignature, Paperclip, History } from 'lucide-react';
+import { Eye, FileSignature, Paperclip, History, Pencil } from 'lucide-react';
+import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 interface SolicitudesTableProps {
   data: SolicitudPersonalResponse[];
   loading?: boolean;
   title?: string;
   subtitle?: string;
-  getEstadoInfo: (solicitud: Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'> | null | undefined) => { nombre: string; color: string };
+  getEstadoInfo: (
+    solicitud:
+      | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
+      | null
+      | undefined
+  ) => { nombre: string; color: string };
   onDetalle: (s: SolicitudPersonalResponse) => void;
   onFirma: (s: SolicitudPersonalResponse) => void;
   onArchivos: (s: SolicitudPersonalResponse) => void;
   onHistorial: (s: SolicitudPersonalResponse) => void;
+  onEditar?: (s: SolicitudPersonalResponse) => void;
+  puedeEditar?: boolean;
   onRefresh?: () => void;
   showFirma?: boolean;
+  showEditar?: boolean;
+  pageSize?: number;
+  globalFilter?: boolean;
+  manualPagination?: boolean;
+  totalCount?: number;
+  paginationState?: PaginationState;
+  onPaginationChange?: (state: PaginationState) => void;
 }
 
 const fmtFecha = (dateStr?: string | null) => {
@@ -50,7 +66,10 @@ function ActionButton({
             size="icon"
             variant="outline"
             className="h-7 w-7"
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick();
+            }}
           >
             <Icon className="h-3.5 w-3.5" />
           </Button>
@@ -65,7 +84,6 @@ function ActionButton({
 
 export function SolicitudesTable({
   data,
-  loading,
   title,
   subtitle,
   getEstadoInfo,
@@ -73,8 +91,17 @@ export function SolicitudesTable({
   onFirma,
   onArchivos,
   onHistorial,
+  onEditar,
+  puedeEditar,
   onRefresh,
   showFirma = true,
+  showEditar = true,
+  pageSize = 10,
+  globalFilter = false,
+  manualPagination,
+  totalCount,
+  paginationState,
+  onPaginationChange,
 }: SolicitudesTableProps) {
   const columns: ColumnDef<SolicitudPersonalResponse>[] = useMemo(
     () => [
@@ -85,7 +112,7 @@ export function SolicitudesTable({
           <div className="flex flex-col">
             <span className="font-medium">{row.original.folio}</span>
             <span className="text-xs text-muted-foreground">
-              {row.original.categoria}
+              {getCategoriaNombre(row.original.categoria)}
             </span>
           </div>
         ),
@@ -94,15 +121,15 @@ export function SolicitudesTable({
         id: 'tipoSolicitudNombre',
         header: 'Tipo de solicitud',
         cell: ({ row }) => (
-          <span className="text-xs">{row.original.tipoSolicitudNombre || `Tipo #${row.original.idTipoSolicitud}`}</span>
+          <span className="text-xs">
+            {row.original.tipoSolicitudNombre || `Tipo #${row.original.idTipoSolicitud}`}
+          </span>
         ),
       },
       {
         id: 'fechaCreacion',
         header: 'Fecha creación',
-        cell: ({ row }) => (
-          <span className="text-xs">{fmtFecha(row.original.fechaCreacion)}</span>
-        ),
+        cell: ({ row }) => <span className="text-xs">{fmtFecha(row.original.fechaCreacion)}</span>,
       },
       {
         id: 'fechas',
@@ -121,9 +148,9 @@ export function SolicitudesTable({
         },
       },
       {
-        accessorKey: 'usuarioCreador',
+        accessorKey: 'solicitanteNombre',
         header: 'Solicitante',
-        cell: ({ row }) => <span className="text-xs">{row.original.usuarioCreador ?? '-'}</span>,
+        cell: ({ row }) => <span className="text-xs">{row.original.solicitanteNombre ?? '-'}</span>,
       },
       /* {
         id: 'motivo',
@@ -158,8 +185,12 @@ export function SolicitudesTable({
         header: 'Acciones',
         cell: ({ row }) => {
           const s = row.original;
+          const puedeEditarFila = showEditar && puedeEditar && s.estadoNombre === 'CREADA';
           return (
             <div className="flex items-center gap-1">
+              {puedeEditarFila && (
+                <ActionButton label="Editar" icon={Pencil} onClick={() => onEditar?.(s)} />
+              )}
               <ActionButton label="Detalle" icon={Eye} onClick={() => onDetalle(s)} />
               {showFirma && (
                 <ActionButton label="Firma" icon={FileSignature} onClick={() => onFirma(s)} />
@@ -171,7 +202,17 @@ export function SolicitudesTable({
         },
       },
     ],
-    [getEstadoInfo, onDetalle, onFirma, onArchivos, onHistorial, showFirma]
+    [
+      getEstadoInfo,
+      onDetalle,
+      onFirma,
+      onArchivos,
+      onHistorial,
+      onEditar,
+      puedeEditar,
+      showFirma,
+      showEditar,
+    ]
   );
 
   return (
@@ -182,8 +223,12 @@ export function SolicitudesTable({
         title={title}
         subtitle={subtitle}
         pagination
-        pageSize={10}
-        globalFilter={false}
+        pageSize={pageSize}
+        manualPagination={manualPagination}
+        totalCount={totalCount}
+        paginationState={paginationState}
+        onPaginationChange={onPaginationChange}
+        globalFilter={globalFilter}
         showRefreshButton={Boolean(onRefresh)}
         onRefresh={onRefresh}
         filterConfig={{

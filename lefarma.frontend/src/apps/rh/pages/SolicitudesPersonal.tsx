@@ -55,8 +55,12 @@ function BuscadorTab({
 }
 
 export default function SolicitudesPersonal() {
-  usePageTitle('Solicitudes de Personal', 'Solicitudes de personal para autorización y seguimiento');
+  usePageTitle(
+    'Solicitudes de Personal',
+    'Solicitudes de personal para autorización y seguimiento'
+  );
   const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas_solcitudes' });
+  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas_solcitudes' });
 
   const {
     solicitudesPropias,
@@ -106,6 +110,7 @@ export default function SolicitudesPersonal() {
     historial: false,
     crear: false,
   });
+  const [solicitudEnEdicion, setSolicitudEnEdicion] = useState<number | null>(null);
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
     setModalStates((prev) => ({
@@ -119,10 +124,28 @@ export default function SolicitudesPersonal() {
     if (modalName !== 'crear') {
       selectSolicitud(null);
     }
+    if (modalName === 'crear') {
+      setSolicitudEnEdicion(null);
+    }
+  };
+
+  const handleOpenCrear = () => {
+    setSolicitudEnEdicion(null);
+    toggleModal('crear', true);
+  };
+
+  const handleOpenEditar = (s: SolicitudPersonalResponse) => {
+    setSolicitudEnEdicion(s.idSolicitud);
+    toggleModal('crear', true);
   };
 
   const allSolicitudes = useMemo(
-    () => Array.from(new Map([...solicitudesPropias, ...solicitudesTodas].map((s) => [s.idSolicitud, s])).values()),
+    () =>
+      Array.from(
+        new Map(
+          [...solicitudesPropias, ...solicitudesTodas].map((s) => [s.idSolicitud, s])
+        ).values()
+      ),
     [solicitudesPropias, solicitudesTodas]
   );
 
@@ -134,8 +157,8 @@ export default function SolicitudesPersonal() {
   const creadores = useMemo(() => {
     const map = new Map<number, string>();
     allSolicitudes.forEach((s) => {
-      if (s.idUsuarioCreador && s.usuarioCreador) {
-        map.set(s.idUsuarioCreador, s.usuarioCreador);
+      if (s.idUsuarioCreador && s.solicitanteNombre) {
+        map.set(s.idUsuarioCreador, s.solicitanteNombre);
       }
     });
     return Array.from(map.entries())
@@ -160,17 +183,16 @@ export default function SolicitudesPersonal() {
 
   const applyFilters = (list: SolicitudPersonalResponse[], q: string) => {
     const term = q.trim().toLowerCase();
-    return list.filter(
-      (s) => {
-        const matchSearch = term.length === 0 ||
-          s.folio.toLowerCase().includes(term) ||
-          (s.usuarioCreador ?? '').toLowerCase().includes(term) ||
-          (s.tipoSolicitudNombre ?? '').toLowerCase().includes(term);
-        const matchEstado = estadoFilter === 'all' || s.idEstado === Number(estadoFilter);
-        const matchCreador = creadorFilter === 'all' || s.idUsuarioCreador === creadorFilter;
-        return matchSearch && matchEstado && matchCreador;
-      }
-    );
+    return list.filter((s) => {
+      const matchSearch =
+        term.length === 0 ||
+        s.folio.toLowerCase().includes(term) ||
+        (s.solicitanteNombre ?? '').toLowerCase().includes(term) ||
+        (s.tipoSolicitudNombre ?? '').toLowerCase().includes(term);
+      const matchEstado = estadoFilter === 'all' || s.idEstado === Number(estadoFilter);
+      const matchCreador = creadorFilter === 'all' || s.idUsuarioCreador === creadorFilter;
+      return matchSearch && matchEstado && matchCreador;
+    });
   };
 
   const filteredPendientes = applyFilters(solicitudesPendientes, searchPendientes);
@@ -200,15 +222,12 @@ export default function SolicitudesPersonal() {
     toggleModal('historial', true);
   };
 
-  const handleOpenCrear = () => {
-    toggleModal('crear', true);
-  };
-
   const accionesBoton = {
     onDetalle: handleOpenDetalle,
     onFirma: handleOpenFirma,
     onArchivos: handleOpenArchivos,
     onHistorial: handleOpenHistorial,
+    onEditar: handleOpenEditar,
   };
 
   return (
@@ -219,14 +238,20 @@ export default function SolicitudesPersonal() {
         </p>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as 'pendientes' | 'mias' | 'todas')} className="w-full">
-        <TabsList className={`grid h-12 w-full max-w-2xl ${puedeVerTodas ? 'grid-cols-3' : 'grid-cols-2'} bg-background border p-1`}>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as 'pendientes' | 'mias' | 'todas')}
+        className="w-full"
+      >
+        <TabsList
+          className={`grid h-12 w-full max-w-2xl ${puedeVerTodas ? 'grid-cols-3' : 'grid-cols-2'} border bg-background p-1`}
+        >
           <TabsTrigger
             value="pendientes"
             className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             Pendientes
-            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground">
+            <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
               {filteredPendientes.length}
             </span>
           </TabsTrigger>
@@ -235,7 +260,7 @@ export default function SolicitudesPersonal() {
             className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
             Mis solicitudes
-            <span className="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground">
+            <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
               {filteredMias.length}
             </span>
           </TabsTrigger>
@@ -245,7 +270,7 @@ export default function SolicitudesPersonal() {
               className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               Todas
-              <span className="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:bg-primary-foreground/20 group-data-[state=active]:text-primary-foreground">
+              <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
                 {filteredTodas.length}
               </span>
             </TabsTrigger>
@@ -276,7 +301,9 @@ export default function SolicitudesPersonal() {
               <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={creadorFilter}
-                onChange={(e) => setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                onChange={(e) =>
+                  setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                }
               >
                 <option value="all">Todos los creadores</option>
                 {creadores.map((c) => (
@@ -301,6 +328,7 @@ export default function SolicitudesPersonal() {
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
             onRefresh={() => fetchAll(puedeVerTodas)}
+            puedeEditar={puedeEditar}
           />
         </TabsContent>
 
@@ -328,7 +356,9 @@ export default function SolicitudesPersonal() {
               <select
                 className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                 value={creadorFilter}
-                onChange={(e) => setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                onChange={(e) =>
+                  setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                }
               >
                 <option value="all">Todos los creadores</option>
                 {creadores.map((c) => (
@@ -354,6 +384,8 @@ export default function SolicitudesPersonal() {
             {...accionesBoton}
             onRefresh={() => fetchAll(puedeVerTodas)}
             showFirma={false}
+            showEditar={false}
+            puedeEditar={puedeEditar}
           />
         </TabsContent>
 
@@ -382,7 +414,9 @@ export default function SolicitudesPersonal() {
                 <select
                   className="h-10 rounded-md border border-input bg-background px-3 text-sm"
                   value={creadorFilter}
-                  onChange={(e) => setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                  onChange={(e) =>
+                    setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
+                  }
                 >
                   <option value="all">Todos los creadores</option>
                   {creadores.map((c) => (
@@ -408,6 +442,8 @@ export default function SolicitudesPersonal() {
               {...accionesBoton}
               onRefresh={() => fetchAll(puedeVerTodas)}
               showFirma={false}
+              showEditar={false}
+              puedeEditar={puedeEditar}
             />
           </TabsContent>
         )}
@@ -416,7 +452,9 @@ export default function SolicitudesPersonal() {
       <Modal
         id="modal-solicitud-detalle"
         open={modalStates.detalle}
-        setOpen={(o) => { if (!o) closeModal('detalle'); }}
+        setOpen={(o) => {
+          if (!o) closeModal('detalle');
+        }}
         title={
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
@@ -456,7 +494,9 @@ export default function SolicitudesPersonal() {
       <Modal
         id="modal-solicitud-archivos"
         open={modalStates.archivos}
-        setOpen={(o) => { if (!o) closeModal('archivos'); }}
+        setOpen={(o) => {
+          if (!o) closeModal('archivos');
+        }}
         title={
           <div className="flex items-center gap-2">
             <Paperclip className="h-5 w-5" />
@@ -482,7 +522,9 @@ export default function SolicitudesPersonal() {
       <Modal
         id="modal-solicitud-historial"
         open={modalStates.historial}
-        setOpen={(o) => { if (!o) closeModal('historial'); }}
+        setOpen={(o) => {
+          if (!o) closeModal('historial');
+        }}
         title={
           <div className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -515,16 +557,23 @@ export default function SolicitudesPersonal() {
       <Modal
         id="modal-crear-solicitud"
         open={modalStates.crear}
-        setOpen={(o) => { if (!o) closeModal('crear'); }}
+        setOpen={(o) => {
+          if (!o) closeModal('crear');
+        }}
         title={
           <div className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            <span>Crear solicitud</span>
+            <span>{solicitudEnEdicion ? 'Editar solicitud' : 'Crear solicitud'}</span>
           </div>
         }
         size="full"
       >
-        <CrearSolicitud onClose={() => closeModal('crear')} onSaved={() => fetchAll(puedeVerTodas)} />
+        <CrearSolicitud
+          key={solicitudEnEdicion ?? 'new'}
+          idSolicitud={solicitudEnEdicion ?? undefined}
+          onClose={() => closeModal('crear')}
+          onSaved={() => fetchAll(puedeVerTodas)}
+        />
       </Modal>
     </div>
   );

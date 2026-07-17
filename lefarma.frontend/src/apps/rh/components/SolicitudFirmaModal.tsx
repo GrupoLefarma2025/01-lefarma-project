@@ -12,12 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Loader2,
-  CheckCircle2,
-  AlertCircle,
-  Paperclip,
-} from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Paperclip } from 'lucide-react';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import type { Archivo } from '@/types/archivo.types';
 import { archivoService } from '@/services/archivoService';
@@ -35,7 +30,12 @@ interface SolicitudFirmaModalProps {
   onClose: () => void;
   accion: AccionDisponibleResponse | null;
   solicitud: SolicitudPersonalResponse;
-  getEstadoInfo: (solicitud: Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'> | null | undefined) => { nombre: string; color: string };
+  getEstadoInfo: (
+    solicitud:
+      | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
+      | null
+      | undefined
+  ) => { nombre: string; color: string };
   onSubmit: (request: FirmarRequest) => Promise<boolean>;
   isSubmitting: boolean;
 }
@@ -97,14 +97,17 @@ export function SolicitudFirmaModal({
 }: SolicitudFirmaModalProps) {
   const [comentario, setComentario] = useState('');
   const [camposValues, setCamposValues] = useState<Record<string, unknown>>({});
-  const [catalogos, setCatalogos] = useState<Record<string, { value: string; label: string }[]>>({});
+  const [catalogos, setCatalogos] = useState<Record<string, { value: string; label: string }[]>>(
+    {}
+  );
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
   const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
 
-  const esRechazo = accion?.tipoAccionCodigo === 'RECHAZAR' || accion?.tipoAccionCodigo === 'CANCELAR';
+  const esRechazo =
+    accion?.tipoAccionCodigo === 'RECHAZAR' || accion?.tipoAccionCodigo === 'CANCELAR';
   const esRetorno = accion?.tipoAccionCodigo === 'DEVOLVER';
 
   const cerrar = useCallback(() => {
@@ -214,7 +217,9 @@ export function SolicitudFirmaModal({
     <Modal
       id="modal-firma-solicitud"
       open={open}
-      setOpen={(o) => { if (!o) cerrar(); }}
+      setOpen={(o) => {
+        if (!o) cerrar();
+      }}
       title={accion ? `${accion.tipoAccionNombre} solicitud` : 'Procesar acción'}
       size="lg"
       footer={
@@ -222,7 +227,11 @@ export function SolicitudFirmaModal({
           <Button variant="outline" onClick={cerrar} disabled={isSubmitting}>
             Cancelar
           </Button>
-          <Button onClick={enviar} disabled={isSubmitting} variant={esRechazo ? 'destructive' : 'default'}>
+          <Button
+            onClick={enviar}
+            disabled={isSubmitting}
+            variant={esRechazo ? 'destructive' : 'default'}
+          >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirmar {accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}
           </Button>
@@ -230,7 +239,7 @@ export function SolicitudFirmaModal({
       }
     >
       <div className="space-y-4">
-        <div className="rounded-md border bg-muted/30 p-3">
+        <div className="bg-muted/30 rounded-md border p-3">
           <p className="text-sm font-semibold">{solicitud.folio}</p>
           <p className="text-xs text-muted-foreground">
             Estado actual: {estadoInfo.nombre}
@@ -247,7 +256,9 @@ export function SolicitudFirmaModal({
           <div className="space-y-3">
             <h4 className="flex items-center gap-2 text-sm font-semibold">
               Información requerida
-              {loadingCatalogos && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+              {loadingCatalogos && (
+                <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+              )}
             </h4>
 
             {camposParaAccion.some((c) => c.validacionMensaje) && (
@@ -307,11 +318,15 @@ export function SolicitudFirmaModal({
                       </Label>
                       <Select
                         value={value != null ? String(value) : ''}
-                        onValueChange={(v) => setCamposValues((prev) => ({ ...prev, [inputKey]: v }))}
+                        onValueChange={(v) =>
+                          setCamposValues((prev) => ({ ...prev, [inputKey]: v }))
+                        }
                         disabled={loadingCatalogos}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder={loadingCatalogos ? 'Cargando...' : 'Seleccionar'} />
+                          <SelectValue
+                            placeholder={loadingCatalogos ? 'Cargando...' : 'Seleccionar'}
+                          />
                         </SelectTrigger>
                         <SelectContent>
                           {options.map((opt) => (
@@ -338,7 +353,8 @@ export function SolicitudFirmaModal({
                         onChange={(e) =>
                           setCamposValues((prev) => ({
                             ...prev,
-                            [inputKey]: e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')),
+                            [inputKey]:
+                              e.target.value === '' ? '' : Number(e.target.value.replace(',', '.')),
                           }))
                         }
                       />
@@ -356,7 +372,9 @@ export function SolicitudFirmaModal({
                         id={fieldId}
                         type="date"
                         value={String(value ?? '')}
-                        onChange={(e) => setCamposValues((prev) => ({ ...prev, [inputKey]: e.target.value }))}
+                        onChange={(e) =>
+                          setCamposValues((prev) => ({ ...prev, [inputKey]: e.target.value }))
+                        }
                       />
                     </div>
                   );
@@ -405,7 +423,9 @@ export function SolicitudFirmaModal({
                     <Input
                       id={fieldId}
                       value={String(value ?? '')}
-                      onChange={(e) => setCamposValues((prev) => ({ ...prev, [inputKey]: e.target.value }))}
+                      onChange={(e) =>
+                        setCamposValues((prev) => ({ ...prev, [inputKey]: e.target.value }))
+                      }
                     />
                   </div>
                 );
@@ -447,15 +467,22 @@ export function SolicitudFirmaModal({
                 Documentos adjuntos
                 {accion.requiereAdjunto && <span className="ml-1 text-red-500">*</span>}
                 {adjuntosLibres.length > 0 && (
-                  <span className="ml-1.5 font-normal text-muted-foreground">({adjuntosLibres.length}/5)</span>
+                  <span className="ml-1.5 font-normal text-muted-foreground">
+                    ({adjuntosLibres.length}/5)
+                  </span>
                 )}
               </Label>
-              {!accion.requiereAdjunto && <span className="text-xs text-muted-foreground">Opcional</span>}
+              {!accion.requiereAdjunto && (
+                <span className="text-xs text-muted-foreground">Opcional</span>
+              )}
             </div>
             {adjuntosLibres.length > 0 && (
               <div className="space-y-1.5">
                 {adjuntosLibres.map((a) => (
-                  <div key={a.id} className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm">
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm"
+                  >
                     <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
                     <span className="flex-1 truncate text-green-800">{a.nombreOriginal}</span>
                   </div>
@@ -479,7 +506,16 @@ export function SolicitudFirmaModal({
                   nombreAccion: accion.tipoAccionNombre ?? undefined,
                   observaciones: comentario || undefined,
                 }}
-                tiposPermitidos={['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']}
+                tiposPermitidos={[
+                  '.pdf',
+                  '.jpg',
+                  '.jpeg',
+                  '.png',
+                  '.doc',
+                  '.docx',
+                  '.xls',
+                  '.xlsx',
+                ]}
                 descripcion="Arrastra o selecciona documentos de soporte"
                 onUploadComplete={(nuevos) => {
                   if (nuevos.length > 0) {
