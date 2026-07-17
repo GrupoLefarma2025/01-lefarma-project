@@ -101,6 +101,7 @@ interface Proveedor {
 }
 
 const partidaSchema = z.object({
+  idPartida: z.number().optional().nullable(),
   descripcion: z.string().min(1, 'La descripción es requerida').max(500),
   cantidad: z.number().positive('Debe ser mayor a 0'),
   idUnidadMedida: z.number().positive('Seleccione una unidad'),
@@ -834,6 +835,7 @@ export default function CrearOrdenCompra() {
             partidas:
               orden.partidas.length > 0
                 ? orden.partidas.map((p) => ({
+                    idPartida: p.idPartida,
                     descripcion: p.descripcion,
                     cantidad: Number(p.cantidad),
                     idUnidadMedida: p.idUnidadMedida,
@@ -972,6 +974,7 @@ export default function CrearOrdenCompra() {
         idsFormaPago: selectedFormaPagoId ? [selectedFormaPagoId] : null,
         numeroMensualidades: selectedFormaPagoId ? numeroMensualidades : null,
         partidas: values.partidas.map((p) => ({
+          idPartida: p.idPartida,
           descripcion: p.descripcion,
           cantidad: p.cantidad,
           idUnidadMedida: p.idUnidadMedida,

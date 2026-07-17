@@ -397,36 +397,88 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(ti => ti.IdTipoImpuesto, ti => ti.Tasa, ct)
                     : new Dictionary<int, decimal>();
 
-                // Recrear partidas: remover existentes y crear nuevas
-                _context.OrdenesCompraPartidas.RemoveRange(orden.Partidas ?? Enumerable.Empty<OrdenCompraPartida>());
-                var partidas = request.Partidas.Select((p, i) => new OrdenCompraPartida
+                // Sincronizar partidas por IdPartida (CRUD completo):
+                //  - con IdPartida existente  => UPDATE en el lugar (conserva comprobantes)
+                //  - sin IdPartida            => INSERT (partida nueva)
+                //  - existentes no en request => DELETE solo si no tienen comprobantes
+                // No se renumera (existe UQ_orden_numero_partida) para evitar colisiones durante el save.
+                var existentes = (orden.Partidas ?? new List<OrdenCompraPartida>())
+                    .OrderBy(p => p.NumeroPartida)
+                    .ToList();
+                var existentesPorId = existentes.ToDictionary(p => p.IdPartida);
+
+                var idsEnRequest = request.Partidas
+                    .Where(p => p.IdPartida.HasValue && p.IdPartida.Value > 0)
+                    .Select(p => p.IdPartida!.Value)
+                    .ToHashSet();
+
+                // Partidas a eliminar: existentes cuyo IdPartida no viene en el request
+                var aEliminar = existentes.Where(p => !idsEnRequest.Contains(p.IdPartida)).ToList();
+
+                if (aEliminar.Any())
                 {
-                    IdOrden = orden.IdOrden,
-                    NumeroPartida = i + 1,
-                    Descripcion = p.Descripcion.Trim(),
-                    Cantidad = p.Cantidad,
-                    IdUnidadMedida = p.IdUnidadMedida,
-                    PrecioUnitario = p.PrecioUnitario,
-                    Descuento = p.Descuento,
-                    IdTipoImpuesto = p.IdTipoImpuesto,
-                    PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva,
-                    TotalRetenciones = p.TotalRetenciones,
-                    OtrosImpuestos = p.OtrosImpuestos,
-                    Deducible = p.Deducible,
-                    IdProveedor = p.IdProveedor,
-                    IdsCuentasBancarias = p.IdsCuentasBancarias,
-                    RequiereFactura = p.RequiereFactura,
-                    TipoComprobante = p.TipoComprobante,
-                    Total = CalcularTotalPartida(p)
-                }).ToList();
-                orden.Partidas = partidas;
+                    // Bloquear si alguna tiene comprobantes (FK comprobantes_partidas_partida)
+                    var idsAEliminar = aEliminar.Select(p => p.IdPartida).ToList();
+                    var conComprobante = await _context.ComprobantesPartidas.AsNoTracking()
+                        .Where(cp => idsAEliminar.Contains(cp.IdPartida))
+                        .Select(cp => cp.IdPartida)
+                        .Distinct()
+                        .ToListAsync(ct);
 
-                var subtotal = partidas.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
+                    if (conComprobante.Count > 0)
+                    {
+                        var bloqueadas = aEliminar
+                            .Where(p => conComprobante.Contains(p.IdPartida))
+                            .Select(p => $"#{p.NumeroPartida}")
+                            .ToList();
+                        return CommonErrors.Conflict("OrdenCompra",
+                            $"No se pueden eliminar las partidas {string.Join(", ", bloqueadas)} porque tienen comprobantes asociados.");
+                    }
 
-                var totalIva = partidas.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
-                var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
-                var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
+                    _context.OrdenesCompraPartidas.RemoveRange(aEliminar);
+                }
 
+                // Siguiente número para partidas nuevas (por encima del máximo existente => sin colisión con UQ)
+                var siguienteNumero = existentes.Any() ? existentes.Max(p => p.NumeroPartida) : 0;
+
+                var sobrevivientes = new List<OrdenCompraPartida>();
+                foreach (var p in request.Partidas)
+                {
+                    OrdenCompraPartida partida =
+                        (p.IdPartida.HasValue && p.IdPartida.Value > 0 && existentesPorId.TryGetValue(p.IdPartida.Value, out var existente))
+                            ? existente
+                            : new OrdenCompraPartida { IdOrden = orden.IdOrden, NumeroPartida = ++siguienteNumero };
+
+                    if (partida.IdPartida == 0)
+                    {
+                        orden.Partidas ??= new List<OrdenCompraPartida>();
+                        orden.Partidas.Add(partida);
+                    }
+
+                    partida.Descripcion = p.Descripcion.Trim();
+                    partida.Cantidad = p.Cantidad;
+                    partida.IdUnidadMedida = p.IdUnidadMedida;
+                    partida.PrecioUnitario = p.PrecioUnitario;
+                    partida.Descuento = p.Descuento;
+                    partida.IdTipoImpuesto = p.IdTipoImpuesto;
+                    partida.PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva;
+                    partida.TotalRetenciones = p.TotalRetenciones;
+                    partida.OtrosImpuestos = p.OtrosImpuestos;
+                    partida.Deducible = p.Deducible;
+                    partida.IdProveedor = p.IdProveedor;
+                    partida.IdsCuentasBancarias = p.IdsCuentasBancarias;
+                    partida.RequiereFactura = p.RequiereFactura;
+                    partida.TipoComprobante = p.TipoComprobante;
+                    partida.Total = CalcularTotalPartida(p);
+
+                    sobrevivientes.Add(partida);
+                }
+
+                // Totales sobre las partidas que quedan (no las eliminadas)
+                var subtotal = sobrevivientes.Sum(p => (p.PrecioUnitario * p.Cantidad) - p.Descuento);
+                var totalIva = sobrevivientes.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
+                var totalRetenciones = sobrevivientes.Sum(p => p.TotalRetenciones);
+                var totalOtrosImpuestos = sobrevivientes.Sum(p => p.OtrosImpuestos);
                 var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
 
 
