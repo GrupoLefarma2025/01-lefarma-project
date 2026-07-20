@@ -2,9 +2,10 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.Workflows;
 using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -25,6 +26,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     private readonly IWorkflowQueryService _queryService;
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
+    private readonly IProfileService _profileService;
     protected override string EntityName => "SolicitudPersonalFirma";
 
     public SolicitudPersonalFirmasService(
@@ -37,6 +39,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         IWorkflowQueryService queryService,
         IServiceScopeFactory scopeFactory,
         IJefeInmediatoResolver jefeInmediatoResolver,
+        IProfileService profileService,
         IWideEventAccessor wideEventAccessor) : base(wideEventAccessor)
     {
         _context = context;
@@ -48,12 +51,18 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         _queryService = queryService;
         _scopeFactory = scopeFactory;
         _jefeInmediatoResolver = jefeInmediatoResolver;
+        _profileService = profileService;
     }
 
     public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idSolicitud, FirmarRequest request, int idUsuario)
     {
         try
         {
+            // 0. Validar que el usuario tenga firma digital registrada
+            var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
+            if (firmaValidacion.IsError)
+                return firmaValidacion.Errors;
+
             // 1. Cargar solicitud con estado
             var solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
             if (solicitud is null)
@@ -67,8 +76,13 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 return CommonErrors.Conflict("SolicitudPersonal",
                     $"La solicitud {solicitud.Folio} ya está en estado terminal.");
 
+            using var transaction = await _context.Database.BeginTransactionAsync();
+
             // 3. Cargar workflow config
             var workflowConfig = await _workflowRepo.GetQueryable()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.AccionesOrigen)
+                        .ThenInclude(a => a.TipoAccion)
                 .Include(w => w.Pasos)
                     .ThenInclude(p => p.AccionesOrigen)
                         .ThenInclude(a => a.Notificaciones)
@@ -121,7 +135,21 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             solicitud.FechaModificacion = DateTime.UtcNow;
             await _context.SaveChangesAsync();
 
-            // 7. Resolver notificación
+            // 7. Lógica específica de vacaciones: al cerrar solicitud tipo vacaciones, consumir saldo
+            var nuevoEstado = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
+            if (nuevoEstado?.Codigo == WorkflowEstadoCodigo.CERRADA)
+            {
+                var vacacionProcesada = await ProcesarVacacionesAprobadasAsync(solicitud);
+                if (vacacionProcesada.IsError)
+                {
+                    await transaction.RollbackAsync();
+                    return vacacionProcesada.Errors;
+                }
+            }
+
+            await transaction.CommitAsync();
+
+            // 8. Resolver notificación
             var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                 workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
@@ -140,7 +168,6 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 comentario: request.Comentario,
                 contenidoAdicionalHtml: null);
 
-            var nuevoEstado = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
             EnrichWideEvent("Firmar", entityId: idSolicitud, nombre: solicitud.Folio,
                 additionalContext: new Dictionary<string, object>
                 {
@@ -204,6 +231,18 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
     public Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idSolicitud)
         => _queryService.GetHistorialWorkflowAsync(idSolicitud, CodigoProceso.SOLICITUD_PERSONAL);
 
+    private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
+    {
+        var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
+        if (tieneFirma.IsError)
+            return tieneFirma.Errors;
+
+        if (!tieneFirma.Value)
+            return CommonErrors.Validation("Firma", "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
+
+        return Result.Success;
+    }
+
     private async Task<Dictionary<string, string>> ConstruirVariablesNotificacionAsync(SolicitudPersonal solicitud)
     {
         var tipo = await _tipoRepository.GetByIdAsync(solicitud.IdTipoSolicitud);
@@ -217,5 +256,85 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             ["DiasSolicitados"] = solicitud.DiasSolicitados?.ToString() ?? "",
             ["LugarComision"] = solicitud.LugarComision ?? ""
         };
+    }
+
+    private async Task<ErrorOr<bool>> ProcesarVacacionesAprobadasAsync(SolicitudPersonal solicitud)
+    {
+        try
+        {
+            var tipo = await _tipoRepository.GetByIdAsync(solicitud.IdTipoSolicitud);
+            if (tipo is null || !string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase))
+                return true;
+
+            if (!solicitud.FechaInicio.HasValue || !solicitud.FechaFin.HasValue)
+                return CommonErrors.Validation("fecha", "La solicitud de vacaciones no tiene fechas definidas.");
+
+            if (solicitud.FechaInicio.Value > solicitud.FechaFin.Value)
+                return CommonErrors.Validation("fecha", "La fecha de inicio no puede ser mayor que la fecha de fin.");
+
+            var tipoVacacion = await _context.TiposDia
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.Activo && t.Clave == "VACACION");
+
+            if (tipoVacacion is null)
+                return CommonErrors.NotFound("TipoDia", "VACACION");
+
+            var anio = solicitud.FechaInicio.Value.Year;
+            var saldo = await _context.SaldosVacacionesAnuales
+                .FirstOrDefaultAsync(s => s.IdUsuario == solicitud.IdUsuarioCreador && s.Anio == anio && s.Activo);
+
+            if (saldo is null)
+                return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {solicitud.IdUsuarioCreador} / año {anio}");
+
+            var fechas = Enumerable
+                .Range(0, (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1)
+                .Select(d => solicitud.FechaInicio.Value.AddDays(d))
+                .ToList();
+
+            var diasSolicitados = fechas.Count;
+
+            if (saldo.DiasPendientes < diasSolicitados)
+                return CommonErrors.Validation("saldo", $"Saldo insuficiente. Disponible: {saldo.DiasPendientes}, Solicitado: {diasSolicitados}");
+
+            var diasUsuario = new List<DiaUsuario>();
+
+            foreach (var fecha in fechas)
+            {
+                var alreadyExists = await _context.DiasUsuarios
+                    .AsNoTracking()
+                    .AnyAsync(d => d.IdUsuario == solicitud.IdUsuarioCreador && d.Fecha == fecha && d.Activo);
+
+                if (alreadyExists)
+                    continue;
+
+                diasUsuario.Add(new DiaUsuario
+                {
+                    IdUsuario = solicitud.IdUsuarioCreador,
+                    IdEmpresa = solicitud.IdEmpresa,
+                    IdSucursal = solicitud.IdSucursal == 0 ? null : solicitud.IdSucursal,
+                    Anio = fecha.Year,
+                    Mes = fecha.Month,
+                    Dia = fecha.Day,
+                    Fecha = fecha,
+                    IdTipoDia = tipoVacacion.IdTipoDia,
+                    Origen = "SOLICITUD",
+                    ConsumeSaldo = true,
+                    Estado = null,
+                    Comentarios = solicitud.Motivo
+                });
+            }
+
+            saldo.DiasTomados += diasUsuario.Count;
+            if (diasUsuario.Count > 0)
+                await _context.DiasUsuarios.AddRangeAsync(diasUsuario);
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("ProcesarVacacionesAprobadas", exception: ex);
+            return CommonErrors.InternalServerError("Error al procesar vacaciones aprobadas.");
+        }
     }
 }

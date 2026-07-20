@@ -5,8 +5,7 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Domain.Interfaces.Operaciones;
-using Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
-using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Admin;
 using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Archivos.Settings;
@@ -172,10 +171,10 @@ builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
 builder.Services.AddScoped<ISolicitudPersonalRepository, SolicitudPersonalRepository>();
 builder.Services.AddScoped<ITipoSolicitudRepository, TipoSolicitudRepository>();
-builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.Calendario.ICalendarioRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.CalendarioRepository>();
-builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.Empleados.IEmpleadoRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.EmpleadoRepository>();
+builder.Services.AddScoped<ICalendarioRepository, CalendarioRepository>();
+builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
 builder.Services.AddScoped<IIncidenciasChecadoPlantillaRepository, IncidenciasChecadoPlantillaRepository>();
-builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado.IIncidenciasChecadoRepository, Lefarma.API.Infrastructure.Data.Repositories.Rh.IncidenciasChecadoRepository>();
+builder.Services.AddScoped<IIncidenciasChecadoRepository, IncidenciasChecadoRepository>();
 
 // Comprobantes / Facturas CFDI
 builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
@@ -199,6 +198,7 @@ builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFir
 builder.Services.AddScoped<ITipoSolicitudService, TipoSolicitudService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.Empleados.IEmpleadoService, Lefarma.API.Features.Rh.Empleados.EmpleadoService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.Calendario.ICalendarioService, Lefarma.API.Features.Rh.Calendario.CalendarioService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Vacaciones.IVacacionesService, Lefarma.API.Features.Rh.Vacaciones.VacacionesService>();
 builder.Services.AddScoped<IIncidenciasChecadoNotificacionService, IncidenciasChecadoNotificacionService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciasChecadoService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciasChecadoService>();
 

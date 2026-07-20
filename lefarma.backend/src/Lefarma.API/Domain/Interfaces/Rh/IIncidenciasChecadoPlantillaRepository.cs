@@ -1,6 +1,6 @@
 using Lefarma.API.Domain.Entities.Rh;
 
-namespace Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
+namespace Lefarma.API.Domain.Interfaces.Rh;
 
 public interface IIncidenciasChecadoPlantillaRepository
 {

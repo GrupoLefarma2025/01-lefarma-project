@@ -1,7 +1,5 @@
 using ErrorOr;
-using Lefarma.API.Domain.Entities.Asistencias;
-using Lefarma.API.Domain.Interfaces.Rh.Empleados;
-using Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -51,11 +49,49 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 return new List<IncidenciaChecadoResponse>();
 
             var query = _repository.GetQueryable().Where(x => x.Nomina == nomina.Value);
-            query = AplicarFiltrosComunes(query, request);
+
+            if (request.FechaDesde.HasValue)
+                query = query.Where(x => x.Fecha >= request.FechaDesde.Value);
+
+            if (request.FechaHasta.HasValue)
+                query = query.Where(x => x.Fecha <= request.FechaHasta.Value);
+
+            if (request.HoraEntradaDesde.HasValue)
+                query = query.Where(x => x.Entrada >= request.HoraEntradaDesde.Value);
+
+            if (request.HoraEntradaHasta.HasValue)
+                query = query.Where(x => x.Entrada <= request.HoraEntradaHasta.Value);
+
+            if (request.HoraSalidaDesde.HasValue)
+                query = query.Where(x => x.Salida >= request.HoraSalidaDesde.Value);
+
+            if (request.HoraSalidaHasta.HasValue)
+                query = query.Where(x => x.Salida <= request.HoraSalidaHasta.Value);
+
+            if (!string.IsNullOrWhiteSpace(request.Nombre))
+                query = query.Where(x => x.Nombre.Contains(request.Nombre));
+
+            query = query.Where(x =>
+                !string.IsNullOrWhiteSpace(x.IncidenciaEntrada) ||
+                !string.IsNullOrWhiteSpace(x.IncidenciaSalida) ||
+                !string.IsNullOrWhiteSpace(x.MsgError));
 
             var orderBy = string.IsNullOrWhiteSpace(request.OrderBy) ? "fecha" : request.OrderBy;
             var orderDirection = string.IsNullOrWhiteSpace(request.OrderDirection) ? "desc" : request.OrderDirection;
-            query = AplicarOrdenamiento(query, orderBy, orderDirection);
+            query = (orderBy.ToLowerInvariant(), orderDirection.ToLowerInvariant()) switch
+            {
+                ("fecha", "asc") => query.OrderBy(x => x.Fecha),
+                ("fecha", "desc") => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre),
+                ("nomina", "asc") => query.OrderBy(x => x.Nomina),
+                ("nomina", "desc") => query.OrderByDescending(x => x.Nomina),
+                ("nombre", "asc") => query.OrderBy(x => x.Nombre),
+                ("nombre", "desc") => query.OrderByDescending(x => x.Nombre),
+                ("empresa", "asc") => query.OrderBy(x => x.Empresa),
+                ("empresa", "desc") => query.OrderByDescending(x => x.Empresa),
+                ("departamento", "asc") => query.OrderBy(x => x.Departamento),
+                ("departamento", "desc") => query.OrderByDescending(x => x.Departamento),
+                _ => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre)
+            };
 
             var items = await query
                 .Select(x => new IncidenciaChecadoResponse
@@ -114,11 +150,70 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         try
         {
             var query = _repository.GetQueryable();
-            query = AplicarFiltrosAdmin(query, request);
+
+            if (request.FechaInicio.HasValue && request.FechaFin.HasValue)
+            {
+                query = query.Where(x => x.Fecha >= request.FechaInicio.Value && x.Fecha <= request.FechaFin.Value);
+            }
+            else if (request.Anio.HasValue && request.Mes.HasValue)
+            {
+                var inicioMes = new DateTime(request.Anio.Value, request.Mes.Value, 1);
+                var finMes = inicioMes.AddMonths(1).AddDays(-1);
+                query = query.Where(x => x.Fecha >= inicioMes && x.Fecha <= finMes);
+            }
+            else if (request.Anio.HasValue)
+            {
+                var inicioAnio = new DateTime(request.Anio.Value, 1, 1);
+                var finAnio = inicioAnio.AddYears(1).AddDays(-1);
+                query = query.Where(x => x.Fecha >= inicioAnio && x.Fecha <= finAnio);
+            }
+            else if (request.Mes.HasValue)
+            {
+                query = query.Where(x => x.Fecha.Month == request.Mes.Value);
+            }
+
+            if (request.Dia.HasValue && request.Dia.Value > 0)
+                query = query.Where(x => x.Fecha.Day == request.Dia.Value);
+
+            if (request.Nomina.HasValue)
+                query = query.Where(x => x.Nomina == request.Nomina.Value);
+
+            if (!string.IsNullOrWhiteSpace(request.Nombre))
+                query = query.Where(x => x.Nombre.Contains(request.Nombre));
+
+            if (!string.IsNullOrWhiteSpace(request.Empresa))
+                query = query.Where(x => x.Empresa != null && x.Empresa.Contains(request.Empresa));
+
+            if (!string.IsNullOrWhiteSpace(request.Departamento))
+                query = query.Where(x => x.Departamento != null && x.Departamento.Contains(request.Departamento));
+
+            if (!string.IsNullOrWhiteSpace(request.Puesto))
+                query = query.Where(x => x.Puesto != null && x.Puesto.Contains(request.Puesto));
+
+            var incEntrada = request.TieneIncidenciaEntrada;
+            var incSalida = request.TieneIncidenciaSalida;
+            var incOmision = request.TieneIncidenciaOmision;
+            query = query.Where(x =>
+                (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
+                (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
+                (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
 
             var orderBy = string.IsNullOrWhiteSpace(request.OrderBy) ? "fecha" : request.OrderBy;
             var orderDirection = string.IsNullOrWhiteSpace(request.OrderDirection) ? "desc" : request.OrderDirection;
-            query = AplicarOrdenamiento(query, orderBy, orderDirection);
+            query = (orderBy.ToLowerInvariant(), orderDirection.ToLowerInvariant()) switch
+            {
+                ("fecha", "asc") => query.OrderBy(x => x.Fecha),
+                ("fecha", "desc") => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre),
+                ("nomina", "asc") => query.OrderBy(x => x.Nomina),
+                ("nomina", "desc") => query.OrderByDescending(x => x.Nomina),
+                ("nombre", "asc") => query.OrderBy(x => x.Nombre),
+                ("nombre", "desc") => query.OrderByDescending(x => x.Nombre),
+                ("empresa", "asc") => query.OrderBy(x => x.Empresa),
+                ("empresa", "desc") => query.OrderByDescending(x => x.Empresa),
+                ("departamento", "asc") => query.OrderBy(x => x.Departamento),
+                ("departamento", "desc") => query.OrderByDescending(x => x.Departamento),
+                _ => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre)
+            };
 
             var totalCount = await query.CountAsync(cancellationToken);
 
@@ -262,26 +357,31 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         {
             var (fechaInicio, fechaFin) = CalcularRangoPeriodo(request.Periodo, request.FechaInicio, request.FechaFin);
 
-            var consultaRequest = new IncidenciasChecadoConsultaRequest
-            {
-                FechaInicio = fechaInicio,
-                FechaFin = fechaFin,
-                Nomina = request.Nomina,
-                Nombre = request.Nombre,
-                Empresa = request.Empresa,
-                Departamento = request.Departamento,
-                Puesto = request.Puesto,
-                TieneIncidenciaEntrada = request.TieneIncidenciaEntrada,
-                TieneIncidenciaSalida = request.TieneIncidenciaSalida,
-                TieneIncidenciaOmision = request.TieneIncidenciaOmision,
-                OrderBy = request.OrderBy,
-                OrderDirection = request.OrderDirection,
-                Page = 1,
-                PageSize = int.MaxValue
-            };
+            var query = _repository.GetQueryable()
+                .Where(x => x.Fecha >= fechaInicio && x.Fecha <= fechaFin);
 
-            var query = _repository.GetQueryable();
-            query = AplicarFiltrosAdmin(query, consultaRequest);
+            if (request.Nomina.HasValue)
+                query = query.Where(x => x.Nomina == request.Nomina.Value);
+
+            if (!string.IsNullOrWhiteSpace(request.Nombre))
+                query = query.Where(x => x.Nombre.Contains(request.Nombre));
+
+            if (!string.IsNullOrWhiteSpace(request.Empresa))
+                query = query.Where(x => x.Empresa != null && x.Empresa.Contains(request.Empresa));
+
+            if (!string.IsNullOrWhiteSpace(request.Departamento))
+                query = query.Where(x => x.Departamento != null && x.Departamento.Contains(request.Departamento));
+
+            if (!string.IsNullOrWhiteSpace(request.Puesto))
+                query = query.Where(x => x.Puesto != null && x.Puesto.Contains(request.Puesto));
+
+            var incEntrada = request.TieneIncidenciaEntrada;
+            var incSalida = request.TieneIncidenciaSalida;
+            var incOmision = request.TieneIncidenciaOmision;
+            query = query.Where(x =>
+                (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
+                (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
+                (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
 
             var rows = await query
                 .Where(x => x.Nomina.HasValue)
@@ -332,7 +432,24 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                     Pendientes = g.Sum(ContarIncidencias) - g.Where(x => x.Justificada).Sum(ContarIncidencias)
                 });
 
-            var ordered = AplicarOrdenamientoResumen(resumen, request.OrderBy, request.OrderDirection);
+            var orderBy = request.OrderBy?.ToLowerInvariant();
+            var orderDirection = request.OrderDirection?.ToLowerInvariant();
+            var ordered = (orderBy, orderDirection) switch
+            {
+                ("nomina", "asc") => resumen.OrderBy(x => x.Nomina),
+                ("nomina", "desc") => resumen.OrderByDescending(x => x.Nomina),
+                ("nombre", "asc") => resumen.OrderBy(x => x.Nombre),
+                ("nombre", "desc") => resumen.OrderByDescending(x => x.Nombre),
+                ("totalincidencias", "asc") => resumen.OrderBy(x => x.TotalIncidencias),
+                ("totalincidencias", "desc") => resumen.OrderByDescending(x => x.TotalIncidencias),
+                ("tardanzas", "asc") => resumen.OrderBy(x => x.Tardanzas),
+                ("tardanzas", "desc") => resumen.OrderByDescending(x => x.Tardanzas),
+                ("salidasanticipadas", "asc") => resumen.OrderBy(x => x.SalidasAnticipadas),
+                ("salidasanticipadas", "desc") => resumen.OrderByDescending(x => x.SalidasAnticipadas),
+                ("omisiones", "asc") => resumen.OrderBy(x => x.Omisiones),
+                ("omisiones", "desc") => resumen.OrderByDescending(x => x.Omisiones),
+                _ => resumen.OrderBy(x => x.Nombre)
+            };
 
             var page = request.Page > 0 ? request.Page : 1;
             var pageSize = request.PageSize > 0 ? request.PageSize : 10;
@@ -448,29 +565,6 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         }
     }
 
-    private static IEnumerable<IncidenciasChecadoResumenEmpleadoResponse> AplicarOrdenamientoResumen(
-        IEnumerable<IncidenciasChecadoResumenEmpleadoResponse> query,
-        string? orderBy,
-        string? orderDirection)
-    {
-        return (orderBy?.ToLowerInvariant(), orderDirection?.ToLowerInvariant()) switch
-        {
-            ("nomina", "asc") => query.OrderBy(x => x.Nomina),
-            ("nomina", "desc") => query.OrderByDescending(x => x.Nomina),
-            ("nombre", "asc") => query.OrderBy(x => x.Nombre),
-            ("nombre", "desc") => query.OrderByDescending(x => x.Nombre),
-            ("totalincidencias", "asc") => query.OrderBy(x => x.TotalIncidencias),
-            ("totalincidencias", "desc") => query.OrderByDescending(x => x.TotalIncidencias),
-            ("tardanzas", "asc") => query.OrderBy(x => x.Tardanzas),
-            ("tardanzas", "desc") => query.OrderByDescending(x => x.Tardanzas),
-            ("salidasanticipadas", "asc") => query.OrderBy(x => x.SalidasAnticipadas),
-            ("salidasanticipadas", "desc") => query.OrderByDescending(x => x.SalidasAnticipadas),
-            ("omisiones", "asc") => query.OrderBy(x => x.Omisiones),
-            ("omisiones", "desc") => query.OrderByDescending(x => x.Omisiones),
-            _ => query.OrderBy(x => x.Nombre)
-        };
-    }
-
     private static (DateTime FechaInicio, DateTime FechaFin) CalcularRangoPeriodo(
         string? periodo,
         DateTime? fechaInicio,
@@ -499,108 +593,5 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
     {
         var inicio = hoy.AddDays(-((int)hoy.DayOfWeek + 6) % 7);
         return (inicio, inicio.AddDays(6));
-    }
-
-    private static IQueryable<VwIncidenciasChecado> AplicarFiltrosAdmin(
-        IQueryable<VwIncidenciasChecado> query,
-        IncidenciasChecadoConsultaRequest request)
-    {
-        if (request.FechaInicio.HasValue && request.FechaFin.HasValue)
-        {
-            query = query.Where(x => x.Fecha >= request.FechaInicio.Value && x.Fecha <= request.FechaFin.Value);
-        }
-        else if (request.Anio.HasValue && request.Mes.HasValue)
-        {
-            var inicioMes = new DateTime(request.Anio.Value, request.Mes.Value, 1);
-            var finMes = inicioMes.AddMonths(1).AddDays(-1);
-            query = query.Where(x => x.Fecha >= inicioMes && x.Fecha <= finMes);
-        }
-        else if (request.Anio.HasValue)
-        {
-            var inicioAnio = new DateTime(request.Anio.Value, 1, 1);
-            var finAnio = inicioAnio.AddYears(1).AddDays(-1);
-            query = query.Where(x => x.Fecha >= inicioAnio && x.Fecha <= finAnio);
-        }
-        else if (request.Mes.HasValue)
-        {
-            query = query.Where(x => x.Fecha.Month == request.Mes.Value);
-        }
-
-        if (request.Dia.HasValue && request.Dia.Value > 0)
-            query = query.Where(x => x.Fecha.Day == request.Dia.Value);
-
-        if (request.Nomina.HasValue)
-            query = query.Where(x => x.Nomina == request.Nomina.Value);
-
-        if (!string.IsNullOrWhiteSpace(request.Nombre))
-            query = query.Where(x => x.Nombre.Contains(request.Nombre));
-
-        if (!string.IsNullOrWhiteSpace(request.Empresa))
-            query = query.Where(x => x.Empresa != null && x.Empresa.Contains(request.Empresa));
-
-        if (!string.IsNullOrWhiteSpace(request.Departamento))
-            query = query.Where(x => x.Departamento != null && x.Departamento.Contains(request.Departamento));
-
-        if (!string.IsNullOrWhiteSpace(request.Puesto))
-            query = query.Where(x => x.Puesto != null && x.Puesto.Contains(request.Puesto));
-
-        var incEntrada = request.TieneIncidenciaEntrada;
-        var incSalida = request.TieneIncidenciaSalida;
-        var incOmision = request.TieneIncidenciaOmision;
-        query = query.Where(x =>
-            (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
-            (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
-            (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
-
-        return query;
-    }
-
-    private static IQueryable<VwIncidenciasChecado> AplicarFiltrosComunes(
-        IQueryable<VwIncidenciasChecado> query,
-        IncidenciasChecadoRequest request)
-    {
-        if (request.FechaDesde.HasValue)
-            query = query.Where(x => x.Fecha >= request.FechaDesde.Value);
-
-        if (request.FechaHasta.HasValue)
-            query = query.Where(x => x.Fecha <= request.FechaHasta.Value);
-
-        if (request.HoraEntradaDesde.HasValue)
-            query = query.Where(x => x.Entrada >= request.HoraEntradaDesde.Value);
-
-        if (request.HoraEntradaHasta.HasValue)
-            query = query.Where(x => x.Entrada <= request.HoraEntradaHasta.Value);
-
-        if (request.HoraSalidaDesde.HasValue)
-            query = query.Where(x => x.Salida >= request.HoraSalidaDesde.Value);
-
-        if (request.HoraSalidaHasta.HasValue)
-            query = query.Where(x => x.Salida <= request.HoraSalidaHasta.Value);
-
-        if (!string.IsNullOrWhiteSpace(request.Nombre))
-            query = query.Where(x => x.Nombre.Contains(request.Nombre));
-
-        return query;
-    }
-
-    private static IQueryable<VwIncidenciasChecado> AplicarOrdenamiento(
-        IQueryable<VwIncidenciasChecado> query,
-        string? orderBy,
-        string? orderDirection)
-    {
-        return (orderBy?.ToLowerInvariant(), orderDirection?.ToLowerInvariant()) switch
-        {
-            ("fecha", "asc") => query.OrderBy(x => x.Fecha),
-            ("fecha", "desc") => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre),
-            ("nomina", "asc") => query.OrderBy(x => x.Nomina),
-            ("nomina", "desc") => query.OrderByDescending(x => x.Nomina),
-            ("nombre", "asc") => query.OrderBy(x => x.Nombre),
-            ("nombre", "desc") => query.OrderByDescending(x => x.Nombre),
-            ("empresa", "asc") => query.OrderBy(x => x.Empresa),
-            ("empresa", "desc") => query.OrderByDescending(x => x.Empresa),
-            ("departamento", "asc") => query.OrderBy(x => x.Departamento),
-            ("departamento", "desc") => query.OrderByDescending(x => x.Departamento),
-            _ => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre)
-        };
     }
 }

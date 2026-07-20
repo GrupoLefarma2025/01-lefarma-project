@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -52,6 +53,7 @@ const CATEGORIAS = [
   { value: '2', label: 'Permiso' },
   { value: '3', label: 'Vacaciones' },
   { value: '4', label: 'Goce de Sueldo' },
+  { value: '5', label: 'Incapacidad' },
 ];
 
 const PERIODOS = [
@@ -72,6 +74,11 @@ const tipoSolicitudSchema = z.object({
   descuentaNomina: z.boolean(),
   descuentaVacaciones: z.boolean(),
   requiereDocumentacion: z.boolean(),
+  permiteFechasPasadas: z.boolean(),
+  permiteFechasFuturas: z.boolean(),
+  tomaEnCuentaChecado: z.boolean(),
+  requiereIncidenciasExistentes: z.boolean(),
+  pideDiasSolicitados: z.boolean(),
   limitePorPeriodo: z
     .string()
     .or(z.literal(''))
@@ -92,6 +99,9 @@ const tipoSolicitudSchema = z.object({
       message: 'El total para descuento debe ser mayor o igual a 1',
     }),
   activo: z.boolean(),
+}).refine((data) => data.permiteFechasPasadas || data.permiteFechasFuturas, {
+  message: 'Debe permitir al menos fechas pasadas o futuras',
+  path: ['permiteFechasPasadas'],
 });
 
 type FormValues = z.infer<typeof tipoSolicitudSchema>;
@@ -103,6 +113,20 @@ const BoolCell = ({ value }: { value: boolean }) =>
     <XCircle className="text-muted-foreground/40 h-4 w-4" />
   );
 
+const RuleItem = ({ label, active }: { label: string; active: boolean }) => (
+  <div className="flex items-center gap-1.5" title={label}>
+    <BoolCell value={active} />
+    <span className="text-xs">{label}</span>
+  </div>
+);
+
+const FechasCell = ({ pasadas, futuras }: { pasadas: boolean; futuras: boolean }) => {
+  if (pasadas && futuras) return <Badge variant="outline">Pasadas y futuras</Badge>;
+  if (pasadas) return <Badge variant="outline">Solo pasadas</Badge>;
+  if (futuras) return <Badge variant="outline">Solo futuras</Badge>;
+  return <Badge variant="outline">Ninguna</Badge>;
+};
+
 const getCategoriaLabel = (value: string): string =>
   CATEGORIAS.find((c) => c.value === value)?.label ?? value;
 
@@ -110,6 +134,36 @@ const getPeriodoLabel = (value?: string | null): string => {
   if (!value) return '-';
   return PERIODOS.find((p) => p.value === value)?.label ?? value;
 };
+
+function FlagCheckbox({
+  name,
+  label,
+  description,
+  form,
+}: {
+  name: keyof FormValues;
+  label: string;
+  description?: string;
+  form: ReturnType<typeof useForm<FormValues>>;
+}) {
+  return (
+    <FormField
+      control={form.control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className="flex flex-row items-start space-x-3 space-y-0 py-2">
+          <FormControl>
+            <Checkbox checked={Boolean(field.value)} onCheckedChange={field.onChange} />
+          </FormControl>
+          <div className="space-y-1 leading-none">
+            <FormLabel>{label}</FormLabel>
+            {description && <FormDescription>{description}</FormDescription>}
+          </div>
+        </FormItem>
+      )}
+    />
+  );
+}
 
 export default function TiposSolicitudList() {
   usePageTitle('Tipos de Solicitud', 'Gestión de tipos de solicitud de personal');
@@ -140,6 +194,11 @@ export default function TiposSolicitudList() {
       descuentaNomina: false,
       descuentaVacaciones: false,
       requiereDocumentacion: false,
+      permiteFechasPasadas: true,
+      permiteFechasFuturas: true,
+      tomaEnCuentaChecado: false,
+      requiereIncidenciasExistentes: false,
+      pideDiasSolicitados: false,
       limitePorPeriodo: '',
       periodoLimite: 'quincena',
       totalParaDescuento: '',
@@ -184,6 +243,11 @@ export default function TiposSolicitudList() {
       descuentaNomina: false,
       descuentaVacaciones: false,
       requiereDocumentacion: false,
+      permiteFechasPasadas: true,
+      permiteFechasFuturas: true,
+      tomaEnCuentaChecado: false,
+      requiereIncidenciasExistentes: false,
+      pideDiasSolicitados: false,
       limitePorPeriodo: '',
       periodoLimite: 'quincena',
       totalParaDescuento: '',
@@ -209,6 +273,11 @@ export default function TiposSolicitudList() {
       descuentaNomina: item.descuentaNomina,
       descuentaVacaciones: item.descuentaVacaciones,
       requiereDocumentacion: item.requiereDocumentacion,
+      permiteFechasPasadas: item.permiteFechasPasadas,
+      permiteFechasFuturas: item.permiteFechasFuturas,
+      tomaEnCuentaChecado: item.tomaEnCuentaChecado,
+      requiereIncidenciasExistentes: item.requiereIncidenciasExistentes,
+      pideDiasSolicitados: item.pideDiasSolicitados,
       limitePorPeriodo: item.limitePorPeriodo ? String(item.limitePorPeriodo) : '',
       periodoLimite: item.periodoLimite ?? 'quincena',
       totalParaDescuento: item.totalParaDescuento ? String(item.totalParaDescuento) : '',
@@ -233,6 +302,11 @@ export default function TiposSolicitudList() {
         descuentaNomina: values.descuentaNomina,
         descuentaVacaciones: values.descuentaVacaciones,
         requiereDocumentacion: values.requiereDocumentacion,
+        permiteFechasPasadas: values.permiteFechasPasadas,
+        permiteFechasFuturas: values.permiteFechasFuturas,
+        tomaEnCuentaChecado: values.tomaEnCuentaChecado,
+        requiereIncidenciasExistentes: values.requiereIncidenciasExistentes,
+        pideDiasSolicitados: values.pideDiasSolicitados,
         limitePorPeriodo:
           values.limitePorPeriodo && values.limitePorPeriodo.length > 0
             ? Number(values.limitePorPeriodo)
@@ -352,26 +426,46 @@ export default function TiposSolicitudList() {
         ),
     },
     {
-      id: 'flags',
-      header: 'Reglas',
+      id: 'fechas',
+      header: 'Fechas',
       cell: ({ row }) => (
-        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <BoolCell value={row.original.requiereFechaFin} />
-            <span>Fecha fin</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BoolCell value={row.original.requiereFechaRegreso} />
-            <span>Fecha regreso</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BoolCell value={row.original.requiereLugarComision} />
-            <span>Lugar comisión</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <BoolCell value={row.original.descuentaVacaciones} />
-            <span>Descuenta vacaciones</span>
-          </div>
+        <FechasCell
+          pasadas={row.original.permiteFechasPasadas}
+          futuras={row.original.permiteFechasFuturas}
+        />
+      ),
+    },
+    {
+      id: 'validaciones',
+      header: 'Validaciones',
+      cell: ({ row }) => (
+        <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+          <RuleItem label="Checado" active={row.original.tomaEnCuentaChecado} />
+          <RuleItem label="Incidencias" active={row.original.requiereIncidenciasExistentes} />
+          <RuleItem label="Días solicitados" active={row.original.pideDiasSolicitados} />
+        </div>
+      ),
+    },
+    {
+      id: 'requisitos',
+      header: 'Requisitos',
+      cell: ({ row }) => (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-xs text-muted-foreground">
+          <RuleItem label="Fecha fin" active={row.original.requiereFechaFin} />
+          <RuleItem label="Regreso" active={row.original.requiereFechaRegreso} />
+          <RuleItem label="Comisión" active={row.original.requiereLugarComision} />
+          <RuleItem label="Reposición" active={row.original.requiereReposicionTiempo} />
+          <RuleItem label="Documentación" active={row.original.requiereDocumentacion} />
+        </div>
+      ),
+    },
+    {
+      id: 'descuentos',
+      header: 'Descuentos',
+      cell: ({ row }) => (
+        <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
+          <RuleItem label="Nómina" active={row.original.descuentaNomina} />
+          <RuleItem label="Vacaciones" active={row.original.descuentaVacaciones} />
         </div>
       ),
     },
@@ -475,7 +569,7 @@ export default function TiposSolicitudList() {
         open={modalStates.newTipo}
         setOpen={(open) => toggleModal('newTipo', open)}
         title={isEditing ? 'Editar Tipo de Solicitud' : 'Nuevo Tipo de Solicitud'}
-        size="lg"
+        size="xl"
         footer={
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="outline" onClick={() => toggleModal('newTipo', false)}>
@@ -623,43 +717,116 @@ export default function TiposSolicitudList() {
               />
             </div>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {(
-                [
-                  {
-                    name: 'requiereReposicionTiempo' as const,
-                    label: 'Requiere reposición de tiempo',
-                  },
-                  { name: 'requiereFechaFin' as const, label: 'Requiere fecha fin' },
-                  { name: 'requiereFechaRegreso' as const, label: 'Requiere fecha de regreso' },
-                  { name: 'requiereLugarComision' as const, label: 'Requiere lugar de comisión' },
-                  { name: 'descuentaNomina' as const, label: 'Descuenta nómina' },
-                  { name: 'descuentaVacaciones' as const, label: 'Descuenta vacaciones' },
-                  { name: 'requiereDocumentacion' as const, label: 'Requiere documentación' },
-                  {
-                    name: 'activo' as const,
-                    label: 'Activo',
-                    description: 'Aparecerá en los catálogos.',
-                  },
-                ] as Array<{ name: keyof FormValues; label: string; description?: string }>
-              ).map(({ name, label, description }) => (
-                <FormField
-                  key={String(name)}
-                  control={form.control}
-                  name={name}
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                      <FormControl>
-                        <Checkbox checked={Boolean(field.value)} onCheckedChange={field.onChange} />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>{label}</FormLabel>
-                        {description && <FormDescription>{description}</FormDescription>}
-                      </div>
-                    </FormItem>
-                  )}
-                />
-              ))}
+            <div className="space-y-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Configuración de fechas</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <FlagCheckbox
+                    form={form}
+                    name="permiteFechasPasadas"
+                    label="Permite fechas pasadas"
+                    description="Incluyendo el día de hoy."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="permiteFechasFuturas"
+                    label="Permite fechas futuras"
+                    description="A partir de mañana."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="tomaEnCuentaChecado"
+                    label="Toma en cuenta checado"
+                    description="Si el empleado no checa, no se aplican restricciones de fechas pasadas/futuras."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereIncidenciasExistentes"
+                    label="Requiere incidencias existentes"
+                    description="Solo permite solicitar fechas que tengan una incidencia registrada."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="pideDiasSolicitados"
+                    label="Pide días solicitados"
+                    description="No abre el selector de múltiples fechas; pide fecha inicio y número de días naturales."
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Requisitos</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereFechaFin"
+                    label="Requiere fecha fin"
+                    description="Solicitará fecha de fin al crear la solicitud."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereFechaRegreso"
+                    label="Requiere fecha de regreso"
+                    description="Solicitará fecha de regreso al crear la solicitud."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereLugarComision"
+                    label="Requiere lugar de comisión"
+                    description="Solicitará lugar de comisión al crear la solicitud."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereReposicionTiempo"
+                    label="Requiere reposición de tiempo"
+                    description="El empleado deberá indicar cuándo repondrá el tiempo."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="requiereDocumentacion"
+                    label="Requiere documentación"
+                    description="Permite adjuntar documentación a la solicitud."
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Descuentos</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <FlagCheckbox
+                    form={form}
+                    name="descuentaNomina"
+                    label="Descuenta nómina"
+                    description="Se aplicará un descuento en nómina si aplica."
+                  />
+                  <FlagCheckbox
+                    form={form}
+                    name="descuentaVacaciones"
+                    label="Descuenta vacaciones"
+                    description="Se descontarán días de vacaciones."
+                  />
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm">Estado</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
+                  <FlagCheckbox
+                    form={form}
+                    name="activo"
+                    label="Activo"
+                    description="Aparecerá en los catálogos."
+                  />
+                </CardContent>
+              </Card>
             </div>
           </form>
         </Form>

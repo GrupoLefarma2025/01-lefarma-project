@@ -172,7 +172,7 @@ export default function WorkflowsList() {
   };
 
   const handleViewDiagram = (id: number) => {
-    navigate(`/workflows/${id}/diagram`);
+    navigate(`${id}/diagram`);
   };
 
   const filteredWorkflows = useMemo(() => {

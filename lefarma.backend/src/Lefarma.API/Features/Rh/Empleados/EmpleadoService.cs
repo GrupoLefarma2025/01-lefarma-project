@@ -1,5 +1,6 @@
 using ErrorOr;
-using Lefarma.API.Domain.Interfaces.Rh.Empleados;
+using Lefarma.API.Domain.Interfaces.Rh;
+using Lefarma.API.Features.Rh.Empleados.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -64,6 +65,44 @@ public class EmpleadoService : BaseService, IEmpleadoService
         {
             EnrichWideEvent("ResolverIdsUsuarioPorNominas", exception: ex);
             return CommonErrors.DatabaseError("resolver los usuarios por nómina");
+        }
+    }
+
+    public async Task<ErrorOr<EmpleadoUsuarioResponse>> ObtenerNominaPorUsuarioAsync(int idUsuario, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var empleado = await _repository.ObtenerEmpleadoPorUsuarioAsync(idUsuario, cancellationToken);
+            if (empleado == null)
+                return CommonErrors.NotFound("Empleado", idUsuario.ToString());
+
+            return new EmpleadoUsuarioResponse
+            {
+                Nomina = empleado.Nomina ?? 0,
+                IdUsuario = idUsuario
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("ObtenerNominaPorUsuario", exception: ex);
+            return CommonErrors.DatabaseError("obtener la nómina del empleado");
+        }
+    }
+
+    public async Task<ErrorOr<EmpleadoChecadoResponse>> ObtenerEstadoChecadoAsync(int idUsuario, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var empleado = await _repository.ObtenerEmpleadoPorUsuarioAsync(idUsuario, cancellationToken);
+            return new EmpleadoChecadoResponse
+            {
+                Checa = empleado?.Checa?.Trim().Equals("Si", StringComparison.OrdinalIgnoreCase) == true
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("ObtenerEstadoChecado", exception: ex);
+            return CommonErrors.DatabaseError("obtener el estado de checado");
         }
     }
 }

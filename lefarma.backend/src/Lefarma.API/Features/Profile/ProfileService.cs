@@ -251,6 +251,23 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
+    public async Task<ErrorOr<bool>> HasFirmaAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var tieneFirma = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPath), cancellationToken);
+
+            return tieneFirma;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "HasFirma", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("verificar la firma digital");
+        }
+    }
+
     public async Task<ErrorOr<string>> UploadSignatureAsync(int userId, IFormFile file, string fileName, string contentType, CancellationToken cancellationToken)
     {
         try

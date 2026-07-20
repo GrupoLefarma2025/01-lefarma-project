@@ -5,6 +5,7 @@
         Incidencia = 1,
         Permiso = 2,
         Vacaciones = 3,
-        GoceDeSueldo = 4
+        GoceDeSueldo = 4,
+        Incapacidad = 5
     }
 }

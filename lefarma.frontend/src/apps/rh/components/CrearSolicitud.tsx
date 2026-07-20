@@ -3,16 +3,19 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { API } from '@/shared/api/apiClient';
+import { empleadoApi } from '@/apps/rh/services/rh.api';
 import { ApiResponse } from '@/types/api.types';
 import type {
   SolicitudPersonalResponse,
   TipoSolicitudResponse,
   CreateSolicitudPersonalRequest,
+  IncidenciaChecadoResponse,
 } from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
 import { authService } from '@/shared/auth/authService';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Form,
@@ -33,6 +36,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { DatePicker } from '@/components/ui/date-picker';
 import { MultiDatePicker } from '@/components/ui/multi-date-picker';
+import type { Matcher } from 'react-day-picker';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
 import {
   Loader2,
   Save,
@@ -42,6 +48,7 @@ import {
   FileText,
   ChevronDown,
   ClipboardList,
+  AlertCircle,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { Empresa, Sucursal, Area } from '@/types/catalogo.types';
@@ -73,6 +80,7 @@ const CATEGORIAS = [
   { value: '2', label: 'Permiso' },
   { value: '3', label: 'Vacaciones' },
   { value: '4', label: 'Goce de Sueldo' },
+  { value: '5', label: 'Incapacidad' },
 ];
 
 const solicitudSchema = z.object({
@@ -87,6 +95,11 @@ const solicitudSchema = z.object({
   fechaFin: z.string().optional(),
   fechaRegreso: z.string().optional(),
   fechaReposicion: z.string().optional(),
+  diasSolicitados: z
+    .string()
+    .or(z.literal(''))
+    .refine((v) => v === '' || /^\d+$/.test(v), { message: 'Solo dígitos' })
+    .refine((v) => v === '' || Number(v) >= 1, { message: 'Mínimo 1 día' }),
   detalle: z.array(z.string()).optional(),
 });
 
@@ -96,17 +109,63 @@ interface CrearSolicitudProps {
   idSolicitud?: number;
   onClose: () => void;
   onSaved?: () => void;
+  incidencia?: IncidenciaChecadoResponse | null;
+  fechaInicial?: string;
 }
 
-export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitudProps) {
+function buscarTipoIncidencia(
+  tipos: TipoSolicitudResponse[],
+  incidencia: IncidenciaChecadoResponse
+): TipoSolicitudResponse | null {
+  const incidenciaEntrada = (incidencia.incidenciaEntrada ?? '').toLowerCase();
+  const incidenciaSalida = (incidencia.incidenciaSalida ?? '').toLowerCase();
+  const msgError = (incidencia.msgError ?? '').toLowerCase();
+  const tiposIncidencia = tipos.filter((t) => t.categoria === '1');
+
+  if (incidenciaEntrada && !incidenciaSalida) {
+    return (
+      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('retard')) ?? null
+    );
+  }
+
+  if (incidenciaSalida && !incidenciaEntrada) {
+    return (
+      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('salida temprana')) ?? null
+    );
+  }
+
+  if (msgError || (incidenciaEntrada && incidenciaSalida)) {
+    const tieneEntrada = incidencia.entro != null;
+    const tieneSalida = incidencia.salio != null;
+
+    if (!tieneEntrada && tieneSalida) {
+      return (
+        tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('entrada')) ?? null
+      );
+    }
+    if (tieneEntrada && !tieneSalida) {
+      return (
+        tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('salida')) ?? null
+      );
+    }
+    return (
+      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('entrada')) ?? null
+    );
+  }
+
+  return null;
+}
+
+export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fechaInicial }: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
-  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession } = useAuthStore();
+  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma } = useAuthStore();
 
   const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [tiposSolicitud, setTiposSolicitud] = useState<TipoSolicitudResponse[]>([]);
+  const [checaEmpleado, setChecaEmpleado] = useState<boolean | null>(null);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const catalogFetched = useRef(false);
 
@@ -124,6 +183,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
       fechaFin: '',
       fechaRegreso: '',
       fechaReposicion: '',
+      diasSolicitados: '',
       detalle: [],
     },
   });
@@ -138,11 +198,32 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
   const watchedFechaRegreso = form.watch('fechaRegreso');
   const watchedFechaReposicion = form.watch('fechaReposicion');
   const watchedDetalle = form.watch('detalle');
+  const watchedDiasSolicitados = form.watch('diasSolicitados');
 
   const selectedTipoSolicitud = useMemo(
     () => tiposSolicitud.find((t) => t.idTipoSolicitud === selectedTipoSolicitudId),
     [tiposSolicitud, selectedTipoSolicitudId]
   );
+
+  const hoy = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
+
+  const disabledDays = useMemo<Matcher | Matcher[]>(() => {
+    if (!selectedTipoSolicitud) return [];
+    if (selectedTipoSolicitud.tomaEnCuentaChecado && !checaEmpleado) return [];
+
+    const disabled: Matcher[] = [];
+    if (!selectedTipoSolicitud.permiteFechasPasadas) {
+      disabled.push({ before: new Date(hoy.getTime() + 24 * 60 * 60 * 1000) });
+    }
+    if (!selectedTipoSolicitud.permiteFechasFuturas) {
+      disabled.push({ after: hoy });
+    }
+    return disabled;
+  }, [selectedTipoSolicitud, hoy, checaEmpleado]);
 
   const selectedEmpresa = useMemo(
     () => empresas.find((e) => e.idEmpresa === selectedEmpresaId),
@@ -157,7 +238,8 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
     [areas, selectedAreaId]
   );
 
-  const esMultiDia = selectedTipoSolicitud?.requiereFechaFin ?? false;
+  const pideDiasSolicitados = selectedTipoSolicitud?.pideDiasSolicitados ?? false;
+  const esMultiDia = (selectedTipoSolicitud?.requiereFechaFin ?? false) && !pideDiasSolicitados;
 
   const diasCalculados = useMemo(() => {
     const det = watchedDetalle ?? [];
@@ -189,6 +271,9 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
 
   useEffect(() => {
     const det = watchedDetalle ?? [];
+    if (pideDiasSolicitados) {
+      return;
+    }
     if (esMultiDia && det.length > 0) {
       const sorted = [...det].sort();
       const inicio = sorted[0];
@@ -210,7 +295,28 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
         form.setValue('detalle', [watchedFechaInicio], { shouldValidate: false });
       }
     }
-  }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin, form]);
+  }, [esMultiDia, pideDiasSolicitados, watchedDetalle, watchedFechaInicio, watchedFechaFin, form]);
+
+  useEffect(() => {
+    if (!pideDiasSolicitados || !watchedFechaInicio || !watchedDiasSolicitados) return;
+    const dias = Number(watchedDiasSolicitados);
+    if (Number.isNaN(dias) || dias < 1) return;
+
+    const inicio = new Date(watchedFechaInicio + 'T00:00:00');
+    const fin = new Date(inicio);
+    fin.setDate(inicio.getDate() + dias - 1);
+    const finStr = fin.toISOString().split('T')[0];
+
+    const allDates: string[] = [];
+    const current = new Date(inicio);
+    while (current <= fin) {
+      allDates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+
+    form.setValue('fechaFin', finStr, { shouldValidate: false });
+    form.setValue('detalle', allDates, { shouldValidate: false });
+  }, [pideDiasSolicitados, watchedFechaInicio, watchedDiasSolicitados, form]);
 
   const fetchCatalogs = () => {
     Promise.all([
@@ -251,10 +357,22 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
       }
     };
 
+    const loadMiChequeo = async () => {
+      try {
+        const res = await empleadoApi.getMiChequeo();
+        if (res.data.success) {
+          setChecaEmpleado(res.data.data?.checa ?? null);
+        }
+      } catch {
+        setChecaEmpleado(null);
+      }
+    };
+
     if (!catalogFetched.current) {
       catalogFetched.current = true;
       fetchCatalogs();
       loadTipos();
+      loadMiChequeo();
     }
   }, []);
 
@@ -283,6 +401,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
             fechaFin: sp.fechaFin ? sp.fechaFin.split('T')[0] : '',
             fechaRegreso: sp.fechaRegreso ? sp.fechaRegreso.split('T')[0] : '',
             fechaReposicion: sp.fechaReposicion ? sp.fechaReposicion.split('T')[0] : '',
+            diasSolicitados: sp.diasSolicitados ? String(sp.diasSolicitados) : '',
             detalle: sp.detalle?.map((d) => d.fecha.split('T')[0]) ?? [],
           });
           setSolicitudCargada(true);
@@ -303,18 +422,57 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
     }
   }, [isEditing, idSolicitud]);
 
+  useEffect(() => {
+    if (!incidencia || isEditing || tiposSolicitud.length === 0) return;
+
+    const tipo = buscarTipoIncidencia(tiposSolicitud, incidencia);
+    if (tipo) {
+      form.setValue('categoria', tipo.categoria, { shouldValidate: true });
+      form.setValue('idTipoSolicitud', tipo.idTipoSolicitud, { shouldValidate: true });
+    }
+
+    if (fechaInicial) {
+      const fechaStr = fechaInicial.split('T')[0];
+      form.setValue('fechaInicio', fechaStr, { shouldValidate: true });
+      form.setValue('detalle', [fechaStr], { shouldValidate: false });
+    }
+  }, [incidencia, fechaInicial, isEditing, tiposSolicitud, form]);
+
   const handleSave = async (values: FormValues) => {
-    if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
+    if (pideDiasSolicitados) {
+      if (!values.diasSolicitados || Number(values.diasSolicitados) < 1) {
+        toast.error('Ingrese los días solicitados');
+        return;
+      }
+      if (!values.fechaInicio) {
+        toast.error('La fecha de inicio es requerida');
+        return;
+      }
+    } else if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
       toast.error('Seleccione al menos un día');
       return;
-    }
-    if (!esMultiDia && !values.fechaInicio) {
+    } else if (!esMultiDia && !values.fechaInicio) {
       toast.error('La fecha es requerida');
       return;
     }
 
     setIsSaving(true);
     try {
+      let detalle = values.detalle ?? [];
+      if (pideDiasSolicitados && values.fechaInicio && values.diasSolicitados) {
+        const dias = Number(values.diasSolicitados);
+        const inicio = new Date(values.fechaInicio + 'T00:00:00');
+        const fin = new Date(inicio);
+        fin.setDate(inicio.getDate() + dias - 1);
+        const generado: string[] = [];
+        const current = new Date(inicio);
+        while (current <= fin) {
+          generado.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+        detalle = generado;
+      }
+
       const payload: CreateSolicitudPersonalRequest = {
         idSolicitud: isEditing ? Number(idSolicitud) : 0,
         idEmpresa: values.idEmpresa,
@@ -325,10 +483,10 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
         lugarComision: values.lugarComision || null,
         fechaInicio: values.fechaInicio || null,
         fechaFin: values.fechaFin || null,
-        diasSolicitados: null,
+        diasSolicitados: values.diasSolicitados ? Number(values.diasSolicitados) : null,
         fechaRegreso: values.fechaRegreso || null,
         fechaReposicion: values.fechaReposicion || null,
-        detalle: (values.detalle ?? []).map((fecha) => ({ fecha })),
+        detalle: detalle.map((fecha) => ({ fecha })),
       };
 
       const response = isEditing
@@ -336,11 +494,19 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
         : await API.post<ApiResponse<void>>('/solicitudes-personal', payload);
 
       if (response.data.success) {
-        toast.success(
-          isEditing
-            ? 'Solicitud de personal actualizada correctamente.'
-            : 'Solicitud de personal creada correctamente.'
-        );
+        if (selectedTipoSolicitud?.requiereDocumentacion && !isEditing) {
+          toast.success('Solicitud creada, pendiente de documentación', {
+            description:
+              'Adjunte la documentación requerida desde el detalle de la solicitud para enviarla.',
+            duration: 6000,
+          });
+        } else {
+          toast.success(
+            isEditing
+              ? 'Solicitud de personal actualizada correctamente.'
+              : 'Solicitud de personal creada correctamente.'
+          );
+        }
         onSaved?.();
         onClose();
       } else {
@@ -364,12 +530,14 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
   const fechaInicioLabel = useMemo(() => {
     if (esMultiDia) return 'Días del período *';
     switch (selectedCategoria) {
-      case 'Incidencia':
+      case '1':
         return 'Fecha de Incidencia *';
-      case 'Permiso':
+      case '2':
         return 'Fecha del Permiso *';
-      case 'GoceDeSueldo':
+      case '4':
         return 'Fecha de Goce de Sueldo *';
+      case '5':
+        return 'Fecha de Incapacidad *';
       default:
         return 'Fecha Inicio *';
     }
@@ -565,6 +733,17 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                 </div>
               </FormSection>
 
+              {selectedTipoSolicitud?.requiereDocumentacion && (
+                <Alert variant="default" className="mt-4 border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/20">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Documentación requerida</AlertTitle>
+                  <AlertDescription>
+                    Este tipo de solicitud requiere documentación de soporte. La solicitud se creará
+                    pero no se enviará hasta que adjunte los archivos necesarios desde el detalle.
+                  </AlertDescription>
+                </Alert>
+              )}
+
               <FormSection icon={FileText} title="Motivo">
                 <FormField
                   control={form.control}
@@ -613,7 +792,69 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {esMultiDia ? (
+              {pideDiasSolicitados ? (
+                <FormSection icon={Calendar} title="Días solicitados">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                    <FormField
+                      control={form.control}
+                      name="fechaInicio"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha Inicio *</FormLabel>
+                          <FormControl>
+                            <DatePicker
+                              value={field.value}
+                              onChange={field.onChange}
+                              disabledDays={disabledDays}
+                              placeholder="Seleccionar fecha..."
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="diasSolicitados"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Días solicitados *</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="1"
+                              placeholder="Ej. 5"
+                              value={field.value ?? ''}
+                              onChange={(e) => field.onChange(e.target.value)}
+                            />
+                          </FormControl>
+                          <FormDescription className="text-xs">Días naturales a contar desde la fecha inicio.</FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="fechaFin"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Fecha Fin</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              readOnly
+                              disabled
+                              value={field.value || ''}
+                              placeholder="Se calcula automáticamente"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </FormSection>
+              ) : esMultiDia ? (
                 <FormSection icon={Calendar} title="Días del período">
                   <FormField
                     control={form.control}
@@ -625,6 +866,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                           <MultiDatePicker
                             value={field.value ?? []}
                             onChange={field.onChange}
+                            disabledDays={disabledDays}
                             placeholder="Seleccionar días..."
                           />
                         </FormControl>
@@ -649,6 +891,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
                             <DatePicker
                               value={field.value}
                               onChange={field.onChange}
+                              disabledDays={disabledDays}
                               placeholder="Seleccionar fecha..."
                             />
                           </FormControl>
@@ -791,13 +1034,15 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved }: CrearSolicitud
             </CardContent>
           </Card>
 
+          {hasFirma === false && <SignatureAlert />}
+
           <div className="flex justify-end gap-3 pt-4">
             <Button type="button" variant="outline" onClick={onClose} disabled={isSaving}>
               <X className="mr-2 h-4 w-4" /> Cancelar
             </Button>
             <Button
               type="button"
-              disabled={isSaving}
+              disabled={isSaving || hasFirma === false}
               onClick={() => {
                 form.handleSubmit(
                   (values) => handleSave(values),

@@ -1,5 +1,5 @@
 ﻿using Lefarma.API.Domain.Entities.Rh;
-using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal

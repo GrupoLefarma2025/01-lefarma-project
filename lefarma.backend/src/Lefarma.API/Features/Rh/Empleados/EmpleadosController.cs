@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Lefarma.API.Features.Rh.Empleados.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Extensions;
@@ -21,6 +22,27 @@ public class EmpleadosController : ControllerBase
         _service = service;
     }
 
+    [HttpGet("mi-chequeo")]
+    [SwaggerOperation(
+        Summary = "Obtener estado de checado del empleado autenticado",
+        Description = "Retorna si el empleado asociado al usuario autenticado checa basado en VwEmpleados.Checa")]
+    [SwaggerResponse(200, "Estado de checado obtenido", typeof(ApiResponse<EmpleadoChecadoResponse>))]
+    public async Task<IActionResult> ObtenerMiChequeo(CancellationToken cancellationToken)
+    {
+        var idUsuario = GetUserId();
+        var result = await _service.ObtenerEstadoChecadoAsync(idUsuario, cancellationToken);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<EmpleadoChecadoResponse>
+        {
+            Success = true,
+            Message = "Estado de checado obtenido exitosamente.",
+            Data = data
+        }));
+    }
+
+    private int GetUserId() =>
+        int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
     [HttpGet("usuario-por-nomina")]
     [SwaggerOperation(
         Summary = "Resolver IdUsuario por nómina",
@@ -36,6 +58,24 @@ public class EmpleadosController : ControllerBase
         {
             Success = true,
             Message = "IdUsuario resuelto exitosamente.",
+            Data = data
+        }));
+    }
+
+    [HttpGet("nomina-por-usuario")]
+    [SwaggerOperation(
+        Summary = "Resolver nómina por usuario autenticado",
+        Description = "Retorna la nómina y IdUsuario asociado al usuario autenticado usando VwEmpleados")]
+    [SwaggerResponse(200, "Nómina resuelta", typeof(ApiResponse<EmpleadoUsuarioResponse>))]
+    public async Task<IActionResult> ObtenerNominaPorUsuario(CancellationToken cancellationToken)
+    {
+        var idUsuario = GetUserId();
+        var result = await _service.ObtenerNominaPorUsuarioAsync(idUsuario, cancellationToken);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<EmpleadoUsuarioResponse>
+        {
+            Success = true,
+            Message = "Nómina obtenida exitosamente.",
             Data = data
         }));
     }

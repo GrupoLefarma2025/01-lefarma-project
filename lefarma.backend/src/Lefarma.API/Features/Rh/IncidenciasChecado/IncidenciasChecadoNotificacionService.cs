@@ -1,8 +1,7 @@
 using System.Text;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces;
-using Lefarma.API.Domain.Interfaces.Rh.Empleados;
-using Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
 using Lefarma.API.Infrastructure.Data;

@@ -6,6 +6,10 @@ import {
   Loader2,
   FileText,
   AlertTriangle,
+  Plus,
+  CheckCircle2,
+  XCircle,
+  Clock,
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +26,7 @@ import { Modal } from '@/components/ui/modal';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudDetalleTab } from './SolicitudDetalleTab';
+import { CrearSolicitud } from './CrearSolicitud';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -64,6 +69,12 @@ const CATEGORIA_STYLES: Record<string, { dot: string; bg: string; border: string
       text: 'text-violet-800 dark:text-violet-300',
     },
   };
+
+function formatHora(valor?: string | null) {
+  if (!valor) return '-';
+  const partes = valor.split(':');
+  return partes.length >= 2 ? `${partes[0]}:${partes[1]}` : valor;
+}
 
 function getCategoriaStyle(categoria: string) {
   return (
@@ -115,6 +126,14 @@ interface DiaCelda {
   esHoy: boolean;
   esNoLaborable: boolean;
   incidencia?: IncidenciaChecadoResponse;
+}
+
+function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
+  return (
+    incidencia.incidenciaEntrada?.trim() ||
+    incidencia.incidenciaSalida?.trim() ||
+    incidencia.msgError?.trim()
+  );
 }
 
 function useCalendario(anio: number, mes: number) {
@@ -185,7 +204,10 @@ function useCalendario(anio: number, mes: number) {
     });
 
     incidencias.forEach((i) => {
-      const key = new Date(i.fecha).toISOString().split('T')[0];
+      const fechaInc = toLocalMidnight(new Date(i.fecha));
+      if (fechaInc > hoy) return;
+      if (!tieneIncidenciaReal(i)) return;
+      const key = fechaInc.toISOString().split('T')[0];
       incidenciasPorFecha.set(key, i);
     });
 
@@ -267,12 +289,25 @@ function IncidenciaModal({
   incidencia,
   open,
   onClose,
+  onAddSolicitud,
 }: {
   incidencia: IncidenciaChecadoResponse | null;
   open: boolean;
   onClose: () => void;
+  onAddSolicitud: () => void;
 }) {
   if (!incidencia) return null;
+
+  const incidencias: { label: string; text: string; tipo: 'entrada' | 'salida' | 'omision' }[] = [];
+  if (incidencia.incidenciaEntrada?.trim()) {
+    incidencias.push({ label: 'Entrada', text: incidencia.incidenciaEntrada, tipo: 'entrada' });
+  }
+  if (incidencia.incidenciaSalida?.trim()) {
+    incidencias.push({ label: 'Salida', text: incidencia.incidenciaSalida, tipo: 'salida' });
+  }
+  if (incidencia.msgError?.trim()) {
+    incidencias.push({ label: 'Omisión', text: incidencia.msgError, tipo: 'omision' });
+  }
 
   return (
     <Modal
@@ -289,33 +324,92 @@ function IncidenciaModal({
       }
       size="md"
     >
-      <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {incidencia.nombreDiaSemana ?? ''},{' '}
-          {new Date(incidencia.fecha).toLocaleDateString('es-MX')}
-        </p>
+      <div className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-base font-medium">
+            {incidencia.nombreDiaSemana ?? ''},{' '}
+            {new Date(incidencia.fecha).toLocaleDateString('es-MX', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+            })}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {incidencia.nombre} · Nómina {incidencia.nomina}
+          </p>
+        </div>
 
-        {incidencia.incidenciaEntrada && (
-          <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-            <span className="font-semibold">Entrada:</span> {incidencia.incidenciaEntrada}
+        {incidencia.justificada ? (
+          <div className="flex items-center gap-2 rounded bg-green-50 px-3 py-2 text-sm text-green-800 dark:bg-green-950/30 dark:text-green-300">
+            <CheckCircle2 className="h-4 w-4" />
+            <span className="font-semibold">Justificada</span>
+            {incidencia.tipoSolicitudNombre && (
+              <span className="text-muted-foreground">· {incidencia.tipoSolicitudNombre}</span>
+            )}
           </div>
-        )}
-        {incidencia.incidenciaSalida && (
-          <div className="rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-            <span className="font-semibold">Salida:</span> {incidencia.incidenciaSalida}
-          </div>
-        )}
-        {incidencia.msgError && (
-          <div className="rounded bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
-            <span className="font-semibold">Error:</span> {incidencia.msgError}
+        ) : (
+          <div className="flex items-center gap-2 rounded bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
+            <XCircle className="h-4 w-4" />
+            <span className="font-semibold">Pendiente de justificar</span>
           </div>
         )}
 
-        <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground">
-          {incidencia.entrada && <span>Horario entrada: {incidencia.entrada}</span>}
-          {incidencia.salida && <span>Horario salida: {incidencia.salida}</span>}
-          {incidencia.entro && <span>Registró entrada: {incidencia.entro}</span>}
-          {incidencia.salio && <span>Registró salida: {incidencia.salio}</span>}
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Detalle de incidencias
+          </h4>
+          <div className="grid gap-2">
+            {incidencias.map((item) => (
+              <div
+                key={item.label}
+                className={cn(
+                  'rounded px-3 py-2 text-sm',
+                  item.tipo === 'omision'
+                    ? 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
+                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
+                )}
+              >
+                <span className="font-semibold">{item.label}:</span> {item.text}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            Horarios
+          </h4>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <div className="flex items-center gap-2 rounded bg-muted px-3 py-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Entrada</span>
+                <span>{formatHora(incidencia.entrada)}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded bg-muted px-3 py-2">
+              <Clock className="h-4 w-4 text-muted-foreground" />
+              <div className="flex flex-col">
+                <span className="text-xs text-muted-foreground">Salida</span>
+                <span>{formatHora(incidencia.salida)}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 rounded bg-muted px-3 py-2">
+              <span className="text-xs text-muted-foreground">Registró entrada</span>
+              <span>{formatHora(incidencia.entro)}</span>
+            </div>
+            <div className="flex items-center gap-2 rounded bg-muted px-3 py-2">
+              <span className="text-xs text-muted-foreground">Registró salida</span>
+              <span>{formatHora(incidencia.salio)}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button size="sm" onClick={onAddSolicitud}>
+            <Plus className="mr-1.5 h-4 w-4" />
+            Añadir solicitud
+          </Button>
         </div>
       </div>
     </Modal>
@@ -402,7 +496,16 @@ export function MiCalendario() {
   const [detalleId, setDetalleId] = useState<number | null>(null);
   const [incidenciaSeleccionada, setIncidenciaSeleccionada] =
     useState<IncidenciaChecadoResponse | null>(null);
+  const [incidenciaParaSolicitud, setIncidenciaParaSolicitud] =
+    useState<IncidenciaChecadoResponse | null>(null);
+  const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
   const { dias, loading, refetch } = useCalendario(anio, mes);
+
+  const handleAddSolicitud = () => {
+    setIncidenciaParaSolicitud(incidenciaSeleccionada);
+    setIncidenciaSeleccionada(null);
+    setSolicitudModalOpen(true);
+  };
 
   const handleHoy = () => {
     setAnio(hoy.getFullYear());
@@ -659,7 +762,34 @@ export function MiCalendario() {
         incidencia={incidenciaSeleccionada}
         open={incidenciaSeleccionada !== null}
         onClose={() => setIncidenciaSeleccionada(null)}
+        onAddSolicitud={handleAddSolicitud}
       />
+
+      <Modal
+        id="modal-crear-solicitud-calendario"
+        open={solicitudModalOpen}
+        setOpen={(o) => {
+          if (!o) setSolicitudModalOpen(false);
+        }}
+        title={
+          <div className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            <span>Crear solicitud</span>
+          </div>
+        }
+        size="full"
+      >
+        <CrearSolicitud
+          incidencia={incidenciaParaSolicitud}
+          fechaInicial={incidenciaParaSolicitud?.fecha}
+          onClose={() => setSolicitudModalOpen(false)}
+          onSaved={() => {
+            setSolicitudModalOpen(false);
+            setIncidenciaParaSolicitud(null);
+            refetch();
+          }}
+        />
+      </Modal>
     </>
   );
 }

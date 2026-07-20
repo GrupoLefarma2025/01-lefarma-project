@@ -1,4 +1,5 @@
-using Lefarma.API.Domain.Interfaces.Rh.Empleados;
+using Lefarma.API.Domain.Entities.Asistencias;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -89,5 +90,23 @@ public class EmpleadoRepository : IEmpleadoRepository
             .ToDictionary(
                 g => g.Key,
                 g => usuarioPorCorreo[g.First().Correo!]);
+    }
+
+    public async Task<VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
+        int idUsuario,
+        CancellationToken cancellationToken = default)
+    {
+        var correo = await _asokamContext.Usuarios
+            .Where(u => u.IdUsuario == idUsuario)
+            .Select(u => u.Correo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(correo))
+            return null;
+
+        return await _asistenciasContext.VwEmpleados
+            .AsNoTracking()
+            .Where(e => e.Correo == correo)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

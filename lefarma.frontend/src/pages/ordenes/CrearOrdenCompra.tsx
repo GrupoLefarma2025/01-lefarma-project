@@ -82,6 +82,7 @@ import type {
   TipoGasto,
 } from '@/types/catalogo.types';
 import { PermissionElement } from '../../components/permissions/PermissionElement';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
 
 interface Proveedor {
   idProveedor: number;
@@ -446,6 +447,7 @@ export default function CrearOrdenCompra() {
     sucursal: sucursalSession,
     area: areaSession,
     user,
+    hasFirma,
   } = useAuthStore();
   const userDomain = user?.dominio;
   const [isSaving, setIsSaving] = useState(false);
@@ -881,7 +883,14 @@ export default function CrearOrdenCompra() {
     console.log('🔵 [handleSave] isEditing:', isEditing);
     console.log('🔵 [handleSave] id (URL):', id);
 
-    setIsSaving(true);
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder guardar órdenes de compra.',
+        duration: 6000,
+      });
+      return;
+    }
+
     try {
       console.log('🔵 [handleSave] Validando fecha límite...');
       const fechaLimite = new Date(values.fechaLimitePago);
@@ -1070,6 +1079,7 @@ export default function CrearOrdenCompra() {
   }
   return (
     <div className="space-y-6">
+      {hasFirma === false && <SignatureAlert />}
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}

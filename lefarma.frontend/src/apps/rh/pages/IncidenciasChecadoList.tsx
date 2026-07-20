@@ -42,37 +42,54 @@ function calcularRangoPeriodo(periodo: string): { fechaInicio: string; fechaFin:
   const dd = hoy.getDate();
   const ultimoDiaMes = new Date(yyyy, mm + 1, 0).getDate();
 
+  let resultado: { fechaInicio: string; fechaFin: string };
+
   switch (periodo) {
     case 'hoy':
-      return { fechaInicio: toISODate(hoy), fechaFin: toISODate(hoy) };
+      resultado = { fechaInicio: toISODate(hoy), fechaFin: toISODate(hoy) };
+      break;
     case 'esta-semana': {
       const dow = hoy.getDay();
       const diff = (dow + 6) % 7;
       const inicio = new Date(yyyy, mm, dd - diff);
       const fin = new Date(yyyy, mm, dd - diff + 6);
-      return { fechaInicio: toISODate(inicio), fechaFin: toISODate(fin) };
+      resultado = { fechaInicio: toISODate(inicio), fechaFin: toISODate(fin) };
+      break;
     }
     case 'esta-quincena':
       if (dd <= 15) {
-        return { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, 15)) };
+        resultado = { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, 15)) };
+      } else {
+        resultado = { fechaInicio: toISODate(new Date(yyyy, mm, 16)), fechaFin: toISODate(new Date(yyyy, mm, ultimoDiaMes)) };
       }
-      return { fechaInicio: toISODate(new Date(yyyy, mm, 16)), fechaFin: toISODate(new Date(yyyy, mm, ultimoDiaMes)) };
+      break;
     case 'quincena-anterior':
       if (dd <= 15) {
         const ultimoDiaMesAnterior = new Date(yyyy, mm, 0).getDate();
-        return { fechaInicio: toISODate(new Date(yyyy, mm - 1, 16)), fechaFin: toISODate(new Date(yyyy, mm - 1, ultimoDiaMesAnterior)) };
+        resultado = { fechaInicio: toISODate(new Date(yyyy, mm - 1, 16)), fechaFin: toISODate(new Date(yyyy, mm - 1, ultimoDiaMesAnterior)) };
+      } else {
+        resultado = { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, 15)) };
       }
-      return { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, 15)) };
+      break;
     case 'este-mes':
-      return { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, ultimoDiaMes)) };
+      resultado = { fechaInicio: toISODate(new Date(yyyy, mm, 1)), fechaFin: toISODate(new Date(yyyy, mm, ultimoDiaMes)) };
+      break;
     case 'mes-anterior': {
       const ultimoDiaMesAnterior = new Date(yyyy, mm, 0).getDate();
-      return { fechaInicio: toISODate(new Date(yyyy, mm - 1, 1)), fechaFin: toISODate(new Date(yyyy, mm - 1, ultimoDiaMesAnterior)) };
+      resultado = { fechaInicio: toISODate(new Date(yyyy, mm - 1, 1)), fechaFin: toISODate(new Date(yyyy, mm - 1, ultimoDiaMesAnterior)) };
+      break;
     }
     case 'personalizado':
     default:
       return { fechaInicio: '', fechaFin: '' };
   }
+
+  const fechaFinLimite = toISODate(hoy);
+  if (resultado.fechaFin > fechaFinLimite) {
+    resultado.fechaFin = fechaFinLimite;
+  }
+
+  return resultado;
 }
 
 interface Filters {
@@ -92,10 +109,10 @@ interface Filters {
 export default function IncidenciasChecadoList() {
   usePageTitle('Incidencias de checado', 'Gestión de incidencias de checado');
 
-  const rangoInicial = useMemo(() => calcularRangoPeriodo('este-mes'), []);
+  const rangoInicial = useMemo(() => calcularRangoPeriodo('quincena-anterior'), []);
 
   const initialFilters: Filters = {
-    periodo: 'este-mes',
+    periodo: 'quincena-anterior',
     fechaInicio: rangoInicial.fechaInicio,
     fechaFin: rangoInicial.fechaFin,
     nomina: '',

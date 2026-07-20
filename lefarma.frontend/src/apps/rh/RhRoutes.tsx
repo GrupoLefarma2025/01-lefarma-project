@@ -11,6 +11,9 @@ import SolicitudesPersonal from './pages/SolicitudesPersonal';
 import GestionSolicitudes from './pages/GestionSolicitudes';
 import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
+import { DiasNoHabilesPage } from './pages/Vacaciones/DiasNoHabilesPage';
+import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
+import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 
 /**
  * RH (Recursos Humanos) route table — delega TODO el scaffolding a la fábrica
@@ -65,6 +68,26 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
             </PermissionGuard>
           }
         />
+
+        <Route
+          path="vacaciones/dias-no-habiles"
+          element={
+            <PermissionGuard require="vacaciones.ver">
+              <DiasNoHabilesPage />
+            </PermissionGuard>
+          }
+        />
+
+        <Route
+          path="vacaciones/saldos"
+          element={
+            <PermissionGuard require="vacaciones.ver">
+              <SaldosVacacionesPage />
+            </PermissionGuard>
+          }
+        />
+
+        <Route path="perfil/configuracion" element={<PerfilConfig />} />
       </>
     ),
   });

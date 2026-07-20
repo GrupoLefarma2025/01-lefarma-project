@@ -55,6 +55,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             RuleFor(x => x.TotalParaDescuento)
                 .GreaterThanOrEqualTo(1).WithMessage("El total para descuento debe ser mayor a 0")
                 .When(x => x.TotalParaDescuento.HasValue);
+
+            RuleFor(x => x)
+                .Must(x => x.PermiteFechasPasadas || x.PermiteFechasFuturas)
+                .WithMessage("Debe permitir al menos fechas pasadas o futuras.");
         }
 
         private static bool SerCategoriaValida(string categoria)
@@ -106,6 +110,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             RuleFor(x => x.TotalParaDescuento)
                 .GreaterThanOrEqualTo(1).WithMessage("El total para descuento debe ser mayor a 0")
                 .When(x => x.TotalParaDescuento.HasValue);
+
+            RuleFor(x => x)
+                .Must(x => x.PermiteFechasPasadas || x.PermiteFechasFuturas)
+                .WithMessage("Debe permitir al menos fechas pasadas o futuras.");
         }
 
         private static bool SerCategoriaValida(string categoria)

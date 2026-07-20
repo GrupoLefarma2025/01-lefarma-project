@@ -25,6 +25,7 @@ interface SolicitudAccionesModalProps {
   ) => { nombre: string; color: string };
   onFirmar: (req: FirmarRequest) => Promise<boolean>;
   isSubmittingFirma: boolean;
+  hasFirma?: boolean;
 }
 
 export type { SolicitudAccionesModalProps };
@@ -38,6 +39,7 @@ export function SolicitudAccionesModal({
   getEstadoInfo,
   onFirmar,
   isSubmittingFirma,
+  hasFirma = true,
 }: SolicitudAccionesModalProps) {
   const [accionParaFirma, setAccionParaFirma] = useState<AccionDisponibleResponse | null>(null);
 
@@ -82,6 +84,7 @@ export function SolicitudAccionesModal({
             acciones={acciones}
             onAccionClick={setAccionParaFirma}
             isSubmittingFirma={isSubmittingFirma}
+            hasFirma={hasFirma}
           />
         )}
       </Modal>

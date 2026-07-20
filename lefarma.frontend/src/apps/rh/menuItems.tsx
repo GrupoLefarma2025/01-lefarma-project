@@ -8,6 +8,7 @@ import {
   Settings,
   AlertTriangle,
   TimerIcon,
+  CalendarDays,
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
@@ -67,6 +68,25 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         icon: AlertTriangle,
         path: '/rh/incidencias-checado',
         permission: { require: 'incidencias_checado.ver_todas' },
+      },
+    ],
+  },
+  {
+    title: 'Vacaciones',
+    icon: CalendarDays,
+    isCollapsible: true,
+    items: [
+      {
+        title: 'Días no hábiles',
+        icon: CalendarDays,
+        path: '/rh/vacaciones/dias-no-habiles',
+        permission: { require: 'vacaciones.ver' },
+      },
+      {
+        title: 'Saldos',
+        icon: CalendarDays,
+        path: '/rh/vacaciones/saldos',
+        permission: { require: 'vacaciones.ver' },
       },
     ],
   },

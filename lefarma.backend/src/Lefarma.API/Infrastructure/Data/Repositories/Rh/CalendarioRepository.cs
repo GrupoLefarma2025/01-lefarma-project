@@ -1,5 +1,5 @@
 using Lefarma.API.Domain.Entities.Rh;
-using Lefarma.API.Domain.Interfaces.Rh.Calendario;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.Calendario.DTOs;
 using Microsoft.EntityFrameworkCore;
 

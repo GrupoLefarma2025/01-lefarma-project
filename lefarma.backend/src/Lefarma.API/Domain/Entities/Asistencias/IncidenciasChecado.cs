@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Lefarma.API.Domain.Entities.Asistencias;
 
 [Keyless]
-public class VwIncidenciasChecado
+public class IncidenciasChecado
 {
     public DateTime Fecha { get; set; }
     public long? Nomina { get; set; }

@@ -32,6 +32,7 @@ import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
 import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
 import EnvioConcentrado from '@/pages/ordenes/EnvioConcentrado';
 import Perfil from '@/pages/Perfil';
+import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import Roadmap from '@/pages/Roadmap';
 import DemoComponents from '@/pages/DemoComponents';
 import NotificationsPage from '@/pages/Notifications';
@@ -210,6 +211,7 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route path="ordenes/autorizaciones" element={<AutorizacionesOC />} />
         <Route path="ordenes/envio-concentrado" element={<EnvioConcentrado />} />
         <Route path="perfil" element={<Perfil />} />
+        <Route path="perfil/configuracion" element={<PerfilConfig />} />
         <Route
           path="notificaciones"
           element={
