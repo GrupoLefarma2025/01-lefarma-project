@@ -14,6 +14,8 @@ public interface IProveedorService
     Task<ErrorOr<ProveedorResponse>> RechazarAsync(int id, string motivo, int idUsuario);
     Task<ErrorOr<bool>> UpdateCaratulaAsync(int id, string caratulaPath);
     Task<ErrorOr<bool>> DeleteCaratulaAsync(int id);
+    Task<ErrorOr<bool>> SubirCaratulaCuentaAsync(int proveedorId, int cuentaId, string caratulaPath);
+    Task<ErrorOr<List<CaratulaCuentaResponse>>> GetCaratulasByProveedorAsync(int proveedorId);
     Task<ErrorOr<ProveedorResponse>> AutorizarEdicionAsync(int id, int idUsuario);
     Task<ErrorOr<ProveedorResponse>> RechazarEdicionAsync(int id, int idUsuario);
     Task<ErrorOr<StagingProveedorResponse>> GetStagingByProveedorIdAsync(int idProveedor);

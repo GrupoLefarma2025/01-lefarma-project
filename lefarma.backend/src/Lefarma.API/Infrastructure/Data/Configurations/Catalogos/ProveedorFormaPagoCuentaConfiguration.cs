@@ -10,8 +10,8 @@ public class ProveedorFormaPagoCuentaConfiguration : IEntityTypeConfiguration<Pr
     {
         builder.ToTable("proveedor_forma_pago_cuentas", "catalogos");
 
-        builder.HasKey(e => e.IdCuen);
-        builder.Property(e => e.IdCuen)
+        builder.HasKey(e => e.IdCuenta);
+        builder.Property(e => e.IdCuenta)
             .HasColumnName("id_cuenta")
             .ValueGeneratedOnAdd();
 
@@ -45,6 +45,10 @@ public class ProveedorFormaPagoCuentaConfiguration : IEntityTypeConfiguration<Pr
         builder.Property(e => e.CorreoNotificacion)
             .HasColumnName("correo_notificacion")
             .HasMaxLength(100);
+
+        builder.Property(e => e.CaratulaPath)
+            .HasColumnName("caratula_path")
+            .HasMaxLength(500);
 
         builder.Property(e => e.Activo)
             .HasColumnName("activo")

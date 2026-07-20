@@ -1591,7 +1591,7 @@ export default function AutorizacionesOC() {
                               let cuentaInfo: string | undefined;
                               let cuentaActiva = true;
                               for (const [, proveedor] of proveedoresMap) {
-                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuenta === idCb);
                                 if (cuenta) {
                                   cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
                                   cuentaActiva = cuenta.activo;
@@ -1600,7 +1600,7 @@ export default function AutorizacionesOC() {
                               }
                               if (!cuentaInfo) {
                                 for (const [, proveedor] of allProveedoresMap) {
-                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuenta === idCb);
                                   if (cuenta) {
                                     cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
                                     cuentaActiva = cuenta.activo;

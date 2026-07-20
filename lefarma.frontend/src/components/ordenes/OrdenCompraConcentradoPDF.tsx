@@ -1,42 +1,11 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
-import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import logoImage from '@/assets/logo.png';
-
-interface HistorialWorkflowItem {
-  idEvento: number;
-  idPaso: number;
-  nombrePaso?: string | null;
-  idAccion: number;
-  nombreAccion?: string | null;
-  idUsuario: number;
-  nombreUsuario?: string | null;
-  comentario?: string | null;
-  fechaEvento: string;
-}
-
-interface ProveedorInfo {
-  idProveedor: number;
-  razonSocial: string;
-  rfc?: string;
-  cuentasFormaPago?: ProveedorCuentaBancaria[];
-}
-
-interface PasoFlowItem {
-  idPaso: number;
-  orden: number;
-  nombrePaso: string;
-  esInicio: boolean;
-  esFinal: boolean;
-}
 
 interface Props {
   orden: OrdenCompraResponse;
-  historial?: HistorialWorkflowItem[];
-  pasosWorkflow?: PasoFlowItem[];
-  proveedoresMap?: Map<number, ProveedorInfo>;
-  firmasMap?: Map<number, string>;
-  formasPagoMap?: Map<number, { idFormaPago: number; nombre: string }>;
+  firmaElaboro?: string;
+  id?: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -53,10 +22,6 @@ function fmtDate(dateStr: string) {
   }
 }
 
-// function fmtMoney(n: number) {
-//   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
-// }
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const DARK_BLUE = '#1a3a5c';
@@ -64,7 +29,6 @@ const HEADER_BG = '#1a3a5c';
 const ROW_LABEL = '#2c5f8a';
 const BORDER = '#4a7aad';
 const WHITE = '#ffffff';
-// const LIGHT_GRAY = '#f5f5f5';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
@@ -88,25 +52,6 @@ const s: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-  },
-  logoText: {
-    fontWeight: 900,
-    fontSize: 18,
-    color: DARK_BLUE,
-    letterSpacing: 1,
-    lineHeight: 1,
-  },
-  logoSubText: {
-    fontSize: 8,
-    color: DARK_BLUE,
-    letterSpacing: 2,
-    marginTop: 1,
-  },
-  logoTagline: {
-    fontSize: 8,
-    color: '#e74c3c',
-    fontStyle: 'italic',
-    marginTop: 2,
   },
   docTitle: {
     flex: 1,
@@ -169,30 +114,10 @@ const s: Record<string, React.CSSProperties> = {
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
-  tdLabel: {
-    background: ROW_LABEL,
-    color: WHITE,
-    fontWeight: 700,
-    padding: '3px 5px',
-    border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
-    verticalAlign: 'top' as const,
-    whiteSpace: 'nowrap' as const,
-    printColorAdjust: 'exact' as const,
-    WebkitPrintColorAdjust: 'exact' as const,
-  },
   tdValue: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
     fontSize: 8.5,
-    verticalAlign: 'top' as const,
-  },
-  tdLink: {
-    padding: '3px 5px',
-    border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
-    color: '#1155cc',
-    textDecoration: 'underline',
     verticalAlign: 'top' as const,
   },
   deliveryTh: {
@@ -287,51 +212,59 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: 9.5,
   },
-  firmasTable: {
-    width: '70%',
-    borderCollapse: 'collapse' as const,
-    marginTop: 8,
-    marginLeft: 'auto',
+  // ── Firmas (concentrado) ──
+  firmaSection: {
+    marginTop: 14,
+    pageBreakInside: 'avoid' as const,
   },
-  firmaThRow: {
-    background: HEADER_BG,
-    printColorAdjust: 'exact' as const,
-    WebkitPrintColorAdjust: 'exact' as const,
-  },
-  firmaTh: {
+  firmaHeader: {
     background: HEADER_BG,
     color: WHITE,
     fontWeight: 700,
-    padding: '2px 4px',
+    fontSize: 9,
+    padding: '3px 6px',
+    letterSpacing: 0.5,
     border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
-    textAlign: 'left' as const,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
-  firmaRoleCell: {
+  firmaGrid: {
+    display: 'flex',
+    gap: 12,
+    marginTop: 0,
+  },
+  firmaBox: {
+    flex: 1,
+    border: `1px solid ${BORDER}`,
+    borderTop: 'none',
+    padding: '4px 6px',
+    minHeight: 60,
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  firmaLabel: {
     background: ROW_LABEL,
     color: WHITE,
     fontWeight: 700,
-    padding: '2px 4px',
-    border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
-    width: 60,
+    fontSize: 8,
+    padding: '2px 5px',
+    textAlign: 'center' as const,
+    marginBottom: 4,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
-  firmaTd: {
-    padding: '2px 4px',
-    border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
-    height: 14,
-  },
-  footer: {
+  firmaContent: {
+    flex: 1,
     display: 'flex',
-    justifyContent: 'space-between',
-    marginTop: 6,
-    fontSize: 7.5,
-    color: '#333',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  firmaPlaceholder: {
+    fontWeight: 700,
+    fontSize: 14,
+    color: DARK_BLUE,
+    letterSpacing: 2,
   },
 };
 
@@ -351,48 +284,16 @@ const Logo: React.FC = () => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], proveedoresMap, firmasMap, formasPagoMap }: Props) {
-  const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
+export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-compra-concentrado-pdf-print' }: Props) {
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
-
-  const historialPorPaso = new Map<number, HistorialWorkflowItem[]>();
-  for (const h of historial) {
-    const arr = historialPorPaso.get(h.idPaso) ?? [];
-    arr.push(h);
-    historialPorPaso.set(h.idPaso, arr);
-  }
-
-  const flujoPasos = pasosWorkflow.map((paso) => {
-    const eventos = historialPorPaso.get(paso.idPaso) ?? [];
-    const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
-    return {
-      idPaso: paso.idPaso,
-      orden: paso.orden,
-      nombrePaso: paso.nombrePaso,
-      esInicio: paso.esInicio,
-      esFinal: paso.esFinal,
-      participante: ultimo ? (ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`) : null,
-      idUsuario: ultimo?.idUsuario ?? null,
-      accion: ultimo ? (ultimo.nombreAccion ?? '') : null,
-      fecha: ultimo?.fechaEvento ?? null,
-      tieneEvento: eventos.length > 0,
-    };
-  });
 
   const fmt = (n: number) =>
     n === 0
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // DEBUG: formas de pago en PDF
-  console.log('[OrdenCompraPDF] idsFormaPago:', orden.idsFormaPago);
-  console.log('[OrdenCompraPDF] idsCuentasBancarias:', orden.idsCuentasBancarias);
-  console.log('[OrdenCompraPDF] numeroMensualidades:', orden.numeroMensualidades);
-  console.log('[OrdenCompraPDF] formasPagoMap:', formasPagoMap);
-  console.log('[OrdenCompraPDF] proveedoresMap:', proveedoresMap);
-
   return (
-    <div id="orden-compra-pdf-print" style={s.page}>
+    <div id={id} style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.headerRow}>
         <Logo />
@@ -447,42 +348,13 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
           <tr>
             <td style={s.thBlue}>Nombre, Denominación o Razón social</td>
             <td style={s.tdValue} colSpan={5}>
-              {orden.idProveedor
-                ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? '-')
-                : '-'}
+              {orden.razonSocialProveedor ?? '-'}
             </td>
           </tr>
           <tr>
             <td style={s.thBlue}>Forma de pago</td>
             <td style={s.tdValue} colSpan={5}>
-              {orden.idsFormaPago?.map((idFp) => {
-                const fp = formasPagoMap?.get(idFp);
-                return fp?.nombre ?? `ID ${idFp}`;
-              }).join(', ') ?? '-'}
-            </td>
-          </tr>
-          <tr>
-            <td style={s.thBlue}>Cuenta bancaria</td>
-            <td style={s.tdValue} colSpan={5}>
-              {orden.idsCuentasBancarias?.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {orden.idsCuentasBancarias.map((idCb, idx) => {
-                    let cuenta: ProveedorCuentaBancaria | undefined;
-                    proveedoresMap?.forEach((prov) => {
-                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuenta === idCb);
-                      if (found) cuenta = found;
-                    });
-                    if (!cuenta) return <span key={idx}>ID {idCb}</span>;
-                    return (
-                      <span key={idx}>
-                        {cuenta.bancoNombre ?? 'Banco'} • {cuenta.numeroCuenta ?? 'Sin cuenta'}
-                        {cuenta.clabe ? ` • CLABE: ${cuenta.clabe}` : ''}
-                        {cuenta.numeroTarjeta ? ` • Tarjeta: ${cuenta.numeroTarjeta}` : ''}
-                      </span>
-                    );
-                  })}
-                </div>
-              ) : '-'}
+              {orden.formasPagoNombres?.length ? orden.formasPagoNombres.join(', ') : '-'}
             </td>
           </tr>
           {orden.numeroMensualidades !== 1 && (
@@ -561,73 +433,37 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       </div>
 
-      {/* ── FLUJO DINÁMICO ── */}
-      {flujoPasos.length > 0 && (
-        <table style={{ ...s.firmasTable, width: '100%' }}>
-          <thead>
-            <tr style={s.firmaThRow}>
-              <th style={{ ...s.firmaTh, width: '5%' }}>#</th>
-              <th style={{ ...s.firmaTh, width: '20%' }}>Paso</th>
-              <th style={{ ...s.firmaTh, width: '22%' }}>Participante</th>
-              <th style={{ ...s.firmaTh, width: '18%' }}>Acción</th>
-              <th style={{ ...s.firmaTh, width: '15%' }}>Fecha</th>
-              <th style={{ ...s.firmaTh, width: '20%' }}>Firma</th>
-            </tr>
-          </thead>
-          <tbody>
-            {flujoPasos.filter((paso, idx) => {
-              const siguiente = idx < flujoPasos.length - 1 ? flujoPasos[idx + 1] : null;
-              if (!(siguiente?.tieneEvento ?? false)) return false;
-              if (siguiente?.idUsuario != null && firmasMap !== undefined && !firmasMap.has(siguiente.idUsuario)) return false;
-              return true;
-            }).map((paso, idx) => {
-              const originalIdx = flujoPasos.indexOf(paso);
-              const siguiente = flujoPasos[originalIdx + 1];
-              return (
-                <tr key={paso.idPaso}>
-                  <td style={{ ...s.firmaTd, textAlign: 'center' }}>{paso.orden}</td>
-                  <td style={s.firmaTd}>{paso.nombrePaso}</td>
-                  <td style={s.firmaTd}>{siguiente?.participante ?? '—'}</td>
-                  <td style={s.firmaTd}>{siguiente?.accion ?? '—'}</td>
-                  <td style={s.firmaTd}>
-                    {siguiente?.fecha
-                      ? new Date(siguiente.fecha).toLocaleDateString('es-MX', {
-                          day: '2-digit', month: '2-digit', year: '2-digit',
-                        })
-                      : '—'}
-                  </td>
-                  <td style={s.firmaTd}>
-                    {siguiente?.idUsuario != null && firmasMap?.get(siguiente.idUsuario) ? (
-                      <img
-                        src={firmasMap.get(siguiente.idUsuario)}
-                        alt="Firma"
-                        style={{
-                          height: 28,
-                          width: 80,
-                          objectFit: 'contain',
-                          display: 'block',
-                          marginLeft: 'auto',
-                          printColorAdjust: 'exact',
-                          WebkitPrintColorAdjust: 'exact',
-                        }}
-                      />
-                    ) : null}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      )}
-
-      {/* ── FOOTER ── */}
-      {/* <div style={s.footer}>
-        <span>LEF-AYF-FOR-009</span>
-        <span>Versión: 01 · Prohibida la reproducción no autorizada</span>
-        <span>Pág 1 de 1</span>
-      </div> */}
+      {/* ── FIRMAS (Concentrado) ── */}
+      <div style={s.firmaSection}>
+        <div style={s.firmaHeader}>Autorizaciones</div>
+        <div style={s.firmaGrid}>
+          {/* Elaboró (GAF) */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>Elaboró (GAF)</div>
+            <div style={s.firmaContent}>
+              {firmaElaboro ? (
+                <img
+                  src={firmaElaboro}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={s.firmaPlaceholder}> sin firma </span>
+              )}
+            </div>
+          </div>
+          {/* Visto Bueno — Dirección Corporativa */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>Visto Bueno — Dirección Corporativa</div>
+            <div style={s.firmaContent}>
+              <span style={s.firmaPlaceholder}> #firmad </span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-export default OrdenCompraPDF;
+export default OrdenCompraConcentradoPDF;

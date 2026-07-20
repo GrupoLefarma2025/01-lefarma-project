@@ -14,7 +14,7 @@ public class StagingProveedorFormaPagoCuentaConfiguration : IEntityTypeConfigura
         builder.Property(x => x.IdStagingCuenta)
             .HasColumnName("id_staging_cuenta");
 
-        builder.Property(x => x.IdCuen)
+        builder.Property(x => x.IdCuenta)
             .HasColumnName("id_cuen");
 
         builder.Property(x => x.IdStaging)
@@ -45,6 +45,10 @@ public class StagingProveedorFormaPagoCuentaConfiguration : IEntityTypeConfigura
         builder.Property(x => x.CorreoNotificacion)
             .HasColumnName("correo_notificacion")
             .HasMaxLength(255);
+
+        builder.Property(x => x.CaratulaPath)
+            .HasColumnName("caratula_path")
+            .HasMaxLength(500);
 
         builder.Property(x => x.Activo)
             .HasColumnName("activo");

@@ -86,6 +86,7 @@ export interface OrdenCompraResponse {
 // ─── Create Partida (Request) ────────────────────────────────────────────────
 
 export interface CreatePartidaRequest {
+  idPartida?: number | null;
   descripcion: string;
   cantidad: number;
   idUnidadMedida: number;

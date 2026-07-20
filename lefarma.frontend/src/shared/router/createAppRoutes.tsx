@@ -65,6 +65,8 @@ export interface AppRoutesConfig {
   step3Label?: string;
   /** Descripción bajo el indicador cuando se muestra el paso 3. */
   step3Description?: string;
+  /** Subtítulo bajo el logo en el login (ej. "Sistema de Gestión de Recursos Humanos"). */
+  loginSubtitle?: string;
   /**
    * Elemento índice del variant root. CxP pasa <LandingRoute/> (landing Hero);
    * las apps sin landing por defecto redirigen al path de login.
@@ -116,6 +118,7 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
     step3,
     step3Label,
     step3Description,
+    loginSubtitle,
     rootIndexElement,
     preLayoutRoutes,
     routes,
@@ -159,6 +162,7 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
               step3={step3}
               step3Label={step3Label}
               step3Description={step3Description}
+              subtitle={loginSubtitle}
             />
           }
         />
