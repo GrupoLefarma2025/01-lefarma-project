@@ -2,8 +2,8 @@ import { useConfigStore } from '@/store/configStore';
 import { formatCurrency } from '@/utils/currency';
 
 /**
- * Returns a `fmt` function that formats numbers as MXN (Peso Mexicano).
- * Always uses MXN regardless of system configuration or user locale.
+ * Retorna una función `fmt` que formatea números como MXN (Peso Mexicano).
+ * Siempre usa MXN sin importar la configuración del sistema o el locale del usuario.
  */
 export function useCurrency(): { currency: string; fmt: (amount: number, options?: { decimals?: boolean }) => string } {
   const currency = 'MXN';

@@ -6,6 +6,7 @@ using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly IWorkflowResolver _workflowResolver;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
+        private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         protected override string EntityName => "OrdenCompra";
 
         private record UsuarioInfo(string Nombre, string? Puesto);
@@ -31,6 +33,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IWorkflowResolver workflowResolver,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
+            IJefeInmediatoResolver jefeInmediatoResolver,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -39,6 +42,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _workflowResolver = workflowResolver;
             _context = context;
             _asokamContext = asokamContext;
+            _jefeInmediatoResolver = jefeInmediatoResolver;
         }
 
         public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
@@ -77,8 +81,33 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .Distinct()
                         .ToListAsync();
 
+                    var pasosConJefeInmediato = await _context.WorkflowParticipantes
+                        .Where(p => p.Activo && p.RequiereJefeInmediato)
+                        .Select(p => p.IdPaso)
+                        .Distinct()
+                        .ToListAsync();
+
+                    var creadoresPosibles = new HashSet<int>();
+
+                    if (pasosConJefeInmediato.Count > 0)
+                    {
+                        var ordenesEnPasosJefe = await _context.OrdenesCompra
+                            .Where(o => pasosConJefeInmediato.Contains(o.IdPasoActual ?? 0))
+                            .Select(o => o.IdUsuarioCreador)
+                            .Distinct()
+                            .ToListAsync();
+
+                        foreach (var idCreador in ordenesEnPasosJefe)
+                        {
+                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
+                            if (idJefe == idUsuario)
+                                creadoresPosibles.Add(idCreador);
+                        }
+                    }
+
                     q = q.Where(o =>
                         o.IdUsuarioCreador == idUsuario ||
+                        creadoresPosibles.Contains(o.IdUsuarioCreador) ||
                         (pasosParticipante.Contains(o.IdPasoActual ?? 0) &&
                          o.IdEstado != 1 && // Creada
                          o.IdEstado != 7 && // Rechazada
@@ -167,7 +196,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto!.Value)
+                    .Select(p => p.IdTipoImpuesto.Value)
                     .Distinct()
                     .ToList();
 
@@ -202,7 +231,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIds = request.Partidas
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto!.Value)
+                    .Select(p => p.IdTipoImpuesto.Value)
                     .Distinct()
                     .ToList();
 
@@ -240,7 +269,19 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
 
-                var workflow = await _workflowResolver.ResolveWorkflowIdAsync("ORDEN_COMPRA", idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, request.IdTipoGasto, request.IdProveedor);
+                //las claves de este diccionario deben coincidir con WorkflowScopeType.Codigo
+                // Si se agrega un nuevo scope dinámico, incluirlo aquí con su valor
+                var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
+                    CodigoProceso.ORDEN_COMPRA,
+                    new Dictionary<string, int?>
+                    {
+                        ["USUARIO"] = idUsuario,
+                        ["EMPRESA"] = request.IdEmpresa,
+                        ["SUCURSAL"] = request.IdSucursal,
+                        ["AREA"] = request.IdArea,
+                        ["TIPO_GASTO"] = request.IdTipoGasto,
+                        ["PROVEEDOR"] = request.IdProveedor
+                    });
 
                 if (workflow is null)
                     return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");
@@ -296,9 +337,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 _context.WorkflowBitacoras.Add(new WorkflowBitacora
                 {
+                    TipoEntidad = CodigoProceso.ORDEN_COMPRA,
+                    IdEntidad = result.IdOrden,
                     IdOrden = result.IdOrden,
                     IdWorkflow = workflow.IdWorkflow,
-                    IdPaso = pasoInicio!.IdPaso,
+                    IdPaso = pasoInicio.IdPaso,
                     IdAccion = accionInicial.IdAccion,
                     IdUsuario = idUsuario,
                     Comentario = "Orden de compra creada",
@@ -387,7 +430,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var tipoImpuestoIdsUpdate = request.Partidas
                     .Where(p => p.IdTipoImpuesto.HasValue)
-                    .Select(p => p.IdTipoImpuesto!.Value)
+                    .Select(p => p.IdTipoImpuesto.Value)
                     .Distinct()
                     .ToList();
 

@@ -4,13 +4,13 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
-import { authService } from '@/services/authService';
-import { useAuthStore } from '@/store/authStore';
+import { authService } from '@/shared/auth/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -248,7 +248,7 @@ function NumericInput({
     let raw = e.target.value;
     if (!hasValidNumericFormat(raw)) return;
 
-    // Strip leading zeros when typing after initial 0 (e.g. '05' → '5', '0.5' stays)
+    // Qitar ceros a la izquierda al escribir después de un 0 inicial (ej: '05' → '5', '0.5' se mantiene)
     if (raw.length > 1 && raw[0] === '0' && raw[1] !== '.') {
       raw = raw.replace(/^0+/, '') || '0';
     }

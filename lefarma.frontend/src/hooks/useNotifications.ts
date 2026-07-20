@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { navigateTo } from '@/lib/navigation';
 import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 

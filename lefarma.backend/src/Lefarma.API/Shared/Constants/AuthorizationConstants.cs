@@ -118,4 +118,9 @@ public static class Permissions
         public const string Rechazar = "proveedores.rechazar";
         public const string CargaMasiva = "proveedores.cargaMasiva";
     }
+
+    public static class IncidenciasChecado
+    {
+        public const string VerTodas = "incidencias_checado.ver_todas";
+    }
 }

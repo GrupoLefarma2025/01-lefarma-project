@@ -1,5 +1,5 @@
 ﻿import { useConfigStore } from '@/store/configStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Copy, Check, Lock, Clock, HardDrive, Globe, Shield, DollarSign, FileCode, Server, Send } from 'lucide-react';

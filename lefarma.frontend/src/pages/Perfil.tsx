@@ -1,4 +1,4 @@
-﻿import { useAuthStore } from '@/store/authStore';
+﻿import { useAuthStore } from '@/shared/auth/authStore';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';

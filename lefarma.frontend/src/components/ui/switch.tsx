@@ -10,7 +10,7 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     className={cn(
       "peer inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-muted",
-      // Inset shadow effect for the slider background
+      // Efecto de sombra interior (inset) para el fondo del slider
       "shadow-[inset_0_0_10px_0_rgba(0,0,0,0.25)]",
       className
     )}
@@ -20,9 +20,9 @@ const Switch = React.forwardRef<
     <SwitchPrimitives.Thumb
       className={cn(
         "pointer-events-none block h-5 w-5 rounded-full bg-background ring-0 transition-transform duration-300",
-        // Shadow effect on the thumb
+        // Efecto de sombra en el thumb
         "shadow-[0_0_10px_3px_rgba(0,0,0,0.25)]",
-        // Slide animation: starts at x-0.5 (slight offset), moves to x-5 when checked
+        // Animación de deslizamiento: empieza en x-0.5 (ligero offset), se mueve a x-5 al marcar
         "data-[state=unchecked]:translate-x-0.5 data-[state=checked]:translate-x-5"
       )}
     />

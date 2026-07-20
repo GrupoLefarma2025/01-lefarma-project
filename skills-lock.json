@@ -21,6 +21,12 @@
       "sourceType": "github",
       "computedHash": "a3b5b920d92339e73b46ea95333646d7d37c868a990be573d5f64bfb27792ea4"
     },
+    "clerk-react-router-patterns": {
+      "source": "clerk/skills",
+      "sourceType": "github",
+      "skillPath": "skills/frameworks/clerk-react-router-patterns/SKILL.md",
+      "computedHash": "43e707b42ad44fc6d7f7b97656903e038edb8f4573c344a7e47fac4a6491e4de"
+    },
     "create-pull-request": {
       "source": "cline/cline",
       "sourceType": "github",
@@ -45,6 +51,7 @@
     "dotnet-best-practices": {
       "source": "github/awesome-copilot",
       "sourceType": "github",
+      "skillPath": "skills/dotnet-best-practices/SKILL.md",
       "computedHash": "9ef94db7f06c167d544369817e5a4415eeb7886dcff0d47026837a1aada260e3"
     },
     "dotnet-core-expert": {
@@ -56,6 +63,12 @@
       "source": "hieutrtr/ai1-skills",
       "sourceType": "github",
       "computedHash": "589373c5db3a01dcb5dfdd22b8fa7a07ee4b6650056c08742227d5e8996eaa03"
+    },
+    "ef-core": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/ef-core/SKILL.md",
+      "computedHash": "23f0a7c7e8c050337d67303f0af339da1ab8f0aa6a334f13112c3f85250c329c"
     },
     "efcore-patterns": {
       "source": "aaronontheweb/dotnet-skills",
@@ -75,7 +88,8 @@
     "find-skills": {
       "source": "vercel-labs/skills",
       "sourceType": "github",
-      "computedHash": "25872a21881a950edc3db1f3329664d60405d539660ce05b3265db2de06a7dfd"
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "9e1c8b3103f92fa8092568a44fe64858de7c5c9dc65ce4bea8f168080e889cfd"
     },
     "finishing-a-development-branch": {
       "source": "obra/superpowers",
@@ -91,6 +105,12 @@
       "source": "github/awesome-copilot",
       "sourceType": "github",
       "computedHash": "cbe644b0c6760ae2a1eaafa39133920d889331327065d92a131675a665273e56"
+    },
+    "karpathy-guidelines": {
+      "source": "szkocot/andrej-karpathy-skills",
+      "sourceType": "github",
+      "skillPath": "skills/karpathy-guidelines/SKILL.md",
+      "computedHash": "0ec1641120accbb458780e0bd19a50a4182f2b97863e90851b91307f29802c9f"
     },
     "memory-safety-patterns": {
       "source": "wshobson/agents",
@@ -181,7 +201,8 @@
     "vercel-react-best-practices": {
       "source": "vercel-labs/agent-skills",
       "sourceType": "github",
-      "computedHash": "61f8c307aa8ce0c4c52da8886d42e344dab83f76f9b5360cf8923b25fb1d67bb"
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "ca7b0c0c6e5f2750043f7f0cd72d16ac4e2abc48f9b5500d047a4b77a2506212"
     },
     "verification-before-completion": {
       "source": "obra/superpowers",

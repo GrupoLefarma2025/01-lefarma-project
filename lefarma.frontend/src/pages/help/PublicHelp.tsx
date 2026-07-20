@@ -31,7 +31,7 @@ export default function PublicHelp() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Encabezado */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border/50">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -116,7 +116,7 @@ export default function PublicHelp() {
         </div>
       </main>
 
-      {/* Footer */}
+      {/* Pie */}
       <footer className="border-t border-border py-6">
         <div className="container mx-auto px-4 text-center">
           <p className="text-sm text-muted-foreground">

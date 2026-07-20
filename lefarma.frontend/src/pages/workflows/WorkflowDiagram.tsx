@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { 
   Workflow as WorkflowIcon, 
@@ -1173,8 +1173,11 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                     <div className="space-y-2">
                       {workflow.pasos.flatMap(paso =>
                         (paso.participantes || []).map(participante => {
+                          const esJefe = participante.requiereJefeInmediato ?? false;
                           const esRol = !!participante.idRol;
-                          const nombre = esRol
+                          const nombre = esJefe
+                            ? 'Jefe Inmediato del Solicitante'
+                            : esRol
                             ? (catalogs.roles.find((r: any) => r.idRol === participante.idRol)?.nombreRol ?? `Rol #${participante.idRol}`)
                             : (catalogs.usuarios.find((u: any) => u.idUsuario === participante.idUsuario)?.nombreCompleto ?? `Usuario #${participante.idUsuario}`);
                           return (
@@ -1182,9 +1185,15 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <span className="font-semibold text-base">{nombre}</span>
-                                  <Badge variant="outline" className={`text-xs ${esRol ? 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'}`}>
-                                    {esRol ? 'Rol' : 'Usuario'}
-                                  </Badge>
+                                  {esJefe ? (
+                                    <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                                      Jefe Inmediato
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className={`text-xs ${esRol ? 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'}`}>
+                                      {esRol ? 'Rol' : 'Usuario'}
+                                    </Badge>
+                                  )}
                                   <Badge variant={participante.activo !== false ? 'default' : 'secondary'} className="text-[10px]">
                                     {participante.activo !== false ? 'Activo' : 'Inactivo'}
                                   </Badge>
