@@ -46,7 +46,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="solicitudes/gestion"
           element={
-            <PermissionGuard require="solicitud_personal.puede_ver_todas_solcitudes">
+            <PermissionGuard require="solicitud_personal.puede_ver_todas">
               <GestionSolicitudes />
             </PermissionGuard>
           }

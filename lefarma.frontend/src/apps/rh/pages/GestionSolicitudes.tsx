@@ -99,7 +99,7 @@ const initialFilters: Filters = {
 
 export default function GestionSolicitudes() {
   usePageTitle('Gestión de Solicitudes', 'Gestión y filtrado avanzado de solicitudes de personal');
-  const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas_solcitudes' });
+  const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
 
   const {
     fetchDetalleCompleto,

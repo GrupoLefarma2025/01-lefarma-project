@@ -41,7 +41,7 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         title: 'Gestión',
         icon: Settings,
         path: '/rh/solicitudes/gestion',
-        permission: { require: 'solicitud_personal.puede_ver_todas_solcitudes' },
+        permission: { require: 'solicitud_personal.puede_ver_todas' },
       },
     ],
   },
