@@ -16,6 +16,11 @@
         public bool DescuentaNomina { get; set; } 
         public bool DescuentaVacaciones { get; set; } 
         public bool RequiereDocumentacion { get; set; } 
+        public bool PermiteFechasPasadas { get; set; }
+        public bool PermiteFechasFuturas { get; set; }
+        public bool TomaEnCuentaChecado { get; set; }
+        public bool RequiereIncidenciasExistentes { get; set; }
+        public bool PideDiasSolicitados { get; set; }
         public int? LimitePorPeriodo { get; set; }
         public string? PeriodoLimite { get; set; }
         public int? TotalParaDescuento { get; set; }

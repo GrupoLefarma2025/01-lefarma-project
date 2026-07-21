@@ -1,6 +1,6 @@
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Rh;
-using Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Extensions;
@@ -121,6 +121,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     DescuentaNomina = request.DescuentaNomina,
                     DescuentaVacaciones = request.DescuentaVacaciones,
                     RequiereDocumentacion = request.RequiereDocumentacion,
+                    PermiteFechasPasadas = request.PermiteFechasPasadas,
+                    PermiteFechasFuturas = request.PermiteFechasFuturas,
+                    TomaEnCuentaChecado = request.TomaEnCuentaChecado,
+                    RequiereIncidenciasExistentes = request.RequiereIncidenciasExistentes,
+                    PideDiasSolicitados = request.PideDiasSolicitados,
                     LimitePorPeriodo = request.LimitePorPeriodo,
                     PeriodoLimite = request.PeriodoLimite,
                     TotalParaDescuento = request.TotalParaDescuento,
@@ -182,6 +187,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 tipo.DescuentaNomina = request.DescuentaNomina;
                 tipo.DescuentaVacaciones = request.DescuentaVacaciones;
                 tipo.RequiereDocumentacion = request.RequiereDocumentacion;
+                tipo.PermiteFechasPasadas = request.PermiteFechasPasadas;
+                tipo.PermiteFechasFuturas = request.PermiteFechasFuturas;
+                tipo.TomaEnCuentaChecado = request.TomaEnCuentaChecado;
+                tipo.RequiereIncidenciasExistentes = request.RequiereIncidenciasExistentes;
+                tipo.PideDiasSolicitados = request.PideDiasSolicitados;
                 tipo.LimitePorPeriodo = request.LimitePorPeriodo;
                 tipo.PeriodoLimite = request.PeriodoLimite;
                 tipo.TotalParaDescuento = request.TotalParaDescuento;

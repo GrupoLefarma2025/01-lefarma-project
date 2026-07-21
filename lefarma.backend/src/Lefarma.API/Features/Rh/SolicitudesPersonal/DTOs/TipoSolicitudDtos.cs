@@ -1,4 +1,5 @@
 ﻿using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Features.Rh.Vacaciones.DTOs;
 
 namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
 {
@@ -11,6 +12,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public string? Descripcion { get; set; }
         public bool EsIncidencia { get; set; }
         public bool EsPermiso { get; set; }
+        public bool EsIncapacidad { get; set; }
         public bool RequiereReposicionTiempo { get; set; }
         public bool RequiereFechaFin { get; set; }
         public bool RequiereFechaRegreso { get; set; }
@@ -18,6 +20,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public bool DescuentaNomina { get; set; }
         public bool DescuentaVacaciones { get; set; }
         public bool RequiereDocumentacion { get; set; }
+        public bool PermiteFechasPasadas { get; set; }
+        public bool PermiteFechasFuturas { get; set; }
+        public bool TomaEnCuentaChecado { get; set; }
+        public bool RequiereIncidenciasExistentes { get; set; }
+        public bool PideDiasSolicitados { get; set; }
         public int? LimitePorPeriodo { get; set; }
         public string? PeriodoLimite { get; set; }
         public int? TotalParaDescuento { get; set; }
@@ -53,6 +60,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public bool DescuentaNomina { get; set; }
         public bool DescuentaVacaciones { get; set; }
         public bool RequiereDocumentacion { get; set; }
+        public bool PermiteFechasPasadas { get; set; }
+        public bool PermiteFechasFuturas { get; set; }
+        public bool TomaEnCuentaChecado { get; set; }
+        public bool RequiereIncidenciasExistentes { get; set; }
+        public bool PideDiasSolicitados { get; set; }
         public int? LimitePorPeriodo { get; set; }
         public string? PeriodoLimite { get; set; }
         public int? TotalParaDescuento { get; set; }
@@ -73,6 +85,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public bool DescuentaNomina { get; set; }
         public bool DescuentaVacaciones { get; set; }
         public bool RequiereDocumentacion { get; set; }
+        public bool PermiteFechasPasadas { get; set; }
+        public bool PermiteFechasFuturas { get; set; }
+        public bool TomaEnCuentaChecado { get; set; }
+        public bool RequiereIncidenciasExistentes { get; set; }
+        public bool PideDiasSolicitados { get; set; }
         public int? LimitePorPeriodo { get; set; }
         public string? PeriodoLimite { get; set; }
         public int? TotalParaDescuento { get; set; }
@@ -97,6 +114,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public DateTime PeriodoInicio { get; set; }
         public DateTime PeriodoFin { get; set; }
         public List<LimitePorTipoResponse> LimitesPorTipo { get; set; } = new();
+        public List<SaldoVacacionesResponse> SaldosVacaciones { get; set; } = new();
     }
 
     public class CalendarioGlobalRequest

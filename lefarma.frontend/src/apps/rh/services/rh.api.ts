@@ -30,6 +30,10 @@ export interface UsuarioCatalogo {
   esActivo: boolean;
 }
 
+export interface EmpleadoChecadoResponse {
+  checa: boolean;
+}
+
 const LIMITES_ENDPOINT = '/solicitudes-personal/limites-solicitudes';
 const TIPOS_SOLICITUD_ENDPOINT = '/rh/TiposSolicitud';
 
@@ -121,6 +125,11 @@ export const notificarIncidenciaChecadoApi = {
     ),
 };
 
+export const empleadoApi = {
+  getMiChequeo: () =>
+    API.get<ApiResponse<EmpleadoChecadoResponse>>('/rh/empleados/mi-chequeo'),
+};
+
 export default {
   misLimitesApi,
   calendarioApi,
@@ -128,6 +137,7 @@ export default {
   misIncidenciasChecadoApi,
   incidenciasChecadoApi,
   notificarIncidenciaChecadoApi,
+  empleadoApi,
   solicitudesPersonalApi,
   tipoSolicitudApi,
   usuariosCatalogoApi,

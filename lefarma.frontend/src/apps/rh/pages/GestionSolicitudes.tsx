@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { PaginationState } from '@tanstack/react-table';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
@@ -22,6 +23,7 @@ import { SolicitudHeaderCard } from '../components/SolicitudHeaderCard';
 import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
+import { SolicitudPersonalPDF } from '../components/SolicitudPersonalPDF';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { solicitudesPersonalApi } from '../services/rh.api';
@@ -136,6 +138,7 @@ export default function GestionSolicitudes() {
     archivos: false,
     historial: false,
   });
+  const [imprimirSolicitud, setImprimirSolicitud] = useState(false);
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
     setModalStates((prev) => ({
@@ -148,6 +151,24 @@ export default function GestionSolicitudes() {
     toggleModal(modalName, false);
     selectSolicitud(null);
   };
+
+  useLayoutEffect(() => {
+    if (!imprimirSolicitud || !selectedSolicitud || loadingDetalle || loadingHistorial) return;
+
+    const handleBeforePrint = () => {
+      document.body.classList.add('print-solicitud');
+    };
+    const handleAfterPrint = () => {
+      document.body.classList.remove('print-solicitud');
+      setImprimirSolicitud(false);
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    window.print();
+  }, [imprimirSolicitud, selectedSolicitud, loadingDetalle, loadingHistorial]);
 
   const setFilterAndResetPage = <K extends keyof Filters>(key: K, value: Filters[K]) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -321,6 +342,13 @@ export default function GestionSolicitudes() {
     fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);
+  };
+
+  const handleImprimir = async (s: SolicitudPersonalResponse) => {
+    selectSolicitud(s.idSolicitud);
+    await fetchDetalleCompleto(s.idSolicitud);
+    await fetchHistorial(s.idSolicitud);
+    setImprimirSolicitud(true);
   };
 
   const categoriasOptions = useMemo(
@@ -677,6 +705,7 @@ export default function GestionSolicitudes() {
           onFirma={() => {}}
           onArchivos={handleOpenArchivos}
           onHistorial={handleOpenHistorial}
+          onImprimir={handleImprimir}
           showFirma={false}
           showEditar={false}
           onRefresh={buscar}
@@ -713,6 +742,7 @@ export default function GestionSolicitudes() {
                   onFirma={() => {}}
                   onArchivos={handleOpenArchivos}
                   onHistorial={handleOpenHistorial}
+                  onImprimir={handleImprimir}
                   showFirma={false}
                   showEditar={false}
                   onRefresh={buscar}
@@ -799,6 +829,17 @@ export default function GestionSolicitudes() {
           />
         )}
       </Modal>
+
+      {/* ── PDF Print Document — Solicitud de Personal ── */}
+      {selectedSolicitud &&
+        createPortal(
+          <SolicitudPersonalPDF
+            solicitud={selectedSolicitud}
+            historial={historial}
+            pasosWorkflow={pasosWorkflow}
+          />,
+          document.body
+        )}
     </div>
   );
 }

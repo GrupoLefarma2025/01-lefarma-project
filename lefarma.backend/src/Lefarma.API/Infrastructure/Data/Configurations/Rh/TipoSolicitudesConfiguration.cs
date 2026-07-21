@@ -24,6 +24,11 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
             builder.Property(t => t.DescuentaNomina).HasColumnName("descuenta_nomina").HasDefaultValue(false);
             builder.Property(t => t.DescuentaVacaciones).HasColumnName("descuenta_vacaciones").HasDefaultValue(false);
             builder.Property(t => t.RequiereDocumentacion).HasColumnName("requiere_documentacion").HasDefaultValue(false);
+            builder.Property(t => t.PermiteFechasPasadas).HasColumnName("permite_fechas_pasadas").HasDefaultValue(false);
+            builder.Property(t => t.PermiteFechasFuturas).HasColumnName("permite_fechas_futuras").HasDefaultValue(false);
+            builder.Property(t => t.TomaEnCuentaChecado).HasColumnName("toma_en_cuenta_checado").HasDefaultValue(false);
+            builder.Property(t => t.RequiereIncidenciasExistentes).HasColumnName("requiere_incidencias_existentes").HasDefaultValue(false);
+            builder.Property(t => t.PideDiasSolicitados).HasColumnName("pide_dias_solicitados").HasDefaultValue(false);
             builder.Property(t => t.LimitePorPeriodo).HasColumnName("limite_por_periodo");
             builder.Property(t => t.PeriodoLimite).HasColumnName("periodo_limite").HasMaxLength(20).HasDefaultValue("quincena");
             builder.Property(t => t.TotalParaDescuento).HasColumnName("total_para_descuento");

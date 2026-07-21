@@ -219,7 +219,8 @@
 #flujo-pdf-print,
 #orden-compra-pdf-print,
 #envio-concentrado-pdf-print,
-#envio-concentrado-pdf-preview {
+#envio-concentrado-pdf-preview,
+#solicitud-personal-pdf-print {
   display: none;
 }
 
@@ -353,6 +354,40 @@
 
   body.print-envio-concentrado #envio-concentrado-pdf-print tbody {
     display: table-row-group;
+  }
+
+  /* ── SOLICITUD DE PERSONAL ── */
+  body.print-solicitud #solicitud-personal-pdf-print,
+  body.print-solicitud #solicitud-personal-pdf-print * {
+    visibility: visible !important;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: 'Arial', sans-serif !important;
+    font-size: 10pt !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print table {
+    page-break-inside: avoid;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print img {
+    overflow: visible !important;
+  }
+
+  body.print-solicitud #flujo-pdf-print,
+  body.print-solicitud #orden-compra-pdf-print,
+  body.print-solicitud #envio-concentrado-pdf-print {
+    display: none !important;
   }
 
   /* Header */

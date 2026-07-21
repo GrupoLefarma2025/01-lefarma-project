@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
 import type { AccionDisponibleResponse } from '@/types/solicitudPersonalWorkflow.types';
 
 const actionStyles: Record<string, string> = {
@@ -18,15 +19,18 @@ interface SolicitudFirmaTabProps {
   acciones: AccionDisponibleResponse[];
   onAccionClick: (accion: AccionDisponibleResponse) => void;
   isSubmittingFirma?: boolean;
+  hasFirma?: boolean;
 }
 
 export function SolicitudFirmaTab({
   acciones,
   onAccionClick,
   isSubmittingFirma,
+  hasFirma = true,
 }: SolicitudFirmaTabProps) {
   return (
     <div className="space-y-3">
+      {hasFirma === false && <SignatureAlert />}
       <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 dark:border-blue-800 dark:bg-blue-950/20">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -55,7 +59,7 @@ export function SolicitudFirmaTab({
                     'bg-blue-600 text-white hover:bg-blue-700'
                   }
                   onClick={() => onAccionClick(a)}
-                  disabled={isSubmittingFirma}
+                  disabled={isSubmittingFirma || hasFirma === false}
                 >
                   {isSubmittingFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
                   {a.tipoAccionNombre}

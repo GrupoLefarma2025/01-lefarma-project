@@ -408,7 +408,7 @@ export function DataTable<TData>({
                 onClick={() => setShowColMenu((p) => !p)}
               >
                 <Settings2Icon className="h-3.5 w-3.5" />
-                Columnas
+                Configuración
               </Button>
               {showColMenu && (
                 <div className="absolute right-0 top-9 z-10 min-w-[160px] rounded-lg border bg-card p-2 shadow-lg">

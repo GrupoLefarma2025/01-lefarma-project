@@ -5,7 +5,7 @@ import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import { Eye, FileSignature, Paperclip, History, Pencil } from 'lucide-react';
+import { Eye, FileSignature, Paperclip, History, Pencil, Printer } from 'lucide-react';
 import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 interface SolicitudesTableProps {
@@ -23,6 +23,8 @@ interface SolicitudesTableProps {
   onFirma: (s: SolicitudPersonalResponse) => void;
   onArchivos: (s: SolicitudPersonalResponse) => void;
   onHistorial: (s: SolicitudPersonalResponse) => void;
+  onImprimir?: (s: SolicitudPersonalResponse) => void;
+  showImprimir?: boolean;
   onEditar?: (s: SolicitudPersonalResponse) => void;
   puedeEditar?: boolean;
   onRefresh?: () => void;
@@ -91,6 +93,8 @@ export function SolicitudesTable({
   onFirma,
   onArchivos,
   onHistorial,
+  onImprimir,
+  showImprimir = true,
   onEditar,
   puedeEditar,
   onRefresh,
@@ -197,6 +201,9 @@ export function SolicitudesTable({
               )}
               <ActionButton label="Archivos" icon={Paperclip} onClick={() => onArchivos(s)} />
               <ActionButton label="Historial" icon={History} onClick={() => onHistorial(s)} />
+              {onImprimir && showImprimir && (
+                <ActionButton label="Imprimir" icon={Printer} onClick={() => onImprimir(s)} />
+              )}
             </div>
           );
         },
@@ -208,6 +215,8 @@ export function SolicitudesTable({
       onFirma,
       onArchivos,
       onHistorial,
+      onImprimir,
+      showImprimir,
       onEditar,
       puedeEditar,
       showFirma,

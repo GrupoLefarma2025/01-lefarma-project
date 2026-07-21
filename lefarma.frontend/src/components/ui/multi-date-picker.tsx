@@ -5,17 +5,15 @@ import { CalendarIcon, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { Matcher } from 'react-day-picker';
 
 interface MultiDatePickerProps {
   value?: string[];
   onChange: (dates: string[]) => void;
   placeholder?: string;
   disabled?: boolean;
+  disabledDays?: Matcher | Matcher[];
   className?: string;
 }
 
@@ -24,6 +22,7 @@ export function MultiDatePicker({
   onChange,
   placeholder = 'Seleccionar días...',
   disabled = false,
+  disabledDays,
   className,
 }: MultiDatePickerProps) {
   const [open, setOpen] = useState(false);
@@ -81,6 +80,7 @@ export function MultiDatePicker({
             mode="multiple"
             selected={selectedDates}
             onSelect={handleSelect}
+            disabled={disabledDays}
             initialFocus
           />
         </PopoverContent>

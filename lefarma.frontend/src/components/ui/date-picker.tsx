@@ -5,17 +5,15 @@ import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import type { Matcher } from 'react-day-picker';
 
 interface DatePickerProps {
   value?: string | null;
   onChange: (date: string | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  disabledDays?: Matcher | Matcher[];
   className?: string;
 }
 
@@ -24,6 +22,7 @@ export function DatePicker({
   onChange,
   placeholder = 'Seleccionar fecha...',
   disabled = false,
+  disabledDays,
   className,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
@@ -43,9 +42,7 @@ export function DatePicker({
           )}
         >
           <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
-          {dateValue
-            ? format(dateValue, 'PPP', { locale: es })
-            : placeholder}
+          {dateValue ? format(dateValue, 'PPP', { locale: es }) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
@@ -56,6 +53,7 @@ export function DatePicker({
             onChange(day ? format(day, 'yyyy-MM-dd') : null);
             setOpen(false);
           }}
+          disabled={disabledDays}
           initialFocus
         />
       </PopoverContent>

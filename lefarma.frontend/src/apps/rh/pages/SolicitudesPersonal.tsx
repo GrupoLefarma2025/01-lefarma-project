@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Plus, FileText, Paperclip, History } from 'lucide-react';
@@ -7,17 +8,22 @@ import { usePermission } from '@/hooks/usePermission';
 import { useSolicitudesAutorizaciones, isEstadoTerminal } from '@/hooks/useSolicitudes';
 import { Modal } from '@/components/ui/modal';
 import { InlineLoader } from '@/components/ui/inline-loader';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { SolicitudesTable } from '../components/SolicitudesTable';
 import { SolicitudAccionesModal } from '../components/SolicitudAccionesModal';
+import { LimitesSolicitudCard } from '../components/LimitesSolicitudCard';
 import { SolicitudHeaderCard } from '../components/SolicitudHeaderCard';
 import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
+import { SolicitudPersonalPDF } from '../components/SolicitudPersonalPDF';
 import { CrearSolicitud } from '../components/CrearSolicitud';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
+import { toast } from 'sonner';
 
 function BuscadorTab({
   value,
@@ -61,6 +67,7 @@ export default function SolicitudesPersonal() {
   );
   const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas_solcitudes' });
   const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas_solcitudes' });
+  const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const {
     solicitudesPropias,
@@ -93,6 +100,7 @@ export default function SolicitudesPersonal() {
 
   useEffect(() => {
     fetchAll(puedeVerTodas);
+    fetchProfileSignature();
 
     API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
       .then((res) => {
@@ -101,7 +109,7 @@ export default function SolicitudesPersonal() {
       .catch(() => {
         setWorkflowEstados([]);
       });
-  }, [puedeVerTodas, fetchAll]);
+  }, [puedeVerTodas, fetchAll, fetchProfileSignature]);
 
   const [modalStates, setModalStates] = useState({
     detalle: false,
@@ -111,6 +119,7 @@ export default function SolicitudesPersonal() {
     crear: false,
   });
   const [solicitudEnEdicion, setSolicitudEnEdicion] = useState<number | null>(null);
+  const [imprimirSolicitud, setImprimirSolicitud] = useState(false);
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
     setModalStates((prev) => ({
@@ -129,12 +138,44 @@ export default function SolicitudesPersonal() {
     }
   };
 
+  useLayoutEffect(() => {
+    if (!imprimirSolicitud || !selectedSolicitud || loadingDetalle || loadingHistorial) return;
+
+    const handleBeforePrint = () => {
+      document.body.classList.add('print-solicitud');
+    };
+    const handleAfterPrint = () => {
+      document.body.classList.remove('print-solicitud');
+      setImprimirSolicitud(false);
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+    window.print();
+  }, [imprimirSolicitud, selectedSolicitud, loadingDetalle, loadingHistorial]);
+
   const handleOpenCrear = () => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder crear solicitudes.',
+        duration: 6000,
+      });
+      return;
+    }
     setSolicitudEnEdicion(null);
     toggleModal('crear', true);
   };
 
   const handleOpenEditar = (s: SolicitudPersonalResponse) => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder editar solicitudes.',
+        duration: 6000,
+      });
+      return;
+    }
     setSolicitudEnEdicion(s.idSolicitud);
     toggleModal('crear', true);
   };
@@ -206,6 +247,13 @@ export default function SolicitudesPersonal() {
   };
 
   const handleOpenFirma = (s: SolicitudPersonalResponse) => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar solicitudes.',
+        duration: 6000,
+      });
+      return;
+    }
     selectSolicitud(s.idSolicitud);
     fetchAcciones(s.idSolicitud);
     toggleModal('firma', true);
@@ -222,21 +270,33 @@ export default function SolicitudesPersonal() {
     toggleModal('historial', true);
   };
 
+  const handleImprimir = async (s: SolicitudPersonalResponse) => {
+    selectSolicitud(s.idSolicitud);
+    await fetchDetalleCompleto(s.idSolicitud);
+    await fetchHistorial(s.idSolicitud);
+    setImprimirSolicitud(true);
+  };
+
   const accionesBoton = {
     onDetalle: handleOpenDetalle,
     onFirma: handleOpenFirma,
     onArchivos: handleOpenArchivos,
     onHistorial: handleOpenHistorial,
+    onImprimir: handleImprimir,
     onEditar: handleOpenEditar,
   };
 
-  return (
+    return (
     <div className="w-full space-y-6">
       {puedeVerTodas && (
         <p className="text-xs text-muted-foreground">
           Tienes permiso para ver todas las solicitudes.
         </p>
       )}
+
+      {hasFirma === false && <SignatureAlert />}
+
+      <LimitesSolicitudCard titulo="Mis límites y saldo de vacaciones" />
 
       <Tabs
         value={tab}
@@ -327,6 +387,7 @@ export default function SolicitudesPersonal() {
             subtitle="Solicitudes que aún no se cierran, cancelan o rechazan"
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
+            showImprimir={false}
             onRefresh={() => fetchAll(puedeVerTodas)}
             puedeEditar={puedeEditar}
           />
@@ -489,6 +550,7 @@ export default function SolicitudesPersonal() {
         getEstadoInfo={getEstadoInfo}
         onFirmar={(req) => firmar(req, puedeVerTodas)}
         isSubmittingFirma={isSubmittingFirma}
+        hasFirma={hasFirma ?? true}
       />
 
       <Modal
@@ -575,6 +637,17 @@ export default function SolicitudesPersonal() {
           onSaved={() => fetchAll(puedeVerTodas)}
         />
       </Modal>
+
+      {/* ── PDF Print Document — Solicitud de Personal ── */}
+      {selectedSolicitud &&
+        createPortal(
+          <SolicitudPersonalPDF
+            solicitud={selectedSolicitud}
+            historial={historial}
+            pasosWorkflow={pasosWorkflow}
+          />,
+          document.body
+        )}
     </div>
   );
 }

@@ -1,12 +1,16 @@
+import type { SaldoVacacionesResponse } from './vacaciones.types';
+
 export const CATEGORIAS_SOLICITUD: Record<string, string> = {
   '1': 'Incidencia',
   '2': 'Permiso',
   '3': 'Vacaciones',
   '4': 'Goce de Sueldo',
+  '5': 'Incapacidad',
   Incidencia: 'Incidencia',
   Permiso: 'Permiso',
   Vacaciones: 'Vacaciones',
   GoceDeSueldo: 'Goce de Sueldo',
+  Incapacidad: 'Incapacidad',
 };
 
 export function getCategoriaNombre(categoria?: string | number | null): string {
@@ -78,6 +82,7 @@ export interface TipoSolicitudResponse {
   descripcion: string;
   esIncidencia: boolean;
   esPermiso: boolean;
+  esIncapacidad: boolean;
   requiereReposicionTiempo: boolean;
   requiereFechaFin: boolean;
   requiereFechaRegreso: boolean;
@@ -85,6 +90,11 @@ export interface TipoSolicitudResponse {
   descuentaNomina: boolean;
   descuentaVacaciones: boolean;
   requiereDocumentacion: boolean;
+  permiteFechasPasadas: boolean;
+  permiteFechasFuturas: boolean;
+  tomaEnCuentaChecado: boolean;
+  requiereIncidenciasExistentes: boolean;
+  pideDiasSolicitados: boolean;
   limitePorPeriodo?: number | null;
   periodoLimite?: string | null;
   totalParaDescuento?: number | null;
@@ -109,6 +119,11 @@ export interface CreateTipoSolicitudRequest {
   descuentaNomina: boolean;
   descuentaVacaciones: boolean;
   requiereDocumentacion: boolean;
+  permiteFechasPasadas: boolean;
+  permiteFechasFuturas: boolean;
+  tomaEnCuentaChecado: boolean;
+  requiereIncidenciasExistentes: boolean;
+  pideDiasSolicitados: boolean;
   limitePorPeriodo?: number | null;
   periodoLimite?: string | null;
   totalParaDescuento?: number | null;
@@ -144,6 +159,7 @@ export interface MisLimitesResponse {
   periodoInicio: string;
   periodoFin: string;
   limitesPorTipo: LimitePorTipoResponse[];
+  saldosVacaciones: SaldoVacacionesResponse[];
 }
 
 export interface CalendarioGlobalRequest {

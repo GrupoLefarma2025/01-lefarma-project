@@ -158,6 +158,11 @@ export const authService = {
     return response.data.data;
   },
 
+  checkSignature: async (): Promise<boolean> => {
+    const response = await API.get<ApiResponse<boolean>>('/profile/firma/check');
+    return response.data.data ?? false;
+  },
+
   setArea: (area: Area) => {
     localStorage.setItem(AREA_KEY, JSON.stringify(area));
   },

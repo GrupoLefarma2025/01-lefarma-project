@@ -55,15 +55,21 @@ namespace Lefarma.API.Features.Config.Engine
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
-            // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Entidad.IdUsuarioCreador))
+            // Validar que el usuario puede ejecutar acciones en este paso
+            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Entidad.IdUsuarioCreador);
+            var esCreador = ctx.IdUsuario == ctx.Entidad.IdUsuarioCreador;
+
+            var accion = pasoActual.AccionesOrigen
+                .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
+
+            var esAccionCancelar = accion?.TipoAccion?.Codigo == "CANCELAR";
+            var puedeComoCreador = esCreador && esAccionCancelar;
+
+            if (!esParticipante && !puedeComoCreador)
                 return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
                 return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
-
-            var accion = pasoActual.AccionesOrigen
-                .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
 
             if (accion is null)
                 return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
@@ -186,14 +192,43 @@ namespace Lefarma.API.Features.Config.Engine
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
-            // Validar que el usuario es participante del paso actual
-            if (!await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador))
+            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador);
+            var esCreador = idUsuario == idUsuarioCreador;
+            var tieneAccionCancelar = pasoActual.AccionesOrigen
+                .Any(a => a.Activo && a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
+
+            // Si no es participante ni creador con acción cancelar, no hay acciones disponibles
+            if (!esParticipante && !(esCreador && tieneAccionCancelar))
                 return Array.Empty<WorkflowAccion>();
+
+            IEnumerable<WorkflowAccion> accionesFiltradas = acciones;
+
+            if (esCreador && esParticipante)
+            {
+                // El creador también es participante formal: ve todas las acciones
+                accionesFiltradas = acciones;
+            }
+            else if (esCreador && tieneAccionCancelar)
+            {
+                // El creador no es participante: solo ve acciones CANCELAR
+                accionesFiltradas = acciones.Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
+            }
+            else if (esParticipante)
+            {
+                // Participante formal: ve todas las acciones excepto CANCELAR
+                accionesFiltradas = acciones.Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "CANCELAR");
+            }
+            else
+            {
+                return Array.Empty<WorkflowAccion>();
+            }
+
+            var accionesResult = accionesFiltradas.ToList();
 
             // Algun accion del paso tiene condiciones de enrutamiento
             if (pasoActual.AccionesOrigen.Any(a => a.Condiciones.Any()))
             {
-                var aprobaciones = acciones
+                var aprobaciones = accionesResult
                     .Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
                     .OrderBy(a => a.IdAccion)
                     .ToList();
@@ -209,7 +244,7 @@ namespace Lefarma.API.Features.Config.Engine
                         IdTipoAccion = accionBase.IdTipoAccion
                     };
 
-                    var restantes = acciones
+                    var restantes = accionesResult
                         .Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "APROBAR")
                         .OrderBy(a => a.IdAccion)
                         .ToList();
@@ -220,7 +255,7 @@ namespace Lefarma.API.Features.Config.Engine
                 }
             }
 
-            return acciones;
+            return accionesResult;
         }
 
         private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador)

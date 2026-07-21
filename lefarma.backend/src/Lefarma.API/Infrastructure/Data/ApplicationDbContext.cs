@@ -21,6 +21,7 @@ public class ApplicationDbContext : DbContext
         // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
+        public DbSet<TipoDia> TiposDia { get; set; }
         public DbSet<TipoGasto> TiposGasto { get; set; }
         public DbSet<Area> Areas { get; set; }
         public DbSet<Medida> Medidas { get; set; }
@@ -63,6 +64,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
         public DbSet<IncidenciaChecadoPlantilla> PlantillasIncidenciasChecado { get; set; }
         public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }
+        public DbSet<DiaNoHabil> DiasNoHabiles { get; set; }
+        public DbSet<DiaUsuario> DiasUsuarios { get; set; }
+        public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

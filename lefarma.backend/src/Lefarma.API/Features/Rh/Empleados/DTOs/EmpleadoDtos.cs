@@ -15,3 +15,8 @@ public class EmpleadoUsuarioResponse
     public long Nomina { get; set; }
     public int IdUsuario { get; set; }
 }
+
+public class EmpleadoChecadoResponse
+{
+    public bool Checa { get; set; }
+}

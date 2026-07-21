@@ -32,6 +32,7 @@ namespace Lefarma.API.Features.Config.Engine
                 .Include(m => m.Workflow)
                     .ThenInclude(w => w.Pasos)
                         .ThenInclude(p => p.AccionesOrigen)
+                            .ThenInclude(a => a.TipoAccion)
                 .Where(m => m.CodigoProceso == codigoProceso && m.Activo && m.Workflow.Activo)
                 .ToListAsync();
 

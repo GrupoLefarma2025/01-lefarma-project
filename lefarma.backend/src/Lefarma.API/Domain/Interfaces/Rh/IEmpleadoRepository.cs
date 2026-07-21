@@ -1,4 +1,4 @@
-namespace Lefarma.API.Domain.Interfaces.Rh.Empleados;
+namespace Lefarma.API.Domain.Interfaces.Rh;
 
 public interface IEmpleadoRepository
 {
@@ -12,5 +12,9 @@ public interface IEmpleadoRepository
 
     Task<Dictionary<long, int>> ResolverIdsUsuarioPorNominasAsync(
         IEnumerable<long> nominas,
+        CancellationToken cancellationToken = default);
+
+    Task<Domain.Entities.Asistencias.VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
+        int idUsuario,
         CancellationToken cancellationToken = default);
 }

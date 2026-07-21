@@ -1,5 +1,5 @@
 using ErrorOr;
-using Lefarma.API.Domain.Interfaces.Rh.Calendario;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.Calendario.DTOs;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;

@@ -1,5 +1,5 @@
 using Lefarma.API.Domain.Entities.Asistencias;
-using Lefarma.API.Domain.Interfaces.Rh.IncidenciasChecado;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,6 +14,6 @@ public class IncidenciasChecadoRepository : IIncidenciasChecadoRepository
         _asistenciasContext = asistenciasContext;
     }
 
-    public IQueryable<VwIncidenciasChecado> GetQueryable() =>
-        _asistenciasContext.VwIncidenciasChecados.AsNoTracking();
+    public IQueryable<IncidenciasChecado> GetQueryable() =>
+        _asistenciasContext.IncidenciasChecados.AsNoTracking();
 }

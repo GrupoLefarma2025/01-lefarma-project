@@ -78,6 +78,8 @@ import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
 import { toApiError } from '@/utils/errors';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -330,6 +332,7 @@ export default function AutorizacionesOC() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const idOrdenParam = searchParams.get('idOrden') ? Number(searchParams.get('idOrden')) : null;
+  const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
@@ -685,7 +688,8 @@ export default function AutorizacionesOC() {
   };
 
   useEffect(() => {
-  const cargarDatos = async () => {
+    fetchProfileSignature();
+    const cargarDatos = async () => {
     try {
       // Promise.all dispara todas las peticiones al mismo tiempo
       await Promise.all([
@@ -730,6 +734,14 @@ export default function AutorizacionesOC() {
   }, [selectedOrden, workflowsMap]);
 
   const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
+        duration: 6000,
+      });
+      return;
+    }
+
     setAccionSeleccionada(accion);
     setComentarioFirma('');
 
@@ -864,6 +876,13 @@ export default function AutorizacionesOC() {
 
   const enviarFirma = async () => {
     if (!selectedOrden || !accionSeleccionada) return;
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
+        duration: 6000,
+      });
+      return;
+    }
     setIsSubmittingFirma(true);
     try {
       const datosAdicionales: Record<string, unknown> = {};
@@ -1242,6 +1261,8 @@ export default function AutorizacionesOC() {
 
   return (
     <div className="space-y-6">
+      {hasFirma === false && <SignatureAlert />}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
           <Card>

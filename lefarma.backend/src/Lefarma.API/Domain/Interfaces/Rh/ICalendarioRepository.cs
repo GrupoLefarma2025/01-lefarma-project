@@ -1,6 +1,6 @@
 using Lefarma.API.Features.Rh.Calendario.DTOs;
 
-namespace Lefarma.API.Domain.Interfaces.Rh.Calendario
+namespace Lefarma.API.Domain.Interfaces.Rh
 {
     public interface ICalendarioRepository
     {

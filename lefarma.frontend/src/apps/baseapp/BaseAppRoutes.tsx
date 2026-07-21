@@ -5,6 +5,7 @@ import { MainLayout } from '@/components/layout/MainLayout';
 import { shellMenuItems } from './menuItems';
 import { Home } from './Home';
 import { Profile } from './Profile';
+import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import { CxpRoutes } from '@/apps/cxp/CxpRoutes';
 import { RhRoutes } from '@/apps/rh/RhRoutes';
 import { EducacionMedicaRoutes } from '@/apps/educacion-medica/EducacionMedicaRoutes';
@@ -73,6 +74,7 @@ export function BaseAppRoutes() {
       >
         <Route path="/hub" element={<Home />} />
         <Route path="/perfil" element={<Profile />} />
+        <Route path="/perfil/configuracion" element={<PerfilConfig />} />
       </Route>
 
       {/*

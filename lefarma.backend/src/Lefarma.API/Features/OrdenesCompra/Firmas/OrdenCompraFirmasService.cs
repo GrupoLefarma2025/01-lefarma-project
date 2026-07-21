@@ -8,6 +8,7 @@ using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -30,6 +31,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         private readonly IWorkflowRepository _workflowRepo;
         private readonly IWorkflowQueryService _queryService;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
+        private readonly IProfileService _profileService;
         protected override string EntityName => "Firma";
 
         public OrdenCompraFirmasService(
@@ -40,6 +43,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             IWorkflowRepository workflowRepo,
             IWorkflowQueryService queryService,
             IServiceScopeFactory scopeFactory,
+            IJefeInmediatoResolver jefeInmediatoResolver,
+            IProfileService profileService,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -50,12 +55,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             _workflowRepo = workflowRepo;
             _queryService = queryService;
             _scopeFactory = scopeFactory;
+            _jefeInmediatoResolver = jefeInmediatoResolver;
+            _profileService = profileService;
         }
 
         public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idOrden, FirmarRequest request, int idUsuario)
         {
             try
             {
+                var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
+                if (firmaValidacion.IsError)
+                    return firmaValidacion.Errors;
+
                 // Cargar orden con partidas
                 var orden = await _ordenRepo.GetWithPartidasAsync(idOrden);
                 if (orden is null)
@@ -707,6 +718,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         public Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idOrden)
             => _queryService.GetHistorialWorkflowAsync(idOrden, CodigoProceso.ORDEN_COMPRA);
 
+
+        private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
+        {
+            var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
+            if (tieneFirma.IsError)
+                return tieneFirma.Errors;
+
+            if (!tieneFirma.Value)
+                return CommonErrors.Validation("Firma", "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
+
+            return Result.Success;
+        }
 
         private async Task<int?> GetEstadoIdByCodigoAsync(string codigo)
         {

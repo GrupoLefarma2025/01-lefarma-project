@@ -2,7 +2,7 @@
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 
-namespace Lefarma.API.Domain.Interfaces.Rh.SolicitudesPersonal
+namespace Lefarma.API.Domain.Interfaces.Rh
 {
     public interface ISolicitudPersonalRepository : IBaseRepository<SolicitudPersonal>
     {

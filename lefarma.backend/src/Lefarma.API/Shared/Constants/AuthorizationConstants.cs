@@ -123,4 +123,14 @@ public static class Permissions
     {
         public const string VerTodas = "incidencias_checado.ver_todas";
     }
+
+    public static class Vacaciones
+    {
+        public const string Ver = "rh.vacaciones.ver";
+        public const string Cargar = "rh.vacaciones.cargar";
+        public const string Eliminar = "rh.vacaciones.eliminar";
+        public const string SaldosVer = "rh.vacaciones.saldos.ver";
+        public const string SaldosCargar = "rh.vacaciones.saldos.cargar";
+        public const string SolicitudesCrear = "rh.vacaciones.solicitudes.crear";
+    }
 }

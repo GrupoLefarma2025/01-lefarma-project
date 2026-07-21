@@ -1,5 +1,5 @@
 using Lefarma.API.Domain.Interfaces.Config;
-using Lefarma.API.Domain.Interfaces.Rh.Empleados;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 

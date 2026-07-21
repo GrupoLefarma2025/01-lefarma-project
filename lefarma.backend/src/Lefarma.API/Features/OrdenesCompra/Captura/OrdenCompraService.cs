@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Constants;
@@ -23,6 +24,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
         private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
+        private readonly IProfileService _profileService;
         protected override string EntityName => "OrdenCompra";
 
         private record UsuarioInfo(string Nombre, string? Puesto);
@@ -34,6 +36,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
             IJefeInmediatoResolver jefeInmediatoResolver,
+            IProfileService profileService,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -43,6 +46,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _context = context;
             _asokamContext = asokamContext;
             _jefeInmediatoResolver = jefeInmediatoResolver;
+            _profileService = profileService;
         }
 
         public async Task<ErrorOr<IEnumerable<OrdenCompraResponse>>> GetAllAsync(OrdenCompraRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
@@ -227,6 +231,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
+                var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
+                if (firmaValidacion.IsError)
+                    return firmaValidacion.Errors;
+
                 var folio = await _repo.GenerarFolioAsync();
 
                 var tipoImpuestoIds = request.Partidas
@@ -403,6 +411,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
+                var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
+                if (firmaValidacion.IsError)
+                    return firmaValidacion.Errors;
+
                 var orden = await _repo.GetWithPartidasAsync(id);
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
@@ -547,6 +559,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EnrichWideEvent("Update", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al actualizar la orden de compra.");
             }
+        }
+
+        private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
+        {
+            var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
+            if (tieneFirma.IsError)
+                return tieneFirma.Errors;
+
+            if (!tieneFirma.Value)
+                return CommonErrors.Validation("Firma", "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
+
+            return Result.Success;
         }
 
         private static decimal CalcularTotalPartida(CreatePartidaRequest p)
