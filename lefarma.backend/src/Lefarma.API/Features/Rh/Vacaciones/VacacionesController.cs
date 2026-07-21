@@ -23,6 +23,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             _service = service;
         }
 
+        //cargar
         [HttpGet("dias-no-habiles")]
         [SwaggerOperation(Summary = "Obtener días no hábiles")]
         public async Task<IActionResult> ObtenerDiasNoHabiles([FromQuery] DiaNoHabilRequest request)
