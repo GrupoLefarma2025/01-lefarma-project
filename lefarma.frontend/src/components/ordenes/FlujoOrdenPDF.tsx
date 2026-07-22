@@ -1,5 +1,13 @@
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
-import logoImage from '@/assets/logo.png';
+import logoDefault from '@/assets/logo.png';
+import logo1 from '@/assets/logo_1.png';
+import logo2 from '@/assets/logo_2.png';
+import logo3 from '@/assets/logo_3.png';
+import logo4 from '@/assets/logo_4.png';
+import logo5 from '@/assets/logo_5.png';
+
+// ponytail: static imports — Vite can't bundle dynamic asset paths
+const LOGOS: Record<number, string> = { 1: logo1, 2: logo2, 3: logo3, 4: logo4, 5: logo5 };
 
 // ─── Types (mirrored from AutorizacionesOC) ─────────────────────────────────
 
@@ -148,7 +156,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
       <div className="pdf-header">
         <div className="pdf-header-left">
           <img 
-            src={logoImage} 
+            src={LOGOS[orden.idEmpresa] ?? logoDefault} 
             alt="Lefarma" 
             style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
           />
