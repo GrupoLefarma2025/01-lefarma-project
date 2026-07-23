@@ -6,42 +6,20 @@ import type {
   WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
 import logoImage from '@/assets/logo.png';
+import { IncidenciaPDF } from './IncidenciaPDF';
+import { PermisoPDF } from './PermisoPDF';
+import { VacacionesPDF } from './VacacionesPDF';
+import { GoceDeSueldoPDF } from './GoceDeSueldoPDF';
+import { IncapacidadPDF } from './IncapacidadPDF';
+import { fmtDate, fmtDateTime } from './pdfFormat';
 
-interface Props {
+export interface Props {
   solicitud: SolicitudPersonalResponse;
   historial?: HistorialWorkflowItemResponse[];
   pasosWorkflow?: WorkflowPasoFlowResponse[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDate(dateStr?: string | null) {
-  if (!dateStr) return '-';
-  try {
-    return new Date(dateStr).toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: 'long',
-      year: 'numeric',
-    });
-  } catch {
-    return dateStr;
-  }
-}
-
-function fmtDateTime(dateStr?: string | null) {
-  if (!dateStr) return '-';
-  try {
-    return new Date(dateStr).toLocaleString('es-MX', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
-}
 
 function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
   const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
@@ -222,9 +200,10 @@ const Logo: React.FC = () => (
   </div>
 );
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Legacy Formatted Fallback ────────────────────────────────────────────────
 
-export function SolicitudPersonalPDF({
+// ponytail: legacy formatted fallback = crash-proof safety net. Renders any category without a dedicated component, including unknown/future DB types. Do NOT remove even once all current categories are covered — a new DB type must keep working with zero code change.
+function LegacyFormattedPDF({
   solicitud,
   historial = [],
   pasosWorkflow = [],
@@ -434,6 +413,26 @@ export function SolicitudPersonalPDF({
       )}
     </div>
   );
+}
+
+// ─── Dispatcher ───────────────────────────────────────────────────────────────
+
+export function SolicitudPersonalPDF(props: Props) {
+  switch (getCategoriaNombre(props.solicitud.categoria)) {
+    case 'Incidencia':
+      return <IncidenciaPDF {...props} />;
+    case 'Permiso':
+      return <PermisoPDF {...props} />;
+    case 'Vacaciones':
+      return <VacacionesPDF {...props} />;
+    case 'Goce de Sueldo':
+      return <GoceDeSueldoPDF {...props} />;
+    case 'Incapacidad':
+      return <IncapacidadPDF {...props} />;
+    default:
+      // Safety net: any unknown or future category (e.g. a new DB type with no component yet) renders the legacy format instead of crashing.
+      return <LegacyFormattedPDF {...props} />;
+  }
 }
 
 export default SolicitudPersonalPDF;
