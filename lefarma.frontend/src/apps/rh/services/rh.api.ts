@@ -111,6 +111,10 @@ export const usuariosCatalogoApi = {
     API.get<ApiResponse<UsuarioCatalogo[]>>('/admin/usuarios').then((res) =>
       res.data.success ? (res.data.data ?? []) : []
     ),
+  getDestinatariosDefault: () =>
+    API.get<ApiResponse<number[]>>('/auth/usuarios/destinatarios-default').then((res) =>
+      res.data.success ? (res.data.data ?? []) : []
+    ),
 };
 
 export const notificarIncidenciaChecadoApi = {

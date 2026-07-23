@@ -133,18 +133,27 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                     .Distinct()
                     .ToList();
 
-                var creadoresConJefe = new Dictionary<int, int?>();
-                foreach (var idCreador in idsCreadores)
+                var idsSolicitantes = entities
+                    .Where(e => e.IdUsuarioSolicitante.HasValue)
+                    .Select(e => e.IdUsuarioSolicitante!.Value)
+                    .Distinct()
+                    .ToList();
+
+                var usuariosParaJefe = idsSolicitantes.Any() ? idsSolicitantes : idsCreadores;
+
+                var usuariosConJefe = new Dictionary<int, int?>();
+                foreach (var idUsuario in usuariosParaJefe)
                 {
-                    var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
-                    creadoresConJefe[idCreador] = idJefe;
+                    var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuario);
+                    usuariosConJefe[idUsuario] = idJefe;
                 }
 
                 var idsJefesDirectos = new HashSet<int>();
                 foreach (var entity in entities)
                 {
-                    if (entity.IdUsuarioCreador.HasValue &&
-                        creadoresConJefe.TryGetValue(entity.IdUsuarioCreador.Value, out var idJefe) &&
+                    var idUsuarioJefe = entity.IdUsuarioSolicitante ?? entity.IdUsuarioCreador;
+                    if (idUsuarioJefe.HasValue &&
+                        usuariosConJefe.TryGetValue(idUsuarioJefe.Value, out var idJefe) &&
                         idJefe.HasValue &&
                         participantes.Any(p => p.RequiereJefeInmediato && p.IdPaso == entity.IdPasoActual))
                     {
@@ -367,7 +376,8 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 FechaEnPaso = s.FechaEnvio,
                 EtiquetaExtra = s.Area?.Nombre,
                 TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
-                IdUsuarioCreador = s.IdUsuarioCreador
+                IdUsuarioCreador = s.IdUsuarioCreador,
+                IdUsuarioSolicitante = s.IdUsuarioSolicitante
             }).ToList();
         }
 
@@ -445,6 +455,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
             public string? EtiquetaExtra { get; init; }
             public string TipoEntidad { get; init; } = null!;
             public int? IdUsuarioCreador { get; init; }
+            public int? IdUsuarioSolicitante { get; init; }
         }
     }
 }

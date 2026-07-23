@@ -15,6 +15,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
             builder.Property(s => s.IdSucursal).HasColumnName("id_sucursal");
             builder.Property(s => s.IdArea).HasColumnName("id_area");
             builder.Property(s => s.IdUsuarioCreador).HasColumnName("id_usuario_creador");
+            builder.Property(s => s.IdUsuarioSolicitante).HasColumnName("id_usuario_solicitante").IsRequired(false);
             builder.Property(s => s.IdEstado).HasColumnName("id_estado");
             builder.HasOne(o => o.Estado)
                 .WithMany()

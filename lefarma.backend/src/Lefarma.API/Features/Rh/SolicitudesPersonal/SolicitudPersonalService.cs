@@ -1,4 +1,5 @@
-﻿using ErrorOr;
+﻿using System.Collections.Generic;
+using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
@@ -82,6 +83,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     q = q.Where(x => x.IdEstado == request.IdEstado.Value);
                 if (request.IdUsuarioCreador.HasValue)
                     q = q.Where(x => x.IdUsuarioCreador == request.IdUsuarioCreador.Value);
+                if (request.IdUsuarioSolicitante.HasValue)
+                    q = q.Where(x => x.IdUsuarioSolicitante == request.IdUsuarioSolicitante.Value);
                 if (request.IdTipoSolicitud.HasValue)
                     q = q.Where(x => x.IdTipoSolicitud == request.IdTipoSolicitud.Value);
 
@@ -156,6 +159,73 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     q = q.Where(x => x.Folio != null && x.Folio.Contains(term));
                 }
 
+                // Filtros de periodo / fechas de creación (estilo incidencias de checado)
+                if (!string.IsNullOrWhiteSpace(request.Periodo) &&
+                    !string.Equals(request.Periodo, "personalizado", StringComparison.OrdinalIgnoreCase))
+                {
+                    var (inicio, fin) = CalcularRangoPeriodo(request.Periodo);
+                    var desde = inicio.Date;
+                    var hasta = fin.Date;
+                    q = q.Where(x => x.FechaCreacion.Date >= desde && x.FechaCreacion.Date <= hasta);
+                }
+                else if (request.FechaInicio.HasValue || request.FechaFin.HasValue)
+                {
+                    if (request.FechaInicio.HasValue)
+                    {
+                        var desde = request.FechaInicio.Value.Date;
+                        q = q.Where(x => x.FechaCreacion.Date >= desde);
+                    }
+                    if (request.FechaFin.HasValue)
+                    {
+                        var hasta = request.FechaFin.Value.Date;
+                        q = q.Where(x => x.FechaCreacion.Date <= hasta);
+                    }
+                }
+
+                // Filtros de empleado (nómina, nombre, empresa, departamento, puesto)
+                HashSet<int>? idsUsuarioEmpleado = null;
+                HashSet<int>? idsUsuarioNomina = null;
+
+                if (!string.IsNullOrWhiteSpace(request.Nombre) ||
+                    !string.IsNullOrWhiteSpace(request.Departamento) ||
+                    !string.IsNullOrWhiteSpace(request.Puesto))
+                {
+                    var ids = await _empleadoRepository.ResolverIdsUsuarioPorFiltroEmpleadoAsync(
+                        request.Nombre, null, request.Departamento, request.Puesto);
+                    idsUsuarioEmpleado = ids.Count > 0 ? new HashSet<int>(ids) : new HashSet<int>();
+                }
+
+                if (request.Nomina.HasValue)
+                {
+                    var idUsuarioPorNomina = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(request.Nomina.Value);
+                    idsUsuarioNomina = idUsuarioPorNomina.HasValue
+                        ? new HashSet<int> { idUsuarioPorNomina.Value }
+                        : new HashSet<int>();
+                }
+
+                if (idsUsuarioEmpleado != null || idsUsuarioNomina != null)
+                {
+                    var sets = new List<HashSet<int>>();
+                    if (idsUsuarioEmpleado != null) sets.Add(idsUsuarioEmpleado);
+                    if (idsUsuarioNomina != null) sets.Add(idsUsuarioNomina);
+
+                    if (sets.Any(s => s.Count == 0))
+                    {
+                        q = q.Where(x => false);
+                    }
+                    else
+                    {
+                        var ids = new HashSet<int>(sets[0]);
+                        for (var i = 1; i < sets.Count; i++)
+                            ids.IntersectWith(sets[i]);
+
+                        if (ids.Count > 0)
+                            q = q.Where(x => ids.Contains(x.IdUsuarioSolicitante ?? x.IdUsuarioCreador));
+                        else
+                            q = q.Where(x => false);
+                    }
+                }
+
                 // Si no tiene el permiso de ver todas y la solicitud no pide ver todas
                 if (!puedeVerTodas || (puedeVerTodas && !request.VerTodas))
                 {
@@ -172,7 +242,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .ToListAsync();
 
                     // Obtener los pasos que requieren jefe inmediato y verificar si el usuario es jefe inmediato
-                    // de los creadores de las solicitudes en esos pasos
+                    // de los solicitantes de las solicitudes en esos pasos
                     var pasosConJefeInmediato = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && p.RequiereJefeInmediato)
                         .Select(p => p.IdPaso)
@@ -183,31 +253,31 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                     if (pasosConJefeInmediato.Count > 0)
                     {
-                        // Obtener los creadores de solicitudes que están en pasos que requieren jefe inmediato
-                        var solicitudesEnPasosJefe = await _context.SolicitudesPersonal
+                        // Obtener los solicitantes de solicitudes que están en pasos que requieren jefe inmediato
+                        var solicitantesEnPasosJefe = await _context.SolicitudesPersonal
                             .Where(s => pasosConJefeInmediato.Contains(s.IdPasoActual ?? 0))
-                            .Select(s => s.IdUsuarioCreador)
+                            .Select(s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                             .Distinct()
                             .ToListAsync();
 
-                        // Verificar si el usuario es jefe inmediato de los creadores de las solicitudes 
-                        // y agregarlos a la lista de usuarios del jefe
-                        foreach (var idCreador in solicitudesEnPasosJefe)
+                        // Verificar si el usuario es jefe inmediato de los solicitantes
+                        foreach (var idSolicitante in solicitantesEnPasosJefe)
                         {
-                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
+                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idSolicitante);
                             if (idJefe == idUsuario)
-                                usuariosDelJefe.Add(idCreador);
+                                usuariosDelJefe.Add(idSolicitante);
                         }
                     }
 
                     q = q.Where(x =>
                         x.IdUsuarioCreador == idUsuario ||
+                        (x.IdUsuarioSolicitante ?? x.IdUsuarioCreador) == idUsuario ||
                         (
                             // La solicitud está en un paso que requiere jefe inmediato
-                            // y usuario es jefe inmediato
+                            // y usuario es jefe inmediato del solicitante
                             x.IdPasoActual != null &&
                             pasosConJefeInmediato.Contains(x.IdPasoActual.Value) &&
-                            usuariosDelJefe.Contains(x.IdUsuarioCreador)
+                            usuariosDelJefe.Contains(x.IdUsuarioSolicitante ?? x.IdUsuarioCreador)
                         ) ||
                         (
                             // usuario es participante del paso actual y que no en esté en estado "creada"
@@ -237,7 +307,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Take(pageSize)
                     .ToListAsync();
 
-                var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
+                var userIds = items.Select(o => o.IdUsuarioCreador)
+                    .Concat(items.Select(o => o.IdUsuarioSolicitante ?? o.IdUsuarioCreador))
+                    .Distinct()
+                    .ToList();
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
@@ -294,7 +367,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .FirstOrDefaultAsync()
                     : null;
 
-                var userIds = new List<int> { soli.IdUsuarioCreador };
+                var userIds = new List<int> { soli.IdUsuarioCreador, soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
@@ -312,14 +385,90 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
+        private static (DateTime inicio, DateTime fin) CalcularRangoPeriodo(string periodo)
+        {
+            var hoy = DateTime.Today;
+            var yyyy = hoy.Year;
+            var mm = hoy.Month;
+            var dd = hoy.Day;
+            var ultimoDiaMes = new DateTime(yyyy, mm, 1).AddMonths(1).AddDays(-1).Day;
+
+            DateTime inicio;
+            DateTime fin;
+
+            switch (periodo?.ToLowerInvariant())
+            {
+                case "hoy":
+                    inicio = fin = hoy;
+                    break;
+                case "esta-semana":
+                    {
+                        var dow = (int)hoy.DayOfWeek;
+                        var diff = (dow + 6) % 7;
+                        inicio = hoy.AddDays(-diff);
+                        fin = inicio.AddDays(6);
+                        break;
+                    }
+                case "esta-quincena":
+                    if (dd <= 15)
+                    {
+                        inicio = new DateTime(yyyy, mm, 1);
+                        fin = new DateTime(yyyy, mm, 15);
+                    }
+                    else
+                    {
+                        inicio = new DateTime(yyyy, mm, 16);
+                        fin = new DateTime(yyyy, mm, ultimoDiaMes);
+                    }
+                    break;
+                case "quincena-anterior":
+                    if (dd <= 15)
+                    {
+                        var ultimoDiaMesAnterior = new DateTime(yyyy, mm, 1).AddDays(-1).Day;
+                        inicio = new DateTime(yyyy, mm - 1, 16);
+                        fin = new DateTime(yyyy, mm - 1, ultimoDiaMesAnterior);
+                    }
+                    else
+                    {
+                        inicio = new DateTime(yyyy, mm, 1);
+                        fin = new DateTime(yyyy, mm, 15);
+                    }
+                    break;
+                case "este-mes":
+                    inicio = new DateTime(yyyy, mm, 1);
+                    fin = new DateTime(yyyy, mm, ultimoDiaMes);
+                    break;
+                case "mes-anterior":
+                    {
+                        var ultimoDiaMesAnterior = new DateTime(yyyy, mm, 1).AddDays(-1).Day;
+                        inicio = new DateTime(yyyy, mm - 1, 1);
+                        fin = new DateTime(yyyy, mm - 1, ultimoDiaMesAnterior);
+                        break;
+                    }
+                case "personalizado":
+                default:
+                    return (DateTime.MinValue, DateTime.MinValue);
+            }
+
+            if (fin > hoy)
+                fin = hoy;
+
+            return (inicio, fin);
+        }
+
         public async Task<ErrorOr<SolicitudPersonalResponse>> CreateAsync(
-            CreateSolicitudPersonalRequest request, int idUsuario, CancellationToken ct = default)
+            CreateSolicitudPersonalRequest request, int idUsuario, bool puedeCrearParaOtro, CancellationToken ct = default)
         {
             try
             {
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
                 if (firmaValidacion.IsError)
                     return firmaValidacion.Errors;
+
+                var idUsuarioSolicitante = request.IdUsuarioSolicitante ?? idUsuario;
+
+                if (idUsuarioSolicitante != idUsuario && !puedeCrearParaOtro)
+                    return Error.Forbidden("solicitud_personal.crear_para_otro", "No tiene permiso para crear solicitudes para otro usuario.");
 
                 var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
@@ -337,7 +486,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     request.Detalle = ExpandirDiasSolicitados(request.FechaInicio.Value, request.DiasSolicitados.Value);
                 }
 
-                var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuario, tipo);
+                var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo);
                 if (validacionLimite.IsError)
                     return validacionLimite.FirstError;
 
@@ -346,7 +495,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     CodigoProceso.SOLICITUD_PERSONAL,
                     new Dictionary<string, int?>
                     {
-                        ["USUARIO"] = idUsuario,
+                        ["USUARIO"] = idUsuarioSolicitante,
                         ["EMPRESA"] = request.IdEmpresa,
                         ["SUCURSAL"] = request.IdSucursal,
                         ["AREA"] = request.IdArea,
@@ -365,13 +514,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (tipo.RequiereReposicionTiempo && !request.FechaReposicion.HasValue)
                     return CommonErrors.Validation("FechaReposicion", "Este tipo de solicitud requiere fecha de reposición.");
 
-                var validacionFechas = await ValidarFechasPermitidas(tipo, request.Detalle.Select(d => d.Fecha), idUsuario, ct);
+                var validacionFechas = await ValidarFechasPermitidas(tipo, request.Detalle.Select(d => d.Fecha), idUsuarioSolicitante, ct);
                 if (validacionFechas.IsError)
                     return validacionFechas.FirstError;
 
                 if (request.FechaInicio.HasValue)
                 {
-                    validacionFechas = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuario, ct);
+                    validacionFechas = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuarioSolicitante, ct);
                     if (validacionFechas.IsError)
                         return validacionFechas.FirstError;
                 }
@@ -394,6 +543,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     IdPasoActual = pasoInicial.IdPaso,
                     IdEstado = estadoInicial.IdEstado,
                     IdUsuarioCreador = idUsuario,
+                    IdUsuarioSolicitante = idUsuarioSolicitante,
                     IdTipoSolicitud = request.IdTipoSolicitud,
                     IdEmpresa = request.IdEmpresa,
                     IdSucursal = request.IdSucursal,
@@ -435,7 +585,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     }
                 }
 
-                var validacionSaldo = await ValidarSaldoVacacionesAsync(idUsuario, solicitud, tipo);
+                var validacionSaldo = await ValidarSaldoVacacionesAsync(idUsuarioSolicitante, solicitud, tipo);
                 if (validacionSaldo.IsError)
                     return validacionSaldo.FirstError;
 
@@ -491,7 +641,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         return firmaResult.Errors;
                 }
 
-                var userIds = new List<int> { solicitud.IdUsuarioCreador };
+                var userIds = new List<int> { solicitud.IdUsuarioCreador, solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
@@ -538,8 +688,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.IdUsuarioCreador != idUsuario)
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo el creador de la solicitud puede modificarla.");
 
-                if (soli.Estado?.IdEstado != 1)
+                if (soli.Estado?.Codigo != "CREADA")
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
+
+                var idUsuarioSolicitante = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
 
                 var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
@@ -557,20 +709,20 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     request.Detalle = ExpandirDiasSolicitados(request.FechaInicio.Value, request.DiasSolicitados.Value);
                 }
 
-                var validacionFechasUpdate = await ValidarFechasPermitidas(tipo, request.Detalle.Select(d => d.Fecha), idUsuario, ct);
+                var validacionFechasUpdate = await ValidarFechasPermitidas(tipo, request.Detalle.Select(d => d.Fecha), idUsuarioSolicitante, ct);
                 if (validacionFechasUpdate.IsError)
                     return validacionFechasUpdate.FirstError;
 
                 if (request.FechaInicio.HasValue)
                 {
-                    validacionFechasUpdate = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuario, ct);
+                    validacionFechasUpdate = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuarioSolicitante, ct);
                     if (validacionFechasUpdate.IsError)
                         return validacionFechasUpdate.FirstError;
                 }
 
                 if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
                 {
-                    var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuario, tipo, soli.IdSolicitud);
+                    var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo, soli.IdSolicitud);
                     if (validacionLimite.IsError)
                         return validacionLimite.FirstError;
                 }
@@ -618,7 +770,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     }
                 }
 
-                var validacionSaldoUpdate = await ValidarSaldoVacacionesAsync(idUsuario, soli, tipo, soli.IdSolicitud);
+                var validacionSaldoUpdate = await ValidarSaldoVacacionesAsync(idUsuarioSolicitante, soli, tipo, soli.IdSolicitud);
                 if (validacionSaldoUpdate.IsError)
                     return validacionSaldoUpdate.FirstError;
 
@@ -839,7 +991,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 if (idUsuarioObjetivo != idUsuario && !puedeVerTodas)
                 {
-                    return Error.Forbidden("solicitud_personal.puede_ver_todas_solcitudes", "No tiene permiso para consultar los límites de otros usuarios.");
+                    return Error.Forbidden("solicitud_personal.puede_ver_todas_solicitudes", "No tiene permiso para consultar los límites de otros usuarios.");
                 }
 
                 var tipos = await _tipoRepository.GetTiposActivosAsync();
@@ -920,7 +1072,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 var query = _repository.GetQueryableConDetalles()
                     .Where(s => s.Estado != null && estados.Contains(s.Estado.Codigo))
-                    .Where(s => s.IdUsuarioCreador == idUsuarioActual);
+                    .Where(s => s.IdUsuarioSolicitante == idUsuarioActual || (s.IdUsuarioSolicitante == null && s.IdUsuarioCreador == idUsuarioActual));
 
                 if (request.IdEmpresa.HasValue)
                     query = query.Where(s => s.IdEmpresa == request.IdEmpresa.Value);
@@ -933,7 +1085,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 var solicitudes = await query.ToListAsync();
 
-                var userIds = solicitudes.Select(s => s.IdUsuarioCreador).Distinct().ToList();
+                var userIds = solicitudes
+                    .Select(s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
+                    .Distinct()
+                    .ToList();
                 var usuarios = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(
@@ -946,7 +1101,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 foreach (var s in solicitudes)
                 {
                     var fechas = ExpandirFechasEnMes(s, request.Anio, request.Mes);
-                    var solicitante = usuarios.TryGetValue(s.IdUsuarioCreador, out var nombre) ? nombre : null;
+                    var idSolicitanteCal = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador;
+                    var solicitante = usuarios.TryGetValue(idSolicitanteCal, out var nombre) ? nombre : null;
 
                     foreach (var fecha in fechas)
                     {
@@ -956,7 +1112,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             "sucursal" => (s.IdSucursal.ToString(), s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre),
                             "area" => (s.IdArea.ToString(), s.Area?.NombreNormalizado ?? s.Area?.Nombre),
                             "tipo" => (s.IdTipoSolicitud.ToString(), s.TipoSolicitud?.Nombre),
-                            "usuario" => (s.IdUsuarioCreador.ToString(), solicitante),
+                            "usuario" => (idSolicitanteCal.ToString(), solicitante),
                             _ => (null, null)
                         };
 
@@ -977,6 +1133,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             IdArea = s.IdArea,
                             AreaNombre = s.Area?.NombreNormalizado ?? s.Area?.Nombre,
                             IdUsuarioCreador = s.IdUsuarioCreador,
+                            IdUsuarioSolicitante = s.IdUsuarioSolicitante,
                             SolicitanteNombre = solicitante,
                             GrupoClave = grupoClave,
                             GrupoNombre = grupoNombre

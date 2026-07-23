@@ -55,24 +55,31 @@ namespace Lefarma.API.Features.Config.Engine
             if (pasoActual is null)
                 return new WorkflowEjecucionResult(false, "El paso actual de la orden no es válido para el workflow.", null, null);
 
-            // Validar que el usuario puede ejecutar acciones en este paso
-            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Entidad.IdUsuarioCreador);
-            var esCreador = ctx.IdUsuario == ctx.Entidad.IdUsuarioCreador;
-
             var accion = pasoActual.AccionesOrigen
                 .FirstOrDefault(a => a.IdAccion == ctx.IdAccion && a.Activo);
 
-            var esAccionCancelar = accion?.TipoAccion?.Codigo == "CANCELAR";
+            if (accion is null)
+                return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
+
+            // Validar que el usuario puede ejecutar acciones en este paso
+            var idUsuarioSolicitante = ctx.Entidad is Lefarma.API.Domain.Entities.Rh.SolicitudPersonal sp
+                ? sp.IdUsuarioSolicitante ?? ctx.Entidad.IdUsuarioCreador
+                : ctx.Entidad.IdUsuarioCreador;
+
+            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, ctx.IdUsuario, ctx.Entidad.IdUsuarioCreador, idUsuarioSolicitante);
+            var esCreador = ctx.IdUsuario == ctx.Entidad.IdUsuarioCreador;
+            var esAccionCancelar = accion.TipoAccion?.Codigo == "CANCELAR";
             var puedeComoCreador = esCreador && esAccionCancelar;
+
+            // La acción CANCELAR es exclusiva del creador
+            if (esAccionCancelar && !esCreador)
+                return new WorkflowEjecucionResult(false, "Solo el creador puede cancelar la entidad.", null, null);
 
             if (!esParticipante && !puedeComoCreador)
                 return new WorkflowEjecucionResult(false, "No eres participante de este paso del workflow.", null, null);
 
             if (pasoActual.RequiereComentario && string.IsNullOrWhiteSpace(ctx.Comentario))
                 return new WorkflowEjecucionResult(false, "El comentario es obligatorio en este paso.", null, null);
-
-            if (accion is null)
-                return new WorkflowEjecucionResult(false, "Acción no válida para el estado actual.", null, null);
 
             var actionHandlers = accion.AccionHandlers
                 .Where(h => h.Activo)
@@ -183,16 +190,18 @@ namespace Lefarma.API.Features.Config.Engine
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.IdWorkflow == idWorkflow);
 
-            return await ResolveAccionesAsync(entityContext.IdPasoActual.Value, workflow, idUsuario, entityContext.IdUsuarioCreador);
+            var idUsuarioSolicitante = entityContext.IdUsuarioSolicitante ?? entityContext.IdUsuarioCreador;
+
+            return await ResolveAccionesAsync(entityContext.IdPasoActual.Value, workflow, idUsuario, entityContext.IdUsuarioCreador, idUsuarioSolicitante);
         }
 
-        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario, int idUsuarioCreador)
+        private async Task<ICollection<WorkflowAccion>> ResolveAccionesAsync(int idPasoActual, Workflow? workflow, int idUsuario, int idUsuarioCreador, int? idUsuarioSolicitante = null)
         {
             var acciones = await _workflowRepo.GetAccionesDisponiblesAsync(idPasoActual);
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
-            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador);
+            var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador, idUsuarioSolicitante);
             var esCreador = idUsuario == idUsuarioCreador;
             var tieneAccionCancelar = pasoActual.AccionesOrigen
                 .Any(a => a.Activo && a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
@@ -258,7 +267,7 @@ namespace Lefarma.API.Features.Config.Engine
             return accionesResult;
         }
 
-        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador)
+        private async Task<bool> IsUsuarioParticipanteAsync(WorkflowPaso paso, int idUsuario, int idUsuarioCreador, int? idUsuarioSolicitante = null)
         {
             // Si es el paso inicial, el creador de la orden siempre puede ejecutar acciones
             if (paso.EsInicio && idUsuario == idUsuarioCreador)
@@ -283,7 +292,8 @@ namespace Lefarma.API.Features.Config.Engine
             // Verificar asignación por jefe inmediato
             if (participantes.Any(p => p.RequiereJefeInmediato))
             {
-                var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioCreador);
+                var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
+                var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioBase);
                 if (idJefe.HasValue && idJefe.Value == idUsuario)
                     return true;
             }
@@ -298,21 +308,21 @@ namespace Lefarma.API.Features.Config.Engine
                 CodigoProceso.ORDEN_COMPRA => await _context.OrdenesCompra
                     .Where(o => o.IdOrden == idEntidad)
                     .Select(o => new WorkflowEntityContext(
-                        o.IdWorkflow, o.IdPasoActual, o.IdUsuarioCreador))
-                    .FirstOrDefaultAsync() ?? new(0, null, 0),
+                        o.IdWorkflow, o.IdPasoActual, o.IdUsuarioCreador, null))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
 
                 CodigoProceso.SOLICITUD_PERSONAL => await _context.SolicitudesPersonal
                     .Where(i => i.IdSolicitud == idEntidad)
                     .Select(i => new WorkflowEntityContext(
-                        i.IdWorkflow, i.IdPasoActual, i.IdUsuarioCreador))
-                    .FirstOrDefaultAsync() ?? new(0, null, 0),
+                        i.IdWorkflow, i.IdPasoActual, i.IdUsuarioCreador, i.IdUsuarioSolicitante))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
 
                 _ => throw new NotSupportedException(
                     $"TipoEntidad '{tipoEntidad}' no soportado por el engine.")
             };
         }
         private record WorkflowEntityContext(
-            int IdWorkflow, int? IdPasoActual, int IdUsuarioCreador);
+            int IdWorkflow, int? IdPasoActual, int IdUsuarioCreador, int? IdUsuarioSolicitante);
 
         private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
         {

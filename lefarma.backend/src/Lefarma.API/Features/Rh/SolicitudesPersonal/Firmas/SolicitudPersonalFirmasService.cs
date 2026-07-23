@@ -99,9 +99,15 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (pasoActual is null || !pasoActual.Activo)
                 return CommonErrors.Conflict("solicitud", "La solicitud no tiene un paso activo válido.");
 
-            // 4. Validar participante
+            // 4. Validar participante (el creador puede ejecutar CANCELAR aunque no sea participante)
+            var accionSolicitada = pasoActual.AccionesOrigen
+                .FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo);
+            var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
+
             var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                pasoActual, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);
+                pasoActual, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
+                codigoAccion: codigoAccionSolicitada,
+                idUsuarioSolicitante: solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador);
             if (validacion.IsError)
                 return validacion.Errors;
 
@@ -166,7 +172,8 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 idPasoDestino: resultado.NuevoIdPaso,
                 idUsuarioActual: idUsuario,
                 comentario: request.Comentario,
-                contenidoAdicionalHtml: null);
+                contenidoAdicionalHtml: null,
+                idUsuarioSolicitante: solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador);
 
             EnrichWideEvent("Firmar", entityId: idSolicitud, nombre: solicitud.Folio,
                 additionalContext: new Dictionary<string, object>
@@ -279,12 +286,14 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (tipoVacacion is null)
                 return CommonErrors.NotFound("TipoDia", "VACACION");
 
+            var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
+
             var anio = solicitud.FechaInicio.Value.Year;
             var saldo = await _context.SaldosVacacionesAnuales
-                .FirstOrDefaultAsync(s => s.IdUsuario == solicitud.IdUsuarioCreador && s.Anio == anio && s.Activo);
+                .FirstOrDefaultAsync(s => s.IdUsuario == idUsuarioSolicitante && s.Anio == anio && s.Activo);
 
             if (saldo is null)
-                return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {solicitud.IdUsuarioCreador} / año {anio}");
+                return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {idUsuarioSolicitante} / año {anio}");
 
             var fechas = Enumerable
                 .Range(0, (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1)
@@ -302,14 +311,14 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             {
                 var alreadyExists = await _context.DiasUsuarios
                     .AsNoTracking()
-                    .AnyAsync(d => d.IdUsuario == solicitud.IdUsuarioCreador && d.Fecha == fecha && d.Activo);
+                    .AnyAsync(d => d.IdUsuario == idUsuarioSolicitante && d.Fecha == fecha && d.Activo);
 
                 if (alreadyExists)
                     continue;
 
                 diasUsuario.Add(new DiaUsuario
                 {
-                    IdUsuario = solicitud.IdUsuarioCreador,
+                    IdUsuario = idUsuarioSolicitante,
                     IdEmpresa = solicitud.IdEmpresa,
                     IdSucursal = solicitud.IdSucursal == 0 ? null : solicitud.IdSucursal,
                     Anio = fecha.Year,

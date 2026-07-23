@@ -23,10 +23,16 @@ public static class WorkflowFirmaHelper
         int idUsuarioCreador,
         AsokamDbContext asokamContext,
         IJefeInmediatoResolver jefeInmediatoResolver,
+        string? codigoAccion = null,
+        int? idUsuarioSolicitante = null,
         CancellationToken ct = default)
     {
-        // Paso inicial: el creador siempre puede ejecutar (es quien envía)
+        // Paso inicial: el creador siempre puede ejecutar acciones (es quien envía)
         if (pasoActual.EsInicio && idUsuario == idUsuarioCreador)
+            return Result.Success;
+
+        // Si es el creador y la acción es CANCELAR, permitir aunque no sea participante
+        if (idUsuario == idUsuarioCreador && codigoAccion == "CANCELAR")
             return Result.Success;
 
         // Si el paso tiene participantes explícitos, validar
@@ -52,7 +58,8 @@ public static class WorkflowFirmaHelper
         // Verificar si alguno de los participantes requiere jefe inmediato
         if (participantesActivos.Any(p => p.RequiereJefeInmediato))
         {
-            var idJefe = await jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioCreador);
+            var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
+            var idJefe = await jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioBase);
             if (idJefe.HasValue && idJefe.Value == idUsuario)
                 return Result.Success;
         }
@@ -100,7 +107,8 @@ public static class WorkflowFirmaHelper
         int? idPasoDestino,
         int idUsuarioActual,
         string? comentario,
-        string? contenidoAdicionalHtml = null)
+        string? contenidoAdicionalHtml = null,
+        int? idUsuarioSolicitante = null)
     {
         _ = Task.Run(async () =>
         {
@@ -119,7 +127,8 @@ public static class WorkflowFirmaHelper
                     idPasoDestino: idPasoDestino,
                     idUsuarioActual: idUsuarioActual,
                     comentario: comentario,
-                    contenidoAdicionalHtml: contenidoAdicionalHtml);
+                    contenidoAdicionalHtml: contenidoAdicionalHtml,
+                    idUsuarioSolicitante: idUsuarioSolicitante);
             }
             catch
             {

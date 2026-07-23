@@ -56,6 +56,8 @@ public class NotificarIncidenciasResumenRequest
     public DateTime? FechaFin { get; set; }
     public string Asunto { get; set; } = string.Empty;
     public string Mensaje { get; set; } = string.Empty;
+    public List<int>? SelectedUserIds { get; set; }
+    public bool CopiarAUsuarioIncidencia { get; set; }
 }
 
 public class NotificarIncidenciasResumenResponse

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Info, Loader2, Mail, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
@@ -14,9 +15,10 @@ import {
 import HtmlViewer from '@/components/help/HtmlViewer';
 import { EmailTemplateEditor } from '@/components/email/EmailTemplateEditor';
 import { normalizarVariables } from '@/components/email/emailTemplateVariables';
-import { notificarIncidenciaChecadoApi } from '../services/rh.api';
+import { notificarIncidenciaChecadoApi, usuariosCatalogoApi } from '../services/rh.api';
 import { toApiError } from '@/utils/errors';
 import { toast } from 'sonner';
+import { RecipientSelector } from '@/components/notifications/RecipientSelector';
 import type {
   IncidenciasChecadoResumenEmpleadoResponse,
   PlantillaIncidenciaChecado,
@@ -106,6 +108,8 @@ export function IncidenciasChecadoResumenNotificacionModal({
   const [asunto, setAsunto] = useState(ASUNTO_DEFAULT);
   const [mensaje, setMensaje] = useState(MENSAJE_DEFAULT);
   const [enviando, setEnviando] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
+  const [copiarAUsuarioIncidencia, setCopiarAUsuarioIncidencia] = useState(false);
 
   const gruposPorCodigo = useMemo(() => agruparPlantillasPorCodigo(plantillas), [plantillas]);
 
@@ -148,6 +152,15 @@ export function IncidenciasChecadoResumenNotificacionModal({
         if (!cancelled) setLoadingPlantillas(false);
       });
 
+    usuariosCatalogoApi
+      .getDestinatariosDefault()
+      .then((destinatarios) => {
+        if (!cancelled) setSelectedUserIds(destinatarios);
+      })
+      .catch(() => {
+        // No mostrar error; si no hay defaults, el selector inicia vacío.
+      });
+
     return () => {
       cancelled = true;
     };
@@ -176,6 +189,10 @@ export function IncidenciasChecadoResumenNotificacionModal({
       toast.error('El mensaje es obligatorio.');
       return;
     }
+    if (selectedUserIds.length === 0 && !copiarAUsuarioIncidencia) {
+      toast.error('Selecciona al menos un destinatario o marca la opción de copia al usuario de las incidencias.');
+      return;
+    }
 
     try {
       setEnviando(true);
@@ -186,6 +203,8 @@ export function IncidenciasChecadoResumenNotificacionModal({
         fechaFin,
         asunto: asunto.trim(),
         mensaje: mensajeNormalizado,
+        selectedUserIds,
+        copiarAUsuarioIncidencia,
       });
 
       if (res.data.success) {
@@ -276,6 +295,32 @@ export function IncidenciasChecadoResumenNotificacionModal({
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-md border p-4">
+          <div className="space-y-2">
+            <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Destinatarios
+            </Label>
+            <RecipientSelector
+              selectedUserIds={selectedUserIds}
+              selectedRoleNames={[]}
+              onUserIdsChange={setSelectedUserIds}
+              onRoleNamesChange={() => {}}
+              showRoles={false}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="copiar-a-usuario-incidencia"
+              checked={copiarAUsuarioIncidencia}
+              onCheckedChange={(checked) => setCopiarAUsuarioIncidencia(!!checked)}
+            />
+            <label htmlFor="copiar-a-usuario-incidencia" className="cursor-pointer text-sm">
+              Con copia al usuario de las incidencias
+            </label>
           </div>
         </div>
 

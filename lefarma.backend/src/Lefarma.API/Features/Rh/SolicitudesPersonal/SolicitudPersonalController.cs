@@ -65,7 +65,8 @@ public class SolicitudPersonalController : ControllerBase
     [SwaggerOperation(Summary = "Crear nueva solicitud de personal")]
     public async Task<IActionResult> Create([FromBody] CreateSolicitudPersonalRequest request)
     {
-        var result = await _service.CreateAsync(request, GetUserId(), HttpContext.RequestAborted);
+        var puedeCrearParaOtro = TienePermiso("solicitud_personal.crear_para_otro");
+        var result = await _service.CreateAsync(request, GetUserId(), puedeCrearParaOtro, HttpContext.RequestAborted);
         return result.ToActionResult(this, data => CreatedAtAction(nameof(GetById),
             new { id = data.IdSolicitud },
             new ApiResponse<SolicitudPersonalResponse> { Success = true, Message = "Solicitud creada exitosamente.", Data = data }));
@@ -141,7 +142,7 @@ public class SolicitudPersonalController : ControllerBase
     [SwaggerOperation(Summary = "Obtener límites de solicitudes del usuario para el periodo actual. Si se envía idUsuario, devuelve los del usuario indicado (requiere ver todas).")]
     public async Task<IActionResult> ObtenerLimitesSolicitudes([FromQuery] int? idUsuario)
     {
-        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas_solcitudes");
+        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas_solicitudes");
         var idActual = GetUserId();
         var idObjetivo = idUsuario ?? idActual;
 

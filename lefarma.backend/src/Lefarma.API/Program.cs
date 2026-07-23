@@ -148,6 +148,7 @@ builder.Services.AddScoped<IRegimenFiscalRepository, RegimenFiscalRepository>();
 builder.Services.AddScoped<IProveedorRepository, ProveedorRepository>();
 builder.Services.AddScoped<ICuentaContableRepository, CuentaContableRepository>();
 builder.Services.AddScoped<ITipoImpuestoRepository, TipoImpuestoRepository>();
+builder.Services.AddScoped<IUsuarioConfiguracionRepository, UsuarioConfiguracionRepository>();
 
 // Help System
 builder.Services.AddScoped<IHelpArticleRepository, HelpArticleRepository>();
@@ -512,24 +513,34 @@ app.UseSerilogRequestLogging(options =>
 app.UseWideEventLogging();
 
 
-// Static files for help images
+// Resolve the configured base path for user-uploaded files (caratulas, etc.)
+var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
+    ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
+
+// Si la ruta no es absoluta, resolverla respecto al ContentRootPath
+if (!Path.IsPathRooted(archivosBasePath))
+{
+    archivosBasePath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, archivosBasePath));
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(archivosBasePath),
+    RequestPath = "/api/media/archivos",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+    }
+});
+
+// Static files for help images under /api/media/help
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
         Path.Combine(app.Environment.WebRootPath, "media")),
     RequestPath = "/api/media",
-    OnPrepareResponse = ctx =>
-    {
-        ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
-    }
-});
-
-// Static files for archivos (caratulas, etc.)
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(
-        Path.Combine(app.Environment.WebRootPath, "media", "archivos")),
-    RequestPath = "/media/archivos",
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");

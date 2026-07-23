@@ -1,6 +1,7 @@
 using System.Text.Json;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Features.Auth.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Services.Identity;
@@ -203,6 +204,9 @@ public class AuthService : BaseService, IAuthService
             }
 
             await _asokamContext.SaveChangesAsync(cancellationToken);
+
+            // Sincronizar numero_empleado con numeroNomina de vwDirectorioActivo, si existe
+            await SincronizarNumeroEmpleadoAsync(usuario.IdUsuario, adUser?.NumeroNomina, cancellationToken);
 
             // 4. Get roles and permissions
             var (userRoles, allPermissions) = await GetUserRolesAndPermissionsAsync(usuario.IdUsuario, cancellationToken);
@@ -583,5 +587,62 @@ public class AuthService : BaseService, IAuthService
         var bytes = System.Text.Encoding.UTF8.GetBytes(token);
         var hash = System.Security.Cryptography.SHA256.HashData(bytes);
         return Convert.ToBase64String(hash);
+    }
+
+    /// <summary>
+    /// Sincroniza config.usuario_detalle.numero_empleado con el numeroNomina de AD.
+    /// Nunca interrumpe el login: cualquier fallo solo se registra como warning.
+    /// </summary>
+    private async Task SincronizarNumeroEmpleadoAsync(
+        int idUsuario,
+        string? numeroNomina,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(numeroNomina))
+            return;
+
+        var numeroEmpleado = numeroNomina.Trim();
+
+        try
+        {
+            var detalle = await _context.UsuariosDetalle
+                .FirstOrDefaultAsync(d => d.IdUsuario == idUsuario, cancellationToken);
+
+            if (detalle == null)
+            {
+                var empresa = await _context.Empresas.AsNoTracking().FirstOrDefaultAsync(cancellationToken);
+                var sucursal = empresa != null
+                    ? await _context.Sucursales.AsNoTracking()
+                        .FirstOrDefaultAsync(s => s.IdEmpresa == empresa.IdEmpresa, cancellationToken)
+                    : null;
+
+                detalle = new UsuarioDetalle
+                {
+                    IdUsuario = idUsuario,
+                    IdEmpresa = empresa?.IdEmpresa ?? 1,
+                    IdSucursal = sucursal?.IdSucursal ?? 1,
+                    NumeroEmpleado = numeroEmpleado,
+                    FechaCreacion = DateTime.UtcNow,
+                    FechaModificacion = DateTime.UtcNow
+                };
+                _context.UsuariosDetalle.Add(detalle);
+            }
+            else if (!string.Equals(detalle.NumeroEmpleado, numeroEmpleado, StringComparison.Ordinal))
+            {
+                detalle.NumeroEmpleado = numeroEmpleado;
+                detalle.FechaModificacion = DateTime.UtcNow;
+            }
+            else
+            {
+                return; // Sin cambios, evita write innecesario
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "No se pudo sincronizar numero_empleado para el usuario {IdUsuario}", idUsuario);
+        }
     }
 }
