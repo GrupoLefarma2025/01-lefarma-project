@@ -36,6 +36,45 @@ public class EmpleadoRepository : IEmpleadoRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<Dictionary<int, long>> ResolverNominasPorUsuariosAsync(
+        IEnumerable<int> idsUsuarios,
+        CancellationToken cancellationToken = default)
+    {
+        var idList = idsUsuarios.Distinct().ToList();
+        if (idList.Count == 0)
+            return new Dictionary<int, long>();
+
+        var usuarios = await _asokamContext.Usuarios
+            .AsNoTracking()
+            .Where(u => idList.Contains(u.IdUsuario) && u.Correo != null)
+            .Select(u => new { u.IdUsuario, u.Correo })
+            .ToListAsync(cancellationToken);
+
+        var correos = usuarios
+            .Select(u => u.Correo)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Distinct()
+            .ToList();
+
+        if (correos.Count == 0)
+            return new Dictionary<int, long>();
+
+        var empleados = await _asistenciasContext.VwEmpleados
+            .AsNoTracking()
+            .Where(e => e.Nomina.HasValue && e.Correo != null && correos.Contains(e.Correo))
+            .Select(e => new { e.Nomina, e.Correo })
+            .ToListAsync(cancellationToken);
+
+        var nominaPorCorreo = empleados
+            .GroupBy(e => e.Correo!)
+            .ToDictionary(g => g.Key, g => g.First().Nomina!.Value);
+
+        return usuarios
+            .Where(u => !string.IsNullOrWhiteSpace(u.Correo) && nominaPorCorreo.ContainsKey(u.Correo))
+            .GroupBy(u => u.IdUsuario)
+            .ToDictionary(g => g.Key, g => nominaPorCorreo[g.First().Correo!]);
+    }
+
     public async Task<int?> ResolverIdUsuarioPorNominaAsync(
         long nomina,
         CancellationToken cancellationToken = default)

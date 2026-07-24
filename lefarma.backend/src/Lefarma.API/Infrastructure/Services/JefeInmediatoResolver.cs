@@ -34,5 +34,49 @@ namespace Lefarma.API.Infrastructure.Services
 
             return await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nominaJefe.Value);
         }
+
+        public async Task<IReadOnlyDictionary<int, int>> ResolverIdsJefePorUsuariosAsync(
+            IEnumerable<int> idsUsuariosCreador,
+            CancellationToken cancellationToken = default)
+        {
+            var creadorList = idsUsuariosCreador.Distinct().ToList();
+            if (creadorList.Count == 0)
+                return new Dictionary<int, int>();
+
+            var nominaPorCreador = await _empleadoRepository.ResolverNominasPorUsuariosAsync(creadorList, cancellationToken);
+            if (nominaPorCreador.Count == 0)
+                return new Dictionary<int, int>();
+
+            var nominas = nominaPorCreador.Values.Distinct().ToList();
+
+            var jefes = await _asistenciasContext.VwEmpleadosYJefes
+                .AsNoTracking()
+                .Where(ej => ej.Nomina.HasValue && nominas.Contains(ej.Nomina.Value) && ej.NominaJefe.HasValue)
+                .Select(ej => new { ej.Nomina, ej.NominaJefe })
+                .ToListAsync(cancellationToken);
+
+            var nominaJefePorNomina = jefes
+                .GroupBy(ej => ej.Nomina!.Value)
+                .ToDictionary(g => g.Key, g => g.First().NominaJefe!.Value);
+
+            if (nominaJefePorNomina.Count == 0)
+                return new Dictionary<int, int>();
+
+            var idUsuarioPorNominaJefe = await _empleadoRepository.ResolverIdsUsuarioPorNominasAsync(
+                nominaJefePorNomina.Values.Distinct().ToList(),
+                cancellationToken);
+
+            var resultado = new Dictionary<int, int>();
+            foreach (var creador in nominaPorCreador)
+            {
+                if (nominaJefePorNomina.TryGetValue(creador.Value, out var nominaJefe)
+                    && idUsuarioPorNominaJefe.TryGetValue(nominaJefe, out var idJefe))
+                {
+                    resultado[creador.Key] = idJefe;
+                }
+            }
+
+            return resultado;
+        }
     }
 }
