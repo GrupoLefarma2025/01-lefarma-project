@@ -192,11 +192,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                         // Verificar si el usuario es jefe inmediato de los creadores de las solicitudes 
                         // y agregarlos a la lista de usuarios del jefe
-                        foreach (var idCreador in solicitudesEnPasosJefe)
+                        var jefePorCreador = await _jefeInmediatoResolver.ResolverIdsJefePorUsuariosAsync(solicitudesEnPasosJefe);
+                        foreach (var par in jefePorCreador)
                         {
-                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
-                            if (idJefe == idUsuario)
-                                usuariosDelJefe.Add(idCreador);
+                            if (par.Value == idUsuario)
+                                usuariosDelJefe.Add(par.Key);
                         }
                     }
 
@@ -254,8 +254,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var result = new List<SolicitudPersonalResponse>();
                 foreach (var item in items)
                 {
-                    var tipo = await _tipoRepository.GetByIdAsync(item.IdTipoSolicitud);
-                    var dto = item.ToResponse(tipo, usuariosInfo, pasoNombre, item.Estado?.Codigo);
+                    var dto = item.ToResponse(item.TipoSolicitud, usuariosInfo, pasoNombre, item.Estado?.Codigo);
                     result.Add(dto);
                 }
 
@@ -845,30 +844,48 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var tipos = await _tipoRepository.GetTiposActivosAsync();
                 var ahora = DateTime.Now;
 
+                var tiposConLimite = tipos.Where(t => t.LimitePorPeriodo.HasValue).ToList();
+                var periodosPorTipo = tiposConLimite
+                    .Select(t => (Tipo: t, Periodo: PeriodoHelper.ObtenerPeriodoActual(ahora, t.PeriodoLimite ?? PeriodoHelper.Quincena)))
+                    .ToList();
+
                 var limites = new List<LimitePorTipoResponse>();
-                foreach (var tipo in tipos.Where(t => t.LimitePorPeriodo.HasValue))
+                if (periodosPorTipo.Count > 0)
                 {
-                    var (inicio, fin, etiqueta) = PeriodoHelper.ObtenerPeriodoActual(
-                        ahora, tipo.PeriodoLimite ?? PeriodoHelper.Quincena);
+                    var tipoIds = periodosPorTipo.Select(p => p.Tipo.IdTipoSolicitud).ToList();
+                    var fechaMin = periodosPorTipo.Min(p => p.Periodo.inicio);
+                    var fechaMax = periodosPorTipo.Max(p => p.Periodo.fin);
 
-                    var usado = await _tipoRepository.ContarSolicitudesCerradasEnPeriodoAsync(
-                        idUsuarioObjetivo,
-                        tipo.IdTipoSolicitud,
-                        inicio,
-                        fin,
-                        WorkflowEstadoCodigo.CERRADA);
+                    var solicitudesCerradas = await _context.SolicitudesPersonal
+                        .AsNoTracking()
+                        .Where(s => s.IdUsuarioCreador == idUsuarioObjetivo
+                            && tipoIds.Contains(s.IdTipoSolicitud)
+                            && s.FechaCreacion >= fechaMin
+                            && s.FechaCreacion <= fechaMax
+                            && s.Estado != null
+                            && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA)
+                        .Select(s => new { s.IdTipoSolicitud, s.FechaCreacion })
+                        .ToListAsync();
 
-                    limites.Add(new LimitePorTipoResponse
+                    foreach (var (tipo, periodo) in periodosPorTipo)
                     {
-                        IdTipoSolicitud = tipo.IdTipoSolicitud,
-                        Tipo = tipo.Nombre,
-                        Limite = tipo.LimitePorPeriodo.Value,
-                        Usado = usado,
-                        Disponible = Math.Max(0, tipo.LimitePorPeriodo.Value - usado),
-                        Periodo = etiqueta,
-                        PeriodoInicio = inicio,
-                        PeriodoFin = fin
-                    });
+                        var usado = solicitudesCerradas
+                            .Count(s => s.IdTipoSolicitud == tipo.IdTipoSolicitud
+                                && s.FechaCreacion >= periodo.inicio
+                                && s.FechaCreacion <= periodo.fin);
+
+                        limites.Add(new LimitePorTipoResponse
+                        {
+                            IdTipoSolicitud = tipo.IdTipoSolicitud,
+                            Tipo = tipo.Nombre,
+                            Limite = tipo.LimitePorPeriodo!.Value,
+                            Usado = usado,
+                            Disponible = Math.Max(0, tipo.LimitePorPeriodo.Value - usado),
+                            Periodo = periodo.etiqueta,
+                            PeriodoInicio = periodo.inicio,
+                            PeriodoFin = periodo.fin
+                        });
+                    }
                 }
 
                 var (periodoInicio, periodoFin, periodoEtiqueta) = PeriodoHelper.ObtenerPeriodoActual(
