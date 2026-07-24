@@ -1,4 +1,4 @@
-# lefarma.ps1 — Unified project CLI
+﻿# lefarma.ps1 — Unified project CLI
 # Usage: .\lefarma.ps1 <command>
 #   dev        Start backend (5174) + frontend (5173) with hot reload
 #   stop       Kill dev processes on 5174 + 5173
@@ -35,12 +35,13 @@ switch ($Command) {
         Stop-PortProcess 5173
 
         $bat = Join-Path $env:TEMP "lefarma-dev.bat"
-        @"
+        $batch = @"
 @echo off
 start "Lefarma Backend" cmd /k "cd /d "$Backend" && title Lefarma Backend :5174 && dotnet watch run --launch-profile http"
 timeout /t 2 /nobreak >nul
 start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :5173 && npm run dev"
-"@ | Out-File $bat -Encoding ASCII
+"@
+        $batch | Out-File $bat -Encoding ASCII
         & $bat
         Remove-Item $bat -ErrorAction SilentlyContinue
         Write-Host "Started. Close the terminal windows to stop." -ForegroundColor Green
@@ -59,12 +60,13 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
         Write-Host "Restarting dev — backend :5174 | frontend :5173" -ForegroundColor Cyan
 
         $bat = Join-Path $env:TEMP "lefarma-dev.bat"
-        @"
+        $batch = @"
 @echo off
 start "Lefarma Backend" cmd /k "cd /d "$Backend" && title Lefarma Backend :5174 && dotnet watch run --launch-profile http"
 timeout /t 2 /nobreak >nul
 start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :5173 && npm run dev"
-"@ | Out-File $bat -Encoding ASCII
+"@
+        $batch | Out-File $bat -Encoding ASCII
         & $bat
         Remove-Item $bat -ErrorAction SilentlyContinue
         Write-Host "Restarted." -ForegroundColor Green
