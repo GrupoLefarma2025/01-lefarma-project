@@ -20,8 +20,8 @@ public class SseTicketService : ISseTicketService
 
         _cache.Set(cacheKey, userId, new MemoryCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(30),
-            SlidingExpiration = TimeSpan.FromSeconds(10)
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+            SlidingExpiration = TimeSpan.FromMinutes(2)
         });
 
         _logger.LogDebug("Generated SSE ticket for user {UserId}", userId);
@@ -37,8 +37,7 @@ public class SseTicketService : ISseTicketService
 
         if (_cache.TryGetValue(cacheKey, out int userId))
         {
-            _cache.Remove(cacheKey);
-            _logger.LogDebug("SSE ticket consumed for user {UserId}", userId);
+            _logger.LogDebug("SSE ticket validated for user {UserId}", userId);
             return userId;
         }
 
