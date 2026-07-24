@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { API } from '@/shared/api/apiClient';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { WorkflowEstado } from '@/types/workflow.types';
 
 export interface WorkflowRolCatalogo {
@@ -88,8 +89,7 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
     if (estados.length > 0) return;
     setLoadingEstados(true);
     try {
-      const res = await API.get<{ data: WorkflowEstado[] }>('/config/workflows/estados');
-      setEstados(res.data?.data ?? []);
+      setEstados(await fetchWorkflowEstados());
     } catch {
       // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingEstados(false); }

@@ -69,6 +69,7 @@ import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
@@ -632,10 +633,7 @@ export default function AutorizacionesOC() {
 
   const fetchEstados = async () => {
     try {
-      const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
-      if (res.data?.success) {
-        setWorkflowEstados(res.data.data || []);
-      }
+      setWorkflowEstados(await fetchWorkflowEstados());
     } catch {
       // fallo silencioso
     }

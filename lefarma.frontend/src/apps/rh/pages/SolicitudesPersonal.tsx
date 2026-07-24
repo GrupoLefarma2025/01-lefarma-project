@@ -19,9 +19,7 @@ import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
 import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
 import { CrearSolicitud } from '../components/CrearSolicitud';
-import { API } from '@/shared/api/apiClient';
-import { ApiResponse } from '@/types/api.types';
-import type { WorkflowEstado } from '@/types/workflow.types';
+import { useWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
 
@@ -96,19 +94,11 @@ export default function SolicitudesPersonal() {
   const [searchTodas, setSearchTodas] = useState('');
   const [estadoFilter, setEstadoFilter] = useState<string>('all');
   const [creadorFilter, setCreadorFilter] = useState<number | 'all'>('all');
-  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+  const { estados: workflowEstados } = useWorkflowEstados();
 
   useEffect(() => {
     fetchAll(puedeVerTodas);
     fetchProfileSignature();
-
-    API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
-      .then((res) => {
-        if (res.data.success) setWorkflowEstados(res.data.data || []);
-      })
-      .catch(() => {
-        setWorkflowEstados([]);
-      });
   }, [puedeVerTodas, fetchAll, fetchProfileSignature]);
 
   const [modalStates, setModalStates] = useState({

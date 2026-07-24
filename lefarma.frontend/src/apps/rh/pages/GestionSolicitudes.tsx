@@ -35,6 +35,7 @@ import {
   type SolicitudPersonalFilterParams,
   type TipoSolicitudResponse,
 } from '@/types/solicitudPersonal.types';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import type { Empresa, Sucursal, Area } from '@/types/catalogo.types';
 import { cn } from '@/lib/utils';
@@ -196,12 +197,12 @@ export default function GestionSolicitudes() {
     const loadCatalogs = async () => {
       setLoadingCatalogs(true);
       try {
-        const [empRes, sucRes, areaRes, tipoRes, estRes] = await Promise.all([
+        const [empRes, sucRes, areaRes, tipoRes, estadosData] = await Promise.all([
           API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas'),
           API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales'),
           API.get<ApiResponse<Area[]>>('/catalogos/Areas'),
           tipoSolicitudApi.getActivos(),
-          API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados'),
+          fetchWorkflowEstados(),
           usuariosCatalogoApi.getAll().then((u) => setUsuarios(u)),
         ]);
 
@@ -209,7 +210,7 @@ export default function GestionSolicitudes() {
         if (sucRes.data.success) setSucursales(sucRes.data.data ?? []);
         if (areaRes.data.success) setAreas(areaRes.data.data ?? []);
         if (tipoRes.data.success) setTipos(tipoRes.data.data ?? []);
-        if (estRes.data.success) setWorkflowEstados(estRes.data.data ?? []);
+        setWorkflowEstados(estadosData);
       } catch {
         toast.error('No se pudieron cargar todos los catálogos');
       } finally {
