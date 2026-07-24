@@ -108,3 +108,11 @@ tmp/
 
 # ATL (Agent Tooling Layer)
 .atl/
+
+# Playwright
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.playwright/
+.playwright-cli/
