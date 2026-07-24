@@ -17,6 +17,9 @@ import { toast } from 'sonner';
 
 const LEGACY_TOKEN_KEY = 'token';
 
+// ponytail: in-flight dedup so concurrent fetchProfileSignature calls share one /profile request
+let profileInflight: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   token: null,
@@ -376,14 +379,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   fetchProfileSignature: async () => {
-    try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string } }>>('/profile');
-      const firmaPath = response.data.data?.detalle?.firmaPath;
-      const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
-      set({ hasFirma: !!firmaPath, puedeSeleccionarEmpresas: puedeSeleccionar });
-    } catch {
-        set({ hasFirma: false })
-    }
+    if (profileInflight) return profileInflight;
+    profileInflight = (async () => {
+      try {
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string } }>>('/profile');
+        const firmaPath = response.data.data?.detalle?.firmaPath;
+        const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
+        set({ hasFirma: !!firmaPath, puedeSeleccionarEmpresas: puedeSeleccionar });
+      } catch {
+          set({ hasFirma: false })
+      } finally {
+        profileInflight = null;
+      }
+    })();
+    return profileInflight;
   },
 
   initialize: () => {
