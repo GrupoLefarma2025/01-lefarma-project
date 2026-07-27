@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   ChevronRight,
@@ -30,7 +31,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthStore } from '@/shared/auth/authStore';
 import favicon from '@/assets/favicon.ico';
-import { checkPermission } from '@/utils/permissions';
+import { checkPermission, usePermissionVersion } from '@/utils/permissions';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { SidebarMenuItemConfig, CollapsibleMenuItem } from '@/components/layout/sidebar-types';
 
@@ -51,6 +52,7 @@ export interface AppSidebarProps {
 }
 
 export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSidebarProps) {
+  usePermissionVersion(); // subscribe — re-render when permissions change
   const { user, logout, hasFirma } = useAuthStore();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
@@ -183,7 +185,7 @@ export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSide
           <SidebarMenu>
             {items.map((item) => {
               if ('isCollapsible' in item) {
-                return <div key={item.title}>{renderCollapsibleItem(item)}</div>;
+                return <Fragment key={item.title}>{renderCollapsibleItem(item)}</Fragment>;
               }
 
               if (!hasPermission(item.permission)) return null;

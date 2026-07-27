@@ -1,6 +1,6 @@
 ﻿import { Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { checkPermission } from '@/utils/permissions';
+import { checkPermission, usePermissionVersion } from '@/utils/permissions';
 
 
 interface PermissionGuardProps {
@@ -27,6 +27,7 @@ export function PermissionGuard({
   blockedPath = '/bloqueado',
   children,
 }: PermissionGuardProps) {
+  usePermissionVersion(); // subscribe — re-render when permissions change
   const hasPermission = checkPermission({ require, requireAny, exclude });
 
   if (!hasPermission) {

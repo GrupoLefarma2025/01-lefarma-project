@@ -13,6 +13,11 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { useConfigStore } from '@/store/configStore';
 import { toast } from 'sonner';
+import {
+  refreshPermissions,
+  startPermissionsPolling,
+  stopPermissionsPolling,
+} from '@/utils/permissions';
 
 
 const LEGACY_TOKEN_KEY = 'token';
@@ -115,6 +120,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           displayName: null,
           pendingUsername: null,
         });
+        void refreshPermissions();
+        startPermissionsPolling();
         return;
       }
 
@@ -192,11 +199,6 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           empresa: unicaEmpresa,
           sucursal: unicaSucursal,
           area: areasDeEmpresa.length === 1 ? areasDeEmpresa[0] : null,
-        });
-
-        useConfigStore.getState().updatePerfil({
-          nombre: response.user.nombre || '',
-          correo: response.user.correo || '',
         });
 
         await get().fetchProfileSignature();
@@ -278,6 +280,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           duration: 6000,
         });
       }
+
+      void refreshPermissions();
+      startPermissionsPolling();
     } catch (error) {
       set({ isLoading: false });
       throw error;
@@ -301,6 +306,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   logout: async () => {
     await authService.logout();
+    stopPermissionsPolling();
     set({
       user: null,
       token: null,
@@ -387,7 +393,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
         set({ hasFirma: !!firmaPath, puedeSeleccionarEmpresas: puedeSeleccionar });
       } catch {
-          set({ hasFirma: false })
+        set({ hasFirma: false });
       } finally {
         profileInflight = null;
       }
@@ -435,6 +441,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       });
 
       get().fetchProfileSignature();
+      void refreshPermissions();
+      startPermissionsPolling();
     } else {
       // Sin datos de auth
       set({
