@@ -1,14 +1,20 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import logoDefault from '@/assets/logo.png';
-import logo1 from '@/assets/logo_1.png';
-import logo2 from '@/assets/logo_2.png';
-import logo3 from '@/assets/logo_3.png';
-import logo4 from '@/assets/logo_4.png';
-import logo5 from '@/assets/logo_5.png';
+import logoArtricenter from '@/assets/logo_1.png?no-inline';
+import logoAsokam from '@/assets/logo_7.png?no-inline';
+import logoLefarma from '@/assets/logo_8.png?no-inline';
+import logoConstrumedika from '@/assets/logo_11.png?no-inline';
+import logoGrupoLefarma from '@/assets/logo_12.png?no-inline';
 
 // ponytail: static imports — Vite can't bundle dynamic asset paths
-const LOGOS: Record<number, string> = { 1: logo1, 2: logo2, 3: logo3, 4: logo4, 5: logo5 };
+const LOGOS: Record<number, string> = {
+  1: logoArtricenter,
+  7: logoAsokam,
+  8: logoLefarma,
+  11: logoConstrumedika,
+  12: logoGrupoLefarma,
+};
 
 interface Props {
   orden: OrdenCompraResponse;
@@ -304,7 +310,12 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
     <div id={id} style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.headerRow}>
-        <Logo src={LOGOS[orden.idEmpresa] ?? logoDefault} />
+        <Logo src={(() => {
+          const k = Number(orden.idEmpresa);
+          const s = LOGOS[k] ?? logoDefault;
+          console.log('[OrdenCompraConcentradoPDF] idEmpresa:', orden.idEmpresa, '→ key:', k, '→ match:', s !== logoDefault, '→ logos ok:', { 1: !!logoArtricenter, 7: !!logoAsokam, 8: !!logoLefarma, 11: !!logoConstrumedika, 12: !!logoGrupoLefarma });
+          return s;
+        })()} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
         <div style={s.folioBox}>
           <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>

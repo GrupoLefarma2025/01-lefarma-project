@@ -332,7 +332,7 @@ export default function EnvioConcentrado() {
       formData.append('nombre', `concentrado-${new Date().toISOString().split('T')[0]}`);
       formData.append('usuario', '41@Grupolefarma');
       formData.append('correo', '41@grupolefarma.com.mx');
-      formData.append('correoCC', '6@grupolefarma.com.mx');
+      formData.append('correoCC', '');
       formData.append('archivo', pdfBlob, 'concentrado.pdf');
       formData.append('tieneDocumentoSoporte', 'false');
 
