@@ -1,6 +1,6 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
-import logoImage from '@/assets/logo.png';
+import logoImage from '@/assets/logo_concentrado.png';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

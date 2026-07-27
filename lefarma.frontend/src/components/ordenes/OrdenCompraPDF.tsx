@@ -1,7 +1,15 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
-import logoImage from '@/assets/logo.png';
+import logoDefault from '@/assets/logo.png';
+import logo1 from '@/assets/logo_1.png';
+import logo2 from '@/assets/logo_2.png';
+import logo3 from '@/assets/logo_3.png';
+import logo4 from '@/assets/logo_4.png';
+import logo5 from '@/assets/logo_5.png';
+
+// ponytail: static imports — Vite can't bundle dynamic asset paths
+const LOGOS: Record<number, string> = { 1: logo1, 2: logo2, 3: logo3, 4: logo4, 5: logo5 };
 
 interface HistorialWorkflowItem {
   idEvento: number;
@@ -337,10 +345,10 @@ const s: Record<string, React.CSSProperties> = {
 
 // ─── Logo ──────────────────────────────────────────────────────────────────────
 
-const Logo: React.FC = () => (
+const Logo: React.FC<{ src: string }> = ({ src }) => (
   <div style={s.logoBox}>
     <img
-      src={logoImage}
+      src={src}
       alt="Grupo Lefarma"
       style={{ width: 120, height: 50, objectFit: 'contain' }}
     />
@@ -395,7 +403,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.headerRow}>
-        <Logo />
+        <Logo src={LOGOS[orden.idEmpresa] ?? logoDefault} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
         <div style={s.folioBox}>
           <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>
