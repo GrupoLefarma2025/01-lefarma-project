@@ -165,7 +165,6 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
             src={(() => {
               const k = Number(orden.idEmpresa);
               const s = LOGOS[k] ?? logoDefault;
-              console.log('[FlujoOrdenPDF] idEmpresa:', orden.idEmpresa, '→ key:', k, '→ match:', s !== logoDefault, '→ logos ok:', { 1: !!logoArtricenter, 7: !!logoAsokam, 8: !!logoLefarma, 11: !!logoConstrumedika, 12: !!logoGrupoLefarma });
               return s;
             })()}
             alt="Lefarma"
