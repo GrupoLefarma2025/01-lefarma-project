@@ -10,8 +10,15 @@ vi.mock('@/apps/_registry', async () => {
   return { ...actual, appRegistry: [] as AppRegistryEntry[] };
 });
 
+// checkPermission se controla por test; usePermissionVersion real es inofensivo (store vacío).
+vi.mock('@/utils/permissions', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/permissions')>('@/utils/permissions');
+  return { ...actual, checkPermission: vi.fn(() => true) };
+});
+
 import { Home } from '@/apps/baseapp/Home';
 import { appRegistry } from '@/apps/_registry';
+import { checkPermission } from '@/utils/permissions';
 
 function setRegistry(entries: AppRegistryEntry[]) {
   // Mutate the array exported by the mock in place so Home, which imports the
@@ -22,6 +29,7 @@ function setRegistry(entries: AppRegistryEntry[]) {
 describe('Home launcher (base-app)', () => {
   beforeEach(() => {
     setRegistry([]);
+    vi.mocked(checkPermission).mockReturnValue(true);
   });
 
   it('Scenario: Launcher lists registry apps — one tile per entry with a navigation affordance', () => {
@@ -78,5 +86,20 @@ describe('Home launcher (base-app)', () => {
     const item = screen.getByText(/cxp/i);
     expect(item).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /cxp/i })).not.toBeInTheDocument();
+  });
+
+  it('Scenario: Tile gated by permission — hidden without it, visible with it', () => {
+    setRegistry([
+      { id: 'cxp', label: 'CxP', path: '/cxp/', permission: 'baseapp.hub.puede_ver_cxp' },
+    ]);
+
+    vi.mocked(checkPermission).mockReturnValue(false);
+    const { rerender } = render(<MemoryRouter><Home /></MemoryRouter>);
+    expect(screen.queryByRole('link', { name: /cxp/i })).not.toBeInTheDocument();
+    expect(checkPermission).toHaveBeenCalledWith({ require: 'baseapp.hub.puede_ver_cxp' });
+
+    vi.mocked(checkPermission).mockReturnValue(true);
+    rerender(<MemoryRouter><Home /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /cxp/i })).toHaveAttribute('href', '/cxp/');
   });
 });

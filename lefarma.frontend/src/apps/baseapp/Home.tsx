@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { appRegistry, type AppRegistryEntry } from '@/apps/_registry';
 import { Card } from '@/components/ui/card';
+import { checkPermission, usePermissionVersion } from '@/utils/permissions';
 import { cn } from '@/lib/utils';
 
 /**
@@ -13,7 +14,12 @@ import { cn } from '@/lib/utils';
  * se difiere a las apps individuales.
  */
 export function Home() {
-  if (appRegistry.length === 0) {
+  usePermissionVersion(); // subscribe — re-render cuando cambian los permisos (SSE/polling)
+  const visibleApps = appRegistry.filter(
+    (app) => !app.permission || checkPermission({ require: app.permission })
+  );
+
+  if (visibleApps.length === 0) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
         <p className="text-sm text-muted-foreground">
@@ -33,7 +39,7 @@ export function Home() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-        {appRegistry.map((app, index) => (
+        {visibleApps.map((app, index) => (
           <LauncherTile key={app.id} app={app} index={index} />
         ))}
       </div>
