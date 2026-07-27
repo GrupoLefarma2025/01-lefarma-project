@@ -2,14 +2,20 @@ import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import logoDefault from '@/assets/logo.png';
-import logo1 from '@/assets/logo_1.png';
-import logo2 from '@/assets/logo_2.png';
-import logo3 from '@/assets/logo_3.png';
-import logo4 from '@/assets/logo_4.png';
-import logo5 from '@/assets/logo_5.png';
+import logoArtricenter from '@/assets/logo_1.png?no-inline';
+import logoAsokam from '@/assets/logo_7.png?no-inline';
+import logoLefarma from '@/assets/logo_8.png?no-inline';
+import logoConstrumedika from '@/assets/logo_11.png?no-inline';
+import logoGrupoLefarma from '@/assets/logo_12.png?no-inline';
 
 // ponytail: static imports — Vite can't bundle dynamic asset paths
-const LOGOS: Record<number, string> = { 1: logo1, 2: logo2, 3: logo3, 4: logo4, 5: logo5 };
+const LOGOS: Record<number, string> = {
+  1: logoArtricenter,
+  7: logoAsokam,
+  8: logoLefarma,
+  11: logoConstrumedika,
+  12: logoGrupoLefarma,
+};
 
 interface HistorialWorkflowItem {
   idEvento: number;
@@ -398,12 +404,16 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
   console.log('[OrdenCompraPDF] numeroMensualidades:', orden.numeroMensualidades);
   console.log('[OrdenCompraPDF] formasPagoMap:', formasPagoMap);
   console.log('[OrdenCompraPDF] proveedoresMap:', proveedoresMap);
+  // DEBUG logo: confirmar qué valor llega y si matchea en LOGOS
+  const _logoKey = Number(orden.idEmpresa);
+  const _logoSrc = LOGOS[_logoKey] ;
+  console.log('[OrdenCompraPDF] idEmpresa raw:', orden.idEmpresa, typeof orden.idEmpresa, '→ Number key:', _logoKey, '→ match:', _logoSrc !== logoDefault);
 
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
       <div style={s.headerRow}>
-        <Logo src={LOGOS[orden.idEmpresa] ?? logoDefault} />
+        <Logo src={_logoSrc} />
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
         <div style={s.folioBox}>
           <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>
