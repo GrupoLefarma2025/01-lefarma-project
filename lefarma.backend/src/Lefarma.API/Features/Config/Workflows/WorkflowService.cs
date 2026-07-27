@@ -577,7 +577,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (request.IdEstado.HasValue
                     && workflow.Pasos.Any(p => p.IdEstado == request.IdEstado))
                 {
-                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.Value.ToString());
+                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.ToString());
                 }
 
                 var paso = new WorkflowPaso
@@ -1050,7 +1050,7 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 // Buscar condicion directamente por ID
                 var condicion = await _context.WorkflowCondiciones
-                    .Include(c => c.Accion).ThenInclude(a => a!.PasoOrigen)
+                    .Include(c => c.Accion).ThenInclude(a => a.PasoOrigen)
                     .FirstOrDefaultAsync(c => c.IdCondicion == idCondicion);
 
                 if (condicion == null)
@@ -1167,8 +1167,9 @@ public class WorkflowService : BaseService, IWorkflowService
                 var participante = new WorkflowParticipante
                 {
                     IdPaso = idPaso,
-                    IdRol = request.IdRol,
-                    IdUsuario = request.IdUsuario,
+                    IdRol = request.RequiereJefeInmediato ? null : request.IdRol,
+                    IdUsuario = request.RequiereJefeInmediato ? null : request.IdUsuario,
+                    RequiereJefeInmediato = request.RequiereJefeInmediato,
                     Activo = request.Activo
                 };
 
@@ -1181,6 +1182,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPaso = participante.IdPaso,
                     IdRol = participante.IdRol,
                     IdUsuario = participante.IdUsuario,
+                    RequiereJefeInmediato = participante.RequiereJefeInmediato,
                     Activo = participante.Activo
                 };
 
@@ -1227,8 +1229,9 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (participante.Activo && !request.Activo && participantesActivos <= 1)
                     return CommonErrors.Conflict("participante", "Debe existir al menos un participante activo por paso.");
 
-                participante.IdRol = request.IdRol;
-                participante.IdUsuario = request.IdUsuario;
+                participante.IdRol = request.RequiereJefeInmediato ? null : request.IdRol;
+                participante.IdUsuario = request.RequiereJefeInmediato ? null : request.IdUsuario;
+                participante.RequiereJefeInmediato = request.RequiereJefeInmediato;
                 participante.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
@@ -1239,6 +1242,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPaso = participante.IdPaso,
                     IdRol = participante.IdRol,
                     IdUsuario = participante.IdUsuario,
+                    RequiereJefeInmediato = participante.RequiereJefeInmediato,
                     Activo = participante.Activo
                 };
 
@@ -1767,6 +1771,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdPaso = pt.IdPaso,
                     IdRol = pt.IdRol,
                     IdUsuario = pt.IdUsuario,
+                    RequiereJefeInmediato = pt.RequiereJefeInmediato,
                     Activo = pt.Activo
                 }).ToList()
             }).ToList(),

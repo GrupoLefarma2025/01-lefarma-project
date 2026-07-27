@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { navigateTo } from '@/lib/navigation';
 import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 
@@ -139,20 +139,17 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
       return;
     }
 
-    // Si es un error de red/tiempo (CONNECTING), dejar que el navegador reintente
-    // EventSource tiene su propio backoff de reconexion (~3s)
     if (es.readyState === EventSource.CONNECTING) {
+      // Close to prevent native auto-reconnect reusing the stale ticket URL.
+      // Manual reconnect below fetches a fresh ticket.
+      es.close();
       setConnected(false);
       onConnectionChange?.(false);
-      // No programamos reconexion manual, el navegador lo hace solo
-      return;
+    } else {
+      setConnected(false);
+      setError('Error de conexion. Reintentando...');
+      onConnectionChange?.(false);
     }
-
-    // Si llego a CLOSED pero aun no excede el limite, marcar desconectado
-    // y programar reconexion manual con backoff exponencial
-    setConnected(false);
-    setError('Error de conexion. Reintentando...');
-    onConnectionChange?.(false);
 
     const delay = BASE_RECONNECT_DELAY * Math.min(reconnectAttemptsRef.current, 30);
 

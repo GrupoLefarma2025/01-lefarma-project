@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { usePermission } from '@/hooks/usePermission';
 import { useCurrency } from '@/hooks/useCurrency';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { DashboardStatsResponse } from '@/types/dashboard.types';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';

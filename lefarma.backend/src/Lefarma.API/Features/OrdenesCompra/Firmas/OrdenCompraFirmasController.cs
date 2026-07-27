@@ -1,0 +1,85 @@
+using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
+using Lefarma.API.Shared.Extensions;
+using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
+using System.Security.Claims;
+
+namespace Lefarma.API.Features.OrdenesCompra.Firmas
+{
+[Route("api/ordenes")]
+    [ApiController]
+    [EndpointGroupName("OrdenesCompra")]
+    //[HasPermission(Permissions.OrdenesCompra.Approve)]
+    public class OrdenCompraFirmasController : ControllerBase
+    {
+        private readonly IOrdenCompraFirmasService _service;
+        private readonly IOrdenCompraFirmasService _firmasService;  
+        private readonly IConfiguration _configuration;
+        public OrdenCompraFirmasController(IOrdenCompraFirmasService service, 
+            IOrdenCompraFirmasService firmasService,  IConfiguration configuration)
+        {
+            _service = service;
+            _firmasService = firmasService;
+            _configuration = configuration;
+        }
+
+        private int GetUserId() =>
+            int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
+
+        [HttpPost("{id}/firmar")]
+        [SwaggerOperation(
+            Summary = "Ejecutar acci�n de firma sobre una orden",
+            Description = "Endpoint gen�rico.")]
+        public async Task<IActionResult> Firmar(int id, FirmarRequest request)
+        {
+            var result = await _firmasService.FirmarAsync(id, request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
+            { Success = true, Message = data?.Mensaje ?? string.Empty, Data = data }));
+        }
+
+        [HttpGet("{id}/acciones")]
+        [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden seg�n su estado actual")]
+        public async Task<IActionResult> GetAcciones(int id)
+        {
+            var result = await _firmasService.GetAccionesDisponiblesAsync(id, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
+            { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
+        }
+
+        [HttpGet("{id}/acciones/{idAccion}/metadata")]
+        [SwaggerOperation(Summary = "Obtener metadatos de una acción para construir modal dinámico")]
+        public async Task<IActionResult> GetAccionMetadata(int id, int idAccion)
+        {
+            var result = await _firmasService.GetAccionMetadataAsync(id, idAccion, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<AccionMetadataResponse>
+            { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
+        }
+
+        [HttpPost("envio-concentrado")]
+        [SwaggerOperation(
+            Summary = "Concentrado de órdenes — avanzar en lote desde paso 4",
+            Description = "Ejecuta la acción de Autorizar (acción 8) sobre cada orden indicada. " +
+                          "El motor de workflow enruta automáticamente: Total > 100,000 → Paso 5 (Dirección), " +
+                          "Total ≤ 100,000 → Paso 6 (Tesorería).")]
+        public async Task<IActionResult> EnvioConcentrado([FromBody] EnvioConcentradoRequest request)
+        {
+            var result = await _firmasService.EnvioConcentradoAsync(request, GetUserId());
+            return result.ToActionResult(this, data => Ok(new ApiResponse<EnvioConcentradoResponse>
+            { Success = true, Message = $"{data?.Exitosas} orden(es) avanzadas exitosamente.", Data = data }));
+        }
+
+        [HttpGet("{id}/historial-workflow")]
+        [SwaggerOperation(Summary = "Obtener historial de transiciones del workflow para una orden")]
+        public async Task<IActionResult> GetHistorialWorkflow(int id)
+        {
+            var result = await _firmasService.GetHistorialAsync(id);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
+            { Success = true, Message = "Historial de workflow obtenido exitosamente.", Data = data }));
+        }
+    }
+}

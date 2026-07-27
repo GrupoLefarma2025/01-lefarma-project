@@ -223,6 +223,13 @@
   display: none;
 }
 
+#solicitud-personal-pdf-print {
+  opacity: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .envio-concentrado-preview #envio-concentrado-pdf-preview {
   display: block !important;
   visibility: visible !important;
@@ -340,6 +347,39 @@
 
   body.print-envio-concentrado #envio-concentrado-pdf-print tbody {
     display: table-row-group;
+  }
+
+  /* ── SOLICITUD DE PERSONAL ── */
+  body.print-solicitud {
+    page: portrait;
+  }
+
+  body.print-solicitud #flujo-pdf-print,
+  body.print-solicitud #orden-compra-pdf-print,
+  body.print-solicitud #envio-concentrado-pdf-print {
+    display: none !important;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #111 !important;
+    font-family: 'Arial', sans-serif !important;
+    font-size: 10pt !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    opacity: 1 !important;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print table {
+    page-break-inside: avoid;
+  }
+
+  body.print-solicitud #solicitud-personal-pdf-print img {
+    overflow: visible !important;
   }
 
   /* Header */

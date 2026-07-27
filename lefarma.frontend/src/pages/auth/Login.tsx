@@ -1,6 +1,6 @@
 ﻿import { useState, FormEvent, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
@@ -23,6 +23,18 @@ import {
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
+/**
+ * @legacy Login monolítico — SUPERSEDO por `<MultiStepLogin>` (pasos 1 y 2)
+ * más el slot `step3` inyectado por cada app (ej. `CxpContextSelection` para
+ * CxP). La fábrica genérica `createAppRoutes` ahora renderiza `<MultiStepLogin>`
+ * en lugar de este componente.
+ *
+ * Se conserva ÍNTEGRO (sin cambios de lógica) únicamente porque sus pruebas
+ * unitarias directas (`require-auth.test.tsx`, `login.smoke.test.tsx`) lo
+ * importan y ejercen. No agregar nuevos consumidores — usar
+ * `<MultiStepLogin>` + slot `step3` para cualquier login nuevo.
+ */
+
 const DOMAIN_NAMES: Record<string, string> = {
   'LEFARMA-HN': 'LeFarma Honduras',
   'LEFARMA-GT': 'LeFarma Guatemala',
@@ -32,7 +44,27 @@ const DOMAIN_NAMES: Record<string, string> = {
   DC: 'Distribuidora Central',
 };
 
-export default function Login() {
+export interface LoginProps {
+  /**
+   * Cuando es `true` (por defecto), presenta el flujo de 3 pasos que recopila
+   * el contexto de empresa/sucursal/area después de las credenciales (login
+   * CxP — CxP es la ÚNICA app que recopila contexto). Cuando es `false`, la
+   * sesión se finaliza justo después de las credenciales y el paso de selección
+   * de contexto se omite limpiamente (flujo `/login` global y el login por-app
+   * de RH).
+   */
+  requireContextSelection?: boolean;
+  /**
+   * Destino de navegación post-login. Por defecto `'dashboard'` (el landing
+   * de CxP). El login global lo sobrescribe con `'/hub'`.
+   */
+  redirectTo?: string;
+}
+
+export default function Login({
+  requireContextSelection = true,
+  redirectTo = 'dashboard',
+}: LoginProps = {}) {
   const navigate = useNavigate();
   const {
     loginStep,
@@ -52,6 +84,21 @@ export default function Login() {
     loginStepThree,
     resetLoginFlow,
   } = useAuthStore();
+
+  // Destino de retorno post-login opcional, establecido por el guard
+  // RequireAuth del shell cuando redirige aquí una sesión no autenticada.
+  // Guarda contra open-redirect: solo honra rutas absolutas del mismo origen
+  // (relativas a la raíz, NO relativas al protocolo como `//evil.com`). El
+  // shell ahora se sirve desde la raíz (`/`), así que los destinos de retorno
+  // válidos se ven como `/hub`, `/perfil`, `/cxp/dashboard`, `/rh/dashboard`, etc.
+  // El flujo por defecto de CxP (sin parámetro return) no cambia.
+  const returnSearchParam = new URLSearchParams(window.location.search).get('return');
+  const safeReturn =
+    returnSearchParam &&
+    returnSearchParam.startsWith('/') &&
+    !returnSearchParam.startsWith('//')
+      ? returnSearchParam
+      : null;
 
   const [username, setUsername] = useState(pendingUsername || '');
   const [syncedPending, setSyncedPending] = useState<string | null>(pendingUsername || null);
@@ -146,8 +193,15 @@ export default function Login() {
 
   // Navegacion al dashboard: side-effect real, va en efecto
   useEffect(() => {
-    if (isAuthenticated) navigate('/dashboard', { replace: true });
-  }, [isAuthenticated, navigate]);
+    if (!isAuthenticated) return;
+    // Honrar un destino de retorno del mismo origen si existe; de lo contrario
+    // usar el redirect configurado (dashboard de CxP o /hub para el login global).
+    if (safeReturn) {
+      navigate(safeReturn, { replace: true });
+      return;
+    }
+    navigate(redirectTo, { replace: true });
+  }, [isAuthenticated, navigate, safeReturn, redirectTo]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
@@ -183,7 +237,7 @@ export default function Login() {
     const domain = requiresDomainSelection ? selectedDomain : availableDomains[0];
 
     try {
-      await loginStepTwo(password, domain);
+      await loginStepTwo(password, domain, { requireContextSelection });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Credenciales incorrectas';
       setError(message);
@@ -215,7 +269,13 @@ export default function Login() {
 
     try {
       await loginStepThree(emp, suc, ar);
-      navigate('/dashboard', { replace: true });
+      // Honrar un destino de retorno del mismo origen si existe; de lo contrario
+      // usar el redirect configurado (dashboard de CxP).
+      if (safeReturn) {
+        navigate(safeReturn, { replace: true });
+        return;
+      }
+      navigate(redirectTo, { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
       setError(message);
@@ -251,7 +311,7 @@ export default function Login() {
             />
           </div>
 
-          {/* Progress steps */}
+          {/* Pasos de progreso */}
           <div className="my-4 flex items-center justify-center gap-2">
             <div
               className={`flex items-center gap-2 ${

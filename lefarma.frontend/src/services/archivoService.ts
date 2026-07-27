@@ -1,4 +1,4 @@
-﻿import { API } from './api';
+﻿import { API } from '@/shared/api/apiClient';
 import type {
   Archivo,
   ArchivoListItem,

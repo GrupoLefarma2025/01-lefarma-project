@@ -74,7 +74,7 @@ export type GanttFeature = {
   startAt: Date;
   endAt: Date;
   status: GanttStatus;
-  lane?: string; // Optional: features with the same lane will share a row
+  lane?: string; // Opcional: las features con el mismo lane compartirán una fila
 };
 
 export type GanttMarkerProps = {
@@ -109,7 +109,7 @@ export type GanttContextProps = {
 };
 
 const getsDaysIn = (range: Range) => {
-  // For when range is daily
+  // Para cuando el rango es daily
   let fn = (_date: Date) => 1;
 
   if (range === "monthly" || range === "quarterly") {
@@ -481,18 +481,18 @@ export const GanttSidebarItem: FC<GanttSidebarItemProps> = ({
 
   const handleClick: MouseEventHandler<HTMLDivElement> = (event) => {
     if (event.target === event.currentTarget) {
-      // Scroll to the feature in the timeline
+      // Desplaza a la feature en la línea de tiempo
       gantt.scrollToFeature?.(feature);
-      // Call the original onSelectItem callback
+      // Llama al callback onSelectItem original
       onSelectItem?.(feature.id);
     }
   };
 
   const handleKeyDown: KeyboardEventHandler<HTMLDivElement> = (event) => {
     if (event.key === "Enter") {
-      // Scroll to the feature in the timeline
+      // Desplaza a la feature en la línea de tiempo
       gantt.scrollToFeature?.(feature);
-      // Call the original onSelectItem callback
+      // Llama al callback onSelectItem original
       onSelectItem?.(feature.id);
     }
   };
@@ -856,7 +856,7 @@ export const GanttFeatureItem: FC<GanttFeatureItemProps> = ({
   const [startAt, setStartAt] = useState<Date>(feature.startAt);
   const [endAt, setEndAt] = useState<Date | null>(feature.endAt);
 
-  // Memoize expensive calculations
+  // Memoiza los cálculos costosos
   const width = useMemo(
     () => getWidth(startAt, endAt, gantt),
     [startAt, endAt, gantt]
@@ -1008,19 +1008,19 @@ export const GanttFeatureRow: FC<GanttFeatureRowProps> = ({
   children,
   className,
 }) => {
-  // Sort features by start date to handle potential overlaps
+  // Ordena las features por fecha de inicio para manejar posibles solapamientos
   const sortedFeatures = [...features].sort(
     (a, b) => a.startAt.getTime() - b.startAt.getTime()
   );
 
-  // Calculate sub-row positions for overlapping features using a proper algorithm
+  // Calcula las posiciones de sub-fila para features solapadas usando un algoritmo adecuado
   const featureWithPositions = [];
-  const subRowEndTimes: Date[] = []; // Track when each sub-row becomes free
+  const subRowEndTimes: Date[] = []; // Registra cuándo queda libre cada sub-fila
 
   for (const feature of sortedFeatures) {
     let subRow = 0;
 
-    // Find the first sub-row that's free (doesn't overlap)
+    // Busca la primera sub-fila libre (sin solapamiento)
     while (
       subRow < subRowEndTimes.length &&
       subRowEndTimes[subRow] > feature.startAt
@@ -1028,7 +1028,7 @@ export const GanttFeatureRow: FC<GanttFeatureRowProps> = ({
       subRow++;
     }
 
-    // Update the end time for this sub-row
+    // Actualiza el tiempo de fin de esta sub-fila
     if (subRow === subRowEndTimes.length) {
       subRowEndTimes.push(feature.endAt);
     } else {
@@ -1039,7 +1039,7 @@ export const GanttFeatureRow: FC<GanttFeatureRowProps> = ({
   }
 
   const maxSubRows = Math.max(1, subRowEndTimes.length);
-  const subRowHeight = 36; // Base row height
+  const subRowHeight = 36; // Altura base de fila
 
   return (
     <div
@@ -1104,7 +1104,7 @@ export const GanttMarker: FC<
     [gantt.timelineData]
   );
 
-  // Memoize expensive calculations
+  // Memoiza los cálculos costosos
   const offset = useMemo(
     () => differenceIn(date, timelineStartDate),
     [differenceIn, date, timelineStartDate]
@@ -1194,7 +1194,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
     columnWidth = 100;
   }
 
-  // Memoize CSS variables to prevent unnecessary re-renders
+  // Memoiza las variables CSS para evitar re-renders innecesarios
   const cssVariables = useMemo(
     () =>
       ({
@@ -1215,7 +1215,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
     }
   }, [setScrollX]);
 
-  // Update sidebar width when DOM is ready
+  // Actualiza el ancho del sidebar cuando el DOM está listo
   useEffect(() => {
     const updateSidebarWidth = () => {
       const sidebarElement = scrollRef.current?.querySelector(
@@ -1225,10 +1225,10 @@ export const GanttProvider: FC<GanttProviderProps> = ({
       setSidebarWidth(newWidth);
     };
 
-    // Update immediately
+    // Actualiza inmediatamente
     updateSidebarWidth();
 
-    // Also update on resize or when children change
+    // También actualiza al redimensionar o cuando cambian los children
     const observer = new MutationObserver(updateSidebarWidth);
     if (scrollRef.current) {
       observer.observe(scrollRef.current, {
@@ -1242,7 +1242,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
     };
   }, []);
 
-  // Fix the useCallback to include all dependencies
+  // Corrige el useCallback para incluir todas las dependencias
   const handleScroll = useCallback(
     throttle(() => {
       const scrollElement = scrollRef.current;
@@ -1254,7 +1254,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
       setScrollX(scrollLeft);
 
       if (scrollLeft === 0) {
-        // Extend timelineData to the past
+        // Extiende timelineData hacia el pasado
         const firstYear = timelineData[0]?.year;
 
         if (!firstYear) {
@@ -1276,11 +1276,11 @@ export const GanttProvider: FC<GanttProviderProps> = ({
 
         setTimelineData(newTimelineData);
 
-        // Scroll a bit forward so it's not at the very start
+        // Desplaza un poco hacia adelante para no quedar al inicio exacto
         scrollElement.scrollLeft = scrollElement.clientWidth;
         setScrollX(scrollElement.scrollLeft);
       } else if (scrollLeft + clientWidth >= scrollWidth) {
-        // Extend timelineData to the future
+        // Extiende timelineData hacia el futuro
         const lastYear = timelineData.at(-1)?.year;
 
         if (!lastYear) {
@@ -1302,7 +1302,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
 
         setTimelineData(newTimelineData);
 
-        // Scroll a bit back so it's not at the very end
+        // Desplaza un poco hacia atrás para no quedar al final exacto
         scrollElement.scrollLeft =
           scrollElement.scrollWidth - scrollElement.clientWidth;
         setScrollX(scrollElement.scrollLeft);
@@ -1318,7 +1318,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
     }
 
     return () => {
-      // Fix memory leak by properly referencing the scroll element
+      // Corrige la fuga de memoria referenciando correctamente el elemento de scroll
       if (scrollElement) {
         scrollElement.removeEventListener("scroll", handleScroll);
       }
@@ -1332,10 +1332,10 @@ export const GanttProvider: FC<GanttProviderProps> = ({
         return;
       }
 
-      // Calculate timeline start date from timelineData
+      // Calcula la fecha de inicio de la línea de tiempo a partir de timelineData
       const timelineStartDate = new Date(timelineData[0].year, 0, 1);
 
-      // Calculate the horizontal offset for the feature's start date
+      // Calcula el offset horizontal para la fecha de inicio de la feature
       const offset = getOffset(feature.startAt, timelineStartDate, {
         zoom,
         range,
@@ -1349,7 +1349,7 @@ export const GanttProvider: FC<GanttProviderProps> = ({
         ref: scrollRef,
       });
 
-      // Scroll to align the feature's start with the right side of the sidebar
+      // Desplaza para alinear el inicio de la feature con el lado derecho del sidebar
       const targetScrollLeft = Math.max(0, offset);
 
       scrollElement.scrollTo({
@@ -1430,7 +1430,7 @@ export const GanttToday: FC<GanttTodayProps> = ({ className }) => {
     [gantt.timelineData]
   );
 
-  // Memoize expensive calculations
+  // Memoiza los cálculos costosos
   const offset = useMemo(
     () => differenceIn(date, timelineStartDate),
     [differenceIn, date, timelineStartDate]

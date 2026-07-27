@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Modal } from '@/components/ui/modal';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import type { ApiResponse } from '@/types/api.types';

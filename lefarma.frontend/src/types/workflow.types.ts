@@ -99,6 +99,7 @@ export interface WorkflowParticipante {
   idPaso: number;
   idRol?: number;
   idUsuario?: number;
+  requiereJefeInmediato: boolean;
   activo: boolean;
 }
 

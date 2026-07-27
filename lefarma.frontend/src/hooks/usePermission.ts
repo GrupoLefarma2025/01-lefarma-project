@@ -1,5 +1,5 @@
 ﻿import { useMemo } from 'react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import type { PermissionCheckOptions } from '@/utils/permissions';
 
 
@@ -9,23 +9,24 @@ function normalizeCodes(codes: string | string[]): string[] {
 }
 
 /**
- * Reactive permission check hook.
- * Uses the Zustand auth store so it updates when permissions change (e.g. via SSE).
+ * Hook reactivo de verificación de permisos.
+ * Usa el store de auth de Zustand para actualizarse cuando cambian los permisos (ej: vía SSE).
  *
- * Evaluation order:
- * 1. `exclude` — if the user has ANY excluded permission → deny
- * 2. `require` — user must have ALL listed permissions
- * 3. `requireAny` — user must have at least ONE listed permission
- * 4. If no options provided → allow (no restrictions)
+ * Orden de evaluación:
+ * 1. `exclude` — si el usuario tiene ALGÚN permiso excluido → denegar
+ * 2. `require` — el usuario debe tener TODOS los permisos listados
+ * 3. `requireAny` — el usuario debe tener al menos UNO de los permisos listados
+ * 4. Si no se proporcionan opciones → permitir (sin restricciones)
  *
- * NOTE: Array options (require, requireAny, exclude) are serialized with JSON.stringify
- * so callers can safely pass inline array literals without causing memo invalidation.
+ * NOTA: Las opciones en arreglo (require, requireAny, exclude) se serializan con JSON.stringify
+ * para que los callers puedan pasar literales de arreglo inline sin causar invalidación del memo.
  */
 export function usePermission(options: PermissionCheckOptions): boolean {
   const user = useAuthStore((s) => s.user);
 
-  // Serialize array deps to stable strings — prevents re-computation when callers
-  // pass inline array literals (e.g. requireAny={['a', 'b']}) that change reference each render.
+  // Serializar dependencias de arreglo a strings estables — evita recálculo cuando
+  // los callers pasan literales de arreglo inline (ej: requireAny={['a', 'b']})
+  // que cambian de referencia en cada render.
   const requireKey = JSON.stringify(options.require);
   const requireAnyKey = JSON.stringify(options.requireAny);
   const excludeKey = JSON.stringify(options.exclude);

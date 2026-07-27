@@ -119,7 +119,7 @@ public class NotificationStreamController : ControllerBase
                 userId);
 
             // Set SSE headers
-            Response.Headers.Append("Content-Type", "text/event-stream");
+            Response.ContentType = "text/event-stream";
             Response.Headers.Append("Cache-Control", "no-cache");
             Response.Headers.Append("Connection", "keep-alive");
             Response.Headers.Append("X-Accel-Buffering", "no"); // Disable Nginx buffering

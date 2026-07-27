@@ -10,8 +10,8 @@ interface PermissionGuardProps {
 }
 
 /**
- * Declarative permission guard component.
- * Renders `children` when the permission check passes, otherwise renders `fallback` (defaults to null).
+ * Componente declarativo de guardia de permisos.
+ * Renderiza `children` cuando la verificación de permisos pasa; de lo contrario, renderiza `fallback` (por defecto null).
  */
 export function PermissionGuard({
   require,
