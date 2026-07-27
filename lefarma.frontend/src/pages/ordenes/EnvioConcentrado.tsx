@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { generarConcentradoPDF } from '@/utils/generarConcentradoPDF';
 import html2canvas from 'html2canvas';
@@ -10,7 +10,7 @@ import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
 import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';

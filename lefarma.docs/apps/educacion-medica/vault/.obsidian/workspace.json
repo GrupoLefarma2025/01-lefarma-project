@@ -1,0 +1,192 @@
+{
+  "main": {
+    "id": "a44f593b00b4d2e5",
+    "type": "split",
+    "children": [
+      {
+        "id": "3988d3bcba522845",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "fda257906dcb5023",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Procedimientos/Procedimiento Normalizado de Operación del Proceso de Ventas.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Procedimiento Normalizado de Operación del Proceso de Ventas"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "6570f124dbbbb199",
+    "type": "split",
+    "children": [
+      {
+        "id": "f3b9737b90faa326",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "add2e6df2a37c828",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Explorador de archivos"
+            }
+          },
+          {
+            "id": "4f24cf0dec786c32",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Buscar"
+            }
+          },
+          {
+            "id": "834b51872056e928",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Marcadores"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "77bb1a54247a775e",
+    "type": "split",
+    "children": [
+      {
+        "id": "188fc1b508906454",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e30eaedbdac79c04",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "Procedimientos/Procedimiento Normalizado de Operación del Proceso de Ventas.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Enlaces entrantes de Procedimiento Normalizado de Operación del Proceso de Ventas"
+            }
+          },
+          {
+            "id": "7999b302c14150bd",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "Procedimientos/Procedimiento Normalizado de Operación del Proceso de Ventas.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Enlaces salientes de Procedimiento Normalizado de Operación del Proceso de Ventas"
+            }
+          },
+          {
+            "id": "8fdbe963b2eb64d7",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Etiquetas"
+            }
+          },
+          {
+            "id": "cb0a27b0e116ee6d",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Todas las propiedades"
+            }
+          },
+          {
+            "id": "db6ccc743292ec95",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "Procedimientos/Procedimiento Normalizado de Operación del Proceso de Ventas.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Esquema de Procedimiento Normalizado de Operación del Proceso de Ventas"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Abrir selector rápido": false,
+      "graph:Abrir vista gráfica": false,
+      "canvas:Crear nuevo lienzo": false,
+      "daily-notes:Abrir la nota de hoy": false,
+      "templates:Insertar plantilla": false,
+      "command-palette:Abrir paleta de comandos": false,
+      "bases:Crear nueva base": false
+    }
+  },
+  "active": "fda257906dcb5023",
+  "lastOpenFiles": [
+    "Procesos/Proceso de Ventas IMSS.md",
+    "Reporte de Visitas Médicas.md",
+    "README.md"
+  ]
+}

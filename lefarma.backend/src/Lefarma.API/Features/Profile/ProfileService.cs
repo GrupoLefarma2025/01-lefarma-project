@@ -111,7 +111,6 @@ public class ProfileService : BaseService, IProfileService
                     Puesto = detalle.Puesto,
                     NumeroEmpleado = detalle.NumeroEmpleado,
                     FirmaPath = detalle.FirmaPath,
-                    FirmaDocumento = detalle.FirmaDocumento,
                     TelefonoOficina = detalle.TelefonoOficina,
                     Extension = detalle.Extension,
                     Celular = detalle.Celular,
@@ -176,9 +175,6 @@ public class ProfileService : BaseService, IProfileService
 
             if (!string.IsNullOrWhiteSpace(request.FirmaPath))
                 detalle.FirmaPath = request.FirmaPath;
-
-            if (request.FirmaDocumento.HasValue)
-                detalle.FirmaDocumento = request.FirmaDocumento.Value;
 
 
             if (!string.IsNullOrWhiteSpace(request.TelefonoOficina))
@@ -252,6 +248,23 @@ public class ProfileService : BaseService, IProfileService
         {
             EnrichWideEvent(action: "UpdateProfile", entityId: userId, exception: ex);
             return CommonErrors.DatabaseError("actualizar el perfil");
+        }
+    }
+
+    public async Task<ErrorOr<bool>> HasFirmaAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var tieneFirma = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPath), cancellationToken);
+
+            return tieneFirma;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "HasFirma", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("verificar la firma digital");
         }
     }
 

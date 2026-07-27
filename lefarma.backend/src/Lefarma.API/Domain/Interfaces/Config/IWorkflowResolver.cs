@@ -1,10 +1,15 @@
 using Lefarma.API.Domain.Entities.Config;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace Lefarma.API.Domain.Interfaces.Config
 {
     public interface IWorkflowResolver
     {
-        Task<Workflow?> ResolveWorkflowIdAsync(string codigoProceso, int? idUsuario = null, int? idEmpresa = null, int? idSucursal = null, int? idArea = null, int? idTipoGasto = null, int? idProveedor = null);
+        /// <summary>
+        /// Resuelve el workflow activo para un proceso dado.
+        /// Las claves del diccionario deben coincidir con el codigo de los scope types definidos en config.workflow_scope_types
+        /// </summary>
+        Task<Workflow?> ResolveWorkflowIdAsync(string codigoProceso, Dictionary<string, int?> context);
     }
 }

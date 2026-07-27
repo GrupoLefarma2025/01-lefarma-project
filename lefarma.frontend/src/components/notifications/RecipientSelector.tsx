@@ -6,7 +6,7 @@
 
 import { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Users } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
 import {
   Command,

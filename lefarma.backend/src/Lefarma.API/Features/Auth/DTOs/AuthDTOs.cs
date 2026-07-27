@@ -230,31 +230,3 @@ public class LogoutResponse
     /// </summary>
     public string Message { get; set; } = string.Empty;
 }
-
-/// <summary>
-/// Response for generating a handoff token (cross-system SSO).
-/// </summary>
-public class HandoffTokenResponse
-{
-    /// <summary>
-    /// The short-lived single-use handoff token. Put it in the target system's URL.
-    /// </summary>
-    public string Token { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Token lifetime in seconds.
-    /// </summary>
-    public int ExpiresIn { get; set; }
-}
-
-/// <summary>
-/// Request to exchange a handoff token for a full session.
-/// </summary>
-public class ExchangeHandoffRequest
-{
-    /// <summary>
-    /// The handoff token received from the originating system.
-    /// </summary>
-    [Required(ErrorMessage = "El token es requerido")]
-    public required string Token { get; set; }
-}

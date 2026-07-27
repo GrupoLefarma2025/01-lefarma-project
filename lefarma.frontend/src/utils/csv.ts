@@ -192,10 +192,10 @@ function pickIds<T>(
 
 function makeExampleColumn(ids: number[], fallback: string[]): string[] {
   if (ids.length === 0) return fallback;
-  // Row 0: a proveedor with a cuenta → first id of the catalog (if applicable)
-  // Row 1: a proveedor without cuenta → empty
-  // Row 2: a proveedor with a cuenta → first id again (mirrors row 0)
-  // Row 3: same proveedor as row 2 with a SECOND cuenta → different id if available
+  // Fila 0: un proveedor con una cuenta → primer id del catálogo (si aplica)
+  // Fila 1: un proveedor sin cuenta → vacío
+  // Fila 2: un proveedor con una cuenta → primer id nuevamente (espeja fila 0)
+  // Fila 3: mismo proveedor que fila 2 con una SEGUNDA cuenta → id distinto si disponible
   const first = String(ids[0]);
   const second = ids.length > 1 ? String(ids[1]) : first;
   return [first, '', first, second];
@@ -284,6 +284,129 @@ export function buildErrorsCsv(
   const header = 'rowNumber,field,message';
   const lines = errors.map((e) =>
     [csvEscape(String(e.rowNumber)), csvEscape(e.field ?? ''), csvEscape(e.message)].join(','),
+  );
+  const csv = BOM + [header, ...lines].join('\r\n');
+  return new Blob([csv], { type: 'text/csv;charset=utf-8' });
+}
+
+// --- Vacaciones: días no hábiles ---
+
+export interface DiaNoHabilCsvColumn {
+  key: string;
+  label: string;
+  required: boolean;
+  exampleValues: string[];
+}
+
+export const DIAS_NO_HABILES_CSV_COLUMNS: DiaNoHabilCsvColumn[] = [
+  {
+    key: 'dia',
+    label: 'dia',
+    required: true,
+    exampleValues: ['1', '2', '25'],
+  },
+  {
+    key: 'mes',
+    label: 'mes',
+    required: true,
+    exampleValues: ['1', '1', '1'],
+  },
+  {
+    key: 'anio',
+    label: 'anio',
+    required: true,
+    exampleValues: ['2027', '2027', '2027'],
+  },
+  {
+    key: 'descripcion',
+    label: 'descripcion',
+    required: false,
+    exampleValues: ['Año Nuevo', 'Día de la Constitución', ''],
+  },
+];
+
+export function buildTemplateDiasNoHabilesCsv(): Blob {
+  const headerLine = DIAS_NO_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
+  const csv = BOM + headerLine + '\r\n';
+  return new Blob([csv], { type: 'text/csv;charset=utf-8' });
+}
+
+export function buildPlantillaDiasNoHabilesCsv(): Blob {
+  const headerLine = DIAS_NO_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
+  const rows = [0, 1, 2].map((i) =>
+    DIAS_NO_HABILES_CSV_COLUMNS.map((col) => csvEscape(col.exampleValues[i] ?? '')).join(','),
+  );
+  const csv = BOM + [headerLine, ...rows].join('\r\n');
+  return new Blob([csv], { type: 'text/csv;charset=utf-8' });
+}
+
+export interface DiaNoHabilCsvRow {
+  dia?: string;
+  mes?: string;
+  anio?: string;
+  descripcion?: string;
+}
+
+export function parseDiasNoHabilesCsv(file: File): Promise<{
+  headers: string[];
+  rows: Record<string, string>[];
+  errorMessage?: string;
+}> {
+  return new Promise((resolve) => {
+    Papa.parse<string[]>(file, {
+      skipEmptyLines: 'greedy',
+      complete: (results) => {
+        const rawRows = results.data;
+        if (!rawRows || rawRows.length === 0) {
+          resolve({ headers: [], rows: [], errorMessage: 'El archivo CSV está vacío' });
+          return;
+        }
+
+        const headers = rawRows[0].map((h) => h.trim().toLowerCase());
+        const required = ['dia', 'mes', 'anio'];
+        const missing = required.filter((r) => !headers.includes(r));
+        if (missing.length > 0) {
+          resolve({
+            headers,
+            rows: [],
+            errorMessage: `Faltan columnas requeridas: ${missing.join(', ')}`,
+          });
+          return;
+        }
+
+        const rows = rawRows.slice(1).map((rawRow) => {
+          const obj: Record<string, string> = {};
+          headers.forEach((header, idx) => {
+            obj[header] = (rawRow[idx] ?? '').toString();
+          });
+          return obj;
+        });
+
+        if (results.errors?.length) {
+          const firstError = results.errors[0];
+          resolve({
+            headers,
+            rows,
+            errorMessage: `Advertencia al parsear: ${firstError.message} (fila ${firstError.row ?? '?'})`,
+          });
+          return;
+        }
+
+        resolve({ headers, rows });
+      },
+      error: (error) => {
+        resolve({ headers: [], rows: [], errorMessage: error.message });
+      },
+    });
+  });
+}
+
+export function buildDiasNoHabilesErrorsCsv(
+  errors: Array<{ rowNumber: number; rowData: string; error: string }>,
+): Blob {
+  const header = 'rowNumber,rowData,error';
+  const lines = errors.map((e) =>
+    [csvEscape(String(e.rowNumber)), csvEscape(e.rowData), csvEscape(e.error)].join(','),
   );
   const csv = BOM + [header, ...lines].join('\r\n');
   return new Blob([csv], { type: 'text/csv;charset=utf-8' });

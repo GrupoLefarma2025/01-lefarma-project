@@ -2,8 +2,8 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useAuthStore } from '@/store/authStore';
-import { API } from '@/services/api';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { API } from '@/shared/api/apiClient';
 import { archivoService } from '@/services/archivoService';
 import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';

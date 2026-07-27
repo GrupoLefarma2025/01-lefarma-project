@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { authService } from '@/shared/auth/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';
 import type { Area } from '@/types/catalogo.types';
 import { Button } from '@/components/ui/button';
@@ -30,7 +30,7 @@ export default function SelectEmpresaSucursal() {
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
-  // Pre-cargar la ubicacion actual del usuario como DEFAULT via lazy init (sin efecto).
+  // Pre-cargar la ubicación actual del usuario como DEFAULT vía lazy init (sin efecto).
   const [selectedEmpresa, setSelectedEmpresa] = useState(() => {
     const s = authService.getEmpresa();
     return s ? String(s.idEmpresa) : '';
@@ -51,7 +51,7 @@ export default function SelectEmpresaSucursal() {
     loadData();
   }, []);
 
-  // Listas derivadas en el render (sin estado redundante ni efectos de sincronizacion)
+  // Listas derivadas en el render (sin estado redundante ni efectos de sincronización)
   const sucursalesFiltradas = selectedEmpresa
     ? sucursales.filter(
         (s) => s.idSucursal != null && s.idEmpresa != null && String(s.idEmpresa) === String(selectedEmpresa)
@@ -62,7 +62,7 @@ export default function SelectEmpresaSucursal() {
     : [];
 
   // Ajuste de estado durante el render (recomendado vs. setState dentro de useEffect).
-  // Si la sucursal/area seleccionada no es valida para la empresa, caer al primero [0].
+  // Si la sucursal/área seleccionada no es válida para la empresa, caer al primero [0].
   if (selectedEmpresa) {
     if (
       sucursalesFiltradas.length > 0 &&

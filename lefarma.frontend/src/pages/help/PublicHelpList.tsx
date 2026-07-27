@@ -110,7 +110,7 @@ export default function PublicHelpList() {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-7rem)]">
-      {/* Mobile sidebar */}
+      {/* Sidebar móvil */}
       <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
         <SheetContent side="left" className="p-0 w-72">
           <SheetHeader className="sr-only">
@@ -140,7 +140,7 @@ export default function PublicHelpList() {
         </SheetContent>
       </Sheet>
 
-      {/* Desktop sidebar */}
+      {/* Sidebar de escritorio */}
       <div className="hidden md:block w-64 border-r shrink-0 p-4">
         <div className="space-y-2">
           <Button
@@ -165,7 +165,7 @@ export default function PublicHelpList() {
         </div>
       </div>
 
-      {/* Main content */}
+      {/* Contenido principal */}
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="shrink-0 p-2 sm:p-4 sm:pb-0">
           <Card>

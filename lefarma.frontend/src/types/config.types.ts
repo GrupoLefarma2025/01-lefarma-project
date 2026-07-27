@@ -2,17 +2,17 @@ import type { ComponentType } from 'react';
 
 export type TipoNotificacion = 'in-app' | 'email' | 'telegram' | 'whatsapp';
 
-// Preset identifier type
+// Tipo identificador de preset
 export type UIPresetId = 'compacto' | 'estandar' | 'comodo' | 'accesibilidad';
 
-// Visual preferences (apply via CSS variables)
+// Preferencias visuales (se aplican vía variables CSS)
 export interface VisualPreferences {
   densidad: 'compacto' | 'comodo';
   fontSize: 'small' | 'medium' | 'large';
   animations: boolean;
 }
 
-// Component preferences (apply via props)
+// Preferencias de componentes (se aplican vía props)
 export interface ComponentPreferences {
   tables: {
     density: 'compact' | 'standard' | 'comfortable';
@@ -23,7 +23,7 @@ export interface ComponentPreferences {
   };
 }
 
-// Preset configuration structure
+// Estructura de configuración de preset
 export interface UIPreset {
   id: UIPresetId;
   nombre: string;
@@ -46,7 +46,7 @@ export interface NotificacionPreference {
 export interface UIConfig {
   tema: 'light' | 'dark' | 'system';
 
-  // NEW FIELDS
+  // CAMPOS NUEVOS
   presetId: UIPresetId;
   visual: VisualPreferences;
   componentes: ComponentPreferences;
@@ -122,7 +122,7 @@ export interface ConfigState {
   sistema: SistemaInfo;
   globalConfig: ConfiguracionGlobal;
 
-  // Actions
+  // Acciones
   setTema: (tema: UIConfig['tema']) => void;
   setPreset: (presetId: UIPresetId) => void;
   updateVisualPreferences: (updates: Partial<VisualPreferences>) => void;

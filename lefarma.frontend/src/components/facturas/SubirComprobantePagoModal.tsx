@@ -21,7 +21,7 @@ import {
   Banknote,
 } from 'lucide-react';
 import { comprobanteService } from '@/services/comprobanteService';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { toast } from 'sonner';
 import type { ApiResponse } from '@/types/api.types';
@@ -290,7 +290,7 @@ export function SubirComprobantePagoModal({
         </div>
       }
     >
-      {/* Step indicators */}
+      {/* Indicadores de pasos */}
       <div className="mb-4 flex items-center gap-1 text-xs">
         {STEPS.map((s, i) => (
           <div key={s} className="flex items-center gap-1">

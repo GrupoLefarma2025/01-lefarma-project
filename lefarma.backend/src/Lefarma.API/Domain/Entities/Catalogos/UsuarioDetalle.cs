@@ -15,12 +15,6 @@ public class UsuarioDetalle
     /// </summary>
     public string? FirmaPath { get; set; }
 
-    /// <summary>
-    /// Si es false, la firma del usuario NO aparece en documentos (PDFs).
-    /// Default true para preservar comportamiento existente.
-    /// </summary>
-    public bool FirmaDocumento { get; set; } = true;
-
     // Contacto
     public string? TelefonoOficina { get; set; }
     public string? Extension { get; set; }
