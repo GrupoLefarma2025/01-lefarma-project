@@ -2,6 +2,7 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -19,6 +20,7 @@ public static class WorkflowFirmaHelper
     /// </summary>
     public static async Task<ErrorOr<Success>> ValidarParticipanteAsync(
         WorkflowPaso pasoActual,
+        int idWorkflow,
         int idUsuario,
         int idUsuarioCreador,
         AsokamDbContext asokamContext,
@@ -55,12 +57,13 @@ public static class WorkflowFirmaHelper
         if (participantesActivos.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
             return Result.Success;
 
-        // Verificar si alguno de los participantes requiere jefe inmediato
-        if (participantesActivos.Any(p => p.RequiereJefeInmediato))
+        // Verificar si alguno de los participantes requiere jefe inmediato (por nivel)
+        foreach (var p in participantesActivos.Where(p => p.RequiereJefeInmediato))
         {
             var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
-            var idJefe = await jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioBase);
-            if (idJefe.HasValue && idJefe.Value == idUsuario)
+            var jefe = await jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                idWorkflow, idUsuarioBase, p.NivelJefe ?? 1, ct);
+            if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
                 return Result.Success;
         }
 

@@ -100,6 +100,7 @@ export interface WorkflowParticipante {
   idRol?: number;
   idUsuario?: number;
   requiereJefeInmediato: boolean;
+  nivelJefe?: number | null;
   activo: boolean;
 }
 
@@ -191,6 +192,7 @@ export interface WorkflowStats {
 
 export interface WorkflowWithStats extends Workflow {
   stats?: WorkflowStats;
+  idUsuariosJefeExcluidos?: number[];
 }
 
 // Scope types and mappings (backend additions)

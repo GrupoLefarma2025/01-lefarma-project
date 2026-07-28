@@ -13,6 +13,7 @@ import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
 import { DiasNoHabilesPage } from './pages/Vacaciones/DiasNoHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
+import JefesNivelesList from './pages/JefesNivelesList';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 
 /**
@@ -86,6 +87,8 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
             </PermissionGuard>
           }
         />
+
+        <Route path="jefes-niveles" element={<JefesNivelesList />} />
 
         <Route path="perfil/configuracion" element={<PerfilConfig />} />
       </>

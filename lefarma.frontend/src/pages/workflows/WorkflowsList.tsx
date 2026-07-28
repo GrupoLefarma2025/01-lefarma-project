@@ -8,10 +8,9 @@ import {
   Trash2, 
   Search, 
   Loader2, 
-  RefreshCcw, 
   GitBranch,
   Eye,
-  BarChart3
+  UserX
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +36,8 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import { toApiError } from '@/utils/errors';
+import { JefesExcluidosModal } from '@/components/workflows/JefesExcluidosModal';
+import { useWorkflowCatalogs } from '@/hooks/useWorkflowCatalogs';
 
 
 const workflowSchema = z.object({
@@ -64,6 +65,7 @@ export default function WorkflowsList() {
 
   const [modalStates, setModalStates] = useState({
     newWorkflow: false,
+    jefesExcluidos: false,
   });
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
@@ -74,6 +76,8 @@ export default function WorkflowsList() {
   };
 
   const [workflowId, setWorkflowId] = useState(0);
+  const [excluidosWorkflow, setExcluidosWorkflow] = useState<WorkflowWithStats | null>(null);
+  const { usuarios, loadUsuarios } = useWorkflowCatalogs();
 
   const formWorkflow = useForm<WorkflowFormValues>({
     resolver: zodResolver(workflowSchema),
@@ -103,7 +107,17 @@ export default function WorkflowsList() {
 
   useEffect(() => {
     fetchWorkflows();
+    loadUsuarios();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleOpenJefesExcluidos = (workflow: WorkflowWithStats) => {
+    setExcluidosWorkflow(workflow);
+    toggleModal('jefesExcluidos', true);
+  };
+
+  const nombreUsuario = (idUsuario: number) =>
+    usuarios.find((u) => u.idUsuario === idUsuario)?.nombreCompleto ?? `Usuario #${idUsuario}`;
 
   const handleNuevoWorkflow = () => {
     setWorkflowId(0);
@@ -284,6 +298,38 @@ export default function WorkflowsList() {
       ),
     },
     {
+      id: 'jefesExcluidos',
+      header: 'Jefes Excluidos',
+      cell: ({ row }) => {
+        const ids = row.original.idUsuariosJefeExcluidos ?? [];
+        if (ids.length === 0) {
+          return <span className="text-xs text-muted-foreground">—</span>;
+        }
+        const visibles = ids.slice(0, 2);
+        const restantes = ids.length - visibles.length;
+        return (
+          <div className="flex flex-wrap items-center gap-1 max-w-[220px]">
+            {visibles.map((id) => (
+              <Badge
+                key={id}
+                variant="outline"
+                className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30 gap-1"
+                title={nombreUsuario(id)}
+              >
+                <UserX className="h-3 w-3" />
+                <span className="max-w-[120px] truncate">{nombreUsuario(id)}</span>
+              </Badge>
+            ))}
+            {restantes > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                +{restantes}
+              </Badge>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       id: 'actions',
       header: '',
       cell: ({ row }) => (
@@ -296,6 +342,15 @@ export default function WorkflowsList() {
             title="Ver diagrama"
           >
             <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-8 w-8 p-0"
+            onClick={() => handleOpenJefesExcluidos(row.original)}
+            title="Jefes excluidos"
+          >
+            <UserX className="h-4 w-4" />
           </Button>
           <Button
             size="sm"
@@ -498,6 +553,20 @@ export default function WorkflowsList() {
           </form>
         </Form>
       </Modal>
+
+      {/* Modal: Jefes Excluidos */}
+      {excluidosWorkflow && (
+        <JefesExcluidosModal
+          idWorkflow={excluidosWorkflow.idWorkflow}
+          nombreWorkflow={excluidosWorkflow.nombre}
+          open={modalStates.jefesExcluidos}
+          setOpen={(open) => {
+            toggleModal('jefesExcluidos', open);
+            if (!open) setExcluidosWorkflow(null);
+          }}
+          onSaved={fetchWorkflows}
+        />
+      )}
     </div>
   );
 }

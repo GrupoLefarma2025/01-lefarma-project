@@ -190,6 +190,8 @@ builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
+builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJefesConfigService,
+                       Lefarma.API.Features.Config.EmpleadoJefes.EmpleadoJefesConfigService>();
 
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();

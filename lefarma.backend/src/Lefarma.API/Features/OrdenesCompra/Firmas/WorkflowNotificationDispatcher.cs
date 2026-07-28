@@ -1,21 +1,19 @@
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Interfaces;
-using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
-using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
-namespace Lefarma.API.Features.Config.Workflows.Notification;
+namespace Lefarma.API.Features.OrdenesCompra.Firmas;
 
 public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 {
     private readonly INotificationService _notificationService;
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
-    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     private readonly ILogger<WorkflowNotificationDispatcher> _logger;
     private readonly string _frontendBaseUrl;
 
@@ -23,30 +21,22 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         INotificationService notificationService,
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
-        IJefeInmediatoResolver jefeInmediatoResolver,
         ILogger<WorkflowNotificationDispatcher> logger,
         IConfiguration configuration)
     {
         _notificationService = notificationService;
         _context = context;
         _asokamContext = asokamContext;
-        _jefeInmediatoResolver = jefeInmediatoResolver;
         _logger = logger;
         _frontendBaseUrl = configuration["AppSettings:FrontendBaseUrl"]?.TrimEnd('/') ?? "";
     }
 
     public async Task DispatchAsync(
         WorkflowNotificacion? notificacion,
-        string tipoEntidad,
-        int idEntidad,
-        string folio,
-        int idUsuarioCreador,
-        Dictionary<string, string>? variablesExtra,
+        OrdenCompra orden,
         int? idPasoDestino,
         int idUsuarioActual,
         string? comentario,
-        string? contenidoAdicional = null,
-        int? idUsuarioSolicitante = null,
         CancellationToken ct = default)
     {
         if (notificacion is null || !notificacion.Activo)
@@ -54,8 +44,8 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
         try
         {
-            // Cargar participantes del paso destino una sola vez (evita doble query)
-            List<WorkflowParticipante> participantesDestino = [];
+            // 1. Cargar participantes del paso destino una sola vez (evita doble query)
+            List<Domain.Entities.Config.WorkflowParticipante> participantesDestino = [];
             if (idPasoDestino.HasValue)
             {
                 participantesDestino = await _context.WorkflowParticipantes
@@ -63,13 +53,13 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     .ToListAsync(ct);
             }
 
-            // Resolver idWorkflow desde la notificación → acción → paso
+            // 1b. Resolver idWorkflow desde la notificación → acción → paso
             var idWorkflow = await _context.WorkflowAcciones
                 .Where(a => a.IdAccion == notificacion.IdAccion)
                 .Join(_context.WorkflowPasos, a => a.IdPasoOrigen, p => p.IdPaso, (a, p) => p.IdWorkflow)
                 .FirstOrDefaultAsync(ct);
 
-            // Cargar tipo de notificación para colores de template
+            // 1c. Cargar tipo de notificación para colores de template
             WorkflowTipoNotificacion? tipoNotif = null;
             if (notificacion.IdTipoNotificacion.HasValue)
             {
@@ -77,36 +67,16 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     .FirstOrDefaultAsync(t => t.IdTipo == notificacion.IdTipoNotificacion.Value, ct);
             }
 
-            var templatesPorCanal = new Dictionary<string, WorkflowCanalTemplate?>();
-
-            // Lazy lookup
-            // Cargar el template del canal + proceso solo si se va a usar ese canal y cachearlo para evitar queries repetidos si hay varios destinatarios
-            async Task<WorkflowCanalTemplate?> GetTemplateAsync(string codigoCanal)
-            {
-                if (templatesPorCanal.TryGetValue(codigoCanal, out var cached))
-                    return cached;
-
-                var template = await _context.WorkflowCanalTemplates
-                    .FirstOrDefaultAsync(
-                        t => t.CodigoCanal == codigoCanal
-                          && t.CodigoProceso == tipoEntidad
-                          && t.Activo,
-                        ct);
-
-                templatesPorCanal[codigoCanal] = template;  // cachea incluso null
-                return template;
-            }
-
-            //Resolver destinatarios
-            var userIds = await ResolveRecipientsAsync(notificacion, tipoEntidad, idEntidad, idUsuarioCreador, idUsuarioActual, participantesDestino, idWorkflow, idUsuarioSolicitante, ct);
+            // 2. Resolver destinatarios
+            var userIds = await ResolveRecipientsAsync(notificacion, orden, idUsuarioActual, participantesDestino, ct);
             if (userIds.Count == 0)
             {
                 _logger.LogWarning("WorkflowNotificationDispatcher: no se encontraron destinatarios para notificación {IdNotificacion}", notificacion.IdNotificacion);
                 return;
             }
 
-            // Obtener nombres para el template
-            var (nombreCreador, nombreSiguiente) = await ResolveNamesAsync(idUsuarioCreador, participantesDestino, ct);
+            // 3. Obtener nombres para el template
+            var (nombreCreador, nombreSiguiente) = await ResolveNamesAsync(orden.IdUsuarioCreador, participantesDestino, ct);
 
             // NombreAnterior = actor actual que firmo (proposito informativo para el destinatario)
             var nombreActual = await _asokamContext.Usuarios
@@ -119,42 +89,36 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 .Select(a => a.TipoAccion != null ? a.TipoAccion.Nombre : null)
                 .FirstOrDefaultAsync(ct) ?? "";
 
-            //Interpolar templates
-            //var urlOrden = string.IsNullOrEmpty(_frontendBaseUrl)
-            //    ? $"/autorizaciones?idOrden={orden.IdOrden}"
-            //   : $"{_frontendBaseUrl}/autorizaciones?idOrden={orden.IdOrden}";
+            // 4. Interpolar templates
+            var urlOrden = string.IsNullOrEmpty(_frontendBaseUrl)
+                ? $"/autorizaciones?idOrden={orden.IdOrden}"
+                : $"{_frontendBaseUrl}/autorizaciones?idOrden={orden.IdOrden}";
 
-            // Resolver el template de email una sola vez
-            var templateEmail = await GetTemplateAsync("email");
-
-            // Construir URL del botón  desde la UrlButton del template
-            var urlPath = (templateEmail?.UrlButton ?? "")
-                .Replace("{IdEntidad}", idEntidad.ToString());
-            var urlEntidad = string.IsNullOrEmpty(_frontendBaseUrl)
-                ? urlPath
-                : $"{_frontendBaseUrl}{urlPath}";
-
-            // Construir contexto base (variables del sistema)
-            var contextoTemplate = variablesExtra != null
-                ? new Dictionary<string, string>(variablesExtra)
-                : new Dictionary<string, string>();
-
-
-            contextoTemplate["Folio"] = folio;
-            contextoTemplate["UrlEntidad"] = urlEntidad ?? ""; // {{UrlEntidad}} en template
-            contextoTemplate["Solicitante"] = nombreCreador;
-            contextoTemplate["NombreCreador"] = nombreCreador;
-            contextoTemplate["NombreSiguiente"] = nombreSiguiente;
-            contextoTemplate["NombreAnterior"] = nombreActual;
-            contextoTemplate["Usuario"] = nombreActual;
-            contextoTemplate["Accion"] = nombreAccion;
-            contextoTemplate["Comentario"] = comentario ?? "";
-            contextoTemplate["ColorTema"] = tipoNotif?.ColorTema ?? "#0f2744";
-            contextoTemplate["ColorClaro"] = tipoNotif?.ColorClaro ?? "#e8f0fe";
-            contextoTemplate["Icono"] = tipoNotif?.Icono ?? "🔔";
-
-            if (!string.IsNullOrEmpty(contenidoAdicional))
-                contextoTemplate["ContenidoAdicional"] = contenidoAdicional;
+            var contextoTemplate = new Dictionary<string, string>
+            {
+                ["Folio"] = orden.Folio,
+                ["Total"] = FormatearDinero(orden.Total, orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true),
+                ["Proveedor"] = orden.Proveedor?.RazonSocial ?? "",
+                ["Solicitante"] = nombreCreador,
+                ["NombreCreador"] = nombreCreador,
+                ["NombreSiguiente"] = nombreSiguiente,
+                ["NombreAnterior"] = nombreActual,
+                ["Usuario"] = nombreActual,
+                ["Accion"] = nombreAccion,
+                ["Comentario"] = comentario ?? "",
+                ["CentroCosto"] = orden.CentroCosto?.Nombre ?? orden.IdCentroCosto?.ToString() ?? "",
+                ["CuentaContable"] = orden.CuentaContable?.Cuenta ?? orden.IdCuentaContable?.ToString() ?? "",
+                ["UrlOrden"] = urlOrden,
+                ["ImportePagado"] = "",
+                ["ColorTema"]  = tipoNotif?.ColorTema ?? "#0f2744",
+                ["ColorClaro"] = tipoNotif?.ColorClaro ?? "#e8f0fe",
+                ["Icono"]      = tipoNotif?.Icono ?? "🔔",
+                ["Partidas"]   = notificacion.IncluirPartidas
+                    ? BuildPartidasTable(orden.Partidas,
+                        orden.Moneda?.Simbolo, orden.Moneda?.PosicionIzquierda ?? true,
+                        notificacion.Canales.FirstOrDefault(c => c.Activo && !string.IsNullOrWhiteSpace(c.ListadoRowHtml))?.ListadoRowHtml)
+                    : "",
+            };
 
             // 5. Resolver canales configurados
             var canalInApp    = notificacion.Canales.FirstOrDefault(c => c.CodigoCanal == "in_app"    && c.Activo);
@@ -164,14 +128,11 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             // Usar in_app canal; si no existe, usar email como fallback de contenido
             var canalInAppEfectivo = canalInApp ?? canalEmail;
 
-            //  Asunto por defecto (si no se configura en canal específico)
-            var AsuntoDefault = BuildAsuntoPorDefecto(tipoEntidad, folio);
-
             // 6. Enviar in-app (siempre que haya contenido disponible)
             if (canalInAppEfectivo != null)
             {
                 var asuntoInApp = Interpolate(
-                    !string.IsNullOrWhiteSpace(canalInAppEfectivo.AsuntoTemplate) ? canalInAppEfectivo.AsuntoTemplate : AsuntoDefault,
+                    !string.IsNullOrWhiteSpace(canalInAppEfectivo.AsuntoTemplate) ? canalInAppEfectivo.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
                     contextoTemplate);
                 var cuerpoInApp = Interpolate(canalInAppEfectivo.CuerpoTemplate, contextoTemplate);
                 contextoTemplate["Asunto"] = asuntoInApp;
@@ -181,7 +142,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     Message = cuerpoInApp,
                     Type = "info",
                     Priority = "normal",
-                    Category = tipoEntidad,
+                    Category = "order",
                     Channels = [new NotificationChannelRequest { ChannelType = "in-app", UserIds = userIds }]
                 }, ct);
             }
@@ -190,11 +151,11 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             if (notificacion.EnviarEmail && canalEmail != null)
             {
                 var asuntoEmail = Interpolate(
-                    !string.IsNullOrWhiteSpace(canalEmail.AsuntoTemplate) ? canalEmail.AsuntoTemplate : AsuntoDefault,
+                    !string.IsNullOrWhiteSpace(canalEmail.AsuntoTemplate) ? canalEmail.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
                     contextoTemplate);
                 var cuerpoEmail = Interpolate(canalEmail.CuerpoTemplate, contextoTemplate);
                 contextoTemplate["Asunto"] = asuntoEmail;
-                var emailHtml = await ApplyCanalTemplateAsync("email", cuerpoEmail, contextoTemplate, GetTemplateAsync, ct);
+                var emailHtml = await ApplyCanalTemplateAsync("email", cuerpoEmail, contextoTemplate, ct);
                 await _notificationService.SendAsync(new SendNotificationRequest
                 {
                     Title = asuntoEmail,
@@ -210,7 +171,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             if (notificacion.EnviarTelegram && canalTelegram != null)
             {
                 var asuntoTelegram = Interpolate(
-                    !string.IsNullOrWhiteSpace(canalTelegram.AsuntoTemplate) ? canalTelegram.AsuntoTemplate : AsuntoDefault,
+                    !string.IsNullOrWhiteSpace(canalTelegram.AsuntoTemplate) ? canalTelegram.AsuntoTemplate : $"Orden de Compra {orden.Folio}",
                     contextoTemplate);
                 var cuerpoTelegram = Interpolate(canalTelegram.CuerpoTemplate, contextoTemplate);
                 await _notificationService.SendAsync(new SendNotificationRequest
@@ -228,25 +189,21 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "WorkflowNotificationDispatcher: error al enviar notificación {IdNotificacion} para orden {Folio}", notificacion.IdNotificacion, folio);
+            _logger.LogError(ex, "WorkflowNotificationDispatcher: error al enviar notificación {IdNotificacion} para orden {Folio}", notificacion.IdNotificacion, orden.Folio);
         }
     }
 
     private async Task<List<int>> ResolveRecipientsAsync(
         WorkflowNotificacion notif,
-        string tipoEntidad,
-        int idEntidad,
-        int idUsuarioCreador,
+        OrdenCompra orden,
         int idUsuarioActual,
-        List<WorkflowParticipante> participantesDestino,
-        int idWorkflow,
-        int? idUsuarioSolicitante,
+        List<Domain.Entities.Config.WorkflowParticipante> participantesDestino,
         CancellationToken ct)
     {
         var ids = new HashSet<int>();
 
         if (notif.AvisarAlCreador)
-            ids.Add(idUsuarioCreador);
+            ids.Add(orden.IdUsuarioCreador);
 
         // Anterior = el actor actual que acaba de ejecutar la accion (firmante)
         if (notif.AvisarAlAnterior)
@@ -270,21 +227,13 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                     foreach (var uid in usersInRole)
                         ids.Add(uid);
                 }
-                else if (p.RequiereJefeInmediato)
-                {
-                    var idUsuarioJefe = idUsuarioSolicitante ?? idUsuarioCreador;
-                    var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
-                        idWorkflow, idUsuarioJefe, p.NivelJefe ?? 1, ct);
-                    if (jefe.IdUsuario.HasValue)
-                        ids.Add(jefe.IdUsuario.Value);
-                }
             }
         }
 
         if (notif.AvisarAAutorizadoresPrevios)
         {
             var prevApprovers = await _context.WorkflowBitacoras
-                .Where(b => b.TipoEntidad == tipoEntidad && b.IdEntidad == idEntidad)
+                .Where(b => b.IdOrden == orden.IdOrden)
                 .Join(_context.WorkflowAcciones,
                     b => b.IdAccion,
                     a => a.IdAccion,
@@ -303,7 +252,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
     private async Task<(string NombreCreador, string NombreSiguiente)> ResolveNamesAsync(
         int idCreador,
-        List<WorkflowParticipante> participantesDestino,
+        List<Domain.Entities.Config.WorkflowParticipante> participantesDestino,
         CancellationToken ct)
     {
         var creador = await _asokamContext.Usuarios
@@ -361,30 +310,70 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         return template;
     }
 
-    private async Task<string> ApplyCanalTemplateAsync(string codigoCanal, string contenido,Dictionary<string, string> ctx, 
-        Func<string, Task<WorkflowCanalTemplate?>> getTemplate, CancellationToken ct)
+    private async Task<string> ApplyCanalTemplateAsync(string codigoCanal, string contenido, Dictionary<string, string> ctx, CancellationToken ct)
     {
-        var template = await getTemplate(codigoCanal);  // usa el caché local
-        var layoutHtml = template?.LayoutHtml;
+        var layoutHtml = await _context.WorkflowCanalTemplates
+            .Where(t => t.CodigoCanal == codigoCanal && t.Activo)
+            .Select(t => t.LayoutHtml)
+            .FirstOrDefaultAsync(ct);
 
         if (string.IsNullOrEmpty(layoutHtml))
-        {
-            return BuildEmailHtmlFallback(
-                contenido,
-                ctx.GetValueOrDefault("Asunto", ""),
-                ctx.GetValueOrDefault("Folio", ""),
-                ctx.GetValueOrDefault("UrlEntidad", "")
-            );
-        }
+            return BuildEmailHtmlFallback(contenido, ctx.GetValueOrDefault("Asunto", ""), ctx.GetValueOrDefault("Folio", ""), ctx.GetValueOrDefault("UrlOrden", ""));
 
         var withContent = layoutHtml.Replace("{{Contenido}}", contenido, StringComparison.OrdinalIgnoreCase);
         return Interpolate(withContent, ctx);
     }
 
-    
-    private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlEntidad)
+    private static string BuildPartidasTable(ICollection<OrdenCompraPartida> partidas, string? simboloMoneda, bool posicionIzquierda, string? rowTemplate = null)
     {
-        return $$$$$"""
+        if (partidas == null || partidas.Count == 0)
+            return "<p style=\"color:#6b7280;font-size:13px\">Sin partidas registradas.</p>";
+
+        string BuildRow(OrdenCompraPartida p)
+        {
+            if (!string.IsNullOrWhiteSpace(rowTemplate))
+            {
+                return rowTemplate
+                    .Replace("{{NumeroPartida}}", p.NumeroPartida.ToString())
+                    .Replace("{{Descripcion}}", p.Descripcion ?? "")
+                    .Replace("{{Cantidad}}", p.Cantidad.ToString("G"))
+                    .Replace("{{PrecioUnitario}}", FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda))
+                    .Replace("{{Total}}", FormatearDinero(p.Total, simboloMoneda, posicionIzquierda));
+            }
+            return $"""
+                <tr>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.NumeroPartida}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151">{p.Descripcion}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{p.Cantidad:G}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right">{FormatearDinero(p.PrecioUnitario, simboloMoneda, posicionIzquierda)}</td>
+                  <td style="padding:7px 10px;border:1px solid #e5e7eb;font-size:13px;color:#374151;text-align:right;font-weight:600">{FormatearDinero(p.Total, simboloMoneda, posicionIzquierda)}</td>
+                </tr>
+                """;
+        }
+
+        var rows = string.Concat(partidas.OrderBy(p => p.NumeroPartida).Select(BuildRow));
+
+        return $"""
+            <table style="width:100%;border-collapse:collapse;margin:12px 0;font-family:inherit">
+              <thead>
+                <tr style="background-color:#f3f4f6">
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">#</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:left;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Descripción</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Cant.</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Precio Unit.</th>
+                  <th style="padding:8px 10px;border:1px solid #e5e7eb;font-size:11px;text-align:right;color:#6b7280;font-weight:600;text-transform:uppercase;letter-spacing:0.05em">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows}
+              </tbody>
+            </table>
+            """;
+    }
+
+    private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlOrden)
+    {
+        return $"""
             <!DOCTYPE html>
             <html lang="es">
             <head>
@@ -410,7 +399,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                                   Grupo Lefarma
                                 </p>
                                 <p style="margin:4px 0 0;color:#7bafd4;font-size:13px;font-weight:400">
-                                  Notificación
+                                  Sistema de Autorizaciones de Órdenes de Compra
                                 </p>
                               </td>
                               <td align="right">
@@ -429,18 +418,17 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                           <div style="color:#1f2937;font-size:15px;line-height:1.7">
                             {cuerpo}
                           </div>
-                          {{{{ContenidoAdicional}}}}
                         </td>
                       </tr>
 
-                      <!-- Button -->
+                      <!-- CTA Button -->
                       <tr>
                         <td style="background-color:#ffffff;padding:0 36px 36px">
-                          <a href="{urlEntidad}"
+                          <a href="{urlOrden}"
                              style="display:inline-block;background-color:#0f2744;color:#ffffff;text-decoration:none;
                                     padding:13px 28px;border-radius:7px;font-size:14px;font-weight:600;
                                     letter-spacing:0.2px;border:none">
-                            Abrir
+                            Ver Orden en el Sistema →
                           </a>
                         </td>
                       </tr>
@@ -457,7 +445,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                         <td style="background-color:#f8f9fa;padding:20px 36px;border-radius:0 0 10px 10px">
                           <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.5;text-align:center">
                             Este mensaje fue generado automáticamente. Por favor no responda a este correo.<br>
-                            © Grupo Lefarma 
+                            © Grupo Lefarma — Sistema de Autorizaciones
                           </p>
                         </td>
                       </tr>
@@ -471,15 +459,13 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             """;
     }
 
-    private string BuildAsuntoPorDefecto(string tipoEntidad, string folio)
-    {
-        var tipo = tipoEntidad switch
-        {
-            CodigoProceso.ORDEN_COMPRA => "Orden de Compra",
-            CodigoProceso.SOLICITUD_PERSONAL => "Solicitud de Personal",
-            _ => "Notificación"
-        };
-        return $"{tipo} {folio}";
-    }
+    private static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true) {
+        return 
+        string.IsNullOrEmpty(simboloMoneda)
+        ? value.ToString("N2")
+        : posicionIzquierda
+            ? $"{simboloMoneda} {value:N2}"
+            : $"{value:N2} {simboloMoneda}";
+    } 
 }
 

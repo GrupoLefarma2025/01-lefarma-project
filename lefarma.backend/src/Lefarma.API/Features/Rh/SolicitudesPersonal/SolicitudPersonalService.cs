@@ -4,6 +4,7 @@ using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
@@ -245,27 +246,49 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     // de los solicitantes de las solicitudes en esos pasos
                     var pasosConJefeInmediato = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && p.RequiereJefeInmediato)
-                        .Select(p => p.IdPaso)
-                        .Distinct()
+                        .GroupBy(p => p.IdPaso)
+                        .Select(g => new { IdPaso = g.Key, Nivel = g.Min(p => p.NivelJefe ?? 1) })
                         .ToListAsync();
+
+                    var nivelPorPaso = pasosConJefeInmediato.ToDictionary(x => x.IdPaso, x => x.Nivel);
+                    var pasosConJefeInmediatoIds = nivelPorPaso.Keys.ToHashSet();
 
                     var usuariosDelJefe = new HashSet<int>();
 
-                    if (pasosConJefeInmediato.Count > 0)
+                    if (nivelPorPaso.Count > 0)
                     {
-                        // Obtener los solicitantes de solicitudes que están en pasos que requieren jefe inmediato
+                        // Obtener solicitante/creador de solicitudes en pasos que requieren jefe inmediato
                         var solicitantesEnPasosJefe = await _context.SolicitudesPersonal
-                            .Where(s => pasosConJefeInmediato.Contains(s.IdPasoActual ?? 0))
-                            .Select(s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
+                            .Where(s => pasosConJefeInmediatoIds.Contains(s.IdPasoActual ?? 0))
+                            .Select(s => new
+                            {
+                                IdUsuarioJefe = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador,
+                                s.IdPasoActual,
+                                s.IdWorkflow
+                            })
                             .Distinct()
                             .ToListAsync();
 
-                        // Verificar si el usuario es jefe inmediato de los solicitantes
-                        foreach (var idSolicitante in solicitantesEnPasosJefe)
+                        // Caché por (workflow, creador/solicitante, nivel) para no repetir queries
+                        var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
+
+                        foreach (var s in solicitantesEnPasosJefe)
                         {
-                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idSolicitante);
-                            if (idJefe == idUsuario)
-                                usuariosDelJefe.Add(idSolicitante);
+                            if (!s.IdPasoActual.HasValue)
+                                continue;
+                            if (!nivelPorPaso.TryGetValue(s.IdPasoActual.Value, out var nivel))
+                                continue;
+
+                            var key = (s.IdWorkflow, s.IdUsuarioJefe, nivel);
+                            if (!jefeCache.TryGetValue(key, out var jefe))
+                            {
+                                jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                                    s.IdWorkflow, s.IdUsuarioJefe, nivel);
+                                jefeCache[key] = jefe;
+                            }
+
+                            if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
+                                usuariosDelJefe.Add(s.IdUsuarioJefe);
                         }
                     }
 
@@ -276,7 +299,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             // La solicitud está en un paso que requiere jefe inmediato
                             // y usuario es jefe inmediato del solicitante
                             x.IdPasoActual != null &&
-                            pasosConJefeInmediato.Contains(x.IdPasoActual.Value) &&
+                            pasosConJefeInmediatoIds.Contains(x.IdPasoActual.Value) &&
                             usuariosDelJefe.Contains(x.IdUsuarioSolicitante ?? x.IdUsuarioCreador)
                         ) ||
                         (

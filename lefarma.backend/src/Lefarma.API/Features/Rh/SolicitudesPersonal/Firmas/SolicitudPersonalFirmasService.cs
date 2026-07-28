@@ -105,7 +105,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
 
             var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                pasoActual, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
+                pasoActual, solicitud.IdWorkflow, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
                 codigoAccion: codigoAccionSolicitada,
                 idUsuarioSolicitante: solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador);
             if (validacion.IsError)

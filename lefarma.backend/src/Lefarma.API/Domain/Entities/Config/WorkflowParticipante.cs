@@ -6,6 +6,7 @@ public class WorkflowParticipante
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
         public bool RequiereJefeInmediato { get; set; }
+        public int? NivelJefe { get; set; }
         public bool Activo { get; set; } = true;
 
         public virtual WorkflowPaso? Paso { get; set; }

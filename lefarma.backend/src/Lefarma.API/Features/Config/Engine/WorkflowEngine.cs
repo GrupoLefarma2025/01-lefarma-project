@@ -1,5 +1,6 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -129,6 +130,59 @@ namespace Lefarma.API.Features.Config.Engine
             var nuevoPaso = idPasoDestino.HasValue
                 ? workflow.Pasos.FirstOrDefault(p => p.IdPaso == idPasoDestino.Value && p.Activo)
                 : null;
+
+            // Auto-skip de pasos de jefe sin jefe efectivo para el creador
+            const int maxSaltos = 10;
+            var saltos = 0;
+            var pasosOmitidos = new List<(WorkflowPaso Paso, WorkflowAccion AccionAvance, int Nivel, MotivoOmisionJefe? Motivo, int? IdDestino)>();
+
+            while (nuevoPaso is not null && !nuevoPaso.EsFinal && saltos < maxSaltos)
+            {
+                var (omitir, nivel, motivo) = await DebeOmitirsePasoJefeAsync(nuevoPaso, ctx.Entidad.IdUsuarioCreador);
+                if (!omitir) break;
+
+                var accionAvance = nuevoPaso.AccionesOrigen
+                    .Where(a => a.Activo && a.IdPasoDestino.HasValue)
+                    .OrderByDescending(a => a.TipoAccion != null && a.TipoAccion.Codigo == "APROBAR")
+                    .ThenBy(a => a.IdAccion)
+                    .FirstOrDefault();
+                if (accionAvance is null) break; // sin salida automática: queda como paso actual
+
+                int? destino = accionAvance.IdPasoDestino;
+                foreach (var condicion in accionAvance.Condiciones.Where(c => c.Activo))
+                {
+                    if (EvaluarCondicion(condicion, ctx)) { destino = condicion.IdPasoSiCumple; break; }
+                }
+
+                pasosOmitidos.Add((nuevoPaso, accionAvance, nivel, motivo, destino));
+                nuevoPaso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == destino && p.Activo);
+                saltos++;
+            }
+
+            // Registrar en bitácora la omisión de cada paso saltado
+            foreach (var (pasoOmitido, accionAvance, nivel, motivo, destino) in pasosOmitidos)
+            {
+                _context.WorkflowBitacoras.Add(new WorkflowBitacora
+                {
+                    TipoEntidad = ctx.TipoEntidad,
+                    IdEntidad = ctx.IdEntidad,
+                    IdOrden = ctx.TipoEntidad == CodigoProceso.ORDEN_COMPRA ? ctx.IdEntidad : null,
+                    IdWorkflow = workflow.IdWorkflow,
+                    IdPaso = pasoOmitido.IdPaso,
+                    IdAccion = accionAvance.IdAccion,
+                    IdUsuario = ctx.IdUsuario,
+                    Comentario = $"Paso omitido automáticamente (nivel {nivel}, motivo: {motivo}).",
+                    DatosSnapshot = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object?>
+                    {
+                        ["omisionAutomatica"] = true,
+                        ["motivo"] = motivo?.ToString(),
+                        ["nivelJefe"] = nivel,
+                        ["idPasoOmitido"] = pasoOmitido.IdPaso,
+                        ["idPasoDestinoSalto"] = destino
+                    }),
+                    FechaEvento = DateTime.Now
+                });
+            }
 
             // Registrar en bitácora inmutable la transición ejecutada
             var snapshot = new Dictionary<string, object?>
@@ -289,12 +343,12 @@ namespace Lefarma.API.Features.Config.Engine
             if (participantes.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
                 return true;
 
-            // Verificar asignación por jefe inmediato
-            if (participantes.Any(p => p.RequiereJefeInmediato))
+            // Verificar asignación por jefe inmediato (por nivel, con checks y exclusiones)
+            foreach (var p in participantes.Where(p => p.RequiereJefeInmediato))
             {
-                var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
-                var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioBase);
-                if (idJefe.HasValue && idJefe.Value == idUsuario)
+                var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                    paso.IdWorkflow, idUsuarioCreador, p.NivelJefe ?? 1);
+                if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
                     return true;
             }
 
@@ -323,6 +377,30 @@ namespace Lefarma.API.Features.Config.Engine
         }
         private record WorkflowEntityContext(
             int IdWorkflow, int? IdPasoActual, int IdUsuarioCreador, int? IdUsuarioSolicitante);
+
+        /// <summary>
+        /// Un paso se omite si TODOS sus participantes activos son de tipo jefe inmediato
+        /// y ninguno tiene un jefe efectivo (check activo, cadena resoluble, usuario existe, no excluido).
+        /// </summary>
+        private async Task<(bool Omitir, int Nivel, MotivoOmisionJefe? Motivo)> DebeOmitirsePasoJefeAsync(
+            WorkflowPaso paso, int idUsuarioCreador)
+        {
+            var participantes = paso.Participantes?.Where(p => p.Activo).ToList() ?? new();
+            if (participantes.Count == 0) return (false, 0, null);
+            if (!participantes.All(p => p.RequiereJefeInmediato)) return (false, 0, null);
+
+            MotivoOmisionJefe? ultimoMotivo = null;
+            foreach (var p in participantes)
+            {
+                var nivel = p.NivelJefe ?? 1;
+                var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(paso.IdWorkflow, idUsuarioCreador, nivel);
+                if (jefe.IdUsuario.HasValue)
+                    return (false, nivel, null); // hay jefe efectivo -> NO omitir
+                ultimoMotivo = jefe.MotivoOmision;
+            }
+
+            return (true, participantes.Min(p => p.NivelJefe ?? 1), ultimoMotivo);
+        }
 
         private static bool EvaluarCondicion(WorkflowCondicion c, WorkflowContext ctx)
         {

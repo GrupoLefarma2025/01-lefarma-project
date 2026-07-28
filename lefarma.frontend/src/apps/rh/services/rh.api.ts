@@ -21,6 +21,11 @@ import type {
   TipoSolicitudResponse,
   UpdateTipoSolicitudRequest,
 } from '@/types/solicitudPersonal.types';
+import type {
+  EmpleadoJefesConfigListItem,
+  EmpleadoJefesConfigResponse,
+  UpdateEmpleadoJefesConfigRequest,
+} from '@/types/jefesNiveles.types';
 
 export interface UsuarioCatalogo {
   idUsuario: number;
@@ -134,6 +139,20 @@ export const empleadoApi = {
     API.get<ApiResponse<EmpleadoChecadoResponse>>('/rh/empleados/mi-chequeo'),
 };
 
+const JEFES_NIVELES_ENDPOINT = '/config/empleados/jefes-config';
+
+export const empleadoJefesConfigApi = {
+  getList: () =>
+    API.get<ApiResponse<EmpleadoJefesConfigListItem[]>>(`${JEFES_NIVELES_ENDPOINT}/list`),
+  getByUsuario: (idUsuario: number) =>
+    API.get<ApiResponse<EmpleadoJefesConfigResponse>>(`/config/empleados/${idUsuario}/jefes-config`),
+  update: (idUsuario: number, payload: UpdateEmpleadoJefesConfigRequest) =>
+    API.put<ApiResponse<EmpleadoJefesConfigResponse>>(
+      `/config/empleados/${idUsuario}/jefes-config`,
+      payload
+    ),
+};
+
 export default {
   misLimitesApi,
   calendarioApi,
@@ -145,4 +164,5 @@ export default {
   solicitudesPersonalApi,
   tipoSolicitudApi,
   usuariosCatalogoApi,
+  empleadoJefesConfigApi,
 };

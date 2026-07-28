@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   TimerIcon,
   CalendarDays,
+  UserCog,
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
@@ -55,6 +56,11 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         icon: FileText,
         path: '/rh/catalogos/tipos-solicitud',
         permission: { require: 'tipos-solicitud.ver_listado' },
+      },
+      {
+        title: 'Jefes por Niveles',
+        icon: UserCog,
+        path: '/rh/jefes-niveles',
       },
     ],
   },
