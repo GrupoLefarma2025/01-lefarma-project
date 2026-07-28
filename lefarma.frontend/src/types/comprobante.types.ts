@@ -75,6 +75,7 @@ export interface CfdiPreviewResponse {
   satEstado?: string | null;       // "Vigente" | "Cancelado" | "No Encontrado"
   satCodigoEstatus?: string | null;
   satCancelacion?: string | null;
+  satPermitirAvanzar?: boolean | null;
 }
 
 // ─── Partidas pendientes ───────────────────────────────────────────────────────

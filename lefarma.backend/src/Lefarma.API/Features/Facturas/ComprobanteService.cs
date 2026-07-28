@@ -65,13 +65,14 @@ public class ComprobanteService : IComprobanteService
         if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
         {
             var sat = await _sat.ValidarAsync(preview.Uuid, preview.RfcEmisor, preview.RfcReceptor, preview.Total);
-            preview = preview with
-            {
-                SatContactado    = sat.Contactado,
-                SatEstado        = sat.Estado,
-                SatCodigoEstatus = sat.CodigoEstatus,
-                SatCancelacion   = sat.EstatusCancelacion,
-            };
+                preview = preview with
+                {
+                    SatContactado     = sat.Contactado,
+                    SatEstado         = sat.Estado,
+                    SatCodigoEstatus  = sat.CodigoEstatus,
+                    SatCancelacion    = sat.EstatusCancelacion,
+                    SatPermitirAvanzar = sat.PermitirAvanzar,
+                };
         }
 
         return preview;
@@ -99,10 +100,10 @@ public class ComprobanteService : IComprobanteService
             if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
             {
                 var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
-                if (!sat.Contactado)
-                    return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT.");
-                if (!sat.EsVigente)
-                    return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}");
+            if (!sat.Contactado && !sat.PermitirAvanzar)
+                return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT.");
+            if (!sat.EsVigente && !sat.PermitirAvanzar)
+                return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}");
             }
         }
 

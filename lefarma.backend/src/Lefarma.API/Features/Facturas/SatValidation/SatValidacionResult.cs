@@ -7,7 +7,8 @@ public record SatValidacionResult(
     bool    Contactado,           // true si el SAT respondió (aunque sea "No Encontrado")
     string? Estado,               // "Vigente" | "Cancelado" | "No Encontrado"
     string? CodigoEstatus,        // "S - Comprobante obtenido..." | "N - ..."
-    string? EstatusCancelacion    // null si Vigente; "Cancelado sin aceptación", "En proceso", etc.
+    string? EstatusCancelacion,   // null si Vigente; "Cancelado sin aceptación", "En proceso", etc.
+    bool    PermitirAvanzar = false  // true cuando la validación está deshabilitada por configuración
 )
 {
     public bool EsVigente => Contactado && Estado == "Vigente";
