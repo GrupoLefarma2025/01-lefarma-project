@@ -8,6 +8,7 @@ import type {
 } from '@/types/archivo.types';
 import type { ApiResponse } from '@/types/api.types';
 
+// Full prefix only for raw URL strings (href/download links); axios calls use relative paths because API.baseURL already includes VITE_API_URL
 const BASE_URL = `${import.meta.env.VITE_API_URL || '/api'}/archivos`;
 
 export const archivoService = {
@@ -21,7 +22,7 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<ApiResponse<Archivo>>(`${BASE_URL}/upload`, formData);
+    const { data } = await API.post<ApiResponse<Archivo>>(`/archivos/upload`, formData);
     return data.data;
   },
 
@@ -32,17 +33,17 @@ export const archivoService = {
       formData.append('metadata', JSON.stringify(params.metadata));
     }
 
-    const { data } = await API.post<ApiResponse<Archivo>>(`${BASE_URL}/${id}/reemplazar`, formData);
+    const { data } = await API.post<ApiResponse<Archivo>>(`/archivos/${id}/reemplazar`, formData);
     return data.data;
   },
 
   getById: async (id: number): Promise<Archivo> => {
-    const { data } = await API.get<ApiResponse<Archivo>>(`${BASE_URL}/${id}`);
+    const { data } = await API.get<ApiResponse<Archivo>>(`/archivos/${id}`);
     return data.data;
   },
 
   getAll: async (params: ListarArchivosParams): Promise<ArchivoListItem[]> => {
-    const { data } = await API.get<ApiResponse<ArchivoListItem[]>>(BASE_URL, { params });
+    const { data } = await API.get<ApiResponse<ArchivoListItem[]>>('/archivos', { params });
     // ponytail: backend puede responder 200 sin body "data" (204, error controlado) → devolvemos [] para no romper callers
     return data.data ?? [];
   },
@@ -56,6 +57,6 @@ export const archivoService = {
   },
 
   delete: async (id: number): Promise<void> => {
-    await API.delete<ApiResponse<void>>(`${BASE_URL}/${id}`);
+    await API.delete<ApiResponse<void>>(`/archivos/${id}`);
   }
 };
