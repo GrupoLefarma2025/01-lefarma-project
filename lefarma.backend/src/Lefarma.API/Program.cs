@@ -160,6 +160,8 @@ builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
 // Comprobantes / Facturas CFDI
+builder.Services.Configure<Lefarma.API.Features.Facturas.SatValidation.SatValidationSettings>(
+    builder.Configuration.GetSection("SatValidation"));
 builder.Services.AddSingleton<Lefarma.API.Features.Facturas.SatValidation.ISatValidationService,
                                Lefarma.API.Features.Facturas.SatValidation.SatValidationService>();
 builder.Services.AddScoped<IComprobanteService, ComprobanteService>();

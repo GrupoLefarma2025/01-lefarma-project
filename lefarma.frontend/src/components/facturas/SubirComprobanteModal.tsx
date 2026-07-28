@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -57,6 +57,42 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
 
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const esCfdi = tipoComprobante === 'cfdi';
+
+  const satStatus = useMemo(() => {
+    if (!cfdiPreview) return null;
+    if (cfdiPreview.satPermitirAvanzar) {
+      return {
+        label: 'Validación SAT deshabilitada',
+        message: 'La validación con el SAT está deshabilitada. Puedes continuar.',
+        variant: 'bypass' as const,
+        canProceed: true,
+      };
+    }
+    if (cfdiPreview.satContactado === true) {
+      if (cfdiPreview.satEstado === 'Vigente') {
+        return {
+          label: 'SAT: Vigente',
+          message: 'El CFDI fue validado correctamente con el SAT.',
+          variant: 'success' as const,
+          canProceed: true,
+        };
+      }
+      return {
+        label: `SAT: ${cfdiPreview.satEstado ?? 'No vigente'}`,
+        message: 'El CFDI no está vigente ante el SAT. No se puede guardar.',
+        variant: 'error' as const,
+        canProceed: false,
+      };
+    }
+    return {
+      label: 'SAT no disponible',
+      message: 'No se pudo contactar al SAT. Inténtalo más tarde.',
+      variant: 'warning' as const,
+      canProceed: false,
+    };
+  }, [cfdiPreview]);
+
+  const puedeAvanzar = !esCfdi || !satStatus || satStatus.canProceed;
 
   useEffect(() => {
     if (open) {
@@ -198,7 +234,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
           </div>
           <div className="flex gap-2">
             {step === 'datos' ? (
-              <Button onClick={handleCrearComprobante} disabled={loading}>
+              <Button onClick={handleCrearComprobante} disabled={loading || !puedeAvanzar}>
                 {loading ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-1.5 h-3.5 w-3.5" />}
                 Siguiente
               </Button>
@@ -282,16 +318,28 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
               {cfdiPreview && (
                 <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> CFDI valido</div>
-                    {cfdiPreview.satContactado === true && (
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${cfdiPreview.satEstado === 'Vigente' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
-                        {cfdiPreview.satEstado === 'Vigente' ? '✓' : '✗'} SAT: {cfdiPreview.satEstado}
+                    <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> CFDI valido
+                    </div>
+                    {satStatus && (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold
+                        ${satStatus.variant === 'success' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                          satStatus.variant === 'bypass' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                          'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
+                        {satStatus.variant === 'success' ? '✓' : satStatus.variant === 'bypass' ? '⚠' : '✗'}
+                        {satStatus.label}
                       </span>
                     )}
-                    {cfdiPreview.satContactado === false && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">SAT no disponible</span>
-                    )}
                   </div>
+                  {satStatus?.message && (
+                    <div className={`flex items-start gap-1.5 rounded-md px-2 py-1.5 text-[11px]
+                      ${satStatus.variant === 'success' ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-400' :
+                        satStatus.variant === 'bypass' ? 'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400' :
+                        'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400'}`}>
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                      <span>{satStatus.message}</span>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-2">
                     <div><p className="text-muted-foreground">Emisor</p><p className="font-medium truncate">{cfdiPreview.nombreEmisor ?? '—'}</p><p className="text-[10px] text-muted-foreground">{cfdiPreview.rfcEmisor}</p></div>
                     <div><p className="text-muted-foreground">UUID</p><p className="font-mono text-[10px] break-all">{cfdiPreview.uuid ?? '—'}</p></div>
