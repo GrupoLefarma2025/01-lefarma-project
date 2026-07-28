@@ -179,12 +179,31 @@ interface Proveedor {
   regimenFiscalDescripcion?: string;
   usoCfdi?: string;
   sinDatosFiscales?: boolean;
+  estatus?: number;
   detalle?: {
     personaContactoNombre?: string;
     contactoTelefono?: string;
     contactoEmail?: string;
   };
   cuentasFormaPago?: ProveedorCuentaBancaria[];
+}
+
+const PROV_ESTATUS = { NUEVO: 1, APROBADO: 2, RECHAZADO: 3, EDITADO_PENDIENTE: 4 } as const;
+
+interface StagingDiff {
+  campo: string;
+  valorActual: string | null;
+  valorNuevo: string | null;
+}
+
+interface StagingData {
+  idStaging: number;
+  idProveedor: number;
+  razonSocial: string;
+  rfc: string | null;
+  regimenFiscalDescripcion?: string;
+  fechaStaging: string;
+  diferencias: StagingDiff[];
 }
 
 interface WorkflowPasoConfig {
@@ -381,6 +400,8 @@ export default function AutorizacionesOC() {
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [allProveedoresMap, setAllProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
+  const [stagingMap, setStagingMap] = useState<Map<number, StagingData>>(new Map());
+  const [proveedorTab, setProveedorTab] = useState<'actual' | 'cambios'>('actual');
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
@@ -440,6 +461,7 @@ export default function AutorizacionesOC() {
   const cargarProveedoresOrden = async (orden: OrdenCompraResponse) => {
     setLoadingProveedores(true);
     const nuevosProveedores = new Map<number, Proveedor>();
+    const nuevosStaging = new Map<number, StagingData>();
 
     try {
       const idsProveedores: number[] = [];
@@ -459,11 +481,21 @@ export default function AutorizacionesOC() {
           const proveedor = await obtenerProveedorPorId(id);
           if (proveedor) {
             nuevosProveedores.set(id, proveedor);
+            if (proveedor.estatus === PROV_ESTATUS.EDITADO_PENDIENTE) {
+              try {
+                const stgRes = await API.get<ApiResponse<StagingData>>(`/catalogos/Proveedores/${id}/staging`);
+                if (stgRes.data.success && stgRes.data.data) {
+                  nuevosStaging.set(id, stgRes.data.data);
+                }
+              } catch { /* staging fetch is best-effort */ }
+            }
           }
         })
       );
     } finally {
       setProveedoresMap(nuevosProveedores);
+      setStagingMap(nuevosStaging);
+      setProveedorTab('actual');
       setLoadingProveedores(false);
     }
   };
@@ -1488,25 +1520,120 @@ export default function AutorizacionesOC() {
                     >
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor) ? (
-                          <div className="col-span-2 rounded-md border bg-background px-2 py-1.5">
-                            <div className="flex items-center justify-between">
-                              <p className="text-muted-foreground">Proveedor (Cabecero)</p>
-                              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
-                                Nivel orden
-                              </span>
-                            </div>
-                            <p className="font-medium">
-                              {proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              RFC: {proveedoresMap.get(selectedOrden.idProveedor)?.rfc || 'N/A'}
-                              {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion && (
-                                <span className="ml-2">
-                                  • {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion}
-                                </span>
-                              )}
-                            </p>
-                          </div>
+                          (() => {
+                            const prov = proveedoresMap.get(selectedOrden.idProveedor)!;
+                            const estatus = prov.estatus ?? 0;
+                            const isNoAutorizado = estatus !== PROV_ESTATUS.APROBADO && estatus !== PROV_ESTATUS.EDITADO_PENDIENTE;
+                            const isEdicionPendiente = estatus === PROV_ESTATUS.EDITADO_PENDIENTE;
+                            const staging = stagingMap.get(selectedOrden.idProveedor!);
+
+                            if (isNoAutorizado) {
+                              return (
+                                <div className="col-span-2 rounded-md border-2 border-amber-400 bg-amber-50 px-2 py-2 dark:bg-amber-950/30">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                    <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                      Nivel orden
+                                    </span>
+                                  </div>
+                                  <p className="font-medium text-red-700 dark:text-red-400">
+                                    {prov.razonSocial}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    RFC: {prov.rfc || 'N/A'}
+                                    {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                  </p>
+                                  <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                    ⚠ Proveedor no autorizado
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            if (isEdicionPendiente && staging) {
+                              return (
+                                <div className="col-span-2 rounded-md border-2 border-purple-400 bg-background px-2 py-2 dark:border-purple-500">
+                                  <div className="mb-1.5 rounded border border-purple-300 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-800 dark:border-purple-600 dark:bg-purple-950/40 dark:text-purple-200">
+                                    ✎ Hay una edición pendiente por aprobar
+                                  </div>
+                                  <div className="mb-1.5 flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setProveedorTab('actual')}
+                                      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${proveedorTab === 'actual' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                    >
+                                      Actual
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setProveedorTab('cambios')}
+                                      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${proveedorTab === 'cambios' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300'}`}
+                                    >
+                                      Cambios (staging)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/catalogos/proveedores')}
+                                      className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
+                                    >
+                                      Ir a proveedores →
+                                    </button>
+                                  </div>
+                                  {proveedorTab === 'actual' ? (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                        <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">Nivel orden</span>
+                                      </div>
+                                      <p className="font-medium">{prov.razonSocial}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        RFC: {prov.rfc || 'N/A'}
+                                        {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <div className="rounded border border-purple-200 bg-purple-50/50 px-2 py-1.5 dark:border-purple-700 dark:bg-purple-950/20">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-semibold text-purple-700 dark:text-purple-300">Staging — cambios propuestos</p>
+                                        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-medium text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                          {staging.fechaStaging ? new Date(staging.fechaStaging).toLocaleDateString('es-MX') : ''}
+                                        </span>
+                                      </div>
+                                      <p className="font-medium text-purple-900 dark:text-purple-100">{staging.razonSocial}</p>
+                                      <p className="text-[10px] text-purple-700 dark:text-purple-300">RFC: {staging.rfc || 'N/A'}</p>
+                                      {staging.diferencias.length > 0 && (
+                                        <div className="mt-1 space-y-0.5">
+                                          {staging.diferencias.map((d, i) => (
+                                            <div key={i} className="flex gap-1 text-[10px]">
+                                              <span className="font-semibold text-purple-800 dark:text-purple-200">{d.campo}:</span>
+                                              <span className="line-through text-muted-foreground">{d.valorActual ?? '—'}</span>
+                                              <span className="text-purple-700 dark:text-purple-300">→ {d.valorNuevo ?? '—'}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="col-span-2 rounded-md border bg-background px-2 py-1.5">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                  <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                    Nivel orden
+                                  </span>
+                                </div>
+                                <p className="font-medium">{prov.razonSocial}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  RFC: {prov.rfc || 'N/A'}
+                                  {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                </p>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <div className="col-span-2 rounded-md border border-dashed border-amber-300 bg-amber-50/30 px-2 py-1.5">
                             <div className="flex items-center justify-between">
