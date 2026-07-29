@@ -537,6 +537,8 @@ public class WorkflowService : BaseService, IWorkflowService
                 paso.RequiereAdjunto = request.RequiereAdjunto;
                 paso.PermiteAdjunto = request.PermiteAdjunto;
 
+                await _repo.UpdateAsync(workflow);
+
                 var response = new WorkflowPasoResponse
                 {
                     IdPaso = paso.IdPaso,
@@ -586,12 +588,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 {
                     EnrichWideEvent("CreatePaso", entityId: idWorkflow, notFound: true);
                     return CommonErrors.NotFound($"Workflow con ID {idWorkflow}");
-                }
-
-                if (request.IdEstado.HasValue
-                    && workflow.Pasos.Any(p => p.IdEstado == request.IdEstado))
-                {
-                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.ToString());
                 }
 
                 var paso = new WorkflowPaso

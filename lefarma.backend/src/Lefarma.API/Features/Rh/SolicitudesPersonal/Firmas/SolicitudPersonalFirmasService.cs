@@ -76,6 +76,9 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 return CommonErrors.Conflict("SolicitudPersonal",
                     $"La solicitud {solicitud.Folio} ya está en estado terminal.");
 
+            // Guardar estado anterior
+            var estadoAnterior = solicitud.Estado?.Codigo;
+
             using var transaction = await _context.Database.BeginTransactionAsync();
 
             // 3. Cargar workflow config
@@ -178,7 +181,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             EnrichWideEvent("Firmar", entityId: idSolicitud, nombre: solicitud.Folio,
                 additionalContext: new Dictionary<string, object>
                 {
-                    ["estadoAnterior"] = solicitud.Estado?.Codigo,
+                    ["estadoAnterior"] = estadoAnterior,
                     ["nuevoEstado"] = nuevoEstado?.Codigo,
                     ["idAccion"] = request.IdAccion
                 });
@@ -187,7 +190,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             {
                 Exitoso = true,
                 Folio = solicitud.Folio,
-                EstadoAnterior = solicitud.Estado?.Codigo,
+                EstadoAnterior = estadoAnterior,
                 NuevoEstado = nuevoEstado?.Codigo,
                 Mensaje = $"Acción ejecutada exitosamente. Estado: {nuevoEstado?.Codigo}"
             };

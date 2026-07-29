@@ -6,6 +6,8 @@ import type {
   CalendarioLaboralRequest,
   CalendarioLaboralResponse,
   CreateTipoSolicitudRequest,
+  DiasJornadaRequest,
+  DiasJornadaResponse,
   IncidenciaChecadoResponse,
   IncidenciasChecadoConsultaRequest,
   IncidenciasChecadoResumenEmpleadoRequest,
@@ -21,9 +23,11 @@ import type {
   TipoSolicitudResponse,
   UpdateTipoSolicitudRequest,
 } from '@/types/solicitudPersonal.types';
+import type { DiaNoHabilFilters, DiaNoHabilResponse } from '@/types/vacaciones.types';
 import type {
   EmpleadoJefesConfigListItem,
   EmpleadoJefesConfigResponse,
+  EmpleadoJefesCadenaResponse,
   UpdateEmpleadoJefesConfigRequest,
 } from '@/types/jefesNiveles.types';
 
@@ -63,6 +67,20 @@ export const calendarioLaboralApi = {
     }),
 };
 
+export const misDiasJornadaApi = {
+  get: (request: DiasJornadaRequest) =>
+    API.get<ApiResponse<DiasJornadaResponse>>('/calendario/mis-dias-jornada', {
+      params: request,
+    }),
+};
+
+export const diasNoHabilesApi = {
+  get: (request: DiaNoHabilFilters) =>
+    API.get<ApiResponse<DiaNoHabilResponse[]>>('/rh/vacaciones/dias-no-habiles', {
+      params: request,
+    }),
+};
+
 export const misIncidenciasChecadoApi = {
   get: (request: { anio: number; mes: number }) =>
     API.get<ApiResponse<IncidenciaChecadoResponse[]>>('/rh/mis-incidencias-checado', {
@@ -77,15 +95,21 @@ export const incidenciasChecadoApi = {
       signal,
     }),
   getByEmpleado: (nomina: number, fechaInicio: string, fechaFin: string, signal?: AbortSignal) =>
-    API.get<ApiResponse<IncidenciaChecadoResponse[]>>(`/rh/incidencias-checado/empleado/${nomina}`, {
-      params: { fechaInicio, fechaFin, limite: 1000 },
-      signal,
-    }),
+    API.get<ApiResponse<IncidenciaChecadoResponse[]>>(
+      `/rh/incidencias-checado/empleado/${nomina}`,
+      {
+        params: { fechaInicio, fechaFin, limite: 1000 },
+        signal,
+      }
+    ),
   getResumen: (request: IncidenciasChecadoResumenEmpleadoRequest, signal?: AbortSignal) =>
-    API.get<ApiResponse<PagedResult<IncidenciasChecadoResumenEmpleadoResponse>>>('/rh/incidencias-checado/resumen-empleados', {
-      params: request,
-      signal,
-    }),
+    API.get<ApiResponse<PagedResult<IncidenciasChecadoResumenEmpleadoResponse>>>(
+      '/rh/incidencias-checado/resumen-empleados',
+      {
+        params: request,
+        signal,
+      }
+    ),
 };
 
 export const solicitudesPersonalApi = {
@@ -124,9 +148,7 @@ export const usuariosCatalogoApi = {
 
 export const notificarIncidenciaChecadoApi = {
   getPlantillas: () =>
-    API.get<ApiResponse<PlantillaIncidenciaChecado[]>>(
-      '/rh/incidencias-checado/plantillas'
-    ),
+    API.get<ApiResponse<PlantillaIncidenciaChecado[]>>('/rh/incidencias-checado/plantillas'),
   sendResumen: (payload: NotificarIncidenciasResumenRequest) =>
     API.post<ApiResponse<NotificarIncidenciasResumenResponse>>(
       '/rh/incidencias-checado/notificar-resumen',
@@ -135,8 +157,7 @@ export const notificarIncidenciaChecadoApi = {
 };
 
 export const empleadoApi = {
-  getMiChequeo: () =>
-    API.get<ApiResponse<EmpleadoChecadoResponse>>('/rh/empleados/mi-chequeo'),
+  getMiChequeo: () => API.get<ApiResponse<EmpleadoChecadoResponse>>('/rh/empleados/mi-chequeo'),
 };
 
 const JEFES_NIVELES_ENDPOINT = '/config/empleados/jefes-config';
@@ -145,7 +166,13 @@ export const empleadoJefesConfigApi = {
   getList: () =>
     API.get<ApiResponse<EmpleadoJefesConfigListItem[]>>(`${JEFES_NIVELES_ENDPOINT}/list`),
   getByUsuario: (idUsuario: number) =>
-    API.get<ApiResponse<EmpleadoJefesConfigResponse>>(`/config/empleados/${idUsuario}/jefes-config`),
+    API.get<ApiResponse<EmpleadoJefesConfigResponse>>(
+      `/config/empleados/${idUsuario}/jefes-config`
+    ),
+  getCadena: (idUsuario: number) =>
+    API.get<ApiResponse<EmpleadoJefesCadenaResponse>>(
+      `/config/empleados/${idUsuario}/jefes-cadena`
+    ),
   update: (idUsuario: number, payload: UpdateEmpleadoJefesConfigRequest) =>
     API.put<ApiResponse<EmpleadoJefesConfigResponse>>(
       `/config/empleados/${idUsuario}/jefes-config`,
@@ -157,6 +184,8 @@ export default {
   misLimitesApi,
   calendarioApi,
   calendarioLaboralApi,
+  misDiasJornadaApi,
+  diasNoHabilesApi,
   misIncidenciasChecadoApi,
   incidenciasChecadoApi,
   notificarIncidenciaChecadoApi,

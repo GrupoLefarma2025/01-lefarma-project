@@ -10,6 +10,7 @@ namespace Lefarma.API.Domain.Entities.Rh
         public int Dia { get; set; }
         public DateTime Fecha { get; set; }
         public string? Descripcion { get; set; }
+        public bool ConsumeSaldo { get; set; } = false;
         public bool Activo { get; set; } = true;
         public DateTime FechaCreacion { get; set; }
     }

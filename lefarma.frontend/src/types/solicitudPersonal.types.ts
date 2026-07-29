@@ -237,6 +237,21 @@ export interface CalendarioLaboralRequest {
   excluirSabados?: boolean;
 }
 
+export interface DiasJornadaRequest {
+  anio: number;
+  mes: number;
+}
+
+export interface DiasJornadaResponse {
+  lunes: boolean;
+  martes: boolean;
+  miercoles: boolean;
+  jueves: boolean;
+  viernes: boolean;
+  sabado: boolean;
+  domingo: boolean;
+}
+
 export interface IncidenciasChecadoConsultaRequest {
   anio?: number;
   mes?: number;

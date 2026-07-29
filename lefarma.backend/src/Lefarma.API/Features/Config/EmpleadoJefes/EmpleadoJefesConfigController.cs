@@ -45,6 +45,20 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 });
         }
 
+        [HttpGet("api/config/empleados/{idUsuario:int}/jefes-cadena")]
+        public async Task<IActionResult> GetCadena(int idUsuario)
+        {
+            var result = await _service.GetCadenaAsync(idUsuario);
+            return result.IsError
+                ? Problem(result.FirstError.Description)
+                : Ok(new ApiResponse<EmpleadoJefesCadenaResponse>
+                {
+                    Success = true,
+                    Message = "Cadena de jefes obtenida exitosamente.",
+                    Data = result.Value
+                });
+        }
+
         [HttpPut("api/config/empleados/{idUsuario:int}/jefes-config")]
         public async Task<IActionResult> PutConfig(int idUsuario, [FromBody] UpdateEmpleadoJefesConfigRequest request)
         {

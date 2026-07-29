@@ -649,6 +649,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .OrderBy(a => a.IdAccion)
                     .FirstOrDefault();
 
+                var accionCerrar = pasoInicial.AccionesOrigen?
+                    .Where(a => a.Activo && a.TipoAccion?.Codigo == "CERRAR")
+                    .OrderBy(a => a.IdAccion)
+                    .FirstOrDefault();
+
                 if (accionEnviar is not null && !tipo.RequiereDocumentacion)
                 {
                     var firmaResult = await _firmasService.FirmarAsync(
@@ -659,6 +664,21 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             Comentario = "Envío automático al crear"
                         },
                         idUsuario);
+
+                    if (firmaResult.IsError)
+                        return firmaResult.Errors;
+
+                }else if (accionCerrar is not null && tipo.Clave.Contains("INCAPACIDAD", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Las incapacidades se cierran automaticante despues de generarse
+                    var firmaResult = await _firmasService.FirmarAsync(
+                       solicitud.IdSolicitud,
+                       new FirmarRequest
+                       {
+                           IdAccion = accionCerrar.IdAccion,
+                           Comentario = "Solicitud cerrada automáticamente al crear"
+                       },
+                       idUsuario);
 
                     if (firmaResult.IsError)
                         return firmaResult.Errors;

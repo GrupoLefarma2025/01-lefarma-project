@@ -1,5 +1,6 @@
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.EmpleadoJefes.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
@@ -12,11 +13,19 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
         private const int MaxNivel = 5; // hoy la vista tiene 5 niveles; cambiar aquí si crece
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
+        private readonly AsistenciasDbContext _asistenciasContext;
+        private readonly IEmpleadoRepository _empleadoRepository;
 
-        public EmpleadoJefesConfigService(ApplicationDbContext context, AsokamDbContext asokamContext)
+        public EmpleadoJefesConfigService(
+            ApplicationDbContext context,
+            AsokamDbContext asokamContext,
+            AsistenciasDbContext asistenciasContext,
+            IEmpleadoRepository empleadoRepository)
         {
             _context = context;
             _asokamContext = asokamContext;
+            _asistenciasContext = asistenciasContext;
+            _empleadoRepository = empleadoRepository;
         }
 
         public async Task<ErrorOr<List<EmpleadoJefesConfigListItem>>> GetListAsync()
@@ -50,6 +59,14 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 .Select(c => new { c.IdUsuario, c.Nivel, c.Aplica })
                 .ToListAsync();
 
+            var nominaPorUsuario = detalles
+                .Select(d => (d.IdUsuario, Nomina: ParseNomina(d.NumeroEmpleado)))
+                .Where(x => x.Nomina.HasValue)
+                .GroupBy(x => x.IdUsuario)
+                .ToDictionary(g => g.Key, g => g.First().Nomina!.Value);
+
+            var cadenas = await ResolverCadenasAsync(nominaPorUsuario);
+
             var resultado = idsConfigurados
                 .Select(id => new EmpleadoJefesConfigListItem
                 {
@@ -60,7 +77,8 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                     Niveles = niveles
                         .Where(n => n.IdUsuario == id)
                         .Select(n => new EmpleadoJefeConfigItemDto { Nivel = n.Nivel, Aplica = n.Aplica })
-                        .ToList()
+                        .ToList(),
+                    Cadena = cadenas.TryGetValue(id, out var cadena) ? cadena : CadenaVacia()
                 })
                 .OrderBy(x => x.NumeroEmpleado)
                 .ThenBy(x => x.NombreCompleto)
@@ -68,6 +86,109 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
 
             return resultado;
         }
+
+        public async Task<ErrorOr<EmpleadoJefesCadenaResponse>> GetCadenaAsync(int idUsuario)
+        {
+            var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario);
+            if (!nomina.HasValue)
+            {
+                return new EmpleadoJefesCadenaResponse { IdUsuario = idUsuario, Cadena = CadenaVacia() };
+            }
+
+            var cadenas = await ResolverCadenasAsync(new Dictionary<int, long> { [idUsuario] = nomina.Value });
+            return new EmpleadoJefesCadenaResponse
+            {
+                IdUsuario = idUsuario,
+                Cadena = cadenas.TryGetValue(idUsuario, out var cadena) ? cadena : CadenaVacia()
+            };
+        }
+
+        /// <summary>
+        /// Resuelve la cadena de jefes (vista aplanada) en batch para un conjunto de usuarios.
+        /// La cadena es cruda: no aplica checks ni exclusiones (son por workflow).
+        /// </summary>
+        private async Task<Dictionary<int, List<JefeCadenaNivelDto>>> ResolverCadenasAsync(
+            Dictionary<int, long> nominaPorUsuario)
+        {
+            var resultado = new Dictionary<int, List<JefeCadenaNivelDto>>();
+            if (nominaPorUsuario.Count == 0) return resultado;
+
+            var nominas = nominaPorUsuario.Values.Distinct().ToList();
+            var filas = await _asistenciasContext.VwEmpleadosYJefes
+                .AsNoTracking()
+                .Where(ej => ej.Nomina.HasValue && nominas.Contains(ej.Nomina.Value))
+                .Select(ej => new { ej.Nomina, ej.NominaJefe, ej.NominaJefe2, ej.NominaJefe3, ej.NominaJefe4, ej.NominaJefe5 })
+                .ToListAsync();
+
+            var filaPorNomina = filas
+                .Where(f => f.Nomina.HasValue)
+                .GroupBy(f => f.Nomina!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var nominasJefes = filas
+                .SelectMany(f => new[] { f.NominaJefe, f.NominaJefe2, f.NominaJefe3, f.NominaJefe4, f.NominaJefe5 })
+                .Where(n => n.HasValue)
+                .Select(n => n!.Value)
+                .Distinct()
+                .ToList();
+
+            var idUsuarioPorNomina = await _empleadoRepository.ResolverIdsUsuarioPorNominasAsync(nominasJefes);
+
+            var idsJefes = idUsuarioPorNomina.Values.Distinct().ToList();
+            var nombresJefes = await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => idsJefes.Contains(u.IdUsuario))
+                .Select(u => new { u.IdUsuario, u.NombreCompleto })
+                .ToListAsync();
+            var nombrePorId = nombresJefes.ToDictionary(x => x.IdUsuario, x => x.NombreCompleto);
+
+            foreach (var (idUsuario, nomina) in nominaPorUsuario)
+            {
+                filaPorNomina.TryGetValue(nomina, out var fila);
+                var cadena = new List<JefeCadenaNivelDto>(MaxNivel);
+
+                for (var nivel = 1; nivel <= MaxNivel; nivel++)
+                {
+                    var nominaJefe = nivel switch
+                    {
+                        1 => fila?.NominaJefe,
+                        2 => fila?.NominaJefe2,
+                        3 => fila?.NominaJefe3,
+                        4 => fila?.NominaJefe4,
+                        5 => fila?.NominaJefe5,
+                        _ => null
+                    };
+
+                    int? idJefe = null;
+                    string? nombreJefe = null;
+                    if (nominaJefe.HasValue && idUsuarioPorNomina.TryGetValue(nominaJefe.Value, out var idResuelto))
+                    {
+                        idJefe = idResuelto;
+                        nombrePorId.TryGetValue(idResuelto, out nombreJefe);
+                    }
+
+                    cadena.Add(new JefeCadenaNivelDto
+                    {
+                        Nivel = nivel,
+                        NominaJefe = nominaJefe,
+                        IdUsuarioJefe = idJefe,
+                        NombreJefe = nombreJefe
+                    });
+                }
+
+                resultado[idUsuario] = cadena;
+            }
+
+            return resultado;
+        }
+
+        private static List<JefeCadenaNivelDto> CadenaVacia() =>
+            Enumerable.Range(1, MaxNivel)
+                .Select(n => new JefeCadenaNivelDto { Nivel = n })
+                .ToList();
+
+        private static long? ParseNomina(string? numeroEmpleado) =>
+            long.TryParse(numeroEmpleado?.Trim(), out var nomina) ? nomina : null;
 
         public async Task<ErrorOr<EmpleadoJefesConfigResponse>> GetByUsuarioAsync(int idUsuario)
         {

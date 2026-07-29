@@ -1,7 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
-import type { PagedResult, SolicitudPersonalResponse, SolicitudPersonalFilterParams } from '@/types/solicitudPersonal.types';
+import type {
+  PagedResult,
+  SolicitudPersonalResponse,
+  SolicitudPersonalFilterParams,
+} from '@/types/solicitudPersonal.types';
 import { toApiError } from '@/utils/errors';
 import { toast } from 'sonner';
 import type {
@@ -55,7 +59,11 @@ export interface UseSolicitudesAutorizacionesReturn {
       | undefined
   ) => { nombre: string; color: string };
 
-  firmar: (request: FirmarRequest, puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams) => Promise<boolean>;
+  firmar: (
+    request: FirmarRequest,
+    puedeVerTodas: boolean,
+    filters?: SolicitudPersonalFilterParams
+  ) => Promise<boolean>;
   isSubmittingFirma: boolean;
 }
 
@@ -236,7 +244,11 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const firmar = useCallback(
-    async (request: FirmarRequest, puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams): Promise<boolean> => {
+    async (
+      request: FirmarRequest,
+      puedeVerTodas: boolean,
+      filters?: SolicitudPersonalFilterParams
+    ): Promise<boolean> => {
       if (!selectedSolicitud) return false;
       setIsSubmittingFirma(true);
       try {

@@ -57,7 +57,8 @@ public class WorkflowCampoMetadataResponse
 
 public class AccionMetadataResponse
 {
-    public int IdEntidad { get; set; }           // ← RENOMBRADO desde IdOrden
+    public int IdEntidad { get; set; }           // Genérico: id de la entidad workflowable
+    public int IdOrden => IdEntidad;              // Alias legacy para no romper frontend existente
     public int IdAccion { get; set; }
     public int IdTipoAccion { get; set; }
     public string? TipoAccionCodigo { get; set; }
@@ -74,7 +75,8 @@ public class AccionMetadataResponse
 public class HistorialWorkflowItemResponse
 {
     public int IdEvento { get; set; }
-    public int IdEntidad { get; set; }          // ← RENOMBRADO desde IdOrden
+    public int IdEntidad { get; set; }          // Genérico: id de la entidad workflowable
+    public int IdOrden => IdEntidad;            // Alias legacy para no romper frontend existente
     public int IdPaso { get; set; }
     public string? NombrePaso { get; set; }
     public int IdAccion { get; set; }

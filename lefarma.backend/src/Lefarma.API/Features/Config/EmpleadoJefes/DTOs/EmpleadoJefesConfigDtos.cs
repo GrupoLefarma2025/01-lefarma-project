@@ -36,5 +36,20 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes.DTOs
         public string? NombreCompleto { get; set; }
         public string? Puesto { get; set; }
         public List<EmpleadoJefeConfigItemDto> Niveles { get; set; } = new();
+        public List<JefeCadenaNivelDto> Cadena { get; set; } = new();
+    }
+
+    public class JefeCadenaNivelDto
+    {
+        public int Nivel { get; set; }
+        public long? NominaJefe { get; set; }      // null = cadena rota en la vista
+        public int? IdUsuarioJefe { get; set; }    // null = sin usuario en el sistema
+        public string? NombreJefe { get; set; }
+    }
+
+    public class EmpleadoJefesCadenaResponse
+    {
+        public int IdUsuario { get; set; }
+        public List<JefeCadenaNivelDto> Cadena { get; set; } = new();
     }
 }
