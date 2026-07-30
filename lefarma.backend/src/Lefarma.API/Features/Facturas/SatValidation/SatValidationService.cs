@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Xml.Linq;
+using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Facturas.SatValidation;
 
@@ -9,12 +10,6 @@ namespace Lefarma.API.Features.Facturas.SatValidation;
 /// </summary>
 public sealed class SatValidationService : ISatValidationService
 {
-    private const string SatEndpoint =
-        "https://consultaqr.facturaelectronica.sat.gob.mx/ConsultaCFDIService.svc";
-
-    private const string SoapAction =
-        "http://tempuri.org/IConsultaCFDIService/Consulta";
-
     private static readonly string SoapEnvelopeTemplate =
         """
         <s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/">
@@ -27,13 +22,16 @@ public sealed class SatValidationService : ISatValidationService
         """;
 
     private readonly IHttpClientFactory _httpFactory;
+    private readonly IOptions<SatValidationSettings> _settings;
     private readonly ILogger<SatValidationService> _logger;
 
     public SatValidationService(
         IHttpClientFactory httpFactory,
+        IOptions<SatValidationSettings> settings,
         ILogger<SatValidationService> logger)
     {
         _httpFactory = httpFactory;
+        _settings = settings;
         _logger = logger;
     }
 
@@ -44,6 +42,23 @@ public sealed class SatValidationService : ISatValidationService
         decimal total,
         CancellationToken ct = default)
     {
+        var settings = _settings.Value;
+
+        if (!settings.Enabled)
+        {
+            _logger.LogWarning(
+                "Validación SAT deshabilitada por configuración. CFDI {Uuid} no se consultó en el SAT.",
+                uuid);
+
+            // No se contactó al SAT, pero la configuración permite continuar.
+            return new SatValidacionResult(
+                Contactado: false,
+                Estado: null,
+                CodigoEstatus: "Validacion SAT deshabilitada por configuracion",
+                EstatusCancelacion: null,
+                PermitirAvanzar: true);
+        }
+
         // El SAT requiere el total con 6 decimales y cero relleno a 12 enteros
         var totalStr = total.ToString("000000000000.000000", CultureInfo.InvariantCulture);
 
@@ -59,11 +74,11 @@ public sealed class SatValidationService : ISatValidationService
         {
             var client = _httpFactory.CreateClient("sat");
 
-            using var req = new HttpRequestMessage(HttpMethod.Post, SatEndpoint)
+            using var req = new HttpRequestMessage(HttpMethod.Post, settings.Endpoint)
             {
                 Content = new StringContent(soapBody, System.Text.Encoding.UTF8, "text/xml")
             };
-            req.Headers.Add("SOAPAction", $"\"{SoapAction}\"");
+            req.Headers.Add("SOAPAction", $"\"{settings.SoapAction}\"");
 
             using var response = await client.SendAsync(req, ct);
             var body = await response.Content.ReadAsStringAsync(ct);

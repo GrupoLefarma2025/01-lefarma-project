@@ -89,10 +89,11 @@ public record CfdiPreviewResponse(
     decimal TotalRetenciones,
     decimal Total,
     List<CfdiConceptoPreviewDto> Conceptos,
-    bool?   SatContactado    = null,
-    string? SatEstado        = null,
-    string? SatCodigoEstatus = null,
-    string? SatCancelacion   = null
+    bool?   SatContactado      = null,
+    string? SatEstado          = null,
+    string? SatCodigoEstatus    = null,
+    string? SatCancelacion      = null,
+    bool?   SatPermitirAvanzar  = null
 );
 
 public record CfdiConceptoPreviewDto(
