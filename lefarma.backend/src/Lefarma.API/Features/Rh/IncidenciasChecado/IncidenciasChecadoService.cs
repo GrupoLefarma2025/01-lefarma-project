@@ -517,20 +517,21 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 
         var solicitudes = await _applicationDbContext.SolicitudesPersonal
             .AsNoTracking()
+            .Include(s => s.Estado)
+            .Include(s => s.TipoSolicitud)
             .Where(s =>
                 idUsuarios.Contains(s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
-                && s.FechaFin.HasValue
                 && s.Estado != null
                 && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
                 && s.FechaInicio.Value.Date <= fechaMax.Date
-                && s.FechaFin.Value.Date >= fechaMin.Date)
+                && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
             {
                 s.IdUsuarioCreador,
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
-                FechaFin = s.FechaFin!.Value,
+                FechaFin = s.FechaFin,
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
@@ -554,7 +555,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 
             var itemDate = item.Fecha.Date;
             var matching = solicitudesEmpleado
-                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate && s.FechaFin.Date >= itemDate);
+                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate &&
+                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate));
 
             if (matching == null)
                 continue;

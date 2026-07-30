@@ -20,6 +20,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int Dia { get; set; }
         public DateTime Fecha { get; set; }
         public string? Descripcion { get; set; }
+        public bool ConsumeSaldo { get; set; }
         public bool Activo { get; set; }
     }
 
@@ -37,6 +38,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int Mes { get; set; }
         public int Dia { get; set; }
         public string? Descripcion { get; set; }
+        public bool ConsumeSaldo { get; set; }
     }
 
     public class CargaDiasNoHabilesCsvRow
@@ -45,6 +47,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int Mes { get; set; }
         public int Anio { get; set; }
         public string? Descripcion { get; set; }
+        public bool ConsumeSaldo { get; set; }
     }
 
     public class BulkUploadRowError

@@ -43,6 +43,9 @@ public class UsuarioDetalle
     public string TemaInterfaz { get; set; } = "light";
     public string? DashboardInicio { get; set; }
 
+    // Destinatarios predeterminados de notificaciones de incidencias de checado (JSON array de IDs)
+    public string? DestinatariosIncidenciasDefault { get; set; }
+
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }

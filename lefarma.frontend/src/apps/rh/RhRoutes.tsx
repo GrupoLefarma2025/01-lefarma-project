@@ -13,6 +13,7 @@ import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
 import { DiasNoHabilesPage } from './pages/Vacaciones/DiasNoHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
+import JefesNivelesList from './pages/JefesNivelesList';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import Perfil from '@/pages/Perfil';
 
@@ -47,7 +48,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="solicitudes/gestion"
           element={
-            <PermissionGuard require="solicitud_personal.puede_ver_todas">
+            <PermissionGuard require="solicitud_personal.puede_ver_todas_solicitudes">
               <GestionSolicitudes />
             </PermissionGuard>
           }
@@ -90,6 +91,8 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         />
 
         <Route path="perfil" element={<Perfil />} />
+        <Route path="jefes-niveles" element={<JefesNivelesList />} />
+
         <Route path="perfil/configuracion" element={<PerfilConfig />} />
       </>
     ),

@@ -18,6 +18,13 @@ public interface IEmpleadoRepository
         IEnumerable<long> nominas,
         CancellationToken cancellationToken = default);
 
+    Task<List<int>> ResolverIdsUsuarioPorFiltroEmpleadoAsync(
+        string? nombre,
+        string? empresa,
+        string? departamento,
+        string? puesto,
+        CancellationToken cancellationToken = default);
+
     Task<Domain.Entities.Asistencias.VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
         int idUsuario,
         CancellationToken cancellationToken = default);

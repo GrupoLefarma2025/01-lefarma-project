@@ -56,7 +56,7 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Rh
             int? excluirIdSolicitud = null)
         {
             var query = _context.SolicitudesPersonal
-                .Where(s => s.IdUsuarioCreador == idUsuario
+                .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuario
                     && s.IdTipoSolicitud == idTipoSolicitud
                     && s.FechaCreacion >= fechaInicio
                     && s.FechaCreacion <= fechaFin

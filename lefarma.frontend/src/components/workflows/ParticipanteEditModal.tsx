@@ -33,6 +33,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
     idRol: 0,
     idUsuario: 0,
     requiereJefeInmediato: false,
+    nivelJefe: 1,
     activo: true
   });
 
@@ -44,6 +45,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
         idRol: participante.idRol || 0,
         idUsuario: participante.idUsuario || 0,
         requiereJefeInmediato: esJefe,
+        nivelJefe: participante.nivelJefe ?? 1,
         activo: participante.activo ?? true
       });
       setTipoAsignacionUI(esJefe ? 'jefe' : participante.idRol ? 'rol' : 'usuario');
@@ -53,6 +55,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
         idRol: 0,
         idUsuario: 0,
         requiereJefeInmediato: false,
+        nivelJefe: 1,
         activo: true
       });
       setTipoAsignacionUI('rol');
@@ -67,6 +70,7 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
         idRol: tipoAsignacionUI === 'rol' ? (formData.idRol || null) : null,
         idUsuario: tipoAsignacionUI === 'usuario' ? (formData.idUsuario || null) : null,
         requiereJefeInmediato: tipoAsignacionUI === 'jefe',
+        nivelJefe: tipoAsignacionUI === 'jefe' ? formData.nivelJefe : null,
         activo: formData.activo
       };
       if (participante) {
@@ -215,11 +219,39 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
         )}
 
         {tipoAsignacionUI === 'jefe' && (
-          <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
-            <p className="text-xs text-amber-700 dark:text-amber-300">
-              El sistema resolverá automáticamente al jefe inmediato del empleado que creó la solicitud/orden compra. Cuando este paso sea alcanzado, el jefe del creador será añadido como participante.
-            </p>
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Nivel de Jefe *
+              </Label>
+              <Select
+                value={formData.nivelJefe.toString()}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, nivelJefe: parseInt(value) }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona el nivel" />
+                </SelectTrigger>
+                <SelectContent>
+                  {[1, 2, 3, 4, 5].map((n) => (
+                    <SelectItem key={n} value={n.toString()}>
+                      Nivel {n}{n === 1 ? ' (jefe directo)' : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Nivel 1 = jefe directo, Nivel 2 = jefe del jefe, etc. Si el empleado no tiene
+                ese nivel aplicable, el paso se omite automáticamente.
+              </p>
+            </div>
+            <div className="p-3 rounded-lg border border-amber-500/30 bg-amber-500/10">
+              <p className="text-xs text-amber-700 dark:text-amber-300">
+                El sistema resolverá automáticamente al jefe de nivel {formData.nivelJefe} del empleado
+                que creó la solicitud/orden compra. Si ese nivel no aplica para el empleado (según su
+                configuración en RH → Jefes por Niveles), este paso se omitirá automáticamente.
+              </p>
+            </div>
+          </>
         )}
 
         {/* Activo */}

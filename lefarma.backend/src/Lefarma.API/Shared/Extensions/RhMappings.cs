@@ -36,8 +36,10 @@ public static class RhMappings
             IdPasoActual = s.IdPasoActual,
             PasoActual = paso,
             IdUsuarioCreador = s.IdUsuarioCreador,
-            SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
-            SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out ui) ? ui.Puesto : null,
+            CreadorNombre = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out var creadorInfo) ? creadorInfo.Nombre : null,
+            IdUsuarioSolicitante = s.IdUsuarioSolicitante,
+            SolicitanteNombre = ResolveSolicitanteNombre(s, usuariosInfo),
+            SolicitantePuesto = ResolveSolicitantePuesto(s, usuariosInfo),
             LugarComision = s.LugarComision,
             Motivo = s.Motivo,
             FechaEnvio = s.FechaEnvio,
@@ -62,6 +64,20 @@ public static class RhMappings
             Fecha = d.Fecha,
             Comentario = d.Comentario
         };
+    }
+
+    private static string? ResolveSolicitanteNombre(SolicitudPersonal s, Dictionary<int, UsuarioInfo>? usuariosInfo)
+    {
+        if (usuariosInfo is null) return null;
+        var id = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador;
+        return usuariosInfo.TryGetValue(id, out var info) ? info.Nombre : null;
+    }
+
+    private static string? ResolveSolicitantePuesto(SolicitudPersonal s, Dictionary<int, UsuarioInfo>? usuariosInfo)
+    {
+        if (usuariosInfo is null) return null;
+        var id = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador;
+        return usuariosInfo.TryGetValue(id, out var info) ? info.Puesto : null;
     }
 
     #endregion

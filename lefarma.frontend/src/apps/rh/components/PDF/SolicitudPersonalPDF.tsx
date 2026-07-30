@@ -283,6 +283,12 @@ function LegacyFormattedPDF({
             <td style={s.thBlue}>Estado</td>
             <td style={s.tdValue}>{solicitud.estadoNombre ?? '-'}</td>
           </tr>
+          <tr>
+            <td style={s.thBlue}>Creado por</td>
+            <td style={s.tdValue} colSpan={5}>
+              {solicitud.creadorNombre ?? `Usuario ${solicitud.idUsuarioCreador}`}
+            </td>
+          </tr>
         </tbody>
       </table>
 

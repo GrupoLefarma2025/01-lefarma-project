@@ -4,7 +4,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { API } from '@/shared/api/apiClient';
 import { empleadoApi } from '@/apps/rh/services/rh.api';
+import { usuariosCatalogoApi, type UsuarioCatalogo } from '@/apps/rh/services/rh.api';
 import { ApiResponse } from '@/types/api.types';
+import { usePermission } from '@/hooks/usePermission';
 import type {
   SolicitudPersonalResponse,
   TipoSolicitudResponse,
@@ -89,6 +91,7 @@ const solicitudSchema = z.object({
   idArea: z.number().positive('Seleccione un área'),
   categoria: z.string().min(1, 'Seleccione una categoría'),
   idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
+  idUsuarioSolicitante: z.number().optional(),
   motivo: z.string().optional(),
   lugarComision: z.string().optional(),
   fechaInicio: z.string().optional(),
@@ -167,7 +170,10 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
   const [tiposSolicitud, setTiposSolicitud] = useState<TipoSolicitudResponse[]>([]);
   const [checaEmpleado, setChecaEmpleado] = useState<boolean | null>(null);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
+  const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
   const catalogFetched = useRef(false);
+
+  const puedeCrearParaOtro = usePermission({ require: 'solicitud_personal.crear_para_otro' });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(solicitudSchema),
@@ -177,6 +183,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
       idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       categoria: '',
       idTipoSolicitud: 0,
+      idUsuarioSolicitante: undefined,
       motivo: '',
       lugarComision: '',
       fechaInicio: '',
@@ -357,6 +364,15 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
       }
     };
 
+    const loadUsuarios = async () => {
+      try {
+        const data = await usuariosCatalogoApi.getAll();
+        setUsuarios(data.filter((u) => u.esActivo));
+      } catch {
+        setUsuarios([]);
+      }
+    };
+
     const loadMiChequeo = async () => {
       try {
         const res = await empleadoApi.getMiChequeo();
@@ -372,6 +388,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
       catalogFetched.current = true;
       fetchCatalogs();
       loadTipos();
+      loadUsuarios();
       loadMiChequeo();
     }
   }, []);
@@ -488,6 +505,10 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
         fechaReposicion: values.fechaReposicion || null,
         detalle: detalle.map((fecha) => ({ fecha })),
       };
+
+      if (!isEditing && values.idUsuarioSolicitante) {
+        payload.idUsuarioSolicitante = values.idUsuarioSolicitante;
+      }
 
       const response = isEditing
         ? await API.put<ApiResponse<void>>(`/solicitudes-personal/${idSolicitud}`, payload)
@@ -733,6 +754,47 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                 </div>
               </FormSection>
 
+              {!isEditing && puedeCrearParaOtro && (
+                <FormSection icon={Building2} title="Solicitante">
+                  <FormField
+                    control={form.control}
+                    name="idUsuarioSolicitante"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Solicitante (opcional)</FormLabel>
+                        <Select
+                          value={field.value ? String(field.value) : ''}
+                          onValueChange={(v) => field.onChange(v ? Number(v) : undefined)}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Para mí" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {usuarios
+                              .sort((a, b) =>
+                                (a.nombreCompleto ?? a.samAccountName ?? '').localeCompare(
+                                  b.nombreCompleto ?? b.samAccountName ?? ''
+                                )
+                              )
+                              .map((u) => (
+                                <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>
+                                  {u.nombreCompleto || u.samAccountName || `Usuario ${u.idUsuario}`}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription className="text-xs">
+                          Si no seleccionas ninguno, la solicitud será para ti.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </FormSection>
+              )}
+
               {selectedTipoSolicitud?.requiereDocumentacion && (
                 <Alert variant="default" className="mt-4 border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/20">
                   <AlertCircle className="h-4 w-4" />
@@ -753,6 +815,8 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                       <FormLabel>Motivo</FormLabel>
                       <FormControl>
                         <Textarea
+                          minLength={10}
+                          maxLength={499}
                           placeholder="Describa el motivo de la solicitud..."
                           rows={3}
                           {...field}

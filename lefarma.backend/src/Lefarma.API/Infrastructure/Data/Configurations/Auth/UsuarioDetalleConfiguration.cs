@@ -118,6 +118,10 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("dashboard_inicio")
             .HasMaxLength(50);
 
+        builder.Property(ud => ud.DestinatariosIncidenciasDefault)
+            .HasColumnName("destinatarios_incidencias_default")
+            .HasColumnType("NVARCHAR(MAX)");
+
         builder.Property(ud => ud.Activo)
             .HasColumnName("activo")
             .HasDefaultValue(true);

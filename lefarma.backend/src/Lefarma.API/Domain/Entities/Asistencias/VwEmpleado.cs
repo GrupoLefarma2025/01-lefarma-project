@@ -34,5 +34,13 @@ namespace Lefarma.API.Domain.Entities.Asistencias
         public string? Direccion { get; set; }
         public string? Ubicacionesautorizadas { get; set; }
         public string? Checa { get; set; }
+
+        public int Lunes { get; set; }
+        public int Martes { get; set; }
+        public int Miercoles { get; set; }
+        public int Jueves { get; set; }
+        public int Viernes { get; set; }
+        public int Sabado { get; set; }
+        public int Domingo { get; set; }
     }
 }

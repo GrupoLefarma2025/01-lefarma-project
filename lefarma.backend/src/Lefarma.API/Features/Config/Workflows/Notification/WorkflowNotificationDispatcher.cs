@@ -46,6 +46,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         int idUsuarioActual,
         string? comentario,
         string? contenidoAdicional = null,
+        int? idUsuarioSolicitante = null,
         CancellationToken ct = default)
     {
         if (notificacion is null || !notificacion.Activo)
@@ -97,7 +98,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             }
 
             //Resolver destinatarios
-            var userIds = await ResolveRecipientsAsync(notificacion, tipoEntidad, idEntidad, idUsuarioCreador, idUsuarioActual, participantesDestino, ct);
+            var userIds = await ResolveRecipientsAsync(notificacion, tipoEntidad, idEntidad, idUsuarioCreador, idUsuarioActual, participantesDestino, idWorkflow, idUsuarioSolicitante, ct);
             if (userIds.Count == 0)
             {
                 _logger.LogWarning("WorkflowNotificationDispatcher: no se encontraron destinatarios para notificación {IdNotificacion}", notificacion.IdNotificacion);
@@ -238,6 +239,8 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
         int idUsuarioCreador,
         int idUsuarioActual,
         List<WorkflowParticipante> participantesDestino,
+        int idWorkflow,
+        int? idUsuarioSolicitante,
         CancellationToken ct)
     {
         var ids = new HashSet<int>();
@@ -269,9 +272,11 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 }
                 else if (p.RequiereJefeInmediato)
                 {
-                    var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idUsuarioCreador);
-                    if (idJefe.HasValue)
-                        ids.Add(idJefe.Value);
+                    var idUsuarioJefe = idUsuarioSolicitante ?? idUsuarioCreador;
+                    var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                        idWorkflow, idUsuarioJefe, p.NivelJefe ?? 1, ct);
+                    if (jefe.IdUsuario.HasValue)
+                        ids.Add(jefe.IdUsuario.Value);
                 }
             }
         }

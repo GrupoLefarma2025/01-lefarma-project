@@ -1,6 +1,7 @@
 using System.Text;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces;
+using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
@@ -19,6 +20,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
     private readonly IIncidenciasChecadoRepository _incidenciasRepository;
     private readonly IEmpleadoRepository _empleadoRepository;
     private readonly INotificationService _notificationService;
+    private readonly IUsuarioConfiguracionRepository _usuarioConfiguracionRepository;
     private readonly ApplicationDbContext _applicationDbContext;
 
     protected override string EntityName => "IncidenciasChecadoNotificacion";
@@ -28,6 +30,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         IIncidenciasChecadoRepository incidenciasRepository,
         IEmpleadoRepository empleadoRepository,
         INotificationService notificationService,
+        IUsuarioConfiguracionRepository usuarioConfiguracionRepository,
         ApplicationDbContext applicationDbContext,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
@@ -36,6 +39,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         _incidenciasRepository = incidenciasRepository;
         _empleadoRepository = empleadoRepository;
         _notificationService = notificationService;
+        _usuarioConfiguracionRepository = usuarioConfiguracionRepository;
         _applicationDbContext = applicationDbContext;
     }
 
@@ -112,7 +116,21 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 }
 
                 var idUsuario = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nomina, cancellationToken);
-                if (!idUsuario.HasValue)
+
+                var destinatarios = new List<int>();
+                if (request.SelectedUserIds != null)
+                {
+                    destinatarios.AddRange(request.SelectedUserIds);
+                }
+
+                if (request.CopiarAUsuarioIncidencia && idUsuario.HasValue)
+                {
+                    destinatarios.Add(idUsuario.Value);
+                }
+
+                destinatarios = destinatarios.Distinct().ToList();
+
+                if (request.CopiarAUsuarioIncidencia && !idUsuario.HasValue)
                 {
                     resultados.Add(new NotificacionPersonaResult
                     {
@@ -120,6 +138,18 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                         Nombre = items.FirstOrDefault()?.Nombre,
                         Exitoso = false,
                         Error = $"No se encontró usuario del portal para la nómina {nomina}."
+                    });
+                    continue;
+                }
+
+                if (destinatarios.Count == 0)
+                {
+                    resultados.Add(new NotificacionPersonaResult
+                    {
+                        Nomina = nomina,
+                        Nombre = items.FirstOrDefault()?.Nombre,
+                        Exitoso = false,
+                        Error = "No se seleccionó ningún destinatario para la notificación."
                     });
                     continue;
                 }
@@ -158,8 +188,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                         new()
                         {
                             ChannelType = "email",
-                            //UserIds = new List<int> { idUsuario.Value }
-                            UserIds = new List<int> { 70 }
+                            UserIds = destinatarios
                         }
                     }
                 };
@@ -199,6 +228,21 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             }
 
             await _applicationDbContext.SaveChangesAsync(cancellationToken);
+
+            if (idUsuarioEnviador.HasValue && request.SelectedUserIds != null && request.SelectedUserIds.Count > 0)
+            {
+                try
+                {
+                    await _usuarioConfiguracionRepository.GuardarDestinatariosDefaultAsync(
+                        idUsuarioEnviador.Value,
+                        request.SelectedUserIds,
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    EnrichWideEvent("GuardarDestinatariosDefault", exception: ex);
+                }
+            }
 
             EnrichWideEvent("NotificarResumen", additionalContext: new Dictionary<string, object>
             {
@@ -300,20 +344,21 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
         var solicitudes = await _applicationDbContext.SolicitudesPersonal
             .AsNoTracking()
+            .Include(s => s.Estado)
+            .Include(s => s.TipoSolicitud)
             .Where(s =>
                 idUsuarios.Contains(s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
-                && s.FechaFin.HasValue
                 && s.Estado != null
                 && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
                 && s.FechaInicio.Value.Date <= fechaMax.Date
-                && s.FechaFin.Value.Date >= fechaMin.Date)
+                && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
             {
                 s.IdUsuarioCreador,
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
-                FechaFin = s.FechaFin!.Value,
+                FechaFin = s.FechaFin,
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
@@ -334,7 +379,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             var itemDate = item.Fecha.Date;
             var matching = solicitudesEmpleado
-                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate && s.FechaFin.Date >= itemDate);
+                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate &&
+                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate));
 
             if (matching == null)
                 continue;

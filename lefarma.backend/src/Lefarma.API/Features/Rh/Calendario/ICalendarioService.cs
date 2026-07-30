@@ -6,5 +6,6 @@ namespace Lefarma.API.Features.Rh.Calendario
     public interface ICalendarioService
     {
         Task<ErrorOr<IEnumerable<CalendarioLaboralResponse>>> ObtenerCalendarioLaboralAsync(CalendarioLaboralRequest request, int idUsuario);
+        Task<ErrorOr<DiasJornadaResponse>> ObtenerDiasJornadaAsync(int anio, int mes, int idUsuario);
     }
 }
