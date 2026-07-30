@@ -200,7 +200,8 @@ export default function Hero() {
             Grupo LeFarma © {new Date().getFullYear()} - Da Salud
           </p>
           <p className="text-muted-foreground/60 mt-1 text-xs">
-            Versión {import.meta.env.VITE_APP_VERSION || '1.0.0'}
+            Versión {import.meta.env.VITE_APP_VERSION || '1.0.0'} · build{' '}
+            {new Date(__APP_BUILD_TIME__).toLocaleString()}
           </p>
         </div>
       </footer>

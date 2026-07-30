@@ -9,8 +9,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: basePath,
-  plugins: [react()],
-  resolve: {
+    plugins: [react()],
+    define: {
+      // Build timestamp injected at compile time so the landing footer
+      // shows a different value on every deploy.
+      __APP_BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    },
+    resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },

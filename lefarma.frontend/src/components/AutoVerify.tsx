@@ -7,6 +7,12 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/shared/auth/authStore';
 
+const API_BASE = (() => {
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5174/api';
+  const cleanUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  return cleanUrl.includes('/api') ? cleanUrl : `${cleanUrl}/api`;
+})();
+
 interface VerificationStep {
   id: number;
   title: string;
@@ -156,7 +162,7 @@ export function AutoVerify() {
 
     try {
       const eventSource = new EventSource(
-        `http://localhost:5134/api/notifications/stream?token=${token}`
+        `${API_BASE}/notifications/stream?token=${token}`
       );
 
       eventSource.onopen = () => {

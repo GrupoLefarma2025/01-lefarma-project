@@ -10,7 +10,7 @@ public class StagingProveedorFormaPagoCuenta
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int IdStagingCuenta { get; set; }
 
-    public int? IdCuen { get; set; }  // Referencia a la cuenta original (null = nueva cuenta)
+    public int? IdCuenta { get; set; }  // Referencia a la cuenta original (null = nueva cuenta)
 
     [Required]
     public int IdStaging { get; set; }
@@ -40,6 +40,9 @@ public class StagingProveedorFormaPagoCuenta
 
     [MaxLength(200)]
     public string? CorreoNotificacion { get; set; }
+
+    [MaxLength(500)]
+    public string? CaratulaPath { get; set; }
 
     public bool Activo { get; set; } = true;
 

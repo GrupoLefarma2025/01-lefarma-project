@@ -117,6 +117,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
 
     public class CreatePartidaRequest
     {
+        // null/0 = partida nueva; >0 = partida existente a actualizar
+        public int? IdPartida { get; set; }
         public required string Descripcion { get; set; }
         public required decimal Cantidad { get; set; }
         public required int IdUnidadMedida { get; set; }

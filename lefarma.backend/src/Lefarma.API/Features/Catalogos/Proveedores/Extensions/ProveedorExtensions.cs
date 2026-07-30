@@ -45,7 +45,7 @@ public static class ProveedorExtensions
     {
         return new ProveedorFormaPagoCuentaResponse
         {
-            IdCuen = entity.IdCuen,
+            IdCuenta = entity.IdCuenta,
             IdProveedor = entity.IdProveedor,
             IdFormaPago = entity.IdFormaPago,
             FormaPagoNombre = entity.FormaPago?.Nombre,
@@ -56,7 +56,8 @@ public static class ProveedorExtensions
             NumeroTarjeta = entity.NumeroTarjeta,
             Beneficiario = entity.Beneficiario,
             CorreoNotificacion = entity.CorreoNotificacion,
-            Activo = entity.Activo
+            Activo = entity.Activo,
+            CaratulaUrl = entity.CaratulaPath
         };
     }
 }

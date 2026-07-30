@@ -102,6 +102,7 @@ interface Proveedor {
 }
 
 const partidaSchema = z.object({
+  idPartida: z.number().optional().nullable(),
   descripcion: z.string().min(1, 'La descripción es requerida').max(500),
   cantidad: z.number().positive('Debe ser mayor a 0'),
   idUnidadMedida: z.number().positive('Seleccione una unidad'),
@@ -836,6 +837,7 @@ export default function CrearOrdenCompra() {
             partidas:
               orden.partidas.length > 0
                 ? orden.partidas.map((p) => ({
+                    idPartida: p.idPartida,
                     descripcion: p.descripcion,
                     cantidad: Number(p.cantidad),
                     idUnidadMedida: p.idUnidadMedida,
@@ -981,6 +983,7 @@ export default function CrearOrdenCompra() {
         idsFormaPago: selectedFormaPagoId ? [selectedFormaPagoId] : null,
         numeroMensualidades: selectedFormaPagoId ? numeroMensualidades : null,
         partidas: values.partidas.map((p) => ({
+          idPartida: p.idPartida,
           descripcion: p.descripcion,
           cantidad: p.cantidad,
           idUnidadMedida: p.idUnidadMedida,
@@ -1453,10 +1456,10 @@ export default function CrearOrdenCompra() {
                                     ) : (
                                       cuentasBancarias.map((cuenta) => (
                                         <label
-                                          key={cuenta.idCuen}
+                                          key={cuenta.idCuenta}
                                           className="flex items-center gap-3 cursor-pointer text-sm border border-slate-200 dark:border-slate-700 rounded-md p-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                                         >
-                                          <RadioGroupItem value={String(cuenta.idCuen)} />
+                                          <RadioGroupItem value={String(cuenta.idCuenta)} />
                                           <div className="flex flex-col">
                                             <span className="font-medium text-slate-900 dark:text-slate-100">
                                               {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
@@ -2180,8 +2183,8 @@ export default function CrearOrdenCompra() {
                                       ) : (
                                         partidaCuentasBancarias.map((cuenta) => (
                                           <SelectItem
-                                            key={cuenta.idCuen}
-                                            value={String(cuenta.idCuen)}
+                                            key={cuenta.idCuenta}
+                                            value={String(cuenta.idCuenta)}
                                           >
                                             {cuenta.bancoNombre || 'Banco'} - {cuenta.numeroCuenta || 'Sin número'}
                                             {cuenta.formaPagoNombre ? ` · ${cuenta.formaPagoNombre}` : ''}

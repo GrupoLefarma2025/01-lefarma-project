@@ -14,5 +14,9 @@ namespace Lefarma.API.Domain.Interfaces.Config
 
         Task<bool> AplicaNivelJefeAsync(
             int idUsuarioCreador, int nivel, CancellationToken ct = default);
+
+        Task<IReadOnlyDictionary<int, int>> ResolverIdsJefePorUsuariosAsync(
+            IEnumerable<int> idsUsuariosCreador,
+            CancellationToken cancellationToken = default);
     }
 }

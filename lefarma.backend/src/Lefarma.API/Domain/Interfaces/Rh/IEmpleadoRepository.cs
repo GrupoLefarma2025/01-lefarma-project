@@ -6,6 +6,10 @@ public interface IEmpleadoRepository
         int idUsuario,
         CancellationToken cancellationToken = default);
 
+    Task<Dictionary<int, long>> ResolverNominasPorUsuariosAsync(
+        IEnumerable<int> idsUsuarios,
+        CancellationToken cancellationToken = default);
+
     Task<int?> ResolverIdUsuarioPorNominaAsync(
         long nomina,
         CancellationToken cancellationToken = default);

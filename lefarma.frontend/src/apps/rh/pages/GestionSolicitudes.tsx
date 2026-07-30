@@ -23,7 +23,7 @@ import { SolicitudHeaderCard } from '../components/SolicitudHeaderCard';
 import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
-import { SolicitudPersonalPDF } from '../components/SolicitudPersonalPDF';
+import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { solicitudesPersonalApi } from '../services/rh.api';
@@ -35,6 +35,7 @@ import {
   type SolicitudPersonalFilterParams,
   type TipoSolicitudResponse,
 } from '@/types/solicitudPersonal.types';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import type { Empresa, Sucursal } from '@/types/catalogo.types';
 import { cn } from '@/lib/utils';
@@ -167,7 +168,24 @@ export default function GestionSolicitudes() {
 
     window.addEventListener('beforeprint', handleBeforePrint);
     window.addEventListener('afterprint', handleAfterPrint);
-    window.print();
+
+    let cancelled = false;
+    // ponytail: wait for img decode because the print container is hidden (opacity:0/height:0) on screen, so the browser defers decode and window.print() would capture blank images
+    (async () => {
+      const imgs = document.querySelectorAll<HTMLImageElement>('#solicitud-personal-pdf-print img');
+      await Promise.all(
+        [...imgs].map((img) =>
+          img.complete && img.naturalWidth > 0
+            ? Promise.resolve()
+            : img.decode().catch(() => {}),
+        ),
+      );
+      if (!cancelled) window.print();
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [imprimirSolicitud, selectedSolicitud, loadingDetalle, loadingHistorial]);
 
   const setFilterAndResetPage = <K extends keyof Filters>(key: K, value: Filters[K]) => {
@@ -179,18 +197,18 @@ export default function GestionSolicitudes() {
     const loadCatalogs = async () => {
       setLoadingCatalogs(true);
       try {
-        const [empRes, sucRes, tipoRes, estRes] = await Promise.all([
+        const [empRes, sucRes, tipoRes, estadosData] = await Promise.all([
           API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas'),
           API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales'),
           tipoSolicitudApi.getActivos(),
-          API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados'),
+          fetchWorkflowEstados(),
           usuariosCatalogoApi.getAll().then((u) => setUsuarios(u)),
         ]);
 
         if (empRes.data.success) setEmpresas(empRes.data.data ?? []);
         if (sucRes.data.success) setSucursales(sucRes.data.data ?? []);
         if (tipoRes.data.success) setTipos(tipoRes.data.data ?? []);
-        if (estRes.data.success) setWorkflowEstados(estRes.data.data ?? []);
+        setWorkflowEstados(estadosData);
       } catch {
         toast.error('No se pudieron cargar todos los catálogos');
       } finally {

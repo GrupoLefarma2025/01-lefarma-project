@@ -1,168 +1,171 @@
-# Lefarma Project - Agent Instructions
+# CLAUDE.md
 
-## Project Structure
+Behavioral guidelines to reduce common LLM coding mistakes. Merged with project-specific instructions for Lefarma.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+# Lefarma Project — Agent Reference
+
+Only facts that change how you work. If a line is obvious from file names, it doesn't belong here.
+
+## Repo Layout
 
 ```
 01-lefarma-project/
-├── lefarma.backend/          # .NET 10 Web API
-│   ├── src/Lefarma.API/      # Main API project
-│   └── tests/                # Unit, Integration, E2E tests
+├── lefarma.backend/          # .NET 10 Web API (single project: Lefarma.API)
+│   ├── src/Lefarma.API/      # API, Features/, Infrastructure/, Shared/
+│   └── tests/                # Lefarma.UnitTests, Lefarma.Tests, Lefarma.IntegrationTests
 ├── lefarma.frontend/         # React 19 + Vite + TypeScript SPA
-├── lefarma.database/         # SQL Server migration scripts (.sql files)
-└── lefarma.docs/             # Documentation
+├── lefarma.database/         # Manual SQL Server migration scripts (no EF migrations)
+└── lefarma.docs/             # Project docs, specs, plans, reports
 ```
 
 ## Developer Commands
 
 ### Frontend (`lefarma.frontend/`)
 ```bash
-npm run dev          # Start Vite dev server (port 5173)
-npm run build        # TypeScript compile + Vite build
-npm run lint         # ESLint check
-npm run format       # Prettier format
+npm run dev          # Vite dev server, port 5173
+npm run build        # tsc + vite build
+npm run lint         # eslint . --ext ts,tsx --max-warnings 0
+npm run format       # prettier write src/**/*.{ts,tsx,json,css,md}
 ```
 
 ### Backend (`lefarma.backend/`)
 ```bash
-dotnet build         # Build solution
-dotnet test          # Run all tests
-dotnet test --filter "Category=Unit"    # Unit tests only
-dotnet test Lefarma.Tests/              # Specific test project
+cd src/Lefarma.API
+dotnet build         # build the API
+dotnet test          # run all test projects from solution
+dotnet test --filter "Category=Unit"    # unit tests only
+dotnet test tests/Lefarma.UnitTests/      # single project
 ```
 
-### Database (`lefarma.database/`)
-> ⚠️ **DO NOT RUN dotnet ef migrations** — Project uses manual SQL scripts in `lefarma.database/` (`000_`, `001_`, `002_`...). EF migrations will break schema consistency.
-- Scripts are numbered sequentially (`000_`, `001_`, `002_`...)
-- Two databases: **Lefarma** (main) and **Asokam** (legacy)
+### Run both (PowerShell)
+```powershell
+./init.ps1           # launches backend + frontend concurrently
+```
+> ⚠️ `init.ps1` prints port 5134 for the backend, but the real backend URL is `http://localhost:5174` (Vite proxy and env files agree on this). Use 5174 as the source of truth.
+
+## Architecture & Conventions
 
 ### Backend
-- **.NET 10** with Clean Architecture pattern
-- **SQL Server** database (connection: `192.168.4.2`)
-- **JWT Bearer auth** with LDAP/ActiveDirectory integration
-- **Serilog** JSON logging to `logs/wide-events-*.json`
-- **Swagger** enabled at `/swagger/v1/swagger.json`
-- **Workflow engine** for business process automation
-- **Notification dispatcher** (Email, Telegram, In-App)
-- **Help system** with TinyMCE rich text editor
+- Single ASP.NET Core project: `Lefarma.API`. Clean-ish structure under `Features/`, `Infrastructure/`, `Domain/`, `Shared/`.
+- Controllers live in `Features/` by domain.
+- DbContext: `Infrastructure/Data/ApplicationDbContext.cs`.
+- EF Core is used for querying/mapping, but **schema changes are managed by manual SQL scripts in `lefarma.database/`**, not EF migrations.
+- Authorization: role-based policies (`RequireAdministrator`, `RequireManager`, `RequireFinance`) plus permission-based `[HasPermission("x")]`. Permissions are auto-registered from `Permissions` constants.
+- JWT uses a symmetric key and `ClockSkew = TimeSpan.Zero` — tokens are intolerant of clock drift.
+- Serilog writes JSON logs to `logs/wide-events-*.json`; read them with a JSON viewer, not a text tail.
+- Development-only `DevToken` middleware (`appsettings.Development.json`) bypasses auth when the `DevToken` header is present. Never enable in production.
+- Database seeder is registered in DI but **commented out** in `Program.cs`. Uncomment only if you intend to seed.
+- Static uploads are served under `/api/media/archivos` (and legacy `/media/archivos`). Base path: `wwwroot/media/archivos` by default.
 
 ### Frontend
-- **React 19** with Vite 7
-- **shadcn/ui** components (Radix UI primitives)
-- **React Router 7** (file-based routing via `AppRoutes.tsx`)
-- **Zustand** for state management
-- **React Hook Form + Zod** for forms
-- **TanStack Table** for data tables
-- **Recharts** for visualizations
+- React 19 + Vite 7 + TypeScript 5.9. Path alias `@/` maps to `src/`.
+- `tsconfig.json` uses `strict: true` and `noUnusedLocals: false` / `noUnusedParameters: false`.
+- Routing: React Router 7, defined in `src/routes/AppRoutes.tsx`.
+- State: Zustand + Jotai (mixed usage). Forms: React Hook Form + Zod.
+- Tables: TanStack Table. Charts: Recharts. Rich text: TinyMCE.
+- UI components: shadcn/ui built on Radix primitives in `src/components/ui/`.
+- Vite dev proxy: `/api` → `http://localhost:5174`. The backend must run separately.
+- API base URL is set in `.env` / `.env.development` as `http://localhost:5174/api`.
+- `BASE_URL_PATH` controls the Vite base path (default `/`).
 
-## Key Conventions
-
-### API Proxy (Vite Dev)
-Vite proxies `/api` → `http://localhost:5174`. The backend must run separately.
-
-### Backend Port
-The API typically runs on port **5174** (configured in `appsettings.Development.json`).
-
-### CORS
-Configured to allow `localhost:5173`, `localhost:3000`, and `http://192.168.4.2:8081`.
-
-### JWT Authentication
-- Uses symmetric security key (`JwtSettings.SecretKey`)
-- `ClockSkew = TimeSpan.Zero`
-- Supports refresh tokens (7 days expiry)
-
-### Authorization
-Role-based + Permission-based policies:
-- `AuthorizationPolicies.RequireAdministrator`, `RequireManager`, `RequireFinance`, etc.
-- `[HasPermission("x")]` attribute for granular control
-- Permissions auto-registered from `Permissions` constants
-
-### DevToken Middleware
-In Development, a `DevToken` middleware allows bypassing auth for testing:
-```json
-"DevToken": { "Value": "lefarma-dev-token-2024", "ImpersonateUserId": 1 }
-```
-
-### Database Seeding
-Database seeder is **disabled** in Program.cs. Uncomment to seed:
-```csharp
-// if (app.Environment.IsDevelopment())
-// {
-//     using var scope = app.Services.CreateScope();
-//     var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
-//     await seeder.SeedAsync();
-// }
-```
+### Database
+- **Do NOT run `dotnet ef migrations`**. Manual SQL scripts in `lefarma.database/` are the source of truth.
+- Scripts are numbered (`000_`, `001_`, `002_`, ..., `024_`, `06_`, `06B_`). There are gaps and inconsistent prefixes; apply in chronological order, not alphabetical.
+- Three connection strings: `DefaultConnection` (Lefarma main), `AsokamConnection` (legacy Asokam), `AsistenciasConnection` (attendance system on `192.168.1.5`).
 
 ## Testing
 
-### Backend Test Stack
-- **xUnit** test framework
-- **Moq** for mocking
-- **FluentAssertions** for readable assertions
-- **Microsoft.AspNetCore.Mvc.Testing** for integration tests
-- **EF Core InMemory** for integration test databases
-
-Test projects:
-- `Lefarma.UnitTests` - Unit tests
-- `Lefarma.Tests` - Integration tests
-- `Lefarma.IntegrationTests` - E2E-style tests
+- Backend: xUnit + Moq + FluentAssertions. Integration tests use `Microsoft.AspNetCore.Mvc.Testing` and EF Core InMemory.
+- Test projects:
+  - `Lefarma.UnitTests`
+  - `Lefarma.Tests`
+  - `Lefarma.IntegrationTests`
+- Frontend: Playwright is installed (`@playwright/test`) but no standard test scripts are wired in `package.json`.
 
 ## Important File Locations
 
-### Backend Entry Point
-`lefarma.backend/src/Lefarma.API/Program.cs`
-
-### Frontend Entry Point
-`lefarma.frontend/src/main.tsx`
-
-### Frontend Routes
-`lefarma.frontend/src/routes/AppRoutes.tsx`
-
-### Backend Controllers
-`lefarma.backend/src/Lefarma.API/Features/` (modular by domain)
-
-### Database Configurations
-`lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/`
-
-### EF Core DbContext
-`lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs`
-
-## Kimi Code CLI Subagents
-
-### `typescript-react-reviewer`
-Custom KimiCode subagent for static code review of TypeScript and React files.
-- **Definition**: `.kimi/subagents/typescript-react-reviewer.yaml`
-- **System prompt**: `.kimi/subagents/typescript-react-reviewer.md`
-- **Usage**: Start Kimi CLI with the project agent file, then delegate review tasks.
-
-```bash
-# Launch Kimi CLI with the project agent (enables the custom subagent)
-kimi --agent-file .kimi/agent.yaml
-```
-
-Once inside the session, the root agent can launch the subagent via:
-
-```
-Tool: Agent
-- subagent_type: typescript-react-reviewer
-- prompt: "Review lefarma.frontend/src/components/UserCard.tsx"
-```
-
-The subagent runs with read-only tools (`ReadFile`, `Grep`, `Glob`, `FetchURL`, `SearchWeb`) and reports findings without modifying code.
-
----
+- Backend entry point: `lefarma.backend/src/Lefarma.API/Program.cs`
+- Frontend entry point: `lefarma.frontend/src/main.tsx`
+- Frontend routes: `lefarma.frontend/src/routes/AppRoutes.tsx`
+- Backend features/controllers: `lefarma.backend/src/Lefarma.API/Features/`
+- EF configurations: `lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/`
+- DbContext: `lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs`
+- Swagger: `http://localhost:5174/swagger/v1/swagger.json`
 
 ## Common Pitfalls
 
-1. **Don't assume backend starts on same port as frontend** - Backend runs on 5174, frontend on 5173 with proxy
-2. **JWT validation is strict** - `ClockSkew = TimeSpan.Zero` means no tolerance for clock drift
-3. **CORS origins must include your dev URL** - Check `appsettings.json` if you get CORS errors
-4. **Serilog logs to JSON file** - Not plain text; use a JSON viewer for logs
-5. **DevToken is hardcoded** - Never enable in production
+1. **Backend port mismatch:** `init.ps1` claims 5134, but Vite proxy, env files, and the real backend URL all use **5174**. Trust 5174.
+2. **JWT is strict:** `ClockSkew = TimeSpan.Zero` means any clock drift causes immediate 401s.
+3. **CORS:** `Program.cs` currently allows `AllowAnyOrigin()` in the `CorsPolicy` policy. If that changes, verify your dev URL is in the allowed origins list in `appsettings.json`.
+4. **No EF migrations:** Schema changes must be added as new numbered SQL scripts in `lefarma.database/`. Running `dotnet ef migrations` will break schema consistency.
+5. **Serilog logs are JSON:** `logs/wide-events-*.json` is not plain text.
+6. **DevToken is hardcoded in development only:** Never commit production credentials or enable the dev token bypass outside local dev.
+7. **SPA fallback:** `Program.cs` calls `MapFallbackToFile("/index.html")` and serves static files. API routes should not collide with frontend route names.
 
-## Secrets (Development Only)
-- DB Password: `L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!`
-- JWT Secret: `tu-clave-secreta-super-segura-de-al-menos-32-caracteres-aqui`
-- SMTP Password: `Aut0r1z5c10n3s$$001`
+## Development Secrets (local only)
 
-**WARNING**: These are development-only credentials. Never commit production secrets.
+These are committed for convenience in local development. Never use them for production or commit new production secrets.
+
+- DB password: `L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!`
+- JWT secret: `tu-clave-secreta-super-segura-de-al-menos-32-caracteres-aqui`
+- SMTP password: `Aut0r1z5c10n3s$$001`

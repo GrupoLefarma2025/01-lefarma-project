@@ -126,7 +126,7 @@
       "source": "microsoft/playwright-cli",
       "sourceType": "github",
       "skillPath": "skills/playwright-cli/SKILL.md",
-      "computedHash": "fcba6ff28cfd109d224f0d8b55bfc0f81e514bdf2941c65662fd17ff6368cb1c"
+      "computedHash": "438b922468b7bb2ab5ce4a0f318fc65db93337f0df03908a5476effbae9487e6"
     },
     "playwright-skill": {
       "source": "sickn33/antigravity-awesome-skills",

@@ -519,6 +519,7 @@ app.UseWideEventLogging();
 var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
     ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
 
+// Static files for archivos (caratulas, etc.) under /api/media/archivos
 // Si la ruta no es absoluta, resolverla respecto al ContentRootPath
 if (!Path.IsPathRooted(archivosBasePath))
 {
@@ -529,6 +530,19 @@ app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(archivosBasePath),
     RequestPath = "/api/media/archivos",
+    OnPrepareResponse = ctx =>
+    {
+        ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
+        ctx.Context.Response.Headers.Append("Pragma", "no-cache");
+        ctx.Context.Response.Headers.Append("Expires", "0");
+    }
+});
+
+// Static files for archivos (caratulas, etc.) under /media/archivos (legacy URL used by the frontend)
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(archivosBasePath),
+    RequestPath = "/media/archivos",
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");

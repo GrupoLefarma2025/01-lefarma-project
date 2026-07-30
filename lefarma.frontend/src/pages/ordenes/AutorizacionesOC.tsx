@@ -69,6 +69,7 @@ import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
@@ -632,10 +633,7 @@ export default function AutorizacionesOC() {
 
   const fetchEstados = async () => {
     try {
-      const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
-      if (res.data?.success) {
-        setWorkflowEstados(res.data.data || []);
-      }
+      setWorkflowEstados(await fetchWorkflowEstados());
     } catch {
       // fallo silencioso
     }
@@ -1612,7 +1610,7 @@ export default function AutorizacionesOC() {
                               let cuentaInfo: string | undefined;
                               let cuentaActiva = true;
                               for (const [, proveedor] of proveedoresMap) {
-                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuenta === idCb);
                                 if (cuenta) {
                                   cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
                                   cuentaActiva = cuenta.activo;
@@ -1621,7 +1619,7 @@ export default function AutorizacionesOC() {
                               }
                               if (!cuentaInfo) {
                                 for (const [, proveedor] of allProveedoresMap) {
-                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuen === idCb);
+                                  const cuenta = proveedor.cuentasFormaPago?.find((c) => c.idCuenta === idCb);
                                   if (cuenta) {
                                     cuentaInfo = `${cuenta.bancoNombre ?? cuenta.formaPagoNombre ?? 'Banco'} — ${cuenta.numeroCuenta ?? ''}`;
                                     cuentaActiva = cuenta.activo;

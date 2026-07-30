@@ -39,6 +39,8 @@ export interface MultiStepLoginProps {
   step3Label?: string;
   /** Descripción bajo el indicador cuando se muestra el paso 3. */
   step3Description?: string;
+  /** Subtítulo bajo el logo, ej. "Sistema de Gestión de Recursos Humanos". */
+  subtitle?: string;
 }
 
 /**
@@ -61,6 +63,7 @@ export function MultiStepLogin({
   step3,
   step3Label = 'Contexto',
   step3Description,
+  subtitle,
 }: MultiStepLoginProps) {
   const navigate = useNavigate();
   const hasStep3 = step3 !== undefined;
@@ -200,6 +203,12 @@ export function MultiStepLogin({
               style={{ width: '100%', maxWidth: '300px', height: 'auto' }}
             />
           </div>
+
+          {subtitle && (
+            <p className="text-sm font-medium tracking-wide text-muted-foreground uppercase">
+              {subtitle}
+            </p>
+          )}
 
           {/* Pasos de progreso */}
           <StepIndicator

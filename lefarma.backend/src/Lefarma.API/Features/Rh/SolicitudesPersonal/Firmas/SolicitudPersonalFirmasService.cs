@@ -107,11 +107,11 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo);
             var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
 
-            var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                pasoActual, solicitud.IdWorkflow, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
-                codigoAccion: codigoAccionSolicitada,
-                idUsuarioSolicitante: solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador);
-            if (validacion.IsError)
+                var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
+                    pasoActual, solicitud.IdWorkflow, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
+                    codigoAccion: codigoAccionSolicitada,
+                    idUsuarioSolicitante: solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador);
+                if (validacion.IsError)
                 return validacion.Errors;
 
             // 5. Ejecutar motor

@@ -20,3 +20,17 @@ export interface EmpleadoJefesConfigResponse {
 export interface UpdateEmpleadoJefesConfigRequest {
   niveles: EmpleadoJefeConfigItem[];
 }
+
+// ponytail: pre-existing fork bug — rh.api.ts imported these but they were never defined.
+// Modeled from backend EmpleadoJefesConfigDtos.cs (JefeCadenaNivelDto / EmpleadoJefesCadenaResponse).
+export interface JefeCadenaNivel {
+  nivel: number;
+  nominaJefe: number | null; // null = cadena rota en la vista
+  idUsuarioJefe: number | null; // null = sin usuario en el sistema
+  nombreJefe: string | null;
+}
+
+export interface EmpleadoJefesCadenaResponse {
+  idUsuario: number;
+  cadena: JefeCadenaNivel[];
+}

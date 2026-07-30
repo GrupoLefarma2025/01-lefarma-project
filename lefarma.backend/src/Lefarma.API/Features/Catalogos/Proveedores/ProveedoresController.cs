@@ -149,27 +149,32 @@ public class ProveedoresController : ControllerBase
         }));
     }
 
-    [HttpPost("{id}/caratula")]
+    private static readonly string[] CaratulaAllowedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf" };
+
+    [HttpPost("{id}/cuentas/{cuentaId}/caratula")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(10_000_000)]
-    [SwaggerOperation(Summary = "Subir caratula de proveedor", Description = "Sube una imagen de caratula para un proveedor existente")]
-    public async Task<IActionResult> UploadCaratula(
+    [SwaggerOperation(Summary = "Subir carátula de una cuenta bancaria",
+        Description = "Sube/reemplaza la carátula de UNA cuenta del proveedor. Enruta por estatus: " +
+                      "Nuevo/Rechazado escriben directo; Aprobado/EditadoPendiente van a staging " +
+                      "(requiere autorización).")]
+    public async Task<IActionResult> UploadCuentaCaratula(
         [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id,
-        [SwaggerRequestBody(Description = "Archivo de imagen para la caratula", Required = true)] IFormFile file)
+        [SwaggerParameter(Description = "Identificador de la cuenta bancaria (id_cuenta)", Required = true)] int cuentaId,
+        [SwaggerRequestBody(Description = "Archivo de imagen/PDF para la carátula", Required = true)] IFormFile file)
     {
         if (file == null || file.Length == 0)
         {
             return BadRequest(new ApiResponse<object>
             {
                 Success = false,
-                Message = "No se proporciono ningun archivo",
+                Message = "No se proporcionó ningún archivo",
                 Data = null
             });
         }
 
-        var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf" };
         var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
+        if (string.IsNullOrEmpty(extension) || !CaratulaAllowedExtensions.Contains(extension))
         {
             return BadRequest(new ApiResponse<object>
             {
@@ -180,9 +185,9 @@ public class ProveedoresController : ControllerBase
         }
 
         var basePath = _configuration["ArchivosSettings:BasePath"] ?? "wwwroot/media/archivos";
-        var fileName = $"caratula_proveedor_{id}_{Guid.NewGuid()}{extension}";
-        var relativePath = Path.Combine("caratulas", fileName);
-        var fullDir = Path.GetFullPath(Path.Combine(basePath, "caratulas"));
+        var fileName = $"caratula_cuenta_{cuentaId}_{Guid.NewGuid()}{extension}";
+        var relativePath = Path.Combine("caratulas", "cuentas", fileName);
+        var fullDir = Path.GetFullPath(Path.Combine(basePath, "caratulas", "cuentas"));
         var fullPath = Path.Combine(fullDir, fileName);
 
         if (!Directory.Exists(fullDir))
@@ -195,35 +200,73 @@ public class ProveedoresController : ControllerBase
             await file.CopyToAsync(stream);
         }
 
-        var result = await _proveedorService.UpdateCaratulaAsync(id, relativePath.Replace("\\", "/"));
+        var relativeUrl = relativePath.Replace("\\", "/");
+        var result = await _proveedorService.SubirCaratulaCuentaAsync(id, cuentaId, relativeUrl);
 
         return result.ToActionResult(this, _ => Ok(new ApiResponse<CaratulaUploadResponse>
         {
             Success = true,
-            Message = "Caratula subida exitosamente",
+            Message = "Carátula de cuenta procesada exitosamente",
             Data = new CaratulaUploadResponse
             {
                 FileName = fileName,
-                Url = $"/media/archivos/{relativePath.Replace("\\", "/")}",
+                Url = $"/media/archivos/{relativeUrl}",
                 ContentType = file.ContentType,
                 Size = file.Length
             }
         }));
     }
 
-    [HttpDelete("{id}/caratula")]
-    [SwaggerOperation(Summary = "Eliminar caratula de proveedor", Description = "Elimina la imagen de caratula de un proveedor existente")]
-    public async Task<IActionResult> DeleteCaratula(
+    [HttpGet("{id}/caratulas")]
+    [SwaggerOperation(Summary = "Listar carátulas del proveedor",
+        Description = "Devuelve una entrada por cuenta del proveedor que tenga carátula. " +
+                      "Alimenta el modal 'Ver carátulas' del listado.")]
+    public async Task<IActionResult> GetCaratulas(
         [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
     {
-        var result = await _proveedorService.DeleteCaratulaAsync(id);
+        var result = await _proveedorService.GetCaratulasByProveedorAsync(id);
 
-        return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+        return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<CaratulaCuentaResponse>>
         {
             Success = true,
-            Message = "Caratula eliminada exitosamente",
-            Data = null
+            Message = "Carátulas obtenidas exitosamente.",
+            Data = data
         }));
+    }
+
+    [HttpPost("{id}/caratula")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(10_000_000)]
+    [Obsolete("Usar POST /{id}/cuentas/{cuentaId}/caratula. Esta ruta ya no escribe la carátula (shim 410).")]
+    [SwaggerOperation(Summary = "[DEPRECADO] Subir carátula de proveedor",
+        Description = "Deprecado: la carátula ahora es por cuenta. Usa POST /{id}/cuentas/{cuentaId}/caratula.")]
+    public IActionResult UploadCaratula(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id,
+        [SwaggerRequestBody(Description = "Archivo de imagen para la caratula", Required = true)] IFormFile file)
+    {
+        return StatusCode(StatusCodes.Status410Gone, new ApiResponse<object>
+        {
+            Success = false,
+            Message = "Esta ruta está deprecada. La carátula ahora se asocia a una cuenta bancaria. " +
+                      "Usa POST /api/catalogos/Proveedores/{id}/cuentas/{cuentaId}/caratula.",
+            Data = null
+        });
+    }
+
+    [HttpDelete("{id}/caratula")]
+    [Obsolete("Usar DELETE /{id}/cuentas/{cuentaId}/caratula. Esta ruta ya no elimina la carátula (shim 410).")]
+    [SwaggerOperation(Summary = "[DEPRECADO] Eliminar carátula de proveedor",
+        Description = "Deprecado: la carátula ahora es por cuenta. Usa DELETE /{id}/cuentas/{cuentaId}/caratula.")]
+    public IActionResult DeleteCaratula(
+        [SwaggerParameter(Description = "Identificador del proveedor", Required = true)] int id)
+    {
+        return StatusCode(StatusCodes.Status410Gone, new ApiResponse<object>
+        {
+            Success = false,
+            Message = "Esta ruta está deprecada. La carátula ahora se asocia a una cuenta bancaria. " +
+                      "Usa DELETE /api/catalogos/Proveedores/{id}/cuentas/{cuentaId}/caratula.",
+            Data = null
+        });
     }
 
     [HttpGet("{id}/staging")]

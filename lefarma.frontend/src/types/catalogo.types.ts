@@ -145,7 +145,7 @@ export interface Banco {
 // ─── Proveedor Cuenta Bancaria ────────────────────────────────────────────────
 
 export interface ProveedorCuentaBancaria {
-  idCuen: number;
+  idCuenta: number;
   idProveedor: number;
   idFormaPago: number;
   idBanco?: number;
