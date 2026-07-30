@@ -24,6 +24,12 @@ export interface AppRegistryEntry {
   description?: string;
   /** Cuando es true la entrada se renderiza pero no es navegable (ej. aún no migrada). */
   disabled?: boolean;
+  /**
+   * Código de permiso requerido para ver el tile en el launcher.
+   * Convención de 3 partes: `aplicacion.menu.funcionalidad`
+   * (ej. `baseapp.hub.puede_ver_cxp`). Sin campo = tile siempre visible.
+   */
+  permission?: string;
 }
 
 /**
@@ -42,6 +48,7 @@ export const appRegistry: AppRegistryEntry[] = [
     description: 'Órdenes de compra',
     icon: ReceiptText,
     disabled: false,
+    permission: 'baseapp.hub.puede_ver_cxp',
   },
   {
     id: 'rh',
@@ -50,6 +57,7 @@ export const appRegistry: AppRegistryEntry[] = [
     description: 'Gestión de personal',
     icon: Users,
     disabled: false,
+    permission: 'baseapp.hub.puede_ver_rh',
   },
   {
     id: 'educacion-medica',
@@ -58,5 +66,6 @@ export const appRegistry: AppRegistryEntry[] = [
     description: 'Cursos y capacitaciones',
     icon: GraduationCap,
     disabled: false,
+    permission: 'baseapp.hub.puede_ver_educacion_medica',
   },
 ];

@@ -7,6 +7,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNotificationStore } from '@/store/notificationStore';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { useConnectionStore } from '@/shared/connection/connectionStore';
 import { navigateTo } from '@/lib/navigation';
 import type { SseEvent, UserNotification, NotificationFilter } from '@/types/notification.types';
 
@@ -21,6 +22,12 @@ const SSE_NOTIFICATIONS_URL = (() => {
 
 const MAX_RECONNECT_ATTEMPTS = 10; // Solo contamos errores reales (CLOSED), no reconexiones automaticas
 const BASE_RECONNECT_DELAY = 1000; // 1 segundo
+
+// Fallos de red consecutivos (servidor inalcanzable) antes de disparar el overlay global.
+// Un fetch que RECHAZA (throw) significa que el servidor no respondio nada;
+// un response !ok significa que el servidor SI respondio (esta vivo, p.ej. 401).
+const SSE_NETWORK_FAILURE_THRESHOLD = 2;
+let sseNetworkFailures = 0;
 
 interface TicketResponse {
   ticket?: string;
@@ -39,12 +46,20 @@ async function fetchSseTicket(token: string): Promise<string | null> {
     });
 
     if (!response.ok) {
+      // El servidor respondio: esta vivo (error de auth u otro). Resetear contador.
+      sseNetworkFailures = 0;
       return null;
     }
 
     const data = (await response.json()) as TicketResponse;
+    sseNetworkFailures = 0;
     return data.ticket ?? null;
   } catch {
+    // Error a nivel red (ERR_CONNECTION_REFUSED, DNS, etc.): el servidor no respondio.
+    sseNetworkFailures++;
+    if (sseNetworkFailures >= SSE_NETWORK_FAILURE_THRESHOLD) {
+      useConnectionStore.getState().markLost();
+    }
     return null;
   }
 }
@@ -93,6 +108,9 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
    */
   const handleOpen = useCallback(() => {
     reconnectAttemptsRef.current = 0;
+    sseNetworkFailures = 0;
+    // El stream SSE abrio: el servidor esta vivo. Restaurar conexion global si estaba perdida.
+    useConnectionStore.getState().markConnected();
     setConnected(true);
     setError(undefined);
     onConnectionChange?.(true);

@@ -1,5 +1,19 @@
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
-import logoImage from '@/assets/logo.png';
+import logoDefault from '@/assets/logo.png';
+import logoArtricenter from '@/assets/logo_1.png?no-inline';
+import logoAsokam from '@/assets/logo_7.png?no-inline';
+import logoLefarma from '@/assets/logo_8.png?no-inline';
+import logoConstrumedika from '@/assets/logo_11.png?no-inline';
+import logoGrupoLefarma from '@/assets/logo_12.png?no-inline';
+
+// ponytail: static imports — Vite can't bundle dynamic asset paths
+const LOGOS: Record<number, string> = {
+  1: logoArtricenter,
+  7: logoAsokam,
+  8: logoLefarma,
+  11: logoConstrumedika,
+  12: logoGrupoLefarma,
+};
 
 // ─── Tipos (reflejados desde AutorizacionesOC) ─────────────────────────────────
 
@@ -147,9 +161,13 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
       {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="pdf-header">
         <div className="pdf-header-left">
-          <img 
-            src={logoImage} 
-            alt="Lefarma" 
+          <img
+            src={(() => {
+              const k = Number(orden.idEmpresa);
+              const s = LOGOS[k] ?? logoDefault;
+              return s;
+            })()}
+            alt="Lefarma"
             style={{ height: '40px', width: 'auto', objectFit: 'contain' }}
           />
           <div className="pdf-subtitle">Sistema de Autorizaciones</div>

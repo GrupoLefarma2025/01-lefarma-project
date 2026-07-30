@@ -48,7 +48,6 @@ using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
 using Lefarma.API.Infrastructure.Data.Repositories.Operaciones;
 using Lefarma.API.Infrastructure.Data.Repositories.Rh;
 using Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal;
-using Lefarma.API.Infrastructure.Data.Seeding;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
 using Lefarma.API.Infrastructure.Services;
@@ -247,9 +246,8 @@ builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-builder.Services.AddScoped<IProfileService, ProfileService>();
-builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
-builder.Services.AddSingleton<ISseService, SseService>();
+    builder.Services.AddScoped<IProfileService, ProfileService>();
+    builder.Services.AddSingleton<ISseService, SseService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
 
@@ -336,78 +334,22 @@ else
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // Policy for administrators
-    options.AddPolicy(AuthorizationPolicies.RequireAdministrator, policy =>
-        policy.RequireRole(AuthorizationConstants.Roles.Administrador));
-
-    // Policy for managers (Gerentes)
-    options.AddPolicy(AuthorizationPolicies.RequireManager, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.GerenteArea,
-            AuthorizationConstants.Roles.GerenteAdmon,
-            AuthorizationConstants.Roles.DireccionCorp,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Policy for finance users
-    options.AddPolicy(AuthorizationPolicies.RequireFinance, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.CxP,
-            AuthorizationConstants.Roles.Tesoreria,
-            AuthorizationConstants.Roles.AuxiliarPagos,
-            AuthorizationConstants.Roles.GerenteAdmon,
-            AuthorizationConstants.Roles.DireccionCorp,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Policy for payment processing
-    options.AddPolicy(AuthorizationPolicies.RequirePaymentProcessing, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.Tesoreria,
-            AuthorizationConstants.Roles.AuxiliarPagos,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Permission-based policies (legacy named policies kept for backward compat)
-    options.AddPolicy(AuthorizationPolicies.CanViewCatalogos, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.View)));
-
-    options.AddPolicy(AuthorizationPolicies.CanManageCatalogos, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.Manage)));
-
-    options.AddPolicy(AuthorizationPolicies.CanViewOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.View)));
-
-    options.AddPolicy(AuthorizationPolicies.CanCreateOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Create)));
-
-    options.AddPolicy(AuthorizationPolicies.CanApproveOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Approve)));
-
-    options.AddPolicy(AuthorizationPolicies.CanManageUsers, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Usuarios.Manage)));
-
-    // Auto-register [HasPermission("x")] policies from all permission constants
-    var allPermissions = new[]
-    {
-        Permissions.Catalogos.View, Permissions.Catalogos.Manage,
-        Permissions.OrdenesCompra.View, Permissions.OrdenesCompra.Create, Permissions.OrdenesCompra.Edit, Permissions.OrdenesCompra.Delete, Permissions.OrdenesCompra.Approve,
-        Permissions.Usuarios.View, Permissions.Usuarios.Manage, Permissions.Usuarios.AssignRoles,
-        Permissions.Reportes.View, Permissions.Reportes.Export,
-        Permissions.Tesoreria.View, Permissions.Tesoreria.Pay, Permissions.Tesoreria.Export,
-        Permissions.Comprobaciones.View, Permissions.Comprobaciones.Create, Permissions.Comprobaciones.Validate,
-        Permissions.Config.View, Permissions.Config.Manage,
-        Permissions.Workflows.View, Permissions.Workflows.Manage,
-        Permissions.Proveedores.Autorizar, Permissions.Proveedores.Rechazar,
-    };
-
-    foreach (var perm in allPermissions)
-    {
-        var policyName = $"{HasPermissionAttribute.PolicyPrefix}{perm}";
-        options.AddPolicy(policyName, policy =>
-            policy.Requirements.Add(new PermissionRequirement(perm)));
-    }
+    // No static permission policies. HasPermission_* policies are resolved
+    // on the fly by DynamicPermissionPolicyProvider reading from app.Permisos.
+    // Adding a permission to the DB is enough; no restart, no code change.
 });
 
+// Custom policy provider: resolves HasPermission_* policies dynamically.
+// Must be registered AFTER AddAuthorization so it overrides the default.
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPermissionPolicyProvider>();
+
 // Register permission handler
-builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+// Scoped: matches AsokamDbContext lifetime. The cache itself lives in IMemoryCache (Singleton),
+// so the shared permission cache survives across requests even though this service is per-scope.
+builder.Services.AddScoped<UserPermissionService>();
+// Scoped: PermissionHandler consumes UserPermissionService (Scoped) which consumes AsokamDbContext (Scoped).
+// Singleton here would be a captive dependency — ASP.NET Core rejects it at startup validation.
+builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
 
 // Controllers
 builder.Services.AddControllers(options =>
@@ -574,15 +516,10 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous();
 
-// Database seeding deshabilitado temporalmente
-// if (app.Environment.IsDevelopment())
-// {
-//     using var scope = app.Services.CreateScope();
-//     var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
-//     await seeder.SeedAsync();
-// }
+app.MapControllers();
 
 // ---> AGREGADO PARA LA SPA <---
 // Redirige cualquier petición no manejada al index.html para que el router de tu frontend se encargue

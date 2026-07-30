@@ -1,38 +1,43 @@
+using Lefarma.API.Services.Identity;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
 namespace Lefarma.API.Shared.Authorization;
+
 /// <summary>
-/// Handles permission-based authorization by checking for permission claims in the JWT token.
+/// Validates permissions by delegating to UserPermissionService, which reads from
+/// app.RolesPermisos + app.UsuariosPermisos via a shared 5-minute IMemoryCache.
 /// </summary>
 public class PermissionHandler : AuthorizationHandler<PermissionRequirement>
 {
-    protected override Task HandleRequirementAsync(
+    private readonly UserPermissionService _permissionService;
+
+    public PermissionHandler(UserPermissionService permissionService)
+    {
+        _permissionService = permissionService;
+    }
+
+    protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         PermissionRequirement requirement)
     {
         if (context.User?.Identity?.IsAuthenticated != true)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        var permissionClaim = context.User.FindFirst("permission");
-        if (permissionClaim != null && permissionClaim.Value == requirement.Permission)
+        var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
+                          ?? context.User.FindFirst("sub")?.Value;
+        if (userIdClaim == null || !int.TryParse(userIdClaim, out var userId))
         {
-            context.Succeed(requirement);
-            return Task.CompletedTask;
+            return;
         }
 
-        var permissions = context.User.Claims
-            .Where(c => c.Type == "permission")
-            .Select(c => c.Value)
-            .ToList();
+        var permissions = await _permissionService.GetPermissionsAsync(userId);
 
         if (permissions.Contains(requirement.Permission))
         {
             context.Succeed(requirement);
         }
-
-        return Task.CompletedTask;
     }
 }
