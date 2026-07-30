@@ -15,12 +15,6 @@ public class UsuarioDetalle
     /// </summary>
     public string? FirmaPath { get; set; }
 
-    /// <summary>
-    /// Si es false, la firma del usuario NO aparece en documentos (PDFs).
-    /// Default true para preservar comportamiento existente.
-    /// </summary>
-    public bool FirmaDocumento { get; set; } = true;
-
     // Contacto
     public string? TelefonoOficina { get; set; }
     public string? Extension { get; set; }
@@ -48,6 +42,9 @@ public class UsuarioDetalle
     public string? AvatarUrl { get; set; }
     public string TemaInterfaz { get; set; } = "light";
     public string? DashboardInicio { get; set; }
+
+    // Destinatarios predeterminados de notificaciones de incidencias de checado (JSON array de IDs)
+    public string? DestinatariosIncidenciasDefault { get; set; }
 
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacion { get; set; }

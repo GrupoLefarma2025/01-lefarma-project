@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { checkPermission } from '@/utils/permissions';
+import { checkPermission, usePermissionVersion } from '@/utils/permissions';
 
 interface PermissionElementProps {
   require?: string | string[];
@@ -16,6 +16,7 @@ export function PermissionElement({
   children,
   fallback = null,
 }: PermissionElementProps) {
+  usePermissionVersion(); // subscribe — re-render when permissions change
   const hasPermission = checkPermission({ require, requireAny, exclude });
   return hasPermission ? <>{children}</> : <>{fallback}</>;
 }

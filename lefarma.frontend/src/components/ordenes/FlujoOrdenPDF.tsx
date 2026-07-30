@@ -15,7 +15,7 @@ const LOGOS: Record<number, string> = {
   12: logoGrupoLefarma,
 };
 
-// ─── Types (mirrored from AutorizacionesOC) ─────────────────────────────────
+// ─── Tipos (reflejados desde AutorizacionesOC) ─────────────────────────────────
 
 export interface HistorialPDFItem {
   idEvento: number;
@@ -57,7 +57,7 @@ interface Props {
   pasosMap: Map<number, PasoPDFConfig>;
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Funciones auxiliares ─────────────────────────────────────────────────────────
 
 const ESTADO_INFO: Record<number, { label: string; bg: string; color: string }> = {
   1:  { label: 'Creada', bg: '#dbeafe', color: '#1e3a8a' },
@@ -141,7 +141,7 @@ function getMovimiento(
   }
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Componente ────────────────────────────────────────────────────────────────
 
 export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }: Props) {
   const now = new Date().toLocaleString('es-MX', {
@@ -312,7 +312,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
 
             return (
               <div key={paso.idPaso} className="pdf-paso">
-                {/* Step circle + line */}
+                {/* Círculo del paso + línea */}
                 <div className="pdf-paso-timeline">
                   <div className="pdf-paso-dot" style={{ background: color, border: `2px solid ${color}` }}>
                     {symbol}
@@ -322,7 +322,7 @@ export function FlujoOrdenPDF({ orden, progresoPasos, eventosPorPaso, pasosMap }
                   )}
                 </div>
 
-                {/* Step content */}
+                {/* Contenido del paso */}
                 <div className="pdf-paso-content">
                   <div className="pdf-paso-header">
                     <span className="pdf-paso-nombre">{paso.nombrePaso}</span>

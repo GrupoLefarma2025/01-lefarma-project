@@ -30,6 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Features\Asistencias\" />
     <Folder Include="Infrastructure\Data\Migrations\" />
     <Folder Include="Shared\Exceptions\" />
     <Folder Include="Validators\" />

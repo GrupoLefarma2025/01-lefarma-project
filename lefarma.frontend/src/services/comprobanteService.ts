@@ -1,4 +1,4 @@
-import { API } from './api';
+import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
   CfdiPreviewResponse,

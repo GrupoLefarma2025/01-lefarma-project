@@ -23,7 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { NotificationList } from '@/components/notifications/NotificationList';
 import { RecipientSelector } from '@/components/notifications/RecipientSelector';
 import { notificationService } from '@/services/notificationService';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { toast } from 'sonner';
 import type { NotificationType, NotificationPriority, NotificationCategory, NotificationChannelType } from '@/types/notification.types';
 import { toApiError } from '@/utils/errors';

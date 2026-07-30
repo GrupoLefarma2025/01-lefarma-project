@@ -5,47 +5,52 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Logging;
 using Lefarma.API.Domain.Interfaces.Operaciones;
+using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Admin;
+using Lefarma.API.Features.Archivos.Services;
+using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Auth;
 using Lefarma.API.Features.Catalogos.Areas;
 using Lefarma.API.Features.Catalogos.Bancos;
 using Lefarma.API.Features.Catalogos.CentrosCosto;
 using Lefarma.API.Features.Catalogos.CuentasContables;
-using Lefarma.API.Features.Catalogos.EstatusOrden;
-using Lefarma.API.Features.Catalogos.Proveedores;
-using Lefarma.API.Features.Catalogos.RegimenesFiscales;
-using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.Empresas;
+using Lefarma.API.Features.Catalogos.EstatusOrden;
 using Lefarma.API.Features.Catalogos.FormasPago;
-using Lefarma.API.Features.Catalogos.TiposGasto;
 using Lefarma.API.Features.Catalogos.Medidas;
 using Lefarma.API.Features.Catalogos.MediosPago;
+using Lefarma.API.Features.Catalogos.Proveedores;
+using Lefarma.API.Features.Catalogos.RegimenesFiscales;
 using Lefarma.API.Features.Catalogos.Sucursales;
+using Lefarma.API.Features.Catalogos.TiposGasto;
+using Lefarma.API.Features.Catalogos.TiposImpuesto;
 using Lefarma.API.Features.Catalogos.UnidadesMedida;
 using Lefarma.API.Features.Config.Engine;
 using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Config.Workflows.Handlers;
+using Lefarma.API.Features.Config.Workflows.Notification;
+using Lefarma.API.Features.Facturas;
+using Lefarma.API.Features.Help.Services;
 using Lefarma.API.Features.Logging;
 using Lefarma.API.Features.Notifications.Services;
 using Lefarma.API.Features.Notifications.Services.Channels;
 using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Features.OrdenesCompra.Firmas;
-using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Features.Profile;
-using Lefarma.API.Features.Help.Services;
-using Lefarma.API.Features.Archivos.Services;
-using Lefarma.API.Features.Archivos.Settings;
-using Lefarma.API.Features.Facturas;
-using Microsoft.Extensions.FileProviders;
+using Lefarma.API.Features.Rh.IncidenciasChecado;
+using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Infrastructure.Data.Repositories;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
 using Lefarma.API.Infrastructure.Data.Repositories.Catalogos;
 using Lefarma.API.Infrastructure.Data.Repositories.Config;
 using Lefarma.API.Infrastructure.Data.Repositories.Notifications;
 using Lefarma.API.Infrastructure.Data.Repositories.Operaciones;
-using Lefarma.API.Infrastructure.Data.Repositories;
-using Lefarma.API.Infrastructure.Data.Seeding;
+using Lefarma.API.Infrastructure.Data.Repositories.Rh;
+using Lefarma.API.Infrastructure.Data.Repositories.SolicitudesPersonal;
 using Lefarma.API.Infrastructure.Filters;
 using Lefarma.API.Infrastructure.Middleware;
+using Lefarma.API.Infrastructure.Services;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
@@ -55,6 +60,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Serilog;
@@ -118,6 +124,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddDbContext<AsokamDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AsokamConnection")));
 
+builder.Services.AddDbContext<AsistenciasDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AsistenciasConnection")));
+
 // Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();
@@ -138,6 +147,7 @@ builder.Services.AddScoped<IRegimenFiscalRepository, RegimenFiscalRepository>();
 builder.Services.AddScoped<IProveedorRepository, ProveedorRepository>();
 builder.Services.AddScoped<ICuentaContableRepository, CuentaContableRepository>();
 builder.Services.AddScoped<ITipoImpuestoRepository, TipoImpuestoRepository>();
+builder.Services.AddScoped<IUsuarioConfiguracionRepository, UsuarioConfiguracionRepository>();
 
 // Help System
 builder.Services.AddScoped<IHelpArticleRepository, HelpArticleRepository>();
@@ -159,6 +169,13 @@ builder.Services.AddScoped<IPagoRepository, PagoRepository>();
 builder.Services.AddScoped<IComprobacionRepository, ComprobacionRepository>();
 builder.Services.AddScoped<IComprobanteRepository, ComprobanteRepository>();
 
+builder.Services.AddScoped<ISolicitudPersonalRepository, SolicitudPersonalRepository>();
+builder.Services.AddScoped<ITipoSolicitudRepository, TipoSolicitudRepository>();
+builder.Services.AddScoped<ICalendarioRepository, CalendarioRepository>();
+builder.Services.AddScoped<IEmpleadoRepository, EmpleadoRepository>();
+builder.Services.AddScoped<IIncidenciasChecadoPlantillaRepository, IncidenciasChecadoPlantillaRepository>();
+builder.Services.AddScoped<IIncidenciasChecadoRepository, IncidenciasChecadoRepository>();
+
 // Comprobantes / Facturas CFDI
 builder.Services.Configure<Lefarma.API.Features.Facturas.SatValidation.SatValidationSettings>(
     builder.Configuration.GetSection("SatValidation"));
@@ -168,12 +185,27 @@ builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
-            builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
+builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
+builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
+builder.Services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
+builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJefesConfigService,
+                       Lefarma.API.Features.Config.EmpleadoJefes.EmpleadoJefesConfigService>();
+
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
-builder.Services.AddScoped<IFirmasService, FirmasService>();
+builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
+
+builder.Services.AddScoped<ISolicitudPersonalService, SolicitudPersonalService>();
+builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFirmasService>();
+builder.Services.AddScoped<ITipoSolicitudService, TipoSolicitudService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Empleados.IEmpleadoService, Lefarma.API.Features.Rh.Empleados.EmpleadoService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Calendario.ICalendarioService, Lefarma.API.Features.Rh.Calendario.CalendarioService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.Vacaciones.IVacacionesService, Lefarma.API.Features.Rh.Vacaciones.VacacionesService>();
+builder.Services.AddScoped<IIncidenciasChecadoNotificacionService, IncidenciasChecadoNotificacionService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciasChecadoService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciasChecadoService>();
+
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
 
@@ -216,9 +248,8 @@ builder.Services.AddActiveDirectoryServices(builder.Configuration);
 builder.Services.AddJwtTokenServices(builder.Configuration);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAdminService, AdminService>();
-builder.Services.AddScoped<IProfileService, ProfileService>();
-builder.Services.AddScoped<IDatabaseSeeder, DatabaseSeeder>();
-builder.Services.AddSingleton<ISseService, SseService>();
+    builder.Services.AddScoped<IProfileService, ProfileService>();
+    builder.Services.AddSingleton<ISseService, SseService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
 
@@ -305,78 +336,22 @@ else
 // Authorization Policies
 builder.Services.AddAuthorization(options =>
 {
-    // Policy for administrators
-    options.AddPolicy(AuthorizationPolicies.RequireAdministrator, policy =>
-        policy.RequireRole(AuthorizationConstants.Roles.Administrador));
-
-    // Policy for managers (Gerentes)
-    options.AddPolicy(AuthorizationPolicies.RequireManager, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.GerenteArea,
-            AuthorizationConstants.Roles.GerenteAdmon,
-            AuthorizationConstants.Roles.DireccionCorp,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Policy for finance users
-    options.AddPolicy(AuthorizationPolicies.RequireFinance, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.CxP,
-            AuthorizationConstants.Roles.Tesoreria,
-            AuthorizationConstants.Roles.AuxiliarPagos,
-            AuthorizationConstants.Roles.GerenteAdmon,
-            AuthorizationConstants.Roles.DireccionCorp,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Policy for payment processing
-    options.AddPolicy(AuthorizationPolicies.RequirePaymentProcessing, policy =>
-        policy.RequireRole(
-            AuthorizationConstants.Roles.Tesoreria,
-            AuthorizationConstants.Roles.AuxiliarPagos,
-            AuthorizationConstants.Roles.Administrador));
-
-    // Permission-based policies (legacy named policies kept for backward compat)
-    options.AddPolicy(AuthorizationPolicies.CanViewCatalogos, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.View)));
-
-    options.AddPolicy(AuthorizationPolicies.CanManageCatalogos, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Catalogos.Manage)));
-
-    options.AddPolicy(AuthorizationPolicies.CanViewOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.View)));
-
-    options.AddPolicy(AuthorizationPolicies.CanCreateOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Create)));
-
-    options.AddPolicy(AuthorizationPolicies.CanApproveOrdenes, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.OrdenesCompra.Approve)));
-
-    options.AddPolicy(AuthorizationPolicies.CanManageUsers, policy =>
-        policy.Requirements.Add(new PermissionRequirement(Permissions.Usuarios.Manage)));
-
-    // Auto-register [HasPermission("x")] policies from all permission constants
-    var allPermissions = new[]
-    {
-        Permissions.Catalogos.View, Permissions.Catalogos.Manage,
-        Permissions.OrdenesCompra.View, Permissions.OrdenesCompra.Create, Permissions.OrdenesCompra.Edit, Permissions.OrdenesCompra.Delete, Permissions.OrdenesCompra.Approve,
-        Permissions.Usuarios.View, Permissions.Usuarios.Manage, Permissions.Usuarios.AssignRoles,
-        Permissions.Reportes.View, Permissions.Reportes.Export,
-        Permissions.Tesoreria.View, Permissions.Tesoreria.Pay, Permissions.Tesoreria.Export,
-        Permissions.Comprobaciones.View, Permissions.Comprobaciones.Create, Permissions.Comprobaciones.Validate,
-        Permissions.Config.View, Permissions.Config.Manage,
-        Permissions.Workflows.View, Permissions.Workflows.Manage,
-        Permissions.Proveedores.Autorizar, Permissions.Proveedores.Rechazar,
-    };
-
-    foreach (var perm in allPermissions)
-    {
-        var policyName = $"{HasPermissionAttribute.PolicyPrefix}{perm}";
-        options.AddPolicy(policyName, policy =>
-            policy.Requirements.Add(new PermissionRequirement(perm)));
-    }
+    // No static permission policies. HasPermission_* policies are resolved
+    // on the fly by DynamicPermissionPolicyProvider reading from app.Permisos.
+    // Adding a permission to the DB is enough; no restart, no code change.
 });
 
+// Custom policy provider: resolves HasPermission_* policies dynamically.
+// Must be registered AFTER AddAuthorization so it overrides the default.
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, DynamicPermissionPolicyProvider>();
+
 // Register permission handler
-builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+// Scoped: matches AsokamDbContext lifetime. The cache itself lives in IMemoryCache (Singleton),
+// so the shared permission cache survives across requests even though this service is per-scope.
+builder.Services.AddScoped<UserPermissionService>();
+// Scoped: PermissionHandler consumes UserPermissionService (Scoped) which consumes AsokamDbContext (Scoped).
+// Singleton here would be a captive dependency — ASP.NET Core rejects it at startup validation.
+builder.Services.AddScoped<IAuthorizationHandler, PermissionHandler>();
 
 // Controllers
 builder.Services.AddControllers(options =>
@@ -422,9 +397,6 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
-
 // Wide Event logging accessor
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IWideEventAccessor>(sp =>
@@ -450,22 +422,21 @@ builder.WebHost.ConfigureKestrel(options =>
 
 var app = builder.Build();
 
-//var pathBase = builder.Configuration["AppSettings:PathBase"];
-//if (!string.IsNullOrEmpty(pathBase))
-//{
-//    app.UsePathBase(pathBase);
-//}
+var pathBase = builder.Configuration["AppSettings:PathBase"];
+if (!string.IsNullOrEmpty(pathBase))
+{
+    app.UsePathBase(pathBase);
+}
 
 // Use CORS
 app.UseCors("CorsPolicy");
 // Configure the HTTP request pipeline.
 // if (app.Environment.IsDevelopment())
 // {
-app.MapOpenApi();
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint($"/swagger/v1/swagger.json", "Lefarma API v1");
+    c.SwaggerEndpoint($"{pathBase}/swagger/v1/swagger.json", "Lefarma API v1");
     // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }
@@ -493,6 +464,12 @@ var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
     ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
 
 // Static files for archivos (caratulas, etc.) under /api/media/archivos
+// Si la ruta no es absoluta, resolverla respecto al ContentRootPath
+if (!Path.IsPathRooted(archivosBasePath))
+{
+    archivosBasePath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, archivosBasePath));
+}
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(archivosBasePath),
@@ -530,25 +507,21 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
+// Authentication & Authorization - Order matters: Authentication must come before Authorization
+app.UseAuthentication();
+
 // Dev Token middleware for testing (Development only)
 if (app.Environment.IsDevelopment())
 {
     app.UseDevToken();
 }
 
-// Authentication & Authorization - Order matters: Authentication must come before Authorization
-app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous();
 
-// Database seeding deshabilitado temporalmente
-// if (app.Environment.IsDevelopment())
-// {
-//     using var scope = app.Services.CreateScope();
-//     var seeder = scope.ServiceProvider.GetRequiredService<IDatabaseSeeder>();
-//     await seeder.SeedAsync();
-// }
+app.MapControllers();
 
 // ---> AGREGADO PARA LA SPA <---
 // Redirige cualquier petición no manejada al index.html para que el router de tu frontend se encargue

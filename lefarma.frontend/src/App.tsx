@@ -1,12 +1,13 @@
 ﻿import { useEffect } from 'react';
 import { BrowserRouter, useNavigate } from 'react-router-dom';
-import { AppRoutes } from './routes/AppRoutes';
-import { useAuthStore } from './store/authStore';
+import { BaseAppRoutes } from './apps/baseapp/BaseAppRoutes';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { useConfigStore } from './store/configStore';
 import { Toaster } from '@/components/ui/sonner';
 import { AutoVerify } from '@/components/AutoVerify';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { setNavigate } from '@/lib/navigation';
+import { ConnectionLostOverlay } from '@/components/connection/ConnectionLostOverlay';
 
 function NavigationRegistrar() {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ function App() {
   // Iniciar refresh proactivo de token
   useTokenRefresh();
 
-  // Check if autotest mode is enabled
+  // Verificar si el modo autotest está habilitado
   const urlParams = new URLSearchParams(window.location.search);
   const isAutoTest = urlParams.get('autotest') === 'true';
 
@@ -43,11 +44,16 @@ function App() {
     return <AutoVerify />;
   }
 
+  // Build de shell único (nav-reorg): el shell del base-app raíz siempre está montado.
+  // La antigua rama dual-build (shell condicional por basename vs árbol raíz) está
+  // eliminada — el shell ahora vive en la raíz y CxP se monta como subárbol bajo
+  // `/cxp/`. Ver BaseAppRoutes para el mapa de rutas.
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <NavigationRegistrar />
-      <AppRoutes />
+      <BaseAppRoutes />
       <Toaster />
+      <ConnectionLostOverlay />
     </BrowserRouter>
   );
 }

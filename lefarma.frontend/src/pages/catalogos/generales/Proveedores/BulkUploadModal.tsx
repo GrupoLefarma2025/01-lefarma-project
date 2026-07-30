@@ -3,7 +3,7 @@ import { Upload, Loader2, FileText, AlertCircle, CheckCircle2, Download } from '
 import { Button } from '@/components/ui/button';
 import { Modal } from '@/components/ui/modal';
 import { toast } from 'sonner';
-import { proveedorApi } from '@/services/api';
+import { proveedorApi } from '@/shared/api/apiClient';
 import {
   buildErrorsCsv,
   downloadCsv,

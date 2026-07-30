@@ -1,9 +1,11 @@
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Shared.Constants;
 
 namespace Lefarma.API.Domain.Entities.Operaciones
 {
-    public class OrdenCompra
+    public class OrdenCompra : IWorkflowEntity
     {
         public int IdOrden { get; set; }
         public string Folio { get; set; } = null!;  // OC-2026-00001
@@ -70,5 +72,10 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public virtual ICollection<OrdenCompraPartida> Partidas { get; set; } = new List<OrdenCompraPartida>();
         public virtual ICollection<Pago> Pagos { get; set; } = new List<Pago>();
         public virtual ICollection<Comprobacion> Comprobaciones { get; set; } = new List<Comprobacion>();
+
+
+        // IWorkflowEntity
+        int IWorkflowEntity.Id { get => IdOrden; set => IdOrden = value; }
+        public string ObtenerTipoEntidad() => CodigoProceso.ORDEN_COMPRA;
     }
 }

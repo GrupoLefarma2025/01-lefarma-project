@@ -8,6 +8,7 @@ using Lefarma.API.Domain.Entities.Help;
 using Lefarma.API.Domain.Entities.Archivos;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
+using Lefarma.API.Domain.Entities.Rh;
 
 namespace Lefarma.API.Infrastructure.Data {
 public class ApplicationDbContext : DbContext
@@ -20,6 +21,7 @@ public class ApplicationDbContext : DbContext
         // DbSets - Catalogos
         public DbSet<Empresa> Empresas { get; set; }
         public DbSet<Sucursal> Sucursales { get; set; }
+        public DbSet<TipoDia> TiposDia { get; set; }
         public DbSet<TipoGasto> TiposGasto { get; set; }
         public DbSet<Area> Areas { get; set; }
         public DbSet<Medida> Medidas { get; set; }
@@ -31,6 +33,8 @@ public class ApplicationDbContext : DbContext
         public DbSet<Workflow> Workflows { get; set; }
         public DbSet<WorkflowPaso> WorkflowPasos { get; set; }
         public DbSet<WorkflowParticipante> WorkflowParticipantes { get; set; }
+        public DbSet<EmpleadoJefeConfig> EmpleadoJefesConfig { get; set; }
+        public DbSet<WorkflowJefeExcluido> WorkflowJefesExcluidos { get; set; }
         public DbSet<WorkflowAccion> WorkflowAcciones { get; set; }
         public DbSet<WorkflowAccionHandler> WorkflowAccionHandlers { get; set; }
         public DbSet<WorkflowCampo> WorkflowCampos { get; set; }
@@ -55,6 +59,16 @@ public class ApplicationDbContext : DbContext
         public DbSet<Pago> Pagos { get; set; }
         public DbSet<Comprobacion> Comprobaciones { get; set; }
         public DbSet<EnvioConcentrado> EnviosConcentrado { get; set; }
+
+        // DbSets - Rh
+        public DbSet<SolicitudPersonal> SolicitudesPersonal { get; set; }
+        public DbSet<SolicitudPersonalDetalle> SolicitudesPersonalDetalle { get; set; }
+        public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
+        public DbSet<IncidenciaChecadoPlantilla> PlantillasIncidenciasChecado { get; set; }
+        public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }
+        public DbSet<DiaNoHabil> DiasNoHabiles { get; set; }
+        public DbSet<DiaUsuario> DiasUsuarios { get; set; }
+        public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

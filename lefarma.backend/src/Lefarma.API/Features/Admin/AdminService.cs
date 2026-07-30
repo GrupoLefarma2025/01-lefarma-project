@@ -174,7 +174,6 @@ public class AdminService : BaseService, IAdminService
                     detalle.Puesto = request.Detalle.Puesto;
                     detalle.NumeroEmpleado = request.Detalle.NumeroEmpleado;
                     detalle.FirmaPath = request.Detalle.FirmaPath;
-                    detalle.FirmaDocumento = request.Detalle.FirmaDocumento;
                     detalle.TelefonoOficina = request.Detalle.TelefonoOficina;
                     detalle.Extension = request.Detalle.Extension;
                     detalle.Celular = request.Detalle.Celular;
@@ -208,7 +207,6 @@ public class AdminService : BaseService, IAdminService
                     detalle.Puesto = request.Detalle.Puesto;
                     detalle.NumeroEmpleado = request.Detalle.NumeroEmpleado;
                     detalle.FirmaPath = request.Detalle.FirmaPath;
-                    detalle.FirmaDocumento = request.Detalle.FirmaDocumento;
                     detalle.TelefonoOficina = request.Detalle.TelefonoOficina;
                     detalle.Extension = request.Detalle.Extension;
                     detalle.Celular = request.Detalle.Celular;

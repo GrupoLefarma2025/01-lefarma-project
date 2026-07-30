@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
 import { usePermission } from '@/hooks/usePermission';
 import { useCurrency } from '@/hooks/useCurrency';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { DashboardStatsResponse } from '@/types/dashboard.types';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
@@ -123,7 +123,7 @@ function formatRelativeTime(dateStr: string): string {
 
 export default function Dashboard() {
   usePageTitle('Dashboard', 'Pagina principal');
-
+  
   const puedeVerPresupuesto = usePermission({ require: 'dashboard.puede_ver_presupuesto' });
   // const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
   const { fmt } = useCurrency();
@@ -135,7 +135,7 @@ export default function Dashboard() {
   const [ordenesModalOpen, setOrdenesModalOpen] = useState(false);
   const [todasLasOrdenes, setTodasLasOrdenes] = useState<OrdenCompraResponse[]>([]);
   const [loadingOrdenes, setLoadingOrdenes] = useState(false);
-
+  
   useEffect(() => {
     const fetchAll = async () => {
       try {

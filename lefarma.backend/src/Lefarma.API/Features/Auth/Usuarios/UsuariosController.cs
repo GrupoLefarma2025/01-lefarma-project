@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Features.Auth.Usuarios.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
@@ -16,10 +18,14 @@ namespace Lefarma.API.Features.Auth.Usuarios;
 public class UsuariosController : ControllerBase
 {
     private readonly IUsuarioCatalogService _usuarioCatalogService;
+    private readonly IUsuarioConfiguracionRepository _usuarioConfiguracionRepository;
 
-    public UsuariosController(IUsuarioCatalogService usuarioCatalogService)
+    public UsuariosController(
+        IUsuarioCatalogService usuarioCatalogService,
+        IUsuarioConfiguracionRepository usuarioConfiguracionRepository)
     {
         _usuarioCatalogService = usuarioCatalogService;
+        _usuarioConfiguracionRepository = usuarioConfiguracionRepository;
     }
 
     /// <summary>
@@ -39,6 +45,36 @@ public class UsuariosController : ControllerBase
             Success = true,
             Message = "Usuarios obtenidos exitosamente.",
             Data = usuarios
+        });
+    }
+
+    /// <summary>
+    /// Gets the default notification recipients for the authenticated user
+    /// </summary>
+    [HttpGet("destinatarios-default")]
+    [SwaggerOperation(
+        Summary = "Obtener destinatarios predeterminados",
+        Description = "Retorna los IDs de usuarios destinatarios predeterminados del usuario autenticado")]
+    [SwaggerResponse(200, "Destinatarios predeterminados obtenidos", typeof(ApiResponse<List<int>>))]
+    public async Task<IActionResult> GetDestinatariosDefault(CancellationToken ct)
+    {
+        var idUsuarioClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(idUsuarioClaim, out var idUsuario) || idUsuario <= 0)
+        {
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No se pudo identificar al usuario autenticado."
+            });
+        }
+
+        var destinatarios = await _usuarioConfiguracionRepository.GetDestinatariosDefaultAsync(idUsuario, ct);
+
+        return Ok(new ApiResponse<List<int>>
+        {
+            Success = true,
+            Message = "Destinatarios predeterminados obtenidos exitosamente.",
+            Data = destinatarios
         });
     }
 }
