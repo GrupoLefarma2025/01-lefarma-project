@@ -15,7 +15,7 @@ public record ProfileResponse
 
     // Roles y permisos del usuario
     public List<string> Roles { get; init; } = [];
-    public List<string> Permisos { get; init; } = [];
+    public List<string> Permissions { get; init; } = [];
 
     // Detalle de la empresa seleccionada (para saber si puede ver/seleccionar otras)
     public bool PuedeSeleccionarEmpresas { get; init; }

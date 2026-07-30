@@ -23,7 +23,7 @@ function normalizeCodes(codes: string | string[]): string[] {
  */
 export function usePermission(options: PermissionCheckOptions): boolean {
   const user = useAuthStore((s) => s.user);
-
+// console.log(user)
   // Serializar dependencias de arreglo a strings estables — evita recálculo cuando
   // los callers pasan literales de arreglo inline (ej: requireAny={['a', 'b']})
   // que cambian de referencia en cada render.

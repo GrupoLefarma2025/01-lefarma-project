@@ -5,6 +5,7 @@ import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { educacionMedicaMenuItems } from './menuItems';
 
 import { EducacionMedicaDashboard } from './pages/EducacionMedicaDashboard';
+import Perfil from '@/pages/Perfil';
 
 /**
  * Educación Médica route table — delega TODO el scaffolding a la fábrica
@@ -41,6 +42,7 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
           <PermissionGuard blockedPath="/educacion-medica/bloqueado" ...>.
         */}
         <Route path="dashboard" element={<EducacionMedicaDashboard />} />
+        <Route path="perfil" element={<Perfil />} />
       </>
     ),
   });

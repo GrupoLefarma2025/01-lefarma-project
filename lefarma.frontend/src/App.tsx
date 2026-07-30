@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { AutoVerify } from '@/components/AutoVerify';
 import { useTokenRefresh } from '@/hooks/useTokenRefresh';
 import { setNavigate } from '@/lib/navigation';
+import { ConnectionLostOverlay } from '@/components/connection/ConnectionLostOverlay';
 
 function NavigationRegistrar() {
   const navigate = useNavigate();
@@ -52,6 +53,7 @@ function App() {
       <NavigationRegistrar />
       <BaseAppRoutes />
       <Toaster />
+      <ConnectionLostOverlay />
     </BrowserRouter>
   );
 }

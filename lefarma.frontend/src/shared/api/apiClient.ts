@@ -3,6 +3,7 @@ import { authService } from '@/shared/auth/authService';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { ApiError } from '@/types/api.types';
 import { navigateTo } from '@/lib/navigation';
+import { useConnectionStore } from '@/shared/connection/connectionStore';
 
 
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -17,6 +18,8 @@ const apiClient: AxiosInstance = axios.create({
 
 let isRefreshing = false;
 let refreshSubscribers: Array<(token: string) => void> = [];
+let consecutiveConnectionFailures = 0;
+const CONNECTION_FAILURE_THRESHOLD = 2;
 
 const subscribeTokenRefresh = (cb: (token: string) => void) => {
   refreshSubscribers.push(cb);
@@ -51,7 +54,10 @@ apiClient.interceptors.request.use(
 );
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    consecutiveConnectionFailures = 0;
+    return response;
+  },
   async (error: AxiosError<ApiError>) => {
     if (axios.isCancel(error)) {
       return Promise.reject({ message: 'REQUEST_CANCELED', statusCode: 0 } as ApiError);
@@ -60,6 +66,15 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
     };
+
+    const isConnectionFailure =
+      !error.response || [502, 503, 504].includes(error.response.status);
+    if (isConnectionFailure) {
+      consecutiveConnectionFailures++;
+      if (consecutiveConnectionFailures === CONNECTION_FAILURE_THRESHOLD) {
+        useConnectionStore.getState().markLost();
+      }
+    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
