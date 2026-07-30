@@ -1,6 +1,8 @@
 ﻿using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Operaciones;
+using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -14,17 +16,25 @@ public static class WorkflowFirmaHelper
     /// <summary>
     /// Valida que el usuario puede ejecutar acciones en el paso actual.
     /// - Si es paso inicial y es el creador: siempre puede
-    /// - Si hay participantes explícitos: debe estar en la lista (por usuario o por rol)
+    /// - Si hay participantes explícitos: debe estar en la lista (por usuario, por rol, o ser jefe inmediato)
     /// </summary>
     public static async Task<ErrorOr<Success>> ValidarParticipanteAsync(
         WorkflowPaso pasoActual,
+        int idWorkflow,
         int idUsuario,
         int idUsuarioCreador,
         AsokamDbContext asokamContext,
+        IJefeInmediatoResolver jefeInmediatoResolver,
+        string? codigoAccion = null,
+        int? idUsuarioSolicitante = null,
         CancellationToken ct = default)
     {
-        // Paso inicial: el creador siempre puede ejecutar (es quien envía)
+        // Paso inicial: el creador siempre puede ejecutar acciones (es quien envía)
         if (pasoActual.EsInicio && idUsuario == idUsuarioCreador)
+            return Result.Success;
+
+        // Si es el creador y la acción es CANCELAR, permitir aunque no sea participante
+        if (idUsuario == idUsuarioCreador && codigoAccion == "CANCELAR")
             return Result.Success;
 
         // Si el paso tiene participantes explícitos, validar
@@ -46,6 +56,16 @@ public static class WorkflowFirmaHelper
 
         if (participantesActivos.Any(p => p.IdRol.HasValue && rolesUsuario.Contains(p.IdRol.Value)))
             return Result.Success;
+
+        // Verificar si alguno de los participantes requiere jefe inmediato (por nivel)
+        foreach (var p in participantesActivos.Where(p => p.RequiereJefeInmediato))
+        {
+            var idUsuarioBase = idUsuarioSolicitante ?? idUsuarioCreador;
+            var jefe = await jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                idWorkflow, idUsuarioBase, p.NivelJefe ?? 1, ct);
+            if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
+                return Result.Success;
+        }
 
         return Error.Validation("Autorizacion", "No eres participante de este paso del workflow.");
     }
@@ -90,7 +110,8 @@ public static class WorkflowFirmaHelper
         int? idPasoDestino,
         int idUsuarioActual,
         string? comentario,
-        string? contenidoAdicionalHtml = null)
+        string? contenidoAdicionalHtml = null,
+        int? idUsuarioSolicitante = null)
     {
         _ = Task.Run(async () =>
         {
@@ -109,7 +130,8 @@ public static class WorkflowFirmaHelper
                     idPasoDestino: idPasoDestino,
                     idUsuarioActual: idUsuarioActual,
                     comentario: comentario,
-                    contenidoAdicionalHtml: contenidoAdicionalHtml);
+                    contenidoAdicionalHtml: contenidoAdicionalHtml,
+                    idUsuarioSolicitante: idUsuarioSolicitante);
             }
             catch
             {

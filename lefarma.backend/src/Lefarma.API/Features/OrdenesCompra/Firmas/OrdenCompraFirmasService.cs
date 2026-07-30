@@ -99,7 +99,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 // Validar participante (USANDO HELPER)
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
-                    pasoActual, idUsuario, orden.IdUsuarioCreador, _asokamContext);
+                    pasoActual, orden.IdWorkflow, idUsuario, orden.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver);
                 if (validacion.IsError)
                     return validacion.Errors;
 

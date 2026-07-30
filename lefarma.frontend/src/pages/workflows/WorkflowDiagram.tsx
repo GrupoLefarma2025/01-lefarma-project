@@ -52,6 +52,9 @@ import { usePageTitle } from '@/hooks/usePageTitle';
 import { useWorkflowCatalogs } from '@/hooks/useWorkflowCatalogs';
 import { toast } from 'sonner';
 import type { Workflow, WorkflowPaso, WorkflowAccion, WorkflowAccionHandler, WorkflowCampo, WorkflowScopeType, WorkflowMapping, WorkflowEstado, WorkflowTipoAccion, WorkflowCondicion, WorkflowParticipante } from '@/types/workflow.types';
+import type { TipoSolicitudResponse } from '@/types/solicitudPersonal.types';
+import { CATEGORIAS_SOLICITUD } from '@/types/solicitudPersonal.types';
+import { tipoSolicitudApi } from '@/apps/rh/services/rh.api';
 import { toApiError } from '@/utils/errors';
 
 interface WorkflowWithDetails extends Workflow {
@@ -549,6 +552,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [areas, setAreas] = useState<any[]>([]);
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [proveedores, setProveedores] = useState<any[]>([]);
+  const [categoriasSolicitud, setCategoriasSolicitud] = useState<{ idCategoria: number; nombre: string }[]>([]);
+  const [tiposSolicitud, setTiposSolicitud] = useState<TipoSolicitudResponse[]>([]);
   const [editingMapping, setEditingMapping] = useState<WorkflowMapping | null>(null);
   const [mappingPayload, setMappingPayload] = useState<{
     idScopeType: number | null;
@@ -582,7 +587,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
       if (!id) return;
       const scopeCode = scopeTypes.find(s => s.idScopeType === Number(id))?.codigo.toUpperCase();
 
-      setEmpresas([]); setSucursales([]); setAreas([]); setUsuarios([]); setProveedores([]);
+      setEmpresas([]); setSucursales([]); setAreas([]); setUsuarios([]); setProveedores([]); setCategoriasSolicitud([]); setTiposSolicitud([]);
       try {
         if (scopeCode === 'EMPRESA') {
           const res = await API.get('/catalogos/empresas');
@@ -599,6 +604,16 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
         } else if (scopeCode === 'PROVEEDOR' || scopeCode === 'PROVEEDOR_ESPECIFICO') {
           const res = await API.get('/catalogos/proveedores');
           setProveedores(res.data.data ?? []);
+        } else if (scopeCode === 'CATEGORIA') {
+          setCategoriasSolicitud(
+            Object.entries(CATEGORIAS_SOLICITUD)
+              .filter(([key]) => !isNaN(Number(key)))
+              .map(([key, nombre]) => ({ idCategoria: Number(key), nombre }))
+              .sort((a, b) => a.idCategoria - b.idCategoria)
+          );
+        } else if (scopeCode === 'TIPO_SOLICITUD') {
+          const res = await tipoSolicitudApi.getActivos();
+          setTiposSolicitud(res.data.data ?? []);
         }
       } catch {}
     };
@@ -1175,8 +1190,9 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                         (paso.participantes || []).map(participante => {
                           const esJefe = participante.requiereJefeInmediato ?? false;
                           const esRol = !!participante.idRol;
+                          const nivelJefe = participante.nivelJefe ?? 1;
                           const nombre = esJefe
-                            ? 'Jefe Inmediato del Solicitante'
+                            ? (nivelJefe > 1 ? `Jefe Nivel ${nivelJefe} del Solicitante` : 'Jefe Inmediato del Solicitante')
                             : esRol
                             ? (catalogs.roles.find((r: any) => r.idRol === participante.idRol)?.nombreRol ?? `Rol #${participante.idRol}`)
                             : (catalogs.usuarios.find((u: any) => u.idUsuario === participante.idUsuario)?.nombreCompleto ?? `Usuario #${participante.idUsuario}`);
@@ -1187,7 +1203,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                   <span className="font-semibold text-base">{nombre}</span>
                                   {esJefe ? (
                                     <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
-                                      Jefe Inmediato
+                                      Jefe Inmediato{nivelJefe > 1 ? ` · Nivel ${nivelJefe}` : ''}
                                     </Badge>
                                   ) : (
                                     <Badge variant="outline" className={`text-xs ${esRol ? 'bg-indigo-500/10 text-indigo-700 border-indigo-500/30' : 'bg-emerald-500/10 text-emerald-700 border-emerald-500/30'}`}>
@@ -1764,6 +1780,8 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                   {code === 'AREA' && areas.map(a => <SelectItem key={a.idArea} value={String(a.idArea)}>{a.nombre}</SelectItem>)}
                   {code === 'USUARIO' && usuarios.map(u => <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>{u.nombreCompleto}</SelectItem>)}
                   {(code === 'PROVEEDOR' || code === 'PROVEEDOR_ESPECIFICO') && proveedores.map(p => <SelectItem key={p.idProveedor} value={String(p.idProveedor)}>{p.razonSocial}</SelectItem>)}
+                  {code === 'CATEGORIA' && categoriasSolicitud.map(c => <SelectItem key={c.idCategoria} value={String(c.idCategoria)}>{c.nombre}</SelectItem>)}
+                  {code === 'TIPO_SOLICITUD' && tiposSolicitud.map(t => <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>{t.nombre}</SelectItem>)}
                 </SelectContent>
               </Select>
             );

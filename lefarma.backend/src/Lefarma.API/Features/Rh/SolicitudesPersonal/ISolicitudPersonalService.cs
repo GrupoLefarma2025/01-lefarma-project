@@ -8,7 +8,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
     {
         Task<ErrorOr<PagedResult<SolicitudPersonalResponse>>> GetAllAsync(SolicitudPersonalRequest query, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas);
         Task<ErrorOr<SolicitudPersonalResponse>> GetByIdAsync(int id);
-        Task<ErrorOr<SolicitudPersonalResponse>> CreateAsync(CreateSolicitudPersonalRequest request, int idUsuario, CancellationToken ct = default);
+        Task<ErrorOr<SolicitudPersonalResponse>> CreateAsync(CreateSolicitudPersonalRequest request, int idUsuario, bool puedeCrearParaOtro, CancellationToken ct = default);
         Task<ErrorOr<bool>> DeleteAsync(int id);
         Task<ErrorOr<SolicitudPersonalResponse>> UpdateAsync(int id, CreateSolicitudPersonalRequest request, int idUsuario, CancellationToken ct = default);
         Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas);

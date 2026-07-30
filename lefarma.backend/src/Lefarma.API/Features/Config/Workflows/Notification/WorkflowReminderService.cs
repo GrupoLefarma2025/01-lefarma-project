@@ -1,5 +1,7 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces;
+using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -14,6 +16,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
     {
         private readonly ApplicationDbContext _db;
         private readonly AsokamDbContext _asokamDb;
+        private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         private readonly INotificationService _notifService;
         private readonly ILogger<WorkflowReminderService> _logger;
         private readonly string _frontendBaseUrl;
@@ -21,12 +24,14 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
         public WorkflowReminderService(
             ApplicationDbContext db,
             AsokamDbContext asokamDb,
+            IJefeInmediatoResolver jefeInmediatoResolver,
             INotificationService notifService,
             ILogger<WorkflowReminderService> logger,
             IConfiguration configuration)
         {
             _db = db;
             _asokamDb = asokamDb;
+            _jefeInmediatoResolver = jefeInmediatoResolver;
             _notifService = notifService;
             _logger = logger;
             _frontendBaseUrl = configuration["AppSettings:FrontendBaseUrl"]?.TrimEnd('/') ?? "";
@@ -113,6 +118,18 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 }
 
                 var pasosConEntidades = entities.Select(e => e.IdPasoActual!.Value).Distinct().ToList();
+
+                // Mapa paso -> (idWorkflow, nivel mínimo de jefe requerido)
+                var pasosInfo = await (
+                    from p in _db.WorkflowParticipantes
+                    join paso in _db.WorkflowPasos on p.IdPaso equals paso.IdPaso
+                    where pasosConEntidades.Contains(p.IdPaso) && p.Activo && p.RequiereJefeInmediato
+                    group new { p.NivelJefe, paso.IdWorkflow } by p.IdPaso into g
+                    select new { IdPaso = g.Key, IdWorkflow = g.First().IdWorkflow, Nivel = g.Min(x => x.NivelJefe ?? 1) })
+                    .ToListAsync(ct);
+
+                var infoPorPaso = pasosInfo.ToDictionary(x => x.IdPaso, x => (x.IdWorkflow, x.Nivel));
+
                 var participantes = await _db.WorkflowParticipantes
                     .Where(p => pasosConEntidades.Contains(p.IdPaso) && p.Activo)
                     .ToListAsync(ct);
@@ -123,14 +140,39 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                     .Distinct()
                     .ToList();
 
+                // Resolver jefes efectivos por (workflow, creador, nivel) con caché
+                var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
+                var idsJefesDirectos = new HashSet<int>();
+
+                foreach (var entity in entities)
+                {
+                    if (!entity.IdUsuarioCreador.HasValue || !entity.IdPasoActual.HasValue)
+                        continue;
+                    if (!infoPorPaso.TryGetValue(entity.IdPasoActual.Value, out var info))
+                        continue;
+
+                    var key = (info.IdWorkflow, entity.IdUsuarioCreador.Value, info.Nivel);
+                    if (!jefeCache.TryGetValue(key, out var jefe))
+                    {
+                        jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                            info.IdWorkflow, entity.IdUsuarioCreador.Value, info.Nivel, ct);
+                        jefeCache[key] = jefe;
+                    }
+
+                    if (jefe.IdUsuario.HasValue)
+                        idsJefesDirectos.Add(jefe.IdUsuario.Value);
+                }
+
+                var todosLosIds = usuariosDirectos.Concat(idsJefesDirectos).Distinct().ToList();
+
                 var nombresUsuarios = await _asokamDb.Usuarios
-                    .Where(u => usuariosDirectos.Contains(u.IdUsuario))
+                    .Where(u => todosLosIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? $"Usuario {u.IdUsuario}", ct);
 
-                _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — {CantEntidades} entidad(es), {CantUsuarios} usuario(s)",
-                    rec.IdRecordatorio, entities.Count, usuariosDirectos.Count);
+                _logger.LogInformation("WorkflowReminderService: recordatorio [{Id}] — {CantEntidades} entidad(es), {CantUsuarios} usuario(s), {CantJefes} jefe(s)",
+                    rec.IdRecordatorio, entities.Count, usuariosDirectos.Count, idsJefesDirectos.Count);
 
-                foreach (var idUsuario in usuariosDirectos)
+                foreach (var idUsuario in todosLosIds)
                 {
                     if (rec.MinOrdenesPendientes.HasValue && entities.Count < rec.MinOrdenesPendientes.Value)
                         continue;
@@ -313,7 +355,8 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 MontoTotal = o.Total,
                 FechaEnPaso = o.FechaSolicitud,
                 EtiquetaExtra = o.Proveedor?.RazonSocial,
-                TipoEntidad = CodigoProceso.ORDEN_COMPRA
+                TipoEntidad = CodigoProceso.ORDEN_COMPRA,
+                IdUsuarioCreador = o.IdUsuarioCreador
             }).ToList();
         }
 
@@ -334,7 +377,9 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 MontoTotal = null,
                 FechaEnPaso = s.FechaEnvio,
                 EtiquetaExtra = s.Area?.Nombre,
-                TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL
+                TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
+                IdUsuarioCreador = s.IdUsuarioCreador,
+                IdUsuarioSolicitante = s.IdUsuarioSolicitante
             }).ToList();
         }
 
@@ -411,6 +456,8 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
             public DateTime? FechaEnPaso { get; init; }
             public string? EtiquetaExtra { get; init; }
             public string TipoEntidad { get; init; } = null!;
+            public int? IdUsuarioCreador { get; init; }
+            public int? IdUsuarioSolicitante { get; init; }
         }
     }
 }

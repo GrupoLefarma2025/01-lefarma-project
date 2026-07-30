@@ -18,13 +18,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
     public class OrdenCompraFirmasController : ControllerBase
     {
         private readonly IOrdenCompraFirmasService _service;
-        private readonly IOrdenCompraFirmasService _firmasService;  
         private readonly IConfiguration _configuration;
-        public OrdenCompraFirmasController(IOrdenCompraFirmasService service, 
-            IOrdenCompraFirmasService firmasService,  IConfiguration configuration)
+        public OrdenCompraFirmasController(IOrdenCompraFirmasService service, IConfiguration configuration)
         {
             _service = service;
-            _firmasService = firmasService;
             _configuration = configuration;
         }
 
@@ -37,7 +34,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             Description = "Endpoint gen�rico.")]
         public async Task<IActionResult> Firmar(int id, FirmarRequest request)
         {
-            var result = await _firmasService.FirmarAsync(id, request, GetUserId());
+            var result = await _service.FirmarAsync(id, request, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<FirmarResponse>
             { Success = true, Message = data?.Mensaje ?? string.Empty, Data = data }));
         }
@@ -46,7 +43,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener acciones disponibles para una orden seg�n su estado actual")]
         public async Task<IActionResult> GetAcciones(int id)
         {
-            var result = await _firmasService.GetAccionesDisponiblesAsync(id, GetUserId());
+            var result = await _service.GetAccionesDisponiblesAsync(id, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
             { Success = true, Message = "Acciones obtenidas exitosamente.", Data = data }));
         }
@@ -55,7 +52,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener metadatos de una acción para construir modal dinámico")]
         public async Task<IActionResult> GetAccionMetadata(int id, int idAccion)
         {
-            var result = await _firmasService.GetAccionMetadataAsync(id, idAccion, GetUserId());
+            var result = await _service.GetAccionMetadataAsync(id, idAccion, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<AccionMetadataResponse>
             { Success = true, Message = "Metadatos de acción obtenidos exitosamente.", Data = data }));
         }
@@ -68,7 +65,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                           "Total ≤ 100,000 → Paso 6 (Tesorería).")]
         public async Task<IActionResult> EnvioConcentrado([FromBody] EnvioConcentradoRequest request)
         {
-            var result = await _firmasService.EnvioConcentradoAsync(request, GetUserId());
+            var result = await _service.EnvioConcentradoAsync(request, GetUserId());
             return result.ToActionResult(this, data => Ok(new ApiResponse<EnvioConcentradoResponse>
             { Success = true, Message = $"{data?.Exitosas} orden(es) avanzadas exitosamente.", Data = data }));
         }
@@ -77,7 +74,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
         [SwaggerOperation(Summary = "Obtener historial de transiciones del workflow para una orden")]
         public async Task<IActionResult> GetHistorialWorkflow(int id)
         {
-            var result = await _firmasService.GetHistorialAsync(id);
+            var result = await _service.GetHistorialAsync(id);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
             { Success = true, Message = "Historial de workflow obtenido exitosamente.", Data = data }));
         }

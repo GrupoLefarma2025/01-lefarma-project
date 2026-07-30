@@ -148,6 +148,7 @@ builder.Services.AddScoped<IRegimenFiscalRepository, RegimenFiscalRepository>();
 builder.Services.AddScoped<IProveedorRepository, ProveedorRepository>();
 builder.Services.AddScoped<ICuentaContableRepository, CuentaContableRepository>();
 builder.Services.AddScoped<ITipoImpuestoRepository, TipoImpuestoRepository>();
+builder.Services.AddScoped<IUsuarioConfiguracionRepository, UsuarioConfiguracionRepository>();
 
 // Help System
 builder.Services.AddScoped<IHelpArticleRepository, HelpArticleRepository>();
@@ -189,6 +190,8 @@ builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 // Config y Operaciones
 builder.Services.AddScoped<IWorkflowService, WorkflowService>();
 builder.Services.AddScoped<IWorkflowQueryService, WorkflowQueryService>();
+builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJefesConfigService,
+                       Lefarma.API.Features.Config.EmpleadoJefes.EmpleadoJefesConfigService>();
 
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
@@ -517,6 +520,12 @@ var archivosBasePath = builder.Configuration["ArchivosSettings:BasePath"]
     ?? Path.Combine(app.Environment.WebRootPath, "media", "archivos");
 
 // Static files for archivos (caratulas, etc.) under /api/media/archivos
+// Si la ruta no es absoluta, resolverla respecto al ContentRootPath
+if (!Path.IsPathRooted(archivosBasePath))
+{
+    archivosBasePath = Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, archivosBasePath));
+}
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(archivosBasePath),

@@ -19,6 +19,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdPasoActual { get; set; }
         public string? PasoActual { get; set; }
         public int IdUsuarioCreador { get; set; }
+        public string? CreadorNombre { get; set; }
+        public int? IdUsuarioSolicitante { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
 
@@ -47,6 +49,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdEstado { get; set; }
         public bool VerTodas { get; set; }
         public int? IdUsuarioCreador { get; set; }
+        public int? IdUsuarioSolicitante { get; set; }
         public int? IdTipoSolicitud { get; set; }
         public string? Categoria { get; set; }
         public string? Estados { get; set; }
@@ -61,6 +64,15 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public string? OrderDirection { get; set; } = "asc";
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 20;
+
+        // Filtros adicionales estilo incidencias de checado
+        public string? Periodo { get; set; }
+        public DateTime? FechaInicio { get; set; }
+        public DateTime? FechaFin { get; set; }
+        public long? Nomina { get; set; }
+        public string? Nombre { get; set; }
+        public string? Departamento { get; set; }
+        public string? Puesto { get; set; }
     }
     public class CreateSolicitudPersonalRequest
     {
@@ -69,6 +81,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int IdSucursal { get; set; }
         public int IdArea { get; set; }
         public int IdTipoSolicitud { get; set; }
+        public int? IdUsuarioSolicitante { get; set; }
         public string? Motivo { get; set; }
         public string? LugarComision { get; set; }
         public DateTime? FechaInicio { get; set; }

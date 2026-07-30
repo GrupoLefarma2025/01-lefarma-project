@@ -146,6 +146,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int IdArea { get; set; }
         public string? AreaNombre { get; set; }
         public int IdUsuarioCreador { get; set; }
+        public int? IdUsuarioSolicitante { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? GrupoClave { get; set; }
         public string? GrupoNombre { get; set; }

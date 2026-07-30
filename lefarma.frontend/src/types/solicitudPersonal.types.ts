@@ -25,6 +25,7 @@ export interface CreateSolicitudPersonalRequest {
   idSucursal: number;
   idArea?: number | null;
   idTipoSolicitud: number;
+  idUsuarioSolicitante?: number | null;
   motivo?: string | null;
   lugarComision?: string | null;
   fechaInicio?: string | null;
@@ -56,6 +57,8 @@ export interface SolicitudPersonalResponse {
   idPasoActual?: number;
   pasoActual?: string;
   idUsuarioCreador: number;
+  creadorNombre?: string;
+  idUsuarioSolicitante?: number;
   solicitanteNombre?: string;
   solicitantePuesto?: string;
   idTipoSolicitud: number;
@@ -189,6 +192,7 @@ export interface CalendarioGlobalEvento {
   idArea: number;
   areaNombre?: string | null;
   idUsuarioCreador: number;
+  idUsuarioSolicitante?: number;
   solicitanteNombre?: string | null;
   grupoClave?: string | null;
   grupoNombre?: string | null;
@@ -231,6 +235,21 @@ export interface CalendarioLaboralRequest {
   dia?: number;
   laborable?: boolean;
   excluirSabados?: boolean;
+}
+
+export interface DiasJornadaRequest {
+  anio: number;
+  mes: number;
+}
+
+export interface DiasJornadaResponse {
+  lunes: boolean;
+  martes: boolean;
+  miercoles: boolean;
+  jueves: boolean;
+  viernes: boolean;
+  sabado: boolean;
+  domingo: boolean;
 }
 
 export interface IncidenciasChecadoConsultaRequest {
@@ -345,6 +364,8 @@ export interface NotificarIncidenciasResumenRequest {
   asunto: string;
   mensaje: string;
   listadoRowHtml?: string | null;
+  selectedUserIds?: number[];
+  copiarAUsuarioIncidencia?: boolean;
 }
 
 export interface NotificarIncidenciasResumenResponse {
@@ -359,6 +380,8 @@ export interface SolicitudPersonalFilterParams {
   idTipoSolicitud?: number;
   categoria?: string;
   idUsuarioCreador?: number;
+  idUsuarioSolicitante?: number;
+  idEstado?: number;
   estados?: string;
   idsEstados?: string;
   busqueda?: string;
@@ -371,4 +394,13 @@ export interface SolicitudPersonalFilterParams {
   max?: number;
   orderBy?: string;
   orderDirection?: string;
+  // Filtros estilo incidencias de checado
+  periodo?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  nomina?: number;
+  nombre?: string;
+  empresa?: string;
+  departamento?: string;
+  puesto?: string;
 }

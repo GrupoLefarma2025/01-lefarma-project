@@ -37,10 +37,11 @@ import {
 } from '@/types/solicitudPersonal.types';
 import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { WorkflowEstado } from '@/types/workflow.types';
-import type { Empresa, Sucursal, Area } from '@/types/catalogo.types';
+import type { Empresa, Sucursal } from '@/types/catalogo.types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
+import { calcularRangoPeriodo, PERIODOS } from '@/utils/date';
 import {
   FileText,
   Paperclip,
@@ -54,15 +55,15 @@ import {
 
 const NONE_VALUE = 'none';
 
-type VistaKey = 'ninguna' | 'empresa' | 'sucursal' | 'area' | 'tipo' | 'usuario' | 'estado';
+type VistaKey = 'ninguna' | 'empresa' | 'sucursal' | 'tipo' | 'solicitante' | 'creador' | 'estado';
 
 const VISTAS: Array<{ value: VistaKey; label: string }> = [
   { value: 'ninguna', label: 'Sin agrupación' },
   { value: 'empresa', label: 'Empresa' },
   { value: 'sucursal', label: 'Sucursal' },
-  { value: 'area', label: 'Área' },
   { value: 'tipo', label: 'Tipo de solicitud' },
-  { value: 'usuario', label: 'Usuario creador' },
+  { value: 'solicitante', label: 'Solicitante' },
+  { value: 'creador', label: 'Creado por' },
   { value: 'estado', label: 'Estado' },
 ];
 
@@ -71,36 +72,36 @@ type SelectValue = number | typeof NONE_VALUE;
 interface Filters {
   idEmpresa: SelectValue;
   idSucursal: SelectValue;
-  idArea: SelectValue;
   idTipoSolicitud: SelectValue;
   categoria: string;
   idUsuarioCreador: SelectValue;
+  idUsuarioSolicitante: SelectValue;
   idsEstados: number[];
-  fechaCreacionDesde: string | null;
-  fechaCreacionHasta: string | null;
-  fechaDiasDesde: string | null;
-  fechaDiasHasta: string | null;
+  periodo: string;
+  fechaInicio: string;
+  fechaFin: string;
   busqueda: string;
 }
+
+const rangoInicial = calcularRangoPeriodo('esta-quincena');
 
 const initialFilters: Filters = {
   idEmpresa: NONE_VALUE,
   idSucursal: NONE_VALUE,
-  idArea: NONE_VALUE,
   idTipoSolicitud: NONE_VALUE,
   categoria: NONE_VALUE,
   idUsuarioCreador: NONE_VALUE,
+  idUsuarioSolicitante: NONE_VALUE,
   idsEstados: [],
-  fechaCreacionDesde: null,
-  fechaCreacionHasta: null,
-  fechaDiasDesde: null,
-  fechaDiasHasta: null,
+  periodo: 'esta-quincena',
+  fechaInicio: rangoInicial.fechaInicio,
+  fechaFin: rangoInicial.fechaFin,
   busqueda: '',
 };
 
 export default function GestionSolicitudes() {
   usePageTitle('Gestión de Solicitudes', 'Gestión y filtrado avanzado de solicitudes de personal');
-  const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
+  const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas_solicitudes' });
 
   const {
     fetchDetalleCompleto,
@@ -128,7 +129,6 @@ export default function GestionSolicitudes() {
 
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
   const [tipos, setTipos] = useState<TipoSolicitudResponse[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
@@ -197,10 +197,9 @@ export default function GestionSolicitudes() {
     const loadCatalogs = async () => {
       setLoadingCatalogs(true);
       try {
-        const [empRes, sucRes, areaRes, tipoRes, estadosData] = await Promise.all([
+        const [empRes, sucRes, tipoRes, estadosData] = await Promise.all([
           API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas'),
           API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales'),
-          API.get<ApiResponse<Area[]>>('/catalogos/Areas'),
           tipoSolicitudApi.getActivos(),
           fetchWorkflowEstados(),
           usuariosCatalogoApi.getAll().then((u) => setUsuarios(u)),
@@ -208,7 +207,6 @@ export default function GestionSolicitudes() {
 
         if (empRes.data.success) setEmpresas(empRes.data.data ?? []);
         if (sucRes.data.success) setSucursales(sucRes.data.data ?? []);
-        if (areaRes.data.success) setAreas(areaRes.data.data ?? []);
         if (tipoRes.data.success) setTipos(tipoRes.data.data ?? []);
         setWorkflowEstados(estadosData);
       } catch {
@@ -224,19 +222,6 @@ export default function GestionSolicitudes() {
     if (filters.idEmpresa === NONE_VALUE) return sucursales;
     return sucursales.filter((s) => Number(s.idEmpresa) === filters.idEmpresa);
   }, [sucursales, filters.idEmpresa]);
-
-  const areasFiltradas = useMemo(() => {
-    let list = areas;
-    if (filters.idEmpresa !== NONE_VALUE) {
-      list = list.filter((a) => Number(a.idEmpresa) === filters.idEmpresa);
-    }
-    if (filters.idSucursal !== NONE_VALUE) {
-      list = list.filter(
-        (a) => a.idSucursal == null || Number(a.idSucursal) === filters.idSucursal
-      );
-    }
-    return list;
-  }, [areas, filters.idEmpresa, filters.idSucursal]);
 
   const buscar = useCallback(async () => {
     if (!puedeVerTodas) {
@@ -254,17 +239,17 @@ export default function GestionSolicitudes() {
       };
       if (filters.idEmpresa !== NONE_VALUE) params.idEmpresa = filters.idEmpresa;
       if (filters.idSucursal !== NONE_VALUE) params.idSucursal = filters.idSucursal;
-      if (filters.idArea !== NONE_VALUE) params.idArea = filters.idArea;
       if (filters.idTipoSolicitud !== NONE_VALUE) params.idTipoSolicitud = filters.idTipoSolicitud;
       if (filters.categoria !== NONE_VALUE) params.categoria = filters.categoria;
       if (filters.idUsuarioCreador !== NONE_VALUE)
         params.idUsuarioCreador = filters.idUsuarioCreador;
+      if (filters.idUsuarioSolicitante !== NONE_VALUE)
+        params.idUsuarioSolicitante = filters.idUsuarioSolicitante;
       if (filters.idsEstados.length > 0) params.idsEstados = filters.idsEstados.join(',');
       if (filters.busqueda.trim()) params.busqueda = filters.busqueda.trim();
-      if (filters.fechaCreacionDesde) params.fechaCreacionDesde = filters.fechaCreacionDesde;
-      if (filters.fechaCreacionHasta) params.fechaCreacionHasta = filters.fechaCreacionHasta;
-      if (filters.fechaDiasDesde) params.fechaDiasDesde = filters.fechaDiasDesde;
-      if (filters.fechaDiasHasta) params.fechaDiasHasta = filters.fechaDiasHasta;
+      if (filters.periodo) params.periodo = filters.periodo;
+      if (filters.fechaInicio) params.fechaInicio = filters.fechaInicio;
+      if (filters.fechaFin) params.fechaFin = filters.fechaFin;
 
       const response = await solicitudesPersonalApi.getAll(params);
       if (response.data.success) {
@@ -287,16 +272,15 @@ export default function GestionSolicitudes() {
   }, [
     filters.idEmpresa,
     filters.idSucursal,
-    filters.idArea,
     filters.idTipoSolicitud,
     filters.categoria,
     filters.idUsuarioCreador,
+    filters.idUsuarioSolicitante,
     filters.idsEstados,
     filters.busqueda,
-    filters.fechaCreacionDesde,
-    filters.fechaCreacionHasta,
-    filters.fechaDiasDesde,
-    filters.fechaDiasHasta,
+    filters.periodo,
+    filters.fechaInicio,
+    filters.fechaFin,
     pagination,
     puedeVerTodas,
   ]);
@@ -319,7 +303,6 @@ export default function GestionSolicitudes() {
       ...prev,
       idEmpresa,
       idSucursal: NONE_VALUE,
-      idArea: NONE_VALUE,
     }));
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   };
@@ -329,7 +312,6 @@ export default function GestionSolicitudes() {
     setFilters((prev) => ({
       ...prev,
       idSucursal,
-      idArea: NONE_VALUE,
     }));
     setPagination((prev) => ({ ...prev, pageIndex: 0 }));
   };
@@ -386,12 +368,12 @@ export default function GestionSolicitudes() {
           return s.empresaNombre ?? `Empresa ${s.idEmpresa}`;
         case 'sucursal':
           return s.sucursalNombre ?? `Sucursal ${s.idSucursal}`;
-        case 'area':
-          return s.areaNombre ?? `Área ${s.idArea}`;
         case 'tipo':
           return s.tipoSolicitudNombre ?? `Tipo ${s.idTipoSolicitud}`;
-        case 'usuario':
-          return s.solicitanteNombre ?? `Usuario ${s.idUsuarioCreador}`;
+        case 'solicitante':
+          return s.solicitanteNombre ?? `Solicitante ${s.idUsuarioSolicitante ?? s.idUsuarioCreador}`;
+        case 'creador':
+          return s.creadorNombre ?? `Creador ${s.idUsuarioCreador}`;
         case 'estado':
           return s.estadoNombre ?? `Estado ${s.idEstado}`;
         default:
@@ -459,22 +441,37 @@ export default function GestionSolicitudes() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Área</label>
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
               <Select
-                value={String(filters.idArea)}
-                onValueChange={(v) =>
-                  setFilterAndResetPage('idArea', v === NONE_VALUE ? NONE_VALUE : Number(v))
-                }
-                disabled={loadingCatalogs || filters.idSucursal === NONE_VALUE}
+                value={filters.periodo}
+                onValueChange={(v) => {
+                  if (v !== 'personalizado') {
+                    const rango = calcularRangoPeriodo(v);
+                    setFilters((prev) => ({
+                      ...prev,
+                      periodo: v,
+                      fechaInicio: rango.fechaInicio,
+                      fechaFin: rango.fechaFin,
+                    }));
+                  } else {
+                    setFilters((prev) => ({
+                      ...prev,
+                      periodo: v,
+                      fechaInicio: '',
+                      fechaFin: '',
+                    }));
+                  }
+                  setPagination((prev) => ({ ...prev, pageIndex: 0 }));
+                }}
+                disabled={loadingCatalogs}
               >
                 <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Todas" />
+                  <SelectValue placeholder="Selecciona un período" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE_VALUE}>Todas</SelectItem>
-                  {areasFiltradas.map((a) => (
-                    <SelectItem key={a.idArea} value={String(a.idArea)}>
-                      {a.nombre}
+                  {PERIODOS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -508,6 +505,27 @@ export default function GestionSolicitudes() {
             </div>
           </div>
 
+          {filters.periodo === 'personalizado' && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Fecha inicio</label>
+                <DatePicker
+                  value={filters.fechaInicio}
+                  onChange={(v) => setFilterAndResetPage('fechaInicio', v ?? '')}
+                  placeholder="Fecha inicio"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Fecha fin</label>
+                <DatePicker
+                  value={filters.fechaFin}
+                  onChange={(v) => setFilterAndResetPage('fechaFin', v ?? '')}
+                  placeholder="Fecha fin"
+                />
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Categoría</label>
@@ -537,6 +555,32 @@ export default function GestionSolicitudes() {
                 onValueChange={(v) =>
                   setFilterAndResetPage(
                     'idUsuarioCreador',
+                    v === NONE_VALUE ? NONE_VALUE : Number(v)
+                  )
+                }
+                disabled={loadingCatalogs}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_VALUE}>Todos</SelectItem>
+                  {usuarios.map((u) => (
+                    <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>
+                      {u.nombreCompleto || u.samAccountName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Solicitante</label>
+              <Select
+                value={String(filters.idUsuarioSolicitante)}
+                onValueChange={(v) =>
+                  setFilterAndResetPage(
+                    'idUsuarioSolicitante',
                     v === NONE_VALUE ? NONE_VALUE : Number(v)
                   )
                 }
@@ -622,45 +666,6 @@ export default function GestionSolicitudes() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Creación desde</label>
-              <DatePicker
-                value={filters.fechaCreacionDesde}
-                onChange={(v) => setFilterAndResetPage('fechaCreacionDesde', v)}
-                placeholder="Fecha inicio"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Creación hasta</label>
-              <DatePicker
-                value={filters.fechaCreacionHasta}
-                onChange={(v) => setFilterAndResetPage('fechaCreacionHasta', v)}
-                placeholder="Fecha fin"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Días solicitados desde
-              </label>
-              <DatePicker
-                value={filters.fechaDiasDesde}
-                onChange={(v) => setFilterAndResetPage('fechaDiasDesde', v)}
-                placeholder="Fecha inicio"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">
-                Días solicitados hasta
-              </label>
-              <DatePicker
-                value={filters.fechaDiasHasta}
-                onChange={(v) => setFilterAndResetPage('fechaDiasHasta', v)}
-                placeholder="Fecha fin"
-              />
-            </div>
-          </div>
-
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={limpiar} disabled={loading}>
               <RotateCcw className="mr-1.5 h-4 w-4" />
@@ -669,6 +674,10 @@ export default function GestionSolicitudes() {
             <Button
               size="sm"
               onClick={() => {
+                if (filters.periodo === 'personalizado' && (!filters.fechaInicio || !filters.fechaFin)) {
+                  toast.error('Selecciona la fecha de inicio y la fecha de fin.');
+                  return;
+                }
                 setFilters((prev) => ({ ...prev, busqueda: busquedaServer }));
                 setPagination((prev) => ({ ...prev, pageIndex: 0 }));
               }}
