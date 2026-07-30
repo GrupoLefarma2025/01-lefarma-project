@@ -1,6 +1,6 @@
 # Lefarma Project Installation Script
 # Installs all dependencies required to run the project
-
+# mini cambio para validar y probar ramas
 $ErrorActionPreference = "Stop"
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
