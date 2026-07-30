@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, FileText, Paperclip, History } from 'lucide-react';
+import { Plus, FileText, Paperclip, History, RotateCcw, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { useSolicitudesAutorizaciones, isEstadoTerminal } from '@/hooks/useSolicitudes';
@@ -19,43 +20,18 @@ import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
 import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
 import { CrearSolicitud } from '../components/CrearSolicitud';
-import { useWorkflowEstados } from '@/hooks/useWorkflowEstados';
-import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
+import { API } from '@/shared/api/apiClient';
+import { ApiResponse } from '@/types/api.types';
+import type { WorkflowEstado } from '@/types/workflow.types';
+import type { SolicitudPersonalResponse, SolicitudPersonalFilterParams } from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
+import { calcularRangoPeriodo, PERIODOS } from '@/utils/date';
 
-function BuscadorTab({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="relative mb-3 w-full">
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="h-10 w-full rounded-md border border-input bg-background pl-9 pr-3 text-sm shadow-sm outline-none placeholder:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
-      />
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-      >
-        <circle cx="11" cy="11" r="8" />
-        <path d="m21 21-4.3-4.3" />
-      </svg>
-    </div>
-  );
+interface Filters {
+  periodo: string;
+  fechaInicio: string;
+  fechaFin: string;
+  estado: string;
 }
 
 export default function SolicitudesPersonal() {
@@ -63,13 +39,11 @@ export default function SolicitudesPersonal() {
     'Solicitudes de Personal',
     'Solicitudes de personal para autorización y seguimiento'
   );
-  const puedeVerTodas = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
-  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
+  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas_solicitudes' });
   const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const {
     solicitudesPropias,
-    solicitudesTodas,
     loading,
     fetchAll,
     selectedSolicitud,
@@ -88,18 +62,59 @@ export default function SolicitudesPersonal() {
     isSubmittingFirma,
   } = useSolicitudesAutorizaciones();
 
-  const [tab, setTab] = useState<'pendientes' | 'mias' | 'todas'>('pendientes');
-  const [searchPendientes, setSearchPendientes] = useState('');
-  const [searchMias, setSearchMias] = useState('');
-  const [searchTodas, setSearchTodas] = useState('');
-  const [estadoFilter, setEstadoFilter] = useState<string>('all');
-  const [creadorFilter, setCreadorFilter] = useState<number | 'all'>('all');
-  const { estados: workflowEstados } = useWorkflowEstados();
+  const rangoInicial = useMemo(() => calcularRangoPeriodo('esta-quincena'), []);
+
+  const initialFilters: Filters = {
+    periodo: 'esta-quincena',
+    fechaInicio: rangoInicial.fechaInicio,
+    fechaFin: rangoInicial.fechaFin,
+    estado: 'all',
+  };
+
+  const [tab, setTab] = useState<'pendientes' | 'mias'>('pendientes');
+  const [draftFiltersByTab, setDraftFiltersByTab] = useState<
+    Record<'pendientes' | 'mias', Filters>
+  >({
+    pendientes: initialFilters,
+    mias: initialFilters,
+  });
+  const [appliedFiltersByTab, setAppliedFiltersByTab] = useState<
+    Record<'pendientes' | 'mias', Filters>
+  >({
+    pendientes: initialFilters,
+    mias: initialFilters,
+  });
+  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+
+  const draftFilters = draftFiltersByTab[tab];
+  const appliedFilters = appliedFiltersByTab[tab];
+
+  const buildApiFilters = useCallback((filters: Filters): SolicitudPersonalFilterParams => {
+    const params: SolicitudPersonalFilterParams = {
+      periodo: filters.periodo,
+      fechaInicio: filters.fechaInicio,
+      fechaFin: filters.fechaFin,
+    };
+
+    if (filters.estado !== 'all') {
+      params.idEstado = Number(filters.estado);
+    }
+
+    return params;
+  }, []);
 
   useEffect(() => {
-    fetchAll(puedeVerTodas);
+    fetchAll(false, buildApiFilters(appliedFilters));
     fetchProfileSignature();
-  }, [puedeVerTodas, fetchAll, fetchProfileSignature]);
+
+    API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
+      .then((estadosRes) => {
+        if (estadosRes.data.success) setWorkflowEstados(estadosRes.data.data || []);
+      })
+      .catch(() => {
+        setWorkflowEstados([]);
+      });
+  }, [appliedFilters, fetchAll, fetchProfileSignature, buildApiFilters]);
 
   const [modalStates, setModalStates] = useState({
     detalle: false,
@@ -187,32 +202,37 @@ export default function SolicitudesPersonal() {
     toggleModal('crear', true);
   };
 
-  const allSolicitudes = useMemo(
-    () =>
-      Array.from(
-        new Map(
-          [...solicitudesPropias, ...solicitudesTodas].map((s) => [s.idSolicitud, s])
-        ).values()
-      ),
-    [solicitudesPropias, solicitudesTodas]
-  );
+  const updateDraft = <K extends keyof Filters>(key: K, value: Filters[K]) => {
+    setDraftFiltersByTab((prev) => {
+      const next = { ...prev[tab], [key]: value };
+      if (key === 'periodo' && value !== 'personalizado') {
+        const rango = calcularRangoPeriodo(value as string);
+        next.fechaInicio = rango.fechaInicio;
+        next.fechaFin = rango.fechaFin;
+      }
+      return { ...prev, [tab]: next };
+    });
+  };
+
+  const handleBuscar = () => {
+    if (draftFilters.periodo === 'personalizado') {
+      if (!draftFilters.fechaInicio || !draftFilters.fechaFin) {
+        toast.error('Selecciona la fecha de inicio y la fecha de fin.');
+        return;
+      }
+    }
+    setAppliedFiltersByTab((prev) => ({ ...prev, [tab]: draftFilters }));
+  };
+
+  const handleLimpiar = () => {
+    setDraftFiltersByTab((prev) => ({ ...prev, [tab]: initialFilters }));
+    setAppliedFiltersByTab((prev) => ({ ...prev, [tab]: initialFilters }));
+  };
 
   const estados = useMemo(() => {
     const values = workflowEstados.filter((e) => e.activo).sort((a, b) => a.idEstado - b.idEstado);
     return ['all', ...values.map((e) => String(e.idEstado))];
   }, [workflowEstados]);
-
-  const creadores = useMemo(() => {
-    const map = new Map<number, string>();
-    allSolicitudes.forEach((s) => {
-      if (s.idUsuarioCreador && s.solicitanteNombre) {
-        map.set(s.idUsuarioCreador, s.solicitanteNombre);
-      }
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([id, nombre]) => ({ id, nombre }));
-  }, [allSolicitudes]);
 
   const getEstadoInfoById = (idEstado: number | null | undefined) => {
     if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
@@ -228,24 +248,6 @@ export default function SolicitudesPersonal() {
     () => solicitudesPropias.filter((s) => isEstadoTerminal(s.estadoNombre)),
     [solicitudesPropias]
   );
-
-  const applyFilters = (list: SolicitudPersonalResponse[], q: string) => {
-    const term = q.trim().toLowerCase();
-    return list.filter((s) => {
-      const matchSearch =
-        term.length === 0 ||
-        s.folio.toLowerCase().includes(term) ||
-        (s.solicitanteNombre ?? '').toLowerCase().includes(term) ||
-        (s.tipoSolicitudNombre ?? '').toLowerCase().includes(term);
-      const matchEstado = estadoFilter === 'all' || s.idEstado === Number(estadoFilter);
-      const matchCreador = creadorFilter === 'all' || s.idUsuarioCreador === creadorFilter;
-      return matchSearch && matchEstado && matchCreador;
-    });
-  };
-
-  const filteredPendientes = applyFilters(solicitudesPendientes, searchPendientes);
-  const filteredMias = applyFilters(solicitudesMias, searchMias);
-  const filteredTodas = applyFilters(solicitudesTodas, searchTodas);
 
   const handleOpenDetalle = (s: SolicitudPersonalResponse) => {
     selectSolicitud(s.idSolicitud);
@@ -293,25 +295,19 @@ export default function SolicitudesPersonal() {
     onEditar: handleOpenEditar,
   };
 
-    return (
+  return (
     <div className="w-full space-y-6">
-      {puedeVerTodas && (
-        <p className="text-xs text-muted-foreground">
-          Tienes permiso para ver todas las solicitudes.
-        </p>
-      )}
-
       {hasFirma === false && <SignatureAlert />}
 
       <LimitesSolicitudCard titulo="Mis límites y saldo de vacaciones" />
 
       <Tabs
         value={tab}
-        onValueChange={(v) => setTab(v as 'pendientes' | 'mias' | 'todas')}
+        onValueChange={(v) => setTab(v as 'pendientes' | 'mias')}
         className="w-full"
       >
         <TabsList
-          className={`grid h-12 w-full max-w-2xl ${puedeVerTodas ? 'grid-cols-3' : 'grid-cols-2'} border bg-background p-1`}
+          className="grid h-12 w-full max-w-2xl grid-cols-2 border bg-background p-1"
         >
           <TabsTrigger
             value="pendientes"
@@ -319,7 +315,7 @@ export default function SolicitudesPersonal() {
           >
             Pendientes
             <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
-              {filteredPendientes.length}
+              {solicitudesPendientes.length}
             </span>
           </TabsTrigger>
           <TabsTrigger
@@ -328,193 +324,123 @@ export default function SolicitudesPersonal() {
           >
             Mis solicitudes
             <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
-              {filteredMias.length}
+              {solicitudesMias.length}
             </span>
           </TabsTrigger>
-          {puedeVerTodas && (
-            <TabsTrigger
-              value="todas"
-              className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-            >
-              Todas
-              <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
-                {filteredTodas.length}
-              </span>
-            </TabsTrigger>
-          )}
         </TabsList>
 
-        <TabsContent value="pendientes" className="mt-3 w-full">
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="relative md:col-span-2">
-              <BuscadorTab
-                value={searchPendientes}
-                onChange={setSearchPendientes}
-                placeholder="Buscar por folio, solicitante o tipo"
-              />
-            </div>
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              value={estadoFilter}
-              onChange={(e) => setEstadoFilter(e.target.value)}
-            >
-              {estados.map((e) => (
-                <option key={e} value={e}>
-                  {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
-                </option>
-              ))}
-            </select>
-            {puedeVerTodas && (
+        <div className="mt-3 space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
               <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={creadorFilter}
-                onChange={(e) =>
-                  setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                }
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={draftFilters.periodo}
+                onChange={(e) => updateDraft('periodo', e.target.value)}
               >
-                <option value="all">Todos los creadores</option>
-                {creadores.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
+                {PERIODOS.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
                   </option>
                 ))}
               </select>
+            </div>
+
+            {draftFilters.periodo === 'personalizado' && (
+              <>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Fecha inicio</label>
+                  <Input
+                    type="date"
+                    value={draftFilters.fechaInicio}
+                    onChange={(e) => updateDraft('fechaInicio', e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Fecha fin</label>
+                  <Input
+                    type="date"
+                    value={draftFilters.fechaFin}
+                    onChange={(e) => updateDraft('fechaFin', e.target.value)}
+                    className="h-10"
+                  />
+                </div>
+              </>
+            )}
+
+            {tab === 'mias' && (
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Estado</label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={draftFilters.estado}
+                  onChange={(e) => updateDraft('estado', e.target.value)}
+                >
+                  {estados.map((e) => (
+                    <option key={e} value={e}>
+                      {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
-          <div className="mb-3 flex justify-end">
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleLimpiar} disabled={loading}>
+                <RotateCcw className="mr-1.5 h-4 w-4" />
+                Limpiar filtros
+              </Button>
+              <Button size="sm" onClick={handleBuscar} disabled={loading}>
+                {loading ? (
+                  'Buscando...'
+                ) : (
+                  <>
+                    <Search className="mr-1.5 h-4 w-4" />
+                    Buscar
+                  </>
+                )}
+              </Button>
+            </div>
             <Button onClick={handleOpenCrear} className="gap-1.5">
               <Plus className="h-4 w-4" />
               Crear solicitud
             </Button>
           </div>
+        </div>
+
+        <TabsContent value="pendientes" className="mt-3 w-full">
           <SolicitudesTable
-            data={filteredPendientes}
+            data={solicitudesPendientes}
             loading={loading}
             title="Solicitudes pendientes"
             subtitle="Solicitudes que aún no se cierran, cancelan o rechazan"
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
             showImprimir={false}
-            onRefresh={() => fetchAll(puedeVerTodas)}
+            onRefresh={() => fetchAll(false, buildApiFilters(appliedFilters))}
             puedeEditar={puedeEditar}
+            globalFilter={true}
           />
         </TabsContent>
 
         <TabsContent value="mias" className="mt-3 w-full">
-          <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <div className="relative md:col-span-2">
-              <BuscadorTab
-                value={searchMias}
-                onChange={setSearchMias}
-                placeholder="Buscar por folio, solicitante o tipo"
-              />
-            </div>
-            <select
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-              value={estadoFilter}
-              onChange={(e) => setEstadoFilter(e.target.value)}
-            >
-              {estados.map((e) => (
-                <option key={e} value={e}>
-                  {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
-                </option>
-              ))}
-            </select>
-            {puedeVerTodas && (
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={creadorFilter}
-                onChange={(e) =>
-                  setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                }
-              >
-                <option value="all">Todos los creadores</option>
-                {creadores.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          <div className="mb-3 flex justify-end">
-            <Button onClick={handleOpenCrear} className="gap-1.5">
-              <Plus className="h-4 w-4" />
-              Crear solicitud
-            </Button>
-          </div>
           <SolicitudesTable
-            data={filteredMias}
+            data={solicitudesMias}
             loading={loading}
             title="Mis solicitudes terminadas"
             subtitle="Cerradas, canceladas o rechazadas"
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
-            onRefresh={() => fetchAll(puedeVerTodas)}
+            onRefresh={() => fetchAll(false, buildApiFilters(appliedFilters))}
             showFirma={false}
             showEditar={false}
             puedeEditar={puedeEditar}
+            globalFilter={true}
           />
         </TabsContent>
-
-        {puedeVerTodas && (
-          <TabsContent value="todas" className="mt-3 w-full">
-            <div className="mb-3 grid grid-cols-1 gap-3 md:grid-cols-4">
-              <div className="relative md:col-span-2">
-                <BuscadorTab
-                  value={searchTodas}
-                  onChange={setSearchTodas}
-                  placeholder="Buscar por folio, solicitante o tipo"
-                />
-              </div>
-              <select
-                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                value={estadoFilter}
-                onChange={(e) => setEstadoFilter(e.target.value)}
-              >
-                {estados.map((e) => (
-                  <option key={e} value={e}>
-                    {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
-                  </option>
-                ))}
-              </select>
-              {puedeVerTodas && (
-                <select
-                  className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  value={creadorFilter}
-                  onChange={(e) =>
-                    setCreadorFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))
-                  }
-                >
-                  <option value="all">Todos los creadores</option>
-                  {creadores.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nombre}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-            <div className="mb-3 flex justify-end">
-              <Button onClick={handleOpenCrear} className="gap-1.5">
-                <Plus className="h-4 w-4" />
-                Crear solicitud
-              </Button>
-            </div>
-            <SolicitudesTable
-              data={filteredTodas}
-              loading={loading}
-              title="Todas las solicitudes"
-              subtitle="Listado completo sin filtros de estado"
-              getEstadoInfo={getEstadoInfo}
-              {...accionesBoton}
-              onRefresh={() => fetchAll(puedeVerTodas)}
-              showFirma={false}
-              showEditar={false}
-              puedeEditar={puedeEditar}
-            />
-          </TabsContent>
-        )}
       </Tabs>
 
       <Modal
@@ -555,7 +481,7 @@ export default function SolicitudesPersonal() {
         solicitud={selectedSolicitud}
         acciones={acciones}
         getEstadoInfo={getEstadoInfo}
-        onFirmar={(req) => firmar(req, puedeVerTodas)}
+        onFirmar={(req) => firmar(req, false, buildApiFilters(appliedFilters))}
         isSubmittingFirma={isSubmittingFirma}
         hasFirma={hasFirma ?? true}
       />
@@ -641,7 +567,7 @@ export default function SolicitudesPersonal() {
           key={solicitudEnEdicion ?? 'new'}
           idSolicitud={solicitudEnEdicion ?? undefined}
           onClose={() => closeModal('crear')}
-          onSaved={() => fetchAll(puedeVerTodas)}
+          onSaved={() => fetchAll(false)}
         />
       </Modal>
 

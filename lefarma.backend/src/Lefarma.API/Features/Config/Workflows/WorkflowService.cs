@@ -1,5 +1,6 @@
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Config.Workflows.DTOs;
@@ -56,6 +57,12 @@ public class WorkflowService : BaseService, IWorkflowService
                     .Select(g => new { IdWorkflow = g.Key, Count = g.Count() })
                     .ToDictionaryAsync(x => x.IdWorkflow, x => x.Count);
 
+                var jefesExcluidosPorWorkflow = await _context.WorkflowJefesExcluidos
+                    .Where(x => workflowIds.Contains(x.IdWorkflow) && x.Activo)
+                    .GroupBy(x => x.IdWorkflow)
+                    .Select(g => new { IdWorkflow = g.Key, Ids = g.Select(x => x.IdUsuarioJefe).ToList() })
+                    .ToDictionaryAsync(x => x.IdWorkflow, x => x.Ids);
+
                 var campos = await _repo.GetCamposAsync();
 
                 var response = items.Select(w => {
@@ -63,6 +70,10 @@ public class WorkflowService : BaseService, IWorkflowService
                     if (mappingsCounts.TryGetValue(w.IdWorkflow, out var count))
                     {
                         r.Stats!.TotalMappings = count;
+                    }
+                    if (jefesExcluidosPorWorkflow.TryGetValue(w.IdWorkflow, out var idsExcluidos))
+                    {
+                        r.IdUsuariosJefeExcluidos = idsExcluidos;
                     }
                     return r;
                 }).ToList();
@@ -221,6 +232,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 var usuarios = await _asokamContext.Usuarios.ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto);
                 //var tiposGasto = await _context.TipoGasto.ToDictionaryAsync(t => t.IdTipoGasto, t => t.Nombre);
                 var proveedores = await _context.Proveedores.ToDictionaryAsync(p => p.IdProveedor, p => p.RazonSocial);
+                var tiposSolicitud = await _context.TiposSolicitud.ToDictionaryAsync(t => t.IdTipoSolicitud, t => t.Nombre);
 
 
                 var result = rawList.Select(m => new WorkflowMappingResponse
@@ -239,6 +251,8 @@ public class WorkflowService : BaseService, IWorkflowService
                             "AREA" => m.ScopeId.HasValue && areas.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             //"TIPO_GASTO" => m.ScopeId.HasValue && tiposGasto.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "PROVEEDOR" => m.ScopeId.HasValue && proveedores.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
+                            "CATEGORIA" => m.ScopeId.HasValue && Enum.IsDefined(typeof(CategoriaSolicitud), m.ScopeId.Value) ? ((CategoriaSolicitud)m.ScopeId.Value).ToString() : "N/A",
+                            "TIPO_SOLICITUD" => m.ScopeId.HasValue && tiposSolicitud.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "GLOBAL" or "DEFAULT" => "Todo el Sistema",
                             _ => $"ID: {m.ScopeId}"
                         },
@@ -523,6 +537,8 @@ public class WorkflowService : BaseService, IWorkflowService
                 paso.RequiereAdjunto = request.RequiereAdjunto;
                 paso.PermiteAdjunto = request.PermiteAdjunto;
 
+                await _repo.UpdateAsync(workflow);
+
                 var response = new WorkflowPasoResponse
                 {
                     IdPaso = paso.IdPaso,
@@ -572,12 +588,6 @@ public class WorkflowService : BaseService, IWorkflowService
                 {
                     EnrichWideEvent("CreatePaso", entityId: idWorkflow, notFound: true);
                     return CommonErrors.NotFound($"Workflow con ID {idWorkflow}");
-                }
-
-                if (request.IdEstado.HasValue
-                    && workflow.Pasos.Any(p => p.IdEstado == request.IdEstado))
-                {
-                    return CommonErrors.AlreadyExists("paso", "id_estado", request.IdEstado.ToString());
                 }
 
                 var paso = new WorkflowPaso
@@ -1170,6 +1180,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdRol = request.RequiereJefeInmediato ? null : request.IdRol,
                     IdUsuario = request.RequiereJefeInmediato ? null : request.IdUsuario,
                     RequiereJefeInmediato = request.RequiereJefeInmediato,
+                    NivelJefe = request.RequiereJefeInmediato ? (request.NivelJefe ?? 1) : null,
                     Activo = request.Activo
                 };
 
@@ -1232,6 +1243,7 @@ public class WorkflowService : BaseService, IWorkflowService
                 participante.IdRol = request.RequiereJefeInmediato ? null : request.IdRol;
                 participante.IdUsuario = request.RequiereJefeInmediato ? null : request.IdUsuario;
                 participante.RequiereJefeInmediato = request.RequiereJefeInmediato;
+                participante.NivelJefe = request.RequiereJefeInmediato ? (request.NivelJefe ?? 1) : null;
                 participante.Activo = request.Activo;
 
                 await _repo.UpdateAsync(workflow);
@@ -1243,6 +1255,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdRol = participante.IdRol,
                     IdUsuario = participante.IdUsuario,
                     RequiereJefeInmediato = participante.RequiereJefeInmediato,
+                    NivelJefe = participante.NivelJefe,
                     Activo = participante.Activo
                 };
 
@@ -1772,6 +1785,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     IdRol = pt.IdRol,
                     IdUsuario = pt.IdUsuario,
                     RequiereJefeInmediato = pt.RequiereJefeInmediato,
+                    NivelJefe = pt.NivelJefe,
                     Activo = pt.Activo
                 }).ToList()
             }).ToList(),

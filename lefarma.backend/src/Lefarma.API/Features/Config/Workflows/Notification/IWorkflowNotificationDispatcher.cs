@@ -22,6 +22,7 @@ public interface IWorkflowNotificationDispatcher
     /// <param name="idUsuarioActual">Usuario que ejecutó la acción.</param>
     /// <param name="comentario">Comentario capturado en el paso.</param>
     /// <param name="contenidoAdicionalHtml">HTML extra (ej: tabla de partidas de OC).</param>
+    /// <param name="idUsuarioSolicitante">Usuario beneficiario de la entidad (para resolver jefe inmediato).</param>
     Task DispatchAsync(
         WorkflowNotificacion? notificacion,
         string tipoEntidad,
@@ -33,5 +34,6 @@ public interface IWorkflowNotificationDispatcher
         int idUsuarioActual,
         string? comentario,
         string? contenidoAdicionalHtml = null,
+        int? idUsuarioSolicitante = null,
         CancellationToken ct = default);
 }

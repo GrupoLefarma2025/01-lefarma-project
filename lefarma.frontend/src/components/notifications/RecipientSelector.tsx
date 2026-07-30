@@ -3,7 +3,6 @@
  * Permite selección múltiple de usuarios y roles para envío de notificaciones
  */
 
-
 import { useState, useEffect } from 'react';
 import { Check, ChevronsUpDown, Users } from 'lucide-react';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -16,11 +15,7 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 
@@ -43,6 +38,7 @@ interface RecipientSelectorProps {
   onUserIdsChange: (userIds: number[]) => void;
   onRoleNamesChange: (roleNames: string[]) => void;
   disabled?: boolean;
+  showRoles?: boolean;
 }
 
 export function RecipientSelector({
@@ -51,6 +47,7 @@ export function RecipientSelector({
   onUserIdsChange,
   onRoleNamesChange,
   disabled = false,
+  showRoles = true,
 }: RecipientSelectorProps) {
   const { token } = useAuthStore();
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -63,7 +60,7 @@ export function RecipientSelector({
     const loadData = async () => {
       setLoading(true);
       try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5134/api';
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5134/api';
 
         // Cargar usuarios
         const usuariosRes = await fetch(`${apiUrl}/auth/usuarios`, {
@@ -94,7 +91,7 @@ export function RecipientSelector({
     };
 
     loadData();
-  }, []);
+  }, [token]);
 
   // Filtrar usuarios por búsqueda
   const filteredUsuarios = usuarios.filter(
@@ -131,22 +128,30 @@ export function RecipientSelector({
   const selectedUsuarioCount = selectedUserIds.length;
   const selectedRolCount = selectedRoleNames.length;
 
+  const selectedUsuarioNames = selectedUserIds
+    .map((id) => usuarios.find((u) => u.idUsuario === id)?.nombreCompleto)
+    .filter((name): name is string => !!name);
+
+  const selectedRolDisplayNames = selectedRoleNames
+    .map((name) => roles.find((r) => r.nombreRol === name)?.nombreRol)
+    .filter((name): name is string => !!name);
+
+  const usuariosLabel =
+    selectedUsuarioCount === 0 ? 'Seleccionar usuarios' : selectedUsuarioNames.join(', ');
+
+  const rolesLabel =
+    selectedRolCount === 0 ? 'Seleccionar roles' : selectedRolDisplayNames.join(', ');
+
   return (
     <div className="space-y-4">
       {/* Selector de Usuarios */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            disabled={disabled}
-            className="w-full justify-between"
-          >
-            <span className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>
-                {selectedUsuarioCount === 0
-                  ? 'Seleccionar usuarios'
-                  : `${selectedUsuarioCount} usuario${selectedUsuarioCount !== 1 ? 's' : ''}`}
+          <Button variant="outline" disabled={disabled} className="w-full justify-between">
+            <span className="flex min-w-0 items-center gap-2">
+              <Users className="h-4 w-4 shrink-0" />
+              <span className="truncate" title={usuariosLabel}>
+                {usuariosLabel}
               </span>
             </span>
             <ChevronsUpDown className="h-4 w-4 opacity-50" />
@@ -179,7 +184,7 @@ export function RecipientSelector({
                           <div
                             className={`h-4 w-4 rounded-sm border ${
                               selectedUserIds.includes(usuario.idUsuario)
-                                ? 'bg-primary border-primary'
+                                ? 'border-primary bg-primary'
                                 : 'border-muted'
                             }`}
                           >
@@ -188,12 +193,8 @@ export function RecipientSelector({
                             )}
                           </div>
                           <div className="flex-1">
-                            <div className="text-sm font-medium">
-                              {usuario.nombreCompleto}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {usuario.correo}
-                            </div>
+                            <div className="text-sm font-medium">{usuario.nombreCompleto}</div>
+                            <div className="text-xs text-muted-foreground">{usuario.correo}</div>
                           </div>
                         </div>
                       </CommandItem>
@@ -206,76 +207,74 @@ export function RecipientSelector({
         </PopoverContent>
       </Popover>
 
-      {/* Selector de Roles */}
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            disabled={disabled}
-            className="w-full justify-between"
-          >
-            <span className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>
-                {selectedRolCount === 0
-                  ? 'Seleccionar roles'
-                  : `${selectedRolCount} rol${selectedRolCount !== 1 ? 'es' : ''}`}
-              </span>
-            </span>
-            <ChevronsUpDown className="h-4 w-4 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-full p-0" align="start">
-          <Command>
-            <CommandInput
-              placeholder="Buscar roles por nombre..."
-              value={searchQuery}
-              onValueChange={setSearchQuery}
-            />
-            <CommandList>
-              <ScrollArea className="h-64">
-                {loading ? (
-                  <div className="py-6 text-center text-sm text-muted-foreground">
-                    Cargando roles...
-                  </div>
-                ) : filteredRoles.length === 0 ? (
-                  <CommandEmpty>No se encontraron roles</CommandEmpty>
-                ) : (
-                  <CommandGroup heading="Roles">
-                    {filteredRoles.map((rol) => (
-                      <CommandItem
-                        key={rol.idRol}
-                        onSelect={() => toggleRol(rol.nombreRol)}
-                        className="cursor-pointer"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div
-                            className={`h-4 w-4 rounded-sm border ${
-                              selectedRoleNames.includes(rol.nombreRol)
-                                ? 'bg-primary border-primary'
-                                : 'border-muted'
-                            }`}
+      {showRoles && (
+        <>
+          {/* Selector de Roles */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" disabled={disabled} className="w-full justify-between">
+                <span className="flex min-w-0 items-center gap-2">
+                  <Users className="h-4 w-4 shrink-0" />
+                  <span className="truncate" title={rolesLabel}>
+                    {rolesLabel}
+                  </span>
+                </span>
+                <ChevronsUpDown className="h-4 w-4 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-full p-0" align="start">
+              <Command>
+                <CommandInput
+                  placeholder="Buscar roles por nombre..."
+                  value={searchQuery}
+                  onValueChange={setSearchQuery}
+                />
+                <CommandList>
+                  <ScrollArea className="h-64">
+                    {loading ? (
+                      <div className="py-6 text-center text-sm text-muted-foreground">
+                        Cargando roles...
+                      </div>
+                    ) : filteredRoles.length === 0 ? (
+                      <CommandEmpty>No se encontraron roles</CommandEmpty>
+                    ) : (
+                      <CommandGroup heading="Roles">
+                        {filteredRoles.map((rol) => (
+                          <CommandItem
+                            key={rol.idRol}
+                            onSelect={() => toggleRol(rol.nombreRol)}
+                            className="cursor-pointer"
                           >
-                            {selectedRoleNames.includes(rol.nombreRol) && (
-                              <Check className="h-3 w-3 text-primary-foreground" />
-                            )}
-                          </div>
-                          <div className="flex-1">
-                            <div className="text-sm font-medium">{rol.nombreRol}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {rol.descripcion}
+                            <div className="flex items-center gap-2">
+                              <div
+                                className={`h-4 w-4 rounded-sm border ${
+                                  selectedRoleNames.includes(rol.nombreRol)
+                                    ? 'border-primary bg-primary'
+                                    : 'border-muted'
+                                }`}
+                              >
+                                {selectedRoleNames.includes(rol.nombreRol) && (
+                                  <Check className="h-3 w-3 text-primary-foreground" />
+                                )}
+                              </div>
+                              <div className="flex-1">
+                                <div className="text-sm font-medium">{rol.nombreRol}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {rol.descripcion}
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        </div>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                )}
-              </ScrollArea>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </ScrollArea>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </>
+      )}
 
       {/* Resumen de selección */}
       {(selectedUsuarioCount > 0 || selectedRolCount > 0) && (
@@ -285,7 +284,7 @@ export function RecipientSelector({
               {selectedUsuarioCount} usuario{selectedUsuarioCount !== 1 ? 's' : ''}
             </Badge>
           )}
-          {selectedRolCount > 0 && (
+          {selectedRolCount > 0 && showRoles && (
             <Badge variant="outline" className="text-xs">
               {selectedRolCount} rol{selectedRolCount !== 1 ? 'es' : ''}
             </Badge>

@@ -1,7 +1,11 @@
 import { useCallback, useMemo, useState } from 'react';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
-import type { PagedResult, SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
+import type {
+  PagedResult,
+  SolicitudPersonalResponse,
+  SolicitudPersonalFilterParams,
+} from '@/types/solicitudPersonal.types';
 import { toApiError } from '@/utils/errors';
 import { toast } from 'sonner';
 import type {
@@ -28,8 +32,8 @@ export interface UseSolicitudesAutorizacionesReturn {
   solicitudesTodas: SolicitudPersonalResponse[];
   loading: boolean;
   error: string | null;
-  fetchAll: (puedeVerTodas: boolean) => Promise<void>;
-  refresh: (puedeVerTodas: boolean) => Promise<void>;
+  fetchAll: (puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams) => Promise<void>;
+  refresh: (puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams) => Promise<void>;
 
   selectedId: number | null;
   selectedSolicitud: SolicitudPersonalResponse | null;
@@ -55,7 +59,11 @@ export interface UseSolicitudesAutorizacionesReturn {
       | undefined
   ) => { nombre: string; color: string };
 
-  firmar: (request: FirmarRequest, puedeVerTodas: boolean) => Promise<boolean>;
+  firmar: (
+    request: FirmarRequest,
+    puedeVerTodas: boolean,
+    filters?: SolicitudPersonalFilterParams
+  ) => Promise<boolean>;
   isSubmittingFirma: boolean;
 }
 
@@ -98,20 +106,20 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     }
   }, []);
 
-  const fetchPropias = useCallback(async () => {
+  const fetchPropias = useCallback(async (filters?: SolicitudPersonalFilterParams) => {
     const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
       '/solicitudes-personal',
-      { params: { verTodas: false, pageSize: 100 } }
+      { params: { verTodas: false, pageSize: 100, ...filters } }
     );
     if (res.data?.success) {
       setSolicitudesPropias(res.data.data?.items ?? []);
     }
   }, []);
 
-  const fetchTodas = useCallback(async () => {
+  const fetchTodas = useCallback(async (filters?: SolicitudPersonalFilterParams) => {
     const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
       '/solicitudes-personal',
-      { params: { verTodas: true, pageSize: 100 } }
+      { params: { verTodas: true, pageSize: 100, ...filters } }
     );
     if (res.data?.success) {
       setSolicitudesTodas(res.data.data?.items ?? []);
@@ -119,13 +127,13 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   }, []);
 
   const fetchAll = useCallback(
-    async (puedeVerTodas: boolean) => {
+    async (puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams) => {
       setLoading(true);
       setError(null);
       try {
-        const promises: Promise<void>[] = [fetchPropias()];
+        const promises: Promise<void>[] = [fetchPropias(filters)];
         if (puedeVerTodas) {
-          promises.push(fetchTodas());
+          promises.push(fetchTodas(filters));
         }
         await Promise.all(promises);
       } catch (err: unknown) {
@@ -140,8 +148,8 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const refresh = useCallback(
-    async (puedeVerTodas: boolean) => {
-      await fetchAll(puedeVerTodas);
+    async (puedeVerTodas: boolean, filters?: SolicitudPersonalFilterParams) => {
+      await fetchAll(puedeVerTodas, filters);
     },
     [fetchAll]
   );
@@ -236,7 +244,11 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const firmar = useCallback(
-    async (request: FirmarRequest, puedeVerTodas: boolean): Promise<boolean> => {
+    async (
+      request: FirmarRequest,
+      puedeVerTodas: boolean,
+      filters?: SolicitudPersonalFilterParams
+    ): Promise<boolean> => {
       if (!selectedSolicitud) return false;
       setIsSubmittingFirma(true);
       try {
@@ -246,7 +258,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
         );
         if (res.data?.success) {
           toast.success(res.data.data?.mensaje ?? 'Acción ejecutada correctamente');
-          await fetchAll(puedeVerTodas);
+          await fetchAll(puedeVerTodas, filters);
           await fetchAcciones(selectedSolicitud.idSolicitud);
           if (selectedId != null) {
             await fetchDetalleCompleto(selectedId);

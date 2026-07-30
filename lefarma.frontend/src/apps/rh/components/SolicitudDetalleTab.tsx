@@ -47,7 +47,13 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Solicitante</p>
           <p className="font-medium">
-            {solicitud.solicitanteNombre || `ID ${solicitud.idUsuarioCreador}`}
+            {solicitud.solicitanteNombre || `ID ${solicitud.idUsuarioSolicitante ?? solicitud.idUsuarioCreador}`}
+          </p>
+        </div>
+        <div className="rounded-md border bg-background px-2 py-1.5">
+          <p className="text-muted-foreground">Creado por</p>
+          <p className="font-medium">
+            {solicitud.creadorNombre || `ID ${solicitud.idUsuarioCreador}`}
           </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">

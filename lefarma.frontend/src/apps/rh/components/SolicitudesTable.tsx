@@ -156,6 +156,11 @@ export function SolicitudesTable({
         header: 'Solicitante',
         cell: ({ row }) => <span className="text-xs">{row.original.solicitanteNombre ?? '-'}</span>,
       },
+      {
+        id: 'creadorNombre',
+        header: 'Creado por',
+        cell: ({ row }) => <span className="text-xs">{row.original.creadorNombre ?? `Usuario ${row.original.idUsuarioCreador}`}</span>,
+      },
       /* {
         id: 'motivo',
         header: 'Motivo',

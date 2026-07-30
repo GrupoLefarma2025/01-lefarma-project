@@ -13,7 +13,7 @@ namespace Lefarma.API.Infrastructure.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            modelBuilder.Entity<VwEmpleado>().HasNoKey().ToView("vwEmpleados", "dbo");
+            modelBuilder.Entity<VwEmpleado>().HasNoKey(). ToView("vwEmpleados", "dbo");
             modelBuilder.Entity<VwEmpleadoYJefe>().HasNoKey().ToView("vwEmpleadosYJefes", "dbo");
             modelBuilder.Entity<IncidenciasChecado>().HasNoKey().ToView("incidenciasChecado", "dbo");
         }

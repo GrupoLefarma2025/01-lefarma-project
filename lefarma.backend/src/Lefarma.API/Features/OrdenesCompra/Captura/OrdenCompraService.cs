@@ -3,6 +3,7 @@ using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
+using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
@@ -87,25 +88,43 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                     var pasosConJefeInmediato = await _context.WorkflowParticipantes
                         .Where(p => p.Activo && p.RequiereJefeInmediato)
-                        .Select(p => p.IdPaso)
-                        .Distinct()
+                        .GroupBy(p => p.IdPaso)
+                        .Select(g => new { IdPaso = g.Key, Nivel = g.Min(p => p.NivelJefe ?? 1) })
                         .ToListAsync();
+
+                    var nivelPorPaso = pasosConJefeInmediato.ToDictionary(x => x.IdPaso, x => x.Nivel);
 
                     var creadoresPosibles = new HashSet<int>();
 
-                    if (pasosConJefeInmediato.Count > 0)
+                    if (nivelPorPaso.Count > 0)
                     {
+                        // Traer IdWorkflow, IdPasoActual e IdUsuarioCreador de cada orden en pasos de jefe
                         var ordenesEnPasosJefe = await _context.OrdenesCompra
-                            .Where(o => pasosConJefeInmediato.Contains(o.IdPasoActual ?? 0))
-                            .Select(o => o.IdUsuarioCreador)
+                            .Where(o => nivelPorPaso.Keys.Contains(o.IdPasoActual ?? 0))
+                            .Select(o => new { o.IdUsuarioCreador, o.IdPasoActual, o.IdWorkflow })
                             .Distinct()
                             .ToListAsync();
 
-                        foreach (var idCreador in ordenesEnPasosJefe)
+                        // Caché por (workflow, creador, nivel) para no repetir queries
+                        var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
+
+                        foreach (var o in ordenesEnPasosJefe)
                         {
-                            var idJefe = await _jefeInmediatoResolver.ResolverIdUsuarioJefeAsync(idCreador);
-                            if (idJefe == idUsuario)
-                                creadoresPosibles.Add(idCreador);
+                            if (!o.IdPasoActual.HasValue)
+                                continue;
+                            if (!nivelPorPaso.TryGetValue(o.IdPasoActual.Value, out var nivel))
+                                continue;
+
+                            var key = (o.IdWorkflow, o.IdUsuarioCreador, nivel);
+                            if (!jefeCache.TryGetValue(key, out var jefe))
+                            {
+                                jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
+                                    o.IdWorkflow, o.IdUsuarioCreador, nivel);
+                                jefeCache[key] = jefe;
+                            }
+
+                            if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
+                                creadoresPosibles.Add(o.IdUsuarioCreador);
                         }
                     }
 
