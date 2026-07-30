@@ -14,6 +14,7 @@ import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
 import { DiasNoHabilesPage } from './pages/Vacaciones/DiasNoHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
+import Perfil from '@/pages/Perfil';
 
 /**
  * RH (Recursos Humanos) route table — delega TODO el scaffolding a la fábrica
@@ -88,6 +89,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
           }
         />
 
+        <Route path="perfil" element={<Perfil />} />
         <Route path="perfil/configuracion" element={<PerfilConfig />} />
       </>
     ),
