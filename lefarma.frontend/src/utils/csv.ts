@@ -323,6 +323,12 @@ export const DIAS_NO_HABILES_CSV_COLUMNS: DiaNoHabilCsvColumn[] = [
     required: false,
     exampleValues: ['Año Nuevo', 'Día de la Constitución', ''],
   },
+  {
+    key: 'consume_saldo',
+    label: 'consume_saldo',
+    required: false,
+    exampleValues: ['false', 'true', 'false'],
+  },
 ];
 
 export function buildTemplateDiasNoHabilesCsv(): Blob {
@@ -345,6 +351,15 @@ export interface DiaNoHabilCsvRow {
   mes?: string;
   anio?: string;
   descripcion?: string;
+  consume_saldo?: string;
+}
+
+export function parseConsumeSaldo(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.trim().toLowerCase();
+  if (['1', 'true', 'verdadero', 'si', 'sí', 'yes'].includes(normalized)) return true;
+  if (['0', 'false', 'falso', 'no'].includes(normalized)) return false;
+  return false;
 }
 
 export function parseDiasNoHabilesCsv(file: File): Promise<{

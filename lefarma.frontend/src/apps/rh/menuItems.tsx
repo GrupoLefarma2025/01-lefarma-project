@@ -42,7 +42,7 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         title: 'Gestión',
         icon: Settings,
         path: '/rh/solicitudes/gestion',
-        permission: { require: 'solicitud_personal.puede_ver_todas_solicitudes' },
+        permission: { require: 'solicitud_personal.puede_ver_todas' },
       },
     ],
   },
@@ -83,9 +83,9 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     isCollapsible: true,
     items: [
       {
-        title: 'Días no hábiles',
+        title: 'Días libres y calendario laboral',
         icon: CalendarDays,
-        path: '/rh/vacaciones/dias-no-habiles',
+        path: '/rh/vacaciones/dias-libres',
         permission: { require: 'vacaciones.ver' },
       },
       {

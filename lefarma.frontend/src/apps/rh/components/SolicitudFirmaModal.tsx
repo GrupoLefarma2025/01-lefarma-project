@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, CheckCircle2, AlertCircle, Paperclip } from 'lucide-react';
+import { toast } from 'sonner';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import type { Archivo } from '@/types/archivo.types';
 import { archivoService } from '@/services/archivoService';
@@ -176,13 +177,14 @@ export function SolicitudFirmaModal({
 
   const enviar = async () => {
     if (!accion) return;
+    const errores: string[] = [];
     const datosAdicionales: Record<string, unknown> = {};
     for (const { campo, requerido, inputKey } of camposParaAccion) {
       if (campo.tipoControl === 'Archivo') {
         if (requerido) {
           const tiene = !!archivoSubidos[inputKey]?.length;
           if (!tiene) {
-            return;
+            errores.push(`Falta adjuntar: ${campo.etiquetaUsuario}`);
           }
         }
         continue;
@@ -191,14 +193,21 @@ export function SolicitudFirmaModal({
       const val = camposValues[inputKey];
       const isEmpty = val === undefined || val === null || val === '';
       if (requerido && isEmpty) {
-        return;
+        errores.push(`Falta completar: ${campo.etiquetaUsuario}`);
       }
       if (!isEmpty) datosAdicionales[inputKey] = val;
     }
-    if ((esRechazo || esRetorno) && !comentario.trim()) {
-      return;
+    if ((esRechazo || esRetorno || accion.requiereComentario) && !comentario.trim()) {
+      errores.push('El comentario es obligatorio para esta acción');
     }
     if (accion.requiereAdjunto && adjuntosLibres.length === 0) {
+      errores.push('Debes adjuntar al menos un documento de soporte');
+    }
+    if (errores.length > 0) {
+      toast.error('Campos incompletos', {
+        description: errores.join(' · '),
+        duration: 8000,
+      });
       return;
     }
     const ok = await onSubmit({
