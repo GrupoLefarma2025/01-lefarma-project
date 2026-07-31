@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
@@ -48,6 +49,7 @@ import {
   buildPlantillaDiasNoHabilesCsv,
   downloadCsv,
   parseDiasNoHabilesCsv,
+  parseConsumeSaldo,
 } from '@/utils/csv';
 import type {
   DiaNoHabilResponse,
@@ -63,8 +65,8 @@ interface StagedItem extends DiaNoHabilFechaRequest {
   empresaNombre: string;
 }
 
-export function DiasNoHabilesPage() {
-  usePageTitle('Días no hábiles de vacaciones', 'Gestión de días no hábiles por empresa');
+export function DiasLibresPage() {
+  usePageTitle('Días Libres y Calendario Laboral', 'Gestión de días de asueto oficiales y los días especiales');
 
   const [items, setItems] = useState<DiaNoHabilResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +82,7 @@ export function DiasNoHabilesPage() {
   // Carga manual
   const [fechaInput, setFechaInput] = useState('');
   const [descripcionInput, setDescripcionInput] = useState('');
+  const [consumeSaldoInput, setConsumeSaldoInput] = useState(false);
 
   // Carga CSV
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -121,7 +124,7 @@ export function DiasNoHabilesPage() {
       });
       setItems(response.data.data ?? []);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al cargar días no hábiles');
+      toast.error(toApiError(error).message ?? 'Error al cargar días libres');
     } finally {
       setLoading(false);
     }
@@ -141,10 +144,10 @@ export function DiasNoHabilesPage() {
     setDiaADesactivar(null);
     try {
       await vacacionesApi.deleteDiaNoHabil(id);
-      toast.success('Día no hábil desactivado');
+      toast.success('Día libre desactivado');
       loadDias();
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al desactivar día no hábil');
+      toast.error(toApiError(error).message ?? 'Error al desactivar día libre');
     } finally {
       setIsDeleting(false);
     }
@@ -176,6 +179,16 @@ export function DiasNoHabilesPage() {
     {
       accessorKey: 'empresaNombre',
       header: 'Empresa',
+    },
+    {
+      accessorKey: 'consumeSaldo',
+      header: 'Consume saldo',
+      cell: ({ row }) =>
+        row.original.consumeSaldo ? (
+          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
+        ) : (
+          <Badge variant="secondary">No</Badge>
+        ),
     },
     {
       id: 'estado',
@@ -233,6 +246,19 @@ export function DiasNoHabilesPage() {
       header: 'Empresa',
     },
     {
+      id: 'consumeSaldo',
+      header: 'Consume saldo',
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Switch
+            checked={row.original.consumeSaldo}
+            onCheckedChange={(checked) => setConsumeSaldoStaged(row.original, checked)}
+          />
+          <span className="text-xs text-muted-foreground">{row.original.consumeSaldo ? 'Sí' : 'No'}</span>
+        </div>
+      ),
+    },
+    {
       accessorKey: 'source',
       header: 'Origen',
       cell: ({ row }) =>
@@ -280,6 +306,13 @@ export function DiasNoHabilesPage() {
     setStagedItems((prev) => prev.filter((s) => stagedKey(s) !== key));
   };
 
+  const setConsumeSaldoStaged = (item: StagedItem, consumeSaldo: boolean) => {
+    const key = stagedKey(item);
+    setStagedItems((prev) =>
+      prev.map((s) => (stagedKey(s) === key ? { ...s, consumeSaldo } : s)),
+    );
+  };
+
   // --- Carga manual ---
   const agregarFechaManual = () => {
     if (!fechaInput) return;
@@ -292,6 +325,7 @@ export function DiasNoHabilesPage() {
       mes: m,
       dia: d,
       descripcion: descripcionInput.trim() || undefined,
+      consumeSaldo: consumeSaldoInput,
       source: 'manual',
       idEmpresa: selectedEmpresa === '__all__' ? '__all__' : Number(selectedEmpresa),
       empresaNombre,
@@ -304,6 +338,7 @@ export function DiasNoHabilesPage() {
     );
     setFechaInput('');
     setDescripcionInput('');
+    setConsumeSaldoInput(false);
     toast.success('Día agregado a la cola');
   };
 
@@ -355,6 +390,7 @@ export function DiasNoHabilesPage() {
         mes,
         dia,
         descripcion: desc || undefined,
+        consumeSaldo: parseConsumeSaldo(row.consume_saldo),
         source: 'csv',
         rowNumber: i + 2,
         idEmpresa: selectedEmpresa === '__all__' ? '__all__' : Number(selectedEmpresa),
@@ -436,7 +472,7 @@ export function DiasNoHabilesPage() {
         }
       }
 
-      toast.success(`${totalGuardados} día(s) no hábil(es) guardado(s)`);
+      toast.success(`${totalGuardados} día(s) libre(s) guardado(s)`);
       if (totalErrores > 0) {
         toast.error(`${totalErrores} día(s) no se pudieron guardar por duplicados u otros errores`);
       }
@@ -445,7 +481,7 @@ export function DiasNoHabilesPage() {
       loadDias();
       setIsModalOpen(false);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al guardar días no hábiles');
+      toast.error(toApiError(error).message ?? 'Error al guardar días libres');
     } finally {
       setIsSaving(false);
     }
@@ -453,12 +489,12 @@ export function DiasNoHabilesPage() {
 
   const handleDescargarPlantilla = () => {
     const blob = buildPlantillaDiasNoHabilesCsv();
-    downloadCsv(blob, 'plantilla_dias_no_habiles.csv');
+    downloadCsv(blob, 'plantilla_dias_libres.csv');
   };
 
   const handleDescargarEjemplo = () => {
     const blob = buildPlantillaDiasNoHabilesCsv();
-    downloadCsv(blob, 'ejemplo_dias_no_habiles.csv');
+    downloadCsv(blob, 'ejemplo_dias_libres.csv');
   };
 
   const handleCloseModal = () => {
@@ -471,6 +507,7 @@ export function DiasNoHabilesPage() {
     resetCsv();
     setFechaInput('');
     setDescripcionInput('');
+    setConsumeSaldoInput(false);
   };
 
   const renderFiltros = (disabled = false) => (
@@ -503,7 +540,7 @@ export function DiasNoHabilesPage() {
       <div className="flex justify-end">
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Añadir día(s) no hábil
+          Añadir día(s) libre
         </Button>
       </div>
 
@@ -511,19 +548,19 @@ export function DiasNoHabilesPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Filtros</CardTitle>
-          <CardDescription>Filtra los días no hábiles guardados.</CardDescription>
+          <CardDescription>Filtra los días libres guardados.</CardDescription>
         </CardHeader>
         <CardContent>{renderFiltros()}</CardContent>
       </Card>
 
-      {/* Tabla principal: días no hábiles en BD */}
+      {/* Tabla principal: días libres en BD */}
       <div className="min-h-[300px]">
         {items.length === 0 && !loading ? (
           <div className="rounded-2xl border border-dashed bg-card p-2">
             <EmptyState
               icon={<Inbox className="h-10 w-10" />}
-              title="No hay días no hábiles"
-              description="No hay días no hábiles guardados para la empresa seleccionada. Usa el botón de arriba para agregar."
+              title="No hay días libres"
+              description="No hay días libres guardados para la empresa seleccionada. Usa el botón de arriba para agregar."
             />
           </div>
         ) : (
@@ -531,12 +568,12 @@ export function DiasNoHabilesPage() {
             columns={mainColumns}
             data={items}
             loading={loading}
-            title="Lista de días no hábiles"
+            title="Lista de días libres"
             showRefreshButton
             onRefresh={loadDias}
             globalFilter
             filterConfig={{
-              tableId: 'dias-no-habiles-guardados',
+              tableId: 'dias-libres-guardados',
               searchableColumns: ['fecha', 'descripcion', 'empresaNombre'],
               defaultSearchColumns: ['descripcion'],
             }}
@@ -548,10 +585,10 @@ export function DiasNoHabilesPage() {
 
       {/* Modal de carga */}
       <Modal
-        id="modal-carga-dias-no-habiles"
+        id="modal-carga-dias-libres"
         open={isModalOpen}
         setOpen={handleCloseModal}
-        title="Añadir días no hábiles"
+        title="Añadir días libres"
         size="wide"
         footer={
           <div className="flex justify-end gap-2">
@@ -580,7 +617,7 @@ export function DiasNoHabilesPage() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                       <Calendar className="h-5 w-5 text-primary" />
                     </div>
-                    Agregar día no hábil
+                    Agregar día libre
                   </CardTitle>
                   <Badge variant="secondary">Manual</Badge>
                 </div>
@@ -604,6 +641,19 @@ export function DiasNoHabilesPage() {
                       maxLength={100}
                     />
                   </div>
+                </div>
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-medium">Consume saldo</label>
+                    <p className="text-xs text-muted-foreground">
+                      Marca si este día debe descontar días de vacaciones.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={consumeSaldoInput}
+                    onCheckedChange={setConsumeSaldoInput}
+                  />
                 </div>
 
                 <div className="flex justify-end">
@@ -678,7 +728,7 @@ export function DiasNoHabilesPage() {
                   </p>
                   {!csvFile && !dragActive && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion, consume_saldo</span>
                     </p>
                   )}
                 </div>
@@ -733,7 +783,7 @@ export function DiasNoHabilesPage() {
                 title={`Cola de días por guardar (${stagedItems.length})`}
                 globalFilter
                 filterConfig={{
-                  tableId: 'dias-no-habiles-cola',
+                  tableId: 'dias-libres-cola',
                   searchableColumns: ['anio', 'descripcion', 'empresaNombre'],
                   defaultSearchColumns: ['descripcion'],
                 }}
@@ -801,9 +851,9 @@ export function DiasNoHabilesPage() {
       <AlertDialog open={diaADesactivar !== null} onOpenChange={(open) => !open && setDiaADesactivar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar día no hábil?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desactivar día libre?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción desactivará el día no hábil y las vacaciones generadas para los usuarios. Puedes volver a activarlo más tarde.
+              Esta acción desactivará el día libre y las vacaciones generadas para los usuarios. Puedes volver a activarlo más tarde.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

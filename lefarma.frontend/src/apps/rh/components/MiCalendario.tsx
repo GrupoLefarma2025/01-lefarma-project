@@ -31,14 +31,15 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { API } from '@/shared/api/apiClient';
-import { calendarioApi, calendarioLaboralApi, misIncidenciasChecadoApi } from '../services/rh.api';
+import { calendarioApi, misIncidenciasChecadoApi, misDiasJornadaApi, diasNoHabilesApi } from '../services/rh.api';
 import type { ApiResponse } from '@/types/api.types';
 import type {
   CalendarioGlobalEvento,
-  CalendarioLaboralResponse,
+  DiasJornadaResponse,
   IncidenciaChecadoResponse,
   SolicitudPersonalResponse,
 } from '@/types/solicitudPersonal.types';
+import type { DiaNoHabilResponse } from '@/types/vacaciones.types';
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -125,6 +126,7 @@ interface DiaCelda {
   esActual: boolean;
   esHoy: boolean;
   esNoLaborable: boolean;
+  noHabilDescripcion?: string;
   incidencia?: IncidenciaChecadoResponse;
 }
 
@@ -138,16 +140,18 @@ function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
 
 function useCalendario(anio: number, mes: number) {
   const [eventos, setEventos] = useState<CalendarioGlobalEvento[]>([]);
-  const [diasCalendario, setDiasCalendario] = useState<CalendarioLaboralResponse[]>([]);
+  const [diasJornada, setDiasJornada] = useState<DiasJornadaResponse | null>(null);
+  const [diasNoHabiles, setDiasNoHabiles] = useState<DiaNoHabilResponse[]>([]);
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchCalendario = async () => {
     try {
       setLoading(true);
-      const [calRes, nolabRes, incRes] = await Promise.all([
+      const [calRes, jornadaRes, noHabilesRes, incRes] = await Promise.all([
         calendarioApi.get({ anio, mes, estados: ['CERRADA'] }),
-        calendarioLaboralApi.get({ anio, mes }).catch(() => null),
+        misDiasJornadaApi.get({ anio, mes }).catch(() => null),
+        diasNoHabilesApi.get({ anio, mes }).catch(() => null),
         misIncidenciasChecadoApi.get({ anio, mes }).catch(() => null),
       ]);
       if (calRes.data.success) {
@@ -155,10 +159,15 @@ function useCalendario(anio: number, mes: number) {
       } else {
         setEventos([]);
       }
-      if (nolabRes?.data.success) {
-        setDiasCalendario(nolabRes.data.data ?? []);
+      if (jornadaRes?.data.success) {
+        setDiasJornada(jornadaRes.data.data ?? null);
       } else {
-        setDiasCalendario([]);
+        setDiasJornada(null);
+      }
+      if (noHabilesRes?.data.success) {
+        setDiasNoHabiles(noHabilesRes.data.data ?? []);
+      } else {
+        setDiasNoHabiles([]);
       }
       if (incRes?.data.success) {
         setIncidencias(incRes.data.data ?? []);
@@ -171,7 +180,8 @@ function useCalendario(anio: number, mes: number) {
         toast.error(err.message ?? 'No se pudo cargar el calendario de solicitudes.');
       }
       setEventos([]);
-      setDiasCalendario([]);
+      setDiasJornada(null);
+      setDiasNoHabiles([]);
       setIncidencias([]);
     } finally {
       setLoading(false);
@@ -196,6 +206,17 @@ function useCalendario(anio: number, mes: number) {
     const eventosPorFecha = new Map<string, CalendarioGlobalEvento[]>();
     const incidenciasPorFecha = new Map<string, IncidenciaChecadoResponse>();
     const noLaborablesSet = new Set<string>();
+    const noHabilesPorFecha = new Map<string, string>();
+
+    const jornadaPorDia: Record<number, boolean> = {
+      0: diasJornada?.domingo ?? true,
+      1: diasJornada?.lunes ?? true,
+      2: diasJornada?.martes ?? true,
+      3: diasJornada?.miercoles ?? true,
+      4: diasJornada?.jueves ?? true,
+      5: diasJornada?.viernes ?? true,
+      6: diasJornada?.sabado ?? true,
+    };
 
     eventos.forEach((e) => {
       const key = new Date(e.fecha).toISOString().split('T')[0];
@@ -211,28 +232,36 @@ function useCalendario(anio: number, mes: number) {
       incidenciasPorFecha.set(key, i);
     });
 
-    diasCalendario.forEach((d) => {
+    diasNoHabiles.forEach((d) => {
+      if (d.consumeSaldo) return;
       const key = new Date(d.fecha).toISOString().split('T')[0];
-      if (!d.laborable) {
-        noLaborablesSet.add(key);
+      noLaborablesSet.add(key);
+      if (d.descripcion) {
+        noHabilesPorFecha.set(key, d.descripcion);
       }
     });
 
     for (let i = 0; i < totalCeldas; i++) {
       const fecha = new Date(anio, mes - 1, 1 - diasAnteriores + i);
       const key = fecha.toISOString().split('T')[0];
+      const trabaja = jornadaPorDia[fecha.getDay()];
+      if (!trabaja) {
+        noLaborablesSet.add(key);
+      }
+
       resultado.push({
         fecha,
         eventos: eventosPorFecha.get(key) ?? [],
         esActual: fecha.getMonth() === inicioMes.getMonth(),
         esHoy: isSameDay(fecha, hoy),
         esNoLaborable: noLaborablesSet.has(key),
+        noHabilDescripcion: noHabilesPorFecha.get(key),
         incidencia: incidenciasPorFecha.get(key),
       });
     }
 
     return resultado;
-  }, [eventos, diasCalendario, incidencias, anio, mes]);
+  }, [eventos, diasJornada, diasNoHabiles, incidencias, anio, mes]);
 
   return { dias, loading, refetch: fetchCalendario };
 }
@@ -676,7 +705,11 @@ export function MiCalendario() {
                             !dia.esHoy &&
                             'font-semibold text-red-600 dark:text-red-400'
                         )}
-                        title={dia.esNoLaborable ? 'Día no laborable' : undefined}
+                        title={
+                          dia.esNoLaborable
+                            ? (dia.noHabilDescripcion ?? 'No es jornada laboral')
+                            : undefined
+                        }
                       >
                         {dia.fecha.getDate()}
                       </span>
@@ -684,7 +717,7 @@ export function MiCalendario() {
 
                     {dia.esNoLaborable && (
                       <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
-                        No laborable
+                        {dia.noHabilDescripcion ?? 'No es jornada'}
                       </div>
                     )}
 

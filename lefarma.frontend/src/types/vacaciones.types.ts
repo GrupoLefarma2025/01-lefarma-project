@@ -10,6 +10,7 @@ export interface DiaNoHabilResponse {
   fecha: string;
   descripcion?: string;
   activo: boolean;
+  consumeSaldo: boolean;
 }
 
 export interface DiaNoHabilFechaRequest {
@@ -17,6 +18,7 @@ export interface DiaNoHabilFechaRequest {
   mes: number;
   dia: number;
   descripcion?: string;
+  consumeSaldo: boolean;
 }
 
 export interface CargaDiasNoHabilesRequest {

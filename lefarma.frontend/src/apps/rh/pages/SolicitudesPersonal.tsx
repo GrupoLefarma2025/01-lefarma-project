@@ -39,7 +39,7 @@ export default function SolicitudesPersonal() {
     'Solicitudes de Personal',
     'Solicitudes de personal para autorización y seguimiento'
   );
-  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas_solicitudes' });
+  const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
   const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const {
