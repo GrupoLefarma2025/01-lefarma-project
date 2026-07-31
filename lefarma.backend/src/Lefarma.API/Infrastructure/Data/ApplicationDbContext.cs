@@ -34,6 +34,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<WorkflowPaso> WorkflowPasos { get; set; }
         public DbSet<WorkflowParticipante> WorkflowParticipantes { get; set; }
         public DbSet<EmpleadoJefeConfig> EmpleadoJefesConfig { get; set; }
+        public DbSet<EmpleadoJefeOverride> EmpleadoJefesOverride { get; set; }
         public DbSet<WorkflowJefeExcluido> WorkflowJefesExcluidos { get; set; }
         public DbSet<WorkflowAccion> WorkflowAcciones { get; set; }
         public DbSet<WorkflowAccionHandler> WorkflowAccionHandlers { get; set; }

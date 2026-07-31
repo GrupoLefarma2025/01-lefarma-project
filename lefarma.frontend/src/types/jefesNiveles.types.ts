@@ -1,6 +1,24 @@
 export interface EmpleadoJefeConfigItem {
   nivel: number;
   aplica: boolean;
+  idUsuarioJefeOverride?: number | null;
+}
+
+export interface EmpleadoJefeNivelCompleto {
+  nivel: number;
+  aplica: boolean;
+  idUsuarioJefeOverride?: number | null;
+  nombreJefeOverride?: string | null;
+  nominaJefeVista?: number | null;
+  idUsuarioJefeVista?: number | null;
+  nombreJefeVista?: string | null;
+}
+
+export interface JefeCadenaNivel {
+  nivel: number;
+  nominaJefe?: number | null;
+  idUsuarioJefe?: number | null;
+  nombreJefe?: string | null;
 }
 
 export interface EmpleadoJefesConfigListItem {
@@ -8,26 +26,18 @@ export interface EmpleadoJefesConfigListItem {
   numeroEmpleado?: string | null;
   nombreCompleto?: string | null;
   puesto?: string | null;
-  niveles: EmpleadoJefeConfigItem[];
+  niveles: EmpleadoJefeNivelCompleto[];
+  cadena?: JefeCadenaNivel[];
 }
 
 export interface EmpleadoJefesConfigResponse {
   idUsuario: number;
   esConfigPorDefecto: boolean;
-  niveles: EmpleadoJefeConfigItem[];
+  niveles: EmpleadoJefeNivelCompleto[];
 }
 
 export interface UpdateEmpleadoJefesConfigRequest {
   niveles: EmpleadoJefeConfigItem[];
-}
-
-// ponytail: pre-existing fork bug — rh.api.ts imported these but they were never defined.
-// Modeled from backend EmpleadoJefesConfigDtos.cs (JefeCadenaNivelDto / EmpleadoJefesCadenaResponse).
-export interface JefeCadenaNivel {
-  nivel: number;
-  nominaJefe: number | null; // null = cadena rota en la vista
-  idUsuarioJefe: number | null; // null = sin usuario en el sistema
-  nombreJefe: string | null;
 }
 
 export interface EmpleadoJefesCadenaResponse {

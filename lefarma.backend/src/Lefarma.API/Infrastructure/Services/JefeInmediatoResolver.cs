@@ -1,7 +1,10 @@
+using HandlebarsDotNet;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Infrastructure.Data.Repositories.Rh;
 using Microsoft.EntityFrameworkCore;
 
 namespace Lefarma.API.Infrastructure.Services
@@ -30,11 +33,8 @@ namespace Lefarma.API.Infrastructure.Services
         public async Task<int?> ResolverIdUsuarioJefePorNivelAsync(
             int idUsuarioCreador, int nivel, CancellationToken ct = default)
         {
-            var nominaJefe = await ResolverNominaJefeAsync(idUsuarioCreador, nivel, ct);
-            if (!nominaJefe.HasValue)
-                return null;
-
-            return await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nominaJefe.Value, ct);
+            var jefe = await ResolverJefeEfectivoAsync(0, idUsuarioCreador, nivel, ct);
+            return jefe.IdUsuario;
         }
 
         public async Task<bool> AplicaNivelJefeAsync(
@@ -54,32 +54,50 @@ namespace Lefarma.API.Infrastructure.Services
 
         public async Task<JefeEfectivoResult> ResolverJefeEfectivoAsync(
             int idWorkflow, int idUsuarioCreador, int nivel, CancellationToken ct = default)
-        {
-            if (nivel < 1 || nivel > MaxNivel)
-                return new(null, MotivoOmisionJefe.CadenaRota);
+                {
+                    if (nivel < 1 || nivel > MaxNivel)
+                        return new(null, MotivoOmisionJefe.CadenaRota);
 
-            // 1. Check del empleado
-            if (!await AplicaNivelJefeAsync(idUsuarioCreador, nivel, ct))
-                return new(null, MotivoOmisionJefe.ConfigNoAplica);
+                    // 1. Check del empleado
+                    if (!await AplicaNivelJefeAsync(idUsuarioCreador, nivel, ct))
+                        return new(null, MotivoOmisionJefe.ConfigNoAplica);
 
-            // 2. Cadena (columna aplanada de la vista)
+                    // 2. Override explícito (prevalece sobre la vista)
+                    var over = await _context.EmpleadoJefesOverride
+                        .AsNoTracking()
+                .Where(o => o.IdUsuario == idUsuarioCreador && o.Nivel == nivel && o.Activo)
+                .Select(o => o.IdUsuarioJefe)
+                .FirstOrDefaultAsync(ct);
+
+            if (over != default)
+            {
+                var excluido = await _context.WorkflowJefesExcluidos
+                    .AsNoTracking()
+                    .AnyAsync(x => x.IdWorkflow == idWorkflow && x.Activo && x.IdUsuarioJefe == over, ct);
+                if (excluido)
+                    return new (null, MotivoOmisionJefe.Excluido);
+
+                return new (over, null);
+            }
+
+            // 3. Cadena (columna aplanada de la vista)
             var nominaJefe = await ResolverNominaJefeAsync(idUsuarioCreador, nivel, ct);
             if (!nominaJefe.HasValue)
-                return new(null, MotivoOmisionJefe.CadenaRota);
+                return new (null, MotivoOmisionJefe.CadenaRota);
 
-            // 3. Usuario en el sistema
+            // 4. Usuario en el sistema
             var idUsuarioJefe = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nominaJefe.Value, ct);
             if (!idUsuarioJefe.HasValue)
-                return new(null, MotivoOmisionJefe.SinUsuario);
+                return new (null, MotivoOmisionJefe.SinUsuario);
 
-            // 4. Exclusión por workflow (por usuario, no por nómina)
-            var excluido = await _context.WorkflowJefesExcluidos
+            // 5. Exclusión por workflow
+            var excluido2 = await _context.WorkflowJefesExcluidos
                 .AsNoTracking()
                 .AnyAsync(x => x.IdWorkflow == idWorkflow && x.Activo && x.IdUsuarioJefe == idUsuarioJefe.Value, ct);
-            if (excluido)
-                return new(null, MotivoOmisionJefe.Excluido);
+            if (excluido2)
+                return new (null, MotivoOmisionJefe.Excluido);
 
-            return new(idUsuarioJefe, null);
+            return new (idUsuarioJefe, null);
         }
 
         /// <summary>Lee la nómina del jefe del nivel N desde la columna aplanada de la vista.</summary>
@@ -108,16 +126,26 @@ namespace Lefarma.API.Infrastructure.Services
         }
 
         public async Task<IReadOnlyDictionary<int, int>> ResolverIdsJefePorUsuariosAsync(
-            IEnumerable<int> idsUsuariosCreador,
-            CancellationToken cancellationToken = default)
+    IEnumerable<int> idsUsuariosCreador,
+    CancellationToken cancellationToken = default)
         {
             var creadorList = idsUsuariosCreador.Distinct().ToList();
             if (creadorList.Count == 0)
                 return new Dictionary<int, int>();
 
-            var nominaPorCreador = await _empleadoRepository.ResolverNominasPorUsuariosAsync(creadorList, cancellationToken);
+            // Overrides de nivel 1
+            var overrides = await _context.EmpleadoJefesOverride
+                .AsNoTracking()
+                .Where(o => o.Activo && o.Nivel == 1 && creadorList.Contains(o.IdUsuario))
+                .ToDictionaryAsync(o => o.IdUsuario, o => o.IdUsuarioJefe, cancellationToken);
+
+            var restantes = creadorList.Where(id => !overrides.ContainsKey(id)).ToList();
+            if (restantes.Count == 0)
+                return overrides;
+
+            var nominaPorCreador = await _empleadoRepository.ResolverNominasPorUsuariosAsync(restantes, cancellationToken);
             if (nominaPorCreador.Count == 0)
-                return new Dictionary<int, int>();
+                return overrides;
 
             var nominas = nominaPorCreador.Values.Distinct().ToList();
 
@@ -132,19 +160,20 @@ namespace Lefarma.API.Infrastructure.Services
                 .ToDictionary(g => g.Key, g => g.First().NominaJefe!.Value);
 
             if (nominaJefePorNomina.Count == 0)
-                return new Dictionary<int, int>();
+                return overrides;
 
             var idUsuarioPorNominaJefe = await _empleadoRepository.ResolverIdsUsuarioPorNominasAsync(
                 nominaJefePorNomina.Values.Distinct().ToList(),
                 cancellationToken);
 
-            var resultado = new Dictionary<int, int>();
-            foreach (var creador in nominaPorCreador)
+            var resultado = new Dictionary<int, int>(overrides);
+            foreach (var creador in restantes)
             {
-                if (nominaJefePorNomina.TryGetValue(creador.Value, out var nominaJefe)
+                if (nominaPorCreador.TryGetValue(creador, out var nomina)
+                    && nominaJefePorNomina.TryGetValue(nomina, out var nominaJefe)
                     && idUsuarioPorNominaJefe.TryGetValue(nominaJefe, out var idJefe))
                 {
-                    resultado[creador.Key] = idJefe;
+                    resultado[creador] = idJefe;
                 }
             }
 

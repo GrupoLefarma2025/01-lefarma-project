@@ -9,6 +9,7 @@ import {
   Search,
   Loader2,
   UserCog,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -29,12 +30,23 @@ import {
   FormDescription,
 } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/kibo-ui/combobox';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { empleadoJefesConfigApi, usuariosCatalogoApi } from '../services/rh.api';
 import type {
-  EmpleadoJefeConfigItem,
+  EmpleadoJefeNivelCompleto,
   EmpleadoJefesConfigListItem,
+  JefeCadenaNivel,
   UpdateEmpleadoJefesConfigRequest,
 } from '@/types/jefesNiveles.types';
 import type { UsuarioCatalogo } from '../services/rh.api';
@@ -48,6 +60,7 @@ const nivelesSchema = z.object({
       z.object({
         nivel: z.number().int().min(1).max(MAX_NIVEL),
         aplica: z.boolean(),
+        idUsuarioJefeOverride: z.number().int().positive().nullable().optional(),
       })
     )
     .refine(
@@ -58,11 +71,16 @@ const nivelesSchema = z.object({
 
 type FormValues = z.infer<typeof nivelesSchema>;
 
-function buildDefaultNiveles(niveles: EmpleadoJefeConfigItem[]): FormValues {
-  const map = new Map<number, boolean>(niveles.map((n) => [n.nivel, n.aplica]));
+function buildDefaultNiveles(niveles: EmpleadoJefeNivelCompleto[]): FormValues {
+  const map = new Map<number, EmpleadoJefeNivelCompleto>(niveles.map((n) => [n.nivel, n]));
   const all: FormValues['niveles'] = Array.from({ length: MAX_NIVEL }, (_, i) => {
     const nivel = i + 1;
-    return { nivel, aplica: map.get(nivel) ?? (nivel === 1) };
+    const existente = map.get(nivel);
+    return {
+      nivel,
+      aplica: existente?.aplica ?? false,
+      idUsuarioJefeOverride: existente?.idUsuarioJefeOverride ?? null,
+    };
   });
   return { idUsuario: 0, niveles: all };
 }
@@ -78,6 +96,8 @@ export default function JefesNivelesList() {
   const [editingIdUsuario, setEditingIdUsuario] = useState(0);
   const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
+  const [cadenaModal, setCadenaModal] = useState<JefeCadenaNivel[]>([]);
+  const [loadingCadena, setLoadingCadena] = useState(false);
 
   const [modalStates, setModalStates] = useState({ edit: false });
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
@@ -88,6 +108,15 @@ export default function JefesNivelesList() {
     resolver: zodResolver(nivelesSchema),
     defaultValues: buildDefaultNiveles([]),
   });
+
+  const usuarioOptions = useMemo(
+    () =>
+      usuarios.map((u) => ({
+        value: String(u.idUsuario),
+        label: u.nombreCompleto ?? `Usuario ${u.idUsuario}`,
+      })),
+    [usuarios]
+  );
 
   const fetchItems = async () => {
     try {
@@ -117,17 +146,36 @@ export default function JefesNivelesList() {
     }
   };
 
+  const fetchCadena = async (idUsuario: number) => {
+    if (!idUsuario) {
+      setCadenaModal([]);
+      return;
+    }
+    try {
+      setLoadingCadena(true);
+      const response = await empleadoJefesConfigApi.getCadena(idUsuario);
+      if (response.data.success) {
+        setCadenaModal(response.data.data?.cadena ?? []);
+      }
+    } catch {
+      setCadenaModal([]);
+    } finally {
+      setLoadingCadena(false);
+    }
+  };
+
   useEffect(() => {
+    fetchUsuarios();
     fetchItems();
   }, []);
 
   const handleNuevo = () => {
     setEditingIdUsuario(0);
-    form.reset(buildDefaultNiveles([]));
+    form.reset(buildDefaultNiveles([{ nivel: 1, aplica: true }]));
     form.setValue('idUsuario', 0);
     setIsEditing(false);
     toggleModal('edit', true);
-    if (usuarios.length === 0) fetchUsuarios();
+    //if (usuarios.length === 0) fetchUsuarios();
   };
 
   const handleEditar = (idUsuario: number) => {
@@ -139,6 +187,7 @@ export default function JefesNivelesList() {
     form.setValue('idUsuario', idUsuario);
     setIsEditing(true);
     toggleModal('edit', true);
+    fetchCadena(idUsuario);
   };
 
   const handleEliminar = async (idUsuario: number) => {
@@ -160,7 +209,13 @@ export default function JefesNivelesList() {
     try {
       const targetIdUsuario = isEditing ? editingIdUsuario : values.idUsuario;
       const payload: UpdateEmpleadoJefesConfigRequest = {
-        niveles: values.niveles.filter((n) => n.aplica),
+        niveles: values.niveles
+          .filter((n) => n.aplica)
+          .map((n) => ({
+            nivel: n.nivel,
+            aplica: n.aplica,
+            idUsuarioJefeOverride: n.idUsuarioJefeOverride,
+          })),
       };
 
       const response = await empleadoJefesConfigApi.update(targetIdUsuario, payload);
@@ -191,10 +246,34 @@ export default function JefesNivelesList() {
       (i) =>
         (i.nombreCompleto ?? '').toLowerCase().includes(term) ||
         (i.numeroEmpleado ?? '').toLowerCase().includes(term) ||
-        (i.puesto ?? '').toLowerCase().includes(term) ||
+        (i.niveles ?? []).some(
+          (n) =>
+            (n.nombreJefeVista ?? '').toLowerCase().includes(term) ||
+            (n.nombreJefeOverride ?? '').toLowerCase().includes(term)
+        ) ||
         String(i.idUsuario).includes(term)
     );
   }, [items, search]);
+
+  const describirJefe = (nivel: EmpleadoJefeNivelCompleto | undefined) => {
+    if (!nivel) return { tipo: 'sin-jefe' as const, texto: 'Sin jefe' };
+    if (nivel.idUsuarioJefeOverride) {
+      return {
+        tipo: 'override' as const,
+        texto: `${nivel.nombreJefeOverride ?? `Usuario ${nivel.idUsuarioJefeOverride}`}`,
+      };
+    }
+    if (!nivel.nominaJefeVista) {
+      return { tipo: 'sin-jefe' as const, texto: 'Sin jefe (vista)' };
+    }
+    if (!nivel.idUsuarioJefeVista) {
+      return { tipo: 'sin-usuario' as const, texto: `${nivel.nominaJefeVista} (sin usuario)` };
+    }
+    return {
+      tipo: 'ok' as const,
+      texto: nivel.nombreJefeVista ?? `Usuario ${nivel.idUsuarioJefeVista}`,
+    };
+  };
 
   const columns: ColumnDef<EmpleadoJefesConfigListItem>[] = [
     {
@@ -221,17 +300,8 @@ export default function JefesNivelesList() {
       ),
     },
     {
-      accessorKey: 'puesto',
-      header: 'Puesto',
-      cell: ({ row }) => (
-        <span className="text-sm text-muted-foreground">
-          {row.original.puesto ?? '—'}
-        </span>
-      ),
-    },
-    {
-      id: 'niveles',
-      header: 'Niveles activos',
+      id: 'cadena',
+      header: 'Cadena de Jefes',
       cell: ({ row }) => {
         const activos = row.original.niveles
           .filter((n) => n.aplica)
@@ -241,11 +311,43 @@ export default function JefesNivelesList() {
         }
         return (
           <div className="flex flex-wrap gap-1">
-            {activos.map((n) => (
-              <Badge key={n.nivel} variant="outline" className="h-5">
-                Nivel {n.nivel}
-              </Badge>
-            ))}
+            {activos.map((n) => {
+              const jefe = describirJefe(n);
+              if (jefe.tipo === 'sin-jefe') {
+                return (
+                  <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700"
+                    title={`No hay jefe asignado para el nivel ${n.nivel}. El paso de nivel ${n.nivel} no aplicará.`}>
+                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    Sin jefe - se omitirá
+                  </Badge>
+                );
+              }
+              if (jefe.tipo === 'sin-usuario') {
+                return (
+                  <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700"
+                    title={`El jefe ${jefe.texto} no tiene usuario en el sistema. El paso de nivel ${n.nivel} no aplicará.`}>
+                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    {jefe.texto}
+                  </Badge>
+                );
+              }
+              if (jefe.tipo === 'override') {
+                return (
+                  <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-blue-500/40 bg-blue-500/10 text-blue-700"
+                    title={`Override: el paso de nivel ${n.nivel} irá a ${jefe.texto}`}>
+                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    <span className="truncate">{jefe.texto}</span>
+                  </Badge>
+                );
+              }
+              return (
+                <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-green-500/40 bg-green-500/10 text-green-700"
+                  title={`El jefe ${jefe.texto} tiene usuario en el sistema. El paso de nivel ${n.nivel} aplicará.`}>
+                  <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                  <span className="truncate">{jefe.texto}</span>
+                </Badge>
+              );
+            })}
           </div>
         );
       },
@@ -286,7 +388,7 @@ export default function JefesNivelesList() {
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="Buscar por nombre, nómina, puesto o id..."
+            placeholder="Buscar por nombre, nómina, jefe o id..."
             className="pl-10"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -358,21 +460,42 @@ export default function JefesNivelesList() {
                   <FormItem>
                     <FormLabel>Empleado *</FormLabel>
                     <FormControl>
-                      <select
-                        className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                        value={field.value || ''}
-                        onChange={(e) => field.onChange(Number(e.target.value))}
-                        disabled={loadingUsuarios}
+                      <Combobox
+                        type="empleado"
+                        value={String(field.value || '')}
+                        onValueChange={(v) => {
+                          field.onChange(v ? Number(v) : 0);
+                          if (v) fetchCadena(Number(v));
+                        }}
+                        data={usuarioOptions}
                       >
-                        <option value="" disabled>
-                          {loadingUsuarios ? 'Cargando usuarios...' : 'Selecciona un empleado'}
-                        </option>
-                        {usuarios.map((u) => (
-                          <option key={u.idUsuario} value={u.idUsuario}>
-                            {u.nombreCompleto ?? `Usuario ${u.idUsuario}`} (#{u.idUsuario})
-                          </option>
-                        ))}
-                      </select>
+                        <ComboboxTrigger className="w-full" disabled={loadingUsuarios}>
+                          <span className="flex w-full items-center justify-between gap-2">
+                            <span className="truncate">
+                              {field.value
+                                ? usuarioOptions.find((o) => o.value === String(field.value))?.label ??
+                                  `Usuario ${field.value}`
+                                : loadingUsuarios
+                                  ? 'Cargando usuarios...'
+                                  : 'Selecciona un empleado'}
+                            </span>
+                            <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          </span>
+                        </ComboboxTrigger>
+                        <ComboboxContent>
+                          <ComboboxInput placeholder="Buscar empleado por nombre..." />
+                          <ComboboxEmpty>No se encontraron usuarios</ComboboxEmpty>
+                          <ComboboxList>
+                            <ComboboxGroup>
+                              {usuarioOptions.map((opt) => (
+                                <ComboboxItem key={opt.value} value={opt.value} keywords={[opt.label]}>
+                                  {opt.label} (#{opt.value})
+                                </ComboboxItem>
+                              ))}
+                            </ComboboxGroup>
+                          </ComboboxList>
+                        </ComboboxContent>
+                      </Combobox>
                     </FormControl>
                     <FormDescription>
                       Solo aparecen usuarios del sistema. Si no encuentras al empleado, verifica que
@@ -399,32 +522,101 @@ export default function JefesNivelesList() {
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Niveles de jefe que aplican</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {Array.from({ length: MAX_NIVEL }, (_, i) => i + 1).map((nivel) => (
-                  <FormField
-                    key={nivel}
-                    control={form.control}
-                    name={`niveles.${nivel - 1}.aplica`}
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                        <FormControl>
-                          <Checkbox
-                            checked={Boolean(field.value)}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-0.5 leading-none">
-                          <FormLabel>Nivel {nivel}</FormLabel>
-                          {nivel === 1 && (
-                            <FormDescription>
-                              Por defecto el nivel 1 siempre aplica.
-                            </FormDescription>
-                          )}
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                ))}
+              <CardContent className="space-y-4">
+                {Array.from({ length: MAX_NIVEL }, (_, i) => i + 1).map((nivel) => {
+                  const completo = cadenaModal.find((c) => c.nivel === nivel);
+                  const overrideId = form.watch(`niveles.${nivel - 1}.idUsuarioJefeOverride`);
+                  return (
+                    <FormField
+                      key={nivel}
+                      control={form.control}
+                      name={`niveles.${nivel - 1}.aplica`}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-col space-y-2 rounded-md border p-3">
+                          <div className="flex flex-row items-start space-x-3 space-y-0">
+                            <FormControl>
+                              <Checkbox
+                                checked={Boolean(field.value)}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                            <div className="space-y-0.5 leading-none">
+                              <FormLabel>Nivel {nivel}</FormLabel>
+                            </div>
+                          </div>
+
+                          <div className="pl-7 text-sm">
+                            {loadingCadena ? (
+                              <span className="text-muted-foreground">Cargando cadena de jefes...</span>
+                            ) : !completo?.nominaJefe ? (
+                              <span className="text-amber-700">
+                                No hay jefe en la vista para este nivel.
+                              </span>
+                            ) : (
+                              <div className="space-y-1">
+                                <div className="text-muted-foreground">
+                                  Vista: {completo.nombreJefe ?? `nómina ${completo.nominaJefe}`}
+                                </div>
+                              </div>
+                            )}
+
+                            <FormField
+                              control={form.control}
+                              name={`niveles.${nivel - 1}.idUsuarioJefeOverride`}
+                              render={({ field: overrideField }) => (
+                                <FormItem className="mt-2">
+                                  <FormLabel className="text-xs font-normal">Override de jefe</FormLabel>
+                                  <FormControl>
+                                    <Combobox
+                                      type="jefe"
+                                      value={String(overrideField.value ?? '')}
+                                      onValueChange={(v) => overrideField.onChange(v ? Number(v) : null)}
+                                      data={[{ value: '', label: 'Usar jefe de la vista' }, ...usuarioOptions]}
+                                    >
+                                      <ComboboxTrigger className="h-9 w-full" disabled={loadingUsuarios}>
+                                        <span className="flex w-full items-center justify-between gap-2">
+                                          <span className="truncate">
+                                            {overrideField.value != null
+                                              ? usuarioOptions.find((o) => o.value === String(overrideField.value))?.label ??
+                                                `Usuario ${overrideField.value}`
+                                              : 'Usar jefe de la vista'}
+                                          </span>
+                                          <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                        </span>
+                                      </ComboboxTrigger>
+                                      <ComboboxContent>
+                                        <ComboboxInput placeholder="Buscar jefe..." />
+                                        <ComboboxEmpty>No se encontraron usuarios</ComboboxEmpty>
+                                        <ComboboxList>
+                                          <ComboboxGroup>
+                                            <ComboboxItem value="" keywords={['vista']}>
+                                              Usar jefe de la vista
+                                            </ComboboxItem>
+                                            {usuarioOptions.map((opt) => (
+                                              <ComboboxItem key={opt.value} value={opt.value} keywords={[opt.label]}>
+                                                {opt.label} (#{opt.value})
+                                              </ComboboxItem>
+                                            ))}
+                                          </ComboboxGroup>
+                                        </ComboboxList>
+                                      </ComboboxContent>
+                                    </Combobox>
+                                  </FormControl>
+                                </FormItem>
+                              )}
+                            />
+
+                            {overrideId && (
+                              <div className="mt-1 text-xs text-blue-600">
+                                ⚡ El paso irá al usuario #{overrideId} (override)
+                              </div>
+                            )}
+                          </div>
+                        </FormItem>
+                      )}
+                    />
+                  );
+                })}
                 <p className="text-muted-foreground pt-2 text-xs">
                   {nivelesActivos === 0
                     ? '⚠️ Ningún nivel activo: se guardará como default legacy (solo nivel 1).'
@@ -438,7 +630,7 @@ export default function JefesNivelesList() {
               <div>
                 <strong>Recordatorio:</strong> sin configuración, el sistema usa el default
                 legacy (solo nivel 1). Los pasos con nivel 1 funcionan siempre; los niveles 2+
-                solo aplican si los activas aquí.
+                solo aplican si los activas aquí. El override reemplaza al jefe de la vista.
               </div>
             </div>
           </form>
