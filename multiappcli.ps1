@@ -7,10 +7,12 @@
 #   build      Production deploy zip (build + publish Release, 5-step)
 #   build:qa   Frontend build:qa + backend publish (Release)
 #   build:dev  Frontend build:dev + backend publish (Debug)
+#   publish:qa Build qa + deploy por SSH a staging (detiene app con app_offline.htm)
+#   publish    Build prod + deploy por SSH a produccion (pendiente de configurar)
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("dev", "stop", "restart", "install", "build", "build:qa", "build:dev")]
+    [ValidateSet("dev", "stop", "restart", "install", "build", "build:qa", "build:dev", "publish", "publish:qa")]
     [string]$Command = "dev"
 )
 
@@ -19,6 +21,14 @@ $Root = $PSScriptRoot
 $Backend = Join-Path $Root "lefarma.backend\src\Lefarma.API"
 $Frontend = Join-Path $Root "lefarma.frontend"
 $ReleaseDir = Join-Path $Root "release"
+
+# Deploy por SSH (publish / publish:qa)
+$SshUser = "artricenter\carlos.guzman"
+$SshHost = "192.168.4.2"
+$PublishTargets = @{
+    qa   = "D:\Desarrollo-pruebas-base"
+    prod = ""   # pendiente: path de produccion (lo pasa el usuario)
+}
 
 function Stop-PortProcess([int]$Port) {
     $conn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -61,6 +71,40 @@ function Invoke-DeployBuild([string]$NpmScript, [string]$ZipName) {
     if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }
     Compress-Archive -Path (Join-Path $PublishDir "*") -DestinationPath $zip -Force
     Write-Host "Done -> $zip" -ForegroundColor Green
+}
+
+function Invoke-RemotePublish([string]$ZipPath, [string]$RemoteTarget) {
+    if (-not $RemoteTarget) { throw "Target de produccion sin configurar: falta path/app (pendiente de datos del usuario)" }
+
+    Write-Host "[1/3] SCP zip -> $SshHost" -ForegroundColor Cyan
+    ssh "$SshUser@$SshHost" "if not exist C:\LefarmaDeploy mkdir C:\LefarmaDeploy"
+    scp $ZipPath "${SshUser}@${SshHost}:C:/LefarmaDeploy/incoming.zip"
+    if ($LASTEXITCODE -ne 0) { throw "scp failed" }
+
+    Write-Host "[2/3] Subir helper remoto" -ForegroundColor Cyan
+    $helper = Join-Path $env:TEMP "lefarma-remote-deploy.ps1"
+    @'
+param($zip, $target)
+$ErrorActionPreference = "Stop"
+$offline = Join-Path $target "app_offline.htm"
+Set-Content -LiteralPath $offline "<html><body>deploy en curso</body></html>"
+Start-Sleep -Seconds 3
+$tmp = Join-Path $env:TEMP ("x-" + [guid]::NewGuid().ToString("N"))
+Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
+robocopy $tmp $target /E /XF appsettings*.json web.config app_offline.htm /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+if ($LASTEXITCODE -ge 8) { throw "robocopy fallo ($LASTEXITCODE)" }
+Remove-Item -LiteralPath $offline -Force -ErrorAction SilentlyContinue
+$wc = Join-Path $target "web.config"
+if (Test-Path $wc) { (Get-Item $wc).LastWriteTime = Get-Date }
+Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "Deploy OK -> $target"
+'@ | Out-File $helper -Encoding UTF8
+    scp $helper "${SshUser}@${SshHost}:C:/LefarmaDeploy/remote-deploy.ps1"
+    if ($LASTEXITCODE -ne 0) { throw "scp helper failed" }
+
+    Write-Host "[3/3] Deploy remoto (app_offline + robocopy + recycle)" -ForegroundColor Cyan
+    ssh "$SshUser@$SshHost" "powershell -NoProfile -ExecutionPolicy Bypass -File C:\LefarmaDeploy\remote-deploy.ps1 -zip C:\LefarmaDeploy\incoming.zip -target `"$RemoteTarget`""
+    if ($LASTEXITCODE -ne 0) { throw "remote deploy failed" }
 }
 
 switch ($Command) {
@@ -138,4 +182,13 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
 
     "build"    { Invoke-DeployBuild "build"    "lefarma-prod.zip" }
     "build:qa" { Invoke-DeployBuild "build:qa" "lefarma-qa.zip" }
+
+    "publish:qa" {
+        Invoke-DeployBuild "build:qa" "lefarma-qa.zip"
+        Invoke-RemotePublish (Join-Path $Root "publish\lefarma-qa.zip") $PublishTargets.qa
+    }
+    "publish" {
+        Invoke-DeployBuild "build" "lefarma-prod.zip"
+        Invoke-RemotePublish (Join-Path $Root "publish\lefarma-prod.zip") $PublishTargets.prod
+    }
 }
