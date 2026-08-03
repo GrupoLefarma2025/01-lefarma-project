@@ -46,13 +46,19 @@ function Deploy($rel, $target, $stateFile) {
     $tmp = Join-Path $WorkDir ("x-" + [guid]::NewGuid().ToString("N"))
     Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
 
+    # app_offline.htm: ANCM apaga SOLO esta app y suelta los locks de DLLs (sin iisreset, sin tocar otras)
+    $offline = Join-Path $target "app_offline.htm"
+    Set-Content -LiteralPath $offline "<html><body>deploy en curso</body></html>"
+    Start-Sleep -Seconds 3
+
     # /E sobreescribe sin borrar archivos extra del destino; /XF protege configs por doble seguro
     # ponytail: quedan DLLs huerfanos de versiones previas; si estorba, /MIR + /XF de estas mismas exclusiones
-    robocopy $tmp $target /E /XF appsettings*.json web.config /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+    robocopy $tmp $target /E /XF appsettings*.json web.config app_offline.htm /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy fallo ($LASTEXITCODE)" }
 
+    Remove-Item -LiteralPath $offline -Force -ErrorAction SilentlyContinue  # la app levanta al siguiente request
     $wc = Join-Path $target "web.config"
-    if (Test-Path $wc) { (Get-Item $wc).LastWriteTime = Get-Date }  # fuerza recycle de IIS
+    if (Test-Path $wc) { (Get-Item $wc).LastWriteTime = Get-Date }  # recycle extra por si acaso
 
     Set-Content -LiteralPath $stateFile -Value $rel.tag_name
     Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue
