@@ -21,6 +21,7 @@ public class OrdenCompraRepository : BaseRepository<OrdenCompra>, IOrdenCompraRe
                 .Include(o => o.Sucursal)
                 .Include(o => o.Area)
                 .Include(o => o.Estado)
+                .Include(o => o.Moneda)
                 .FirstOrDefaultAsync(o => o.IdOrden == idOrden);
 
         public async Task<ICollection<OrdenCompra>> GetByEstadoAsync(int idEstado)

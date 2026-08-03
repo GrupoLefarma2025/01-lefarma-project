@@ -42,6 +42,15 @@ interface MedioPagoItem {
   orden: number;
 }
 
+interface CuentaPagoInicial {
+  idFormaPago?: number | null;
+  formaPago?: string | null;
+  idBanco?: number | null;
+  banco?: string | null;
+  numeroCuenta?: string | null;
+  clabe?: string | null;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -53,6 +62,7 @@ interface Props {
   totalOrden?: number;
   folioOrden?: string;
   totalPagado?: number;
+  cuentaPagoInicial?: CuentaPagoInicial | null;
   partidasPendientes: PartidaPendienteResponse[];
   onComprobanteSubido: (comprobante: ComprobanteResponse) => void;
 }
@@ -80,12 +90,16 @@ export function SubirComprobantePagoModal({
   totalOrden,
   folioOrden,
   totalPagado = 0,
+  cuentaPagoInicial,
   partidasPendientes,
   onComprobanteSubido,
 }: Props) {
   const [step, setStep] = useState<Step>('datos');
   const [loading, setLoading] = useState(false);
   const [mediosPago, setMediosPago] = useState<MedioPagoItem[]>([]);
+  // ponytail: la forma de pago es un dato informativo del proveedor (no editable); solo guardo su nombre para mostrarlo y enviarlo
+  const [formaPagoNombre, setFormaPagoNombre] = useState('');
+  const [bancos, setBancos] = useState<{ idBanco: number; nombre: string }[]>([]);
 
   // Step datos
   const [idMedioPago, setIdMedioPago] = useState<number | null>(null);
@@ -94,12 +108,19 @@ export function SubirComprobantePagoModal({
   const [fechaPago, setFechaPago]     = useState('');
   const [monto, setMonto]             = useState(() => totalOrden != null ? String(totalOrden) : '');
   const [notas, setNotas]             = useState('');
+  const [idFormaPago, setIdFormaPago] = useState<number | null>(null);
+  const [idBanco, setIdBanco]         = useState<number | null>(null);
+  const [numeroCuenta, setNumeroCuenta] = useState('');
+  const [clabe, setClabe]             = useState('');
 
-  // Cargar medios de pago al abrir
+  // Cargar catálogos al abrir
   useEffect(() => {
     if (open) {
       API.get<ApiResponse<MedioPagoItem[]>>('/catalogos/MediosPago')
         .then(res => { if (res.data?.success) setMediosPago((res.data.data ?? []).sort((a, b) => a.orden - b.orden)); })
+        .catch(() => { /* silent */ });
+      API.get<ApiResponse<{ idBanco: number; nombre: string }[]>>('/catalogos/Bancos')
+        .then(res => { if (res.data?.success) setBancos(res.data.data ?? []); })
         .catch(() => { /* silent */ });
     }
   }, [open]);
@@ -109,12 +130,17 @@ export function SubirComprobantePagoModal({
   // Pendiente al abrir el modal
   const pendienteOrden = totalOrden != null ? Math.max(0, totalOrden - totalPagado) : undefined;
 
-  // Sincronizar monto con pendiente cuando se abre el modal
+  // Sincronizar monto y cuenta pre-cargada cuando se abre el modal
   useEffect(() => {
     if (open) {
       setMonto(pendienteOrden != null ? String(pendienteOrden) : '');
+      setIdFormaPago(cuentaPagoInicial?.idFormaPago ?? null);
+      setFormaPagoNombre(cuentaPagoInicial?.formaPago ?? '');
+      setIdBanco(cuentaPagoInicial?.idBanco ?? null);
+      setNumeroCuenta(cuentaPagoInicial?.numeroCuenta ?? '');
+      setClabe(cuentaPagoInicial?.clabe ?? '');
     }
-  }, [open, pendienteOrden]);
+  }, [open, pendienteOrden, cuentaPagoInicial]);
 
   // Step archivo / asignar
   const [comprobanteSubido, setComprobanteSubido] = useState<ComprobanteResponse | null>(null);
@@ -128,6 +154,11 @@ export function SubirComprobantePagoModal({
     setFechaPago('');
     setMonto(pendienteOrden != null ? String(pendienteOrden) : '');
     setNotas('');
+    setIdFormaPago(null);
+    setFormaPagoNombre('');
+    setIdBanco(null);
+    setNumeroCuenta('');
+    setClabe('');
     setComprobanteSubido(null);
     setAsignaciones([]);
   };
@@ -143,6 +174,12 @@ export function SubirComprobantePagoModal({
     }
     setLoading(true);
     try {
+      // ponytail: si el tesorero no alteró ninguno de los 3 campos de cuenta respecto al pre-cargado,
+      // no mandamos datos de cuenta → el backend no reescribe cuentaPagoTesorero ni escribe un renglón duplicado en la bitácora.
+      const sinCambioCuenta =
+        idBanco === (cuentaPagoInicial?.idBanco ?? null) &&
+        numeroCuenta.trim() === (cuentaPagoInicial?.numeroCuenta ?? '').trim() &&
+        clabe.trim() === (cuentaPagoInicial?.clabe ?? '').trim();
       const comp = await comprobanteService.subir({
         idEmpresa,
         idOrden:          idOrden ?? null,
@@ -156,6 +193,12 @@ export function SubirComprobantePagoModal({
         nombrePaso:       nombrePaso ?? null,
         nombreAccion:     nombreAccion ?? null,
         idMedioPago:      idMedioPago,
+        idFormaPago:      sinCambioCuenta ? null : idFormaPago,
+        formaPago:        sinCambioCuenta ? null : (formaPagoNombre.trim() || null),
+        idBanco:          sinCambioCuenta ? null : idBanco,
+        banco:            sinCambioCuenta ? null : (bancos.find(b => b.idBanco === idBanco)?.nombre ?? null),
+        numeroCuenta:     sinCambioCuenta ? null : (numeroCuenta.trim() || null),
+        clabe:            sinCambioCuenta ? null : (clabe.trim() || null),
       });
       setComprobanteSubido(comp);
       setStep('archivo');
@@ -351,6 +394,37 @@ export function SubirComprobantePagoModal({
               </SelectContent>
             </Select>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Forma de pago preferida <span className="text-muted-foreground text-xs">(del proveedor)</span></Label>
+              <div className="flex h-9 items-center rounded-md border border-dashed border-muted-foreground/30 bg-muted/30 px-3 text-sm text-muted-foreground">
+                {formaPagoNombre || '—'}
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Banco <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Select value={idBanco?.toString() ?? ''} onValueChange={(v) => setIdBanco(Number(v) || null)}>
+                <SelectTrigger><SelectValue placeholder="Selecciona banco" /></SelectTrigger>
+                <SelectContent>
+                  {bancos.map((b) => (
+                    <SelectItem key={b.idBanco} value={b.idBanco.toString()}>{b.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>No. de cuenta <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input value={numeroCuenta} onChange={(e) => setNumeroCuenta(e.target.value)} placeholder="0189 8232 5500" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Clabe interbancaria <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input value={clabe} onChange={(e) => setClabe(e.target.value)} placeholder="072 180 0000 0000 0000" />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">Puedes editar o borrar la cuenta pre-cargada y capturar una distinta.</p>
 
           <div className="space-y-1.5">
             <Label>Monto pagado <span className="text-red-500">*</span></Label>

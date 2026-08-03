@@ -185,13 +185,36 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     }
                 }
 
-                return ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
+                var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
+                await EnriquecerNombresHistorialAsync(response.Historial);
+                return response;
             }
             catch (Exception ex)
             {
                 EnrichWideEvent("GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError("obtener la orden de compra");
             }
+        }
+
+        // ponytail: los nombres de usuario del historial se resuelven solo en el detalle (GetById);
+        // el listado general no los enriquece para no multiplicar consultas.
+        private async Task EnriquecerNombresHistorialAsync(List<HistorialOrdenItemResponse>? historial)
+        {
+            if (historial == null || historial.Count == 0) return;
+            var idsFaltantes = historial
+                .Where(h => string.IsNullOrEmpty(h.UsuarioNombre))
+                .Select(h => h.IdUsuario)
+                .Distinct()
+                .ToList();
+            if (idsFaltantes.Count == 0) return;
+
+            var nombres = await _asokamContext.Usuarios.AsNoTracking()
+                .Where(u => idsFaltantes.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}");
+
+            foreach (var h in historial)
+                if (string.IsNullOrEmpty(h.UsuarioNombre) && nombres.TryGetValue(h.IdUsuario, out var nombre))
+                    h.UsuarioNombre = nombre;
         }
 
         public async Task<ErrorOr<OrdenCompraResponse>> CreateAsync(CreateOrdenCompraRequest request, int idUsuario, CancellationToken ct = default)
@@ -266,7 +289,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     IdWorkflow = workflow.IdWorkflow,
                     IdPasoActual = pasoInicio?.IdPaso,
                     IdProveedor = request.IdProveedor,
-                    IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades),
+                    IdsCuentasBancarias = SerializeCuentasYFormasPago(null, request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades),
                     SinDatosFiscales = request.SinDatosFiscales,
                     RequierePagoAnticipado = request.RequierePagoAnticipado,
                     NotaFormaPago = request.NotaFormaPago,
@@ -377,7 +400,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.IdTipoGasto = request.IdTipoGasto;
                 orden.FechaLimitePago = request.FechaLimitePago;
                 orden.IdProveedor = request.IdProveedor;
-                orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
+                orden.IdsCuentasBancarias = SerializeCuentasYFormasPago(orden.IdsCuentasBancarias, request.IdsCuentasBancarias, request.IdsFormaPago, request.NumeroMensualidades);
                 orden.SinDatosFiscales = request.SinDatosFiscales;
                 orden.RequierePagoAnticipado = request.RequierePagoAnticipado;
                 orden.NotaFormaPago = request.NotaFormaPago;
@@ -550,6 +573,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             NumeroMensualidades = string.IsNullOrEmpty(o.IdsCuentasBancarias)
                 ? null
                 : DeserializeCuentasYFormasPago(o.IdsCuentasBancarias)?.NumeroMensualidades,
+            CuentaPagoTesorero = OrdenCompraDocumentoJson.LeerCuentaPagoTesorero(o.IdsCuentasBancarias),
+            Historial = OrdenCompraDocumentoJson.LeerHistorial(o.IdsCuentasBancarias),
             IdEstado = o.IdEstado,
             EstadoNombre = o.Estado?.Nombre,
             EstadoColor = o.Estado?.ColorHex,
@@ -612,16 +637,17 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }).ToList()
         };
 
-        private static string? SerializeCuentasYFormasPago(List<int>? idsCuentas, List<int>? idsFormasPago, int? numeroMensualidades)
+        private static string? SerializeCuentasYFormasPago(string? jsonActual, List<int>? idsCuentas, List<int>? idsFormasPago, int? numeroMensualidades)
         {
-            if (idsCuentas == null && idsFormasPago == null && numeroMensualidades == null) return null;
-            var obj = new CuentasBancariasYFormasPago
+            // El solicitante es dueño solo de estas 3 claves; el merge preserva las claves de otros flujos
+            // (cuentaPagoTesorero, historial) que viven en la misma columna JSON.
+            if (idsCuentas == null && idsFormasPago == null && numeroMensualidades == null) return jsonActual;
+            return OrdenCompraDocumentoJson.MergeClavesJson(jsonActual, new Dictionary<string, object?>
             {
-                IdsCuentasBancarias = idsCuentas ?? new List<int>(),
-                IdsFormaPago = idsFormasPago ?? new List<int>(),
-                NumeroMensualidades = numeroMensualidades
-            };
-            return System.Text.Json.JsonSerializer.Serialize(obj);
+                ["IdsCuentasBancarias"] = idsCuentas ?? new List<int>(),
+                ["IdsFormaPago"] = idsFormasPago ?? new List<int>(),
+                ["NumeroMensualidades"] = numeroMensualidades
+            });
         }
 
         private static CuentasBancariasYFormasPago? DeserializeCuentasYFormasPago(string? json)

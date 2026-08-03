@@ -60,6 +60,7 @@ import {
   Upload,
   Pencil,
   Trash2,
+  History,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
@@ -67,7 +68,7 @@ import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
-import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
+import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
@@ -179,12 +180,31 @@ interface Proveedor {
   regimenFiscalDescripcion?: string;
   usoCfdi?: string;
   sinDatosFiscales?: boolean;
+  estatus?: number;
   detalle?: {
     personaContactoNombre?: string;
     contactoTelefono?: string;
     contactoEmail?: string;
   };
   cuentasFormaPago?: ProveedorCuentaBancaria[];
+}
+
+const PROV_ESTATUS = { NUEVO: 1, APROBADO: 2, RECHAZADO: 3, EDITADO_PENDIENTE: 4 } as const;
+
+interface StagingDiff {
+  campo: string;
+  valorActual: string | null;
+  valorNuevo: string | null;
+}
+
+interface StagingData {
+  idStaging: number;
+  idProveedor: number;
+  razonSocial: string;
+  rfc: string | null;
+  regimenFiscalDescripcion?: string;
+  fechaStaging: string;
+  diferencias: StagingDiff[];
 }
 
 interface WorkflowPasoConfig {
@@ -352,6 +372,7 @@ export default function AutorizacionesOC() {
     null
   );
   const [comentarioFirma, setComentarioFirma] = useState('');
+  const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   // Dynamic campo values for the action modal (key = inputKey from handler config)
   const [camposValues, setCamposValues] = useState<Record<string, unknown>>({});
   const [catalogos, setCatalogos] = useState<Record<string, { value: string; label: string }[]>>(
@@ -381,6 +402,8 @@ export default function AutorizacionesOC() {
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [allProveedoresMap, setAllProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
   const [loadingProveedores, setLoadingProveedores] = useState(false);
+  const [stagingMap, setStagingMap] = useState<Map<number, StagingData>>(new Map());
+  const [proveedorTab, setProveedorTab] = useState<'actual' | 'cambios'>('actual');
   const [firmasMap, setFirmasMap] = useState<Map<number, string>>(new Map());
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
@@ -440,6 +463,7 @@ export default function AutorizacionesOC() {
   const cargarProveedoresOrden = async (orden: OrdenCompraResponse) => {
     setLoadingProveedores(true);
     const nuevosProveedores = new Map<number, Proveedor>();
+    const nuevosStaging = new Map<number, StagingData>();
 
     try {
       const idsProveedores: number[] = [];
@@ -459,11 +483,21 @@ export default function AutorizacionesOC() {
           const proveedor = await obtenerProveedorPorId(id);
           if (proveedor) {
             nuevosProveedores.set(id, proveedor);
+            if (proveedor.estatus === PROV_ESTATUS.EDITADO_PENDIENTE) {
+              try {
+                const stgRes = await API.get<ApiResponse<StagingData>>(`/catalogos/Proveedores/${id}/staging`);
+                if (stgRes.data.success && stgRes.data.data) {
+                  nuevosStaging.set(id, stgRes.data.data);
+                }
+              } catch { /* staging fetch is best-effort */ }
+            }
           }
         })
       );
     } finally {
       setProveedoresMap(nuevosProveedores);
+      setStagingMap(nuevosStaging);
+      setProveedorTab('actual');
       setLoadingProveedores(false);
     }
   };
@@ -729,6 +763,50 @@ export default function AutorizacionesOC() {
     }
   }, [selectedOrden, workflowsMap]);
 
+  // Resuelve una idCuenta bancaria del proveedor a los 5 campos de cuenta
+  // usando la misma fuente que el detalle (proveedoresMap / allProveedoresMap).
+  const resolverCuentaProveedor = (idCuenta: number) => {
+    for (const map of [proveedoresMap, allProveedoresMap]) {
+      for (const [, proveedor] of map) {
+        const c = proveedor.cuentasFormaPago?.find((x) => x.idCuenta === idCuenta);
+        if (c) {
+          return {
+            idFormaPago: c.idFormaPago ?? null,
+            formaPago: c.formaPagoNombre ?? null,
+            idBanco: c.idBanco ?? null,
+            banco: c.bancoNombre ?? null,
+            numeroCuenta: c.numeroCuenta ?? null,
+            clabe: c.clabe ?? null,
+          };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Pre-llenado de cuenta para el modal de comprobante de pago:
+  // prioriza la cuenta ya capturada por el tesorero; si no, la del solicitante.
+  const cuentaPagoInicial = (() => {
+    if (!selectedOrden) return null;
+    if (selectedOrden.cuentaPagoTesorero) {
+      const t = selectedOrden.cuentaPagoTesorero;
+      return {
+        idFormaPago: t.idFormaPago ?? null,
+        formaPago: t.formaPago ?? null,
+        idBanco: t.idBanco ?? null,
+        banco: t.banco ?? null,
+        numeroCuenta: t.numeroCuenta ?? null,
+        clabe: t.clabe ?? null,
+      };
+    }
+    const idCb = selectedOrden.idsCuentasBancarias?.[0];
+    return idCb != null ? resolverCuentaProveedor(idCb) : null;
+  })();
+
+  const cuentaProveedorOriginal = selectedOrden?.idsCuentasBancarias?.[0] != null
+    ? resolverCuentaProveedor(selectedOrden.idsCuentasBancarias[0])
+    : null;
+
   const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
     setAccionSeleccionada(accion);
     setComentarioFirma('');
@@ -861,6 +939,28 @@ export default function AutorizacionesOC() {
     () => getCamposParaAccion(accionSeleccionada),
     [accionSeleccionada]
   );
+
+  // Bitácora de pagos: entradas del historial JSON, más reciente primero.
+  const historialOrdenOrdenado = useMemo(
+    () =>
+      [...(selectedOrden?.historial ?? [])]
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()),
+    [selectedOrden?.historial]
+  );
+
+  // Cuenta pagada a mostrar en el panel: la alterada por el tesorero o, en su defecto, el último
+  // depósito de la bitácora. null si no se alteró nada → entonces el bloque no se renderiza.
+  const cuentaPagadaDisplay = useMemo(() => {
+    const t = selectedOrden?.cuentaPagoTesorero;
+    if (t && (t.numeroCuenta || t.clabe || t.banco)) {
+      return { cuenta: t.numeroCuenta ?? null, clabe: t.clabe ?? null, banco: t.banco ?? null };
+    }
+    const ultimo = historialOrdenOrdenado[0];
+    if (ultimo && (ultimo.cuenta || ultimo.clabe || ultimo.banco)) {
+      return { cuenta: ultimo.cuenta ?? null, clabe: ultimo.clabe ?? null, banco: ultimo.banco ?? null };
+    }
+    return null;
+  }, [selectedOrden?.cuentaPagoTesorero, historialOrdenOrdenado]);
 
   const enviarFirma = async () => {
     if (!selectedOrden || !accionSeleccionada) return;
@@ -1488,25 +1588,120 @@ export default function AutorizacionesOC() {
                     >
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {selectedOrden.idProveedor && proveedoresMap.has(selectedOrden.idProveedor) ? (
-                          <div className="col-span-2 rounded-md border bg-background px-2 py-1.5">
-                            <div className="flex items-center justify-between">
-                              <p className="text-muted-foreground">Proveedor (Cabecero)</p>
-                              <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
-                                Nivel orden
-                              </span>
-                            </div>
-                            <p className="font-medium">
-                              {proveedoresMap.get(selectedOrden.idProveedor)?.razonSocial}
-                            </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              RFC: {proveedoresMap.get(selectedOrden.idProveedor)?.rfc || 'N/A'}
-                              {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion && (
-                                <span className="ml-2">
-                                  • {proveedoresMap.get(selectedOrden.idProveedor)?.regimenFiscalDescripcion}
-                                </span>
-                              )}
-                            </p>
-                          </div>
+                          (() => {
+                            const prov = proveedoresMap.get(selectedOrden.idProveedor)!;
+                            const estatus = prov.estatus ?? 0;
+                            const isNoAutorizado = estatus !== PROV_ESTATUS.APROBADO && estatus !== PROV_ESTATUS.EDITADO_PENDIENTE;
+                            const isEdicionPendiente = estatus === PROV_ESTATUS.EDITADO_PENDIENTE;
+                            const staging = stagingMap.get(selectedOrden.idProveedor!);
+
+                            if (isNoAutorizado) {
+                              return (
+                                <div className="col-span-2 rounded-md border-2 border-amber-400 bg-amber-50 px-2 py-2 dark:bg-amber-950/30">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                    <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                      Nivel orden
+                                    </span>
+                                  </div>
+                                  <p className="font-medium text-red-700 dark:text-red-400">
+                                    {prov.razonSocial}
+                                  </p>
+                                  <p className="text-[10px] text-muted-foreground">
+                                    RFC: {prov.rfc || 'N/A'}
+                                    {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                  </p>
+                                  <div className="mt-1.5 rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-700 dark:border-red-700 dark:bg-red-950/40 dark:text-red-300">
+                                    ⚠ Proveedor no autorizado
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            if (isEdicionPendiente && staging) {
+                              return (
+                                <div className="col-span-2 rounded-md border-2 border-purple-400 bg-background px-2 py-2 dark:border-purple-500">
+                                  <div className="mb-1.5 rounded border border-purple-300 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-800 dark:border-purple-600 dark:bg-purple-950/40 dark:text-purple-200">
+                                    ✎ Hay una edición pendiente por aprobar
+                                  </div>
+                                  <div className="mb-1.5 flex items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => setProveedorTab('actual')}
+                                      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${proveedorTab === 'actual' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
+                                    >
+                                      Actual
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setProveedorTab('cambios')}
+                                      className={`rounded px-2 py-0.5 text-[10px] font-semibold transition-colors ${proveedorTab === 'cambios' ? 'bg-purple-600 text-white' : 'bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300'}`}
+                                    >
+                                      Cambios (staging)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => navigate('/catalogos/proveedores')}
+                                      className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
+                                    >
+                                      Ir a proveedores →
+                                    </button>
+                                  </div>
+                                  {proveedorTab === 'actual' ? (
+                                    <>
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                        <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">Nivel orden</span>
+                                      </div>
+                                      <p className="font-medium">{prov.razonSocial}</p>
+                                      <p className="text-[10px] text-muted-foreground">
+                                        RFC: {prov.rfc || 'N/A'}
+                                        {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                      </p>
+                                    </>
+                                  ) : (
+                                    <div className="rounded border border-purple-200 bg-purple-50/50 px-2 py-1.5 dark:border-purple-700 dark:bg-purple-950/20">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-[10px] font-semibold text-purple-700 dark:text-purple-300">Staging — cambios propuestos</p>
+                                        <span className="rounded-full bg-purple-100 px-1.5 py-0.5 text-[9px] font-medium text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
+                                          {staging.fechaStaging ? new Date(staging.fechaStaging).toLocaleDateString('es-MX') : ''}
+                                        </span>
+                                      </div>
+                                      <p className="font-medium text-purple-900 dark:text-purple-100">{staging.razonSocial}</p>
+                                      <p className="text-[10px] text-purple-700 dark:text-purple-300">RFC: {staging.rfc || 'N/A'}</p>
+                                      {staging.diferencias.length > 0 && (
+                                        <div className="mt-1 space-y-0.5">
+                                          {staging.diferencias.map((d, i) => (
+                                            <div key={i} className="flex gap-1 text-[10px]">
+                                              <span className="font-semibold text-purple-800 dark:text-purple-200">{d.campo}:</span>
+                                              <span className="line-through text-muted-foreground">{d.valorActual ?? '—'}</span>
+                                              <span className="text-purple-700 dark:text-purple-300">→ {d.valorNuevo ?? '—'}</span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div className="col-span-2 rounded-md border bg-background px-2 py-1.5">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-muted-foreground">Proveedor (Cabecero)</p>
+                                  <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
+                                    Nivel orden
+                                  </span>
+                                </div>
+                                <p className="font-medium">{prov.razonSocial}</p>
+                                <p className="text-[10px] text-muted-foreground">
+                                  RFC: {prov.rfc || 'N/A'}
+                                  {prov.regimenFiscalDescripcion && <span className="ml-2">• {prov.regimenFiscalDescripcion}</span>}
+                                </p>
+                              </div>
+                            );
+                          })()
                         ) : (
                           <div className="col-span-2 rounded-md border border-dashed border-amber-300 bg-amber-50/30 px-2 py-1.5">
                             <div className="flex items-center justify-between">
@@ -1879,6 +2074,33 @@ export default function AutorizacionesOC() {
                             </Button>
                           )}
                         </div>
+
+                        {/* Cuenta pagada (cuenta • clabe • banco) + bitácora — solo si se alteró la cuenta o ya hay bitácora */}
+                        {selectedOrden && cuentaPagadaDisplay && (
+                          <div className="rounded-lg border bg-background/80 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Cuenta pagada
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                title="Ver bitácora de pagos"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsHistorialModalOpen(true);
+                                }}
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="mt-1.5 text-xs font-medium text-foreground">
+                              {[cuentaPagadaDisplay.cuenta, cuentaPagadaDisplay.clabe, cuentaPagadaDisplay.banco].filter(Boolean).join(' • ')}
+                            </p>
+                          </div>
+                        )}
+
                         {progresoPasos.length > 0 && (() => {
                           return (
                           <div
@@ -2859,6 +3081,57 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
+      {/* ── Modal bitácora de pagos ── */}
+      <Modal
+        id="modal-historial-oc"
+        open={isHistorialModalOpen}
+        setOpen={setIsHistorialModalOpen}
+        title="Bitácora de pagos"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Cuenta del proveedor */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuenta del proveedor</p>
+            <p className="text-xs font-medium text-foreground">
+              {cuentaProveedorOriginal
+                ? [cuentaProveedorOriginal.numeroCuenta, cuentaProveedorOriginal.clabe, cuentaProveedorOriginal.banco].filter(Boolean).join(' • ') || '—'
+                : '—'}
+            </p>
+          </div>
+
+          {/* Cuentas donde se depositó */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuentas donde se depositó</p>
+            {historialOrdenOrdenado.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {/* ponytail: key por índice — lista estática de solo lectura, sin id único en el item */}
+                {historialOrdenOrdenado.map((item, index) => (
+                  <div key={index} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
+                    <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+                      <span className="font-medium text-foreground">
+                        {[item.cuenta, item.clabe, item.banco].filter(Boolean).join(' • ') || '—'}
+                      </span>
+                      <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                        {fmtFecha(item.fecha)}
+                      </span>
+                    </div>
+                    <div className="px-3 py-2">
+                      <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <UserRound className="h-3 w-3" />
+                        {item.usuarioNombre || `Usuario ${item.idUsuario}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
       {/* ── Modal CFDI gasto — fuera del modal de firma para evitar Dialog anidado ─────── */}
       {selectedOrden && (
         <SubirComprobanteModal
@@ -2901,6 +3174,7 @@ export default function AutorizacionesOC() {
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
           totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
+          cuentaPagoInicial={cuentaPagoInicial}
           partidasPendientes={partidasPendientesPago}
           onComprobanteSubido={(c) => {
             const key = isSubirComprobantePagoOpen;
