@@ -38,14 +38,15 @@ function Stop-PortProcess([int]$Port) {
     }
 }
 
-function Invoke-DeployBuild([string]$NpmScript, [string]$ZipName) {
+function Invoke-DeployBuild([string]$NpmScript, [string]$ZipName, [string]$VersionFile) {
     $PublishDir = Join-Path $Backend "bin\Release\net10.0\publish"
     $DistDir = Join-Path $Frontend "dist"
     $OutDir = Join-Path $Root "publish"
+    $AppVersion = (Get-Content (Join-Path $Root $VersionFile) -Raw).Trim()
 
-    Write-Host "[1/5] dotnet publish -c Release" -ForegroundColor Cyan
+    Write-Host "[1/5] dotnet publish -c Release (AppVersion=$AppVersion)" -ForegroundColor Cyan
     Push-Location $Backend
-    dotnet publish -c Release
+    dotnet publish -c Release -p:AppVersion=$AppVersion
     if ($LASTEXITCODE -ne 0) { Pop-Location; throw "Backend publish failed" }
     Pop-Location
 
@@ -180,8 +181,8 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
         Write-Host "Published to release/" -ForegroundColor Green
     }
 
-    "build"    { Invoke-DeployBuild "build"    "lefarma-prod.zip" }
-    "build:qa" { Invoke-DeployBuild "build:qa" "lefarma-qa.zip" }
+    "build"    { Invoke-DeployBuild "build"    "lefarma-prod.zip" "VERSION" }
+    "build:qa" { Invoke-DeployBuild "build:qa" "lefarma-qa.zip"  "VERSION-STAGING" }
 
     "publish:qa" {
         Invoke-DeployBuild "build:qa" "lefarma-qa.zip"

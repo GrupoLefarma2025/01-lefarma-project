@@ -12,6 +12,12 @@ jobs:
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: windows-latest
     timeout-minutes: 20
+    environment: production
+    env:
+      # Config de build del frontend (GitHub UI: Settings > Secrets and variables > Actions > Variables)
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_APP_NAME: ${{ vars.VITE_APP_NAME }}
+      BASE_URL_PATH: ${{ vars.BASE_URL_PATH }}
     permissions:
       contents: write
     steps:

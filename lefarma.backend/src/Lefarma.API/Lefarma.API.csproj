@@ -4,7 +4,16 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Version quemada en el assembly: multiappcli la pasa (-p:AppVersion); por defecto lee VERSION -->
+    <AppVersion Condition="'$(AppVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\..\VERSION').Trim())</AppVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>AppVersion</_Parameter1>
+      <_Parameter2>$(AppVersion)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="ErrorOr" Version="2.0.1" />
