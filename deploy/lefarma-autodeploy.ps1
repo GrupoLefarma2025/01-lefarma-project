@@ -1,7 +1,7 @@
-# lefarma-autodeploy.ps1 — vive en el servidor 192.168.4.2 (NO en el repo si no quieres).
-# Scheduled Task cada 5 min: busca Releases nuevos en GitHub y publica.
+# lefarma-autodeploy.ps1 — vive en el servidor 192.168.4.2.
+# Scheduled Task cada 5 min: busca pre-releases nuevos en GitHub y publica en staging.
 #   pre-release (v*-rc.*)  -> carpeta staging
-#   release     (v*)       -> carpeta produccion
+#   # release   (v*)       -> produccion: DESHABILITADO por ahora (bloques comentados abajo)
 # Sin logica de versiones: tag distinto al ultimo desplegado -> desplegar.
 
 $ErrorActionPreference = "Stop"
@@ -14,7 +14,7 @@ $BaseDir   = "C:\LefarmaDeploy"
 $TokenFile = "$BaseDir\.token"        # contiene el PAT; solo Administradores lo leen
 $Targets = @{
     qa   = "D:\Desarrollo-pruebas-base"   # sitio IIS "Desarrollo-demos", pool Desarrollo-base-lefarma, :5073
-    prod = ""    # carpeta produccion de Lefarma en este servidor
+    # prod = ""  # PRODUCCION deshabilitado: descomentar y llenar path cuando se active
 }
 # =========================================
 
@@ -22,10 +22,26 @@ $StateDir = "$BaseDir\state"
 $WorkDir  = "$BaseDir\work"
 $LogFile  = "$BaseDir\autodeploy.log"
 
-function Log($msg) {
+# Fuente propia en el Visor de Eventos (Windows > Aplicacion). Se registra una sola vez; requiere ser Admin.
+$EventSource = "LefarmaAutoDeploy"
+try {
+    if (-not [System.Diagnostics.EventLog]::SourceExists($EventSource)) {
+        [System.Diagnostics.EventLog]::CreateEventSource($EventSource, "Application")
+    }
+} catch { }  # sin permisos de Admin: sigue funcionando con archivo + consola
+
+function Log($msg, $level = "Information") {
     $line = "{0} | {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
     Add-Content -LiteralPath $LogFile -Value $line
-    Write-Host $line   # visible en corrida manual; en Scheduled Task queda solo en el log
+    Write-Host $line   # visible en corrida manual; en Scheduled Task queda en log + Event Viewer
+    try {
+        $type = switch ($level) {
+            "Error"       { [System.Diagnostics.EventLogEntryType]::Error }
+            "Warning"     { [System.Diagnostics.EventLogEntryType]::Warning }
+            default       { [System.Diagnostics.EventLogEntryType]::Information }
+        }
+        Write-EventLog -LogName Application -Source $EventSource -EventId 1000 -EntryType $type -Message $line
+    } catch { }
 }
 
 function Get-LatestRelease([bool]$Pre) {
@@ -39,7 +55,7 @@ function Deploy($rel, $target, $stateFile) {
     if ($rel.tag_name -eq $last) { return }
 
     $asset = $rel.assets | Select-Object -First 1
-    if (-not $asset) { Log "WARN $($rel.tag_name) sin zip, saltando"; return }
+    if (-not $asset) { Log "WARN $($rel.tag_name) sin zip, saltando" "Warning"; return }
 
     Log "NUEVO $($rel.tag_name) -> $target"
     $zip = Join-Path $WorkDir $asset.name
@@ -69,15 +85,16 @@ function Deploy($rel, $target, $stateFile) {
 
 # ---- main ----
 foreach ($d in @($StateDir, $WorkDir)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
-if (-not (Test-Path $TokenFile)) { Log "ERROR: falta $TokenFile"; exit 1 }
+if (-not (Test-Path $TokenFile)) { Log "ERROR: falta $TokenFile" "Error"; exit 1 }
 $token = (Get-Content $TokenFile -Raw).Trim()
 
 try {
     $qa = Get-LatestRelease $true
     if ($qa -and $Targets.qa) { Deploy $qa $Targets.qa "$StateDir\last-qa.txt" }
-} catch { Log "ERROR qa: $_" }
+} catch { Log "ERROR qa: $_" "Error" }
 
-try {
-    $prod = Get-LatestRelease $false
-    if ($prod -and $Targets.prod) { Deploy $prod $Targets.prod "$StateDir\last-prod.txt" }
-} catch { Log "ERROR prod: $_" }
+# ---- PRODUCCION deshabilitado por ahora ----
+# try {
+#     $prod = Get-LatestRelease $false
+#     if ($prod -and $Targets.prod) { Deploy $prod $Targets.prod "$StateDir\last-prod.txt" }
+# } catch { Log "ERROR prod: $_" }
