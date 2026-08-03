@@ -23,7 +23,9 @@ $WorkDir  = "$BaseDir\work"
 $LogFile  = "$BaseDir\autodeploy.log"
 
 function Log($msg) {
-    Add-Content -LiteralPath $LogFile -Value ("{0} | {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg)
+    $line = "{0} | {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
+    Add-Content -LiteralPath $LogFile -Value $line
+    Write-Host $line   # visible en corrida manual; en Scheduled Task queda solo en el log
 }
 
 function Get-LatestRelease([bool]$Pre) {
