@@ -1,6 +1,6 @@
 # Push/PR merge a staging -> build qa -> pre-release con zip.
-# El nombre sale del archivo VERSION en la raiz (ej: 1.0.0-rc.1 -> tag v1.0.0-rc.1).
-# Lo editas en tu PR antes de mergear. Si no lo bump-eas y el tag ya existe, el run falla a proposito.
+# VERSION en raiz es la version base (ej: 1.0.0). Staging SIEMPRE genera v<VERSION>-rc.N:
+# N autoincrementa mientras VERSION no cambie; si cambias VERSION, N vuelve a 1.
 name: Staging pre-release
 
 on:
@@ -16,10 +16,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Read version
+      - name: Compute rc tag
         id: ver
         shell: pwsh
-        run: echo "version=$((Get-Content VERSION -Raw).Trim())" >> $env:GITHUB_OUTPUT
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases?per_page=100" `
+                      -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
+          $pattern = "^v" + [regex]::Escape($version) + "-rc\.(\d+)$"
+          $max = 0
+          foreach ($r in $releases) {
+            if ($r.tag_name -match $pattern) { $n = [int]$matches[1]; if ($n -gt $max) { $max = $n } }
+          }
+          echo "tag=v$version-rc.$($max + 1)" >> $env:GITHUB_OUTPUT
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -39,8 +48,8 @@ jobs:
       - name: Create pre-release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          name: v${{ steps.ver.outputs.version }}
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
           prerelease: true
           target_commitish: ${{ github.sha }}
           files: publish/lefarma-qa.zip
