@@ -1033,7 +1033,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 if (idUsuarioObjetivo != idUsuario && !puedeVerTodas)
                 {
-                    return Error.Forbidden("solicitud_personal.puede_ver_todas_solicitudes", "No tiene permiso para consultar los límites de otros usuarios.");
+                    return Error.Forbidden("solicitud_personal.puede_ver_todas", "No tiene permiso para consultar los límites de otros usuarios.");
                 }
 
                 var tipos = await _tipoRepository.GetTiposActivosAsync();
