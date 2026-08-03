@@ -1,6 +1,7 @@
 # Push/PR merge a staging -> build qa -> pre-release con zip.
-# VERSION en raiz es la version base (ej: 1.0.0). Staging SIEMPRE genera v<VERSION>-rc.N:
-# N autoincrementa mientras VERSION no cambie; si cambias VERSION, N vuelve a 1.
+# VERSION-STAGING en raiz lleva el nombre completo (ej: 1.1.0-rc.1) y lo bump-eas TU:
+# el tag sera v<contenido>. Si mergeas sin bump-earlo, el run falla (tag ya existe) a proposito.
+# VERSION es la base de produccion (el tag v* estable lo creas a mano).
 name: Staging pre-release
 
 on:
@@ -16,19 +17,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compute rc tag
+      - name: Read staging version
         id: ver
         shell: pwsh
-        run: |
-          $version = (Get-Content VERSION -Raw).Trim()
-          $releases = Invoke-RestMethod -Uri "https://api.github.com/repos/$env:GITHUB_REPOSITORY/releases?per_page=100" `
-                      -Headers @{ Authorization = "Bearer $env:GITHUB_TOKEN" }
-          $pattern = "^v" + [regex]::Escape($version) + "-rc\.(\d+)$"
-          $max = 0
-          foreach ($r in $releases) {
-            if ($r.tag_name -match $pattern) { $n = [int]$matches[1]; if ($n -gt $max) { $max = $n } }
-          }
-          echo "tag=v$version-rc.$($max + 1)" >> $env:GITHUB_OUTPUT
+        run: echo "tag=v$((Get-Content VERSION-STAGING -Raw).Trim())" >> $env:GITHUB_OUTPUT
 
       - uses: actions/setup-dotnet@v4
         with:

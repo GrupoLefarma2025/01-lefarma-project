@@ -1,5 +1,5 @@
-# Tag v* (ej: v0.2.0) -> build prod -> Release estable con zip.
-# El tag lo crea la persona a mano: git tag v0.2.0 && git push origin v0.2.0
+# Tag v* (ej: v1.1.0) -> build prod -> Release estable con zip.
+# El tag lo crea la persona a mano: git tag v1.1.0 && git push origin v1.1.0
 name: Release
 
 on:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-release:
-    # guardia: v1.0.0-rc.1 (pre-release de staging, lleva guion) NO debe disparar produccion; v1.0.0 si
+    # guardia: v1.1.0-rc.1 (pre-release de staging, lleva guion) NO debe disparar produccion; v1.1.0 si
     if: ${{ !contains(github.ref_name, '-') }}
     runs-on: windows-latest
     timeout-minutes: 20

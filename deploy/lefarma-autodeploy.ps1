@@ -1,7 +1,7 @@
 # lefarma-autodeploy.ps1 — vive en el servidor 192.168.4.2 (NO en el repo si no quieres).
 # Scheduled Task cada 5 min: busca Releases nuevos en GitHub y publica.
-#   pre-release (qa-*)  -> carpeta staging
-#   release     (v*)    -> carpeta produccion
+#   pre-release (v*-rc.*)  -> carpeta staging
+#   release     (v*)       -> carpeta produccion
 # Sin logica de versiones: tag distinto al ultimo desplegado -> desplegar.
 
 $ErrorActionPreference = "Stop"
