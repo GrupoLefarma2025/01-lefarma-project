@@ -18,7 +18,14 @@ public record SubirComprobanteRequest(
     DateTime? FechaPago,
     decimal? MontoPago,
     // Medio de pago (nullable, solo categoria='pago')
-    int? IdMedioPago
+    int? IdMedioPago,
+    // Cuenta de pago del tesorero (nullable, solo categoria='pago')
+    int? IdFormaPago,
+    string? FormaPago,
+    int? IdBanco,
+    string? Banco,
+    string? NumeroCuenta,
+    string? Clabe
 );
 
 public record AsignarPartidasRequest(

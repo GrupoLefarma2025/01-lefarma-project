@@ -397,17 +397,8 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
     n === 0
       ? '0.00'
       : n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-  // DEBUG: formas de pago en PDF
-  console.log('[OrdenCompraPDF] idsFormaPago:', orden.idsFormaPago);
-  console.log('[OrdenCompraPDF] idsCuentasBancarias:', orden.idsCuentasBancarias);
-  console.log('[OrdenCompraPDF] numeroMensualidades:', orden.numeroMensualidades);
-  console.log('[OrdenCompraPDF] formasPagoMap:', formasPagoMap);
-  console.log('[OrdenCompraPDF] proveedoresMap:', proveedoresMap);
-  // DEBUG logo: confirmar qué valor llega y si matchea en LOGOS
-  const _logoKey = Number(orden.idEmpresa);
+     const _logoKey = Number(orden.idEmpresa);
   const _logoSrc = LOGOS[_logoKey] ;
-  console.log('[OrdenCompraPDF] idEmpresa raw:', orden.idEmpresa, typeof orden.idEmpresa, '→ Number key:', _logoKey, '→ match:', _logoSrc !== logoDefault);
 
   return (
     <div id="orden-compra-pdf-print" style={s.page}>

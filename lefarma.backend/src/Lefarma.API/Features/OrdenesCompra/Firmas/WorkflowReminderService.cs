@@ -101,7 +101,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             int enviados = 0;
             try
             {
-                var query = _db.OrdenesCompra.Include(o => o.Proveedor).Where(o => o.IdPasoActual != null);
+                var query = _db.OrdenesCompra.Include(o => o.Proveedor).Include(o => o.Moneda).Where(o => o.IdPasoActual != null);
 
                 if (rec.IdPaso.HasValue)
                 {
@@ -185,7 +185,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                         ["ListadoPendientes"] = listadoHtml,
                         ["Folios"] = folios,
                         ["Folio"] = ordenesDelUsuario.Count == 1 ? ordenesDelUsuario[0].Folio : folios,
-                        ["Total"] = ordenesDelUsuario.Count == 1 ? ordenesDelUsuario[0].Total.ToString("C2") : "",
+                        ["Total"] = ordenesDelUsuario.Count == 1
+                            ? WorkflowNotificationDispatcher.FormatearDinero(ordenesDelUsuario[0].Total, ordenesDelUsuario[0].Moneda?.Simbolo, ordenesDelUsuario[0].Moneda?.PosicionIzquierda ?? true)
+                            : "",
                         ["UrlOrden"] = urlOrden,
                         ["ColorTema"] = "#d97706",
                         ["Icono"] = "⏰",
@@ -304,7 +306,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     {
                         ["Folio"] = o.Folio,
                         ["Proveedor"] = o.Proveedor?.RazonSocial ?? "",
-                        ["Total"] = o.Total.ToString("C2"),
+                        ["Total"] = WorkflowNotificationDispatcher.FormatearDinero(o.Total, o.Moneda?.Simbolo, o.Moneda?.PosicionIzquierda ?? true),
                         ["DiasEspera"] = ((int)((DateTime.Now - o.FechaSolicitud)?.TotalDays ?? 1)).ToString()
                     };
                     sb.Append(Interpolate(rowTemplate, rowCtx));
@@ -315,7 +317,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                     sb.Append($"<tr style='border-top:1px solid #e5e7eb'>" +
                         $"<td style='padding:6px 10px'>{o.Folio}</td>" +
                         $"<td style='padding:6px 10px'>{o.Proveedor?.RazonSocial}</td>" +
-                        $"<td style='padding:6px 10px;text-align:right'>{o.Total:C2}</td>" +
+                        $"<td style='padding:6px 10px;text-align:right'>{WorkflowNotificationDispatcher.FormatearDinero(o.Total, o.Moneda?.Simbolo, o.Moneda?.PosicionIzquierda ?? true)}</td>" +
                         $"<td style='padding:6px 10px;text-align:right;color:{(dias > 3 ? "#dc2626" : "#374151")}'>{dias}d</td>" +
                         $"</tr>");
                 }

@@ -60,6 +60,7 @@ import {
   Upload,
   Pencil,
   Trash2,
+  History,
 } from 'lucide-react';
 import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import type { FormaPago, ProveedorCuentaBancaria } from '@/types/catalogo.types';
@@ -67,7 +68,7 @@ import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
 import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
-import type { OrdenCompraResponse  } from '@/types/ordenCompra.types';
+import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
@@ -371,6 +372,7 @@ export default function AutorizacionesOC() {
     null
   );
   const [comentarioFirma, setComentarioFirma] = useState('');
+  const [isHistorialModalOpen, setIsHistorialModalOpen] = useState(false);
   // Dynamic campo values for the action modal (key = inputKey from handler config)
   const [camposValues, setCamposValues] = useState<Record<string, unknown>>({});
   const [catalogos, setCatalogos] = useState<Record<string, { value: string; label: string }[]>>(
@@ -761,6 +763,50 @@ export default function AutorizacionesOC() {
     }
   }, [selectedOrden, workflowsMap]);
 
+  // Resuelve una idCuenta bancaria del proveedor a los 5 campos de cuenta
+  // usando la misma fuente que el detalle (proveedoresMap / allProveedoresMap).
+  const resolverCuentaProveedor = (idCuenta: number) => {
+    for (const map of [proveedoresMap, allProveedoresMap]) {
+      for (const [, proveedor] of map) {
+        const c = proveedor.cuentasFormaPago?.find((x) => x.idCuenta === idCuenta);
+        if (c) {
+          return {
+            idFormaPago: c.idFormaPago ?? null,
+            formaPago: c.formaPagoNombre ?? null,
+            idBanco: c.idBanco ?? null,
+            banco: c.bancoNombre ?? null,
+            numeroCuenta: c.numeroCuenta ?? null,
+            clabe: c.clabe ?? null,
+          };
+        }
+      }
+    }
+    return null;
+  };
+
+  // Pre-llenado de cuenta para el modal de comprobante de pago:
+  // prioriza la cuenta ya capturada por el tesorero; si no, la del solicitante.
+  const cuentaPagoInicial = (() => {
+    if (!selectedOrden) return null;
+    if (selectedOrden.cuentaPagoTesorero) {
+      const t = selectedOrden.cuentaPagoTesorero;
+      return {
+        idFormaPago: t.idFormaPago ?? null,
+        formaPago: t.formaPago ?? null,
+        idBanco: t.idBanco ?? null,
+        banco: t.banco ?? null,
+        numeroCuenta: t.numeroCuenta ?? null,
+        clabe: t.clabe ?? null,
+      };
+    }
+    const idCb = selectedOrden.idsCuentasBancarias?.[0];
+    return idCb != null ? resolverCuentaProveedor(idCb) : null;
+  })();
+
+  const cuentaProveedorOriginal = selectedOrden?.idsCuentasBancarias?.[0] != null
+    ? resolverCuentaProveedor(selectedOrden.idsCuentasBancarias[0])
+    : null;
+
   const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
     setAccionSeleccionada(accion);
     setComentarioFirma('');
@@ -893,6 +939,28 @@ export default function AutorizacionesOC() {
     () => getCamposParaAccion(accionSeleccionada),
     [accionSeleccionada]
   );
+
+  // Bitácora de pagos: entradas del historial JSON, más reciente primero.
+  const historialOrdenOrdenado = useMemo(
+    () =>
+      [...(selectedOrden?.historial ?? [])]
+        .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()),
+    [selectedOrden?.historial]
+  );
+
+  // Cuenta pagada a mostrar en el panel: la alterada por el tesorero o, en su defecto, el último
+  // depósito de la bitácora. null si no se alteró nada → entonces el bloque no se renderiza.
+  const cuentaPagadaDisplay = useMemo(() => {
+    const t = selectedOrden?.cuentaPagoTesorero;
+    if (t && (t.numeroCuenta || t.clabe || t.banco)) {
+      return { cuenta: t.numeroCuenta ?? null, clabe: t.clabe ?? null, banco: t.banco ?? null };
+    }
+    const ultimo = historialOrdenOrdenado[0];
+    if (ultimo && (ultimo.cuenta || ultimo.clabe || ultimo.banco)) {
+      return { cuenta: ultimo.cuenta ?? null, clabe: ultimo.clabe ?? null, banco: ultimo.banco ?? null };
+    }
+    return null;
+  }, [selectedOrden?.cuentaPagoTesorero, historialOrdenOrdenado]);
 
   const enviarFirma = async () => {
     if (!selectedOrden || !accionSeleccionada) return;
@@ -2006,6 +2074,33 @@ export default function AutorizacionesOC() {
                             </Button>
                           )}
                         </div>
+
+                        {/* Cuenta pagada (cuenta • clabe • banco) + bitácora — solo si se alteró la cuenta o ya hay bitácora */}
+                        {selectedOrden && cuentaPagadaDisplay && (
+                          <div className="rounded-lg border bg-background/80 px-3 py-2">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                Cuenta pagada
+                              </p>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                                title="Ver bitácora de pagos"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsHistorialModalOpen(true);
+                                }}
+                              >
+                                <History className="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <p className="mt-1.5 text-xs font-medium text-foreground">
+                              {[cuentaPagadaDisplay.cuenta, cuentaPagadaDisplay.clabe, cuentaPagadaDisplay.banco].filter(Boolean).join(' • ')}
+                            </p>
+                          </div>
+                        )}
+
                         {progresoPasos.length > 0 && (() => {
                           return (
                           <div
@@ -2986,6 +3081,57 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
+      {/* ── Modal bitácora de pagos ── */}
+      <Modal
+        id="modal-historial-oc"
+        open={isHistorialModalOpen}
+        setOpen={setIsHistorialModalOpen}
+        title="Bitácora de pagos"
+        size="lg"
+      >
+        <div className="space-y-4">
+          {/* Cuenta del proveedor */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuenta del proveedor</p>
+            <p className="text-xs font-medium text-foreground">
+              {cuentaProveedorOriginal
+                ? [cuentaProveedorOriginal.numeroCuenta, cuentaProveedorOriginal.clabe, cuentaProveedorOriginal.banco].filter(Boolean).join(' • ') || '—'
+                : '—'}
+            </p>
+          </div>
+
+          {/* Cuentas donde se depositó */}
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuentas donde se depositó</p>
+            {historialOrdenOrdenado.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
+            ) : (
+              <div className="space-y-2">
+                {/* ponytail: key por índice — lista estática de solo lectura, sin id único en el item */}
+                {historialOrdenOrdenado.map((item, index) => (
+                  <div key={index} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
+                    <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
+                      <span className="font-medium text-foreground">
+                        {[item.cuenta, item.clabe, item.banco].filter(Boolean).join(' • ') || '—'}
+                      </span>
+                      <span className="whitespace-nowrap text-[10px] text-muted-foreground">
+                        {fmtFecha(item.fecha)}
+                      </span>
+                    </div>
+                    <div className="px-3 py-2">
+                      <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                        <UserRound className="h-3 w-3" />
+                        {item.usuarioNombre || `Usuario ${item.idUsuario}`}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
+
       {/* ── Modal CFDI gasto — fuera del modal de firma para evitar Dialog anidado ─────── */}
       {selectedOrden && (
         <SubirComprobanteModal
@@ -3028,6 +3174,7 @@ export default function AutorizacionesOC() {
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
           totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
+          cuentaPagoInicial={cuentaPagoInicial}
           partidasPendientes={partidasPendientesPago}
           onComprobanteSubido={(c) => {
             const key = isSubirComprobantePagoOpen;

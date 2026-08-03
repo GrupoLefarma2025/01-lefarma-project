@@ -13,6 +13,28 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int? NumeroMensualidades { get; set; }
     }
 
+    /// <summary>Cuenta de pago capturada por el tesorero (clave cuentaPagoTesorero del documento JSON).</summary>
+    public class CuentaPagoTesoreroResponse
+    {
+        public int? IdFormaPago { get; set; }
+        public string? FormaPago { get; set; }
+        public int? IdBanco { get; set; }
+        public string? Banco { get; set; }
+        public string? NumeroCuenta { get; set; }
+        public string? Clabe { get; set; }
+    }
+
+    /// <summary>Entrada de la bitácora de pagos (clave historial del documento JSON).</summary>
+    public class HistorialOrdenItemResponse
+    {
+        public DateTime Fecha { get; set; }
+        public int IdUsuario { get; set; }
+        public string? Banco { get; set; }
+        public string? Cuenta { get; set; }
+        public string? Clabe { get; set; }
+        public string? UsuarioNombre { get; set; }
+    }
+
 public class OrdenCompraResponse
     {
         public int IdOrden { get; set; }
@@ -31,6 +53,8 @@ public class OrdenCompraResponse
         public List<int>? IdsFormaPago { get; set; }
         public List<string>? FormasPagoNombres { get; set; }
         public int? NumeroMensualidades { get; set; }
+        public CuentaPagoTesoreroResponse? CuentaPagoTesorero { get; set; }
+        public List<HistorialOrdenItemResponse>? Historial { get; set; }
         public int? IdEstado { get; set; }
         public string? EstadoNombre { get; set; }
         public string? EstadoColor { get; set; }

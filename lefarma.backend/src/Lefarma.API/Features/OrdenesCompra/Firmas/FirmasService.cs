@@ -5,6 +5,7 @@ using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
+using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -215,6 +216,22 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                 orden.IdPasoActual = resultado.NuevoIdPaso;
                 orden.FechaModificacion = DateTime.Now;
+
+                // Documento JSON compartido: el tesorero escribe solo cuentaPagoTesorero,
+                // preservando las claves de los demas flujos (merge-on-write).
+                var jsonDocumento = orden.IdsCuentasBancarias;
+                if (request.DatosAdicionales != null
+                    && request.DatosAdicionales.TryGetValue("cuentaPagoTesorero", out var cuentaRaw))
+                {
+                    var cuentaPago = ExtraerCuentaPago(cuentaRaw);
+                    if (cuentaPago != null)
+                    {
+                        jsonDocumento = OrdenCompraDocumentoJson.MergeClavesJson(jsonDocumento,
+                            new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuentaPago });
+                    }
+                }
+                orden.IdsCuentasBancarias = jsonDocumento;
+
                 await _ordenRepo.UpdateAsync(orden);
 
                 // Selección de plantilla por destino: (id_accion + id_paso_destino) con fallback genérico.
@@ -1041,6 +1058,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             var estado = await _context.WorkflowEstados
                 .FirstOrDefaultAsync(e => e.Codigo == codigo.ToUpper());
             return estado?.IdEstado;
+        }
+
+        private static Dictionary<string, string?>? ExtraerCuentaPago(object? crudo)
+        {
+            if (crudo == null) return null;
+            string? banco = null, cuenta = null;
+            if (crudo is JsonElement je && je.ValueKind == JsonValueKind.Object)
+            {
+                if (je.TryGetProperty("banco", out var b)) banco = b.GetString();
+                if (je.TryGetProperty("cuenta", out var c)) cuenta = c.GetString();
+            }
+            else if (crudo is System.Collections.IDictionary diccionario)
+            {
+                banco = diccionario["banco"]?.ToString();
+                cuenta = diccionario["cuenta"]?.ToString();
+            }
+            if (string.IsNullOrWhiteSpace(banco) && string.IsNullOrWhiteSpace(cuenta)) return null;
+            return new Dictionary<string, string?> { ["banco"] = banco, ["cuenta"] = cuenta };
         }
 
         private static Domain.Entities.Config.WorkflowNotificacion? ResolveWorkflowNotification(
