@@ -11,7 +11,7 @@ import SolicitudesPersonal from './pages/SolicitudesPersonal';
 import GestionSolicitudes from './pages/GestionSolicitudes';
 import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
-import { DiasNoHabilesPage } from './pages/Vacaciones/DiasNoHabilesPage';
+import { DiasLibresPage } from './pages/Vacaciones/DiasLibresPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
 import JefesNivelesList from './pages/JefesNivelesList';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
@@ -48,7 +48,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="solicitudes/gestion"
           element={
-            <PermissionGuard require="solicitud_personal.puede_ver_todas_solicitudes">
+            <PermissionGuard require="solicitud_personal.puede_ver_todas">
               <GestionSolicitudes />
             </PermissionGuard>
           }
@@ -73,10 +73,10 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         />
 
         <Route
-          path="vacaciones/dias-no-habiles"
+          path="vacaciones/dias-libres"
           element={
             <PermissionGuard require="vacaciones.ver">
-              <DiasNoHabilesPage />
+              <DiasLibresPage />
             </PermissionGuard>
           }
         />

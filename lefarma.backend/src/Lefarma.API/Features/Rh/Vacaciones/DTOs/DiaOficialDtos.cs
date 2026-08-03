@@ -20,8 +20,8 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int Dia { get; set; }
         public DateTime Fecha { get; set; }
         public string? Descripcion { get; set; }
-        public bool ConsumeSaldo { get; set; }
         public bool Activo { get; set; }
+        public bool ConsumeSaldo { get; set; }
     }
 
     public class CargaDiasNoHabilesRequest

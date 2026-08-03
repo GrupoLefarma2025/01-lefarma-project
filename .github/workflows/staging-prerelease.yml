@@ -1,0 +1,53 @@
+# Push/PR merge a staging -> build qa -> pre-release con zip.
+# VERSION-STAGING en raiz lleva el nombre completo (ej: 1.1.0-rc.1) y lo bump-eas TU:
+# el tag sera v<contenido>. Si mergeas sin bump-earlo, el run falla (tag ya existe) a proposito.
+# VERSION es la base de produccion (el tag v* estable lo creas a mano).
+name: Staging pre-release
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  build-and-prerelease:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      # Config de build del frontend (GitHub UI: Settings > Secrets and variables > Actions > Variables)
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_APP_NAME: ${{ vars.VITE_APP_NAME }}
+      BASE_URL_PATH: ${{ vars.BASE_URL_PATH }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read staging version
+        id: ver
+        shell: pwsh
+        run: echo "tag=v$((Get-Content VERSION-STAGING -Raw).Trim())" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: lefarma.frontend
+
+      - name: Build (multiappcli build:qa)
+        run: pwsh ./multiappcli.ps1 build:qa
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: ${{ steps.ver.outputs.tag }}
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: publish/lefarma-qa.zip

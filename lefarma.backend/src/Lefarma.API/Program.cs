@@ -521,6 +521,14 @@ app.UseAuthorization();
 app.MapGet("/api/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
    .AllowAnonymous();
 
+var appVersion = System.Reflection.Assembly.GetExecutingAssembly()
+    .GetCustomAttributes(typeof(System.Reflection.AssemblyMetadataAttribute), false)
+    .Cast<System.Reflection.AssemblyMetadataAttribute>()
+    .FirstOrDefault(a => a.Key == "AppVersion")?.Value ?? "dev";
+
+app.MapGet("/api/version", () => Results.Ok(new { version = appVersion }))
+   .AllowAnonymous();
+
 app.MapControllers();
 
 // ---> AGREGADO PARA LA SPA <---

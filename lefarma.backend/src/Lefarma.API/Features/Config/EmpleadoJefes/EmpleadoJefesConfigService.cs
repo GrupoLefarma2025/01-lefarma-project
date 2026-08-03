@@ -1,4 +1,5 @@
 using ErrorOr;
+using HandlebarsDotNet;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Config.EmpleadoJefes.DTOs;
@@ -30,7 +31,6 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
 
         public async Task<ErrorOr<List<EmpleadoJefesConfigListItem>>> GetListAsync()
         {
-            // Solo usuarios con al menos una fila activa en empleado_jefes_config
             var idsConfigurados = await _context.EmpleadoJefesConfig
                 .Where(c => c.Activo)
                 .Select(c => c.IdUsuario)
@@ -52,11 +52,18 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 .Select(u => new { u.IdUsuario, u.NombreCompleto })
                 .ToListAsync();
 
-            var niveles = await _context.EmpleadoJefesConfig
+            var configs = await _context.EmpleadoJefesConfig
                 .AsNoTracking()
                 .Where(c => c.Activo && idsConfigurados.Contains(c.IdUsuario))
                 .OrderBy(c => c.IdUsuario).ThenBy(c => c.Nivel)
                 .Select(c => new { c.IdUsuario, c.Nivel, c.Aplica })
+                .ToListAsync();
+
+            var overrides = await _context.EmpleadoJefesOverride
+                .AsNoTracking()
+                .Where(o => o.Activo && idsConfigurados.Contains(o.IdUsuario))
+                .OrderBy(o => o.IdUsuario).ThenBy(o => o.Nivel)
+                .Select(o => new { o.IdUsuario, o.Nivel, o.IdUsuarioJefe })
                 .ToListAsync();
 
             var nominaPorUsuario = detalles
@@ -66,19 +73,43 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 .ToDictionary(g => g.Key, g => g.First().Nomina!.Value);
 
             var cadenas = await ResolverCadenasAsync(nominaPorUsuario);
+            var nombresJefes = await ResolverNombresJefesAsync(cadenas);
+            var nombresOverride = await ResolverNombresOverrideAsync(overrides);
 
             var resultado = idsConfigurados
-                .Select(id => new EmpleadoJefesConfigListItem
+                .Select(id =>
                 {
-                    IdUsuario = id,
-                    NumeroEmpleado = detalles.FirstOrDefault(d => d.IdUsuario == id)?.NumeroEmpleado,
-                    Puesto = detalles.FirstOrDefault(d => d.IdUsuario == id)?.Puesto,
-                    NombreCompleto = nombres.FirstOrDefault(n => n.IdUsuario == id)?.NombreCompleto,
-                    Niveles = niveles
-                        .Where(n => n.IdUsuario == id)
-                        .Select(n => new EmpleadoJefeConfigItemDto { Nivel = n.Nivel, Aplica = n.Aplica })
-                        .ToList(),
-                    Cadena = cadenas.TryGetValue(id, out var cadena) ? cadena : CadenaVacia()
+                    var cadena = cadenas.TryGetValue(id, out var c) ? c : CadenaVacia();
+                    var niveles = Enumerable.Range(1, MaxNivel)
+                        .Select(nivel =>
+                        {
+                            var cfg = configs.FirstOrDefault(c => c.IdUsuario == id && c.Nivel == nivel);
+                            var over = overrides.FirstOrDefault(o => o.IdUsuario == id && o.Nivel == nivel);
+                            var cadenaNivel = cadena.FirstOrDefault(c => c.Nivel == nivel);
+                            return new EmpleadoJefeNivelCompletoDto
+                            {
+                                Nivel = nivel,
+                                Aplica = cfg?.Aplica ?? false,
+                                IdUsuarioJefeOverride = over?.IdUsuarioJefe,
+                                NombreJefeOverride = over?.IdUsuarioJefe is null
+                                    ? null
+                                    : nombresOverride.GetValueOrDefault(over.IdUsuarioJefe),
+                                NominaJefeVista = cadenaNivel?.NominaJefe,
+                                IdUsuarioJefeVista = cadenaNivel?.IdUsuarioJefe,
+                                NombreJefeVista = cadenaNivel?.NombreJefe,
+                            };
+                        })
+                        .ToList();
+
+                    return new EmpleadoJefesConfigListItem
+                    {
+                        IdUsuario = id,
+                        NumeroEmpleado = detalles.FirstOrDefault(d => d.IdUsuario == id)?.NumeroEmpleado,
+                        Puesto = detalles.FirstOrDefault(d => d.IdUsuario == id)?.Puesto,
+                        NombreCompleto = nombres.FirstOrDefault(n => n.IdUsuario == id)?.NombreCompleto,
+                        Niveles = niveles,
+                        Cadena = cadena
+                    };
                 })
                 .OrderBy(x => x.NumeroEmpleado)
                 .ThenBy(x => x.NombreCompleto)
@@ -198,13 +229,49 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 .OrderBy(c => c.Nivel)
                 .ToListAsync();
 
+            var overrides = await _context.EmpleadoJefesOverride
+                .AsNoTracking()
+                .Where(o => o.IdUsuario == idUsuario && o.Activo)
+                .OrderBy(o => o.Nivel)
+                .ToListAsync();
+
+            var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario);
+            var cadena = nomina.HasValue
+                ? (await ResolverCadenasAsync(new Dictionary<int, long> { [idUsuario] = nomina.Value }))
+                    .TryGetValue(idUsuario, out var c) ? c : CadenaVacia()
+                : CadenaVacia();
+
+            var nombresOverride = await ResolverNombresOverrideAsync(
+                overrides.Select(o => new { o.IdUsuario, o.Nivel, o.IdUsuarioJefe }).ToList());
+
+            var esConfigPorDefecto = filas.Count == 0;
+
+            var niveles = Enumerable.Range(1, MaxNivel)
+                .Select(nivel =>
+                {
+                    var cfg = filas.FirstOrDefault(f => f.Nivel == nivel);
+                    var over = overrides.FirstOrDefault(o => o.Nivel == nivel);
+                    var cadenaNivel = cadena.FirstOrDefault(c => c.Nivel == nivel);
+                    return new EmpleadoJefeNivelCompletoDto
+                    {
+                        Nivel = nivel,
+                        Aplica = cfg?.Aplica ?? (esConfigPorDefecto && nivel == 1),
+                        IdUsuarioJefeOverride = over?.IdUsuarioJefe,
+                        NombreJefeOverride = over?.IdUsuarioJefe is null
+                            ? null
+                            : nombresOverride.GetValueOrDefault(over.IdUsuarioJefe),
+                        NominaJefeVista = cadenaNivel?.NominaJefe,
+                        IdUsuarioJefeVista = cadenaNivel?.IdUsuarioJefe,
+                        NombreJefeVista = cadenaNivel?.NombreJefe,
+                    };
+                })
+                .ToList();
+
             return new EmpleadoJefesConfigResponse
             {
                 IdUsuario = idUsuario,
-                EsConfigPorDefecto = filas.Count == 0,
-                Niveles = filas.Count == 0
-                    ? new() { new() { Nivel = 1, Aplica = true } }   // default legacy visible para la UI
-                    : filas.Select(f => new EmpleadoJefeConfigItemDto { Nivel = f.Nivel, Aplica = f.Aplica }).ToList()
+                EsConfigPorDefecto = esConfigPorDefecto,
+                Niveles = niveles
             };
         }
 
@@ -216,6 +283,7 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
             if (request.Niveles.Select(n => n.Nivel).Distinct().Count() != request.Niveles.Count)
                 return CommonErrors.Validation("Nivel", "Hay niveles duplicados en la solicitud.");
 
+            // Configuración de aplica
             var existentes = await _context.EmpleadoJefesConfig
                 .Where(c => c.IdUsuario == idUsuario)
                 .ToListAsync();
@@ -244,17 +312,55 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                 }
             }
 
-            // Borrado lógico de niveles ausentes en el payload
             foreach (var e in existentes.Where(e => !nivelesPayload.Contains(e.Nivel) && e.Activo))
             {
                 e.Activo = false;
+                e.Aplica = false;
                 e.FechaModificacion = DateTime.Now;
             }
 
-            await _context.SaveChangesAsync();
+            // Overrides
+            var overridesExistentes = await _context.EmpleadoJefesOverride
+                .Where(o => o.IdUsuario == idUsuario)
+                .ToListAsync();
 
-            return await GetByUsuarioAsync(idUsuario);
+            var overridesPayload = request.Niveles
+                .Where(n => n.IdUsuarioJefeOverride.HasValue)
+                .ToDictionary(n => n.Nivel, n => n.IdUsuarioJefeOverride!.Value);
+
+            foreach (var over in request.Niveles.Where(n => n.IdUsuarioJefeOverride.HasValue))
+            {
+                var existente = overridesExistentes.FirstOrDefault(o => o.Nivel == over.Nivel);
+                if (existente is null)
+                {
+                    _context.EmpleadoJefesOverride.Add(new EmpleadoJefeOverride
+                    {
+                    IdUsuario = idUsuario,
+                        Nivel = over.Nivel,
+                        IdUsuarioJefe = over.IdUsuarioJefeOverride!.Value,
+                        Activo = true,
+                        FechaCreacion = DateTime.Now
+            });
+                }
+                else
+        {
+            existente.IdUsuarioJefe = over.IdUsuarioJefeOverride!.Value;
+            existente.Activo = true;
+            existente.FechaModificacion = DateTime.Now;
         }
+            }
+
+            foreach (var e in overridesExistentes.Where(e => !overridesPayload.ContainsKey(e.Nivel) && e.Activo))
+        {
+            e.Activo = false;
+            e.FechaModificacion = DateTime.Now;
+        }
+
+        await _context.SaveChangesAsync();
+
+        return await GetByUsuarioAsync(idUsuario);
+        }
+        
 
         public async Task<ErrorOr<WorkflowJefesExcluidosResponse>> GetExcluidosAsync(int idWorkflow)
         {
@@ -314,6 +420,44 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
             await _context.SaveChangesAsync();
 
             return await GetExcluidosAsync(idWorkflow);
+        }
+
+        private async Task<Dictionary<int, string>> ResolverNombresOverrideAsync<T>(
+    IEnumerable<T> overrides) where T : notnull
+        {
+            var ids = overrides
+                .Select(o => (int?)o.GetType().GetProperty("IdUsuarioJefe")!.GetValue(o))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+                return new Dictionary<int, string>();
+
+            return await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => ids.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? $"Usuario {u.IdUsuario}");
+        }
+
+        private async Task<Dictionary<int, string>> ResolverNombresJefesAsync(
+            Dictionary<int, List<JefeCadenaNivelDto>> cadenas)
+        {
+            var ids = cadenas.Values
+                .SelectMany(c => c)
+                .Where(c => c.IdUsuarioJefe.HasValue)
+                .Select(c => c.IdUsuarioJefe!.Value)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+                return new Dictionary<int, string>();
+
+            return await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => ids.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? $"Usuario {u.IdUsuario}");
         }
     }
 }

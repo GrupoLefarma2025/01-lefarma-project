@@ -4,13 +4,27 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes.DTOs
     {
         public int Nivel { get; set; }
         public bool Aplica { get; set; }
+        public int? IdUsuarioJefeOverride { get; set; }
+    }
+
+    public class EmpleadoJefeNivelCompletoDto
+    {
+        public int Nivel { get; set; }
+        public bool Aplica { get; set; }
+        public int? IdUsuarioJefeOverride { get; set; }
+        public string? NombreJefeOverride { get; set; }
+
+        // Información de la vista (contexto para la UI)
+        public long? NominaJefeVista { get; set; }
+        public int? IdUsuarioJefeVista { get; set; }
+        public string? NombreJefeVista { get; set; }
     }
 
     public class EmpleadoJefesConfigResponse
     {
         public int IdUsuario { get; set; }
-        public bool EsConfigPorDefecto { get; set; }  // true = sin filas, rige default legacy (nivel 1)
-        public List<EmpleadoJefeConfigItemDto> Niveles { get; set; } = new();
+        public bool EsConfigPorDefecto { get; set; }
+        public List<EmpleadoJefeNivelCompletoDto> Niveles { get; set; } = new();
     }
 
     public class UpdateEmpleadoJefesConfigRequest
@@ -35,7 +49,7 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes.DTOs
         public string? NumeroEmpleado { get; set; }
         public string? NombreCompleto { get; set; }
         public string? Puesto { get; set; }
-        public List<EmpleadoJefeConfigItemDto> Niveles { get; set; } = new();
+        public List<EmpleadoJefeNivelCompletoDto> Niveles { get; set; } = new();
         public List<JefeCadenaNivelDto> Cadena { get; set; } = new();
     }
 
