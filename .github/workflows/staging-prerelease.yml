@@ -1,0 +1,40 @@
+# Push/PR merge a staging -> build qa -> pre-release con zip.
+# El tag qa-<run_number> lo genera este workflow; nadie lo crea a mano.
+name: Staging pre-release
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  build-and-prerelease:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: lefarma.frontend
+
+      - name: Build (multiappcli build:qa)
+        run: pwsh ./multiappcli.ps1 build:qa
+
+      - name: Create pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: qa-${{ github.run_number }}
+          name: qa-${{ github.run_number }}
+          prerelease: true
+          target_commitish: ${{ github.sha }}
+          files: publish/lefarma-qa.zip
