@@ -13,7 +13,7 @@ $Repo      = "01-lefarma-project"
 $BaseDir   = "C:\LefarmaDeploy"
 $TokenFile = "$BaseDir\.token"        # contiene el PAT; solo Administradores lo leen
 $Targets = @{
-    qa   = "D:\Desarrollo-pruebas-base"   # sitio IIS "Desarrollo-demos", pool Desarrollo-base-lefarma, :5073
+    qa   = "D:\DevApps\DevLefarma"   # sitio IIS "Development", pool Dev-Lefarma, :5073
     # prod = ""  # PRODUCCION deshabilitado: descomentar y llenar path cuando se active
 }
 # =========================================

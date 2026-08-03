@@ -26,7 +26,7 @@ $ReleaseDir = Join-Path $Root "release"
 $SshUser = "artricenter\carlos.guzman"
 $SshHost = "192.168.4.2"
 $PublishTargets = @{
-    qa   = "D:\Desarrollo-pruebas-base"
+    qa   = "D:\DevApps\DevLefarma"   # sitio IIS "Development", pool Dev-Lefarma, :5073
     prod = ""   # pendiente: path de produccion (lo pasa el usuario)
 }
 
