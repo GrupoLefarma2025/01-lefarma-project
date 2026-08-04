@@ -11,4 +11,7 @@ public interface IIncidenciasChecadoNotificacionService
         NotificarIncidenciasResumenRequest request,
         int? idUsuarioEnviador,
         CancellationToken cancellationToken = default);
+
+    Task<Result<List<EmpleadoDestinatariosResponse>>> GetDestinatariosPorNominasAsync(
+    List<long> nominas, CancellationToken ct = default);
 }

@@ -57,10 +57,25 @@ public class NotificarIncidenciasResumenRequest
     public string Asunto { get; set; } = string.Empty;
     public string Mensaje { get; set; } = string.Empty;
     public List<int>? SelectedUserIds { get; set; }
+    public List<EmpleadoDestinatarioItem>? EmpleadosDestinatarios { get; set; }
     public bool CopiarAUsuarioIncidencia { get; set; }
 }
 
 public class NotificarIncidenciasResumenResponse
 {
     public List<NotificacionPersonaResult> Resultados { get; set; } = new();
+}
+
+public class EmpleadoDestinatariosResponse
+{
+    public long Nomina { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public List<int> DestinatariosDefault { get; set; } = new();
+}
+
+public class EmpleadoDestinatarioItem
+{
+    public long Nomina { get; set; }
+    public List<int> SelectedUserIds { get; set; } = new();
+    public bool CopiarAUsuarioIncidencia { get; set; }
 }
