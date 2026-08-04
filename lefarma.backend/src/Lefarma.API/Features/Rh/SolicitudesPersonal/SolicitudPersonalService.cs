@@ -1003,6 +1003,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private async Task<ErrorOr<Success>> ValidarSaldoVacacionesAsync(
             int idUsuario, SolicitudPersonal solicitud, TipoSolicitud tipo, int? excluirIdSolicitud = null)
         {
+            //test
             if (tipo is null || !string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase))
                 return Result.Success;
 
