@@ -23,7 +23,7 @@ import { CrearSolicitud } from '../components/CrearSolicitud';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
-import type { SolicitudPersonalResponse, SolicitudPersonalFilterParams } from '@/types/solicitudPersonal.types';
+import type { SolicitudPersonalResponse, SolicitudPersonalFilterParams, PagedResult } from '@/types/solicitudPersonal.types';
 import { toast } from 'sonner';
 import { calcularRangoPeriodo, PERIODOS } from '@/utils/date';
 
@@ -43,9 +43,6 @@ export default function SolicitudesPersonal() {
   const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const {
-    solicitudesPropias,
-    loading,
-    fetchAll,
     selectedSolicitud,
     selectSolicitud,
     loadingDetalle,
@@ -85,6 +82,10 @@ export default function SolicitudesPersonal() {
     mias: initialFilters,
   });
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+  const [dataPendientes, setDataPendientes] = useState<SolicitudPersonalResponse[]>([]);
+  const [dataMias, setDataMias] = useState<SolicitudPersonalResponse[]>([]);
+  const [loadingPendientes, setLoadingPendientes] = useState(false);
+  const [loadingMias, setLoadingMias] = useState(false);
 
   const draftFilters = draftFiltersByTab[tab];
   const appliedFilters = appliedFiltersByTab[tab];
@@ -103,10 +104,35 @@ export default function SolicitudesPersonal() {
     return params;
   }, []);
 
-  useEffect(() => {
-    fetchAll(false, buildApiFilters(appliedFilters));
-    fetchProfileSignature();
+  const fetchTabData = useCallback(async (
+    targetTab: 'pendientes' | 'mias',
+    filters: Filters
+  ) => {
+    const setLoading = targetTab === 'pendientes' ? setLoadingPendientes : setLoadingMias;
+    const setData = targetTab === 'pendientes' ? setDataPendientes : setDataMias;
 
+    setLoading(true);
+    try {
+      const res = await API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>(
+        '/solicitudes-personal',
+        { params: { verTodas: false, pageSize: 100, ...buildApiFilters(filters) } }
+      );
+      if (res.data?.success) {
+        setData(res.data.data?.items ?? []);
+      }
+    } catch {
+      toast.error('Error al cargar solicitudes');
+    } finally {
+      setLoading(false);
+    }
+  }, [buildApiFilters]);
+
+  useEffect(() => {
+    fetchTabData(tab, appliedFilters);
+    fetchProfileSignature();
+  }, [tab, appliedFilters, fetchTabData, fetchProfileSignature]);
+
+  useEffect(() => {
     API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
       .then((estadosRes) => {
         if (estadosRes.data.success) setWorkflowEstados(estadosRes.data.data || []);
@@ -114,7 +140,7 @@ export default function SolicitudesPersonal() {
       .catch(() => {
         setWorkflowEstados([]);
       });
-  }, [appliedFilters, fetchAll, fetchProfileSignature, buildApiFilters]);
+  }, []);
 
   const [modalStates, setModalStates] = useState({
     detalle: false,
@@ -125,6 +151,7 @@ export default function SolicitudesPersonal() {
   });
   const [solicitudEnEdicion, setSolicitudEnEdicion] = useState<number | null>(null);
   const [imprimirSolicitud, setImprimirSolicitud] = useState(false);
+  const loadingCurrentTab = tab === 'pendientes' ? loadingPendientes : loadingMias;
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
     setModalStates((prev) => ({
@@ -241,12 +268,12 @@ export default function SolicitudesPersonal() {
   };
 
   const solicitudesPendientes = useMemo(
-    () => solicitudesPropias.filter((s) => !isEstadoTerminal(s.estadoNombre)),
-    [solicitudesPropias]
+    () => dataPendientes.filter((s) => !isEstadoTerminal(s.estadoNombre)),
+    [dataPendientes]
   );
   const solicitudesMias = useMemo(
-    () => solicitudesPropias.filter((s) => isEstadoTerminal(s.estadoNombre)),
-    [solicitudesPropias]
+    () => dataMias.filter((s) => isEstadoTerminal(s.estadoNombre)),
+    [dataMias]
   );
 
   const handleOpenDetalle = (s: SolicitudPersonalResponse) => {
@@ -389,12 +416,12 @@ export default function SolicitudesPersonal() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={handleLimpiar} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={handleLimpiar} disabled={loadingCurrentTab}>
                 <RotateCcw className="mr-1.5 h-4 w-4" />
                 Limpiar filtros
               </Button>
-              <Button size="sm" onClick={handleBuscar} disabled={loading}>
-                {loading ? (
+              <Button size="sm" onClick={handleBuscar} disabled={loadingCurrentTab}>
+                {loadingCurrentTab ? (
                   'Buscando...'
                 ) : (
                   <>
@@ -414,13 +441,13 @@ export default function SolicitudesPersonal() {
         <TabsContent value="pendientes" className="mt-3 w-full">
           <SolicitudesTable
             data={solicitudesPendientes}
-            loading={loading}
+            loading={loadingCurrentTab}
             title="Solicitudes pendientes"
             subtitle="Solicitudes que aún no se cierran, cancelan o rechazan"
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
             showImprimir={false}
-            onRefresh={() => fetchAll(false, buildApiFilters(appliedFilters))}
+            onRefresh={() => fetchTabData('pendientes', appliedFiltersByTab.pendientes)}
             puedeEditar={puedeEditar}
             globalFilter={true}
           />
@@ -429,12 +456,12 @@ export default function SolicitudesPersonal() {
         <TabsContent value="mias" className="mt-3 w-full">
           <SolicitudesTable
             data={solicitudesMias}
-            loading={loading}
+            loading={loadingCurrentTab}
             title="Mis solicitudes terminadas"
             subtitle="Cerradas, canceladas o rechazadas"
             getEstadoInfo={getEstadoInfo}
             {...accionesBoton}
-            onRefresh={() => fetchAll(false, buildApiFilters(appliedFilters))}
+            onRefresh={() => fetchTabData('mias', appliedFiltersByTab.mias)}
             showFirma={false}
             showEditar={false}
             puedeEditar={puedeEditar}
@@ -481,7 +508,16 @@ export default function SolicitudesPersonal() {
         solicitud={selectedSolicitud}
         acciones={acciones}
         getEstadoInfo={getEstadoInfo}
-        onFirmar={(req) => firmar(req, false, buildApiFilters(appliedFilters))}
+        onFirmar={async (req) => {
+          const ok = await firmar(req, false, buildApiFilters(appliedFilters));
+          if (ok) {
+            await Promise.all([
+              fetchTabData('pendientes', appliedFiltersByTab.pendientes),
+              fetchTabData('mias', appliedFiltersByTab.mias),
+            ]);
+          }
+          return ok;
+        }}
         isSubmittingFirma={isSubmittingFirma}
         hasFirma={hasFirma ?? true}
       />
@@ -567,7 +603,10 @@ export default function SolicitudesPersonal() {
           key={solicitudEnEdicion ?? 'new'}
           idSolicitud={solicitudEnEdicion ?? undefined}
           onClose={() => closeModal('crear')}
-          onSaved={() => fetchAll(false)}
+          onSaved={() => {
+            fetchTabData('pendientes', appliedFiltersByTab.pendientes);
+            fetchTabData('mias', appliedFiltersByTab.mias);
+          }}
         />
       </Modal>
 

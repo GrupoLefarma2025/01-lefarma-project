@@ -305,4 +305,29 @@ public class EmpleadoRepository : IEmpleadoRepository
 
         return long.TryParse(numeroEmpleado.Trim(), out nomina);
     }
+
+    public async Task<string?> ObtenerNombreEmpleadoAsync(
+    long? nomina = null,
+    int? idUsuario = null,
+    CancellationToken cancellationToken = default)
+    {
+        if (idUsuario.HasValue)
+        {
+            var empleado = await ObtenerEmpleadoPorUsuarioAsync(idUsuario.Value, cancellationToken);
+            return empleado != null ? $"{empleado.Nombre} {empleado.Apellidos}".Trim() : null;
+        }
+
+        if (nomina.HasValue)
+        {
+            var empleado = await _asistenciasContext.VwEmpleados
+                .AsNoTracking()
+                .Where(e => e.Nomina == nomina.Value)
+                .Select(e => new { e.Nombre, e.Apellidos })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return empleado != null ? $"{empleado.Nombre} {empleado.Apellidos}".Trim() : null;
+        }
+
+        return null;
+    }
 }

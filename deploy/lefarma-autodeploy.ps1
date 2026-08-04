@@ -5,6 +5,7 @@
 # Sin logica de versiones: tag distinto al ultimo desplegado -> desplegar.
 
 $ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"  # sin consola (ssh/task) el progress bar de IWR muere con 0x5
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12  # PS 5.1
 
 # ============ CONFIG (llenar) ============
@@ -33,7 +34,7 @@ try {
 function Log($msg, $level = "Information") {
     $line = "{0} | {1}" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $msg
     Add-Content -LiteralPath $LogFile -Value $line
-    Write-Host $line   # visible en corrida manual; en Scheduled Task queda en log + Event Viewer
+    Write-Output $line  # visible en corrida manual; Write-Host muere sin consola (ssh/task sin sesion)
     try {
         $type = switch ($level) {
             "Error"       { [System.Diagnostics.EventLogEntryType]::Error }

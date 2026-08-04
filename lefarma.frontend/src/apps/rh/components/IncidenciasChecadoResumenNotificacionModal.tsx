@@ -34,6 +34,11 @@ interface IncidenciasChecadoResumenNotificacionModalProps {
   onEnviado?: () => void;
 }
 
+interface EmpleadoDestinatarioState {
+  selectedUserIds: number[];
+  copiarAUsuarioIncidencia: boolean;
+}
+
 const VARIABLES = [
   'Nombre',
   'Nomina',
@@ -108,8 +113,8 @@ export function IncidenciasChecadoResumenNotificacionModal({
   const [asunto, setAsunto] = useState(ASUNTO_DEFAULT);
   const [mensaje, setMensaje] = useState(MENSAJE_DEFAULT);
   const [enviando, setEnviando] = useState(false);
-  const [selectedUserIds, setSelectedUserIds] = useState<number[]>([]);
-  const [copiarAUsuarioIncidencia, setCopiarAUsuarioIncidencia] = useState(false);
+const [empleadosDestinatarios, setEmpleadosDestinatarios] = useState<Map<number, EmpleadoDestinatarioState>>(new Map());
+const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
 
   const gruposPorCodigo = useMemo(() => agruparPlantillasPorCodigo(plantillas), [plantillas]);
 
@@ -131,8 +136,10 @@ export function IncidenciasChecadoResumenNotificacionModal({
     if (!open) return;
 
     let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingPlantillas(true);
+    setLoadingDestinatarios(true);
+
+    // Cargar plantillas (sin cambios)
     notificarIncidenciaChecadoApi
       .getPlantillas()
       .then((res) => {
@@ -152,20 +159,60 @@ export function IncidenciasChecadoResumenNotificacionModal({
         if (!cancelled) setLoadingPlantillas(false);
       });
 
-    usuariosCatalogoApi
-      .getDestinatariosDefault()
-      .then((destinatarios) => {
-        if (!cancelled) setSelectedUserIds(destinatarios);
-      })
-      .catch(() => {
-        // No mostrar error; si no hay defaults, el selector inicia vacío.
-      });
+    // Cargar destinatarios por empleado
+    const nominas = empleados.map(e => e.nomina);
+    if (nominas.length > 0) {
+      notificarIncidenciaChecadoApi
+        .getDestinatariosPorNominas(nominas)
+        .then((destinatarios) => {
+          if (cancelled) return;
+          const map = new Map<number, EmpleadoDestinatarioState>();
+          for (const d of destinatarios) {
+            map.set(d.nomina, {
+              selectedUserIds: d.destinatariosDefault,
+              copiarAUsuarioIncidencia: false,
+            });
+          }
+          setEmpleadosDestinatarios(map);
+        })
+        .catch(() => {
+          // Si falla, inicializar mapa vacío
+          const map = new Map<number, EmpleadoDestinatarioState>();
+          for (const emp of empleados) {
+            map.set(emp.nomina, { selectedUserIds: [], copiarAUsuarioIncidencia: false });
+          }
+          setEmpleadosDestinatarios(map);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingDestinatarios(false);
+        });
+    }
 
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+    return () => { cancelled = true; };
+  }, [open, empleados]);
+
+  const updateEmpleadoDestinatarios = (nomina: number, updates: Partial<EmpleadoDestinatarioState>) => {
+    setEmpleadosDestinatarios(prev => {
+      const next = new Map(prev);
+      const current = next.get(nomina) ?? { selectedUserIds: [], copiarAUsuarioIncidencia: false };
+      next.set(nomina, { ...current, ...updates });
+      return next;
+    });
+  };
+
+  const aplicarPrimeroATodos = () => {
+  if (empleados.length === 0) return;
+  const primero = empleadosDestinatarios.get(empleados[0].nomina);
+  if (!primero) return;
+  
+  setEmpleadosDestinatarios(prev => {
+    const next = new Map(prev);
+    for (const emp of empleados) {
+      next.set(emp.nomina, { ...primero });
+    }
+    return next;
+  });
+};
 
   const mensajeNormalizado = useMemo(() => normalizarVariables(mensaje), [mensaje]);
   const asuntoPreview = useMemo(() => aplicarVariables(asunto), [asunto]);
@@ -189,7 +236,10 @@ export function IncidenciasChecadoResumenNotificacionModal({
       toast.error('El mensaje es obligatorio.');
       return;
     }
-    if (selectedUserIds.length === 0 && !copiarAUsuarioIncidencia) {
+    const tieneAlgunDestinatario = Array.from(empleadosDestinatarios.values()).some(
+      d => d.selectedUserIds.length > 0 || d.copiarAUsuarioIncidencia
+    );
+    if (!tieneAlgunDestinatario) {
       toast.error('Selecciona al menos un destinatario o marca la opción de copia al usuario de las incidencias.');
       return;
     }
@@ -203,8 +253,14 @@ export function IncidenciasChecadoResumenNotificacionModal({
         fechaFin,
         asunto: asunto.trim(),
         mensaje: mensajeNormalizado,
-        selectedUserIds,
-        copiarAUsuarioIncidencia,
+        empleadosDestinatarios: empleados.map(e => {
+          const d = empleadosDestinatarios.get(e.nomina) ?? { selectedUserIds: [], copiarAUsuarioIncidencia: false };
+          return {
+            nomina: e.nomina,
+            selectedUserIds: d.selectedUserIds,
+            copiarAUsuarioIncidencia: d.copiarAUsuarioIncidencia,
+          };
+        }),
       });
 
       if (res.data.success) {
@@ -269,59 +325,73 @@ export function IncidenciasChecadoResumenNotificacionModal({
         </div>
 
         <div className="space-y-2">
-          <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Empleados seleccionados
-          </Label>
-          <div className="max-h-40 overflow-auto rounded-lg border">
-            <table className="w-full text-xs">
-              <thead className="bg-muted/60 text-left">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Nómina</th>
-                  <th className="px-3 py-2 font-medium">Nombre</th>
-                  <th className="px-3 py-2 font-medium">Empresa</th>
-                  <th className="px-3 py-2 font-medium">Departamento</th>
-                  <th className="px-3 py-2 font-medium text-right">Incidencias</th>
-                </tr>
-              </thead>
-              <tbody>
-                {empleados.map((empleado) => (
-                  <tr key={empleado.nomina} className="border-t">
-                    <td className="px-3 py-2">{empleado.nomina}</td>
-                    <td className="px-3 py-2">{empleado.nombre}</td>
-                    <td className="px-3 py-2">{empleado.empresa ?? '-'}</td>
-                    <td className="px-3 py-2">{empleado.departamento ?? '-'}</td>
-                    <td className="px-3 py-2 text-right">{empleado.totalIncidencias}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-md border p-4">
-          <div className="space-y-2">
+          <div className="flex items-center justify-between">
             <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Destinatarios
+              Empleados y destinatarios
             </Label>
-            <RecipientSelector
-              selectedUserIds={selectedUserIds}
-              selectedRoleNames={[]}
-              onUserIdsChange={setSelectedUserIds}
-              onRoleNamesChange={() => {}}
-              showRoles={false}
-            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={aplicarPrimeroATodos}
+              disabled={empleados.length <= 1 || loadingDestinatarios}
+            >
+              Aplicar primero a todos
+            </Button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="copiar-a-usuario-incidencia"
-              checked={copiarAUsuarioIncidencia}
-              onCheckedChange={(checked) => setCopiarAUsuarioIncidencia(!!checked)}
-            />
-            <label htmlFor="copiar-a-usuario-incidencia" className="cursor-pointer text-sm">
-              Con copia al usuario de las incidencias
-            </label>
-          </div>
+          {loadingDestinatarios ? (
+            <div className="flex items-center gap-2 py-8 text-xs text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando destinatarios...
+            </div>
+          ) : (
+            <div className="max-h-80 overflow-auto rounded-lg border">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/60 text-left sticky top-0">
+                  <tr>
+                    <th className="px-3 py-2 font-medium">Nómina</th>
+                    <th className="px-3 py-2 font-medium">Nombre</th>
+                    <th className="px-3 py-2 font-medium">Empresa</th>
+                    <th className="px-3 py-2 font-medium">Departamento</th>
+                    <th className="px-3 py-2 font-medium text-right">Incidencias</th>
+                    <th className="px-3 py-2 font-medium min-w-[200px]">Destinatarios</th>
+                    <th className="px-3 py-2 font-medium text-center">CC</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {empleados.map((empleado) => {
+                    const config = empleadosDestinatarios.get(empleado.nomina) ?? { selectedUserIds: [], copiarAUsuarioIncidencia: false };
+                    return (
+                      <tr key={empleado.nomina} className="border-t">
+                        <td className="px-3 py-2">{empleado.nomina}</td>
+                        <td className="px-3 py-2">{empleado.nombre}</td>
+                        <td className="px-3 py-2">{empleado.empresa ?? '-'}</td>
+                        <td className="px-3 py-2">{empleado.departamento ?? '-'}</td>
+                        <td className="px-3 py-2 text-right">{empleado.totalIncidencias}</td>
+                        <td className="px-3 py-2">
+                          <RecipientSelector
+                            selectedUserIds={config.selectedUserIds}
+                            selectedRoleNames={[]}
+                            onUserIdsChange={(ids) => updateEmpleadoDestinatarios(empleado.nomina, { selectedUserIds: ids })}
+                            onRoleNamesChange={() => {}}
+                            showRoles={false}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          <Checkbox
+                            checked={config.copiarAUsuarioIncidencia}
+                            onCheckedChange={(checked) =>
+                              updateEmpleadoDestinatarios(empleado.nomina, { copiarAUsuarioIncidencia: !!checked })
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
