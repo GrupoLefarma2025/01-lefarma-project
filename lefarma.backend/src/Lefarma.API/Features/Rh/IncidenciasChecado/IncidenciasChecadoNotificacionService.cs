@@ -117,30 +117,32 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
                 var idUsuario = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nomina, cancellationToken);
 
+                // Determinar destinatarios
+                var itemPorEmpleado = request.EmpleadosDestinatarios?.FirstOrDefault(e => e.Nomina == nomina);
+
                 var destinatarios = new List<int>();
-                if (request.SelectedUserIds != null)
+                bool copiarAUsuario = false;
+
+                if (itemPorEmpleado != null)
                 {
-                    destinatarios.AddRange(request.SelectedUserIds);
+                    // Usar configuración por empleado
+                    destinatarios.AddRange(itemPorEmpleado.SelectedUserIds);
+                    copiarAUsuario = itemPorEmpleado.CopiarAUsuarioIncidencia;
+                }
+                else
+                {
+                    // Usar configuración general
+                    if (request.SelectedUserIds != null)
+                        destinatarios.AddRange(request.SelectedUserIds);
+                    copiarAUsuario = request.CopiarAUsuarioIncidencia;
                 }
 
-                if (request.CopiarAUsuarioIncidencia && idUsuario.HasValue)
+                if (copiarAUsuario && idUsuario.HasValue)
                 {
                     destinatarios.Add(idUsuario.Value);
                 }
 
                 destinatarios = destinatarios.Distinct().ToList();
-
-                if (request.CopiarAUsuarioIncidencia && !idUsuario.HasValue)
-                {
-                    resultados.Add(new NotificacionPersonaResult
-                    {
-                        Nomina = nomina,
-                        Nombre = items.FirstOrDefault()?.Nombre,
-                        Exitoso = false,
-                        Error = $"No se encontró usuario del portal para la nómina {nomina}."
-                    });
-                    continue;
-                }
 
                 if (destinatarios.Count == 0)
                 {
@@ -229,7 +231,31 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             await _applicationDbContext.SaveChangesAsync(cancellationToken);
 
-            if (idUsuarioEnviador.HasValue && request.SelectedUserIds != null && request.SelectedUserIds.Count > 0)
+            // Guardar defaults por empleado si se envió configuración individual
+            if (idUsuarioEnviador.HasValue && request.EmpleadosDestinatarios != null)
+            {
+                foreach (var item in request.EmpleadosDestinatarios)
+                {
+                    try
+                    {
+                        var idUsuarioEmpleado = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(
+                            item.Nomina, cancellationToken);
+                        if (idUsuarioEmpleado.HasValue && item.SelectedUserIds.Count > 0)
+                        {
+                            await _usuarioConfiguracionRepository.GuardarDestinatariosDefaultAsync(
+                                idUsuarioEmpleado.Value,
+                                item.SelectedUserIds,
+                                cancellationToken);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        EnrichWideEvent("GuardarDestinatariosDefault", exception: ex);
+                    }
+                }
+            }
+            // Si no se envió configuración individual, guardar configuración general   
+            else if (idUsuarioEnviador.HasValue && request.SelectedUserIds != null && request.SelectedUserIds.Count > 0)
             {
                 try
                 {
@@ -509,5 +535,39 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.AppendLine("  </tbody>");
         sb.AppendLine("</table>");
         return sb.ToString();
+    }
+
+    public async Task<Result<List<EmpleadoDestinatariosResponse>>> GetDestinatariosPorNominasAsync(
+    List<long> nominas, CancellationToken ct = default)
+    {
+        try
+        {
+            var resultado = new List<EmpleadoDestinatariosResponse>();
+
+            foreach (var nomina in nominas.Distinct())
+            {
+                var nombreEmpleado = await _empleadoRepository.ObtenerNombreEmpleadoAsync(nomina, null, ct);
+                var idUsuario = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nomina, ct);
+
+                var destinatarios = idUsuario.HasValue
+                    ? await _usuarioConfiguracionRepository.GetDestinatariosDefaultAsync(idUsuario.Value, ct)
+                    : new List<int>();
+
+                resultado.Add(new EmpleadoDestinatariosResponse
+                {
+                    Nomina = nomina,
+                    Nombre = nombreEmpleado ?? string.Empty,
+                    DestinatariosDefault = destinatarios
+                });
+            }
+
+            return Result<List<EmpleadoDestinatariosResponse>>.Success(resultado);
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("GetDestinatariosPorNominas", exception: ex);
+            return Result<List<EmpleadoDestinatariosResponse>>.Failure(
+                "Error al obtener los destinatarios por empleado.");
+        }
     }
 }

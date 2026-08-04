@@ -1,7 +1,10 @@
+using Lefarma.API.Domain.Entities.Asistencias;
+
 namespace Lefarma.API.Domain.Interfaces.Rh;
 
 public interface IEmpleadoRepository
 {
+
     Task<long?> ResolverNominaPorUsuarioAsync(
         int idUsuario,
         CancellationToken cancellationToken = default);
@@ -25,7 +28,12 @@ public interface IEmpleadoRepository
         string? puesto,
         CancellationToken cancellationToken = default);
 
-    Task<Domain.Entities.Asistencias.VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
+    Task<VwEmpleado?> ObtenerEmpleadoPorUsuarioAsync(
         int idUsuario,
         CancellationToken cancellationToken = default);
+
+    Task<string?> ObtenerNombreEmpleadoAsync(
+    long? nomina = null,
+    int? idUsuario = null,
+    CancellationToken cancellationToken = default);
 }

@@ -366,6 +366,7 @@ export interface NotificarIncidenciasResumenRequest {
   listadoRowHtml?: string | null;
   selectedUserIds?: number[];
   copiarAUsuarioIncidencia?: boolean;
+  empleadosDestinatarios?: EmpleadoDestinatarioItem[];
 }
 
 export interface NotificarIncidenciasResumenResponse {
@@ -403,4 +404,16 @@ export interface SolicitudPersonalFilterParams {
   empresa?: string;
   departamento?: string;
   puesto?: string;
+}
+
+export interface EmpleadoDestinatariosResponse {
+  nomina: number;
+  nombre: string;
+  destinatariosDefault: number[];
+}
+
+export interface EmpleadoDestinatarioItem {
+  nomina: number;
+  selectedUserIds: number[];
+  copiarAUsuarioIncidencia: boolean;
 }

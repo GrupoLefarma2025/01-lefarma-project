@@ -258,7 +258,6 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
         );
         if (res.data?.success) {
           toast.success(res.data.data?.mensaje ?? 'Acción ejecutada correctamente');
-          await fetchAll(puedeVerTodas, filters);
           await fetchAcciones(selectedSolicitud.idSolicitud);
           if (selectedId != null) {
             await fetchDetalleCompleto(selectedId);
@@ -276,7 +275,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
         setIsSubmittingFirma(false);
       }
     },
-    [selectedSolicitud, selectedId, fetchAll, fetchAcciones, fetchDetalleCompleto]
+    [selectedSolicitud, selectedId, fetchAcciones, fetchDetalleCompleto]
   );
 
   const getEstadoInfo = useCallback(
