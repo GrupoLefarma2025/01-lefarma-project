@@ -172,4 +172,41 @@ public class IncidenciasChecadoController : ControllerBase
             Data = result.Value
         });
     }
+
+    [HttpGet("incidencias-checado/destinatarios-default")]
+    [SwaggerOperation(
+    Summary = "Obtener destinatarios predeterminados por empleado",
+    Description = "Retorna los destinatarios predeterminados para cada nómina proporcionada")]
+    [SwaggerResponse(200, "Destinatarios obtenidos", typeof(ApiResponse<List<EmpleadoDestinatariosResponse>>))]
+    public async Task<IActionResult> GetDestinatariosPorNominas(
+    [FromQuery] List<long> nominas,
+    CancellationToken cancellationToken)
+    {
+        if (nominas == null || nominas.Count == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Debe proporcionar al menos una nómina."
+            });
+        }
+
+        var result = await _notificacionService.GetDestinatariosPorNominasAsync(nominas, cancellationToken);
+
+        if (result.IsFailure)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = result.Error ?? string.Empty
+            });
+        }
+
+        return Ok(new ApiResponse<List<EmpleadoDestinatariosResponse>>
+        {
+            Success = true,
+            Message = "Destinatarios por empleado obtenidos exitosamente.",
+            Data = result.Value
+        });
+    }
 }

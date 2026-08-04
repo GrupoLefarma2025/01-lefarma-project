@@ -22,6 +22,7 @@ import type {
   TipoSolicitudRequest,
   TipoSolicitudResponse,
   UpdateTipoSolicitudRequest,
+  EmpleadoDestinatariosResponse
 } from '@/types/solicitudPersonal.types';
 import type { DiaNoHabilFilters, DiaNoHabilResponse } from '@/types/vacaciones.types';
 import type {
@@ -149,6 +150,10 @@ export const usuariosCatalogoApi = {
 export const notificarIncidenciaChecadoApi = {
   getPlantillas: () =>
     API.get<ApiResponse<PlantillaIncidenciaChecado[]>>('/rh/incidencias-checado/plantillas'),
+  getDestinatariosPorNominas: (nominas: number[]) =>
+  API.get<ApiResponse<EmpleadoDestinatariosResponse[]>>(
+    `/rh/incidencias-checado/destinatarios-default?${nominas.map(n => `nominas=${n}`).join('&')}`
+  ).then(res => res.data.success ? (res.data.data ?? []) : []),
   sendResumen: (payload: NotificarIncidenciasResumenRequest) =>
     API.post<ApiResponse<NotificarIncidenciasResumenResponse>>(
       '/rh/incidencias-checado/notificar-resumen',
