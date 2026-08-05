@@ -1,0 +1,31 @@
+{
+  "_comment": "Configuración de migraciones DbUp. Environments mapea ambiente → {DB → connString}. Routing mapea app → DBs donde aplican scripts de esa carpeta. '*' significa todas las DBs del ambiente.",
+
+  "Environments": {
+    "dev": {
+      "LefarmaDev":     "Server=192.168.4.2;Database=LefarmaDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamDev":      "Server=192.168.4.2;Database=AsokamDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasDev": "Server=192.168.4.2;Database=AsistenciasDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+    },
+    "qa": {
+      "LefarmaQA":     "Server=192.168.4.2;Database=LefarmaQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamQA":      "Server=192.168.4.2;Database=AsokamQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasQA": "Server=192.168.4.2;Database=AsistenciasQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+    },
+    "prod": {
+      "_comment": "PENDIENTE: completar connStrings de prod con el equipo. Asistencias está en server distinto (192.168.1.5).",
+      "LefarmaProd":     "Server=192.168.4.2;Database=Lefarma;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamProd":      "Server=192.168.4.2;Database=Asokam;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasProd": "Server=192.168.1.5;Database=Asistencias;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+    }
+  },
+
+  "Routing": {
+    "_comment": "App → DBs donde aplican. '*' = todas las DBs del ambiente. Cualquier app no listada aplica a todas las DBs (default seguro).",
+
+    "_shared":          ["*"],
+    "educacion-medica": ["LefarmaDev", "LefarmaQA", "LefarmaProd", "AsokamDev", "AsokamQA", "AsokamProd"],
+    "rh":               ["LefarmaDev", "LefarmaQA", "LefarmaProd"],
+    "cxp":              ["LefarmaDev", "LefarmaQA", "LefarmaProd"]
+  }
+}

@@ -1,5 +1,5 @@
 ﻿# lefarma.ps1 — Unified project CLI
-# Usage: .\lefarma.ps1 <command>
+# Usage: .\lefarma.ps1 <command> [args]
 #   dev        Start backend (5174) + frontend (5173) with hot reload
 #   stop       Kill dev processes on 5174 + 5173
 #   restart    Stop + start dev
@@ -9,11 +9,18 @@
 #   build:dev  Frontend build:dev + backend publish (Debug)
 #   publish:qa Build qa + deploy por SSH a staging (detiene app con app_offline.htm)
 #   publish    Build prod + deploy por SSH a produccion (pendiente de configurar)
+#   sql        Migraciones de BD con DbUp. Sub-comandos:
+#                .\lefarma.ps1 sql <status|apply|apply-one|diff|list|tui> <env> [opts]
+#              Ver `sql help` para detalle.
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("dev", "stop", "restart", "install", "build", "build:qa", "build:dev", "publish", "publish:qa")]
-    [string]$Command = "dev"
+    [ValidateSet("dev", "stop", "restart", "install", "build", "build:qa", "build:dev", "publish", "publish:qa", "sql")]
+    [string]$Command = "dev",
+
+    # Args extra passthrough (para `sql` que necesita sub-comando + flags).
+    [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
+    [string[]]$SqlArgs = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -191,5 +198,180 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
     "publish" {
         Invoke-DeployBuild "build" "lefarma-prod.zip"
         Invoke-RemotePublish (Join-Path $Root "publish\lefarma-prod.zip") $PublishTargets.prod
+    }
+
+    "sql" {
+        # Sub-comandos DbUp. Construye el migrador una vez, ejecuta según sub.
+        $Sub = if ($SqlArgs.Count -gt 0) { $SqlArgs[0] } else { "help" }
+        $MigratorProj = Join-Path $Backend "..\..\src\Lefarma.Migrations\Lefarma.Migrations.csproj"
+        # Resolver a path absoluto
+        $MigratorProj = [System.IO.Path]::GetFullPath($MigratorProj)
+
+        if (-not (Test-Path -LiteralPath $MigratorProj)) {
+            throw "No se encontró el proyecto migrador: $MigratorProj"
+        }
+
+        function Invoke-Migrator([string[]]$RunArgs) {
+            & dotnet run --project $MigratorProj --no-build -- @RunArgs
+            if ($LASTEXITCODE -ne 0) {
+                throw "Migrador falló (exit $LASTEXITCODE). Args: $RunArgs"
+            }
+        }
+
+        switch ($Sub) {
+            "help" {
+                Write-Host "Uso: .\multiappcli.ps1 sql <sub> <env> [opts]" -ForegroundColor Cyan
+                Write-Host ""
+                Write-Host "Sub-comandos:"
+                Write-Host "  status      <env>            Lista pendientes en el ambiente"
+                Write-Host "  apply       <env>            Aplica TODO lo pendiente en el ambiente"
+                Write-Host "  apply-one   <env> --id ID    Aplica solo un script por id"
+                Write-Host "  diff        <fromEnv> <toEnv>  Lista lo que tiene fromEnv pero falta en toEnv"
+                Write-Host "  list        <env>            Lista lo ya aplicado en el ambiente"
+                Write-Host "  tui         <env>            Menú interactivo (requiere ConsoleGuiTools)"
+                Write-Host ""
+                Write-Host "Opciones (para status/apply/apply-one):"
+                Write-Host "  --app X       Filtra por app (educacion-medica, rh, _shared, ...)"
+                Write-Host "  --tipo Y      Filtra por tipo (schema, alter, data)"
+                Write-Host "  --id ID       Aplica solo un script (apply-one)"
+                Write-Host ""
+                Write-Host "Ambientes: dev | qa | prod"
+                Write-Host ""
+                Write-Host "Ejemplos:"
+                Write-Host "  .\multiappcli.ps1 sql status dev"
+                Write-Host "  .\multiappcli.ps1 sql apply dev --app educacion-medica"
+                Write-Host "  .\multiappcli.ps1 sql apply-one dev --id 20260805-0935-create-educacion-medica"
+                Write-Host "  .\multiappcli.ps1 sql diff qa prod"
+                Write-Host "  .\multiappcli.ps1 sql tui dev"
+            }
+
+            "status" {
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                $rest = $SqlArgs | Select-Object -Skip 2
+                # Build silently si hace falta, luego corre
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Invoke-Migrator -RunArgs (@("status", $env_) + $rest)
+            }
+
+            "list" {
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Invoke-Migrator -RunArgs (@("list", $env_))
+            }
+
+            "apply" {
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                $rest = $SqlArgs | Select-Object -Skip 2
+
+                if ($env_ -eq "prod") {
+                    Write-Host "VA A APLICAR MIGRACIONES A PRODUCCIÓN ($env_)." -ForegroundColor Red
+                    $confirm = Read-Host "Escribe 'PROD' para confirmar"
+                    if ($confirm -ne "PROD") {
+                        Write-Host "Abortado." -ForegroundColor Yellow
+                        return
+                    }
+                }
+
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Invoke-Migrator -RunArgs (@("apply", $env_) + $rest)
+            }
+
+            "apply-one" {
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                $id = ($SqlArgs | Where-Object { $_ -like "--id=*" }).Split('=')[1]
+                if (-not $id) {
+                    # buscar --id ID
+                    $idx = [Array]::IndexOf($SqlArgs, "--id")
+                    if ($idx -ge 0 -and $idx + 1 -lt $SqlArgs.Count) { $id = $SqlArgs[$idx + 1] }
+                }
+                if (-not $id) { throw "Falta --id ID. Ej: sql apply-one dev --id 20260805-0935-create-talleres" }
+
+                if ($env_ -eq "prod") {
+                    Write-Host "VA A APLICAR $id A PRODUCCIÓN ($env_)." -ForegroundColor Red
+                    $confirm = Read-Host "Escribe 'PROD' para confirmar"
+                    if ($confirm -ne "PROD") {
+                        Write-Host "Abortado." -ForegroundColor Yellow
+                        return
+                    }
+                }
+
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Invoke-Migrator -RunArgs (@("apply", $env_, "--id", $id))
+            }
+
+            "diff" {
+                if ($SqlArgs.Count -lt 3) {
+                    throw "Uso: sql diff <fromEnv> <toEnv>"
+                }
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Invoke-Migrator -RunArgs (@("diff", $SqlArgs[1], $SqlArgs[2]))
+            }
+
+            "tui" {
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+
+                # Verificar que ConsoleGuiTools esté instalado
+                $mod = Get-Module -ListAvailable -Name Microsoft.PowerShell.ConsoleGuiTools
+                if (-not $mod) {
+                    Write-Host "TUI requiere Microsoft.PowerShell.ConsoleGuiTools." -ForegroundColor Yellow
+                    Write-Host "Instalar con:" -ForegroundColor Yellow
+                    Write-Host "  Install-Module Microsoft.PowerShell.ConsoleGuiTools -Scope CurrentUser -Force" -ForegroundColor Yellow
+                    Write-Host ""
+                    Write-Host "Mientras tanto, usa: .\multiappcli.ps1 sql status $env_" -ForegroundColor Yellow
+                    return
+                }
+                Import-Module Microsoft.PowerShell.ConsoleGuiTools
+
+                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+
+                # Obtener pendientes como JSON
+                $json = & dotnet run --project $MigratorProj --no-build -- status $env_ --json
+                $pending = $json | ConvertFrom-Json
+
+                if ($pending.Count -eq 0) {
+                    Write-Host "Sin pendientes en $env_." -ForegroundColor Green
+                    return
+                }
+
+                # Opciones para OGC: label + value
+                $opciones = $pending | ForEach-Object {
+                    [PSCustomObject]@{
+                        Label = "[$($_.db)] $($_.id)  ($($_.app)/$($_.tipo))"
+                        Value = "$($_.db)|$($_.id)"
+                    }
+                }
+
+                $seleccion = $opciones | Out-ConsoleGridView `
+                    -Title "SQL Migraciones — aplicar a $env_ ($($pending.Count) pendientes)" `
+                    -OutputMode Multiple
+
+                if (-not $seleccion -or $seleccion.Count -eq 0) {
+                    Write-Host "Nada seleccionado. Abortado." -ForegroundColor Yellow
+                    return
+                }
+
+                Write-Host "Aplicando $($seleccion.Count) script(s) en $env_..." -ForegroundColor Cyan
+                foreach ($s in $seleccion) {
+                    $parts = $s.Value -split '\|'
+                    $db = $parts[0]; $id = $parts[1]
+                    Write-Host "  → [$db] $id" -ForegroundColor Cyan
+                    # Apply-one filtra por id (corre contra todas las DBs del ambiente,
+                    # DbUp solo aplica si el script matchea el id y routing).
+                    Invoke-Migrator -RunArgs @("apply", $env_, "--id", $id)
+                }
+                Write-Host "Listo." -ForegroundColor Green
+            }
+
+            default {
+                Write-Host "Sub-comando sql desconocido: $Sub" -ForegroundColor Red
+                Write-Host "Ver: .\multiappcli.ps1 sql help" -ForegroundColor Yellow
+            }
+        }
     }
 }

@@ -119,3 +119,5 @@ tmp/
 
 # Release zip output (multiappcli.ps1 build:qa)
 /publish/
+
+.fake
