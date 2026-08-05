@@ -282,7 +282,8 @@ export default function SolicitudesPersonal() {
     toggleModal('detalle', true);
   };
 
-  const handleOpenFirma = (s: SolicitudPersonalResponse) => {
+  const handleOpenFirma = async (s: SolicitudPersonalResponse) => {
+    console.log('solicitud', s);
     if (hasFirma === false) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar solicitudes.',
@@ -291,17 +292,20 @@ export default function SolicitudesPersonal() {
       return;
     }
     selectSolicitud(s.idSolicitud);
+    await fetchDetalleCompleto(s.idSolicitud);
     fetchAcciones(s.idSolicitud);
     toggleModal('firma', true);
   };
 
-  const handleOpenArchivos = (s: SolicitudPersonalResponse) => {
+  const handleOpenArchivos = async (s: SolicitudPersonalResponse) => {
     selectSolicitud(s.idSolicitud);
+    await fetchDetalleCompleto(s.idSolicitud);
     toggleModal('archivos', true);
   };
 
-  const handleOpenHistorial = (s: SolicitudPersonalResponse) => {
+  const handleOpenHistorial = async (s: SolicitudPersonalResponse) => {
     selectSolicitud(s.idSolicitud);
+    await fetchDetalleCompleto(s.idSolicitud);
     fetchHistorial(s.idSolicitud);
     toggleModal('historial', true);
   };
@@ -511,6 +515,7 @@ export default function SolicitudesPersonal() {
         onFirmar={async (req) => {
           const ok = await firmar(req, false, buildApiFilters(appliedFilters));
           if (ok) {
+            //closeModal('firma');
             await Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
