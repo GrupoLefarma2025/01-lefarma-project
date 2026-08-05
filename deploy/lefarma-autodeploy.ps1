@@ -7,6 +7,7 @@
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"  # sin consola (ssh/task) el progress bar de IWR muere con 0x5
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12  # PS 5.1
+Import-Module WebAdministration  # Stop/Start-WebAppPool para soltar locks de DLLs (app_offline.htm no alcanzaba)
 
 # ============ CONFIG (llenar) ============
 $Owner     = "GrupoLefarma2025"
@@ -16,6 +17,10 @@ $TokenFile = "$BaseDir\.token"        # contiene el PAT; solo Administradores lo
 $Targets = @{
     qa   = "D:\DevApps\DevLefarma"   # sitio IIS "Development", pool Dev-Lefarma, :5073
     # prod = ""  # PRODUCCION deshabilitado: descomentar y llenar path cuando se active
+}
+$AppPools = @{
+    qa   = "Dev-Lefarma"
+    # prod = ""
 }
 # =========================================
 
@@ -51,7 +56,7 @@ function Get-LatestRelease([bool]$Pre) {
     $list | Where-Object { $_.prerelease -eq $Pre -and -not $_.draft } | Select-Object -First 1
 }
 
-function Deploy($rel, $target, $stateFile) {
+function Deploy($rel, $target, $pool, $stateFile) {
     $last = if (Test-Path $stateFile) { (Get-Content $stateFile -Raw).Trim() } else { "" }
     if ($rel.tag_name -eq $last) { return }
 
@@ -65,19 +70,23 @@ function Deploy($rel, $target, $stateFile) {
     $tmp = Join-Path $WorkDir ("x-" + [guid]::NewGuid().ToString("N"))
     Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
 
-    # app_offline.htm: ANCM apaga SOLO esta app y suelta los locks de DLLs (sin iisreset, sin tocar otras)
-    $offline = Join-Path $target "app_offline.htm"
-    Set-Content -LiteralPath $offline "<html><body>deploy en curso</body></html>"
-    Start-Sleep -Seconds 3
+    # Detener el App Pool suelta los locks de DLLs (w3wp.exe muere). app_offline.htm no era confiable.
+    if ($pool) {
+        Stop-WebAppPool -Name $pool
+        # esperar a que el pool quede realmente detenido (hasta 5s)
+        for ($i = 0; $i -lt 10; $i++) {
+            if ((Get-WebAppPoolState -Name $pool) -eq 'Stopped') { break }
+            Start-Sleep -Milliseconds 500
+        }
+        Start-Sleep -Seconds 1  # margen para que w3wp.exe libere los locks de DLLs
+    }
 
     # /E sobreescribe sin borrar archivos extra del destino; /XF protege configs por doble seguro
     # ponytail: quedan DLLs huerfanos de versiones previas; si estorba, /MIR + /XF de estas mismas exclusiones
     robocopy $tmp $target /E /XF appsettings*.json web.config app_offline.htm /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
     if ($LASTEXITCODE -ge 8) { throw "robocopy fallo ($LASTEXITCODE)" }
 
-    Remove-Item -LiteralPath $offline -Force -ErrorAction SilentlyContinue  # la app levanta al siguiente request
-    $wc = Join-Path $target "web.config"
-    if (Test-Path $wc) { (Get-Item $wc).LastWriteTime = Get-Date }  # recycle extra por si acaso
+    if ($pool) { Start-WebAppPool -Name $pool }  # la app levanta al primer request
 
     Set-Content -LiteralPath $stateFile -Value $rel.tag_name
     Remove-Item $zip, $tmp -Recurse -Force -ErrorAction SilentlyContinue
@@ -91,11 +100,11 @@ $token = (Get-Content $TokenFile -Raw).Trim()
 
 try {
     $qa = Get-LatestRelease $true
-    if ($qa -and $Targets.qa) { Deploy $qa $Targets.qa "$StateDir\last-qa.txt" }
+    if ($qa -and $Targets.qa) { Deploy $qa $Targets.qa $AppPools.qa "$StateDir\last-qa.txt" }
 } catch { Log "ERROR qa: $_" "Error" }
 
 # ---- PRODUCCION deshabilitado por ahora ----
 # try {
 #     $prod = Get-LatestRelease $false
-#     if ($prod -and $Targets.prod) { Deploy $prod $Targets.prod "$StateDir\last-prod.txt" }
+#     if ($prod -and $Targets.prod) { Deploy $prod $Targets.prod $AppPools.prod "$StateDir\last-prod.txt" }
 # } catch { Log "ERROR prod: $_" }
