@@ -255,6 +255,9 @@ namespace Lefarma.API.Features.Config.Engine
             var pasoActual = workflow?.Pasos.FirstOrDefault(p => p.IdPaso == idPasoActual);
             if (pasoActual is null || !pasoActual.Activo) return Array.Empty<WorkflowAccion>();
 
+            var participantes = pasoActual.Participantes.Where(p => p.Activo).ToList();
+            var esParticipanteExplicito = participantes.Any() && await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador, idUsuarioSolicitante);
+
             var esParticipante = await IsUsuarioParticipanteAsync(pasoActual, idUsuario, idUsuarioCreador, idUsuarioSolicitante);
             var esCreador = idUsuario == idUsuarioCreador;
             var tieneAccionCancelar = pasoActual.AccionesOrigen
@@ -266,19 +269,19 @@ namespace Lefarma.API.Features.Config.Engine
 
             IEnumerable<WorkflowAccion> accionesFiltradas = acciones;
 
-            if (esCreador && esParticipante)
+            if (esCreador && (pasoActual.EsInicio || esParticipanteExplicito))
             {
-                // El creador también es participante formal: ve todas las acciones
+                // Creador en paso inicial o como participante explícito: ve todas las acciones
                 accionesFiltradas = acciones;
             }
             else if (esCreador && tieneAccionCancelar)
             {
-                // El creador no es participante: solo ve acciones CANCELAR
+                // Creador NO participante explícito: solo CANCELAR
                 accionesFiltradas = acciones.Where(a => a.TipoAccion != null && a.TipoAccion.Codigo == "CANCELAR");
             }
-            else if (esParticipante)
+            else if (esParticipanteExplicito)
             {
-                // Participante formal: ve todas las acciones excepto CANCELAR
+                // Participante explícito (no creador): ve todo menos CANCELAR
                 accionesFiltradas = acciones.Where(a => a.TipoAccion == null || a.TipoAccion.Codigo != "CANCELAR");
             }
             else
