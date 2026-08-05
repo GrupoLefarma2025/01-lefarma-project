@@ -1,4 +1,5 @@
 ﻿using ErrorOr;
+using Lefarma.API.Domain.Entities.Archivos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
@@ -11,7 +12,10 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using System.Data;
 
 namespace Lefarma.API.Features.Rh.SolicitudesPersonal;
 
@@ -56,6 +60,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
     public async Task<ErrorOr<FirmarResponse>> FirmarAsync(int idSolicitud, FirmarRequest request, int idUsuario)
     {
+        IDbContextTransaction? transaction = null;
         try
         {
             // 0. Validar que el usuario tenga firma digital registrada
@@ -79,7 +84,10 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             // Guardar estado anterior
             var estadoAnterior = solicitud.Estado?.Codigo;
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            // Solo iniciar una transacción si no hay una activa (p.ej. cuando FirmarAsync es llamada desde EnviarDirectorAsync)
+            transaction = _context.Database.CurrentTransaction == null
+                ? await _context.Database.BeginTransactionAsync()
+                : null;
 
             // 3. Cargar workflow config
             var workflowConfig = await _workflowRepo.GetQueryable()
@@ -151,12 +159,12 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 var vacacionProcesada = await ProcesarVacacionesAprobadasAsync(solicitud);
                 if (vacacionProcesada.IsError)
                 {
-                    await transaction.RollbackAsync();
+                    if (transaction != null) await transaction.RollbackAsync();
                     return vacacionProcesada.Errors;
                 }
             }
 
-            await transaction.CommitAsync();
+            if (transaction != null) await transaction.CommitAsync();
 
             // 8. Resolver notificación
             var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
@@ -197,8 +205,13 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         }
         catch (Exception ex)
         {
+            if (transaction != null) await transaction.RollbackAsync();
             EnrichWideEvent("Firmar", entityId: idSolicitud, exception: ex);
             return CommonErrors.InternalServerError("Error inesperado al procesar la firma.");
+        }
+        finally
+        {
+            if (transaction != null) await transaction.DisposeAsync();
         }
     }
 
@@ -347,6 +360,281 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         {
             EnrichWideEvent("ProcesarVacacionesAprobadas", exception: ex);
             return CommonErrors.InternalServerError("Error al procesar vacaciones aprobadas.");
+        }
+    }
+
+    //Tablas que se usan EnvioSolicitud, DocumentoInterfaseSolicitud
+    /*DROP TABLE rh.envios_solicitudes
+        DROP TABLE rh.envios_solicitudes
+
+        CREATE TABLE rh.envios_solicitudes
+        (
+            id_envio INT IDENTITY(1,1) PRIMARY KEY,
+            id_solicitud            INT NOT NULL,
+            id_usuario_envio INT NOT NULL,
+            estado                  VARCHAR(20) NOT NULL DEFAULT 'PENDIENTE',
+            token_seguridad NVARCHAR(100) NOT NULL UNIQUE,
+            id_tipo_solicitud INT NULL,
+            id_usuario_solicitante INT NULL,
+            fecha_envio DATETIME NOT NULL DEFAULT GETDATE(),
+            fecha_respuesta DATETIME NULL,
+            id_usuario_respuesta INT NULL,
+            comentario_respuesta NVARCHAR(500) NULL,
+            fecha_creacion DATETIME DEFAULT GETDATE(),
+            fecha_modificacion DATETIME DEFAULT GETDATE(),
+            activo BIT NOT NULL DEFAULT 1
+            CONSTRAINT FK_spe_solicitud FOREIGN KEY(id_solicitud) REFERENCES rh.solicitudes_personal(id_solicitud)
+        );
+
+        CREATE INDEX IX_spe_solicitud ON rh.envios_solicitudes(id_solicitud);
+
+            CREATE TABLE app.DocumentosInterfaseSolicitud
+        (
+            id_documento_firmar UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+            id_envio INT NOT NULL,
+            --CONSTRAINT FK_dis_documento FOREIGN KEY(id_documento_firmar) REFERENCES app.Documentos(Id)
+        );*/
+    public async Task<ErrorOr<EnviarDirectorResponse>> EnviarDirectorAsync(
+    int idSolicitud, EnviarDirectorRequest request, int idUsuario)
+    {
+        try
+        {
+            // Validar firma del usuario
+            var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
+            if (firmaValidacion.IsError)
+                return firmaValidacion.Errors;
+
+            //Validar que venga PDF
+            if (request.ArchivoPdf == null || request.ArchivoPdf.Length == 0)
+                return CommonErrors.Validation("ArchivoPdf", "El PDF de la solicitud es obligatorio.");
+
+            var extension = Path.GetExtension(request.ArchivoPdf.FileName).ToLowerInvariant();
+            if (extension != ".pdf")
+                return CommonErrors.Validation("ArchivoPdf", "Solo se permiten archivos PDF.");
+
+            //Cargar solicitud
+            var solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
+            if (solicitud is null)
+                return CommonErrors.NotFound("SolicitudPersonal", idSolicitud.ToString());
+
+            //Validar que la acción sea ENVIAR_DIRECTOR y esté disponible
+            var acciones = await GetAccionesDisponiblesAsync(idSolicitud, idUsuario);
+            if (acciones.IsError)
+                return acciones.Errors;
+
+            var accionEnviarDirector = acciones.Value
+                .FirstOrDefault(a => a.IdAccion == request.IdAccion &&
+                                     a.TipoAccionCodigo == "ENVIAR_DIRECTOR");
+
+            if (accionEnviarDirector == null)
+                return CommonErrors.Validation("Accion", "La acción no está disponible o no es ENVIAR_DIRECTOR.");
+
+            // primero firmar, luego enviar
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            // Ejecutar la firma con la acción ENVIAR_DIRECTOR
+            var firmaResult = await FirmarAsync(idSolicitud, new FirmarRequest
+            {
+                IdAccion = request.IdAccion,
+                Comentario = request.Comentario
+            }, idUsuario);
+
+            if (firmaResult.IsError)
+            {
+                await transaction.RollbackAsync();
+                return firmaResult.Errors;
+            }
+
+            //obtener solicitud para obtener el estado actualizado
+            solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
+            if (solicitud == null)
+            {
+                await transaction.RollbackAsync();
+                return CommonErrors.NotFound("SolicitudPersonal", idSolicitud.ToString());
+            }
+
+            // Generar token y crear el envío externo
+            var token = Guid.NewGuid().ToString("N");
+
+            var envio = new EnvioSolicitud
+            {
+                IdSolicitud = idSolicitud,
+                IdUsuarioEnvio = idUsuario,
+                IdUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador,
+                IdTipoSolicitud = solicitud.IdTipoSolicitud,
+                Estado = "PENDIENTE",
+                TokenSeguridad = token,
+                FechaEnvio = DateTime.Now,
+                FechaCreacion = DateTime.Now,
+                FechaModificacion = DateTime.Now,
+                Activo = true
+            };
+
+            _context.EnviosSolicitudes.Add(envio);
+            await _context.SaveChangesAsync();
+
+            //leer el pdf y guardarlo en Asokam.app.Documentos
+            byte[] pdfBytes;
+            await using (var ms = new MemoryStream())
+            {
+                await request.ArchivoPdf.CopyToAsync(ms);
+                pdfBytes = ms.ToArray();
+            }
+
+            var documento = new Domain.Entities.Asokam.Documento
+            {
+                Id = Guid.NewGuid(),
+                NombreArchivo = $"{solicitud.Folio}.pdf",
+                MimeType = "application/pdf",
+                TamanoBytes = pdfBytes.Length,
+                PDFBinario = pdfBytes,
+                PDFBinarioAutorizado = null,
+                Estatus = 1,
+                FechaSubida = DateTime.Now,
+                SubidoPorUsuario = idUsuario.ToString(),
+                FechaAutorizacion = null,
+                AutorizadoPorUsuario = null,
+                FechaRechazo = null,
+                RechazadoPorUsuario = null,
+                ComentariosSubida = request.Comentario,
+                ComentariosDecision = null,
+                Activo = true,
+                IpOrigen = "189.206.67.214",
+                HashSHA256Autorizado = null,
+                EnviadoParaAutorizacion = false,
+                NotificacionEnviada = false,
+                MetadataJSON = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
+                {
+                    ["to"] = "41@grupolefarma.com.mx",
+                    ["cc"] = ""
+                }),
+                TieneDocumentoLigado = false,
+                PDFBinarioAdicional = null
+            };
+
+            // QUITAR COMENTARIO PARA INSERTAR DOCUMENTO EN ASOKAM
+            //_asokamContext.Documentos.Add(documento);
+
+            //Guardar el registro en Asokam.app.DocumentosInterfaseSolicitud
+            var interfase = new Domain.Entities.Asokam.DocumentoInterfaseSolicitud
+            {
+                IdDocumentoFirmar = documento.Id,
+                IdEnvio = envio.IdEnvio
+            };
+
+            _asokamContext.DocumentosInterfaseSolicitud.Add(interfase);
+            await _asokamContext.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            EnrichWideEvent("EnviarDirector", entityId: idSolicitud, nombre: solicitud.Folio,
+                additionalContext: new Dictionary<string, object>
+                {
+                    ["idEnvio"] = envio.IdEnvio,
+                    ["idDocumento"] = Guid.NewGuid(),// documento.Id,
+                });
+
+            return new EnviarDirectorResponse
+            {
+                IdEnvio = envio.IdEnvio,
+                TokenSeguridad = token,
+                Estado = envio.Estado,
+                Folio = solicitud.Folio
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("EnviarDirector", entityId: idSolicitud, exception: ex);
+            return CommonErrors.InternalServerError("Error inesperado al enviar la solicitud al director.");
+        }
+    }
+
+    public async Task<ErrorOr<RespuestaSolicitudPersonalExternaResponse>> ProcesarRespuestaAsync(
+    RespuestaSolicitudPersonalExternaRequest request)
+    {
+        try
+        {
+            //Buscar envío por Id + Token
+            var envio = await _context.EnviosSolicitudes
+                .FirstOrDefaultAsync(e => e.IdEnvio == request.IdEnvio
+                                       && e.TokenSeguridad == request.TokenSeguridad);
+
+            if (envio is null)
+                return CommonErrors.NotFound("EnvioSolicitud", $"ID: {request.IdEnvio}");
+
+            //validar que el envío esté pendiente
+            if (envio.Estado != "PENDIENTE")
+                return CommonErrors.Conflict("EnvioSolicitud", $"El envío ya fue {envio.Estado}.");
+
+            var solicitud = await _solicitudRepo.GetByIdAsync(envio.IdSolicitud);
+            if (solicitud is null)
+                return CommonErrors.NotFound("SolicitudPersonal", envio.IdSolicitud.ToString());
+
+            // validar que la acción sea AUTORIZAR o DEVOLVER
+            var accionExterna = request.Accion.Trim().ToUpperInvariant();
+            var esAutorizar = accionExterna == "AUTORIZAR";
+            var esDevolver = accionExterna == "DEVOLVER";
+
+            if (!esAutorizar && !esDevolver)
+                return CommonErrors.Validation("Accion", "La acción debe ser AUTORIZAR o DEVOLVER.");
+
+            // Resolver acción interna del paso actual
+            var acciones = await _queryService.GetAccionesDisponiblesAsync(
+                idWorkflow: solicitud.IdWorkflow,
+                idEntidad: solicitud.IdSolicitud,
+                idPasoActual: solicitud.IdPasoActual!.Value,
+                idUsuario: request.IdUsuario,
+                tipoEntidad: CodigoProceso.SOLICITUD_PERSONAL,
+                entidadParaHandlers: solicitud);
+
+            if (acciones.IsError)
+                return acciones.Errors;
+
+            var codigoAccionInterna = esAutorizar ? "CERRAR" : "DEVOLVER";
+            var accionInterna = acciones.Value
+                .FirstOrDefault(a => a.TipoAccionCodigo == codigoAccionInterna);
+
+            if (accionInterna == null)
+                return CommonErrors.Validation("Accion", $"No hay acción {codigoAccionInterna} disponible en el paso actual.");
+
+            //ejecutar firma con la acción interna correspondiente
+            var firmaResult = await FirmarAsync(envio.IdSolicitud, new FirmarRequest
+            {
+                IdAccion = accionInterna.IdAccion,
+                Comentario = request.Comentario
+            }, request.IdUsuario);
+
+            if (firmaResult.IsError)
+                return firmaResult.Errors;
+
+            //actualizar estado del envío
+            envio.Estado = esAutorizar ? "APROBADO" : "DEVUELTO";
+            envio.FechaRespuesta = DateTime.Now;
+            envio.IdUsuarioRespuesta = request.IdUsuario;
+            envio.ComentarioRespuesta = request.Comentario;
+            envio.FechaModificacion = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            EnrichWideEvent("ProcesarRespuestaSolicitudExterna", entityId: envio.IdSolicitud,
+                additionalContext: new Dictionary<string, object>
+                {
+                    ["idEnvio"] = envio.IdEnvio,
+                    ["accion"] = request.Accion,
+                    ["nuevoEstado"] = envio.Estado
+                });
+
+            return new RespuestaSolicitudPersonalExternaResponse
+            {
+                IdEnvio = envio.IdEnvio,
+                NuevoEstado = envio.Estado,
+                Folio = firmaResult.Value.Folio
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("ProcesarRespuestaSolicitudExterna", exception: ex);
+            return CommonErrors.InternalServerError("Error inesperado al procesar la respuesta externa.");
         }
     }
 }

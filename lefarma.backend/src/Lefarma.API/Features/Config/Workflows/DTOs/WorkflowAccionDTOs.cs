@@ -87,3 +87,35 @@ public class HistorialWorkflowItemResponse
     public string? DatosSnapshot { get; set; }
     public DateTime FechaEvento { get; set; }
 }
+
+// DTOs para enviar y recibir datos del sistema externo para Solicitud de Personal
+public class EnviarDirectorRequest
+{
+    public int IdAccion { get; set; }
+    public string? Comentario { get; set; }
+    public required IFormFile ArchivoPdf { get; set; }
+}
+
+public class EnviarDirectorResponse
+{
+    public int IdEnvio { get; set; }
+    public string TokenSeguridad { get; set; } = string.Empty;
+    public string Estado { get; set; } = string.Empty;
+    public string Folio { get; set; } = string.Empty;
+}
+
+public class RespuestaSolicitudPersonalExternaRequest
+{
+    public required int IdEnvio { get; set; }
+    public required string TokenSeguridad { get; set; }
+    public required int IdUsuario { get; set; }
+    public required string Accion { get; set; } // "AUTORIZAR" o "DEVOLVER"
+    public string? Comentario { get; set; }
+}
+
+public class RespuestaSolicitudPersonalExternaResponse
+{
+    public int IdEnvio { get; set; }
+    public string NuevoEstado { get; set; } = string.Empty;
+    public string Folio { get; set; } = string.Empty;
+}
