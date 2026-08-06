@@ -1,31 +1,19 @@
 {
-  "_comment": "Configuración de migraciones DbUp. Environments mapea ambiente → {DB → connString}. Routing mapea app → DBs donde aplican scripts de esa carpeta. '*' significa todas las DBs del ambiente.",
+  "_comment": "Configuración de migraciones DbUp. Environments mapea ambiente → {DB → connString}. Routing lista las apps (carpetas en lefarma.database) que participan; la base la decide el SUFIJO del archivo: '<id>.<familia>[.<ambientes-aplicados>...].sql' — familia: lefarma (LefarmaDev/Lefarma), asokam (AsokamDev/Asokam), asistencias, o '*' = todas; los segmentos tras la familia son los ambientes donde YA se aplicó (ej. ..._create-schema.lefarma.dev.prod.sql = aplicado en dev y prod; no se ofrece de nuevo ahí). Tras un apply exitoso el migrador renombra el archivo añadiendo el ambiente. Una app no listada en Routing NO aplica a ninguna DB (fail-closed). Sin sufijo = fail-closed. Solo existen ambientes dev y prod; Asistencias está en server distinto (192.168.1.5).",
 
   "Environments": {
     "dev": {
-      "LefarmaDev":     "Server=192.168.4.2;Database=LefarmaDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsokamDev":      "Server=192.168.4.2;Database=AsokamDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsistenciasDev": "Server=192.168.4.2;Database=AsistenciasDev;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
-    },
-    "qa": {
-      "LefarmaQA":     "Server=192.168.4.2;Database=LefarmaQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsokamQA":      "Server=192.168.4.2;Database=AsokamQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsistenciasQA": "Server=192.168.4.2;Database=AsistenciasQA;User Id=coreapi;Password=L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+      "LefarmaDev":     "Server=192.168.4.2;Database=LefarmaDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamDev":      "Server=192.168.4.2;Database=AsokamDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasDev": "Server=192.168.4.2;Database=AsistenciasDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
     },
     "prod": {
-      "_comment": "PENDIENTE: completar connStrings de prod con el equipo. Asistencias está en server distinto (192.168.1.5).",
-      "LefarmaProd":     "Server=192.168.4.2;Database=Lefarma;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsokamProd":      "Server=192.168.4.2;Database=Asokam;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
-      "AsistenciasProd": "Server=192.168.1.5;Database=Asistencias;User Id=coreapi;Password=[PENDIENTE];TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+      "LefarmaProd":     "Server=192.168.4.2;Database=Lefarma;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamProd":      "Server=192.168.4.2;Database=Asokam;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasProd": "Server=192.168.1.5;Database=Asistencias;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
     }
   },
 
-  "Routing": {
-    "_comment": "App → DBs donde aplican. '*' = todas las DBs del ambiente. Cualquier app no listada aplica a todas las DBs (default seguro).",
-
-    "_shared":          ["*"],
-    "educacion-medica": ["LefarmaDev", "LefarmaQA", "LefarmaProd", "AsokamDev", "AsokamQA", "AsokamProd"],
-    "rh":               ["LefarmaDev", "LefarmaQA", "LefarmaProd"],
-    "cxp":              ["LefarmaDev", "LefarmaQA", "LefarmaProd"]
-  }
+  "Routing": ["educacion-medica", "rh", "cxp"]
 }
+

@@ -8,14 +8,14 @@
 // Environment variables override migrations.config.json:
 //   MIGRATIONS_CONFIG_PATH=path/to/config.json
 //
-// SQL scripts can declare target DBs via header:
-//   -- Target: AsokamDev, LefarmaDev
-// If absent, the app folder name is mapped via "routing" in config.
-// If app is "_shared" or not in routing, the script applies to ALL DBs in the env.
+// SQL scripts are routed to databases exclusively via "routing" in
+// migrations.config.json: app folder name -> list of DB aliases.
+// An app NOT listed in routing applies to NO database (fail-closed).
 
 using System.Text.Json;
 using DbUp;
 using DbUp.Engine;
+using DbUp.Engine.Output;
 using DbUp.ScriptProviders;
 using Microsoft.Data.SqlClient;
 
@@ -44,52 +44,79 @@ static int Run(string[] args)
 
 static int Status(string[] args)
 {
-    var env = args.ElementAtOrDefault(0) ?? "dev";
+    var env = args.ElementAtOrDefault(0) ?? "all";
     var app = Flag(args, "--app");
     var tipo = Flag(args, "--tipo");
     var asJson = HasFlag(args, "--json");
+    var withApplied = HasFlag(args, "--applied");
 
     var cfg = LoadConfig();
     var scriptsRoot = FindScriptsRoot();
-    var dbs = cfg.GetDbs(env);
+    var envs = env == "all" ? cfg.Environments.Keys.ToList() : new List<string> { env };
+    var envNames = cfg.Environments.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    var pendingByDb = new List<(string Db, string App, string Tipo, string Id)>();
+    var allItems = new List<(string Env, string Db, string App, string Tipo, string Id, bool Applied)>();
 
-    foreach (var (db, connString) in dbs)
+    foreach (var envName in envs)
     {
-        var upgrader = BuildUpgrader(connString, scriptsRoot, db, app, tipo, cfg);
-        var scriptsToExecute = upgrader.GetScriptsToExecute();
+        var dbs = cfg.GetDbs(envName);
+        var pendingByDb = new List<(string Db, string App, string Tipo, string Id, bool Applied)>();
 
-        foreach (var s in scriptsToExecute)
+        foreach (var (db, connString) in dbs)
         {
-            var parsed = ParseScriptPath(s.SqlScript.FilePath);
-            pendingByDb.Add((db, parsed.App, parsed.Tipo, parsed.Id));
+            var upgrader = BuildUpgrader(connString, scriptsRoot, db, envName, app, tipo, cfg, silent: true);
+            var scriptsToExecute = upgrader.GetScriptsToExecute();
+
+            foreach (var s in scriptsToExecute)
+            {
+                var parsed = ParseScriptPath(s.Name, envNames);
+                var tipoLabel = parsed.Applied.Length > 0
+                    ? $"{parsed.Familia}@{string.Join(",", parsed.Applied)}"
+                    : parsed.Familia;
+                pendingByDb.Add((db, parsed.App, tipoLabel, parsed.Id, false));
+                allItems.Add((envName, db, parsed.App, tipoLabel, parsed.Id, false));
+            }
+
+            if (withApplied)
+            {
+                foreach (var name in GetAppliedScripts(connString))
+                {
+                    var parsed = ParseScriptPath(name, envNames);
+                    if (parsed.App == "?") continue;
+                    var tipoLabel = parsed.Applied.Length > 0
+                        ? $"{parsed.Familia}@{string.Join(",", parsed.Applied)}"
+                        : parsed.Familia;
+                    allItems.Add((envName, db, parsed.App, tipoLabel, parsed.Id, true));
+                }
+            }
+        }
+
+        if (!asJson)
+        {
+            var label = withApplied ? "=== En {envName} ===" : $"=== Pendientes en {envName} ===";
+            Console.WriteLine($"\n{label}");
+            if (pendingByDb.Count == 0 && !withApplied)
+            {
+                Console.WriteLine("  (sin pendientes — todo aplicado)");
+            }
+            else
+            {
+                foreach (var g in pendingByDb.GroupBy(p => p.Db))
+                {
+                    Console.WriteLine($"\n  [{g.Key}]");
+                    foreach (var p in g)
+                        Console.WriteLine($"    [{(p.Applied ? "x" : " ")}] {p.Id,-40} {p.App}/{p.Tipo}");
+                }
+            }
         }
     }
 
     if (asJson)
     {
-        Console.WriteLine(JsonSerializer.Serialize(pendingByDb.Select(p => new
+        Console.WriteLine(JsonSerializer.Serialize(allItems.Select(p => new
         {
-            db = p.Db, app = p.App, tipo = p.Tipo, id = p.Id
-        }), JsonOpts));
-    }
-    else
-    {
-        Console.WriteLine($"\n=== Pendientes en {env} ===");
-        if (pendingByDb.Count == 0)
-        {
-            Console.WriteLine("  (sin pendientes — todo aplicado)");
-        }
-        else
-        {
-            foreach (var g in pendingByDb.GroupBy(p => p.Db))
-            {
-                Console.WriteLine($"\n  [{g.Key}]");
-                foreach (var p in g)
-                    Console.WriteLine($"    [ ] {p.Id,-40} {p.App}/{p.Tipo}");
-            }
-        }
+            env = p.Env, db = p.Db, app = p.App, tipo = p.Tipo, id = p.Id, applied = p.Applied
+        }), JsonOpts()));
     }
     return 0;
 }
@@ -100,16 +127,32 @@ static int Apply(string[] args)
     var app = Flag(args, "--app");
     var tipo = Flag(args, "--tipo");
     var id = Flag(args, "--id");
+    var force = HasFlag(args, "--force");
 
     var cfg = LoadConfig();
     var scriptsRoot = FindScriptsRoot();
     var dbs = cfg.GetDbs(env);
 
     var overallSuccess = true;
+    var anyScheduled = false;
+    var executedFiles = new List<string>();
     foreach (var (db, connString) in dbs)
     {
+        // --force: quitar del journal la entrada del script (por id) para que DbUp lo re-ejecute.
+        if (force && id != null)
+            RemoveFromJournal(connString, id);
+
+        var upgrader = BuildUpgrader(connString, scriptsRoot, db, env, app, tipo, cfg, id,
+            executedFiles: executedFiles);
+
+        // Si con --id no hay ningún script pendiente para esta db, es normal:
+        // el id puede aplicar a otra db de la familia (ej. lefarma no aplica en Asokam).
+        var pendingCount = upgrader.GetScriptsToExecute().Count;
+        if (pendingCount == 0)
+            continue;
+        anyScheduled = true;
+
         Console.WriteLine($"\n=== {db} ({env}) ===");
-        var upgrader = BuildUpgrader(connString, scriptsRoot, db, app, tipo, cfg, id);
         var result = upgrader.PerformUpgrade();
 
         if (!result.Successful)
@@ -122,12 +165,35 @@ static int Apply(string[] args)
         }
     }
 
+    // Fail loudly only when --id matched nothing in ANY db of this env.
+    if (id != null && !anyScheduled)
+    {
+        Console.ForegroundColor = ConsoleColor.Red;
+        Console.WriteLine($"  FAIL: no se ejecutó ningún script con --id '{id}' en {env}. Revisa el id o el routing.");
+        Console.ResetColor();
+        return 1;
+    }
+
     if (!overallSuccess)
     {
         Console.ForegroundColor = ConsoleColor.Red;
         Console.WriteLine($"\nMigración abortada con errores en {env}.");
         Console.ResetColor();
         return 1;
+    }
+
+    // Registrar en el nombre de cada script ejecutado el ambiente en el que ya corrió:
+    // "<id>.<familia>.sql" -> "<id>.<familia>.<env>.sql" (extensible: ".dev.prod" etc).
+    foreach (var file in executedFiles.Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        var (family, applied) = ParseSuffix(file);
+        if (family == null || applied.Contains(env, StringComparer.OrdinalIgnoreCase))
+            continue;
+        var newFile = Path.Combine(
+            Path.GetDirectoryName(file)!,
+            Path.GetFileNameWithoutExtension(file) + "." + env + ".sql");
+        File.Move(file, newFile);
+        Console.WriteLine($"  marcado como aplicado en {env}: {Path.GetFileName(newFile)}");
     }
 
     Console.ForegroundColor = ConsoleColor.Green;
@@ -189,9 +255,10 @@ static int ListApplied(string[] args)
 // ============== Helpers ==============
 
 static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
-    string db, string? appFilter, string? tipoFilter, Config cfg, string? idFilter = null)
+    string db, string env, string? appFilter, string? tipoFilter, Config cfg, string? idFilter = null,
+    bool silent = false, List<string>? executedFiles = null)
 {
-    var appFolders = cfg.GetAppFolders(db, appFilter);  // list of app paths under scriptsRoot
+    var appFolders = cfg.GetAppFolders(db, appFilter, scriptsRoot);  // list of app paths under scriptsRoot
 
     var options = new FileSystemScriptOptions
     {
@@ -200,65 +267,89 @@ static UpgradeEngine BuildUpgrader(string connString, string scriptsRoot,
         Encoding = System.Text.Encoding.UTF8,
         Filter = path =>
         {
+            // Only keep files inside one of the applicable app folders for this db.
+            if (!appFolders.Any(af => path.StartsWith(af, StringComparison.OrdinalIgnoreCase)))
+                return false;
+            // Suffix: "<id>.<familia>[.<env-aplicado>...].sql".
+            // familia = DB family (* = todas); los demás segmentos son ambientes donde YA se ejecutó.
+            // Sin sufijo de familia = aplica a NINGUNA db (fail-closed).
+            var (family, applied) = ParseSuffix(path);
+            if (family == null)
+                return false;
+            if (family != "*" && !db.StartsWith(family, StringComparison.OrdinalIgnoreCase))
+                return false;
+            // Si este ambiente ya está marcado como aplicado en el nombre, no lo ofrezcas de nuevo.
+            if (applied.Contains(env, StringComparer.OrdinalIgnoreCase))
+                return false;
             // Filter by tipo folder
             if (tipoFilter != null && !path.Contains($"\\{tipoFilter}\\") && !path.Contains($"/{tipoFilter}/"))
                 return false;
-            // Filter by exact id (must match filename prefix "<id>_" — 4-digit zero-padded by convention)
+            // Filter by id: full name ("0002_20260805-..._create-schema") or
+            // short prefix ("0002") both work; tolerate trailing ".sql".
             if (idFilter != null)
             {
-                var name = Path.GetFileNameWithoutExtension(path);
-                if (!name.StartsWith(idFilter + "_", StringComparison.OrdinalIgnoreCase))
+                var idClean = Path.GetFileNameWithoutExtension(idFilter);
+                var name = Path.GetFileNameWithoutExtension(Path.GetFileNameWithoutExtension(path));
+                var nameCore = name.Split('.')[0];   // id = parte antes del sufijo
+                if (nameCore != idClean && !name.StartsWith(idClean + ".", StringComparison.OrdinalIgnoreCase))
                     return false;
             }
-            // Filter by Target header: if SQL declares -- Target: X,Y then must include this db
-            var target = ReadTargetHeader(path);
-            if (target != null && !target.Contains(db, StringComparer.OrdinalIgnoreCase))
-                return false;
+            executedFiles?.Add(path);
             return true;
         }
     };
 
-    var providers = appFolders
-        .Select(p => new FileSystemScriptProvider(p, options))
-        .Cast<IScriptProvider>()
-        .ToArray();
-
+    // Single provider rooted at scriptsRoot; the Filter above restricts to applicable app/tipo/id/target.
+    // silent = NoOp log so machine output (--json) isn't polluted by DbUp's console logs.
     var builder = DeployChanges.To
         .SqlDatabase(connString)
-        .WithScripts(new CompositeScriptProvider(providers))
+        .WithScripts(new FileSystemScriptProvider(scriptsRoot, options))
         .JournalToSqlTable("app", "SchemaVersions")
         .WithTransactionPerScript()
-        .WithExecutionTimeout(TimeSpan.FromMinutes(10))
-        .LogToConsole();
+        .WithExecutionTimeout(TimeSpan.FromMinutes(10));
 
-    return builder.Build();
+    return (silent
+        ? builder.LogTo(new NoOpUpgradeLog())
+        : builder.LogToConsole()).Build();
 }
 
-static string? ReadTargetHeader(string sqlPath)
+// Suffix of a script path: "<id>.<familia>[.<ambientes-aplicados>...].sql"
+// e.g. "..._create-schema.lefarma.sql" -> ("lefarma", []),
+//      "..._create-schema.lefarma.dev.prod.sql" -> ("lefarma", [dev, prod]).
+// Returns (null, []) when the file has no family suffix.
+static (string? Family, string[] Applied) ParseSuffix(string path)
 {
-    try
+    var fileName = Path.GetFileNameWithoutExtension(path);
+    var firstDot = fileName.IndexOf('.');
+    if (firstDot < 0) return (null, Array.Empty<string>());
+    var segs = fileName[(firstDot + 1)..].Split('.');
+    if (segs.Length == 0) return (null, Array.Empty<string>());
+    return (segs[0], segs.Skip(1).ToArray());
+}
+
+// DbUp joins the script's relative path with '.': "<app>.<id>.<familia>[.<env>...].sql".
+// Applies env tail is cut from the right by matching known environment names.
+static (string App, string Id, string Familia, string[] Applied) ParseScriptPath(
+    string scriptName, HashSet<string> envNames)
+{
+    var noExt = scriptName.EndsWith(".sql", StringComparison.OrdinalIgnoreCase)
+        ? scriptName[..^4] : scriptName;
+    var segs = noExt.Split('.');
+    if (segs.Length < 3) return ("?", scriptName, "", Array.Empty<string>());
+
+    var applied = new List<string>();
+    var cursor = segs.Length - 1;
+    while (cursor > 0 && envNames.Contains(segs[cursor]))
     {
-        if (!File.Exists(sqlPath)) return null;
-        var firstLines = File.ReadLines(sqlPath).Take(10);
-        foreach (var line in firstLines)
-        {
-            var trimmed = line.TrimStart('-', ' ', '\t');
-            if (trimmed.StartsWith("Target:", StringComparison.OrdinalIgnoreCase))
-                return trimmed["Target:".Length..].Trim();
-        }
+        applied.Insert(0, segs[cursor]);
+        cursor--;
     }
-    catch { /* ignore — assume no target */ }
-    return null;
-}
+    if (cursor < 1) return ("?", scriptName, "", Array.Empty<string>());
 
-static (string App, string Tipo, string Id) ParseScriptPath(string path)
-{
-    // .../educacion-medica/schema/20260805-0935-create-talleres.sql
-    var segments = path.Replace('/', '\\').Split('\\');
-    var file = segments.Last().Replace(".sql", "");
-    var tipo = segments.Length >= 2 ? segments[^2] : "?";
-    var app  = segments.Length >= 3 ? segments[^3] : "?";
-    return (app, tipo, file);
+    var familia = segs[cursor];
+    cursor--;
+    var id = string.Join(".", segs, 1, cursor);            // id may itself contain dots
+    return (segs[0], id, familia, applied.ToArray());
 }
 
 static HashSet<string> GetAppliedScripts(string connString)
@@ -282,12 +373,33 @@ static HashSet<string> GetAppliedScripts(string connString)
     return applied;
 }
 
+// Quita del journal (app.SchemaVersions) las entradas cuyo ScriptName contiene el id.
+// Se usa con apply --force para permitir que DbUp re-ejecute un script ya aplicado.
+static int RemoveFromJournal(string connString, string id)
+{
+    try
+    {
+        using var conn = new SqlConnection(connString);
+        conn.Open();
+        using var cmd = new SqlCommand(
+            "DELETE FROM app.SchemaVersions WHERE ScriptName LIKE '%' + @id + '%'",
+            conn);
+        cmd.Parameters.Add(new SqlParameter("@id", id));
+        return cmd.ExecuteNonQuery();
+    }
+    catch
+    {
+        // Table might not exist yet — nothing to remove.
+        return 0;
+    }
+}
+
 static Config LoadConfig()
 {
     var configPath = Environment.GetEnvironmentVariable("MIGRATIONS_CONFIG_PATH")
         ?? Path.Combine(AppContext.BaseDirectory, "migrations.config.json");
     var json = File.ReadAllText(configPath);
-    return JsonSerializer.Deserialize<Config>(json, JsonOpts) ?? throw new("Invalid config");
+    return JsonSerializer.Deserialize<Config>(json, JsonOpts()) ?? throw new("Invalid config");
 }
 
 static string FindScriptsRoot()
@@ -336,14 +448,14 @@ static int PrintUnknown(string cmd)
     return 1;
 }
 
-static readonly JsonSerializerOptions JsonOpts = new() { PropertyNameCaseInsensitive = true };
+static JsonSerializerOptions JsonOpts() => new() { PropertyNameCaseInsensitive = true };
 
 // ============== Config model ==============
 
 class Config
 {
     public Dictionary<string, Dictionary<string, string>> Environments { get; set; } = new();
-    public Dictionary<string, string[]> Routing { get; set; } = new();
+    public string[] Routing { get; set; } = Array.Empty<string>();
 
     public Dictionary<string, string> GetDbs(string env)
     {
@@ -352,16 +464,14 @@ class Config
         return dbs;
     }
 
-    public List<string> GetAppFolders(string db, string? appFilter)
+    public List<string> GetAppFolders(string db, string? appFilter, string scriptsRoot)
     {
         // Returns list of full app folders under scriptsRoot that should apply to this db.
         // Filter rules:
-        //   - If appFilter is set, ONLY that app folder is included.
-        //   - Otherwise, walk all top-level app folders under scriptsRoot and:
-        //       - skip "_shared" (handled below)
-        //       - include if Routing[app] contains db OR Routing[app] is ["*"]
-        //   - Always include "_shared" if Routing["_shared"] is ["*"] or contains db.
-        var root = FindScriptsRoot();
+        //   - If appFilter is set, ONLY that app folder is considered.
+        //   - FAIL-CLOSED: an app NOT listed in Routing applies to NO database.
+        //     (prevents accidental application of e.g. legacy/ or any new folder everywhere)
+        var root = scriptsRoot;
         var folders = new List<string>();
 
         var allApps = Directory.GetDirectories(root).Select(d => Path.GetFileName(d)).ToList();
@@ -370,10 +480,11 @@ class Config
             if (appFilter != null && !string.Equals(appName, appFilter, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            var targets = Routing.TryGetValue(appName, out var t) ? t : new[] { "*" };
-            var appliesToThisDb = targets.Contains("*") || targets.Contains(db, StringComparer.OrdinalIgnoreCase);
-            if (appliesToThisDb)
-                folders.Add(Path.Combine(root, appName));
+            // Fail-closed: unlisted app -> applies nowhere.
+            if (!Routing.Contains(appName, StringComparer.OrdinalIgnoreCase))
+                continue;
+
+            folders.Add(Path.Combine(root, appName));
         }
         return folders;
     }

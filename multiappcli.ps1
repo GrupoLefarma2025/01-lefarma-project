@@ -218,6 +218,307 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
             }
         }
 
+        # Build silencioso en éxito; muestra TODO el output real si falla (errores visibles).
+        function Build-Migrator {
+            $out = & dotnet build $MigratorProj --nologo -v minimal 2>&1
+            if ($LASTEXITCODE -ne 0) {
+                $out | ForEach-Object { Write-Host $_ }
+                throw "Build del migrador falló (ver salida arriba)"
+            }
+        }
+
+        # Visor de contenido SQL de una migración (F8). Usa la pantalla alterna
+        # y re-dibuja; ↑/↓ scroll, q para volver al picker.
+        function Show-SqlViewer {
+            param($Item, [string]$ScriptsRoot)
+            $esc = [char]27
+
+            # Ubicar el archivo: <ScriptsRoot>/<app>/<id>.<sufijo...>.sql
+            $script = Get-ChildItem -LiteralPath $ScriptsRoot -Recurse -Filter "*.sql" -ErrorAction SilentlyContinue |
+                Where-Object { $_.DirectoryName.EndsWith("\$($Item.app)", [System.StringComparison]::OrdinalIgnoreCase) -and
+                               $_.BaseName -like "$($Item.id).*" } |
+                Select-Object -First 1
+
+            [Console]::Write($esc + "[?1049h")
+            [Console]::CursorVisible = $false
+            try {
+                if ($null -eq $script) {
+                    [Console]::ResetColor()
+                    [Console]::ForegroundColor = [ConsoleColor]::Red
+                    [Console]::WriteLine("No se encontró el archivo para: $($Item.id)")
+                    [Console]::ResetColor()
+                    [Console]::WriteLine("Pulse cualquier tecla para volver...")
+                    [void][Console]::ReadKey($true)
+                    return
+                }
+                $lines = @(Get-Content -LiteralPath $script.FullName)
+                $top = 0
+                while ($true) {
+                    $h = [Console]::WindowHeight
+                    $w = [Console]::WindowWidth
+                    $avail = $h - 3
+                    if ($top -gt $lines.Count - $avail) { $top = [Math]::Max(0, $lines.Count - $avail) }
+                    [Console]::SetCursorPosition(0, 0)
+                    [Console]::ResetColor()
+                    [Console]::ForegroundColor = [ConsoleColor]::Cyan
+                    [Console]::WriteLine("  $($script.Name)  — líneas $($lines.Count)  (↑/↓ scroll, q volver)")
+                    [Console]::ResetColor()
+                    for ($i = $top; $i -lt [Math]::Min($lines.Count, $top + $avail); $i++) {
+                        $line = $lines[$i]
+                        if ($line.Length -gt $w - 1) { $line = $line.Substring(0, $w - 1) }
+                        [Console]::WriteLine($line)
+                    }
+                    [Console]::SetCursorPosition(0, [Math]::Min($h - 1, 2 + $avail))
+                    [Console]::Write($esc + "[0J")
+                    $k = [Console]::ReadKey($true)
+                    if ($k.Key -eq [ConsoleKey]::UpArrow) { $top--; if ($top -lt 0) { $top = 0 } }
+                    elseif ($k.Key -eq [ConsoleKey]::DownArrow) { $top++ }
+                    elseif ($k.Key -eq [ConsoleKey]::PageUp) { $top -= $avail; if ($top -lt 0) { $top = 0 } }
+                    elseif ($k.Key -eq [ConsoleKey]::PageDown) { $top += $avail }
+                    elseif ($k.KeyChar -eq 'q' -or $k.KeyChar -eq 'Q' -or $k.Key -eq [ConsoleKey]::Escape) { break }
+                }
+            } finally {
+                [Console]::CursorVisible = $true
+                [Console]::ResetColor()
+                [Console]::Write($esc + "[?1049l")
+            }
+        }
+
+        # TUI propia (ANSI), sin dependencias. Multi-select de migraciones.
+        # F6 = solo pendientes · F7 = todos · F9 = solo aplicados · F8 = ver SQL · q = salir.
+        # Devuelve los items seleccionados (solo pendientes); $null si se cancela.
+        function Show-MigrationPicker {
+            param([array]$Pending, [string]$EnvName, [string]$ScriptsRoot)
+
+            $esc = [char]27
+            $viewMode = 'pending'   # pending | all | applied
+
+            # ---- modelo base: todos los items (con applied + env) ----
+            $allItems = New-Object System.Collections.ArrayList
+            foreach ($p in $Pending) {
+                [void]$allItems.Add([PSCustomObject]@{
+                    db = $p.db; id = $p.id; app = $p.app; tipo = $p.tipo; env = $p.env
+                    applied = [bool]$p.applied; selected = $false
+                })
+            }
+            if ($allItems.Count -eq 0) { return @() }
+
+            $rows = New-Object System.Collections.ArrayList
+            $items = New-Object System.Collections.ArrayList
+            $firstItemRow = -1
+
+            # Reconstruye la vista según $viewMode (agrupa por DB preservando orden).
+            function Rebuild-Model {
+                $rows.Clear(); $items.Clear()
+                $visible = @($allItems | Where-Object {
+                    if ($viewMode -eq 'pending')  { -not $_.applied }
+                    elseif ($viewMode -eq 'applied') { $_.applied }
+                    else { $true }
+                })
+                $dbsOrdered = @(); $byDb = @{}
+                foreach ($p in $visible) {
+                    if (-not $byDb.ContainsKey($p.db)) { $byDb[$p.db] = @(); $dbsOrdered += $p.db }
+                    $byDb[$p.db] += , $p
+                }
+                foreach ($db in $dbsOrdered) {
+                    [void]$rows.Add(@{ kind = 'header'; db = $db; count = @($byDb[$db]).Count })
+                    foreach ($p in $byDb[$db]) { [void]$items.Add($p); [void]$rows.Add(@{ kind = 'item'; item = $p }) }
+                }
+                $firstItemRow = -1
+                for ($i = 0; $i -lt $rows.Count; $i++) { if ($rows[$i].kind -eq 'item') { $firstItemRow = $i; break } }
+            }
+            Rebuild-Model
+            $curRow = $firstItemRow
+
+            # ---- paleta ----
+            $cBorder = [ConsoleColor]::DarkGray
+            $cTitle  = [ConsoleColor]::Cyan
+            $cDb     = [ConsoleColor]::Yellow
+            $cId     = [ConsoleColor]::Gray
+            $cMeta   = [ConsoleColor]::DarkGray
+            $cOn     = [ConsoleColor]::Green
+            $cOff    = [ConsoleColor]::DarkGray
+            $cDone   = [ConsoleColor]::DarkGreen   # aplicado
+            $cCurBg  = [ConsoleColor]::DarkBlue
+            $cCurFg  = [ConsoleColor]::White
+            $cHelp   = [ConsoleColor]::DarkGray
+            $cCount  = [ConsoleColor]::Green
+
+            # ---- navegación ----
+            $firstItemRow = -1
+            for ($i = 0; $i -lt $rows.Count; $i++) { if ($rows[$i].kind -eq 'item') { $firstItemRow = $i; break } }
+            $curRow = $firstItemRow
+            function Find-NextItem([int]$r) { for ($i = $r + 1; $i -lt $rows.Count; $i++) { if ($rows[$i].kind -eq 'item') { return $i } }; return -1 }
+            function Find-PrevItem([int]$r) { for ($i = $r - 1; $i -ge 0; $i--) { if ($rows[$i].kind -eq 'item') { return $i } }; return -1 }
+
+            # ---- pantalla alterna ----
+            [Console]::Write($esc + "[?1049h")
+            [Console]::Write($esc + "[2J" + $esc + "[H")
+            [Console]::CursorVisible = $false
+
+            # Dibuja una fila con bordes. segments = lista de @(fg, bg|null, texto).
+            # bg=$null -> fondo por defecto de la terminal (ResetColor), no un color fijo.
+            function Draw-Row([array]$segments, [int]$inner, [ConsoleColor]$border, $padBg) {
+                [Console]::ResetColor()
+                [Console]::ForegroundColor = $border
+                [Console]::Write("│")
+                $used = 0
+                foreach ($seg in $segments) {
+                    if ($null -ne $seg[1]) { [Console]::BackgroundColor = $seg[1] } else { [Console]::ResetColor() }
+                    [Console]::ForegroundColor = $seg[0]
+                    [Console]::Write($seg[2])
+                    $used += $seg[2].Length
+                }
+                $pad = $inner - $used
+                if ($pad -gt 0) {
+                    if ($null -ne $padBg) { [Console]::BackgroundColor = $padBg } else { [Console]::ResetColor() }
+                    [Console]::Write(" " * $pad)
+                }
+                [Console]::ResetColor()
+                [Console]::ForegroundColor = $border
+                [Console]::Write("│")
+            }
+
+            $result = @()
+            $cancelled = $false
+            try {
+                $top = 0
+                while ($true) {
+                    $w = [Console]::WindowWidth
+                    $h = [Console]::WindowHeight
+                    if ($w -lt 60) { $w = 60 }
+                    $inner = $w - 2
+                    $avail = $h - 6
+                    if ($avail -lt 3) { $avail = 3 }
+
+                    if ($curRow -lt $top) { $top = $curRow }
+                    if ($curRow -ge $top + $avail) { $top = $curRow - $avail + 1 }
+                    if ($top -lt 0) { $top = 0 }
+
+                    $row = 0
+                    # borde superior + título
+                    [Console]::SetCursorPosition(0, $row)
+                    $title = " SQL Migraciones · $EnvName · $($items.Count) pendientes "
+                    $modeTag = if ($viewMode -eq 'all') { "· TODOS" } elseif ($viewMode -eq 'applied') { "· APLICADOS" } else { "" }
+                    $title = " SQL Migraciones · $EnvName$modeTag · $($items.Count) "
+                    if ($title.Length -gt $w - 4) { $title = $title.Substring(0, $w - 4) }
+                    [Console]::ResetColor(); [Console]::ForegroundColor = $cBorder
+                    [Console]::Write("╭─")
+                    [Console]::ForegroundColor = $cTitle
+                    [Console]::Write($title)
+                    $fillc = $w - 2 - $title.Length - 1
+                    if ($fillc -lt 0) { $fillc = 0 }
+                    [Console]::ForegroundColor = $cBorder
+                    [Console]::Write(("─" * $fillc) + "╮")
+                    $row++
+
+                    # contenido (ventana de scroll)
+                    $end = $top + $avail - 1
+                    if ($end -ge $rows.Count) { $end = $rows.Count - 1 }
+                    for ($idx = $top; $idx -le $end; $idx++) {
+                        [Console]::SetCursorPosition(0, $row)
+                        $r = $rows[$idx]
+                        if ($r.kind -eq 'header') {
+                            $segs = @(
+                                , @($cDb, $null, "  ▸ $($r.db)")
+                                , @($cMeta, $null, "   ($($r.count))")
+                            )
+                            Draw-Row $segs $inner $cBorder $null
+                        } else {
+                            $it = $r.item
+                            $isCur = ($idx -eq $curRow)
+                            $cb = if ($it.selected) { "[x]" } else { "[ ]" }
+                            $idFg = if ($isCur) { $cCurFg } elseif ($it.applied) { $cDone } else { $cId }
+                            $cbFg = if ($it.selected) { $cOn } elseif ($isCur) { $cCurFg } else { $cOff }
+                            $meta = "$($it.app)/$($it.tipo)"
+                            if ($it.applied) { $meta += " · aplicado" }
+                            $fixed = 2 + 3 + 1 + 1 + $meta.Length
+                            $idMax = $inner - $fixed
+                            if ($idMax -lt 5) { $idMax = 5 }
+                            $idDisp = $it.id
+                            if ($idDisp.Length -gt $idMax) { $idDisp = $idDisp.Substring(0, $idMax - 1) + "…" }
+                            $gap = $inner - (2 + 3 + 1 + $idDisp.Length + $meta.Length)
+                            if ($gap -lt 1) { $gap = 1 }
+                            $bg = if ($isCur) { $cCurBg } else { $null }
+                            $metaFg = if ($isCur) { [ConsoleColor]::Gray } else { $cMeta }
+                            $segs = @(
+                                , @($idFg, $bg, "  ")
+                                , @($cbFg, $bg, $cb)
+                                , @($idFg, $bg, " ")
+                                , @($idFg, $bg, $idDisp)
+                                , @($metaFg, $bg, (" " * $gap))
+                                , @($metaFg, $bg, $meta)
+                            )
+                            Draw-Row $segs $inner $cBorder $bg
+                        }
+                        $row++
+                    }
+
+                    # separador + contador + ayuda + borde inferior
+                    [Console]::SetCursorPosition(0, $row)
+                    [Console]::ResetColor(); [Console]::ForegroundColor = $cBorder
+                    [Console]::Write("├" + ("─" * $inner) + "┤")
+                    $row++
+
+                    [Console]::SetCursorPosition(0, $row)
+                    $selCount = @($items | Where-Object selected).Count
+                    $countSegs = @(
+                        , @($cCount, $null, "  Seleccionados: $selCount")
+                        , @($cMeta, $null, "  de $($items.Count)")
+                    )
+                    Draw-Row $countSegs $inner $cBorder $null
+                    $row++
+
+                    [Console]::SetCursorPosition(0, $row)
+                    $help = "↑↓ nav · esp sel · a todas · n ninguna · F6 pend. · F7 todos · F9 aplic. · F8 ver SQL · enter aplicar · q salir"
+                    if ($help.Length -gt $inner) { $help = $help.Substring(0, $inner) }
+                    $helpSegs = @(
+                        , @($cHelp, $null, $help)
+                    )
+                    Draw-Row $helpSegs $inner $cBorder $null
+                    $row++
+
+                    [Console]::SetCursorPosition(0, $row)
+                    [Console]::ResetColor(); [Console]::ForegroundColor = $cBorder
+                    [Console]::Write("╰" + ("─" * $inner) + "╯")
+                    $row++
+
+                    [Console]::SetCursorPosition(0, $row)
+                    [Console]::Write($esc + "[0J")   # limpia sobrante debajo
+
+                    # ---- input ----
+                    $k = [Console]::ReadKey($true)
+                    $done = $false
+                    switch ($k.Key) {
+                        ([ConsoleKey]::UpArrow)   { $n = Find-PrevItem $curRow; if ($n -ge 0) { $curRow = $n } }
+                        ([ConsoleKey]::DownArrow) { $n = Find-NextItem $curRow; if ($n -ge 0) { $curRow = $n } }
+                        ([ConsoleKey]::Home)      { $curRow = $firstItemRow }
+                        ([ConsoleKey]::End)       { for ($i = $rows.Count - 1; $i -ge 0; $i--) { if ($rows[$i].kind -eq 'item') { $curRow = $i; break } } }
+                        ([ConsoleKey]::Spacebar)  { $rows[$curRow].item.selected = -not $rows[$curRow].item.selected }
+                        ([ConsoleKey]::Enter)     { $result = @($items | Where-Object selected); $done = $true }
+                        ([ConsoleKey]::Escape)    { $cancelled = $true; $done = $true }
+                        ([ConsoleKey]::F6)        { $viewMode = 'pending'; Rebuild-Model; $curRow = $firstItemRow }
+                        ([ConsoleKey]::F7)        { $viewMode = 'all'; Rebuild-Model; $curRow = $firstItemRow }
+                        ([ConsoleKey]::F9)        { $viewMode = 'applied'; Rebuild-Model; $curRow = $firstItemRow }
+                        ([ConsoleKey]::F8)        { Show-SqlViewer -Item $rows[$curRow].item -ScriptsRoot $ScriptsRoot }
+                        default {
+                            $ch = $k.KeyChar
+                            if ($ch -eq 'a' -or $ch -eq 'A') { foreach ($it in $items) { if (-not $it.applied) { $it.selected = $true } } }
+                            elseif ($ch -eq 'n' -or $ch -eq 'N') { foreach ($it in $items) { $it.selected = $false } }
+                            elseif ($ch -eq 'q' -or $ch -eq 'Q') { $cancelled = $true; $done = $true }
+                        }
+                    }
+                    if ($done) { break }
+                }
+            } finally {
+                [Console]::CursorVisible = $true
+                [Console]::ResetColor()
+                [Console]::Write($esc + "[?1049l")   # vuelve a la pantalla original
+            }
+            if ($cancelled) { return $null }
+            return $result
+        }
+
         switch ($Sub) {
             "help" {
                 Write-Host "Uso: .\multiappcli.ps1 sql <sub> <env> [opts]" -ForegroundColor Cyan
@@ -228,7 +529,7 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
                 Write-Host "  apply-one   <env> --id ID    Aplica solo un script por id"
                 Write-Host "  diff        <fromEnv> <toEnv>  Lista lo que tiene fromEnv pero falta en toEnv"
                 Write-Host "  list        <env>            Lista lo ya aplicado en el ambiente"
-                Write-Host "  tui         <env>            Menú interactivo (requiere ConsoleGuiTools)"
+                Write-Host "  tui         <env>            Menú interactivo para elegir y aplicar"
                 Write-Host ""
                 Write-Host "Opciones (para status/apply/apply-one):"
                 Write-Host "  --app X       Filtra por app (educacion-medica, rh, _shared, ...)"
@@ -246,18 +547,16 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
             }
 
             "status" {
-                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "all" }
                 $rest = $SqlArgs | Select-Object -Skip 2
                 # Build silently si hace falta, luego corre
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Build-Migrator
                 Invoke-Migrator -RunArgs (@("status", $env_) + $rest)
             }
 
             "list" {
                 $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Build-Migrator
                 Invoke-Migrator -RunArgs (@("list", $env_))
             }
 
@@ -274,8 +573,7 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
                     }
                 }
 
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Build-Migrator
                 Invoke-Migrator -RunArgs (@("apply", $env_) + $rest)
             }
 
@@ -298,8 +596,7 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
                     }
                 }
 
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Build-Migrator
                 Invoke-Migrator -RunArgs (@("apply", $env_, "--id", $id))
             }
 
@@ -307,63 +604,49 @@ start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :51
                 if ($SqlArgs.Count -lt 3) {
                     throw "Uso: sql diff <fromEnv> <toEnv>"
                 }
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
+                Build-Migrator
                 Invoke-Migrator -RunArgs (@("diff", $SqlArgs[1], $SqlArgs[2]))
             }
 
             "tui" {
-                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "dev" }
+                $env_ = if ($SqlArgs.Count -gt 1) { $SqlArgs[1] } else { "all" }
 
-                # Verificar que ConsoleGuiTools esté instalado
-                $mod = Get-Module -ListAvailable -Name Microsoft.PowerShell.ConsoleGuiTools
-                if (-not $mod) {
-                    Write-Host "TUI requiere Microsoft.PowerShell.ConsoleGuiTools." -ForegroundColor Yellow
-                    Write-Host "Instalar con:" -ForegroundColor Yellow
-                    Write-Host "  Install-Module Microsoft.PowerShell.ConsoleGuiTools -Scope CurrentUser -Force" -ForegroundColor Yellow
-                    Write-Host ""
-                    Write-Host "Mientras tanto, usa: .\multiappcli.ps1 sql status $env_" -ForegroundColor Yellow
-                    return
-                }
-                Import-Module Microsoft.PowerShell.ConsoleGuiTools
+                Build-Migrator
 
-                & dotnet build $MigratorProj --nologo -v quiet | Out-Null
-                if ($LASTEXITCODE -ne 0) { throw "Build del migrador falló" }
-
-                # Obtener pendientes como JSON
-                $json = & dotnet run --project $MigratorProj --no-build -- status $env_ --json
-                $pending = $json | ConvertFrom-Json
+                # Obtener pendientes + aplicados como JSON (stdout limpio, sin logs DbUp).
+                # El servidor SQL viejo puede emitir un "Security Warning: TLS..." por stdout;
+                # nos quedamos solo con la última línea que empieza con '[' (el JSON).
+                $jsonLine = & dotnet run --project $MigratorProj --no-build -- status $env_ --json --applied |
+                    Where-Object { $_ -match '^\[' } | Select-Object -Last 1
+                $pending = @($jsonLine | ConvertFrom-Json)
 
                 if ($pending.Count -eq 0) {
-                    Write-Host "Sin pendientes en $env_." -ForegroundColor Green
+                    Write-Host "Sin migraciones en $env_." -ForegroundColor Green
                     return
                 }
 
-                # Opciones para OGC: label + value
-                $opciones = $pending | ForEach-Object {
-                    [PSCustomObject]@{
-                        Label = "[$($_.db)] $($_.id)  ($($_.app)/$($_.tipo))"
-                        Value = "$($_.db)|$($_.id)"
-                    }
+                $scriptsRoot = Join-Path $PSScriptRoot "lefarma.database"
+                $seleccion = Show-MigrationPicker -Pending $pending -EnvName $env_ -ScriptsRoot $scriptsRoot
+
+                if ($null -eq $seleccion) {
+                    Write-Host "Cancelado." -ForegroundColor Yellow
+                    return
                 }
-
-                $seleccion = $opciones | Out-ConsoleGridView `
-                    -Title "SQL Migraciones — aplicar a $env_ ($($pending.Count) pendientes)" `
-                    -OutputMode Multiple
-
-                if (-not $seleccion -or $seleccion.Count -eq 0) {
+                $seleccion = @($seleccion)
+                if ($seleccion.Count -eq 0) {
                     Write-Host "Nada seleccionado. Abortado." -ForegroundColor Yellow
                     return
                 }
 
-                Write-Host "Aplicando $($seleccion.Count) script(s) en $env_..." -ForegroundColor Cyan
-                foreach ($s in $seleccion) {
-                    $parts = $s.Value -split '\|'
-                    $db = $parts[0]; $id = $parts[1]
-                    Write-Host "  → [$db] $id" -ForegroundColor Cyan
-                    # Apply-one filtra por id (corre contra todas las DBs del ambiente,
-                    # DbUp solo aplica si el script matchea el id y routing).
-                    Invoke-Migrator -RunArgs @("apply", $env_, "--id", $id)
+                foreach ($g in ($seleccion | Group-Object env)) {
+                    $envSel = $g.Name
+                    Write-Host "Aplicando $($g.Count) script(s) en $envSel..." -ForegroundColor Cyan
+                    foreach ($s in $g.Group) {
+                        Write-Host "  → [$($s.db)] $($s.id)$(if ($s.applied) { ' (re-ejecutar --force)' })" -ForegroundColor Cyan
+                        $runArgs = @("apply", $envSel, "--id", $s.id)
+                        if ($s.applied) { $runArgs += "--force" }
+                        Invoke-Migrator -RunArgs $runArgs
+                    }
                 }
                 Write-Host "Listo." -ForegroundColor Green
             }
