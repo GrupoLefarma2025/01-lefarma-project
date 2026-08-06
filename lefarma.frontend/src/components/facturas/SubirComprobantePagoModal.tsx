@@ -203,9 +203,10 @@ export function SubirComprobantePagoModal({
       setComprobanteSubido(comp);
       setStep('archivo');
     } catch (error: unknown) {
-      const apiErr = toApiError(error);
-      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante');
-    } finally {
+        const apiErr = toApiError(error);
+        toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante');
+        console.error('[Pago] Error al crear comprobante:', error);
+      } finally {
       setLoading(false);
     }
   };
@@ -260,8 +261,8 @@ export function SubirComprobantePagoModal({
       toast.success('Pago asignado.');
       handleClose();
     } catch (error: unknown) {
-      const apiErr = toApiError(error);
-      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
+        console.error('[Pago] Error:', error);
+        toast.error('No se pudo crear el comprobante de pago.');
     } finally {
       setLoading(false);
     }

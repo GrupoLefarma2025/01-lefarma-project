@@ -58,9 +58,10 @@ public class ComprobanteService : IComprobanteService
         {
             preview = CfdiParser.Parse(xmlContent);
         }
-        catch (FormatException)
+        catch (FormatException ex)
         {
-            return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado");
+            _logger.LogWarning(ex, "Error parseando XML en preview");
+            return CommonErrors.Validation("XmlInvalido", $"El XML no es un CFDI valido: {ex.Message}");
         }
 
         if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
@@ -92,8 +93,14 @@ public class ComprobanteService : IComprobanteService
 
         if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
-            try { cfdi = CfdiParser.Parse(xmlContent); }
-            catch (FormatException) { return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado"); }
+            try { 
+                cfdi = CfdiParser.Parse(xmlContent); 
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogWarning(ex, "Error parseando XML CFDI para orden {IdOrden}", request.IdOrden);
+                return CommonErrors.Validation("XmlInvalido", $"El XML no es un CFDI valido: {ex.Message}");
+            }
 
             if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
                 return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
@@ -101,10 +108,21 @@ public class ComprobanteService : IComprobanteService
             if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
             {
                 var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
-            if (!sat.Contactado && !sat.PermitirAvanzar)
-                return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT.");
-            if (!sat.EsVigente && !sat.PermitirAvanzar)
-                return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}");
+                if (!sat.Contactado && !sat.PermitirAvanzar)
+                {
+                    var detalle = !string.IsNullOrWhiteSpace(sat.CodigoEstatus)
+                        ? $" Detalle SAT: {sat.CodigoEstatus}."
+                        : " Intenta de nuevo mas tarde.";
+                    return CommonErrors.Failure("SatNoDisponible", $"No fue posible validar el CFDI con el SAT.{detalle}");
+                }
+                if (!sat.EsVigente && !sat.PermitirAvanzar)
+                {
+                    var cancelacion = !string.IsNullOrWhiteSpace(sat.EstatusCancelacion)
+                        ? $" Cancelacion: {sat.EstatusCancelacion}."
+                        : "";
+                    return CommonErrors.Validation("SatNoVigente",
+                        $"El CFDI no esta vigente ante el SAT. Estado: {sat.Estado ?? "Desconocido"}.{cancelacion}");
+                }
             }
         }
 
@@ -217,7 +235,9 @@ public class ComprobanteService : IComprobanteService
         catch (Exception ex)
         {
             await tx.RollbackAsync(ct);
-            _logger.LogError(ex, "Error al subir comprobante");
+            _logger.LogError(ex,
+            "Error al subir comprobante: Orden={IdOrden}, Categoria={Categoria}, Tipo={Tipo}, Usuario={IdUsuario}",
+            request.IdOrden, request.Categoria, request.TipoComprobante, idUsuario);
             throw;
         }
     }
