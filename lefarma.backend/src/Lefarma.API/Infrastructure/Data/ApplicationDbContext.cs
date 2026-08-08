@@ -64,6 +64,7 @@ public class ApplicationDbContext : DbContext
         // DbSets - Rh
         public DbSet<SolicitudPersonal> SolicitudesPersonal { get; set; }
         public DbSet<SolicitudPersonalDetalle> SolicitudesPersonalDetalle { get; set; }
+        public DbSet<EnvioSolicitud> EnviosSolicitudes { get; set; }
         public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
         public DbSet<IncidenciaChecadoPlantilla> PlantillasIncidenciasChecado { get; set; }
         public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }

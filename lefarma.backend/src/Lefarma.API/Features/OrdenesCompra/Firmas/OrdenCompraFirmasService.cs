@@ -615,7 +615,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     var accionesPaso = await _workflowRepo.GetAccionesDisponiblesAsync(orden.IdPasoActual.Value);
                     var accion = esAprobar
-                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "AUTORIZAR" && a.Activo)
+                        ? accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "CERRAR" || a.TipoAccion?.Codigo == "AUTORIZAR" && a.Activo)
                         : accionesPaso.FirstOrDefault(a => a.TipoAccion?.Codigo == "DEVOLVER" && a.Activo);
 
                     if (accion is null)

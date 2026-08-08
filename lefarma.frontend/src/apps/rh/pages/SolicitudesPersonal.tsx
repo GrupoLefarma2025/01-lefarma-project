@@ -56,6 +56,7 @@ export default function SolicitudesPersonal() {
     pasosWorkflow,
     getEstadoInfo,
     firmar,
+    enviarDirector,
     isSubmittingFirma,
   } = useSolicitudesAutorizaciones();
 
@@ -511,11 +512,23 @@ export default function SolicitudesPersonal() {
         loading={loadingAcciones}
         solicitud={selectedSolicitud}
         acciones={acciones}
+        historial={historial}
+        pasosWorkflow={pasosWorkflow}
         getEstadoInfo={getEstadoInfo}
         onFirmar={async (req) => {
           const ok = await firmar(req, false, buildApiFilters(appliedFilters));
           if (ok) {
             //closeModal('firma');
+            await Promise.all([
+              fetchTabData('pendientes', appliedFiltersByTab.pendientes),
+              fetchTabData('mias', appliedFiltersByTab.mias),
+            ]);
+          }
+          return ok;
+        }}
+        onEnviarDirector={async (req, pdfBlob) => {
+          const ok = await enviarDirector(req, pdfBlob);
+          if (ok) {
             await Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
