@@ -7,6 +7,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/EnvioConcentradoPDF';
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
 import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
@@ -58,6 +59,13 @@ interface EnvioConcentradoResponse {
   exitosas: number;
   fallidas: number;
   resultados: EnvioConcentradoItemResult[];
+}
+
+interface Proveedor {
+  idProveedor: number;
+  razonSocial: string;
+  rfc?: string;
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -183,6 +191,34 @@ export default function EnvioConcentrado() {
     const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
     return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
   })();
+
+  // ── Proveedor (con cuentas bancarias) para el PDF individual ────────────
+  const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
+
+  useEffect(() => {
+    const idProv = singleOrden?.idProveedor;
+    if (!idProv || idProv <= 0) {
+      setProveedoresMap(new Map());
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await API.get<ApiResponse<Proveedor>>(`/catalogos/Proveedores/${idProv}`);
+        if (cancelled) return;
+        if (res.data.success && res.data.data) {
+          const m = new Map<number, Proveedor>();
+          m.set(idProv, res.data.data);
+          setProveedoresMap(m);
+        }
+      } catch {
+        // silent fail
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [singleOrden?.idProveedor]);
 
   // ── Grupos para la vista previa ───────────────────────────────────────────
   const grupos = useMemo(() => {
@@ -609,7 +645,7 @@ export default function EnvioConcentrado() {
               </div>
             ) : isSingleOrden && singleOrden ? (
               <div className="bg-white shadow-sm rounded overflow-hidden">
-                <OrdenCompraConcentradoPDF orden={singleOrden} firmaElaboro={firmaElaboroUrl} />
+                <OrdenCompraConcentradoPDF orden={singleOrden} firmaElaboro={firmaElaboroUrl} proveedoresMap={proveedoresMap} />
               </div>
             ) : (
               <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
@@ -688,6 +724,7 @@ export default function EnvioConcentrado() {
                 id="envio-concentrado-pdf-preview"
                 orden={singleOrden}
                 firmaElaboro={firmaElaboroUrl}
+                proveedoresMap={proveedoresMap}
               />
             ) : (
               <EnvioConcentradoPDF
@@ -757,6 +794,7 @@ export default function EnvioConcentrado() {
             <OrdenCompraConcentradoPDF
               orden={singleOrden}
               firmaElaboro={firmaElaboroUrl}
+              proveedoresMap={proveedoresMap}
             />
           ) : (
             <EnvioConcentradoPDF

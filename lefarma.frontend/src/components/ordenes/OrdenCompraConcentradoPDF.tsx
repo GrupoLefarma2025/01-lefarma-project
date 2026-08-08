@@ -1,5 +1,6 @@
 import React from 'react';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
+import type { ProveedorCuentaBancaria } from '@/types/catalogo.types';
 import logoDefault from '@/assets/logo.png';
 import logoArtricenter from '@/assets/logo_1.png?no-inline';
 import logoAsokam from '@/assets/logo_7.png?no-inline';
@@ -16,10 +17,18 @@ const LOGOS: Record<number, string> = {
   12: logoGrupoLefarma,
 };
 
+interface ProveedorInfo {
+  idProveedor: number;
+  razonSocial: string;
+  rfc?: string;
+  cuentasFormaPago?: ProveedorCuentaBancaria[];
+}
+
 interface Props {
   orden: OrdenCompraResponse;
   firmaElaboro?: string;
   id?: string;
+  proveedoresMap?: Map<number, ProveedorInfo>;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -298,7 +307,8 @@ const Logo: React.FC<{ src: string }> = ({ src }) => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-compra-concentrado-pdf-print' }: Props) {
+export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
+  const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
   const fmt = (n: number) =>
@@ -367,13 +377,39 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
           <tr>
             <td style={s.thBlue}>Nombre, Denominación o Razón social</td>
             <td style={s.tdValue} colSpan={5}>
-              {orden.razonSocialProveedor ?? '-'}
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? orden.razonSocialProveedor ?? '-')
+                : (orden.razonSocialProveedor ?? '-')}
             </td>
           </tr>
           <tr>
             <td style={s.thBlue}>Forma de pago</td>
             <td style={s.tdValue} colSpan={5}>
               {orden.formasPagoNombres?.length ? orden.formasPagoNombres.join(', ') : '-'}
+            </td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Cuenta bancaria</td>
+            <td style={s.tdValue} colSpan={5}>
+              {orden.idsCuentasBancarias?.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {orden.idsCuentasBancarias.map((idCb, idx) => {
+                    let cuenta: ProveedorCuentaBancaria | undefined;
+                    proveedores.forEach((prov) => {
+                      const found = prov.cuentasFormaPago?.find((c: ProveedorCuentaBancaria) => c.idCuenta === idCb);
+                      if (found) cuenta = found;
+                    });
+                    if (!cuenta) return <span key={idx}>ID {idCb}</span>;
+                    return (
+                      <span key={idx}>
+                        {cuenta.bancoNombre ?? 'Banco'} • {cuenta.numeroCuenta ?? 'Sin cuenta'}
+                        {cuenta.clabe ? ` • CLABE: ${cuenta.clabe}` : ''}
+                        {cuenta.numeroTarjeta ? ` • Tarjeta: ${cuenta.numeroTarjeta}` : ''}
+                      </span>
+                    );
+                  })}
+                </div>
+              ) : '-'}
             </td>
           </tr>
           {orden.numeroMensualidades !== 1 && (

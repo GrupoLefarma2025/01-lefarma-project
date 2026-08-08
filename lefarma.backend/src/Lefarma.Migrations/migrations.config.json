@@ -1,0 +1,19 @@
+{
+  "_comment": "Configuración de migraciones DbUp. Environments mapea ambiente → {DB → connString}. Routing lista las apps (carpetas en lefarma.database) que participan; la base la decide el SUFIJO del archivo: '<id>.<familia>[.<ambientes-aplicados>...].sql' — familia: lefarma (LefarmaDev/Lefarma), asokam (AsokamDev/Asokam), asistencias, o '*' = todas; los segmentos tras la familia son los ambientes donde YA se aplicó (ej. ..._create-schema.lefarma.dev.prod.sql = aplicado en dev y prod; no se ofrece de nuevo ahí). Tras un apply exitoso el migrador renombra el archivo añadiendo el ambiente. Una app no listada en Routing NO aplica a ninguna DB (fail-closed). Sin sufijo = fail-closed. Solo existen ambientes dev y prod; Asistencias está en server distinto (192.168.1.5).",
+
+  "Environments": {
+    "dev": {
+      "LefarmaDev":     "Server=192.168.4.2;Database=LefarmaDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamDev":      "Server=192.168.4.2;Database=AsokamDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasDev": "Server=192.168.4.2;Database=AsistenciasDev;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+    },
+    "prod": {
+      "LefarmaProd":     "Server=192.168.4.2;Database=Lefarma;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsokamProd":      "Server=192.168.4.2;Database=Asokam;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;",
+      "AsistenciasProd": "Server=192.168.1.5;Database=Asistencias;User Id=poweru;Password=cGuzman$$001#;TrustServerCertificate=true;Encrypt=false;Connection Timeout=60;"
+    }
+  },
+
+  "Routing": ["educacion-medica", "rh", "cxp"]
+}
+

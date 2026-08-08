@@ -1,0 +1,46 @@
+# Tag v* (ej: v1.1.0) -> build prod -> Release estable con zip.
+# El tag lo crea la persona a mano: git tag v1.1.0 && git push origin v1.1.0
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build-and-release:
+    # guardia: v1.1.0-rc.1 (pre-release de staging, lleva guion) NO debe disparar produccion; v1.1.0 si
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: windows-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      # Config de build del frontend (GitHub UI: Settings > Secrets and variables > Actions > Variables)
+      VITE_API_URL: ${{ vars.VITE_API_URL }}
+      VITE_APP_NAME: ${{ vars.VITE_APP_NAME }}
+      BASE_URL_PATH: ${{ vars.BASE_URL_PATH }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: lefarma.frontend
+
+      - name: Build (multiappcli build)
+        run: pwsh ./multiappcli.ps1 build
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: publish/lefarma-prod.zip

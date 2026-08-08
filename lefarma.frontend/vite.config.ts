@@ -1,11 +1,19 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import fs from 'fs'
 import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const basePath = env.BASE_URL_PATH || '/'
+
+  // Version quemada en el build: VERSION-STAGING en modo staging, VERSION en el resto.
+  // La leen los footers de login/config via import.meta.env.VITE_APP_VERSION.
+  const versionFile = mode === 'staging' ? 'VERSION-STAGING' : 'VERSION'
+  process.env.VITE_APP_VERSION = fs
+    .readFileSync(path.resolve(__dirname, '..', versionFile), 'utf8')
+    .trim()
 
   return {
     base: basePath,
