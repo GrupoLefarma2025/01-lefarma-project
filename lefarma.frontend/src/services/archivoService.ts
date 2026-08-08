@@ -43,9 +43,8 @@ export const archivoService = {
   },
 
   getAll: async (params: ListarArchivosParams): Promise<ArchivoListItem[]> => {
-    const { data } = await API.get<ApiResponse<ArchivoListItem[]>>(BASE_URL, { params });
-    // ponytail: backend puede responder 200 sin body "data" (204, error controlado) → devolvemos [] para no romper callers
-    return data.data ?? [];
+  const { data } = await API.get<ApiResponse<ArchivoListItem[]>>('/archivos', { params });
+  return data.data ?? [];
   },
 
   getDownloadUrl: (id: number): string => {
