@@ -321,37 +321,8 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (saldo.DiasPendientes < diasSolicitados)
                 return CommonErrors.Validation("saldo", $"Saldo insuficiente. Disponible: {saldo.DiasPendientes}, Solicitado: {diasSolicitados}");
 
-            var diasUsuario = new List<DiaUsuario>();
 
-            foreach (var fecha in fechas)
-            {
-                var alreadyExists = await _context.DiasUsuarios
-                    .AsNoTracking()
-                    .AnyAsync(d => d.IdUsuario == idUsuarioSolicitante && d.Fecha == fecha && d.Activo);
-
-                if (alreadyExists)
-                    continue;
-
-                diasUsuario.Add(new DiaUsuario
-                {
-                    IdUsuario = idUsuarioSolicitante,
-                    IdEmpresa = solicitud.IdEmpresa,
-                    IdSucursal = solicitud.IdSucursal == 0 ? null : solicitud.IdSucursal,
-                    Anio = fecha.Year,
-                    Mes = fecha.Month,
-                    Dia = fecha.Day,
-                    Fecha = fecha,
-                    IdTipoDia = tipoVacacion.IdTipoDia,
-                    Origen = "SOLICITUD",
-                    ConsumeSaldo = true,
-                    Estado = null,
-                    Comentarios = solicitud.Motivo
-                });
-            }
-
-            saldo.DiasTomados += diasUsuario.Count;
-            if (diasUsuario.Count > 0)
-                await _context.DiasUsuarios.AddRangeAsync(diasUsuario);
+            saldo.DiasTomados += diasSolicitados;
 
             await _context.SaveChangesAsync();
             return true;

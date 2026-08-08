@@ -210,7 +210,7 @@ export function SolicitudFirmaModal({
     if ((esRechazo || esRetorno || accion.requiereComentario) && !comentario.trim()) {
       errores.push('El comentario es obligatorio para esta acción');
     }
-    if (accion.requiereAdjunto && adjuntosLibres.length === 0) {
+    if (accion.requiereAdjunto && adjuntosLibres.length === 0 && !esRechazo && !esRetorno) {
       errores.push('Debes adjuntar al menos un documento de soporte');
     }
     if (errores.length > 0) {

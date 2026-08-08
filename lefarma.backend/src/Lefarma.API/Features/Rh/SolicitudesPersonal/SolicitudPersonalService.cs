@@ -1,7 +1,8 @@
-﻿using System.Collections.Generic;
-using ErrorOr;
+﻿using ErrorOr;
+using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Domain.ValueObjects.Config;
@@ -18,11 +19,13 @@ using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Collections.Generic;
 
 namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 {
     public class SolicitudPersonalService : BaseService, ISolicitudPersonalService
     {
+        private readonly IAdminRepository _adminRepository;
         private readonly ISolicitudPersonalRepository _repository;
         private readonly ITipoSolicitudRepository _tipoRepository;
         private readonly IWorkflowResolver _workflowResolver;
@@ -36,6 +39,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         protected override string EntityName => "SolicitudPersonal";
 
         public SolicitudPersonalService(
+            IAdminRepository adminRepository,
             ISolicitudPersonalRepository repository,
             ITipoSolicitudRepository tipoRepository,
             IWorkflowResolver workflowResolver,
@@ -59,6 +63,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _empleadoRepository = empleadoRepository;
             _incidenciasRepository = incidenciasRepository;
             _profileService = profileService;
+            _adminRepository = adminRepository;
         }
 
         public async Task<ErrorOr<PagedResult<SolicitudPersonalResponse>>> GetAllAsync(
@@ -492,6 +497,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (idUsuarioSolicitante != idUsuario && !puedeCrearParaOtro)
                     return Error.Forbidden("solicitud_personal.crear_para_otro", "No tiene permiso para crear solicitudes para otro usuario.");
 
+                //Obtener empresa, sucursal y area del usuario solicitante
+                var solicitante = await _adminRepository.GetUsuarioDetalleAsync(idUsuarioSolicitante);
+                if (solicitante is null)
+                    return CommonErrors.NotFound("Empleado", idUsuarioSolicitante.ToString());
+
                 var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
@@ -518,9 +528,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     new Dictionary<string, int?>
                     {
                         ["USUARIO"] = idUsuarioSolicitante,
-                        ["EMPRESA"] = request.IdEmpresa,
-                        ["SUCURSAL"] = request.IdSucursal,
-                        ["AREA"] = request.IdArea,
+                        ["EMPRESA"] = solicitante.IdEmpresa,
+                        ["SUCURSAL"] = solicitante.IdSucursal,
+                        ["AREA"] = solicitante.IdArea,
                         ["CATEGORIA"] = (int)tipo.Categoria,
                         ["TIPO_SOLICITUD"] = request.IdTipoSolicitud
                     });
@@ -567,9 +577,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     IdUsuarioCreador = idUsuario,
                     IdUsuarioSolicitante = idUsuarioSolicitante,
                     IdTipoSolicitud = request.IdTipoSolicitud,
-                    IdEmpresa = request.IdEmpresa,
-                    IdSucursal = request.IdSucursal,
-                    IdArea = request.IdArea,
+                    IdEmpresa = solicitante.IdEmpresa,
+                    IdSucursal = solicitante.IdSucursal,
+                    IdArea = solicitante.IdArea,
                     Motivo = request.Motivo,
                     LugarComision = request.LugarComision,
                     FechaReposicion = request.FechaReposicion,
@@ -667,7 +677,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     if (firmaResult.IsError)
                         return firmaResult.Errors;
 
-                }else if (accionCerrar is not null && tipo.Clave.Contains("INCAPACIDAD", StringComparison.OrdinalIgnoreCase))
+                }/*else if (accionCerrar is not null && tipo.Clave.Contains("INCAPACIDAD", StringComparison.OrdinalIgnoreCase))
                 {
                     // Las incapacidades se cierran automaticante despues de generarse
                     var firmaResult = await _firmasService.FirmarAsync(
@@ -681,7 +691,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                     if (firmaResult.IsError)
                         return firmaResult.Errors;
-                }
+                }*/
 
                 var userIds = new List<int> { solicitud.IdUsuarioCreador, solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador };
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
@@ -733,7 +743,16 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.Estado?.Codigo != "CREADA")
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
 
+                //No se podra cambiar el tipo de solicitud si ya tiene detalle, para evitar inconsistencias en el workflow y en la validación de fechas y saldos
+                if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
+                    return CommonErrors.Conflict("SolicitudPersonal", "No se puede cambiar el tipo de solicitud, necesita crear una nueva.");
+
                 var idUsuarioSolicitante = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
+
+                //Obtener empresa, sucursal y area del usuario solicitante
+                var solicitante = await _adminRepository.GetUsuarioDetalleAsync(idUsuarioSolicitante);
+                if (solicitante is null)
+                    return CommonErrors.NotFound("Empleado", idUsuarioSolicitante.ToString());
 
                 var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
@@ -769,6 +788,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         return validacionLimite.FirstError;
                 }
 
+                soli.IdEmpresa = solicitante.IdEmpresa;
+                soli.IdSucursal = solicitante.IdSucursal;
+                soli.IdArea = solicitante.IdArea;
                 soli.IdTipoSolicitud = request.IdTipoSolicitud;
                 soli.Motivo = request.Motivo;
                 soli.LugarComision = request.LugarComision;
@@ -1017,15 +1039,38 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             if (saldo is null)
                 return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {idUsuario} / año {anio}");
 
-            var diasSolicitados = (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1;
+            // Contar los días que consumen saldo, considerando días no hábiles
+            var diasQueConsumen = await ContarDiasQueConsumenSaldoAsync(
+                idUsuario, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
 
-            if (saldo.DiasPendientes < diasSolicitados)
+            // Permitir saldo negativo — no rechazar, solo continuar
+            // El balance resultante sería: saldo.DiasPendientes - diasQueConsumen
+            if (saldo.DiasPendientes < diasQueConsumen)
             {
                 return CommonErrors.Validation("saldo",
-                    $"Saldo insuficiente de vacaciones. Disponible: {saldo.DiasPendientes}, Solicitado: {diasSolicitados}.");
+                    $"Saldo insuficiente de vacaciones. Disponible: {(int)saldo.DiasPendientes}, Días solicitados: {diasQueConsumen}.");
             }
 
             return Result.Success;
+        }
+
+        private async Task<int> ContarDiasQueConsumenSaldoAsync(int idUsuario, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
+        {
+            var totalDias = (fechaFin - fechaInicio).Days + 1;
+
+            // Fechas en el rango
+            var fechas = Enumerable.Range(0, totalDias)
+                .Select(d => fechaInicio.AddDays(d).Date)
+                .ToList();
+
+            // Días hábiles con ConsumeSaldo = false para esta empresa
+            var diasNoConsumen = await _context.DiasHabiles
+                .AsNoTracking()
+                .Where(d => d.Activo && !d.ConsumeSaldo && d.IdEmpresa == idEmpresa && fechas.Contains(d.Fecha))
+                .Select(d => d.Fecha.Date)
+                .ToHashSetAsync();
+
+            return totalDias - diasNoConsumen.Count;
         }
 
         public async Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas)

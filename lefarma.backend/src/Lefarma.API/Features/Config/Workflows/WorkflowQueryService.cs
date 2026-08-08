@@ -67,6 +67,10 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
             var result = new List<AccionDisponibleResponse>();
             foreach (var a in acciones)
             {
+                var esCancelacion = a.TipoAccion?.Codigo == "CANCELAR";
+                var esRechazo = a.TipoAccion?.Codigo == "RECHAZAR";
+                var esDevolucion = a.TipoAccion?.Codigo == "DEVOLVER";
+
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(a.IdAccion)).ToList();
                 var camposRequeridos = handlers
                     .Where(h => h.Requerido && h.Campo != null)
@@ -107,7 +111,8 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                     }).ToList(),
                     CamposRequeridos = camposRequeridos,
                     RequiereComentario = pasoActual?.RequiereComentario ?? false,
-                    RequiereAdjunto = pasoActual?.RequiereAdjunto ?? false,
+                    //Acciones de rechazo, devolución o cancelación no requieren adjunto, aunque el paso actual lo requiera
+                    RequiereAdjunto = (esRechazo || esDevolucion || esCancelacion) ? false : (pasoActual?.RequiereAdjunto ?? false), //pasoActual?.RequiereAdjunto ?? false,
                     PermiteAdjunto = pasoActual?.PermiteAdjunto ?? false
                 });
             }

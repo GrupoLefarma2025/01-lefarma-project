@@ -289,16 +289,16 @@ export function buildErrorsCsv(
   return new Blob([csv], { type: 'text/csv;charset=utf-8' });
 }
 
-// --- Vacaciones: días no hábiles ---
+// --- Vacaciones: días hábiles ---
 
-export interface DiaNoHabilCsvColumn {
+export interface DiaHabilCsvColumn {
   key: string;
   label: string;
   required: boolean;
   exampleValues: string[];
 }
 
-export const DIAS_NO_HABILES_CSV_COLUMNS: DiaNoHabilCsvColumn[] = [
+export const DIAS_HABILES_CSV_COLUMNS: DiaHabilCsvColumn[] = [
   {
     key: 'dia',
     label: 'dia',
@@ -331,22 +331,22 @@ export const DIAS_NO_HABILES_CSV_COLUMNS: DiaNoHabilCsvColumn[] = [
   },
 ];
 
-export function buildTemplateDiasNoHabilesCsv(): Blob {
-  const headerLine = DIAS_NO_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
+export function buildTemplateDiasHabilesCsv(): Blob {
+  const headerLine = DIAS_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
   const csv = BOM + headerLine + '\r\n';
   return new Blob([csv], { type: 'text/csv;charset=utf-8' });
 }
 
-export function buildPlantillaDiasNoHabilesCsv(): Blob {
-  const headerLine = DIAS_NO_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
+export function buildPlantillaDiasHabilesCsv(): Blob {
+  const headerLine = DIAS_HABILES_CSV_COLUMNS.map((col) => col.label).join(',');
   const rows = [0, 1, 2].map((i) =>
-    DIAS_NO_HABILES_CSV_COLUMNS.map((col) => csvEscape(col.exampleValues[i] ?? '')).join(','),
+    DIAS_HABILES_CSV_COLUMNS.map((col) => csvEscape(col.exampleValues[i] ?? '')).join(','),
   );
   const csv = BOM + [headerLine, ...rows].join('\r\n');
   return new Blob([csv], { type: 'text/csv;charset=utf-8' });
 }
 
-export interface DiaNoHabilCsvRow {
+export interface DiaHabilCsvRow {
   dia?: string;
   mes?: string;
   anio?: string;
@@ -362,7 +362,7 @@ export function parseConsumeSaldo(value: string | undefined): boolean {
   return false;
 }
 
-export function parseDiasNoHabilesCsv(file: File): Promise<{
+export function parseDiasHabilesCsv(file: File): Promise<{
   headers: string[];
   rows: Record<string, string>[];
   errorMessage?: string;
@@ -416,7 +416,7 @@ export function parseDiasNoHabilesCsv(file: File): Promise<{
   });
 }
 
-export function buildDiasNoHabilesErrorsCsv(
+export function buildDiasHabilesErrorsCsv(
   errors: Array<{ rowNumber: number; rowData: string; error: string }>,
 ): Blob {
   const header = 'rowNumber,rowData,error';

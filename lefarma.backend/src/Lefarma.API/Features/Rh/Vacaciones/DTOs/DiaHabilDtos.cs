@@ -1,6 +1,6 @@
 namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
 {
-    public class DiaNoHabilRequest
+    public class DiaHabilRequest
     {
         public int? IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
@@ -8,9 +8,9 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int? Mes { get; set; }
     }
 
-    public class DiaNoHabilResponse
+    public class DiaHabilResponse
     {
-        public int IdDiaNoHabil { get; set; }
+        public int IdDiaHabil { get; set; }
         public int IdEmpresa { get; set; }
         public string? EmpresaNombre { get; set; }
         public int? IdSucursal { get; set; }
@@ -24,15 +24,15 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public bool ConsumeSaldo { get; set; }
     }
 
-    public class CargaDiasNoHabilesRequest
+    public class CargaDiasHabilesRequest
     {
         public int IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
-        public List<DiaNoHabilFechaRequest> Fechas { get; set; } = new();
+        public List<DiaHabilFechaRequest> Fechas { get; set; } = new();
         public string? DescripcionGeneral { get; set; }
     }
 
-    public class DiaNoHabilFechaRequest
+    public class DiaHabilFechaRequest
     {
         public int Anio { get; set; }
         public int Mes { get; set; }
@@ -41,7 +41,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public bool ConsumeSaldo { get; set; }
     }
 
-    public class CargaDiasNoHabilesCsvRow
+    public class CargaDiasHabilesCsvRow
     {
         public int Dia { get; set; }
         public int Mes { get; set; }
@@ -57,7 +57,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public string Error { get; set; } = string.Empty;
     }
 
-    public class CargaDiasNoHabilesResultResponse
+    public class CargaDiasHabilesResultResponse
     {
         public int TotalRows { get; set; }
         public int SuccessCount { get; set; }
@@ -67,26 +67,16 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public int VacacionesGeneradas { get; set; }
     }
 
-    public class DiaUsuarioRequest
+    public class UsuarioAfectadoResponse
     {
         public int IdUsuario { get; set; }
-        public int? Anio { get; set; }
-    }
-
-    public class DiaUsuarioResponse
-    {
-        public int IdDiaUsuario { get; set; }
-        public int IdUsuario { get; set; }
-        public string? UsuarioNombre { get; set; }
+        public string? NombreCompleto { get; set; }
+        public string? NumeroEmpleado { get; set; }
+        public string? Puesto { get; set; }
         public int IdEmpresa { get; set; }
+        public string? EmpresaNombre { get; set; }
         public int? IdSucursal { get; set; }
-        public DateTime Fecha { get; set; }
-        public int IdTipoDia { get; set; }
-        public string? TipoDiaNombre { get; set; }
-        public string Origen { get; set; } = string.Empty;
-        public string? Estado { get; set; }
-        public bool ConsumeSaldo { get; set; }
-        public int? IdDiaNoHabil { get; set; }
-        public string? Comentarios { get; set; }
+        public string? SucursalNombre { get; set; }
+        public bool Activo { get; set; }
     }
 }
