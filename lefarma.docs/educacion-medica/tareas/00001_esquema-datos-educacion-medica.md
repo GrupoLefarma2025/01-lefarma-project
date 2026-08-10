@@ -3,6 +3,14 @@
 > Vinculada a: [[decisiones/00001_esquema-datos-educacion-medica]]
 > Misma división por fases que la decisión: 0 Planificación, 1 Base de datos, 2 Backend, 3 Frontend.
 
+## Diagramas
+
+> Carpeta `diagramas/`, numerados como la decisión (000001 = ADR 00001) con patrón `000001_<tipo>_<nombre>`.
+
+- [[diagramas/000001_er_esquema_completo|000001 · ER esquema completo]] — las 12 tablas en un solo diagrama, con todas sus columnas
+- [[diagramas/000001_arquitectura_modulo|000001 · Arquitectura del módulo]] — SPA → API → BD + Asokam (lectura)
+- [[diagramas/000001_proceso_operativo|000001 · Proceso operativo]] — programa anual → selección → taller → firmas → reporte
+
 ## Fase 0 — Planificación
 
 - [x] Documentar procesos de negocio (ASK-CEM-DDP-001, ASK-VEN-DDP-001) en pdf-to-md

@@ -1,16 +1,39 @@
+---
+fecha_creacion: 2026-08-10 13:54
+fecha_modificacion: 2026-08-10 13:54
+resumen: Planificación del módulo Educación Médica (proceso Talleres Médicos en Hospitales): schema de base de datos, backend y frontend.
+---
+
 # 00001 — Esquema de datos del módulo Educación Médica
 
-**Fecha:** 2026-08-10 · **Scripts:** `0002`, `0003` · **Revisión:** 2 (porqué por tabla, endpoint, pantalla y permiso)
+## Índice
+
+- [[#Decisión|Decisión]]
+- [[#Fases|Fases]]
+- [[#Fase 0 — Planificación|Fase 0 — Planificación]]
+- [[#Fase 1 — Base de datos|Fase 1 — Base de datos]]
+  - [[#1.1 Schema educacion_medica (script 0002)|1.1 Schema]]
+  - [[#1.2 Catálogo + 11 tablas operacionales (script 0003) — el porqué de cada columna|1.2 Catálogo + 11 tablas operacionales]]
+  - [[#1.3 Documentación en la base (MS_Description)|1.3 Documentación en la base]]
+  - [[#1.4 Reglas de diseño — cada regla con su solución|1.4 Reglas de diseño]]
+- [[#Fase 2 — Backend|Fase 2 — Backend]]
+  - [[#2.1 Catálogo de endpoints — cada endpoint y por qué existe|2.1 Endpoints]]
+  - [[#2.2 Catálogos (Slice 1)|2.2 Catálogos]]
+  - [[#2.3 Taller completo (Slice 2, proceso core)|2.3 Taller completo]]
+- [[#Fase 3 — Frontend|Fase 3 — Frontend]]
+  - [[#3.1 Catálogo de pantallas — cada pantalla, su origen y quién la usa|3.1 Pantallas]]
+  - [[#3.2 Permisos — cada permiso y por qué existe|3.2 Permisos]]
+- [[#Anexo — Archivos originales|Anexo — Archivos originales]]
+- [[#Referencias técnicas|Referencias técnicas]]
 
 ## Decisión
 
-Crear el schema `educacion_medica` en la base Lefarma con **1 catálogo (`tipo_gerencia`) + 11 tablas operacionales** derivadas de los formularios del negocio (ASK-CEM). Los catálogos que ya existen en Asokam **no se duplican**: se referencian por `id_*` (FK lógica) hacia Asokam; el único catálogo propio (`tipo_gerencia`) se creó porque **se validó que Asokam no lo tiene**. Cada tabla, columna y el schema quedan documentados **dentro de la propia base** con extended properties (`MS_Description`).
+El módulo Educación Médica **no tenía nada en la base de datos**, por lo que esta decisión crea el schema `educacion_medica` en Lefarma y planifica, por fases, todo lo necesario para ponerlo en marcha: **base de datos → backend → frontend**.
 
-Este documento explica el **porqué** de cada pieza: cada tabla y sus columnas (con las fórmulas exactas y su origen en la guía de llenado), cada endpoint (qué paso del papel digitaliza), cada pantalla (qué formulario reemplaza y quién la usa) y cada permiso (qué acción y qué rol habilita).
+- **Documentos fuente** (formularios e instructivos): `referencias/pdf-to-md/`.
+- **Scripts de base de datos** (schema, tablas, índices): `lefarma.database/educacion-medica/`.
 
-## ¿Por qué dividido en fases?
-
-Cada fase es una **entregable verificable** que no bloquea a la siguiente y se puede probar por separado:
+## Fases
 
 | Fase | Nombre | Qué contiene | Cómo se verifica |
 |---|---|---|---|
@@ -18,17 +41,6 @@ Cada fase es una **entregable verificable** que no bloquea a la siguiente y se p
 | **1** | Base de datos | Schema (0002), tablas operacionales + MS_Description (0003), índices | Scripts aplicados en dev/prod, columnas y descripciones visibles en SSMS |
 | **2** | Backend | Catálogos (Slice 1) y Taller completo (Slice 2) | API funcionando, validación cross-DB, taller end-to-end |
 | **3** | Frontend | Pantallas catálogos y pantallas del taller | Flujo completo de usuario desde la SPA |
-
-## Estado de implementación (resumen por fases)
-
-| Fase | Estado |
-|---|---|
-| **0 — Planificación** | ✅ completa (propuesta, formularios, ADR) |
-| **1 — Base de datos** | 🔶 en curso — 1.1 schema ✅ (dev+prod) · 1.2 script 0003 **actualizado** (catálogo `tipo_gerencia`, columnas `id_*`, `fecha`; validado contra Asokam), pendiente aplicar · 1.3 pendiente |
-| **2 — Backend** | 🔲 pendiente |
-| **3 — Frontend** | 🔲 pendiente |
-
-Detalle por tarea: [[tareas/00001_esquema-datos-educacion-medica]]
 
 ---
 
@@ -64,9 +76,9 @@ Detalle por tarea: [[tareas/00001_esquema-datos-educacion-medica]]
 
 ### 1.2 Catálogo + 11 tablas operacionales (script 0003) — el porqué de cada columna
 
-Cada tabla traza a un formulario; la columna "Origen" cita el campo del formulario. Las columnas de auditoría (`id_*`, `fecha_creacion/modificacion`, `id_usuario_*`, `activo` en madres) son convención del repo y no se repiten aquí.
+Cada tabla traza a un formulario; la columna "Origen" cita el campo del formulario. Las columnas de auditoría (`id_*`, `fecha_creacion/modificacion`, `id_usuario_*`) son convención del repo y no se repiten aquí; `activo` (baja lógica) solo va en las **tablas madre** (agregados) — las hijas se borran físicamente (ver §1.4).
 
-> **Qué significa "guía de llenado B, renglón N":** cada formulario ASK-CEM-FOR-00X incluye una tabla **"Guía de llenado B"** con las instrucciones numeradas para llenarlo. "Guía de llenado B, renglón 11" = la instrucción no. 11 de esa tabla. Ejemplo (FOR-002, renglón 11): *"Realizar el cálculo del número de anestesias totales: AT = NQ × 2.5 × 250"*.
+> **Cómo leer las citas:** cada celda indica el **archivo fuente** (nombre completo en `referencias/pdf-to-md/`, ej. `ASK-CEM-FOR-002 Base de Datos de Hospitales.md`); el texto entre comillas es **literal** de ese archivo.
 
 #### 1.2.0 Catálogo `tipo_gerencia` — ¿qué es la gerencia y por qué un catálogo?
 
@@ -90,20 +102,20 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 
 **Porqué existe:** el hospital YA existe en `genContactosCat` (Asokam). Esta tabla **extiende** 1:1 ese catálogo con lo que el módulo calcula: las anestesias. El papel pide subtotales por columna; si alguien los captura a mano, se equivoca — por eso las columnas son `PERSISTED` (la BD calcula y guarda, cero error manual).
 
-| Columna | Qué guarda | Porqué / fórmula (guía de llenado B del FOR-002) |
+| Columna | Qué guarda | Porqué / fórmula (fuente: `ASK-CEM-FOR-002 Base de Datos de Hospitales.md` en `referencias/pdf-to-md/Formularios/`) |
 |---|---|---|
 | `id_hospital` | Código del hospital en Asokam | FK lógica → `genContactosCat.codigoContacto` (UNIQUE 1:1). No se duplica el hospital, solo se extiende. Se llama `id_` porque referencia a la tabla `hospitales` de Asokam, no porque sea un id propio |
-| `fecha` | Fecha de la base | Encabezado FOR-002, campo **"Año"**: *"escribir el año al que corresponde la base de datos"* (guía de llenado B, renglón 3: *"la fecha del año al cual corresponde la base de datos"*). Guardamos `DATE` para capturar el año y poder filtrar |
-| `id_tipo_gerencia` | Gerencia del hospital | FK física → catálogo `tipo_gerencia` (§1.2.0). El hospital pertenece a un equipo de ventas (IMSS/Descentralizado) y eso define a qué gerencia se reporta. Encabezado FOR-002: *"indicar el tipo de gerencia: IMSS o Descentralizado"* (guía de llenado B, renglón 1) |
-| `con_sia` | `1` con SIA, `0` sin SIA | **SIA = Servicio Integral de Anestesia** (glosario: [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]]). Es si el hospital **cuenta con ese servicio** (donde los talleres de anestesia tienen mercado). El concentrado anual clasifica: *"SIA (se visitarán) / sin SIA (venta directa)"*. Encabezado FOR-002: *"Con SIA: marcar si se trata de hospitales con SIA"* (guía de llenado B, renglón 2). **No existe en Asokam** — es dato del módulo |
-| `numero_quirofanos` | N° de quirófanos | **Única captura manual** (guía de llenado B, renglón 10): dato físico del hospital, no se puede derivar |
-| `anestesias_totales` | AT | **AT = NQ × 2.5 × 250** (renglón 11). Los factores son supuestos del negocio: **2.5 = cirugías promedio por día**, **250 = días laborables al año** |
-| `anestesias_generales` | AG | **AG = AT × 30%** (renglón 12) |
-| `anestesias_regionales` | AR | **AR = AT × 70%** (renglón 13). Nota: AG + AR = 100% del total |
-| `anestesias_epidurales` | AE | **AE = AR × 35%** (renglón 14) |
-| `anestesias_subdurales` | AS | **AS = AR × 45%** (renglón 15) |
-| `anestesias_mixtas_obesos` | MO | **MO = AR × 2%** (renglón 16) |
-| `anestesias_mixtas_no_obesos` | MNO | **MNO = AR × 18%** (renglón 17). Nota: AE + AS + MO + MNO = 100% de las regionales |
+| `fecha` | Fecha de la base | Encabezado FOR-002, campo **"Año"**: *"escribir el año al que corresponde la base de datos"* (*"la fecha del año al cual corresponde la base de datos"*). Guardamos `DATE` para capturar el año y poder filtrar |
+| `id_tipo_gerencia` | Gerencia del hospital | FK física → catálogo `tipo_gerencia` (§1.2.0). El hospital pertenece a un equipo de ventas (IMSS/Descentralizado) y eso define a qué gerencia se reporta. Encabezado FOR-002: *"indicar el tipo de gerencia: IMSS o Descentralizado"*  |
+| `con_sia` | `1` con SIA, `0` sin SIA | **SIA = Servicio Integral de Anestesia** (glosario: [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]]). Es si el hospital **cuenta con ese servicio** (donde los talleres de anestesia tienen mercado). El concentrado anual clasifica: *"SIA (se visitarán) / sin SIA (venta directa)"*. Encabezado FOR-002: *"Con SIA: marcar si se trata de hospitales con SIA"* . **No existe en Asokam** — es dato del módulo |
+| `numero_quirofanos` | N° de quirófanos | **Única captura manual** : dato físico del hospital, no se puede derivar |
+| `anestesias_totales` | AT | **AT = NQ × 2.5 × 250** . Los factores son supuestos del negocio: **2.5 = cirugías promedio por día**, **250 = días laborables al año** |
+| `anestesias_generales` | AG | **AG = AT × 30%**  |
+| `anestesias_regionales` | AR | **AR = AT × 70%** . Nota: AG + AR = 100% del total |
+| `anestesias_epidurales` | AE | **AE = AR × 35%**  |
+| `anestesias_subdurales` | AS | **AS = AR × 45%**  |
+| `anestesias_mixtas_obesos` | MO | **MO = AR × 2%**  |
+| `anestesias_mixtas_no_obesos` | MNO | **MNO = AR × 18%** . Nota: AE + AS + MO + MNO = 100% de las regionales |
 
 > **Para qué se usan estos cálculos:** estimar el tamaño del mercado de anestesia de cada hospital (cuántas cirugías/anestesias al año) y así priorizar dónde conviene dar talleres. El formulario no explica el origen de los porcentajes; son la distribución de tipos de anestesia que el negocio asume como fija.
 
@@ -111,22 +123,22 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 
 **Porqué existe:** planificar el año: qué producto se promociona, en qué periodo, en qué hospitales y con qué meta.
 
-| Columna | Qué guarda | Porqué / fórmula (guía de llenado B del FOR-003) |
+| Columna | Qué guarda | Porqué / fórmula (fuente: `ASK-CEM-FOR-003 Programa Anual de Talleres Médicos.md` en `referencias/pdf-to-md/Formularios/`) |
 |---|---|---|
-| `fecha` | Fecha del programa | El programa es anual (guía de llenado B, renglón 1: *"escribir el año correspondiente al programa"*); `DATE` para capturar el año |
-| `definicion` | Objetivo del programa | La fila "Definición" del formato (renglón 2) |
+| `fecha` | Fecha del programa | El programa es anual (*"escribir el año correspondiente al programa"*); `DATE` para capturar el año |
+| `definicion` | Objetivo del programa | La fila "Definición" del formato  |
 | `periodo_inicio` / `periodo_fin` | Meses 1–12 (CHECK) | El formato permite promocionar por periodos (renglones 3–4); los meses son TINYINT porque solo hay 12 |
-| `id_tipo_gerencia` | Gerencia del programa | FK física → catálogo `tipo_gerencia` (renglón 5): un programa pertenece a un equipo de ventas |
-| `tipo_hospital` | `Con SIA` / `Sin SIA` | Renglón 6: los hospitales objetivo se clasifican por SIA |
-| `numero_hospitales` | N° de hospitales objetivo al año | Renglón 7 |
-| `meta_al_anio` | Meta anual | **Meta = N° hospitales × 1.5** (renglón 8): el negocio asume **1.5 talleres por hospital al año** |
-| `productos_a_promocionar` | CSV de claves | Las 6 líneas de producto Asokam marcadas con "x" (renglón 9): R-III, R-II, R-I, B-27G, B-22G, T |
-| `semanas_trabajo` | Semanas laboradas | Resumen de capacidad, dato capturado (renglón 11) |
-| `talleres_semana` | Talleres por semana | **= Total / Semanas de trabajo** (renglón 12), calculado en servicio |
-| `talleres_especialista` | Talleres/especialista/semana | Dato capturado (renglón 13) |
-| `especialistas_necesarios` | Especialistas requeridos | **= Talleres/semana ÷ Talleres/especialista** (renglón 14; el papel tiene error tipográfico en la fórmula, esta es la correcta) |
-| `especialistas_disponibles_imss` / `_descentralizados` | Disponibles por gerencia | Renglón 15 |
-| `especialistas_a_contratar` | Déficit de capacidad | Renglón 16: si necesarios > disponibles |
+| `id_tipo_gerencia` | Gerencia del programa | FK física → catálogo `tipo_gerencia` : un programa pertenece a un equipo de ventas |
+| `tipo_hospital` | `Con SIA` / `Sin SIA` | Los hospitales objetivo se clasifican por SIA |
+| `numero_hospitales` | N° de hospitales objetivo al año | Cuántos se visitarán en el año |
+| `meta_al_anio` | Meta anual | **Meta = N° hospitales × 1.5** : el negocio asume **1.5 talleres por hospital al año** |
+| `productos_a_promocionar` | CSV de claves | Las 6 líneas de producto Asokam marcadas con "x" : R-III, R-II, R-I, B-27G, B-22G, T |
+| `semanas_trabajo` | Semanas laboradas | Resumen de capacidad, dato capturado  |
+| `talleres_semana` | Talleres por semana | **= Total / Semanas de trabajo** , calculado en servicio |
+| `talleres_especialista` | Talleres/especialista/semana | Dato capturado  |
+| `especialistas_necesarios` | Especialistas requeridos | **= Talleres/semana ÷ Talleres/especialista** (el papel tiene error tipográfico en la fórmula, esta es la correcta) |
+| `especialistas_disponibles_imss` / `_descentralizados` | Disponibles por gerencia | Dato capturado por gerencia |
+| `especialistas_a_contratar` | Déficit de capacidad | Si necesarios > disponibles |
 
 #### 1.2.3 `programas_anuales_detalles` — FOR-003 (tabla principal)
 
@@ -179,7 +191,7 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 
 #### 1.2.7 `taller_recursos` — FOR-005 (columnas de recursos y costos)
 
-**Porqué existe:** la Matriz tiene 4 grupos de recursos — **Muestras, Folletos, Gastos de envío, Box lunch** — y todos comparten la misma forma (cantidad × costo unitario). Una tabla **polimórfica** con `tipo_recurso` en vez de 4 tablas casi idénticas. El **Costo Total** del taller es la suma de los 4 (guía #24: producto + folletos + envío + box lunch).
+**Porqué existe:** la Matriz tiene 4 grupos de recursos — **Muestras, Folletos, Gastos de envío, Box lunch** — y todos comparten la misma forma (cantidad × costo unitario). Una tabla **polimórfica** con `tipo_recurso` en vez de 4 tablas casi idénticas. El **Costo Total** del taller es la suma de los 4 (fuente: `ASK-CEM-FOR-005 Matriz de Talleres Médicos.md` — *"producto + folleto impreso + gastos de envío + box lunch"*).
 
 | Columna | Qué guarda | Porqué |
 |---|---|---|
@@ -369,13 +381,13 @@ Programas Anuales, Selecciones Mensuales, Talleres con state machine, recursos +
 ## Fase 3 — Frontend
 
 > Tareas: [[tareas/00001_esquema-datos-educacion-medica#Fase 3 — Frontend]]
-> Spec completa de las 16 pantallas (con wireframes): [[referencias/pantallas]]
+> Pantallas derivadas de los formularios de `referencias/pdf-to-md/` (cada fila cita su formulario de origen).
 
 **Decisión y por qué:** seguir el patrón de las apps existentes (`createAppRoutes` + `SidebarMenuItemConfig` + `services/*.api.ts` sobre el axios central). *Por qué:* consistencia con RH/CxP, reutiliza auth y permisos del hub.
 
 ### 3.1 Catálogo de pantallas — cada pantalla, su origen y quién la usa
 
-Roles según la matriz de [[referencias/pantallas]]: **CRUD** = gestión completa · **R/W** = captura · **R** = lectura · **A** = aprueba/autoriza. Siglas: DC (Dirección Corporativa), GG (Gerente General), GV (Gerente de Ventas), EV (Ejecutivo de Ventas), EP (Especialista de Producto), AEM (Aux. Admin. Ed. Médica), CA (Coord. Admin.), EE (Ejec. Estadística).
+Roles según [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]] y los responsables que asignan los formularios e instructivos (pies de firma y flujos): **CRUD** = gestión completa · **R/W** = captura · **R** = lectura · **A** = aprueba/autoriza. Siglas: DC (Dirección Corporativa), GG (Gerente General), GV (Gerente de Ventas), EV (Ejecutivo de Ventas), EP (Especialista de Producto), AEM (Aux. Admin. Ed. Médica), CA (Coord. Admin.), EE (Ejec. Estadística).
 
 #### Catálogos (Slice 1)
 
@@ -392,12 +404,12 @@ Roles según la matriz de [[referencias/pantallas]]: **CRUD** = gestión complet
 | **Programa Anual** | `/talleres/programa-anual` | FOR-003 | Plan anual: periodos, hospitales, **meta = N° × 1.5**, resumen de capacidad; firmas | GV/CEM: CRUD · AEM: R/W · GG: A · EV/EP: R |
 | **Selección Mensual** | `/talleres/seleccion` | FOR-004 + IDT-003 | Reunión día 15: elige hospitales, agrupa por zona (mín 4/viaje), meta ≥64/mes; botón Autorizar | GV: R/W · GG: A · EV: R (asignación) · AEM: R |
 | **Calendario** | `/talleres/calendario` | FOR-006 | Programación mensual por día/especialista/ejecutivo (lo elabora AEM el día 17) | AEM: CRUD · CEM/GG: A · GV/EP/EV: R |
-| **Matriz de Talleres** (TallerDetail) | `/talleres/matriz` | FOR-005 | Datos del taller + recursos + **resumen de costos + Costo Total** + autorizaciones. En la SPA, los detalles del taller se agrupan como **tabs** de un solo detalle (Matriz · Materiales · Asistencia · Aprobaciones · Evidencias) sin perder la trazabilidad a las pantallas del wireframe | EV: R/W · GV: A · CA: A (costos) · DC: A · AEM: R/W |
+| **Matriz de Talleres** (TallerDetail) | `/talleres/matriz` | FOR-005 | Datos del taller + recursos + **resumen de costos + Costo Total** + autorizaciones. En la SPA, los detalles del taller se agrupan como **tabs** de un solo detalle (Matriz · Materiales · Asistencia · Aprobaciones · Evidencias) sin perder la trazabilidad a los formularios | EV: R/W · GV: A · CA: A (costos) · DC: A · AEM: R/W |
 | **Asistencia** (tab de TallerDetail) | `/talleres/asistencia` | FOR-008 | Lista 1–20 con firma escaneada; contador automático; observación médico líder +/− | EP/EV: R/W (en sitio) · AEM/GV: R |
 | **Solicitud Materiales** (tab de TallerDetail) | `/talleres/materiales` | FOR-007 + IDT-004 | Solicitud/entrega: checklist (lista, flayers, cómputo, proyector, dulces, modelo), estatus, firma de recibido | AEM: CRUD · CA/Aux. Almacén: R/W · EV: R/W (recibe) · GG/DC: R |
 | **Evidencias** (tab de TallerDetail) | — (dentro de TallerDetail) | Proceso | Fotos/videos/documentos post-taller | EP/EV: captura · CQ/TECNO: R |
 
-> **Ventas IMSS (pantallas #6–#10: Metas, Plan de Trabajo, Reporte Semanal, Reporte de Visitas, Indicador)** quedan fuera de este ADR: requieren la decisión 00002 y sus propias tablas. Ver [[referencias/pantallas#Módulo Ventas IMSS]].
+> **Ventas IMSS (Metas, Plan de Trabajo, Reporte Semanal, Reporte de Visitas, Indicador)** queda fuera de este ADR: requiere la decisión 00002 y sus propias tablas. Ver [[referencias/pdf-to-md/Procesos/Proceso de Ventas IMSS]].
 
 ### 3.2 Permisos — cada permiso y por qué existe
 
@@ -426,7 +438,7 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 | `educacion_medica.materiales.puede_confirmar` | Firma de recibido del ejecutivo | EV (R/W recibe) |
 | `educacion_medica.evidencias.puede_gestionar` | Subir/borrar evidencias | EP/EV tras `Realizado` |
 
-**Regla de asignación:** un rol acumula permisos según su fila en la matriz de [[referencias/pantallas]] (ej. EV = talleres.puede_capturar + materiales.puede_confirmar + lectura de todo). La autorización (`puede_autorizar`) **no** incluye captura: separación de funciones como en el papel (quien elabora no autoriza).
+**Regla de asignación:** un rol acumula permisos según su papel en los flujos de los instructivos (IDT-003: GV selecciona y GG firma; IDT-004: AEM gestiona material y EV confirma recibo; FOR-005: EV elabora, GV/CA revisan, DC autoriza). La autorización (`puede_autorizar`) **no** incluye captura: separación de funciones como en el papel (quien elabora no autoriza).
 
 ---
 
@@ -442,13 +454,13 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 - [[referencias/pdf-to-md/Diagramas/Diagrama del Proceso de Ventas Descentralizado]]
 
 ### Formularios (definen las columnas)
-- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-002 Base de Datos de Hospitales]] → `hospital_extension` (fórmulas de anestesias, guía #10–17)
-- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-003 Programa Anual de Talleres Médicos]] → `programas_anuales(_detalles)` (meta ×1.5, guía #8–16)
+- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-002 Base de Datos de Hospitales]] → `hospital_extension` (fórmulas de anestesias)
+- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-003 Programa Anual de Talleres Médicos]] → `programas_anuales(_detalles)` (meta = N° hospitales × 1.5)
 - [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-004 Selección de Hospitales para Talleres Médicos]] → `selecciones_mensuales(_hospitales)` (digitalizado desde el Anexo 1 del IDT-003)
-- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos]] → `talleres` + `taller_recursos` (costos, guía #20–24)
+- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos]] → `talleres` + `taller_recursos` (costos y autorizaciones)
 - [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-006 Calendario de Talleres Médicos]] → `talleres` (programación)
 - [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-007 Material para Talleres Médicos]] → `taller_materiales` (digitalizado desde el Anexo 2 del IDT-004; el 1:1 por taller es decisión declarada en §1.2.8)
-- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia]] → `taller_asistencias` (lista 1–20, guía #8–13)
+- [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia]] → `taller_asistencias` (lista de asistencia 1–20)
 
 ### Instructivos (reglas de proceso)
 - [[referencias/pdf-to-md/Instructivos/Elaboración del Concentrado Anual de Talleres Médicos]]
@@ -457,10 +469,8 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 - [[referencias/pdf-to-md/Instructivos/Solicitud y Entrega de Materiales para Talleres Médicos]] — regla CDMX/foránea
 - [[referencias/pdf-to-md/Instructivos/Preparación y Autorización de Material de Talleres Médicos]]
 
-### Roles y pantallas
+### Roles y formularios
 - [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]] — glosario de actores (DC, GG, GV, EV, EP, AEM, CA, EE…)
-- [[referencias/pantallas]] — spec de las 16 pantallas con wireframes y matriz de roles
-- [[referencias/pantallas2]] — módulo Ventas Descentralizado (pantallas 17–21)
 - [[referencias/pdf-to-md/README]] — índice completo de pdf-to-md
 
 ### Versiones "limpias" de formularios (para extracción de columnas)

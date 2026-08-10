@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Proceso operativo Educación Médica</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:#f5f5f5; --color-ink:#2d3142; --color-muted:#4f5d75; --color-soft:#7a8399; --color-accent:#eb6c36;
+      --font-sans:'Geist',system-ui,sans-serif; --font-serif:'Instrument Serif',serif; --font-mono:'Geist Mono',ui-monospace,monospace;
+    }
+    body { font-family: var(--font-sans); background: var(--color-paper); color: var(--color-ink); min-height:100vh; display:flex; align-items:center; justify-content:center; padding:3rem 2rem; }
+    .frame { max-width: 1200px; width: 100%; }
+    .eyebrow { font-family: var(--font-mono); font-size: .66rem; font-weight:500; letter-spacing:.18em; text-transform:uppercase; color:var(--color-muted); margin-bottom:.5rem; }
+    h1 { font-family: var(--font-serif); font-size: clamp(1.5rem,2.4vw + .75rem,2rem); font-weight:400; letter-spacing:-.02em; line-height:1.15; color:var(--color-ink); margin-bottom:.25rem; }
+    .sub { font-family: var(--font-mono); font-size:.72rem; color:var(--color-soft); margin-bottom:1.5rem; }
+    svg { width:100%; min-width:900px; display:block; }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Proceso · Talleres Médicos en Hospitales</p>
+    <h1>Proceso operativo — del programa anual al reporte</h1>
+    <p class="sub">ADR 00001 · IDT-003 · IDT-004 · FOR-002…FOR-008</p>
+
+    <svg viewBox="0 0 952 516" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="dots" width="22" height="22" patternUnits="userSpaceOnUse">
+          <circle cx="11" cy="11" r="0.8" fill="rgba(45,49,66,0.10)"/>
+        </pattern>
+        <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/></marker>
+        <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/></marker>
+        <marker id="arrow-sm" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0, 6 2.5, 0 5" fill="#4f5d75"/></marker>
+      </defs>
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+      <rect width="100%" height="100%" fill="url(#dots)" opacity="0.55"/>
+
+      <!-- Lane tints (odd) -->
+      <rect x="140" y="36" width="812" height="80" fill="rgba(45,49,66,0.018)"/>
+      <rect x="140" y="196" width="812" height="80" fill="rgba(45,49,66,0.018)"/>
+      <rect x="140" y="356" width="812" height="80" fill="rgba(45,49,66,0.018)"/>
+
+      <!-- Lane dividers -->
+      <line x1="0" y1="36" x2="952" y2="36" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <line x1="0" y1="116" x2="952" y2="116" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <line x1="0" y1="196" x2="952" y2="196" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <line x1="0" y1="276" x2="952" y2="276" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <line x1="0" y1="356" x2="952" y2="356" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <line x1="0" y1="436" x2="952" y2="436" stroke="rgba(45,49,66,0.12)" stroke-width="0.8"/>
+      <!-- Label column divider -->
+      <line x1="140" y1="36" x2="140" y2="436" stroke="rgba(45,49,66,0.20)" stroke-width="1"/>
+
+      <!-- Step header chips -->
+      <rect x="190" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="198" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">1</text>
+      <text x="198" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">PROGRAMA</text>
+
+      <rect x="302" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="310" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">2</text>
+      <text x="310" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">SELECCIÓN</text>
+
+      <rect x="414" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="422" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
+      <text x="422" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">PLAN MES</text>
+
+      <rect x="526" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="534" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">4</text>
+      <text x="534" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">MATERIAL</text>
+
+      <rect x="638" y="8" width="16" height="16" rx="8" fill="rgba(235,108,54,0.20)"/>
+      <text x="646" y="19" fill="#eb6c36" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">5</text>
+      <text x="646" y="32" fill="#eb6c36" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">TALLER</text>
+
+      <rect x="750" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="758" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">6</text>
+      <text x="758" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">FIRMAS</text>
+
+      <rect x="862" y="8" width="16" height="16" rx="8" fill="rgba(45,49,66,0.12)"/>
+      <text x="870" y="19" fill="#2d3142" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle">7</text>
+      <text x="870" y="32" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.12em" font-weight="500">REPORTE</text>
+
+      <!-- Lane labels -->
+      <text x="70" y="80" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">COORDINACIÓN</text>
+      <text x="70" y="152" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">GERENCIA</text>
+      <text x="70" y="164" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">VENTAS</text>
+      <text x="70" y="232" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">EJECUTIVO</text>
+      <text x="70" y="244" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">VENTAS</text>
+      <text x="70" y="320" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">ESPECIALISTA</text>
+      <text x="70" y="400" fill="#4f5d75" font-size="8" font-family="'Geist Mono', monospace" text-anchor="middle" letter-spacing="0.08em" font-weight="500">SISTEMA</text>
+
+      <!-- Arrows -->
+      <path d="M 248,76 H 302 Q 310,76 310,84 V 124" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M 360,156 H 414 Q 422,156 422,164 V 204" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <path d="M 472,236 H 526 Q 534,236 534,244 V 284" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <line x1="584" y1="316" x2="596" y2="316" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 696,316 H 750 Q 758,316 758,308 V 188" fill="none" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <path d="M 808,156 H 862 Q 870,156 870,164 V 364" fill="none" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+
+      <!-- ===== Nodos ===== -->
+
+      <!-- 1 · COO · Programa Anual -->
+      <rect x="148" y="44" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="148" y="44" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="152" y="48" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="159" y="56" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">COO</text>
+      <text x="198" y="70" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Programa Anual</text>
+      <text x="198" y="84" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-003 · meta N°×1.5</text>
+      <text x="198" y="96" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">programas_anuales</text>
+      <rect x="228" y="98" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="236" y="105" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+
+      <!-- 2 · GER · Selección Mensual -->
+      <rect x="260" y="124" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="260" y="124" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="264" y="128" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="271" y="136" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">GER</text>
+      <text x="310" y="150" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Selección</text>
+      <text x="310" y="164" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-004 · día 15 · ≥64/mes</text>
+      <text x="310" y="176" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">selecciones_mensuales</text>
+      <rect x="264" y="178" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="272" y="185" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+      <rect x="340" y="178" width="16" height="8" rx="2" fill="#7c8f6f"/>
+      <text x="348" y="185" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">LS</text>
+
+      <!-- 3 · EV · Plan Mensual -->
+      <rect x="372" y="204" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="372" y="204" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="376" y="208" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="383" y="216" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">EV</text>
+      <text x="422" y="230" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Plan Mensual</text>
+      <text x="422" y="244" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-002/005 · visitas</text>
+      <text x="422" y="256" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-002 · FOR-005</text>
+      <rect x="376" y="258" width="16" height="8" rx="2" fill="#7c8f6f"/>
+      <text x="384" y="265" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">LS</text>
+      <rect x="452" y="258" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="460" y="265" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">FL</text>
+
+      <!-- 4 · ESP · Solicitar Material -->
+      <rect x="484" y="284" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="484" y="284" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="488" y="288" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="495" y="296" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">ESP</text>
+      <text x="534" y="310" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Materiales</text>
+      <text x="534" y="324" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-007 · checklist</text>
+      <text x="534" y="336" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">taller_materiales</text>
+      <rect x="488" y="338" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="496" y="345" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">FL</text>
+      <rect x="564" y="338" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="572" y="345" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">FL</text>
+
+      <!-- 5 · ESP · Impartir Taller (focal) -->
+      <rect x="596" y="284" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="596" y="284" width="100" height="64" rx="6" fill="rgba(235,108,54,0.08)" stroke="#eb6c36" stroke-width="1.2"/>
+      <rect x="600" y="288" width="14" height="10" rx="2" fill="rgba(235,108,54,0.18)"/>
+      <text x="607" y="296" fill="#eb6c36" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">ESP</text>
+      <text x="646" y="310" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Impartir Taller</text>
+      <text x="646" y="324" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-008 · asistencia</text>
+      <text x="646" y="336" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">taller_asistencias</text>
+      <rect x="600" y="338" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="608" y="345" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">FL</text>
+      <rect x="676" y="338" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="684" y="345" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+
+      <!-- 6 · GER · Firmar y Aprobar -->
+      <rect x="708" y="124" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="708" y="124" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="712" y="128" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="719" y="136" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">GER</text>
+      <text x="758" y="150" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Aprobar</text>
+      <text x="758" y="164" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">Elaboró · Revisó · Autorizó</text>
+      <text x="758" y="176" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">taller_aprobaciones</text>
+      <rect x="712" y="178" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="720" y="185" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+      <rect x="788" y="178" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="796" y="185" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+
+      <!-- 7 · SYS · Evidencias y Reporte -->
+      <rect x="820" y="364" width="100" height="64" rx="6" fill="#f5f5f5"/>
+      <rect x="820" y="364" width="100" height="64" rx="6" fill="#ffffff" stroke="rgba(45,49,66,0.25)" stroke-width="1"/>
+      <rect x="824" y="368" width="14" height="10" rx="2" fill="rgba(45,49,66,0.12)"/>
+      <text x="831" y="376" fill="#2d3142" font-size="6" font-weight="600" font-family="'Geist Mono', monospace" text-anchor="middle">SYS</text>
+      <text x="870" y="390" fill="#2d3142" font-size="9" font-weight="600" font-family="'Geist', sans-serif" text-anchor="middle">Evidencias</text>
+      <text x="870" y="404" fill="#4f5d75" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">FOR-005 · indicador</text>
+      <text x="870" y="416" fill="#7a8399" font-size="6.5" font-family="'Geist Mono', monospace" text-anchor="middle">taller_evidencias</text>
+      <rect x="824" y="418" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="832" y="425" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">DB</text>
+      <rect x="900" y="418" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="908" y="425" fill="#ffffff" font-size="5" font-weight="700" font-family="'Geist Mono', monospace" text-anchor="middle">FL</text>
+
+      <!-- ===== Legend ===== -->
+      <text x="144" y="452" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em" font-weight="500">STEPS</text>
+      <rect x="196" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="202" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">1</text>
+      <text x="212" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">PROGRAMA</text>
+      <rect x="284" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="290" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">2</text>
+      <text x="300" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">SELECCIÓN</text>
+      <rect x="376" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="382" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">3</text>
+      <text x="392" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">PLAN MES</text>
+      <rect x="464" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="470" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">4</text>
+      <text x="480" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">MATERIAL</text>
+      <rect x="556" y="446" width="12" height="12" rx="6" fill="rgba(235,108,54,0.20)"/>
+      <text x="562" y="455" fill="#eb6c36" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle" font-weight="600">5</text>
+      <text x="572" y="455" fill="#eb6c36" font-size="6" font-family="'Geist Mono', monospace" font-weight="500">TALLER</text>
+      <rect x="640" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="646" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">6</text>
+      <text x="656" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">FIRMAS</text>
+      <rect x="724" y="446" width="12" height="12" rx="6" fill="rgba(45,49,66,0.12)"/>
+      <text x="730" y="455" fill="#2d3142" font-size="6" font-family="'Geist Mono', monospace" text-anchor="middle">7</text>
+      <text x="740" y="455" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">REPORTE</text>
+
+      <text x="144" y="473" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em" font-weight="500">DATA TYPE</text>
+      <rect x="228" y="467" width="16" height="8" rx="2" fill="#5e7a9b"/>
+      <text x="250" y="474" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">DB · registros</text>
+      <rect x="340" y="467" width="16" height="8" rx="2" fill="#7c8f6f"/>
+      <text x="362" y="474" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">LS · asignaciones</text>
+      <rect x="452" y="467" width="16" height="8" rx="2" fill="#9c6b50"/>
+      <text x="474" y="474" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">FL · formato/reporte</text>
+      <text x="600" y="474" fill="#7a8399" font-size="6" font-family="'Geist Mono', monospace">chip izq = entrada · chip der = salida</text>
+
+      <text x="144" y="494" fill="#4f5d75" font-size="7" font-family="'Geist Mono', monospace" letter-spacing="0.14em" font-weight="500">FLOW</text>
+      <line x1="228" y1="490" x2="260" y2="490" stroke="#4f5d75" stroke-width="1" marker-end="url(#arrow)"/>
+      <text x="268" y="494" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">handoff entre pasos</text>
+      <line x1="380" y1="490" x2="412" y2="490" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+      <text x="420" y="494" fill="#4f5d75" font-size="6" font-family="'Geist Mono', monospace">flujo focal · impartir taller</text>
+    </svg>
+  </div>
+</body>
+</html>
