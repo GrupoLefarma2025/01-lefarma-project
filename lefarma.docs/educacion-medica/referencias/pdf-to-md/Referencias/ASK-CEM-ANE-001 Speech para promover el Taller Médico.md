@@ -1,27 +1,26 @@
 ---
-codigo: "ASK-VEN-FOR-005"
+codigo: "ASK-CEM-ANE-001"
 tipo: "Referencia"
-area: "Ventas IMSS"
-estado: "Documento referenciado, no incluido en este vault"
+area: "Educación Médica"
+estado: "Documento referenciado, no incluido en el set de documentos"
 aliases:
-  - ASK-VEN-FOR-005
+  - ASK-CEM-ANE-001
 ---
 
-# Indicador Cumplimiento del Plan de Trabajo
+# Speech para promover el Taller Médico
 
 > **Documento referenciado** en la documentación oficial de Asokam / Lefarma.
 > Este formato o anexo **no fue incluido** en el set de documentos digitalizados de este vault. Se registra como nodo para mantener la trazabilidad de los enlaces.
 
 | Campo | Valor |
 |-------|-------|
-| Código | ASK-VEN-FOR-005 |
-| Nombre | Indicador Cumplimiento del Plan de Trabajo |
-| Área | Ventas IMSS |
+| Código | ASK-CEM-ANE-001 |
+| Nombre | Speech para promover el Taller Médico |
+| Área | Educación Médica |
 
 ## Mencionado en
 
-- [[Recabar Información e Indicadores de Ventas IMSS]]
-- [[Formularios]]
+- [[Selección Mensual de Hospitales para Talleres Médicos]]
 
 ## Véase también
 

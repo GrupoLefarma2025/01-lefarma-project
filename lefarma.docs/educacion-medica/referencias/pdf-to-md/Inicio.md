@@ -8,7 +8,7 @@ tipo: "Índice"
 
 # Wiki de Educación Médica y Ventas IMSS — Lefarma
 
-Bienvenido al vault de documentación de los procesos de [[Educación Médica]] y [[Ventas IMSS]]. Esta wiki reúne diagramas, procedimientos, instructivos, formularios y reportes extraídos de la documentación oficial de Asokam / Lefarma.
+Bienvenido a la documentación de los procesos de [[Educación Médica]] y [[Ventas IMSS]]. Esta wiki reúne diagramas, procedimientos, instructivos, formularios y reportes convertidos a Markdown desde los PDFs oficiales de Asokam / Lefarma (originales en `referencias/pdf/`).
 
 ## Áreas
 
@@ -42,8 +42,10 @@ Bienvenido al vault de documentación de los procesos de [[Educación Médica]] 
 - [[Formularios|Ver catálogo completo de formularios]]
 - [[ASK-CEM-FOR-002 Base de Datos de Hospitales]]
 - [[ASK-CEM-FOR-003 Programa Anual de Talleres Médicos]]
+- [[ASK-CEM-FOR-004 Selección de Hospitales para Talleres Médicos]]
 - [[ASK-CEM-FOR-005 Matriz de Talleres Médicos]]
 - [[ASK-CEM-FOR-006 Calendario de Talleres Médicos]]
+- [[ASK-CEM-FOR-007 Material para Talleres Médicos]]
 - [[ASK-CEM-FOR-008 Registro de Asistencia]]
 - [[ASK-VEN-FOR-001 Metas de Ventas y Desplazamiento]]
 - [[ASK-VEN-FOR-003 Reporte de Visitas Médicas]]
@@ -69,8 +71,6 @@ Documentos citados en los procesos que **no forman parte** del set digitalizado.
 - [[ASK-CBA-FOR-001 Plantilla de Presentación Asokam]]
 - [[ASK-CEM-ANE-001 Speech para promover el Taller Médico]]
 - [[ASK-CEM-FOR-001 Base de datos de Hospitales del Sistema Público de Salud]]
-- [[ASK-CEM-FOR-004 Selección de Hospitales para Talleres Médicos]]
-- [[ASK-CEM-FOR-007 Material para Talleres Médicos]]
 - [[ASK-GGE-IDT-001 Solicitud y aprobación de viáticos]]
 - [[ASK-TES-FOR-001 Depósito Box Lunch para Talleres Médicos IMSS y Descentralizados]]
 - [[ASK-VEN-DOE-001 Reporte de Incidente]]

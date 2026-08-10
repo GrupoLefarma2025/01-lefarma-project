@@ -1,26 +1,28 @@
 ---
-codigo: "ASK-CEM-FOR-007"
+codigo: "ASK-ADM-FOR-001"
 tipo: "Referencia"
-area: "Educación Médica"
-estado: "Documento referenciado, no incluido en este vault"
+area: "Administración"
+estado: "Documento referenciado, no incluido en el set de documentos"
 aliases:
-  - ASK-CEM-FOR-007
+  - ASK-ADM-FOR-001
 ---
 
-# Material para Talleres Médicos
+# Solicitud de Viáticos
 
 > **Documento referenciado** en la documentación oficial de Asokam / Lefarma.
 > Este formato o anexo **no fue incluido** en el set de documentos digitalizados de este vault. Se registra como nodo para mantener la trazabilidad de los enlaces.
 
 | Campo | Valor |
 |-------|-------|
-| Código | ASK-CEM-FOR-007 |
-| Nombre | Material para Talleres Médicos |
-| Área | Educación Médica |
+| Código | ASK-ADM-FOR-001 |
+| Nombre | Solicitud de Viáticos |
+| Área | Administración |
 
 ## Mencionado en
 
-- [[Solicitud y Entrega de Materiales para Talleres Médicos]]
+- [[Elaborar Plan de Trabajo]]
+- [[Proceso de Ventas IMSS]]
+- [[Diagrama del Proceso de Ventas]]
 - [[Formularios]]
 
 ## Véase también

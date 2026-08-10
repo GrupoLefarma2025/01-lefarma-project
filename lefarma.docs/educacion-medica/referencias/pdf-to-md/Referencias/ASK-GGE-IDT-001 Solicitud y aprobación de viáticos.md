@@ -1,27 +1,26 @@
 ---
-codigo: "ASK-VEN-ANX-002"
+codigo: "ASK-GGE-IDT-001"
 tipo: "Referencia"
-area: "Ventas IMSS"
-estado: "Documento referenciado, no incluido en este vault"
+area: "Administración"
+estado: "Documento referenciado, no incluido en el set de documentos"
 aliases:
-  - ASK-VEN-ANX-002
+  - ASK-GGE-IDT-001
 ---
 
-# Base de datos para Indicadores de Ventas
+# Solicitud y aprobación de viáticos
 
 > **Documento referenciado** en la documentación oficial de Asokam / Lefarma.
 > Este formato o anexo **no fue incluido** en el set de documentos digitalizados de este vault. Se registra como nodo para mantener la trazabilidad de los enlaces.
 
 | Campo | Valor |
 |-------|-------|
-| Código | ASK-VEN-ANX-002 |
-| Nombre | Base de datos para Indicadores de Ventas |
-| Área | Ventas IMSS |
+| Código | ASK-GGE-IDT-001 |
+| Nombre | Solicitud y aprobación de viáticos |
+| Área | Administración |
 
 ## Mencionado en
 
-- [[Recabar Información e Indicadores de Ventas IMSS]]
-- [[Formularios]]
+- [[Solicitud y Entrega de Materiales para Talleres Médicos]]
 
 ## Véase también
 

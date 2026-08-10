@@ -1,6 +1,6 @@
 -- ============================================================
 -- 0003_20260806-1556_educacion-medica_create-tablas-operacionales.lefarma.sql
--- Descripcion: Crea las 11 tablas operacionales del modulo
+-- Descripcion: Crea el catalogo tipo_gerencia y las 11 tablas operacionales del modulo
 --              Educacion Medica en el schema educacion_medica.
 --              Proceso: Talleres Medicos en Hospitales (ASK-CEM-DDP-001),
 --              formularios FOR-002..FOR-008.
@@ -55,16 +55,113 @@ GO
 --    1:1 extiende dbo.genContactosCat (Asokam) con los cálculos fijos de
 --    anestesias del ASK-CEM-FOR-002. Las columnas AT/AG/AR/AE/AS/MO/MNO son
 --    PERSISTED (decision propuesta §4.4): la BD las calcula y guarda.
---    La PK lógica es el hospital (UNIQUE codigo_hospital), validado en servicio.
+--    La PK lógica es el hospital (UNIQUE id_hospital), validado en servicio.
 -- ============================================================
+-- ============================================================
+-- 0) tipo_gerencia (CATALOGO)
+--    Catalogo de tipos de gerencia de ventas. Validado 2026-08-10:
+--    genContactosCat (Asokam) NO tiene campo de gerencia, por lo que
+--    el catalogo es propio del modulo. Valores documentados: IMSS y
+--    Descentralizado (FOR-002, FOR-003, FOR-005); "Privado" aparece en
+--    las metas de ventas (ASK-VEN-FOR-001). Se crea ANTES que
+--    hospital_extension porque esta le hace FK fisica.
+-- ============================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'tipo_gerencia')
+BEGIN
+    CREATE TABLE educacion_medica.tipo_gerencia
+    (
+        id_tipo_gerencia       INT IDENTITY(1,1) NOT NULL,
+        descripcion            VARCHAR(50) NOT NULL,   -- 'IMSS' | 'Descentralizado' | 'Privado' (extensible)
+        activo                 BIT NOT NULL CONSTRAINT DF_tipo_gerencia_activo DEFAULT 1,
+        fecha_creacion         DATETIME2 NOT NULL CONSTRAINT DF_tipo_gerencia_fecha_creacion DEFAULT SYSUTCDATETIME(),
+        fecha_modificacion     DATETIME2 NOT NULL CONSTRAINT DF_tipo_gerencia_fecha_modificacion DEFAULT SYSUTCDATETIME(),
+        id_usuario_creacion    INT NULL,               -- FK logica -> app.Usuarios (Asokam)
+        id_usuario_modificacion INT NULL,              -- FK logica -> app.Usuarios (Asokam)
+        CONSTRAINT PK_tipo_gerencia PRIMARY KEY (id_tipo_gerencia),
+        CONSTRAINT UQ_tipo_gerencia_descripcion UNIQUE (descripcion)
+    );
+    PRINT 'Tabla [educacion_medica].[tipo_gerencia] creada.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla [educacion_medica].[tipo_gerencia] ya existe. Skip.';
+END
+GO
+
+-- Semilla del catalogo (solo si esta vacio)
+IF NOT EXISTS (SELECT 1 FROM educacion_medica.tipo_gerencia)
+BEGIN
+    INSERT INTO educacion_medica.tipo_gerencia (descripcion) VALUES ('IMSS'), ('Descentralizado'), ('Privado');
+    PRINT 'Catalogo [tipo_gerencia] sembrado: IMSS, Descentralizado, Privado.';
+END
+GO
+
+-- Documentacion [tipo_gerencia] (extended properties MS_Description)
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty @name = N'MS_Description',
+        @value = N'Catalogo de tipos de gerencia de ventas (no existe en Asokam; valores documentados: IMSS, Descentralizado, Privado).',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.tipo_gerencia'), 'id_tipo_gerencia', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Identificador interno',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia',
+        @level2type = N'COLUMN', @level2name = N'id_tipo_gerencia';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.tipo_gerencia'), 'descripcion', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Descripcion del tipo de gerencia (IMSS | Descentralizado | Privado)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia',
+        @level2type = N'COLUMN', @level2name = N'descripcion';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.tipo_gerencia'), 'activo', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Indica si el registro esta activo',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia',
+        @level2type = N'COLUMN', @level2name = N'activo';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.tipo_gerencia'), 'fecha_creacion', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Fecha de creacion del registro (UTC)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia',
+        @level2type = N'COLUMN', @level2name = N'fecha_creacion';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.tipo_gerencia')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.tipo_gerencia'), 'fecha_modificacion', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Fecha de ultima modificacion (UTC)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'tipo_gerencia',
+        @level2type = N'COLUMN', @level2name = N'fecha_modificacion';
+GO
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'hospital_extension')
 BEGIN
     CREATE TABLE educacion_medica.hospital_extension
     (
         id_hospital_extension        INT IDENTITY(1,1) NOT NULL,
-        codigo_hospital              INT NOT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
-        anio                         INT NULL,              -- año de la base de datos (FOR-002)
-        tipo_gerencia                VARCHAR(20) NULL,      -- 'IMSS' | 'Descentralizado'
+        id_hospital              INT NOT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
+        fecha                         DATE NULL,              -- fño de la base de datos (FOR-002)
+        id_tipo_gerencia                INT NULL,      -- 'IMSS' | 'Descentralizado'
         con_sia                      BIT NULL,              -- 1 = con SIA, 0 = sin SIA
         numero_quirofanos            INT NULL,              -- número de quirófanos del hospital
         anestesias_totales           AS CAST(ROUND(numero_quirofanos * 2.5 * 250, 2) AS DECIMAL(18,2)) PERSISTED,      -- AT = NQ x 2.5 x 250
@@ -77,10 +174,11 @@ BEGIN
         activo                       BIT NOT NULL CONSTRAINT DF_hospital_extension_activo DEFAULT 1,
         fecha_creacion               DATETIME2 NOT NULL CONSTRAINT DF_hospital_extension_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion           DATETIME2 NOT NULL CONSTRAINT DF_hospital_extension_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion      INT NULL,              -- FK lógica -> app.Usuarios (Asokam)
-        codigo_usuario_modificacion  INT NULL,              -- FK lógica -> app.Usuarios (Asokam)
+        id_usuario_creacion      INT NULL,              -- FK lógica -> app.Usuarios (Asokam)
+        id_usuario_modificacion  INT NULL,              -- FK lógica -> app.Usuarios (Asokam)
+        CONSTRAINT FK_hospital_extension_tipo_gerencia FOREIGN KEY (id_tipo_gerencia) REFERENCES educacion_medica.tipo_gerencia (id_tipo_gerencia),
         CONSTRAINT PK_hospital_extension PRIMARY KEY (id_hospital_extension),
-        CONSTRAINT UQ_hospital_extension_codigo_hospital UNIQUE (codigo_hospital)
+        CONSTRAINT UQ_hospital_extension_id_hospital UNIQUE (id_hospital)
     );
     PRINT 'Tabla [educacion_medica].[hospital_extension] creada.';
 END
@@ -111,20 +209,20 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'codigo_hospital', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'id_hospital', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del hospital; FK logica -> dbo.genContactosCat.codigoContacto (validar en servicio)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
-        @level2type = N'COLUMN', @level2name = N'codigo_hospital';
+        @level2type = N'COLUMN', @level2name = N'id_hospital';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anio', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'Anio de la base de datos (FOR-002)',
+        @name = N'MS_Description', @value = N'Fecha de la base de datos (FOR-002)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anio';
@@ -134,7 +232,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'IMSS | Descentralizado',
+        @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
@@ -261,23 +359,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -292,11 +390,11 @@ BEGIN
     CREATE TABLE educacion_medica.programas_anuales
     (
         id_programa_anual                           INT IDENTITY(1,1) NOT NULL,
-        anio                                        INT NOT NULL,                -- año del programa
+        fecha                                        DATE NOT NULL,                -- año del programa
         definicion                                  NVARCHAR(200) NULL,          -- Definición/objetivo del programa (FOR-003)
         periodo_inicio                              TINYINT NULL,                -- mes de inicio del periodo (1-12) de la tabla principal
         periodo_fin                                 TINYINT NULL,                 -- mes de fin del periodo (1-12)
-        tipo_gerencia                               VARCHAR(20) NULL,            -- 'IMSS' | 'Descentralizado'
+        id_tipo_gerencia                               INT NULL,            -- 'IMSS' | 'Descentralizado'
         tipo_hospital                               VARCHAR(20) NULL,            -- 'Con SIA' | 'Sin SIA'
         numero_hospitales                           INT NULL,                    -- número de hospitales objetivo al año
         meta_al_anio                                INT NULL,                    -- Meta anual = nro. hospitales × 1.5 (la calcula el servicio)
@@ -311,8 +409,9 @@ BEGIN
         activo                                BIT NOT NULL CONSTRAINT DF_programas_anuales_activo DEFAULT 1,
         fecha_creacion                        DATETIME2 NOT NULL CONSTRAINT DF_programas_anuales_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion                    DATETIME2 NOT NULL CONSTRAINT DF_programas_anuales_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion              INT NULL,                           -- FK lógica -> app.Usuarios (Asokam)
-        codigo_usuario_modificacion          INT NULL,                           -- FK lógica -> app.Usuarios (Asokam)
+        id_usuario_creacion              INT NULL,                           -- FK lógica -> app.Usuarios (Asokam)
+        id_usuario_modificacion          INT NULL,                           -- FK lógica -> app.Usuarios (Asokam)
+        CONSTRAINT FK_programas_anuales_tipo_gerencia FOREIGN KEY (id_tipo_gerencia) REFERENCES educacion_medica.tipo_gerencia (id_tipo_gerencia),
         CONSTRAINT PK_programas_anuales PRIMARY KEY (id_programa_anual),
         CONSTRAINT CK_programas_anuales_periodo CHECK (periodo_inicio BETWEEN 1 AND 12 AND periodo_fin BETWEEN 1 AND 12)
     );
@@ -348,7 +447,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'anio', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'Anio del programa',
+        @name = N'MS_Description', @value = N'Fecha del programa',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
         @level2type = N'COLUMN', @level2name = N'anio';
@@ -388,7 +487,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'IMSS | Descentralizado',
+        @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
         @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
@@ -535,23 +634,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -565,15 +664,15 @@ BEGIN
     (
         id_programa_detalle INT IDENTITY(1,1) NOT NULL,
         id_programa_anual   INT NOT NULL,
-        codigo_hospital     INT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
-        codigo_producto     VARCHAR(50) NULL,  -- FK lógica -> dbo.genProductosCat.codigoProducto (validar en servicio)
+        id_hospital     INT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
+        id_producto     VARCHAR(50) NULL,  -- FK lógica -> dbo.genProductosCat.codigoProducto (validar en servicio)
         fecha_creacion      DATETIME2 NOT NULL CONSTRAINT DF_programa_detalle_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion  DATETIME2 NOT NULL CONSTRAINT DF_programa_detalle_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_programa_anual_detalle PRIMARY KEY (id_programa_detalle),
         CONSTRAINT FK_programa_detalle_programa FOREIGN KEY (id_programa_anual) REFERENCES educacion_medica.programas_anuales (id_programa_anual) ON DELETE CASCADE,
-        CONSTRAINT UQ_programa_detalle_programa_hospital UNIQUE (id_programa_anual, codigo_hospital, codigo_producto)
+        CONSTRAINT UQ_programa_detalle_programa_hospital UNIQUE (id_programa_anual, id_hospital, id_producto)
     );
     PRINT 'Tabla [educacion_medica].[programas_anuales_detalles] creada.';
 END
@@ -614,23 +713,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales_detalles')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'codigo_hospital', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'id_hospital', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del hospital; FK logica -> dbo.genContactosCat.codigoContacto (validar en servicio)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales_detalles',
-        @level2type = N'COLUMN', @level2name = N'codigo_hospital';
+        @level2type = N'COLUMN', @level2name = N'id_hospital';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales_detalles')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'codigo_producto', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'id_producto', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del producto; FK logica -> dbo.genProductosCat.codigoProducto (validar en servicio)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales_detalles',
-        @level2type = N'COLUMN', @level2name = N'codigo_producto';
+        @level2type = N'COLUMN', @level2name = N'id_producto';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales_detalles')
@@ -654,23 +753,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales_detalles')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales_detalles',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales_detalles')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales_detalles'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales_detalles',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -686,15 +785,16 @@ BEGIN
     (
         id_seleccion_mensual INT IDENTITY(1,1) NOT NULL,
         fecha_seleccion      DATE NOT NULL,             -- fecha de la reunión (día 15 del mes)
-        tipo_gerencia        VARCHAR(50) NULL,          -- 'IMSS' | 'Descentralizado'
+        id_tipo_gerencia        INT NULL,          -- 'IMSS' | 'Descentralizado'
         fecha_inicio_vigencia DATE NULL,                -- primer día del periodo de 45 días
         fecha_fin_vigencia   DATE NULL,                 -- último día del periodo de 45 días
         talleres_objetivo_mes INT NULL,                 -- mínimo de talleres a programar el mes (doc.: ≥64 por gerencia)
         activo                BIT NOT NULL CONSTRAINT DF_selecciones_mensuales_activo DEFAULT 1,
         fecha_creacion       DATETIME2 NOT NULL CONSTRAINT DF_selecciones_mensuales_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion   DATETIME2 NOT NULL CONSTRAINT DF_selecciones_mensuales_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
+        CONSTRAINT FK_selecciones_mensuales_tipo_gerencia FOREIGN KEY (id_tipo_gerencia) REFERENCES educacion_medica.tipo_gerencia (id_tipo_gerencia),
         CONSTRAINT PK_seleccion_mensual PRIMARY KEY (id_seleccion_mensual)
     );
     PRINT 'Tabla [educacion_medica].[selecciones_mensuales] creada.';
@@ -739,7 +839,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'IMSS | Descentralizado',
+        @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
         @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
@@ -806,23 +906,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -836,17 +936,17 @@ BEGIN
     (
         id_seleccion_hospital INT IDENTITY(1,1) NOT NULL,
         id_seleccion_mensual  INT NOT NULL,
-        codigo_hospital       INT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
+        id_hospital       INT NULL,          -- FK lógica -> dbo.genContactosCat.codigoContacto (validar en servicio)
         region                VARCHAR(60)  NULL, -- Región del hospital
         entidad_federativa    VARCHAR(60) NULL, -- Estado (entidad federativa)
         ciudad_municipio      NVARCHAR(120) NULL,
-        codigo_ejecutivo      INT NULL,          -- FK lógica -> app.Usuarios (Asokam)
+        id_ejecutivo      INT NULL,          -- FK lógica -> app.Usuarios (Asokam)
         producto_a_promocionar NVARCHAR(150) NULL,
         observaciones         NVARCHAR(300) NULL,
         fecha_creacion        DATETIME2 NOT NULL CONSTRAINT DF_sel_hospital_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion    DATETIME2 NOT NULL CONSTRAINT DF_sel_hospital_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_seleccion_hospital PRIMARY KEY (id_seleccion_hospital),
         CONSTRAINT FK_seleccion_hospital_seleccion FOREIGN KEY (id_seleccion_mensual) REFERENCES educacion_medica.selecciones_mensuales (id_seleccion_mensual) ON DELETE CASCADE
     );
@@ -889,13 +989,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'codigo_hospital', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_hospital', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del hospital; FK logica -> dbo.genContactosCat.codigoContacto (validar en servicio)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
-        @level2type = N'COLUMN', @level2name = N'codigo_hospital';
+        @level2type = N'COLUMN', @level2name = N'id_hospital';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
@@ -929,13 +1029,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'codigo_ejecutivo', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_ejecutivo', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del Ejecutivo de Ventas; FK logica -> app.Usuarios (Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
-        @level2type = N'COLUMN', @level2name = N'codigo_ejecutivo';
+        @level2type = N'COLUMN', @level2name = N'id_ejecutivo';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
@@ -979,23 +1079,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -1012,13 +1112,13 @@ BEGIN
     (
         id_taller                       INT IDENTITY(1,1) NOT NULL,
         id_seleccion_hospital           INT NULL, -- FK: origen en la selección mensual del hospital
-        codigo_hospital                 INT NULL, -- FK lógica -> genContactosCat.codigoContacto
+        id_hospital                 INT NULL, -- FK lógica -> genContactosCat.codigoContacto
         region                          VARCHAR(60) NULL,
         entidad_federativa              VARCHAR(60) NULL, -- Estado (entidad federativa) del formulario
         ciudad_municipio               NVARCHAR(160) NULL,
         numero_participantes            INT NULL,  -- No. de participantes estimados
-        codigo_ejecutivo                INT NULL,   -- FK lógica -> app.Usuarios (Ejecutivo de Ventas)
-        codigo_especialista             INT NULL,   -- FK lógica -> app.Usuarios (Especialista de producto, FOR-006)
+        id_ejecutivo                INT NULL,   -- FK lógica -> app.Usuarios (Ejecutivo de Ventas)
+        id_especialista             INT NULL,   -- FK lógica -> app.Usuarios (Especialista de producto, FOR-006)
         unidad_medica                  NVARCHAR(160) NULL, -- Unidad médica / hospital (FOR-008)
         lugar                          NVARCHAR(200) NULL,  -- Lugar donde se imparte el taller
         fecha_taller                   DATE NULL,   -- fecha programada (dd/mm/aaaa)
@@ -1030,8 +1130,8 @@ BEGIN
         activo                      BIT NOT NULL CONSTRAINT DF_talleres_activo DEFAULT 1,
         fecha_creacion              DATETIME2 NOT NULL CONSTRAINT DF_talleres_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion          DATETIME2 NOT NULL CONSTRAINT DF_talleres_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_taller PRIMARY KEY (id_taller),
         CONSTRAINT FK_talleres_seleccion_hospital FOREIGN KEY (id_seleccion_hospital) REFERENCES educacion_medica.selecciones_mensuales_hospitales (id_seleccion_hospital) ON DELETE NO ACTION,
         CONSTRAINT CK_talleres_estado CHECK (estado IN ('Borrador','Elaborado','Revisado','Autorizado','Programado','EnCurso','Realizado','Cancelado'))
@@ -1075,13 +1175,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'codigo_hospital', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'id_hospital', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del hospital; FK logica -> genContactosCat.codigoContacto (validar en servicio)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'talleres',
-        @level2type = N'COLUMN', @level2name = N'codigo_hospital';
+        @level2type = N'COLUMN', @level2name = N'id_hospital';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
@@ -1125,23 +1225,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'codigo_ejecutivo', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'id_ejecutivo', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del Ejecutivo de Ventas; FK logica -> app.Usuarios (Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'talleres',
-        @level2type = N'COLUMN', @level2name = N'codigo_ejecutivo';
+        @level2type = N'COLUMN', @level2name = N'id_ejecutivo';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'codigo_especialista', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'id_especialista', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del Especialista de producto (FOR-006); FK logica -> app.Usuarios (Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'talleres',
-        @level2type = N'COLUMN', @level2name = N'codigo_especialista';
+        @level2type = N'COLUMN', @level2name = N'id_especialista';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
@@ -1255,23 +1355,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'talleres',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.talleres')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.talleres'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'talleres',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -1288,7 +1388,7 @@ BEGIN
         id_taller_recurso  INT IDENTITY(1,1) NOT NULL,
         id_taller          INT NOT NULL,
         tipo_recurso       VARCHAR(15) NOT NULL,  -- 'Producto' (muestras) | 'Folleto' | 'Envio' | 'BoxLunch'
-        codigo_producto    VARCHAR(50) NULL,      -- FK lógica -> genProductosCat (solo 'Producto')
+        id_producto    VARCHAR(50) NULL,      -- FK lógica -> genProductosCat (solo 'Producto')
         descripcion        NVARCHAR(200) NULL,    -- texto libre (proveedor/notas)
         tipo_envio         VARCHAR(10) NULL,      -- para 'Envio': 'Interno' | 'Externo'
         cantidad           INT NULL,              -- piezas (producto/folleto) o no. de servicios (box lunch)
@@ -1297,8 +1397,8 @@ BEGIN
         observaciones      NVARCHAR(300) NULL,
         fecha_creacion     DATETIME2 NOT NULL CONSTRAINT DF_taller_recursos_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion DATETIME2 NOT NULL CONSTRAINT DF_taller_recursos_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_taller_recurso PRIMARY KEY (id_taller_recurso),
         CONSTRAINT FK_taller_recurso_taller FOREIGN KEY (id_taller) REFERENCES educacion_medica.talleres (id_taller) ON DELETE CASCADE,
         CONSTRAINT CK_taller_recurso_tipo CHECK (tipo_recurso IN ('Producto','Folleto','Envio','BoxLunch'))
@@ -1352,13 +1452,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_recursos')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'codigo_producto', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'id_producto', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del producto; FK logica -> genProductosCat (solo para tipo Producto)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_recursos',
-        @level2type = N'COLUMN', @level2name = N'codigo_producto';
+        @level2type = N'COLUMN', @level2name = N'id_producto';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_recursos')
@@ -1442,23 +1542,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_recursos')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_recursos',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_recursos')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_recursos'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_recursos',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -1487,8 +1587,8 @@ BEGIN
         observaciones                 NVARCHAR(500) NULL,
         fecha_creacion                DATETIME2 NOT NULL CONSTRAINT DF_taller_materiales_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion            DATETIME2 NOT NULL CONSTRAINT DF_taller_materiales_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion       INT NULL,
-        codigo_usuario_modificacion   INT NULL,
+        id_usuario_creacion       INT NULL,
+        id_usuario_modificacion   INT NULL,
         CONSTRAINT PK_taller_material PRIMARY KEY (id_taller_material),
         CONSTRAINT FK_taller_material_taller FOREIGN KEY (id_taller) REFERENCES educacion_medica.talleres (id_taller) ON DELETE CASCADE,
         CONSTRAINT UQ_taller_material_id_taller UNIQUE (id_taller)
@@ -1672,23 +1772,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_materiales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_materiales'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_materiales'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_materiales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_materiales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_materiales'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_materiales'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_materiales',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -1713,8 +1813,8 @@ BEGIN
         observaciones           NVARCHAR(300) NULL,           -- médico líder (+/-) y otras observaciones
         fecha_creacion          DATETIME2 NOT NULL CONSTRAINT DF_taller_asistencias_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion      DATETIME2 NOT NULL CONSTRAINT DF_taller_asistencias_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_taller_asistencia PRIMARY KEY (id_asistencia),
         CONSTRAINT FK_taller_asistencia_taller FOREIGN KEY (id_taller) REFERENCES educacion_medica.talleres (id_taller) ON DELETE CASCADE,
         CONSTRAINT CK_taller_asistencia_numero CHECK (numero BETWEEN 1 AND 20),
@@ -1859,23 +1959,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_asistencias')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_asistencias'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_asistencias'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_asistencias',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_asistencias')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_asistencias'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_asistencias'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_asistencias',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -1891,15 +1991,15 @@ BEGIN
         id_taller           INT NOT NULL,
         rol_firma           VARCHAR(10) NOT NULL,          -- 'Elaboro' | 'Reviso' | 'Autorizo'
         descripcion_rol     NVARCHAR(80) NULL,            -- etiqueta legible (Elaboró/Revisó/Autorizó); el servicio la lee
-        codigo_usuario      INT NULL,                      -- FK lógica -> app.Usuarios (quién firma)
+        id_usuario      INT NULL,                      -- FK lógica -> app.Usuarios (quién firma)
         puesto              NVARCHAR(150) NULL,            -- puesto del firmante (FOR-005)
         estado              VARCHAR(15) NOT NULL DEFAULT 'Pendiente',
         comentario          NVARCHAR(500) NULL,           -- comentario de la aprobacion/rechazo
         fecha_firma         DATETIME2 NULL,               -- cuando se firmó (null mientras Pendiente)
         fecha_creacion      DATETIME2 NOT NULL CONSTRAINT DF_taller_aprobaciones_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion  DATETIME2 NOT NULL CONSTRAINT DF_taller_aprobaciones_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_taller_aprobacion PRIMARY KEY (id_aprobacion),
         CONSTRAINT FK_taller_aprobacion_taller FOREIGN KEY (id_taller) REFERENCES educacion_medica.talleres (id_taller) ON DELETE CASCADE,
         CONSTRAINT UQ_taller_aprobacion_rol UNIQUE (id_taller, rol_firma),
@@ -1965,13 +2065,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_aprobaciones')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'codigo_usuario', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'id_usuario', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Codigo del usuario que firma; FK logica -> app.Usuarios (Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_aprobaciones',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario';
+        @level2type = N'COLUMN', @level2name = N'id_usuario';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_aprobaciones')
@@ -2035,23 +2135,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_aprobaciones')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_aprobaciones',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_aprobaciones')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_aprobaciones'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_aprobaciones',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 -- ============================================================
@@ -2071,8 +2171,8 @@ BEGIN
         fecha_evidencia     DATE NULL,                   -- fecha en que se tomó/capturó la evidencia
         fecha_creacion      DATETIME2 NOT NULL CONSTRAINT DF_taller_evidencias_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion  DATETIME2 NOT NULL CONSTRAINT DF_taller_evidencias_fecha_modificacion DEFAULT SYSUTCDATETIME(),
-        codigo_usuario_creacion     INT NULL,
-        codigo_usuario_modificacion INT NULL,
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
         CONSTRAINT PK_taller_evidencia PRIMARY KEY (id_evidencia),
         CONSTRAINT FK_taller_evidencia_taller FOREIGN KEY (id_taller) REFERENCES educacion_medica.talleres (id_taller) ON DELETE CASCADE,
         CONSTRAINT CK_taller_evidencia_tipo CHECK (tipo_evidencia IN ('foto','video','documento'))
@@ -2176,23 +2276,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_evidencias')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_evidencias'), 'codigo_usuario_creacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_evidencias'), 'id_usuario_creacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que creo el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_evidencias',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_creacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_creacion';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.taller_evidencias')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_evidencias'), 'codigo_usuario_modificacion', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.taller_evidencias'), 'id_usuario_modificacion', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Usuario que modifico el registro (FK logica app.Usuarios, Asokam)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'taller_evidencias',
-        @level2type = N'COLUMN', @level2name = N'codigo_usuario_modificacion';
+        @level2type = N'COLUMN', @level2name = N'id_usuario_modificacion';
 GO
 
 PRINT 'Resumen 0003 (tablas operacionales educacion_medica):';

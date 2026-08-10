@@ -1,21 +1,21 @@
 ---
-codigo: "ASK-VEN-ANX-001"
+codigo: "ASK-VEN-FOR-004"
 tipo: "Referencia"
 area: "Ventas IMSS"
-estado: "Documento referenciado, no incluido en este vault"
+estado: "Documento referenciado, no incluido en el set de documentos"
 aliases:
-  - ASK-VEN-ANX-001
+  - ASK-VEN-FOR-004
 ---
 
-# Base de datos para Reporte de Desplazamiento
+# Reporte Semanal de Visitas Hospitalarias sección IMSS
 
 > **Documento referenciado** en la documentación oficial de Asokam / Lefarma.
 > Este formato o anexo **no fue incluido** en el set de documentos digitalizados de este vault. Se registra como nodo para mantener la trazabilidad de los enlaces.
 
 | Campo | Valor |
 |-------|-------|
-| Código | ASK-VEN-ANX-001 |
-| Nombre | Base de datos para Reporte de Desplazamiento |
+| Código | ASK-VEN-FOR-004 |
+| Nombre | Reporte Semanal de Visitas Hospitalarias sección IMSS |
 | Área | Ventas IMSS |
 
 ## Mencionado en

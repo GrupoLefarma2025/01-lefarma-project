@@ -2,7 +2,7 @@
 
 > Wireframes: [`pantallas2.excalidraw`](./pantallas2.excalidraw)
 > Continúa: [`pantallas.md`](./pantallas.md) (v1 — 16 pantallas: Auth, Shell, Catálogos, Ventas IMSS, Talleres Médicos)
-> Documento de proceso origen: [`vault/Diagramas/Diagrama del Proceso de Ventas Descentralizado.md`](./vault/Diagramas/Diagrama%20del%20Proceso%20de%20Ventas%20Descentralizado.md) (`ASK-VEN-DPD-002`)
+> Documento de proceso origen: [`pdf-to-md/Diagramas/Diagrama del Proceso de Ventas Descentralizado.md`](./pdf-to-md/Diagramas/Diagrama%20del%20Proceso%20de%20Ventas%20Descentralizado.md) (`ASK-VEN-DPD-002`)
 
 Este documento agrega el **módulo Ventas Descentralizado** (pantallas **17–21**), espejo del módulo Ventas IMSS (pantallas 6–10 de v1). El proceso descentralizado reutiliza los **mismos formularios** `ASK-VEN-FOR-*`, por lo que las pantallas comparten estructura; lo que cambia es la **mecánica del proceso**: responsables, plataforma de registro y cadencia del reporte semanal.
 

@@ -6,14 +6,14 @@ area: "General"
 tipo: "Índice"
 ---
 
-# README — Vault de Educación Médica y Ventas IMSS
+# README — Documentos pdf-to-md: Educación Médica y Ventas IMSS
 
-Este vault es una wiki estilo Obsidian generada a partir de los documentos Markdown extraídos de `lefarma.docs/apps/educacion-medica/extracted`.
+Documentos Markdown **convertidos a partir de los PDFs originales** (`referencias/pdf/`). Cada nota corresponde a un PDF: formularios, instructivos, procesos y diagramas de la documentación oficial de Asokam / Lefarma.
 
 ## Estructura de carpetas
 
 ```
-vault/
+pdf-to-md/
 ├── Inicio.md / README.md
 ├── Areas/
 │   ├── Educación Médica.md
@@ -35,20 +35,24 @@ vault/
 ├── Formularios/
 │   ├── ASK-CEM-FOR-002 Base de Datos de Hospitales.md
 │   ├── ASK-CEM-FOR-003 Programa Anual de Talleres Médicos.md
+│   ├── ASK-CEM-FOR-004 Selección de Hospitales para Talleres Médicos.md
 │   ├── ASK-CEM-FOR-005 Matriz de Talleres Médicos.md
 │   ├── ASK-CEM-FOR-006 Calendario de Talleres Médicos.md
+│   ├── ASK-CEM-FOR-007 Material para Talleres Médicos.md
 │   ├── ASK-CEM-FOR-008 Registro de Asistencia.md
 │   ├── ASK-VEN-FOR-001 Metas de Ventas y Desplazamiento.md
 │   └── ASK-VEN-FOR-003 Reporte de Visitas Médicas.md
 ├── Diagramas/
 │   ├── Diagrama del Proceso de Talleres Médicos.md
 │   └── Diagrama del Proceso de Ventas.md
-├── Referencias/                      (16 documentos citados no incluidos en el set)
+├── Referencias/                      (14 documentos citados no incluidos en el set)
 │   ├── ASK-ADM-FOR-001 Solicitud de Viáticos.md
 │   ├── ASK-VEN-FOR-002 Plan de Trabajo (formato).md
 │   └── ...
 ├── Roles/
 │   └── Roles y Abreviaturas.md
+├── Educacion_medica/                 (versiones crudas ED de formularios/instructivos)
+└── Ventas/                            (versiones crudas ED del módulo Ventas)
 ```
 
 ## Convenciones

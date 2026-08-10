@@ -1,7 +1,7 @@
 # Pantallas — App Educación Médica
 
 > Wireframes: [`pantallas.excalidraw`](./pantallas.excalidraw)
-> Documentación fuente: [`extracted/`](./extracted/) y [`vault/`](./vault/)
+> Documentación fuente: [`pdf-to-md/`](./pdf-to-md/) (conversiones de PDF) y [`pdf/`](./pdf/) (originales)
 > Procesos cubiertos: **Talleres Médicos en Hospitales** (Educación Médica) y **Ventas IMSS** (Ventas)
 
 Este documento describe las **16 pantallas** que componen la app, su mapa de navegación, los elementos clave de cada una, el formulario/instructivo de origen (código `ASK-*`) y la matriz de roles con permisos. Cada pantalla tiene una contrapartida visual (frame) en el archivo `.excalidraw`, codificada por color según el módulo.
