@@ -24,7 +24,7 @@ import type {
   UpdateTipoSolicitudRequest,
   EmpleadoDestinatariosResponse
 } from '@/types/solicitudPersonal.types';
-import type { DiaNoHabilFilters, DiaNoHabilResponse } from '@/types/vacaciones.types';
+import type { DiaHabilFilters, DiaHabilResponse } from '@/types/vacaciones.types';
 import type {
   EmpleadoJefesConfigListItem,
   EmpleadoJefesConfigResponse,
@@ -76,8 +76,8 @@ export const misDiasJornadaApi = {
 };
 
 export const diasNoHabilesApi = {
-  get: (request: DiaNoHabilFilters) =>
-    API.get<ApiResponse<DiaNoHabilResponse[]>>('/rh/vacaciones/dias-no-habiles', {
+  get: (request: DiaHabilFilters) =>
+    API.get<ApiResponse<DiaHabilResponse[]>>('/rh/vacaciones/dias-habiles', {
       params: request,
     }),
 };

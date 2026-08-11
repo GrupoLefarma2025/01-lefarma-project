@@ -287,7 +287,7 @@ export default function CrearSolicitudPersonal() {
           form.reset({
             idEmpresa: sp.idEmpresa,
             idSucursal: sp.idSucursal,
-            idArea: sp.idArea,
+            idArea: sp.idArea ?? undefined,
             categoria: tipo?.categoria ?? '',
             idTipoSolicitud: sp.idTipoSolicitud,
             motivo: sp.motivo ?? '',

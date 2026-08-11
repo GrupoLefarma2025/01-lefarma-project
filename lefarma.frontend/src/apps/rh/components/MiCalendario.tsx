@@ -39,7 +39,7 @@ import type {
   IncidenciaChecadoResponse,
   SolicitudPersonalResponse,
 } from '@/types/solicitudPersonal.types';
-import type { DiaNoHabilResponse } from '@/types/vacaciones.types';
+import type { DiaHabilResponse } from '@/types/vacaciones.types';
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -141,7 +141,7 @@ function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
 function useCalendario(anio: number, mes: number) {
   const [eventos, setEventos] = useState<CalendarioGlobalEvento[]>([]);
   const [diasJornada, setDiasJornada] = useState<DiasJornadaResponse | null>(null);
-  const [diasNoHabiles, setDiasNoHabiles] = useState<DiaNoHabilResponse[]>([]);
+  const [diasNoHabiles, setDiasNoHabiles] = useState<DiaHabilResponse[]>([]);
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
   const [loading, setLoading] = useState(false);
 

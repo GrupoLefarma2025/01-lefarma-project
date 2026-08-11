@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
-import { Loader2, RefreshCw, Eye } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { vacacionesApi } from '../../services/vacaciones.api';
-import type { SaldoVacacionesResponse, DiaUsuarioResponse } from '@/types/vacaciones.types';
+import type { SaldoVacacionesResponse } from '@/types/vacaciones.types';
 
 export function SaldosVacacionesPage() {
   usePageTitle('Saldos de vacaciones', 'Lista de saldos de vacaciones');
@@ -17,9 +16,6 @@ export function SaldosVacacionesPage() {
   const [items, setItems] = useState<SaldoVacacionesResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [diasUsuario, setDiasUsuario] = useState<DiaUsuarioResponse[]>([]);
-  const [loadingDias, setLoadingDias] = useState(false);
-  const [selectedUsuario, setSelectedUsuario] = useState<SaldoVacacionesResponse | null>(null);
 
   const loadSaldos = async () => {
     try {
@@ -53,19 +49,6 @@ export function SaldosVacacionesPage() {
     }
   };
 
-  const handleVerDias = async (row: SaldoVacacionesResponse) => {
-    try {
-      setSelectedUsuario(row);
-      setLoadingDias(true);
-      const response = await vacacionesApi.getDiasUsuario({ idUsuario: row.idUsuario, anio: row.anio });
-      setDiasUsuario(response.data.data ?? []);
-    } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al obtener días del usuario');
-    } finally {
-      setLoadingDias(false);
-    }
-  };
-
   const columns: ColumnDef<SaldoVacacionesResponse>[] = [
     { accessorKey: 'usuarioNombre', header: 'Nombre' },
     { accessorKey: 'nomina', header: 'Nómina' },
@@ -76,25 +59,6 @@ export function SaldosVacacionesPage() {
     { accessorKey: 'diasAjustados', header: 'Ajustados' },
     { accessorKey: 'diasTomados', header: 'Tomados' },
     { accessorKey: 'diasPendientes', header: 'Pendientes' },
-    {
-      id: 'acciones',
-      header: 'Acciones',
-      cell: ({ row }) => (
-        <Button variant="ghost" size="sm" onClick={() => handleVerDias(row.original)}>
-          <Eye className="mr-1 h-4 w-4" />
-          Ver días
-        </Button>
-      ),
-    },
-  ];
-
-  const diasColumns: ColumnDef<DiaUsuarioResponse>[] = [
-    { accessorKey: 'fecha', header: 'Fecha' },
-    { accessorKey: 'tipoDiaNombre', header: 'Tipo' },
-    { accessorKey: 'origen', header: 'Origen' },
-    { accessorKey: 'estado', header: 'Estado' },
-    { accessorKey: 'consumeSaldo', header: 'Consume saldo' },
-    { accessorKey: 'comentarios', header: 'Comentarios' },
   ];
 
   return (
@@ -145,29 +109,6 @@ export function SaldosVacacionesPage() {
           </div>
         </CardContent>
       </Card>
-
-      <Modal
-        id="dias-usuario-modal"
-        open={selectedUsuario != null}
-        setOpen={(open) => {
-          if (!open) {
-            setSelectedUsuario(null);
-            setDiasUsuario([]);
-          }
-        }}
-        title={`Días de ${selectedUsuario?.usuarioNombre ?? 'Usuario'} — Nómina: ${selectedUsuario?.nomina ?? '—'} | Año: ${selectedUsuario?.anio ?? '—'}`}
-        size="wide"
-      >
-        <div className="py-4">
-          <DataTable
-            columns={diasColumns}
-            data={diasUsuario}
-            loading={loadingDias}
-            pagination
-            pageSize={5}
-          />
-        </div>
-      </Modal>
     </div>
   );
 }
