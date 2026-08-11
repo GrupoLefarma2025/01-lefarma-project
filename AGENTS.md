@@ -153,7 +153,10 @@ lefarma.docs/<modulo>/
 ### ADR format (decisiones/)
 
 - Frontmatter: `fecha_creacion`, `fecha_modificacion`, `resumen`.
-- Body: índice, Decisión (short), fases with the deep "why" (not just "what"), validación against legacy systems, anexo listing fuentes.
+- Body (Nygard-based, ordered): `Status`, índice, Decisión (short), fases with the deep "why" (not just "what"), validación against legacy systems, Consequences, anexo listing fuentes.
+- `Status` values: `Proposed` | `Accepted` | `Deprecated` | `Superseded`. Put it as the first `##` section after frontmatter, before Índice.
+- `Consequences` section: positive, negative, and neutral outcomes that follow from the decision. May trigger follow-up ADRs (note them here).
+- Superseding: when a decision is replaced, do NOT rewrite the original ADR. Mark its `Status` as `Superseded by ADR-NNNNN` and create a new ADR referencing it.
 - Citations: source filename + literal quoted text. Never "guía #N" or "renglón N".
 
 ### Database planning rules

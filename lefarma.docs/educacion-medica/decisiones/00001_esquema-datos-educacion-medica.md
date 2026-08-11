@@ -1,13 +1,18 @@
 ---
 fecha_creacion: 2026-08-10 13:54
-fecha_modificacion: 2026-08-10 13:54
+fecha_modificacion: 2026-08-10 18:25
 resumen: Planificación del módulo Educación Médica (proceso Talleres Médicos en Hospitales): schema de base de datos, backend y frontend.
 ---
 
 # 00001 — Esquema de datos del módulo Educación Médica
 
+## Status
+
+Accepted
+
 ## Índice
 
+- [[#Status|Status]]
 - [[#Decisión|Decisión]]
 - [[#Fases|Fases]]
 - [[#Fase 0 — Planificación|Fase 0 — Planificación]]
@@ -23,6 +28,7 @@ resumen: Planificación del módulo Educación Médica (proceso Talleres Médico
 - [[#Fase 3 — Frontend|Fase 3 — Frontend]]
   - [[#3.1 Catálogo de pantallas — cada pantalla, su origen y quién la usa|3.1 Pantallas]]
   - [[#3.2 Permisos — cada permiso y por qué existe|3.2 Permisos]]
+- [[#Consequences|Consequences]]
 - [[#Anexo — Archivos originales|Anexo — Archivos originales]]
 - [[#Referencias técnicas|Referencias técnicas]]
 
@@ -98,6 +104,8 @@ Cada tabla traza a un formulario; la columna "Origen" cita el campo del formular
 
 Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 
+> **Reconciliación gerencia vs institución (2026-08-10):** `tipo_gerencia` (equipo de ventas: IMSS/Descentralizado/Privado) es un eje **distinto** de la institución (tipo de hospital: IMSS/ISSSTE/Bienestar/...). **ISSSTE NO es una gerencia** — es un contacto institucional (`genContactosCat.codigoContacto = 370`) y se clasifica vía la jerarquía `codigoContactoPrincipal`, no vía este catálogo. El catálogo propio es intencional: `Asokam.dbo.genGerenciasCat` tiene valores que no aplican al módulo (`GRA`/`ADIS`/`TODOS`). La clasificación por institución se deriva en la vista `educacion_medica.vw_hospitales_clasificados` (script 0004), cross-DB desde Asokam.
+
 #### 1.2.1 `hospital_extension` — FOR-002 (Base de Datos de Hospitales)
 
 **Porqué existe:** el hospital YA existe en `genContactosCat` (Asokam). Esta tabla **extiende** 1:1 ese catálogo con lo que el módulo calcula: las anestesias. El papel pide subtotales por columna; si alguien los captura a mano, se equivoca — por eso las columnas son `PERSISTED` (la BD calcula y guarda, cero error manual).
@@ -127,7 +135,7 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 |---|---|---|
 | `fecha` | Fecha del programa | El programa es anual (*"escribir el año correspondiente al programa"*); `DATE` para capturar el año |
 | `definicion` | Objetivo del programa | La fila "Definición" del formato  |
-| `periodo_inicio` / `periodo_fin` | Meses 1–12 (CHECK) | El formato permite promocionar por periodos (renglones 3–4); los meses son TINYINT porque solo hay 12 |
+| `periodo_inicio` / `periodo_fin` | Meses 1–12 (CHECK) | El formato permite promocionar por periodos ([[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-003 Programa Anual de Talleres Médicos|FOR-003]], campos "Inicio (Periodo)" / "Fin (Periodo)"); los meses son TINYINT porque solo hay 12 |
 | `id_tipo_gerencia` | Gerencia del programa | FK física → catálogo `tipo_gerencia` : un programa pertenece a un equipo de ventas |
 | `tipo_hospital` | `Con SIA` / `Sin SIA` | Los hospitales objetivo se clasifican por SIA |
 | `numero_hospitales` | N° de hospitales objetivo al año | Cuántos se visitarán en el año |
@@ -180,12 +188,12 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 |---|---|---|
 | `id_seleccion_hospital` | Origen | Trazabilidad: de qué selección mensual salió el taller |
 | `id_hospital` + `region`/`entidad_federativa`/`ciudad_municipio` | Hospital y ubicación | Misma fuente validada que §1.2.5 (`zona`, `genEstadosCat`, municipio capturado) |
-| `numero_participantes` | Asistentes estimados | FOR-005 #6 |
-| `id_ejecutivo` | Coordinador | FK lógica → `app.Usuarios` (EV; FOR-005 #7) |
+| `numero_participantes` | Asistentes estimados | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campo "No. de participantes" |
+| `id_ejecutivo` | Coordinador | FK lógica → `app.Usuarios` (EV; [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campo "Ejecutivo") |
 | `id_especialista` | Quién imparte | FK lógica → `app.Usuarios` (EP; FOR-008 encabezado) |
 | `unidad_medica` / `lugar` | Dónde | FOR-008 encabezado |
-| `fecha_taller` / `hora_taller` | Cuándo | FOR-005 #8–9, FOR-006 |
-| `requiere_equipo_proyeccion` + `tipo_equipo_proyeccion` (`Propio`/`Rentado`) | Logística de proyección | FOR-005 #10–11 |
+| `fecha_taller` / `hora_taller` | Cuándo | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campos "Fecha de taller" / "Hora"; FOR-006 |
+| `requiere_equipo_proyeccion` + `tipo_equipo_proyeccion` (`Propio`/`Rentado`) | Logística de proyección | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campos "¿Se requiere llevar equipo de proyección?" / "¿Propio o rentado?" |
 | `estado` | State machine | Ciclo de firmas del papel: **Borrador → Elaborado → Revisado → Autorizado → Programado → EnCurso → Realizado/Cancelado** (CHECK en BD + transiciones validadas en servicio) |
 | `observaciones` | Notas | Campo libre del formato |
 
@@ -198,9 +206,9 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 | `tipo_recurso` | `Producto` / `Folleto` / `Envio` / `BoxLunch` | Discriminador polimórfico |
 | `id_producto` | Producto (solo `Producto`) | FK lógica → `genProductosCat` (muestras) |
 | `descripcion` | Texto libre | Proveedor / notas |
-| `tipo_envio` | `Interno` / `Externo` | Solo `Envio` (FOR-005 #16) |
-| `cantidad` | Piezas o servicios | FOR-005 #13–14, #18 |
-| `costo_unitario` | $MXN | FOR-005 #15, #17, #19 |
+| `tipo_envio` | `Interno` / `Externo` | Solo `Envio` ([[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campo "Tipo interno o externo") |
+| `cantidad` | Piezas o servicios | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campos "Cantidad (piezas)" / "Cantidad de folletos (piezas)" / "Cantidad (no. de servicios)" |
+| `costo_unitario` | $MXN | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos|FOR-005]], campo "Costo unitario" (folleto/envío/box lunch) |
 | `subtotal` | cantidad × costo | Lo calcula el servicio (no computed: depende del detalle) |
 | — | `talleres.costo_total` | SUM de subtotales en el servicio al mutar recursos (regla 1.4) |
 
@@ -227,12 +235,12 @@ La coordinación de entrega (regla IDT-004: CDMX 4:30–6:30 p.m. / foránea por
 | Columna | Qué guarda | Porqué |
 |---|---|---|
 | `numero` | No. en lista | 1–20 (CHECK), límite del formato |
-| `nombre_medico` | Médico | FOR-008 #9 |
+| `nombre_medico` | Médico | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Nombre" |
 | `cedula_profesional` | Cédula | **Adición del sistema** (el papel no la pide): identifica al médico líder para tecnovigilancia |
-| `puesto_medico` | Puesto | FOR-008 #10 (ej. jefe de anestesiología) |
-| `telefono_celular` / `correo_electronico` | Contacto | FOR-008 #11–12 |
-| `firma_url` | Firma escaneada | FOR-008 #13: la firma en papel se fotografía/escanea; guardamos la URL |
-| `observaciones` | Médico líder +/− | FOR-008 #13 (guía): registrar quién es líder positivo/negativo del producto |
+| `puesto_medico` | Puesto | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Puesto" (ej. jefe de anestesiología) |
+| `telefono_celular` / `correo_electronico` | Contacto | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campos "Teléfono Celular" / "Correo electrónico" |
+| `firma_url` | Firma escaneada | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Firma": la firma en papel se fotografía/escanea; guardamos la URL |
+| `observaciones` | Médico líder +/− | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Observaciones": registrar quién es líder positivo/negativo del producto |
 
 #### 1.2.10 `taller_aprobaciones` — pie de firmas del proceso (no es formulario)
 
@@ -439,6 +447,23 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 | `educacion_medica.evidencias.puede_gestionar` | Subir/borrar evidencias | EP/EV tras `Realizado` |
 
 **Regla de asignación:** un rol acumula permisos según su papel en los flujos de los instructivos (IDT-003: GV selecciona y GG firma; IDT-004: AEM gestiona material y EV confirma recibo; FOR-005: EV elabora, GV/CA revisan, DC autoriza). La autorización (`puede_autorizar`) **no** incluye captura: separación de funciones como en el papel (quien elabora no autoriza).
+
+---
+
+## Consequences
+
+**Positivas:**
+- Schema aislado en Lefarma (`educacion_medica`): si Asokam migra o cambia de app, el módulo no se ve afectado.
+- Catálogos con fuente única de verdad (`genContactosCat`, `genProductosCat`): sin desincronización por duplicación.
+- Entrega por fases (DB → backend → frontend) reduce riesgo y permite validación incremental.
+
+**Negativas:**
+- Consultas cross-DB (Lefarma ↔ Asokam) requeridas: añaden complejidad de validación y latencia.
+- FK lógica (no física) hacia Asokam: la integridad referencial se enforce en la app, no en la BD — riesgo de huérfanos si un catálogo Asokam se elimina.
+- Sin migraciones EF: los cambios de schema requieren scripts SQL manuales numerados (más disciplina, menos automatización).
+
+**Neutras:**
+- Probablemente dispare ADRs de seguimiento para detalles de implementación específicos (endpoints, permisos, pantallas).
 
 ---
 
