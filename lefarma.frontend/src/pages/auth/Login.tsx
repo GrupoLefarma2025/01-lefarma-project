@@ -1,4 +1,4 @@
-﻿import { useState, FormEvent, useEffect, useMemo } from 'react';
+﻿import { useState, FormEvent, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ export default function Login() {
     loginStepOne,
     loginStepTwo,
     loginStepThree,
+    resolveArea,
     resetLoginFlow,
   } = useAuthStore();
 
@@ -58,6 +59,8 @@ export default function Login() {
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
   const [selectedSucursal, setSelectedSucursal] = useState('');
   const [error, setError] = useState('');
+  // Evita doble auto-commit del paso 3 (StrictMode monta efectos dos veces) — patrón HandoffLogin
+  const ranRef = useRef(false);
   // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
@@ -116,6 +119,37 @@ export default function Login() {
   useEffect(() => {
     if (isAuthenticated) navigate('/dashboard', { replace: true });
   }, [isAuthenticated, navigate]);
+
+  // Área resuelta por la regla única (REQ-001): solo lectura, nunca un control (REQ-004/007)
+  const resolvedArea = useMemo(() => {
+    const empId = effectiveEmpresa || selectedEmpresa;
+    if (!empId) return null;
+    return resolveArea(empId);
+  }, [effectiveEmpresa, selectedEmpresa, resolveArea]);
+
+  // Auto-commit del paso 3 cuando el detalle resuelve empresa + sucursal + área válidas (REQ-004).
+  // ranRef: mismo patrón que HandoffLogin — StrictMode monta efectos dos veces en dev; evita
+  // el doble commit. Se rearma al salir del paso 3 para permitir re-login en el mismo mount.
+  useEffect(() => {
+    if (loginStep !== 3) {
+      ranRef.current = false;
+      return;
+    }
+    if (ranRef.current || isLoading || isAuthenticated) return;
+    if (!usuarioDetalle || usuarioDetalle.idEmpresa <= 0 || usuarioDetalle.idSucursal <= 0) return;
+
+    const empId = String(usuarioDetalle.idEmpresa);
+    const sucId = String(usuarioDetalle.idSucursal);
+    const empValida = empresas.some((e) => String(e.idEmpresa) === empId);
+    const sucValida = sucursales.some(
+      (s) => String(s.idEmpresa) === empId && String(s.idSucursal) === sucId
+    );
+    if (!empValida || !sucValida) return;
+    if (!resolveArea(empId)) return;
+
+    ranRef.current = true;
+    void loginStepThree(empId, sucId);
+  }, [loginStep, isLoading, isAuthenticated, usuarioDetalle, empresas, sucursales, resolveArea, loginStepThree]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
@@ -472,6 +506,16 @@ export default function Login() {
                       No hay sucursales disponibles para esta empresa.
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Área — solo lectura, asignada por administración (REQ-004/007) */}
+              {(effectiveEmpresa || selectedEmpresa) && resolvedArea && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Área</label>
+                  <div className="rounded-md border bg-muted px-3 py-2 text-sm">
+                    {resolvedArea.nombre}
+                  </div>
                 </div>
               )}
 
