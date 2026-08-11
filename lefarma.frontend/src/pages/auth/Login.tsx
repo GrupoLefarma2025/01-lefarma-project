@@ -45,11 +45,13 @@ export default function Login() {
     sucursales,
     puedeSeleccionarEmpresas,
     usuarioDetalle,
+    profileError,
     loginStepOne,
     loginStepTwo,
     loginStepThree,
     resolveArea,
     resetLoginFlow,
+    loadProfile,
   } = useAuthStore();
 
   const [username, setUsername] = useState(pendingUsername || '');
@@ -61,6 +63,10 @@ export default function Login() {
   const [error, setError] = useState('');
   // Evita doble auto-commit del paso 3 (StrictMode monta efectos dos veces) — patrón HandoffLogin
   const ranRef = useRef(false);
+  // Selección manual del usuario en el paso 3: bloquea el auto-commit y la auto-selección.
+  // No se resetea al reintentar el profile a propósito: la elección manual sobrevive al retry.
+  // Se limpia solo al salir del paso 3 (submit o volver).
+  const manualSelectionRef = useRef(false);
   // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
@@ -86,8 +92,9 @@ export default function Login() {
   }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, sucursales]);
 
   // Valores efectivos: auto-selección o los del usuario
-  const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;
-  const effectiveSucursal = autoSelectedSucursal ?? selectedSucursal;
+  // (si hubo selección manual en este paso, la auto-selección cede ante ella)
+  const effectiveEmpresa = manualSelectionRef.current ? selectedEmpresa : autoSelectedEmpresa ?? selectedEmpresa;
+  const effectiveSucursal = manualSelectionRef.current ? selectedSucursal : autoSelectedSucursal ?? selectedSucursal;
 
   const sucursalesFiltradas = sucursales.filter((s) => {
     if (!s.idSucursal || s.idSucursal === undefined) return false;
@@ -136,9 +143,11 @@ export default function Login() {
   useEffect(() => {
     if (loginStep !== 3) {
       ranRef.current = false;
+      manualSelectionRef.current = false;
       return;
     }
     if (puedeSeleccionarEmpresas) return;
+    if (manualSelectionRef.current) return;
     if (ranRef.current || isLoading || isAuthenticated) return;
     if (!usuarioDetalle || usuarioDetalle.idEmpresa <= 0 || usuarioDetalle.idSucursal <= 0) return;
 
@@ -434,6 +443,22 @@ export default function Login() {
                 </div>
               )}
 
+              {profileError && (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span className="text-sm">{profileError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadProfile()}
+                    className="shrink-0 text-sm font-medium underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
+
               {displayName && (
                 <div className="bg-primary/10 rounded-lg px-4 py-2 text-center text-primary">
                   <p className="text-sm font-medium">Bienvenido, {displayName}</p>
@@ -452,6 +477,7 @@ export default function Login() {
                 <Select
                   value={effectiveEmpresa || selectedEmpresa}
                   onValueChange={(val) => {
+                    manualSelectionRef.current = true;
                     setSelectedEmpresa(val);
                     setSelectedSucursal('');
                   }}
@@ -487,7 +513,10 @@ export default function Login() {
                   </label>
                   <Select
                     value={effectiveSucursal || selectedSucursal}
-                    onValueChange={setSelectedSucursal}
+                    onValueChange={(val) => {
+                      manualSelectionRef.current = true;
+                      setSelectedSucursal(val);
+                    }}
                     disabled={sucursalesFiltradas.length === 0}
                   >
                     <SelectTrigger>

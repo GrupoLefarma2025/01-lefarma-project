@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 
 const LEGACY_TOKEN_KEY = 'token';
 
+const PROFILE_LOAD_ERROR = 'No se pudo cargar tu perfil. Puedes seleccionar empresa y sucursal manualmente.';
+
 // Single área resolver (REQ-001):
 // detalle.idArea (>0, ∈ empresa areas) → única área of empresa → null.
 // Never picks the first área when multiple exist, never prompts the user.
@@ -62,6 +64,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   hasFirma: null,
   puedeSeleccionarEmpresas: false,
   usuarioDetalle: null,
+  profileError: null,
 
 
   loginStepOne: async (username: string) => {
@@ -119,6 +122,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Obtener perfil para saber si puede seleccionar empresas y su empresa asignada
       let puedeSeleccionar = false;
       let usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null = null;
+      let profileError: string | null = null;
       try {
         const profileRes = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number } }>>('/profile');
         puedeSeleccionar = profileRes.data.data?.puedeSeleccionarEmpresas ?? false;
@@ -130,7 +134,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           };
         }
       } catch {
-        // Si falla el profile, se asume que no puede seleccionar
+        // fallo de red / profile caído: no bloquear el paso 3, dejar selección manual
+        puedeSeleccionar = true;
+        profileError = PROFILE_LOAD_ERROR;
       }
 
       // Sincronizar con configStore
@@ -180,6 +186,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           areas,
           puedeSeleccionarEmpresas: false,
           usuarioDetalle,
+          profileError,
           empresa: unicaEmpresa,
           sucursal: unicaSucursal,
           area: areaResuelta,
@@ -210,6 +217,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         areas,
         puedeSeleccionarEmpresas: puedeSeleccionar,
         usuarioDetalle,
+        profileError,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -393,9 +401,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           : null,
         puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
         hasFirma: detalle ? !!detalle.firmaPath : false,
+        profileError: null,
       });
     } catch {
-      set({ hasFirma: false });
+      set({ hasFirma: false, profileError: PROFILE_LOAD_ERROR });
     }
   },
 
