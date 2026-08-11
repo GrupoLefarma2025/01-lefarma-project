@@ -446,13 +446,13 @@ export default function CrearOrdenCompra() {
     empresa: empresaSession,
     sucursal: sucursalSession,
     area: areaSession,
-    user,
+    usuarioDetalle,
+    resolveArea,
   } = useAuthStore();
-  const userDomain = user?.dominio;
   const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
+  const [, setSucursales] = useState<Sucursal[]>([]);
+  const [, setAreas] = useState<Area[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [medidas, setMedidas] = useState<Medida[]>([]);
@@ -473,7 +473,7 @@ export default function CrearOrdenCompra() {
     defaultValues: {
       idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
-      idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
+      idArea: Number(areaSession?.idArea ?? usuarioDetalle?.idArea ?? resolveArea(empresaSession?.idEmpresa ?? 0)?.idArea ?? 0),
       idTipoGasto: 0,
       fechaLimitePago: '',
       idMoneda: 1,
@@ -494,21 +494,14 @@ export default function CrearOrdenCompra() {
     name: 'partidas',
   });
 
-  const selectedEmpresaId = form.watch('idEmpresa');
-  const selectedEmpresa = empresas.find((e) => e.idEmpresa === selectedEmpresaId);
-  const empresaNombre = selectedEmpresa?.nombre?.toLowerCase() || '';
-  const canChangeEmpresa =
-    userDomain?.toLowerCase() === 'grupolefarma' && empresaNombre.startsWith('artricenteer');
-
-  const filteredSucursales = useMemo(() => {
-    if (!selectedEmpresaId) return sucursales;
-    return sucursales.filter((s) => s.idEmpresa === selectedEmpresaId);
-  }, [sucursales, selectedEmpresaId]);
-
-  const filteredAreas = useMemo(() => {
-    if (!selectedEmpresaId) return areas;
-    return areas.filter((a) => a.idEmpresa === selectedEmpresaId);
-  }, [areas, selectedEmpresaId]);
+  const isGrupoLefarma = /grupolefarma/i.test(empresaSession?.nombre ?? '');
+  const empresasSeleccionables = useMemo(() => {
+    if (!isGrupoLefarma) return empresas;
+    const filtradas = empresas.filter((e) => !/grupolefarma/i.test(e.nombre));
+    return empresaSession
+      ? [empresaSession, ...filtradas.filter((e) => e.idEmpresa !== empresaSession.idEmpresa)]
+      : filtradas;
+  }, [empresas, isGrupoLefarma, empresaSession]);
 
   const sinDatosFiscales = form.watch('sinDatosFiscales');
   const agregarProveedorPorPartida = form.watch('agregarProveedorPorPartida');
@@ -1098,11 +1091,10 @@ export default function CrearOrdenCompra() {
                         control={form.control}
                         name="idEmpresa"
                         render={({ field }) => (
-                            <PermissionElement require="orden_compra.puede_cambiar_empresa">
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              // disabled={!canChangeEmpresa}
+                              disabled={!isGrupoLefarma}
                               onValueChange={(val) => {
                                 field.onChange(Number(val));
                               }}
@@ -1114,89 +1106,26 @@ export default function CrearOrdenCompra() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {empresas.map((e) => (
-                                  <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
+                                {empresasSeleccionables.map((e) => (
+                                  <SelectItem
+                                    key={e.idEmpresa}
+                                    value={String(e.idEmpresa)}
+                                    disabled={isGrupoLefarma && e.idEmpresa === empresaSession?.idEmpresa}
+                                  >
                                     {e.nombre}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {!canChangeEmpresa && (
+                            {!isGrupoLefarma && (
                               <FormDescription className="text-xs text-muted-foreground">
                                 La empresa no se puede cambiar
                               </FormDescription>
                             )}
                             <FormMessage />
                           </FormItem>
-                          </PermissionElement>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="idSucursal"
-                        render={({ field }) => (
-                          <PermissionElement require="orden_compra.puede_cambiar_sucursal">
-
-                        
-                              <FormItem>
-                                <FormLabel>Sucursal *</FormLabel>
-                                <Select
-                                  onValueChange={(val) => {
-                                    field.onChange(Number(val));
-                                  }}
-                                  value={field.value ? String(field.value) : ''}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona sucursal..." />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {filteredSucursales.map((s) => (
-                                      <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
-                                        {s.nombre}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            </PermissionElement>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="idArea"
-                        render={({ field }) => (
-                          <PermissionElement require="orden_compra.puede_cambiar_area">
-                          <FormItem>
-                            <FormLabel>Área *</FormLabel>
-                            <Select
-                              onValueChange={(val) => {
-                                field.onChange(Number(val));
-                              }}
-                              value={field.value ? String(field.value) : ''}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona área..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {filteredAreas.map((a) => (
-                                  <SelectItem key={a.idArea} value={String(a.idArea)}>
-                                    {a.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                              <FormMessage />
-                            </FormItem>
-                            </PermissionElement>
-                          )}
-                        />
-
-                        
                       </div>
                   </FormSection>
                 </CardContent>
