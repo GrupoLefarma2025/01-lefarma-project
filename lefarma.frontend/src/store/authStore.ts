@@ -305,11 +305,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ sucursal });
   },
 
-  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => {
+  // REQ-006: context switch re-resolves the área for the new empresa (detalle
+  // área kept when it belongs to it, única-área fallback, else null) and ALWAYS
+  // persists it — null removes the stale localStorage key.
+  changeEmpresaSucursal: async (empresa: Empresa, sucursal: Sucursal) => {
     authService.setEmpresa(empresa);
     authService.setSucursal(sucursal);
-    if (area) authService.setArea(area);
-    set({ empresa, sucursal, ...(area ? { area } : {}) });
+
+    // Catalog may be empty here (cleared after login commit / initialize)
+    if (get().areas.length === 0) {
+      const areas = await authService.getAreas();
+      set({ areas });
+    }
+
+    const areaResuelta = get().resolveArea(empresa.idEmpresa);
+    authService.setArea(areaResuelta);
+    set({ empresa, sucursal, area: areaResuelta });
   },
 
   setToken: (token: string) => {

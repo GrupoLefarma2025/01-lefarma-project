@@ -95,7 +95,7 @@ export default function CambiarUbicacionModal({
     }
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!selectedEmpresa) {
       setError('Por favor selecciona una empresa');
       return;
@@ -117,7 +117,7 @@ export default function CambiarUbicacionModal({
         setError('Empresa o sucursal no encontrada');
         return;
       }
-      changeEmpresaSucursal(empresa, sucursal);
+      await changeEmpresaSucursal(empresa, sucursal);
       onOpenChange(false);
     } catch (err: unknown) {
       const message =
