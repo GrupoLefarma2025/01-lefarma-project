@@ -434,6 +434,9 @@ function UnidadMedidaSelector({
   );
 }
 
+// Empresa corporativa Grupo Lefarma — validado contra catalogos.empresas (IdEmpresa = 12)
+const ID_EMPRESA_GRUPO_LEFARMA = 12;
+
 export default function CrearOrdenCompra() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -450,6 +453,8 @@ export default function CrearOrdenCompra() {
     resolveArea,
   } = useAuthStore();
   const [isSaving, setIsSaving] = useState(false);
+  const [datosGeneralesOpen, setDatosGeneralesOpen] = useState(false);
+  const datosGeneralesRef = useRef<HTMLDivElement>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [, setSucursales] = useState<Sucursal[]>([]);
   const [, setAreas] = useState<Area[]>([]);
@@ -878,6 +883,21 @@ export default function CrearOrdenCompra() {
 
     setIsSaving(true);
     try {
+      // Regla de negocio: una OC del grupo lefarma (idempresa 12) no puede
+      // guardarse sin cambiar la empresa en Datos Generales.
+      if (values.idEmpresa === ID_EMPRESA_GRUPO_LEFARMA) {
+        toast.error('Necesitas cambiar la empresa de la orden de compra', {
+          description: `La orden no puede quedar con la empresa Grupo Lefarma. Selecciona otra empresa en Datos Generales para continuar.`,
+          duration: 8000,
+        });
+        setDatosGeneralesOpen(true);
+        setTimeout(() => {
+          datosGeneralesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+        setIsSaving(false);
+        return;
+      }
+
       console.log('🔵 [handleSave] Validando fecha límite...');
       const fechaLimite = new Date(values.fechaLimitePago);
       const today = new Date();
@@ -1069,8 +1089,11 @@ export default function CrearOrdenCompra() {
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}
-          <Collapsible defaultOpen={false}>
-            <Card>
+          <Collapsible
+            open={datosGeneralesOpen}
+            onOpenChange={setDatosGeneralesOpen}
+          >
+            <Card ref={datosGeneralesRef}>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer pb-4">
                   <CardTitle className="flex items-center justify-between text-lg font-semibold">
@@ -1094,7 +1117,7 @@ export default function CrearOrdenCompra() {
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              disabled={!isGrupoLefarma}
+                              disabled={!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA}
                               onValueChange={(val) => {
                                 field.onChange(Number(val));
                               }}
@@ -1110,14 +1133,13 @@ export default function CrearOrdenCompra() {
                                   <SelectItem
                                     key={e.idEmpresa}
                                     value={String(e.idEmpresa)}
-                                    disabled={isGrupoLefarma && e.idEmpresa === empresaSession?.idEmpresa}
                                   >
                                     {e.nombre}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {!isGrupoLefarma && (
+                            {!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA && (
                               <FormDescription className="text-xs text-muted-foreground">
                                 La empresa no se puede cambiar
                               </FormDescription>
