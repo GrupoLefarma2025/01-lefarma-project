@@ -18,6 +18,30 @@ import { toast } from 'sonner';
 
 const LEGACY_TOKEN_KEY = 'token';
 
+// Single área resolver (REQ-001):
+// detalle.idArea (>0, ∈ empresa areas) → única área of empresa → null.
+// Never picks the first área when multiple exist, never prompts the user.
+function resolveAreaFrom(
+  detalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null,
+  areas: Area[],
+  empresaId: string | number
+): Area | null {
+  const detalleAreaId = detalle?.idArea;
+  if (detalleAreaId && detalleAreaId > 0) {
+    const porDetalle = areas.find(
+      (a) =>
+        String(a.idArea) === String(detalleAreaId) &&
+        String(a.idEmpresa) === String(empresaId)
+    );
+    if (porDetalle) return porDetalle;
+  }
+
+  const areasDeEmpresa = areas.filter((a) => String(a.idEmpresa) === String(empresaId));
+  if (areasDeEmpresa.length === 1) return areasDeEmpresa[0];
+
+  return null;
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   token: null,
@@ -341,6 +365,36 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
+  resolveArea: (empresaId: string | number) => {
+    const { usuarioDetalle, areas } = get();
+    return resolveAreaFrom(usuarioDetalle, areas, empresaId);
+  },
+
+  loadProfile: async () => {
+    try {
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string } }>>('/profile');
+      const data = response.data.data;
+      const detalle = data?.detalle;
+      set({
+        usuarioDetalle: detalle
+          ? {
+              idEmpresa: detalle.idEmpresa ?? 0,
+              idSucursal: detalle.idSucursal ?? 0,
+              idArea: detalle.idArea ?? null,
+            }
+          : null,
+        puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
+        hasFirma: detalle ? !!detalle.firmaPath : false,
+      });
+    } catch {
+      set({ hasFirma: false });
+    }
+  },
+
+  setCatalogs: (empresas: Empresa[], sucursales: Sucursal[], areas: Area[]) => {
+    set({ empresas, sucursales, areas });
+  },
+
   initialize: () => {
     const legacyToken = localStorage.getItem(LEGACY_TOKEN_KEY);
     if (legacyToken && !localStorage.getItem('accessToken')) {
@@ -380,7 +434,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         correo: user.correo || '',
       });
 
-      get().fetchProfileSignature();
+      // REQ-005: profile load feeds resolveArea/SelectEmpresaSucursal (fire-and-forget)
+      void get().loadProfile();
     } else {
       // No auth data
       set({
