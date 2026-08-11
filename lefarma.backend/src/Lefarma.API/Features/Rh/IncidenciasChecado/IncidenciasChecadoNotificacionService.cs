@@ -497,7 +497,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Fecha</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Día</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Entrada</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Entró</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salida</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salió</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Descripción</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Justificada</th>");
         sb.AppendLine("    </tr>");
@@ -510,6 +512,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             var dia = item.Fecha.ToString("dddd", cultura);
             var entrada = item.Entrada ?? "-";
             var salida = item.Salida ?? "-";
+            var entro = item.Entro ?? "-";
+            var salio = item.Salio ?? "-";
             var justificada = item.Justificada ? "Sí" : "No";
 
             AgregarFila(item.IncidenciaEntrada);
@@ -525,7 +529,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{fecha}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{dia}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{entrada}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{entro}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salida}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salio}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{descripcion}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{justificada}</td>");
                 sb.AppendLine("    </tr>");

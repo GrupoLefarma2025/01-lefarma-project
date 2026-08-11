@@ -4,6 +4,7 @@ using CsvHelper.Configuration;
 using ErrorOr;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Features.Rh.Vacaciones.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
@@ -15,31 +16,38 @@ namespace Lefarma.API.Features.Rh.Vacaciones
 {
     public class VacacionesService : BaseService, IVacacionesService
     {
+        private readonly IAdminRepository _adminRepository;
         private readonly ApplicationDbContext _context;
         private readonly AsistenciasDbContext _asistenciasContext;
         private readonly AsokamDbContext _asokamContext;
 
-        public VacacionesService(ApplicationDbContext context, AsistenciasDbContext asistenciasContext, AsokamDbContext asokamContext, IWideEventAccessor wideEventAccessor)
+        public VacacionesService(
+            IAdminRepository adminRepository,
+            ApplicationDbContext context, 
+            AsistenciasDbContext asistenciasContext, 
+            AsokamDbContext asokamContext, 
+            IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
+            _adminRepository = adminRepository;
             _context = context;
             _asistenciasContext = asistenciasContext;
             _asokamContext = asokamContext;
         }
 
-        protected override string EntityName => "DiasNoHabiles";
+        protected override string EntityName => "DiasHabiles";
 
-        public async Task<ErrorOr<List<DiaNoHabilResponse>>> ObtenerDiasNoHabilesAsync(DiaNoHabilRequest request)
+        public async Task<ErrorOr<List<DiaHabilResponse>>> ObtenerDiasHabilesAsync(DiaHabilRequest request)
         {
             try
             {
-                var query = from d in _context.DiasNoHabiles.AsNoTracking().Where(d => d.Activo)
+                var query = from d in _context.DiasHabiles.AsNoTracking().Where(d => d.Activo)
                               join e in _context.Empresas.AsNoTracking() on d.IdEmpresa equals e.IdEmpresa
                               join s in _context.Sucursales.AsNoTracking() on d.IdSucursal equals s.IdSucursal into sg
                               from s in sg.DefaultIfEmpty()
-                              select new DiaNoHabilResponse
+                              select new DiaHabilResponse
                               {
-                                  IdDiaNoHabil = d.IdDiaNoHabil,
+                                  IdDiaHabil = d.IdDiaHabil,
                                   IdEmpresa = d.IdEmpresa,
                                   EmpresaNombre = e.Nombre,
                                   IdSucursal = d.IdSucursal,
@@ -73,12 +81,12 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("ObtenerDiasNoHabiles", exception: ex);
-                return CommonErrors.InternalServerError("Error al obtener días no hábiles");
+                EnrichWideEvent("ObtenerDiasHabiles", exception: ex);
+                return CommonErrors.InternalServerError("Error al obtener días hábiles");
             }
         }
 
-        public async Task<ErrorOr<CargaDiasNoHabilesResultResponse>> CargarDiasNoHabilesManualAsync(CargaDiasNoHabilesRequest request, int idUsuario)
+        public async Task<ErrorOr<CargaDiasHabilesResultResponse>> CargarDiasHabilesManualAsync(CargaDiasHabilesRequest request, int idUsuario)
         {
             try
             {
@@ -87,16 +95,16 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     Descripcion: f.Descripcion ?? request.DescripcionGeneral,
                     ConsumeSaldo: f.ConsumeSaldo
                 )).ToList();
-                return await CargarDiasNoHabilesInternoAsync(request.IdEmpresa, request.IdSucursal, fechas, idUsuario);
+                return await CargarDiasHabilesInternoAsync(request.IdEmpresa, request.IdSucursal, fechas, idUsuario);
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("CargarDiasNoHabilesManual", exception: ex);
-                return CommonErrors.InternalServerError("Error al cargar días no hábiles");
+                EnrichWideEvent("CargarDiasHabilesManual", exception: ex);
+                return CommonErrors.InternalServerError("Error al cargar días hábiles");
             }
         }
 
-        public async Task<ErrorOr<CargaDiasNoHabilesResultResponse>> CargarDiasNoHabilesDesdeCsvAsync(IFormFile file, int idEmpresa, int? idSucursal, int idUsuario)
+        public async Task<ErrorOr<CargaDiasHabilesResultResponse>> CargarDiasHabilesDesdeCsvAsync(IFormFile file, int idEmpresa, int? idSucursal, int idUsuario)
         {
             try
             {
@@ -118,26 +126,26 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 using var reader = new StreamReader(file.OpenReadStream());
                 using var csv = new CsvReader(reader, csvConfig);
 
-                var rows = csv.GetRecords<CargaDiasNoHabilesCsvRow>().ToList();
+                var rows = csv.GetRecords<CargaDiasHabilesCsvRow>().ToList();
                 var fechas = rows.Select(r => (
                     Fecha: new DateTime(r.Anio, r.Mes, r.Dia),
                     Descripcion: (string?)r.Descripcion,
                     ConsumeSaldo: r.ConsumeSaldo
                 )).ToList();
 
-                return await CargarDiasNoHabilesInternoAsync(idEmpresa, idSucursal, fechas, idUsuario);
+                return await CargarDiasHabilesInternoAsync(idEmpresa, idSucursal, fechas, idUsuario);
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("CargarDiasNoHabilesCsv", exception: ex);
+                EnrichWideEvent("CargarDiasHabilesCsv", exception: ex);
                 return CommonErrors.InternalServerError("Error al procesar el archivo CSV");
             }
         }
 
-        private async Task<ErrorOr<CargaDiasNoHabilesResultResponse>> CargarDiasNoHabilesInternoAsync(
+        private async Task<ErrorOr<CargaDiasHabilesResultResponse>> CargarDiasHabilesInternoAsync(
             int idEmpresa, int? idSucursal, List<(DateTime Fecha, string? Descripcion, bool ConsumeSaldo)> fechas, int idUsuario)
         {
-            var result = new CargaDiasNoHabilesResultResponse
+            var result = new CargaDiasHabilesResultResponse
             {
                 TotalRows = fechas.Count,
                 SuccessCount = 0,
@@ -160,12 +168,12 @@ namespace Lefarma.API.Features.Rh.Vacaciones
 
             try
             {
-                var diasNoHabiles = new List<DiaNoHabil>();
+                var diasHabiles = new List<DiaHabil>();
                 var rowNumber = 1;
 
                 foreach (var (fecha, descripcion, consumeSaldo) in fechas)
                 {
-                    var exists = await _context.DiasNoHabiles
+                    var exists = await _context.DiasHabiles
                         .AsNoTracking()
                         .AnyAsync(d => d.IdEmpresa == idEmpresa
                             && d.Fecha == fecha
@@ -184,7 +192,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         continue;
                     }
 
-                    var diaNoHabil = new DiaNoHabil
+                    var diaHabil = new DiaHabil
                     {
                         IdEmpresa = idEmpresa,
                         IdSucursal = idSucursal,
@@ -196,12 +204,12 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         ConsumeSaldo = consumeSaldo
                     };
 
-                    diasNoHabiles.Add(diaNoHabil);
+                    diasHabiles.Add(diaHabil);
                     result.SuccessCount++;
                     rowNumber++;
                 }
 
-                await _context.DiasNoHabiles.AddRangeAsync(diasNoHabiles);
+                await _context.DiasHabiles.AddRangeAsync(diasHabiles);
                 await _context.SaveChangesAsync();
 
                 var usuariosQuery = _context.UsuariosDetalle
@@ -217,45 +225,20 @@ namespace Lefarma.API.Features.Rh.Vacaciones
 
                 if (tipoFestivo == null)
                     return CommonErrors.NotFound("TipoDia", "FESTIVO");
-
-                var usuarios = await usuariosQuery.Select(u => u.IdUsuario).ToListAsync();
-
-                var diasUsuario = new List<DiaUsuario>();
-
-                foreach (var diaNoHabil in diasNoHabiles)
-                {
-                    foreach (var idUser in usuarios)
-                    {
-                        var alreadyExists = await _context.DiasUsuarios
-                            .AsNoTracking()
-                            .AnyAsync(v => v.IdUsuario == idUser && v.Fecha == diaNoHabil.Fecha && v.Activo);
-
-                        if (alreadyExists) continue;
-
-                        diasUsuario.Add(new DiaUsuario
-                        {
-                            IdUsuario = idUser,
-                            IdEmpresa = idEmpresa,
-                            IdSucursal = idSucursal,
-                            Anio = diaNoHabil.Anio,
-                            Mes = diaNoHabil.Mes,
-                            Dia = diaNoHabil.Dia,
-                            Fecha = diaNoHabil.Fecha,
-                            IdTipoDia = tipoFestivo.IdTipoDia,
-                            Origen = "NO_HABIL",
-                            ConsumeSaldo = diaNoHabil.ConsumeSaldo,
-                            Estado = null,
-                            IdDiaNoHabil = diaNoHabil.IdDiaNoHabil
-                        });
-                    }
-                }
-
-                await _context.DiasUsuarios.AddRangeAsync(diasUsuario);
+                
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
-                result.UsuariosAfectados = usuarios.Count;
-                result.VacacionesGeneradas = diasUsuario.Count;
+                //Obtener el numero de usuarios que estan en la empresa donde se cargaron los dias no habiles
+                var usuariosAfectados = await _context.UsuariosDetalle
+                    .AsNoTracking()
+                    .Where(u => u.IdEmpresa == idEmpresa && u.Activo)
+                    .Select(u => u.IdUsuario)
+                    .Distinct()
+                    .CountAsync();
+
+                result.UsuariosAfectados = usuariosAfectados;
+                result.VacacionesGeneradas = fechas.Count;
 
                 EnrichWideEvent("CargarDiasNoHabiles", count: result.SuccessCount, additionalContext: new Dictionary<string, object>
                 {
@@ -274,106 +257,25 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             }
         }
 
-        public async Task<ErrorOr<Deleted>> EliminarDiaNoHabilAsync(int idDiaNoHabil, int idUsuario)
+        public async Task<ErrorOr<Deleted>> EliminarDiaHabilAsync(int idDiaHabil, int idUsuario)
         {
             try
             {
-                var dia = await _context.DiasNoHabiles.FirstOrDefaultAsync(d => d.IdDiaNoHabil == idDiaNoHabil && d.Activo);
+                var dia = await _context.DiasHabiles.FirstOrDefaultAsync(d => d.IdDiaHabil == idDiaHabil && d.Activo);
                 if (dia == null)
-                    return CommonErrors.NotFound("DiaNoHabil", idDiaNoHabil.ToString());
+                    return CommonErrors.NotFound("DiaHabil", idDiaHabil.ToString());
 
                 dia.Activo = false;
-
-                var diasUsuario = await _context.DiasUsuarios
-                    .Where(v => v.IdDiaNoHabil == idDiaNoHabil && v.Activo)
-                    .ToListAsync();
-
-                foreach (var v in diasUsuario)
-                    v.Activo = false;
 
                 await _context.SaveChangesAsync();
                 return Result.Deleted;
             }
             catch (Exception ex)
             {
-                EnrichWideEvent("EliminarDiaNoHabil", exception: ex);
-                return CommonErrors.InternalServerError("Error al eliminar día no hábil");
+                EnrichWideEvent("EliminarDiaHabil", exception: ex);
+                return CommonErrors.InternalServerError("Error al eliminar día hábil");
             }
         }
-
-        public async Task<ErrorOr<List<DiaUsuarioResponse>>> ObtenerUsuariosAfectadosAsync(int idDiaNoHabil)
-        {
-            try
-            {
-                var result = await _context.DiasUsuarios
-                    .AsNoTracking()
-                    .Where(v => v.IdDiaNoHabil == idDiaNoHabil && v.Activo)
-                    .Select(v => new DiaUsuarioResponse
-                    {
-                        IdDiaUsuario = v.IdDiaUsuario,
-                        IdUsuario = v.IdUsuario,
-                        IdEmpresa = v.IdEmpresa,
-                        IdSucursal = v.IdSucursal,
-                        Fecha = v.Fecha,
-                        IdTipoDia = v.IdTipoDia,
-                        TipoDiaNombre = v.TipoDia != null ? v.TipoDia.Nombre : null,
-                        Origen = v.Origen,
-                        Estado = v.Estado,
-                        ConsumeSaldo = v.ConsumeSaldo,
-                        IdDiaNoHabil = v.IdDiaNoHabil,
-                        Comentarios = v.Comentarios
-                    })
-                    .ToListAsync();
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("ObtenerUsuariosAfectados", exception: ex);
-                return CommonErrors.InternalServerError("Error al obtener vacaciones de usuarios");
-            }
-        }
-
-        public async Task<ErrorOr<List<DiaUsuarioResponse>>> ObtenerDiasUsuarioAsync(DiaUsuarioRequest request)
-        {
-            try
-            {
-                var query = _context.DiasUsuarios
-                    .AsNoTracking()
-                    .Where(d => d.IdUsuario == request.IdUsuario && d.Activo)
-                    .AsQueryable();
-
-                if (request.Anio.HasValue)
-                    query = query.Where(d => d.Anio == request.Anio.Value);
-
-                var result = await query
-                    .OrderByDescending(d => d.Fecha)
-                    .Select(d => new DiaUsuarioResponse
-                    {
-                        IdDiaUsuario = d.IdDiaUsuario,
-                        IdUsuario = d.IdUsuario,
-                        IdEmpresa = d.IdEmpresa,
-                        IdSucursal = d.IdSucursal,
-                        Fecha = d.Fecha,
-                        IdTipoDia = d.IdTipoDia,
-                        TipoDiaNombre = d.TipoDia != null ? d.TipoDia.Nombre : null,
-                        Origen = d.Origen,
-                        Estado = d.Estado,
-                        ConsumeSaldo = d.ConsumeSaldo,
-                        IdDiaNoHabil = d.IdDiaNoHabil,
-                        Comentarios = d.Comentarios
-                    })
-                    .ToListAsync();
-
-                return result;
-            }
-            catch (Exception ex)
-            {
-                EnrichWideEvent("ObtenerDiasUsuario", exception: ex);
-                return CommonErrors.InternalServerError("Error al obtener días del usuario");
-            }
-        }
-
         public async Task<ErrorOr<List<SaldoVacacionesResponse>>> ObtenerSaldosAsync(SaldoVacacionesRequest request)
         {
             try
@@ -463,7 +365,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         {
             try
             {
-                var usuario = await _context.UsuariosDetalle.AsNoTracking().FirstOrDefaultAsync(u => u.IdUsuario == request.IdUsuario && u.Activo);
+                var usuario = await _adminRepository.GetUsuarioDetalleAsync(request.IdUsuario);
                 if (usuario == null)
                     return CommonErrors.NotFound("Usuario", request.IdUsuario.ToString());
 
@@ -648,6 +550,47 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 EnrichWideEvent("SincronizarSaldos", exception: ex);
                 return CommonErrors.InternalServerError("Error al sincronizar saldos de vacaciones");
             }
+        }
+
+        public async Task<ErrorOr<List<UsuarioAfectadoResponse>>> ObtenerUsuariosAfectadosAsync(int idDiaHabil)
+        {
+            var dia = await _context.DiasHabiles
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.IdDiaHabil == idDiaHabil && d.Activo);
+
+            if (dia == null)
+                return CommonErrors.NotFound("DiaHabil", idDiaHabil.ToString());
+
+            var query = from u in _context.UsuariosDetalle
+                        join e in _context.Empresas on u.IdEmpresa equals e.IdEmpresa
+                        join s in _context.Sucursales on u.IdSucursal equals s.IdSucursal into sg
+                        from s in sg.DefaultIfEmpty()
+                        where u.IdEmpresa == dia.IdEmpresa && u.Activo
+                        select new { u, e, s };
+
+            var usuarios = await query.ToListAsync();
+
+            // Obtener nombres de Asokam
+            var idsUsuarios = usuarios.Select(x => x.u.IdUsuario).Distinct().ToList();
+            var nombres = await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => idsUsuarios.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName);
+
+            var result = usuarios.Select(x => new UsuarioAfectadoResponse
+            {
+                IdUsuario = x.u.IdUsuario,
+                NombreCompleto = nombres.GetValueOrDefault(x.u.IdUsuario),
+                NumeroEmpleado = x.u.NumeroEmpleado,
+                Puesto = x.u.Puesto,
+                IdEmpresa = x.u.IdEmpresa,
+                EmpresaNombre = x.e.Nombre,
+                IdSucursal = x.u.IdSucursal,
+                SucursalNombre = x.s?.Nombre,
+                Activo = x.u.Activo
+            }).ToList();
+
+            return result;
         }
     }
 }

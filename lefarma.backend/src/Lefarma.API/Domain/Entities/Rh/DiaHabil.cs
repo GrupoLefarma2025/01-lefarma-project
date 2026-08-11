@@ -1,8 +1,8 @@
 namespace Lefarma.API.Domain.Entities.Rh
 {
-    public class DiaNoHabil
+    public class DiaHabil
     {
-        public int IdDiaNoHabil { get; set; }
+        public int IdDiaHabil { get; set; }
         public int IdEmpresa { get; set; }
         public int? IdSucursal { get; set; }
         public int Anio { get; set; }

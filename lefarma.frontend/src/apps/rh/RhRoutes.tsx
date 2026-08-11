@@ -11,7 +11,7 @@ import SolicitudesPersonal from './pages/SolicitudesPersonal';
 import GestionSolicitudes from './pages/GestionSolicitudes';
 import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
-import { DiasLibresPage } from './pages/Vacaciones/DiasLibresPage';
+import { DiasHabilesPage } from './pages/Vacaciones/DiasHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
 import JefesNivelesList from './pages/JefesNivelesList';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
@@ -43,7 +43,12 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
       <>
         <Route path="dashboard" element={<RhDashboard />} />
 
-        <Route path="solicitudes" element={<SolicitudesPersonal />} />
+        <Route path="solicitudes" element={
+        <PermissionGuard require="solicitud_personal.ver_listado">
+              <SolicitudesPersonal />
+            </PermissionGuard>
+            } 
+        />
 
         <Route
           path="solicitudes/gestion"
@@ -73,10 +78,10 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         />
 
         <Route
-          path="vacaciones/dias-libres"
+          path="vacaciones/dias-habiles"
           element={
-            <PermissionGuard require="vacaciones.ver">
-              <DiasLibresPage />
+            <PermissionGuard require="vacaciones.dias_habiles.ver">
+              <DiasHabilesPage />
             </PermissionGuard>
           }
         />
@@ -84,14 +89,22 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="vacaciones/saldos"
           element={
-            <PermissionGuard require="vacaciones.ver">
+            <PermissionGuard require="vacaciones.saldos.ver">
               <SaldosVacacionesPage />
             </PermissionGuard>
           }
         />
 
+        <Route
+          path="jefes-niveles"
+          element={
+            <PermissionGuard require="solicitud_personal.jefes_niveles.ver">
+              <JefesNivelesList />
+            </PermissionGuard>
+          }
+        />
+
         <Route path="perfil" element={<Perfil />} />
-        <Route path="jefes-niveles" element={<JefesNivelesList />} />
 
         <Route path="perfil/configuracion" element={<PerfilConfig />} />
       </>

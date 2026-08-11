@@ -46,29 +46,29 @@ import { toApiError } from '@/utils/errors';
 import { authService } from '@/shared/auth/authService';
 import { vacacionesApi } from '../../services/vacaciones.api';
 import {
-  buildPlantillaDiasNoHabilesCsv,
+  buildPlantillaDiasHabilesCsv,
   downloadCsv,
-  parseDiasNoHabilesCsv,
+  parseDiasHabilesCsv,
   parseConsumeSaldo,
 } from '@/utils/csv';
 import type {
-  DiaNoHabilResponse,
-  DiaUsuarioResponse,
-  DiaNoHabilFechaRequest,
+  DiaHabilResponse,
+  UsuarioAfectadoResponse,
+  DiaHabilFechaRequest,
 } from '@/types/vacaciones.types';
 import type { Empresa } from '@/types/auth.types';
 
-interface StagedItem extends DiaNoHabilFechaRequest {
+interface StagedItem extends DiaHabilFechaRequest {
   source: 'manual' | 'csv';
   rowNumber?: number;
   idEmpresa: number | '__all__';
   empresaNombre: string;
 }
 
-export function DiasLibresPage() {
-  usePageTitle('Días Libres y Calendario Laboral', 'Gestión de días de asueto oficiales y los días especiales');
+export function DiasHabilesPage() {
+  usePageTitle('Días Habiles y Calendario Laboral', 'Gestión de días de asueto oficiales y los días especiales');
 
-  const [items, setItems] = useState<DiaNoHabilResponse[]>([]);
+  const [items, setItems] = useState<DiaHabilResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [selectedEmpresa, setSelectedEmpresa] = useState<string>('__all__');
@@ -91,7 +91,7 @@ export function DiasLibresPage() {
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   // Usuarios afectados
-  const [afectados, setAfectados] = useState<DiaUsuarioResponse[] | null>(null);
+  const [afectados, setAfectados] = useState<UsuarioAfectadoResponse[] | null>(null);
   const [loadingAfectados, setLoadingAfectados] = useState(false);
   const [diaADesactivar, setDiaADesactivar] = useState<number | null>(null);
 
@@ -119,12 +119,12 @@ export function DiasLibresPage() {
   const loadDias = async () => {
     try {
       setLoading(true);
-      const response = await vacacionesApi.getDiasNoHabiles({
+      const response = await vacacionesApi.getDiasHabiles({
         idEmpresa: selectedEmpresa !== '__all__' ? Number(selectedEmpresa) : undefined,
       });
       setItems(response.data.data ?? []);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al cargar días libres');
+      toast.error(toApiError(error).message ?? 'Error al cargar días hábiles');
     } finally {
       setLoading(false);
     }
@@ -143,11 +143,11 @@ export function DiasLibresPage() {
     setIsDeleting(true);
     setDiaADesactivar(null);
     try {
-      await vacacionesApi.deleteDiaNoHabil(id);
-      toast.success('Día libre desactivado');
+      await vacacionesApi.deleteDiaHabil(id);
+      toast.success('Día hábil desactivado');
       loadDias();
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al desactivar día libre');
+      toast.error(toApiError(error).message ?? 'Error al desactivar día hábil');
     } finally {
       setIsDeleting(false);
     }
@@ -165,7 +165,7 @@ export function DiasLibresPage() {
     }
   };
 
-  const mainColumns: ColumnDef<DiaNoHabilResponse>[] = [
+  const mainColumns: ColumnDef<DiaHabilResponse>[] = [
     {
       accessorKey: 'fecha',
       header: 'Fecha',
@@ -182,7 +182,7 @@ export function DiasLibresPage() {
     },
     {
       accessorKey: 'consumeSaldo',
-      header: 'Consume saldo',
+      header: 'Permite vacaciones',
       cell: ({ row }) =>
         row.original.consumeSaldo ? (
           <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
@@ -208,7 +208,7 @@ export function DiasLibresPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => handleVerAfectados(row.original.idDiaNoHabil)}
+            onClick={() => handleVerAfectados(row.original.idDiaHabil)}
             title="Ver usuarios asignados"
           >
             <Users className="mr-1 h-4 w-4" />
@@ -217,7 +217,7 @@ export function DiasLibresPage() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setDiaADesactivar(row.original.idDiaNoHabil)}
+            onClick={() => setDiaADesactivar(row.original.idDiaHabil)}
             disabled={isDeleting}
             title="Desactivar día"
           >
@@ -247,7 +247,7 @@ export function DiasLibresPage() {
     },
     {
       id: 'consumeSaldo',
-      header: 'Consume saldo',
+      header: 'Permite vacaciones',
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Switch
@@ -280,13 +280,36 @@ export function DiasLibresPage() {
     },
   ];
 
+  const usuariosColumns: ColumnDef<UsuarioAfectadoResponse>[] = [
+  {
+    accessorKey: 'numeroEmpleado',
+    header: 'Nomina',
+    cell: ({ row }) => row.original.numeroEmpleado ?? '—',
+  },
+  {
+    accessorKey: 'nombreCompleto',
+    header: 'Nombre',
+    cell: ({ row }) => row.original.nombreCompleto ?? `Usuario ${row.original.idUsuario}`,
+  },
+  /* {
+    accessorKey: 'puesto',
+    header: 'Puesto',
+    cell: ({ row }) => row.original.puesto ?? '—',
+  }, */
+  {
+    accessorKey: 'sucursalNombre',
+    header: 'Sucursal',
+    cell: ({ row }) => row.original.sucursalNombre ?? '—',
+  },
+];
+
   // --- Helpers ---
-  const fechaKey = (f: DiaNoHabilFechaRequest) =>
+  const fechaKey = (f: DiaHabilFechaRequest) =>
     `${f.anio}-${String(f.mes).padStart(2, '0')}-${String(f.dia).padStart(2, '0')}`;
 
   const stagedKey = (s: StagedItem) => `${s.source}:${s.idEmpresa}:${fechaKey(s)}`;
 
-  const existeDuplicado = (nueva: DiaNoHabilFechaRequest, empresaIds: number[]) => {
+  const existeDuplicado = (nueva: DiaHabilFechaRequest, empresaIds: number[]) => {
     const nuevaKey = fechaKey(nueva);
     const targetIds = new Set(empresaIds);
     const enBd = items.some((i) => {
@@ -362,7 +385,7 @@ export function DiasLibresPage() {
       return;
     }
     setCsvFile(file);
-    const parsed = await parseDiasNoHabilesCsv(file);
+    const parsed = await parseDiasHabilesCsv(file);
     if (parsed.errorMessage) {
       setCsvError(parsed.errorMessage);
       toast.error(parsed.errorMessage);
@@ -448,7 +471,7 @@ export function DiasLibresPage() {
     try {
       setIsSaving(true);
 
-      const requests = new Map<number, DiaNoHabilFechaRequest[]>();
+      const requests = new Map<number, DiaHabilFechaRequest[]>();
       for (const item of stagedItems) {
         const empresaIds = getTargetEmpresaIds(item);
         for (const idEmpresa of empresaIds) {
@@ -460,7 +483,7 @@ export function DiasLibresPage() {
       let totalGuardados = 0;
       let totalErrores = 0;
       for (const [idEmpresa, fechas] of requests) {
-        const response = await vacacionesApi.createDiasNoHabiles({
+        const response = await vacacionesApi.createDiasHabiles({
           idEmpresa,
           fechas,
           descripcionGeneral: undefined,
@@ -472,7 +495,7 @@ export function DiasLibresPage() {
         }
       }
 
-      toast.success(`${totalGuardados} día(s) libre(s) guardado(s)`);
+      toast.success(`${totalGuardados} día(s) hábile(s) guardado(s)`);
       if (totalErrores > 0) {
         toast.error(`${totalErrores} día(s) no se pudieron guardar por duplicados u otros errores`);
       }
@@ -481,20 +504,20 @@ export function DiasLibresPage() {
       loadDias();
       setIsModalOpen(false);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al guardar días libres');
+      toast.error(toApiError(error).message ?? 'Error al guardar días habiles');
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDescargarPlantilla = () => {
-    const blob = buildPlantillaDiasNoHabilesCsv();
-    downloadCsv(blob, 'plantilla_dias_libres.csv');
+    const blob = buildPlantillaDiasHabilesCsv();
+    downloadCsv(blob, 'plantilla_dias_habiles.csv');
   };
 
   const handleDescargarEjemplo = () => {
-    const blob = buildPlantillaDiasNoHabilesCsv();
-    downloadCsv(blob, 'ejemplo_dias_libres.csv');
+    const blob = buildPlantillaDiasHabilesCsv();
+    downloadCsv(blob, 'ejemplo_dias_habiles.csv');
   };
 
   const handleCloseModal = () => {
@@ -540,7 +563,7 @@ export function DiasLibresPage() {
       <div className="flex justify-end">
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Añadir día(s) libre
+          Añadir día(s) hábil
         </Button>
       </div>
 
@@ -548,19 +571,19 @@ export function DiasLibresPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Filtros</CardTitle>
-          <CardDescription>Filtra los días libres guardados.</CardDescription>
+          <CardDescription>Filtra los días hábiles guardados.</CardDescription>
         </CardHeader>
         <CardContent>{renderFiltros()}</CardContent>
       </Card>
 
-      {/* Tabla principal: días libres en BD */}
+      {/* Tabla principal: días hábiles en BD */}
       <div className="min-h-[300px]">
         {items.length === 0 && !loading ? (
           <div className="rounded-2xl border border-dashed bg-card p-2">
             <EmptyState
               icon={<Inbox className="h-10 w-10" />}
-              title="No hay días libres"
-              description="No hay días libres guardados para la empresa seleccionada. Usa el botón de arriba para agregar."
+              title="No hay días hábiles"
+              description="No hay días hábiles guardados para la empresa seleccionada. Usa el botón de arriba para agregar."
             />
           </div>
         ) : (
@@ -568,12 +591,12 @@ export function DiasLibresPage() {
             columns={mainColumns}
             data={items}
             loading={loading}
-            title="Lista de días libres"
+            title="Lista de días hábiles"
             showRefreshButton
             onRefresh={loadDias}
             globalFilter
             filterConfig={{
-              tableId: 'dias-libres-guardados',
+              tableId: 'dias-habiles-guardados',
               searchableColumns: ['fecha', 'descripcion', 'empresaNombre'],
               defaultSearchColumns: ['descripcion'],
             }}
@@ -585,10 +608,10 @@ export function DiasLibresPage() {
 
       {/* Modal de carga */}
       <Modal
-        id="modal-carga-dias-libres"
+        id="modal-carga-dias-habiles"
         open={isModalOpen}
         setOpen={handleCloseModal}
-        title="Añadir días libres"
+        title="Añadir días hábiles"
         size="wide"
         footer={
           <div className="flex justify-end gap-2">
@@ -617,7 +640,7 @@ export function DiasLibresPage() {
                     <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                       <Calendar className="h-5 w-5 text-primary" />
                     </div>
-                    Agregar día libre
+                    Agregar día hábil
                   </CardTitle>
                   <Badge variant="secondary">Manual</Badge>
                 </div>
@@ -783,7 +806,7 @@ export function DiasLibresPage() {
                 title={`Cola de días por guardar (${stagedItems.length})`}
                 globalFilter
                 filterConfig={{
-                  tableId: 'dias-libres-cola',
+                  tableId: 'dias-habiles-cola',
                   searchableColumns: ['anio', 'descripcion', 'empresaNombre'],
                   defaultSearchColumns: ['descripcion'],
                 }}
@@ -795,65 +818,35 @@ export function DiasLibresPage() {
         </div>
       </Modal>
 
-      {/* Usuarios afectados */}
-      {afectados !== null && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Usuarios afectados</CardTitle>
-              <Button variant="ghost" size="sm" onClick={() => setAfectados(null)}>
-                Cerrar
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loadingAfectados ? (
-              <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Cargando...
-              </div>
-            ) : afectados.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No hay usuarios afectados.</p>
-            ) : (
-              <div className="max-h-60 overflow-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/60">
-                    <tr>
-                      <th className="px-3 py-2 text-left">ID Usuario</th>
-                      <th className="px-3 py-2 text-left">Fecha</th>
-                      <th className="px-3 py-2 text-left">Tipo día</th>
-                      <th className="px-3 py-2 text-left">Origen</th>
-                      <th className="px-3 py-2 text-left">Consume saldo</th>
-                      <th className="px-3 py-2 text-left">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {afectados.map((a) => (
-                    <tr key={a.idDiaUsuario}>
-                      <td className="px-3 py-2">{a.idUsuario}</td>
-                      <td className="px-3 py-2">
-                        {new Date(a.fecha).toLocaleDateString('es-MX')}
-                      </td>
-                      <td className="px-3 py-2">{a.tipoDiaNombre ?? '—'}</td>
-                      <td className="px-3 py-2">{a.origen}</td>
-                      <td className="px-3 py-2">{a.consumeSaldo ? 'Sí' : 'No'}</td>
-                      <td className="px-3 py-2">{a.estado ?? '—'}</td>
-                    </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+      
+      <Modal
+        id="modal-usuarios-afectados"
+        open={afectados !== null}
+        setOpen={() => setAfectados(null)}
+        title={`Usuarios afectados — ${empresaNombre}`}
+        size="md"
+      >
+        {loadingAfectados ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : afectados?.length === 0 ? (
+          <p>No hay usuarios en esta empresa.</p>
+        ) : (
+          <DataTable
+            columns={usuariosColumns}
+            data={afectados ?? []}
+            pagination
+            pageSize={10}
+          />
+        )}  
+      </Modal>
+
       {/* Confirmación desactivar */}
       <AlertDialog open={diaADesactivar !== null} onOpenChange={(open) => !open && setDiaADesactivar(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Desactivar día libre?</AlertDialogTitle>
+            <AlertDialogTitle>¿Desactivar día hábil?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción desactivará el día libre y las vacaciones generadas para los usuarios. Puedes volver a activarlo más tarde.
+              Esta acción desactivará el día hábil y las vacaciones generadas para los usuarios. Puedes volver a activarlo más tarde.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -10,7 +10,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public string? EmpresaNombre { get; set; }
         public int IdSucursal { get; set; }
         public string? SucursalNombre { get; set; }
-        public int IdArea { get; set; }
+        public int? IdArea { get; set; }
         public string? AreaNombre { get; set; }
         public int? IdEstado { get; set; }
         public string? EstadoNombre { get; set; }

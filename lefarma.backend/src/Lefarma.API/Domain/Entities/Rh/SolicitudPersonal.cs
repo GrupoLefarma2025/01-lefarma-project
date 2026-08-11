@@ -12,7 +12,7 @@ namespace Lefarma.API.Domain.Entities.Rh
 
         public int IdEmpresa { get; set; }
         public int IdSucursal { get; set; }
-        public int IdArea { get; set; }
+        public int? IdArea { get; set; }
         public int IdUsuarioCreador { get; set; }
         public int? IdUsuarioSolicitante { get; set; }
 

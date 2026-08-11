@@ -86,9 +86,6 @@ const CATEGORIAS = [
 ];
 
 const solicitudSchema = z.object({
-  idEmpresa: z.number().positive('Seleccione una empresa'),
-  idSucursal: z.number().positive('Seleccione una sucursal'),
-  idArea: z.number().positive('Seleccione un área'),
   categoria: z.string().min(1, 'Seleccione una categoría'),
   idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
   idUsuarioSolicitante: z.number().optional(),
@@ -178,9 +175,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
   const form = useForm<FormValues>({
     resolver: zodResolver(solicitudSchema),
     defaultValues: {
-      idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
-      idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
-      idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
       categoria: '',
       idTipoSolicitud: 0,
       idUsuarioSolicitante: undefined,
@@ -195,9 +189,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     },
   });
 
-  const selectedEmpresaId = form.watch('idEmpresa');
-  const selectedSucursalId = form.watch('idSucursal');
-  const selectedAreaId = form.watch('idArea');
   const selectedCategoria = form.watch('categoria');
   const selectedTipoSolicitudId = form.watch('idTipoSolicitud');
   const watchedFechaInicio = form.watch('fechaInicio');
@@ -232,19 +223,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     return disabled;
   }, [selectedTipoSolicitud, hoy, checaEmpleado]);
 
-  const selectedEmpresa = useMemo(
-    () => empresas.find((e) => e.idEmpresa === selectedEmpresaId),
-    [empresas, selectedEmpresaId]
-  );
-  const selectedSucursal = useMemo(
-    () => sucursales.find((s) => s.idSucursal === selectedSucursalId),
-    [sucursales, selectedSucursalId]
-  );
-  const selectedArea = useMemo(
-    () => areas.find((a) => a.idArea === selectedAreaId),
-    [areas, selectedAreaId]
-  );
-
   const pideDiasSolicitados = selectedTipoSolicitud?.pideDiasSolicitados ?? false;
   const esMultiDia = (selectedTipoSolicitud?.requiereFechaFin ?? false) && !pideDiasSolicitados;
 
@@ -260,16 +238,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     if (!esMultiDia && watchedFechaInicio) return 1;
     return 0;
   }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin]);
-
-  const filteredSucursales = useMemo(() => {
-    if (!selectedEmpresaId) return sucursales;
-    return sucursales.filter((s) => s.idEmpresa === selectedEmpresaId);
-  }, [sucursales, selectedEmpresaId]);
-
-  const filteredAreas = useMemo(() => {
-    if (!selectedEmpresaId) return areas;
-    return areas.filter((a) => a.idEmpresa === selectedEmpresaId);
-  }, [areas, selectedEmpresaId]);
 
   const tiposPorCategoria = useMemo(() => {
     if (!selectedCategoria) return [];
@@ -407,9 +375,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
         if (res.data.success && res.data.data) {
           const sp = res.data.data;
           form.reset({
-            idEmpresa: sp.idEmpresa,
-            idSucursal: sp.idSucursal,
-            idArea: sp.idArea,
             categoria: sp.categoria,
             idTipoSolicitud: sp.idTipoSolicitud,
             motivo: sp.motivo ?? '',
@@ -492,9 +457,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
 
       const payload: CreateSolicitudPersonalRequest = {
         idSolicitud: isEditing ? Number(idSolicitud) : 0,
-        idEmpresa: values.idEmpresa,
-        idSucursal: values.idSucursal,
-        idArea: values.idArea,
         idTipoSolicitud: values.idTipoSolicitud,
         motivo: values.motivo || null,
         lugarComision: values.lugarComision || null,
@@ -576,110 +538,6 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     <div className="space-y-6">
       <Form {...form}>
         <form className="space-y-6">
-          <Collapsible defaultOpen={false}>
-            <Card>
-              <CollapsibleTrigger asChild>
-                <CardHeader className="cursor-pointer pb-4">
-                  <CardTitle className="flex items-center justify-between text-lg font-semibold">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-5 w-5" />
-                      Datos Generales
-                    </div>
-                    <ChevronDown className="h-5 w-5 transition-transform duration-200 group-data-[state=open]:rotate-180" />
-                  </CardTitle>
-                </CardHeader>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <CardContent className="space-y-6">
-                  <FormSection icon={Building2} title="Ubicación">
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <FormField
-                        control={form.control}
-                        name="idEmpresa"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Empresa *</FormLabel>
-                            <Select
-                              value={field.value ? String(field.value) : ''}
-                              onValueChange={(v) => field.onChange(Number(v))}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleccionar empresa" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {empresas.map((e) => (
-                                  <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
-                                    {e.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="idSucursal"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Sucursal *</FormLabel>
-                            <Select
-                              value={field.value ? String(field.value) : ''}
-                              onValueChange={(v) => field.onChange(Number(v))}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleccionar sucursal" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {filteredSucursales.map((s) => (
-                                  <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
-                                    {s.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="idArea"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel>Área</FormLabel>
-                            <Select
-                              value={field.value ? String(field.value) : ''}
-                              onValueChange={(v) => field.onChange(Number(v))}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Seleccionar área" />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {filteredAreas.map((a) => (
-                                  <SelectItem key={a.idArea} value={String(a.idArea)}>
-                                    {a.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  </FormSection>
-                </CardContent>
-              </CollapsibleContent>
-            </Card>
-          </Collapsible>
 
           <Card>
             <CardHeader className="pb-4">
@@ -1048,19 +906,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                 </div>
                 <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Empresa</span>
-                    <span className="font-medium">{selectedEmpresa?.nombre ?? '-'}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Sucursal</span>
-                    <span className="font-medium">{selectedSucursal?.nombre ?? '-'}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Área</span>
-                    <span className="font-medium">{selectedArea?.nombre ?? '-'}</span>
-                  </div>
-                  <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Tipo</span>
+                    <span className="text-muted-foreground">Tipo solicitud</span>
                     <span className="font-medium">{selectedTipoSolicitud?.nombre ?? '-'}</span>
                   </div>
                   <div className="flex justify-between gap-2">

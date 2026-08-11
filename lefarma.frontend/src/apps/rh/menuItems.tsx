@@ -57,11 +57,6 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         path: '/rh/catalogos/tipos-solicitud',
         permission: { require: 'tipos-solicitud.ver_listado' },
       },
-      {
-        title: 'Jefes por Niveles',
-        icon: UserCog,
-        path: '/rh/jefes-niveles',
-      },
     ],
   },
   {
@@ -83,16 +78,29 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     isCollapsible: true,
     items: [
       {
-        title: 'Días libres y calendario laboral',
+        title: 'Días hábiles y calendario laboral',
         icon: CalendarDays,
-        path: '/rh/vacaciones/dias-libres',
-        permission: { require: 'vacaciones.ver' },
+        path: '/rh/vacaciones/dias-habiles',
+        permission: { require: 'vacaciones.dias_habiles.ver' },
       },
       {
         title: 'Saldos',
         icon: CalendarDays,
         path: '/rh/vacaciones/saldos',
-        permission: { require: 'vacaciones.ver' },
+        permission: { require: 'vacaciones.saldos.ver' },
+      },
+    ],
+  },
+  {
+    title: 'Configuración',
+    icon: Settings,
+    isCollapsible: true,
+    items: [
+      {
+        title: 'Jefes y niveles de empleados',
+        icon: UserCog,
+        path: '/rh/jefes-niveles',
+        permission: { require: 'solicitud_personal.jefes_niveles.ver' },
       },
     ],
   },
