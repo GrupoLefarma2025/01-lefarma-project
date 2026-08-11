@@ -160,10 +160,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           authService.setSucursal(unicaSucursal);
         }
 
-        // Mantener sucursales y areas disponibles (filtradas por empresa) para el paso 3
-        const areasDeEmpresa = areas.filter(
-          (a) => !a.idSucursal || String(a.idSucursal) === String(unicaEmpresa.idEmpresa)
-        );
+        // REQ-001: área resuelta por detalle → única de la empresa → null (nunca la primera).
+        // Se usa el helper puro con los locales porque el store aún no tiene catalogs aquí.
+        const areaResuelta = resolveAreaFrom(usuarioDetalle, areas, unicaEmpresa.idEmpresa);
+        authService.setArea(areaResuelta);
 
         set({
           user: response.user,
@@ -182,7 +182,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           usuarioDetalle,
           empresa: unicaEmpresa,
           sucursal: unicaSucursal,
-          area: areasDeEmpresa.length === 1 ? areasDeEmpresa[0] : null,
+          area: areaResuelta,
         });
 
         useConfigStore.getState().updatePerfil({
@@ -217,8 +217,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  loginStepThree: async (empresaId: string, sucursalId: string, areaId?: string) => {
-    const { empresas, sucursales, areas } = get();
+  loginStepThree: async (empresaId: string, sucursalId: string) => {
+    const { empresas, sucursales } = get();
 
     const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
     const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
@@ -230,13 +230,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     authService.setEmpresa(empresa);
     authService.setSucursal(sucursal);
 
-    let selectedArea: Area | null = null;
-    if (areaId) {
-      selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
-      if (selectedArea) {
-        authService.setArea(selectedArea);
-      }
-    }
+    // REQ-001/002: el resolver es la única fuente del área; setArea se llama SIEMPRE
+    // (null elimina la key 'area' — un área vieja nunca sobrevive).
+    const selectedArea = get().resolveArea(empresaId);
+    authService.setArea(selectedArea);
 
     set({
       empresa,

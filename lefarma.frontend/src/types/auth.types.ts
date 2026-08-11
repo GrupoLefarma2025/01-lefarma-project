@@ -136,7 +136,7 @@ export interface AuthState {
   // New actions for 3-step flow
   loginStepOne: (username: string) => Promise<void>;
   loginStepTwo: (password: string, domain: string) => Promise<void>;
-  loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
+  loginStepThree: (empresaId: string, sucursalId: string) => Promise<void>;
   resetLoginFlow: () => void;
 
   // Área resolver core — admin-managed only (REQ-001/005)

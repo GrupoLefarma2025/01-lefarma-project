@@ -19,7 +19,6 @@ import {
   CheckCircle,
   Building2,
   Building,
-  MapPin,
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
@@ -44,7 +43,6 @@ export default function Login() {
     isAuthenticated,
     empresas,
     sucursales,
-    areas,
     puedeSeleccionarEmpresas,
     usuarioDetalle,
     loginStepOne,
@@ -59,7 +57,6 @@ export default function Login() {
   const [selectedDomain, setSelectedDomain] = useState('');
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
   const [selectedSucursal, setSelectedSucursal] = useState('');
-  const [selectedArea, setSelectedArea] = useState('');
   const [error, setError] = useState('');
   // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
@@ -85,33 +82,15 @@ export default function Login() {
     return null;
   }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, sucursales]);
 
-  const autoSelectedArea = useMemo(() => {
-    if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
-    const { idArea } = usuarioDetalle;
-    if (idArea && idArea > 0) {
-      const existe = areas.some((a) => String(a.idArea) === String(idArea));
-      if (existe) return String(idArea);
-    }
-    return null;
-  }, [puedeSeleccionarEmpresas, usuarioDetalle, areas]);
-
   // Valores efectivos: auto-selección o los del usuario
   const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;
   const effectiveSucursal = autoSelectedSucursal ?? selectedSucursal;
-  const effectiveArea = autoSelectedArea ?? selectedArea;
 
   const sucursalesFiltradas = sucursales.filter((s) => {
     if (!s.idSucursal || s.idSucursal === undefined) return false;
     if (!s.idEmpresa || s.idEmpresa === undefined) return false;
     return String(s.idEmpresa) === String(effectiveEmpresa);
   });
-
-  const areasFiltradas = useMemo(() => {
-    return areas.filter((a) => {
-      if (!a.idArea) return false;
-      return String(a.idEmpresa) === String(effectiveEmpresa);
-    });
-  }, [areas, effectiveEmpresa]);
 
   // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
 
@@ -131,17 +110,6 @@ export default function Login() {
   if (loginStep === 3 && puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
     if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
     if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
-    if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
-  }
-
-  // Si no hay un área válida para la empresa elegida, caer al primero [0] (no dejar vacío)
-  if (
-    loginStep === 3 &&
-    effectiveEmpresa &&
-    areasFiltradas.length > 0 &&
-    !areasFiltradas.some((a) => String(a.idArea) === effectiveArea)
-  ) {
-    setSelectedArea(String(areasFiltradas[0].idArea));
   }
 
   // Navegacion al dashboard: side-effect real, va en efecto
@@ -196,7 +164,6 @@ export default function Login() {
 
     const emp = effectiveEmpresa || selectedEmpresa;
     const suc = effectiveSucursal || selectedSucursal;
-    const ar = effectiveArea || selectedArea;
 
     if (!emp) {
       setError('Por favor selecciona una empresa');
@@ -208,13 +175,8 @@ export default function Login() {
       return;
     }
 
-    if (areasFiltradas.length > 0 && !ar) {
-      setError('Por favor selecciona un área');
-      return;
-    }
-
     try {
-      await loginStepThree(emp, suc, ar);
+      await loginStepThree(emp, suc);
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
@@ -230,7 +192,6 @@ export default function Login() {
       setSelectedDomain('');
       setSelectedEmpresa('');
       setSelectedSucursal('');
-      setSelectedArea('');
     } else {
       resetLoginFlow();
     }
@@ -455,7 +416,6 @@ export default function Login() {
                   onValueChange={(val) => {
                     setSelectedEmpresa(val);
                     setSelectedSucursal('');
-                    setSelectedArea('');
                   }}
                   disabled={!puedeSeleccionarEmpresas}
                 >
@@ -515,45 +475,12 @@ export default function Login() {
                 </div>
               )}
 
-              {/* Área */}
-              {(effectiveEmpresa || selectedEmpresa) && (
-                <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <MapPin className="h-4 w-4" />
-                    Área
-                  </label>
-                  {areasFiltradas.length > 0 ? (
-                    <Select
-                      value={effectiveArea || selectedArea}
-                      onValueChange={setSelectedArea}
-                      disabled={areasFiltradas.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {areasFiltradas.map((area) => (
-                          <SelectItem key={area.idArea} value={String(area.idArea)}>
-                            {area.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm italic text-muted-foreground">
-                      No hay áreas disponibles para esta empresa.
-                    </p>
-                  )}
-                </div>
-              )}
-
               <Button
                 type="submit"
                 className="w-full"
                 disabled={
                   !(effectiveEmpresa || selectedEmpresa) ||
                   !(effectiveSucursal || selectedSucursal) ||
-                  (areasFiltradas.length > 0 && !(effectiveArea || selectedArea)) ||
                   isLoading
                 }
               >
