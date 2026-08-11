@@ -26,6 +26,9 @@ export const Header = () => {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Solo el personal de Grupo Lefarma (empresa 12) puede cambiar de empresa/sucursal
+  const isGrupoLefarma = /grupolefarma/i.test(empresa?.nombre ?? '');
+
   const handleThemeChange = (tema: string) => {
     if (tema === 'light' || tema === 'dark' || tema === 'system') {
       setTema(tema);
@@ -186,10 +189,12 @@ export const Header = () => {
               <User className="mr-2 h-4 w-4" />
               <span>Configuración</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setModalOpen(true)}>
-              <Building2 className="mr-2 h-4 w-4" />
-              <span>Cambiar Ubicación</span>
-            </DropdownMenuItem>
+            {isGrupoLefarma && (
+              <DropdownMenuItem onClick={() => setModalOpen(true)}>
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Cambiar Ubicación</span>
+              </DropdownMenuItem>
+            )}
 
             <DropdownMenuSeparator />
 
