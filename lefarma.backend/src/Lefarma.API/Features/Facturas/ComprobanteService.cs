@@ -6,6 +6,7 @@ using Lefarma.API.Features.Archivos.Services;
 using Lefarma.API.Features.Facturas.DTOs;
 using Lefarma.API.Features.Facturas.Parsing;
 using Lefarma.API.Features.Facturas.SatValidation;
+using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
@@ -206,6 +207,9 @@ public class ComprobanteService : IComprobanteService
                     },
                     idUsuario, ct);
             }
+
+            if (request.IdOrden.HasValue && esPago)
+                await RegistrarCuentaPagoTesoreroAsync(request.IdOrden.Value, idUsuario, request, ct);
 
             await tx.CommitAsync(ct);
             return MapToResponse(comprobante);
@@ -514,6 +518,35 @@ public class ComprobanteService : IComprobanteService
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private async Task RegistrarCuentaPagoTesoreroAsync(int idOrden, int idUsuario, SubirComprobanteRequest request, CancellationToken ct)
+    {
+        var orden = await _db.OrdenesCompra.FirstOrDefaultAsync(o => o.IdOrden == idOrden, ct);
+        if (orden == null) return;
+
+        var banco = request.Banco?.Trim();
+        var numeroCuenta = request.NumeroCuenta?.Trim();
+        var clabe = request.Clabe?.Trim();
+
+        var cuenta = new
+        {
+            idFormaPago  = request.IdFormaPago,
+            formaPago    = request.FormaPago?.Trim(),
+            idBanco      = request.IdBanco,
+            banco,
+            numeroCuenta,
+            clabe,
+        };
+        var json = OrdenCompraDocumentoJson.MergeClavesJson(orden.IdsCuentasBancarias,
+            new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuenta });
+
+        // ponytail: solo se escribe bitácora si hay al menos un dato de cuenta
+        if (!string.IsNullOrWhiteSpace(banco) || !string.IsNullOrWhiteSpace(numeroCuenta) || !string.IsNullOrWhiteSpace(clabe))
+            json = OrdenCompraDocumentoJson.AgregarPagoBitacora(json, idUsuario, banco, numeroCuenta, clabe);
+
+        orden.IdsCuentasBancarias = json;
+        await _db.SaveChangesAsync(ct);
+    }
 
     private async Task RecalcularEstadoPartidaAsync(int idPartida, CancellationToken ct)
     {
