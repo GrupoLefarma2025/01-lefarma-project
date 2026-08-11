@@ -127,7 +127,10 @@ export default function Login() {
     return resolveArea(empId);
   }, [effectiveEmpresa, selectedEmpresa, resolveArea]);
 
-  // Auto-commit del paso 3 cuando el detalle resuelve empresa + sucursal + área válidas (REQ-004).
+  // Auto-commit del paso 3 SOLO cuando el usuario no puede elegir empresa/sucursal
+  // (puedeSeleccionarEmpresas=false) y el detalle resuelve contexto válido (REQ-004).
+  // Cuando puede seleccionar, el paso 3 se muestra con defaults del detalle (prefill abajo)
+  // y el usuario confirma o cambia — el salto lo dejaría a medias sin chance de cambiar.
   // ranRef: mismo patrón que HandoffLogin — StrictMode monta efectos dos veces en dev; evita
   // el doble commit. Se rearma al salir del paso 3 para permitir re-login en el mismo mount.
   useEffect(() => {
@@ -135,6 +138,7 @@ export default function Login() {
       ranRef.current = false;
       return;
     }
+    if (puedeSeleccionarEmpresas) return;
     if (ranRef.current || isLoading || isAuthenticated) return;
     if (!usuarioDetalle || usuarioDetalle.idEmpresa <= 0 || usuarioDetalle.idSucursal <= 0) return;
 
@@ -149,7 +153,7 @@ export default function Login() {
 
     ranRef.current = true;
     void loginStepThree(empId, sucId);
-  }, [loginStep, isLoading, isAuthenticated, usuarioDetalle, empresas, sucursales, resolveArea, loginStepThree]);
+  }, [loginStep, puedeSeleccionarEmpresas, isLoading, isAuthenticated, usuarioDetalle, empresas, sucursales, resolveArea, loginStepThree]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
