@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Modal } from '@/components/ui/modal';
 import { FileSignature } from 'lucide-react';
 import { InlineLoader } from '@/components/ui/inline-loader';
@@ -6,10 +7,13 @@ import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types'
 import type {
   AccionDisponibleResponse,
   FirmarRequest,
+  HistorialWorkflowItemResponse,
+  WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudFirmaTab } from './SolicitudFirmaTab';
 import { SolicitudFirmaModal } from './SolicitudFirmaModal';
+import { SolicitudPersonalPDF } from './PDF/SolicitudPersonalPDF';
 
 interface SolicitudAccionesModalProps {
   open: boolean;
@@ -17,6 +21,8 @@ interface SolicitudAccionesModalProps {
   loading: boolean;
   solicitud: SolicitudPersonalResponse | null;
   acciones: AccionDisponibleResponse[];
+  historial?: HistorialWorkflowItemResponse[];
+  pasosWorkflow?: WorkflowPasoFlowResponse[];
   getEstadoInfo: (
     solicitud:
       | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
@@ -24,6 +30,7 @@ interface SolicitudAccionesModalProps {
       | undefined
   ) => { nombre: string; color: string };
   onFirmar: (req: FirmarRequest) => Promise<boolean>;
+  onEnviarDirector?: (req: FirmarRequest, pdfBlob: Blob) => Promise<boolean>;
   isSubmittingFirma: boolean;
   hasFirma?: boolean;
 }
@@ -36,8 +43,11 @@ export function SolicitudAccionesModal({
   loading,
   solicitud,
   acciones,
+  historial = [],
+  pasosWorkflow = [],
   getEstadoInfo,
   onFirmar,
+  onEnviarDirector,
   isSubmittingFirma,
   hasFirma = true,
 }: SolicitudAccionesModalProps) {
@@ -95,11 +105,39 @@ export function SolicitudAccionesModal({
           onClose={() => setAccionParaFirma(null)}
           accion={accionParaFirma}
           solicitud={solicitud}
+          historial={historial}
+          pasosWorkflow={pasosWorkflow}
           getEstadoInfo={getEstadoInfo}
           onSubmit={onFirmar}
+          onEnviarDirector={onEnviarDirector}
           isSubmitting={isSubmittingFirma}
         />
       )}
+
+      {solicitud &&
+        accionParaFirma?.tipoAccionCodigo === 'ENVIAR_DIRECTOR' &&
+        createPortal(
+          <div
+            id="solicitud-personal-envio-director-pdf-portal"
+            style={{
+              position: 'fixed',
+              left: '-9999px',
+              top: 0,
+              width: '820px',
+              minWidth: '820px',
+              minHeight: '1px',
+              height: 'auto',
+              background: '#ffffff',
+            }}
+          >
+            <SolicitudPersonalPDF
+              solicitud={solicitud}
+              historial={historial}
+              pasosWorkflow={pasosWorkflow}
+            />
+          </div>,
+          document.body
+        )}
     </>
   );
 }

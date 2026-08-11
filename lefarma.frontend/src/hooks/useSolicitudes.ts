@@ -64,6 +64,7 @@ export interface UseSolicitudesAutorizacionesReturn {
     puedeVerTodas: boolean,
     filters?: SolicitudPersonalFilterParams
   ) => Promise<boolean>;
+  enviarDirector: (request: FirmarRequest, pdfBlob: Blob) => Promise<boolean>;
   isSubmittingFirma: boolean;
 }
 
@@ -278,6 +279,45 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     [selectedSolicitud, selectedId, fetchAcciones, fetchDetalleCompleto]
   );
 
+  const enviarDirector = useCallback(
+    async (request: FirmarRequest, pdfBlob: Blob): Promise<boolean> => {
+      if (!selectedSolicitud) return false;
+      setIsSubmittingFirma(true);
+      try {
+        const formData = new FormData();
+        formData.append('IdAccion', String(request.idAccion));
+        if (request.comentario) {
+          formData.append('Comentario', request.comentario);
+        }
+        formData.append('ArchivoPdf', pdfBlob, `${selectedSolicitud.folio}.pdf`);
+
+        const res = await API.post<ApiResponse<FirmarResponse>>(
+          `/solicitudes-personal/${selectedSolicitud.idSolicitud}/enviar-director`,
+          formData
+        );
+        if (res.data?.success) {
+          toast.success(res.data.data?.mensaje ?? 'Solicitud enviada al director correctamente');
+          await fetchAcciones(selectedSolicitud.idSolicitud);
+          if (selectedId != null) {
+            await fetchDetalleCompleto(selectedId);
+          }
+          return true;
+        }
+        toast.error(res.data.message ?? 'No fue posible enviar la solicitud al director');
+        return false;
+      } catch (err: unknown) {
+        const apiErr = toApiError(err);
+        const message =
+          apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al enviar al director';
+        toast.error(message);
+        return false;
+      } finally {
+        setIsSubmittingFirma(false);
+      }
+    },
+    [selectedSolicitud, selectedId, fetchAcciones, fetchDetalleCompleto]
+  );
+
   const getEstadoInfo = useCallback(
     (
       solicitud:
@@ -287,7 +327,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     ) => {
       if (!solicitud) return { nombre: 'Desconocido', color: '#94a3b8' };
       return {
-        nombre: solicitud.estadoNombre ?? `Estado ${solicitud.idEstado ?? '?'}`,
+        nombre: solicitud.estadoNombre ?? `Estado ${solicitud.idEstado ?? '?' }`,
         color: solicitud.estadoColor ?? '#94a3b8',
       };
     },
@@ -323,6 +363,7 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
     pasosWorkflow,
     getEstadoInfo,
     firmar,
+    enviarDirector,
     isSubmittingFirma,
   };
 }

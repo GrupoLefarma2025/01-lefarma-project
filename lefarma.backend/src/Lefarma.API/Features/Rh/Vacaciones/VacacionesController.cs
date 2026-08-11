@@ -24,41 +24,41 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         }
 
         //cargar
-        [HttpGet("dias-no-habiles")]
-        [SwaggerOperation(Summary = "Obtener días no hábiles")]
-        public async Task<IActionResult> ObtenerDiasNoHabiles([FromQuery] DiaNoHabilRequest request)
+        [HttpGet("dias-habiles")]
+        [SwaggerOperation(Summary = "Obtener días hábiles")]
+        public async Task<IActionResult> ObtenerDiasNoHabiles([FromQuery] DiaHabilRequest request)
         {
-            var result = await _service.ObtenerDiasNoHabilesAsync(request);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<List<DiaNoHabilResponse>>
+            var result = await _service.ObtenerDiasHabilesAsync(request);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<List<DiaHabilResponse>>
             {
                 Success = true,
-                Message = "Días no hábiles obtenidos exitosamente.",
+                Message = "Días hábiles obtenidos exitosamente.",
                 Data = data
             }));
         }
 
-        [HttpPost("dias-no-habiles")]
-        [SwaggerOperation(Summary = "Cargar días no hábiles manualmente")]
-        public async Task<IActionResult> CargarDiasNoHabiles([FromBody] CargaDiasNoHabilesRequest request)
+        [HttpPost("dias-habiles")]
+        [SwaggerOperation(Summary = "Cargar días hábiles manualmente")]
+        public async Task<IActionResult> CargarDiasNoHabiles([FromBody] CargaDiasHabilesRequest request)
         {
             var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _service.CargarDiasNoHabilesManualAsync(request, idUsuario);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<CargaDiasNoHabilesResultResponse>
+            var result = await _service.CargarDiasHabilesManualAsync(request, idUsuario);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<CargaDiasHabilesResultResponse>
             {
                 Success = true,
-                Message = "Días no hábiles cargados exitosamente.",
+                Message = "Días hábiles cargados exitosamente.",
                 Data = data
             }));
         }
 
-        [HttpPost("dias-no-habiles/csv")]
-        [SwaggerOperation(Summary = "Cargar días no hábiles desde CSV")]
+        [HttpPost("dias-habiles/csv")]
+        [SwaggerOperation(Summary = "Cargar días hábiles desde CSV")]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> CargarDiasNoHabilesCsv([FromForm] int idEmpresa, [FromForm] int idSucursal, IFormFile file)
+        public async Task<IActionResult> CargarDiasHabilesCsv([FromForm] int idEmpresa, [FromForm] int idSucursal, IFormFile file)
         {
             var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _service.CargarDiasNoHabilesDesdeCsvAsync(file, idEmpresa, idSucursal, idUsuario);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<CargaDiasNoHabilesResultResponse>
+            var result = await _service.CargarDiasHabilesDesdeCsvAsync(file, idEmpresa, idSucursal, idUsuario);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<CargaDiasHabilesResultResponse>
             {
                 Success = true,
                 Message = "CSV procesado exitosamente.",
@@ -66,42 +66,29 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             }));
         }
 
-        [HttpDelete("dias-no-habiles/{id}")]
-        [SwaggerOperation(Summary = "Eliminar un día no hábil")]
-        public async Task<IActionResult> EliminarDiaNoHabil(int id)
+        [HttpDelete("dias-habiles/{id}")]
+        [SwaggerOperation(Summary = "Eliminar un día hábil")]
+        public async Task<IActionResult> EliminarDiaHabil(int id)
         {
             var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            var result = await _service.EliminarDiaNoHabilAsync(id, idUsuario);
+            var result = await _service.EliminarDiaHabilAsync(id, idUsuario);
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             {
                 Success = true,
-                Message = "Día no hábil eliminado exitosamente.",
+                Message = "Día hábil eliminado exitosamente.",
                 Data = null
             }));
         }
 
-        [HttpGet("dias-no-habiles/{id}/usuarios")] 
-        [SwaggerOperation(Summary = "Obtener usuarios afectados por un día no hábil")]
+        [HttpGet("dias-habiles/{id}/usuarios")] 
+        [SwaggerOperation(Summary = "Obtener usuarios afectados por un día hábil")]
         public async Task<IActionResult> ObtenerUsuariosAfectados(int id)
         {
             var result = await _service.ObtenerUsuariosAfectadosAsync(id);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<List<DiaUsuarioResponse>>
+            return result.ToActionResult(this, data => Ok(new ApiResponse<List<UsuarioAfectadoResponse>>
             {
                 Success = true,
                 Message = "Usuarios afectados obtenidos exitosamente.",
-                Data = data
-            }));
-        }
-
-        [HttpGet("dias-usuario")]
-        [SwaggerOperation(Summary = "Obtener días de un usuario")]
-        public async Task<IActionResult> ObtenerDiasUsuario([FromQuery] DiaUsuarioRequest request)
-        {
-            var result = await _service.ObtenerDiasUsuarioAsync(request);
-            return result.ToActionResult(this, data => Ok(new ApiResponse<List<DiaUsuarioResponse>>
-            {
-                Success = true,
-                Message = "Días del usuario obtenidos exitosamente.",
                 Data = data
             }));
         }

@@ -20,9 +20,9 @@ export function getCategoriaNombre(categoria?: string | number | null): string {
 }
 
 export interface CreateSolicitudPersonalRequest {
-  idSolicitud: number;
-  idEmpresa: number;
-  idSucursal: number;
+  idSolicitud?: number;
+  idEmpresa?: number;
+  idSucursal?: number;
   idArea?: number | null;
   idTipoSolicitud: number;
   idUsuarioSolicitante?: number | null;
@@ -48,7 +48,7 @@ export interface SolicitudPersonalResponse {
   empresaNombre?: string;
   idSucursal: number;
   sucursalNombre?: string;
-  idArea: number;
+  idArea?: number | null;
   areaNombre?: string;
   idEstado?: number;
   estadoNombre?: string;

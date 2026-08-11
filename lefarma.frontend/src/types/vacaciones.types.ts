@@ -1,5 +1,5 @@
-export interface DiaNoHabilResponse {
-  idDiaNoHabil: number;
+export interface DiaHabilResponse {
+  idDiaHabil: number;
   idEmpresa: number;
   empresaNombre?: string;
   idSucursal?: number;
@@ -13,7 +13,7 @@ export interface DiaNoHabilResponse {
   consumeSaldo: boolean;
 }
 
-export interface DiaNoHabilFechaRequest {
+export interface DiaHabilFechaRequest {
   anio: number;
   mes: number;
   dia: number;
@@ -21,10 +21,10 @@ export interface DiaNoHabilFechaRequest {
   consumeSaldo: boolean;
 }
 
-export interface CargaDiasNoHabilesRequest {
+export interface CargaDiasHabilesRequest {
   idEmpresa: number;
   idSucursal?: number;
-  fechas: DiaNoHabilFechaRequest[];
+  fechas: DiaHabilFechaRequest[];
   descripcionGeneral?: string;
 }
 
@@ -34,29 +34,13 @@ export interface BulkUploadRowError {
   error: string;
 }
 
-export interface CargaDiasNoHabilesResultResponse {
+export interface CargaDiasHabilesResultResponse {
   totalRows: number;
   successCount: number;
   errorCount: number;
   errors: BulkUploadRowError[];
   usuariosAfectados: number;
   vacacionesGeneradas: number;
-}
-
-export interface DiaUsuarioResponse {
-  idDiaUsuario: number;
-  idUsuario: number;
-  usuarioNombre?: string;
-  idEmpresa: number;
-  idSucursal?: number;
-  fecha: string;
-  idTipoDia: number;
-  tipoDiaNombre?: string;
-  origen: string;
-  estado?: string | null;
-  consumeSaldo: boolean;
-  idDiaNoHabil?: number;
-  comentarios?: string;
 }
 
 export interface SaldoVacacionesResponse {
@@ -76,9 +60,16 @@ export interface SaldoVacacionesResponse {
   activo: boolean;
 }
 
-export interface DiaUsuarioRequest {
+export interface UsuarioAfectadoResponse {
   idUsuario: number;
-  anio?: number;
+  nombreCompleto?: string;
+  numeroEmpleado?: string;
+  puesto?: string;
+  idEmpresa: number;
+  empresaNombre?: string;
+  idSucursal?: number;
+  sucursalNombre?: string;
+  activo: boolean;
 }
 
 export interface SaldoVacacionesRequest {
@@ -110,7 +101,7 @@ export interface SincronizarSaldosResponse {
   omitidos: number;
 }
 
-export interface DiaNoHabilFilters {
+export interface DiaHabilFilters {
   idEmpresa?: number;
   idSucursal?: number;
   anio?: number;

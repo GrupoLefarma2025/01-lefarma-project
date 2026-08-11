@@ -2,6 +2,7 @@
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Shared.Extensions;
 using Lefarma.API.Shared.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
@@ -159,5 +160,25 @@ public class SolicitudPersonalController : ControllerBase
         var result = await _service.ObtenerCalendarioAsync(request, idUsuario);
         return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<CalendarioGlobalEvento>>
         { Success = true, Message = "Calendario obtenido exitosamente.", Data = data }));
+    }
+
+    [HttpPost("{id}/enviar-director")]
+    [Consumes("multipart/form-data")]
+    [SwaggerOperation(Summary = "Enviar solicitud al director con PDF")]
+    public async Task<IActionResult> EnviarDirector(int id, [FromForm] EnviarDirectorRequest request)
+    {
+        var result = await _firmasService.EnviarDirectorAsync(id, request, GetUserId());
+        return result.ToActionResult(this, data => Ok(new ApiResponse<EnviarDirectorResponse>
+        { Success = true, Message = "Solicitud enviada al director.", Data = data }));
+    }
+
+    [HttpPost("externo/respuesta")]
+    [AllowAnonymous]
+    [SwaggerOperation(Summary = "Recibir respuesta del sistema externo")]
+    public async Task<IActionResult> RecibirRespuestaExterna([FromBody] RespuestaSolicitudPersonalExternaRequest request)
+    {
+        var result = await _firmasService.ProcesarRespuestaAsync(request);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<RespuestaSolicitudPersonalExternaResponse>
+        { Success = true, Message = "Respuesta procesada.", Data = data }));
     }
 }

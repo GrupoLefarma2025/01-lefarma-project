@@ -10,4 +10,7 @@ public interface ISolicitudPersonalFirmasService
     Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(int idSolicitud, int idUsuario);
     Task<ErrorOr<AccionMetadataResponse>> GetAccionMetadataAsync(int idSolicitud, int idAccion, int idUsuario);
     Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(int idSolicitud);
+
+    Task<ErrorOr<EnviarDirectorResponse>> EnviarDirectorAsync(int idSolicitud, EnviarDirectorRequest request, int idUsuario);
+    Task<ErrorOr<RespuestaSolicitudPersonalExternaResponse>> ProcesarRespuestaAsync(RespuestaSolicitudPersonalExternaRequest request);
 }
