@@ -24,11 +24,21 @@ public class ComprobanteConfiguration : IEntityTypeConfiguration<Comprobante>
         builder.Property(c => c.DatosAdicionales).HasColumnName("datos_adicionales").HasColumnType("nvarchar(max)");
         builder.Property(c => c.Estado).HasColumnName("estado").HasDefaultValue((byte)0);
         builder.Property(c => c.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
+        builder.Property(c => c.Activo).HasColumnName("activo").HasDefaultValue(true);
+        builder.Property(c => c.IdBanco).HasColumnName("id_banco");
+        builder.Property(c => c.NumeroCuenta).HasColumnName("numero_cuenta").HasMaxLength(50);
+        builder.Property(c => c.Clabe).HasColumnName("clabe").HasMaxLength(50);
+        builder.Property(c => c.IdFormaPago).HasColumnName("id_forma_pago");
         builder.Property(c => c.FechaModificacion).HasColumnName("fecha_modificacion");
 
         builder.HasOne(c => c.MedioPago)
             .WithMany()
             .HasForeignKey(c => c.IdMedioPago)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(c => c.Banco)
+            .WithMany()
+            .HasForeignKey(c => c.IdBanco)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasMany(c => c.Asignaciones)

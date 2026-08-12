@@ -70,7 +70,7 @@ import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
-import type { ComprobanteResponse, PartidaPendienteResponse, } from '@/types/comprobante.types';
+import type { ComprobanteResponse, PartidaPendienteResponse, HistorialComprobante } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
@@ -408,6 +408,10 @@ export default function AutorizacionesOC() {
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
   const [formasPagoMap, setFormasPagoMap] = useState<Map<number, FormaPago>>(new Map());
 
+  const [historialComprobantes, setHistorialComprobantes] = useState<HistorialComprobante[]>([]);
+  const [isHistorialComprobantesOpen, setIsHistorialComprobantesOpen] = useState(false);
+  const [historialCategoria, setHistorialCategoria] = useState<'pago' | 'gasto'>('pago');
+
   //Permisos
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
 
@@ -603,13 +607,21 @@ export default function AutorizacionesOC() {
 
   const handleBorrarTodosComprobantes = async (categoria: 'gasto' | 'pago') => {
     const label = categoria === 'gasto' ? 'gasto' : 'pago';
-    if (!window.confirm(`¿Deseas borrar TODOS los comprobantes de ${label} para esta orden? Se revertirán todas las asignaciones a las partidas. Esta acción no se puede deshacer.`)) return;
+    if (!window.confirm(`¿Deseas cancelar TODOS los comprobantes de ${label} para esta orden? Se revertirán todas las asignaciones a las partidas. Esta acción no se puede deshacer.`)) return;
     try {
       await comprobanteService.eliminarPorOrden(selectedOrden!.idOrden, categoria);
       toast.success(`Comprobantes de ${label} borrados correctamente`);
+      // Limpiar el estado de comprobantes subidos (causa del pendiente=0)
+      setComprobantesWorkflow((prev) => {
+        const next = { ...prev };
+        // Keys del modal de pago (isSubirComprobantePagoOpen = 'pago'/'gasto')
+        delete next[categoria];
+        // Keys del modal de firma (comprobante_gasto / comprobante_pago)
+        delete next[categoria === 'gasto' ? 'comprobante_gasto' : 'comprobante_pago'];
+        return next;
+      });
       // Refrescar datos
-      fetchPartidasPendientes(selectedOrden!.idOrden);
-      fetchArchivosOrden(selectedOrden!.idOrden);
+      fetchDetalle(selectedOrden!.idOrden);
     } catch {
       toast.error(`Error al borrar los comprobantes de ${label}`);
     }
@@ -939,6 +951,19 @@ export default function AutorizacionesOC() {
     () => getCamposParaAccion(accionSeleccionada),
     [accionSeleccionada]
   );
+
+  // Cargar historial de comprobantes (gasto o pago) para la orden seleccionada
+  const cargarHistorialComprobantes = async (idOrden: number, categoria: 'pago' | 'gasto') => {
+    try {
+        const res = await API.get(`/facturas/historial-comprobantes?idOrden=${idOrden}&categoria=${categoria}`);
+        setHistorialComprobantes(res.data?.data ?? []);
+        setHistorialCategoria(categoria);
+        setIsHistorialComprobantesOpen(true);
+    } catch (error) {
+        console.error('[Historial] Error al cargar:', error);
+        toast.error('No se pudo cargar el historial de comprobantes');
+    }
+};
 
   // Bitácora de pagos: entradas del historial JSON, más reciente primero.
   const historialOrdenOrdenado = useMemo(
@@ -2393,7 +2418,11 @@ export default function AutorizacionesOC() {
                                     Comprobantes de Gasto
                                   </h4>
                                   <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={gastoCompleto || ordenCerrada} onClick={() => setIsSubirComprobanteOpen(true)}>
+                                    {/* Botón historial — NUEVO */}
+                                    <Button size="sm"variant="outline" onClick={() => cargarHistorialComprobantes(selectedOrden.idOrden, 'gasto')} title="Ver historial de comprobantes de gasto">
+                                      <History className="h-3.5 w-3.5" /> Historial
+                                    </Button>
+                                    <Button size="sm" variant="default" disabled={gastoCompleto || ordenCerrada} onClick={() => setIsSubirComprobanteOpen(true)}>
                                       Subir
                                     </Button>
                                     {!ordenCerrada && partidasPendientes.some(p => p.importeFacturado > 0) && (
@@ -2460,7 +2489,11 @@ export default function AutorizacionesOC() {
                                     Comprobantes de Pago
                                   </h4>
                                   <div className="flex gap-2">
-                                    <Button size="sm" variant="outline" disabled={pagoCompleto || ordenCerrada} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
+                                    {/* Botón historial — NUEVO */}
+                                    <Button size="sm" variant="outline" onClick={() => cargarHistorialComprobantes(selectedOrden.idOrden, 'pago')} title="Ver historial de comprobantes de pago">
+                                      <History className="h-3.5 w-3.5" /> Historial
+                                    </Button>
+                                    <Button size="sm" variant="default" disabled={pagoCompleto || ordenCerrada} onClick={() => setIsSubirComprobantePagoOpen('pago')}>
                                       Subir
                                     </Button>
                                     {!ordenCerrada && partidasPendientesPago.some(p => p.importeFacturado > 0) && (
@@ -3081,54 +3114,134 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
-      {/* ── Modal bitácora de pagos ── */}
+      {/* ── Modal historial de comprobantes ── */}
       <Modal
-        id="modal-historial-oc"
-        open={isHistorialModalOpen}
-        setOpen={setIsHistorialModalOpen}
-        title="Bitácora de pagos"
+        id="modal-historial-comprobantes"
+        open={isHistorialComprobantesOpen}
+        setOpen={setIsHistorialComprobantesOpen}
+        title={`Historial de comprobantes de ${historialCategoria === 'pago' ? 'pago' : 'gasto'}`}
         size="lg"
       >
-        <div className="space-y-4">
-          {/* Cuenta del proveedor */}
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuenta del proveedor</p>
-            <p className="text-xs font-medium text-foreground">
-              {cuentaProveedorOriginal
-                ? [cuentaProveedorOriginal.numeroCuenta, cuentaProveedorOriginal.clabe, cuentaProveedorOriginal.banco].filter(Boolean).join(' • ') || '—'
-                : '—'}
-            </p>
-          </div>
-
-          {/* Cuentas donde se depositó */}
-          <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cuentas donde se depositó</p>
-            {historialOrdenOrdenado.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin pagos registrados.</p>
-            ) : (
-              <div className="space-y-2">
-                {/* ponytail: key por índice — lista estática de solo lectura, sin id único en el item */}
-                {historialOrdenOrdenado.map((item, index) => (
-                  <div key={index} className="overflow-hidden rounded-lg border bg-background/80 text-xs">
-                    <div className="flex items-center justify-between gap-2 border-b border-border/50 bg-muted/30 px-3 py-2">
-                      <span className="font-medium text-foreground">
-                        {[item.cuenta, item.clabe, item.banco].filter(Boolean).join(' • ') || '—'}
-                      </span>
-                      <span className="whitespace-nowrap text-[10px] text-muted-foreground">
-                        {fmtFecha(item.fecha)}
-                      </span>
-                    </div>
-                    <div className="px-3 py-2">
-                      <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                        <UserRound className="h-3 w-3" />
-                        {item.usuarioNombre || `Usuario ${item.idUsuario}`}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+        <div className="space-y-3">
+          {historialComprobantes.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
+              <History className="h-8 w-8" />
+              <p className="text-sm">Sin comprobantes registrados.</p>
+            </div>
+          ) : (
+            <>
+              {/* Resumen */}
+              <div className="flex items-center justify-between rounded-lg border bg-muted/20 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">
+                  {historialComprobantes.length} comprobante
+                  {historialComprobantes.length !== 1 ? 's' : ''}
+                </span>
+                <span className="font-semibold">
+                  Total:{' '}
+                  {historialComprobantes
+                    .filter((c) => c.activo)
+                    .reduce((s, c) => s + c.monto, 0)
+                    .toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                </span>
               </div>
-            )}
-          </div>
+
+              <div className="space-y-2">
+                {historialComprobantes.map((comp) => {
+                  const formaPagoNombre =
+                    comp.idFormaPago != null ? formasPagoMap.get(comp.idFormaPago)?.nombre : null;
+                  const tipoLabel = comp.tipoComprobante?.toUpperCase() ?? '';
+                  return (
+                    <div
+                      key={comp.idComprobante}
+                      className={`overflow-hidden rounded-lg border text-xs ${
+                        comp.activo
+                          ? 'bg-background/80'
+                          : 'border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/10'
+                      }`}
+                    >
+                      {/* Header: medio + tipo + estado + monto */}
+                      <div
+                        className={`flex items-center justify-between gap-2 border-b px-3 py-2 ${
+                          comp.activo
+                            ? 'border-border/50 bg-muted/30'
+                            : 'border-red-200/70 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
+                        }`}
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 font-medium text-foreground">{comp.medioPago}</span>
+                          {tipoLabel && tipoLabel !== comp.medioPago?.toUpperCase() && (
+                            <span className="hidden shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[9px] font-semibold text-muted-foreground sm:inline">
+                              {tipoLabel}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+                              comp.activo
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                : 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                            }`}
+                          >
+                            {comp.activo ? 'Aplicado' : 'Cancelado'}
+                          </span>
+                          <span
+                            className={`font-semibold ${
+                              comp.activo ? 'text-foreground' : 'text-red-600 line-through'
+                            }`}
+                          >
+                            {comp.monto.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Detalles */}
+                      <div className="space-y-1 px-3 py-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Fecha</span>
+                          <span className="font-medium">
+                            {new Date(comp.fechaPago).toLocaleString('es-MX', {
+                              day: '2-digit',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </div>
+                        {(comp.numeroCuenta || comp.clabe || comp.nombreBanco) && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Cuenta</span>
+                            <span className="font-medium">
+                              {[comp.numeroCuenta, comp.clabe, comp.nombreBanco]
+                                .filter(Boolean)
+                                .join(' • ')}
+                            </span>
+                          </div>
+                        )}
+                        {formaPagoNombre && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Forma de pago</span>
+                            <span className="font-medium">{formaPagoNombre}</span>
+                          </div>
+                        )}
+                        {comp.referenciaPago && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Referencia</span>
+                            <span className="font-medium">{comp.referenciaPago}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1 pt-1 text-muted-foreground">
+                          <UserRound className="h-3 w-3" />
+                          <span>{comp.nombreUsuarioSubio || `Usuario ${comp.idUsuarioSubio}`}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -3173,7 +3286,10 @@ export default function AutorizacionesOC() {
           nombreAccion={accionSeleccionada?.tipoAccionNombre ?? null}
           totalOrden={selectedOrden.total}
           folioOrden={selectedOrden.folio}
-          totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
+          //totalPagado={(comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0)}
+          totalPagado={Math.round(
+            (comprobantesWorkflow[isSubirComprobantePagoOpen] ?? []).reduce((sum, c) => sum + c.total, 0) * 100
+          ) / 100}
           cuentaPagoInicial={cuentaPagoInicial}
           partidasPendientes={partidasPendientesPago}
           onComprobanteSubido={(c) => {

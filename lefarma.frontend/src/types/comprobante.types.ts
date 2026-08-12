@@ -139,3 +139,21 @@ export interface AsignacionItemRequest {
 export interface AsignarPartidasRequest {
   asignaciones: AsignacionItemRequest[];
 }
+
+export interface HistorialComprobante {
+    idComprobante: number;
+    activo: boolean;
+    fechaPago: string;
+    monto: number;
+    medioPago: string;
+    idBanco?: number | null;
+    nombreBanco?: string | null;
+    numeroCuenta?: string | null;
+    clabe?: string | null;
+    idFormaPago?: number | null;
+    idUsuarioSubio: number;
+    nombreUsuarioSubio: string;
+    referenciaPago?: string | null;
+    estado: number;
+    tipoComprobante: string;
+}

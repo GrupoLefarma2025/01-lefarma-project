@@ -443,7 +443,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     // Bloquear si alguna tiene comprobantes (FK comprobantes_partidas_partida)
                     var idsAEliminar = aEliminar.Select(p => p.IdPartida).ToList();
                     var conComprobante = await _context.ComprobantesPartidas.AsNoTracking()
-                        .Where(cp => idsAEliminar.Contains(cp.IdPartida))
+                        .Where(cp => idsAEliminar.Contains(cp.IdPartida) && cp.Activo)
                         .Select(cp => cp.IdPartida)
                         .Distinct()
                         .ToListAsync(ct);

@@ -211,6 +211,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
       toast.success('Asignacion guardada.');
       handleClose();
     } catch (error: unknown) {
+      console.error('[CFDI] Error al asignar partidas:', error);
       const apiErr = toApiError(error);
       toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
     } finally { setLoading(false); }
