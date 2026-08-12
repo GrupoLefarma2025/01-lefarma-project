@@ -67,6 +67,19 @@ function fmtDate(dateStr: string) {
   }
 }
 
+// Formato largo para el encabezado: "20 de enero del 2026"
+function fmtDateLarga(dateStr: string) {
+  try {
+    const d = new Date(dateStr);
+    const dia = d.getDate();
+    const mes = d.toLocaleDateString('es-MX', { month: 'long' });
+    const anio = d.getFullYear();
+    return `${dia} de ${mes} del ${anio}`;
+  } catch {
+    return dateStr;
+  }
+}
+
 // function fmtMoney(n: number) {
 //   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
 // }
@@ -145,14 +158,18 @@ const s: Record<string, React.CSSProperties> = {
     color: WHITE,
     fontWeight: 700,
     padding: '2px 6px',
-    width: 110,
-    textAlign: 'right',
+    width: 60,
+    textAlign: 'center',
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
   folioValueCell: {
     padding: '2px 6px',
     flex: 1,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    textAlign: 'center',
   },
   sectionHeader: {
     background: HEADER_BG,
@@ -408,15 +425,21 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         <div style={s.docTitle}>ORDEN DE COMPRA</div>
         <div style={s.folioBox}>
           <div style={{ ...s.folioRow, borderBottom: `1px solid ${BORDER}` }}>
-            <div style={s.folioLabelCell}>Folio</div>
+            <div style={s.folioLabelCell}>OC</div>
             <div style={s.folioValueCell}>{orden.folio ?? '-'}</div>
           </div>
           <div style={s.folioRow}>
-            <div style={s.folioLabelCell}>Fecha Elaboración</div>
+            <div style={s.folioLabelCell}>Fecha</div>
             <div style={s.folioValueCell}>
-              {orden.fechaSolicitud ? fmtDate(orden.fechaSolicitud) : '-'}
+              {orden.fechaSolicitud ? fmtDateLarga(orden.fechaSolicitud) : '-'}
             </div>
           </div>
+          {orden.nombreTraslado && (
+            <div style={{ ...s.folioRow, borderTop: `1px solid ${BORDER}` }}>
+              <div style={s.folioLabelCell}>Folio Transporte</div>
+              <div style={s.folioValueCell}>{orden.nombreTraslado}</div>
+            </div>
+          )}
         </div>
       </div>
 

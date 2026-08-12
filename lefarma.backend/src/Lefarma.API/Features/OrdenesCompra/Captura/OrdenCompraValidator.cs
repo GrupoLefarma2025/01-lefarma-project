@@ -11,6 +11,9 @@ public class CreateOrdenCompraRequestValidator : AbstractValidator<CreateOrdenCo
             RuleFor(x => x.IdSucursal).GreaterThan(0);
             RuleFor(x => x.IdArea).GreaterThan(0);
             RuleFor(x => x.IdTipoGasto).GreaterThan(0).WithMessage("El tipo de gasto es obligatorio");
+            RuleFor(x => x.FolioTransporte).GreaterThan(0)
+                .When(x => x.FolioTransporte.HasValue)
+                .WithMessage("El folio de transporte debe ser un valor válido");
             RuleFor(x => x.FechaLimitePago).GreaterThan(DateTime.Today)
                 .WithMessage("La fecha límite de pago debe ser futura.");
             RuleFor(x => x.Partidas).NotEmpty().WithMessage("Debe incluir al menos una partida.");

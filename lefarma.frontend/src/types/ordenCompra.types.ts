@@ -79,6 +79,8 @@ export interface OrdenCompraResponse {
   solicitantePuesto?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
+  facturarA?: string | null;
+  domicilioEntrega?: string | null;
   idCentroCosto?: number | null;
   centroCostoNombre?: string | null;
   cuentaContable?: number | null;
@@ -102,6 +104,8 @@ export interface OrdenCompraResponse {
   monedaCodigo?: string | null;
   monedaSimbolo?: string | null;
   tipoCambioAplicado: number;
+  folioTransporte?: number | null;
+  nombreTraslado?: string | null;
   partidas: OrdenCompraPartidaResponse[];
 }
 
@@ -140,8 +144,11 @@ idsCuentasBancarias?: number[] | null;
   requierePagoAnticipado: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
+  facturarA?: string | null;
+  domicilioEntrega?: string | null;
   idMoneda?: number | null;
   tipoCambioAplicado?: number;
+  folioTransporte?: number | null;
   partidas: CreatePartidaRequest[];
 }
 

@@ -1527,6 +1527,12 @@ export default function AutorizacionesOC() {
                             {formatCurrency(selectedOrden.total)}
                           </p>
                         </div>
+                        {selectedOrden.nombreTraslado && (
+                          <div className="rounded-md border bg-background px-2 py-1.5">
+                            <p className="text-[11px] text-muted-foreground">Folio de transporte</p>
+                            <p className="text-sm font-semibold">{selectedOrden.nombreTraslado}</p>
+                          </div>
+                        )}
                       </div>
                     </div>
 

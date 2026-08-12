@@ -27,6 +27,8 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public string? FacturarA { get; set; }
+        public string? DomicilioEntrega { get; set; }
 
         // Asignado en Firma 3 - CxP
         public int? IdCentroCosto { get; set; }
@@ -35,6 +37,9 @@ namespace Lefarma.API.Domain.Entities.Operaciones
         // Moneda de la orden
         public int? IdMoneda { get; set; }
         public decimal TipoCambioAplicado { get; set; } = 1m;  // congelado al momento de crear
+
+        // Folio de transporte (enviosCab.codigoEnvio) — obligatorio cuando el tipo de gasto es Transportes
+        public int? FolioTransporte { get; set; }
 
         // Navegación a catálogos 
         public virtual Proveedor? Proveedor { get; set; }

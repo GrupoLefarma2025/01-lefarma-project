@@ -129,6 +129,7 @@ const ordenCompraSchema = z
     ),
     idMoneda: z.number().optional().nullable(),
     tipoCambioAplicado: z.number().optional(),
+    folioTransporte: z.number().optional().nullable(),
     sinDatosFiscales: z.boolean(),
     requierePagoAnticipado: z.boolean(),
     idProveedor: z.number().optional().nullable(),
@@ -137,6 +138,8 @@ const ordenCompraSchema = z
     idFormaPago: z.number().optional().nullable(),
     notaFormaPago: z.string().optional(),
     notasGenerales: z.string().optional(),
+    facturarA: z.string().optional(),
+    domicilioEntrega: z.string().optional(),
     agregarProveedorPorPartida: z.boolean(),
     partidas: z.array(partidaSchema).min(1, 'Debe incluir al menos una partida'),
   })
@@ -459,6 +462,7 @@ export default function CrearOrdenCompra() {
   const [regimenesFiscales, setRegimenesFiscales] = useState<RegimenFiscalItem[]>([]);
   const [tiposImpuesto, setTiposImpuesto] = useState<TipoImpuesto[]>([]);
   const [tiposGasto, setTiposGasto] = useState<TipoGasto[]>([]);
+  const [foliosTransporte, setFoliosTransporte] = useState<{ codigoEnvio: number; nombreTraslado: string | null }[]>([]);
   const [defaultTipoImpuestoId, setDefaultTipoImpuestoId] = useState<number>(0);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [proveedores, setProveedores] = useState<Proveedor[]>([]);
@@ -478,6 +482,7 @@ export default function CrearOrdenCompra() {
       fechaLimitePago: '',
       idMoneda: 1,
       tipoCambioAplicado: 1,
+      folioTransporte: null,
       sinDatosFiscales: false,
       requierePagoAnticipado: false,
       idProveedor: 0,
@@ -485,6 +490,8 @@ export default function CrearOrdenCompra() {
       idCuentaBancaria: null,
       notaFormaPago: '',
       notasGenerales: '',
+      facturarA: '',
+      domicilioEntrega: '',
       agregarProveedorPorPartida: false,
       partidas: [emptyPartida],
     },
@@ -512,6 +519,28 @@ export default function CrearOrdenCompra() {
 
   const sinDatosFiscales = form.watch('sinDatosFiscales');
   const agregarProveedorPorPartida = form.watch('agregarProveedorPorPartida');
+
+  const idTipoGastoSeleccionado = form.watch('idTipoGasto');
+  const tipoGastoSeleccionado = tiposGasto.find((t) => t.idTipoGasto === idTipoGastoSeleccionado);
+  const esTransporte = tipoGastoSeleccionado != null && tipoGastoSeleccionado.nombre.toLowerCase() === 'transportistas';
+
+  useEffect(() => {
+    // Cargar folios de transporte disponibles cuando el tipo de gasto es Transportes
+    if (esTransporte) {
+      const url = isEditing && id ? `/catalogos/envios/transportes?idOrden=${id}` : '/catalogos/envios/transportes';
+      API.get<ApiResponse<{ codigoEnvio: number; nombreTraslado: string | null }[]>>(url)
+        .then((res) => setFoliosTransporte(res.data?.data ?? []))
+        .catch((err) => {
+          console.error('[Transportes] Error al cargar folios:', err);
+          setFoliosTransporte([]);
+        });
+    } else {
+      setFoliosTransporte([]);
+      form.setValue('folioTransporte', null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [esTransporte]);
+
   useEffect(() => {
     if (sinDatosFiscales) {
       // Limpiar proveedor y cuentas cuando se activa sinDatosFiscales
@@ -822,6 +851,7 @@ export default function CrearOrdenCompra() {
             fechaLimitePago: orden.fechaLimitePago.split('T')[0],
             idMoneda: orden.idMoneda ?? null,
             tipoCambioAplicado: orden.tipoCambioAplicado ?? 1,
+            folioTransporte: orden.folioTransporte ?? null,
             sinDatosFiscales: orden.sinDatosFiscales,
             requierePagoAnticipado: orden.requierePagoAnticipado,
             idProveedor: orden.idProveedor || 0,
@@ -830,6 +860,8 @@ export default function CrearOrdenCompra() {
             idFormaPago: orden.idsFormaPago?.[0] ?? null,
             notaFormaPago: orden.notaFormaPago || '',
             notasGenerales: orden.notasGenerales || '',
+            facturarA: orden.facturarA || '',
+            domicilioEntrega: orden.domicilioEntrega || '',
             agregarProveedorPorPartida:
               !orden.idProveedor && orden.partidas.some((p) => p.idProveedor && p.idProveedor > 0),
             partidas:
@@ -891,6 +923,15 @@ export default function CrearOrdenCompra() {
       today.setHours(0, 0, 0, 0);
       if (fechaLimite <= today) {
         toast.error('La fecha límite de pago debe ser futura.');
+        setIsSaving(false);
+        return;
+      }
+
+      // Si el tipo de gasto es Transportes, el folio de transporte es obligatorio
+      const tipoSel = tiposGasto.find((t) => t.idTipoGasto === values.idTipoGasto);
+      const esTransporteForm = tipoSel != null && tipoSel.nombre.toLowerCase() === 'transportistas';
+      if (esTransporteForm && !values.folioTransporte) {
+        toast.error('Para tipo de gasto "Transportes" el folio de transporte es obligatorio.');
         setIsSaving(false);
         return;
       }
@@ -965,11 +1006,14 @@ export default function CrearOrdenCompra() {
         fechaLimitePago: values.fechaLimitePago,
         idMoneda: values.idMoneda ?? null,
         tipoCambioAplicado: values.tipoCambioAplicado ?? 1,
+        folioTransporte: esTransporte ? values.folioTransporte ?? null : null,
         idProveedor: values.idProveedor && values.idProveedor > 0 ? values.idProveedor : null,
         sinDatosFiscales: values.sinDatosFiscales,
         requierePagoAnticipado: values.requierePagoAnticipado,
         notaFormaPago: values.notaFormaPago || null,
         notasGenerales: values.notasGenerales || null,
+        facturarA: values.facturarA || null,
+        domicilioEntrega: values.domicilioEntrega || null,
         idsCuentasBancarias: selectedCuentaBancariaId ? [selectedCuentaBancariaId] : null,
         idsFormaPago: selectedFormaPagoId ? [selectedFormaPagoId] : null,
         numeroMensualidades: selectedFormaPagoId ? numeroMensualidades : null,
@@ -1587,6 +1631,35 @@ export default function CrearOrdenCompra() {
                     </FormItem>
                   )}
                 />
+                {esTransporte && (
+                  <FormField
+                    control={form.control}
+                    name="folioTransporte"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Folio de transporte *</FormLabel>
+                        <Select
+                          onValueChange={(val) => field.onChange(Number(val))}
+                          value={field.value ? String(field.value) : ''}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Selecciona folio..." />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {foliosTransporte.map((f) => (
+                              <SelectItem key={f.codigoEnvio} value={String(f.codigoEnvio)}>
+                                {f.codigoEnvio} - {f.nombreTraslado}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="idMoneda"
@@ -2302,7 +2375,7 @@ export default function CrearOrdenCompra() {
           </Card>
 
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-6 space-y-4">
               <FormField
                 control={form.control}
                 name="notasGenerales"
@@ -2319,6 +2392,40 @@ export default function CrearOrdenCompra() {
                     <FormDescription className="text-xs">
                       Cualquier información adicional sobre la orden que deba ser considerada
                     </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="facturarA"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Facturar a</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Nombre o razón social a facturar"
+                        maxLength={800}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="domicilioEntrega"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Domicilio de entrega</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Domicilio donde se entregará la mercancía"
+                        maxLength={800}
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
