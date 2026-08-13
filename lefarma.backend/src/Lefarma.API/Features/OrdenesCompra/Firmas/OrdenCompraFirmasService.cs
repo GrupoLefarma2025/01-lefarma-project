@@ -9,6 +9,7 @@ using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
 using Lefarma.API.Features.Profile;
+using Lefarma.API.Features.OrdenesCompra.Captura;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -736,6 +737,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             var estado = await _context.WorkflowEstados
                 .FirstOrDefaultAsync(e => e.Codigo == codigo.ToUpper());
             return estado?.IdEstado;
+        }
+
+        private static Dictionary<string, string?>? ExtraerCuentaPago(object? crudo)
+        {
+            if (crudo == null) return null;
+            string? banco = null, cuenta = null;
+            if (crudo is JsonElement je && je.ValueKind == JsonValueKind.Object)
+            {
+                if (je.TryGetProperty("banco", out var b)) banco = b.GetString();
+                if (je.TryGetProperty("cuenta", out var c)) cuenta = c.GetString();
+            }
+            else if (crudo is System.Collections.IDictionary diccionario)
+            {
+                banco = diccionario["banco"]?.ToString();
+                cuenta = diccionario["cuenta"]?.ToString();
+            }
+            if (string.IsNullOrWhiteSpace(banco) && string.IsNullOrWhiteSpace(cuenta)) return null;
+            return new Dictionary<string, string?> { ["banco"] = banco, ["cuenta"] = cuenta };
         }
         private async Task ProcesarDevolucionAsync(Workflow workflow, int idAccion, int idOrden)
         {

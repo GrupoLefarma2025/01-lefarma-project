@@ -163,7 +163,12 @@ export const authService = {
     return response.data.data ?? false;
   },
 
-  setArea: (area: Area) => {
+  setArea: (area: Area | null) => {
+    if (area === null) {
+      // REQ-002: a resolved null must remove the key so a stale área never survives
+      localStorage.removeItem(AREA_KEY);
+      return;
+    }
     localStorage.setItem(AREA_KEY, JSON.stringify(area));
   },
 

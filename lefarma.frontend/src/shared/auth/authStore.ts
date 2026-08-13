@@ -25,6 +25,32 @@ const LEGACY_TOKEN_KEY = 'token';
 // ponytail: in-flight dedup so concurrent fetchProfileSignature calls share one /profile request
 let profileInflight: Promise<void> | null = null;
 
+const PROFILE_LOAD_ERROR = 'No se pudo cargar tu perfil. Puedes seleccionar empresa y sucursal manualmente.';
+
+// Single área resolver (REQ-001):
+// detalle.idArea (>0, ∈ empresa areas) → única área of empresa → null.
+// Never picks the first área when multiple exist, never prompts the user.
+function resolveAreaFrom(
+  detalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null,
+  areas: Area[],
+  empresaId: string | number
+): Area | null {
+  const detalleAreaId = detalle?.idArea;
+  if (detalleAreaId && detalleAreaId > 0) {
+    const porDetalle = areas.find(
+      (a) =>
+        String(a.idArea) === String(detalleAreaId) &&
+        String(a.idEmpresa) === String(empresaId)
+    );
+    if (porDetalle) return porDetalle;
+  }
+
+  const areasDeEmpresa = areas.filter((a) => String(a.idEmpresa) === String(empresaId));
+  if (areasDeEmpresa.length === 1) return areasDeEmpresa[0];
+
+  return null;
+}
+
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
   token: null,
@@ -45,6 +71,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   hasFirma: null,
   puedeSeleccionarEmpresas: false,
   usuarioDetalle: null,
+  profileError: null,
 
 
   loginStepOne: async (username: string) => {
@@ -135,6 +162,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       // Obtener perfil para saber si puede seleccionar empresas y su empresa asignada
       let puedeSeleccionar = false;
       let usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null = null;
+      let profileError: string | null = null;
       try {
         const profileRes = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number } }>>('/profile');
         puedeSeleccionar = profileRes.data.data?.puedeSeleccionarEmpresas ?? false;
@@ -146,7 +174,9 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           };
         }
       } catch {
-        // Si falla el profile, se asume que no puede seleccionar
+        // fallo de red / profile caído: no bloquear el paso 3, dejar selección manual
+        puedeSeleccionar = true;
+        profileError = PROFILE_LOAD_ERROR;
       }
 
       // Sincronizar con configStore
@@ -176,10 +206,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           authService.setSucursal(unicaSucursal);
         }
 
-        // Mantener sucursales y areas disponibles (filtradas por empresa) para el paso 3
-        const areasDeEmpresa = areas.filter(
-          (a) => !a.idSucursal || String(a.idSucursal) === String(unicaEmpresa.idEmpresa)
-        );
+        // REQ-001: área resuelta por detalle → única de la empresa → null (nunca la primera).
+        // Se usa el helper puro con los locales porque el store aún no tiene catalogs aquí.
+        const areaResuelta = resolveAreaFrom(usuarioDetalle, areas, unicaEmpresa.idEmpresa);
+        authService.setArea(areaResuelta);
 
         set({
           user: response.user,
@@ -196,9 +226,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           areas,
           puedeSeleccionarEmpresas: false,
           usuarioDetalle,
+          profileError,
           empresa: unicaEmpresa,
           sucursal: unicaSucursal,
-          area: areasDeEmpresa.length === 1 ? areasDeEmpresa[0] : null,
+          area: areaResuelta,
         });
 
         await get().fetchProfileSignature();
@@ -221,6 +252,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         areas,
         puedeSeleccionarEmpresas: puedeSeleccionar,
         usuarioDetalle,
+        profileError,
       });
     } catch (error) {
       set({ isLoading: false });
@@ -228,14 +260,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  loginStepThree: async (empresaId: string, sucursalId: string, areaId?: string) => {
+  loginStepThree: async (empresaId: string, sucursalId: string) => {
     // isLoading ahora refleja el patrón de loginStepOne/Two: se activa al
     // inicio y se desactiva tanto en la ruta de éxito como en cualquier throw.
     // Evita el doble-submit del botón del paso 3 y habilita el feedback
     // "Procesando…" del slot (que lee isLoading del store).
     set({ isLoading: true });
     try {
-      const { empresas, sucursales, areas } = get();
+      const { empresas, sucursales } = get();
 
       const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
       const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
@@ -248,12 +280,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       authService.setSucursal(sucursal);
 
       let selectedArea: Area | null = null;
-      if (areaId) {
-        selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
-        if (selectedArea) {
-          authService.setArea(selectedArea);
-        }
-      }
+      // if (areaId) {
+      //   selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
+      //   if (selectedArea) {
+      //     authService.setArea(selectedArea);
+      //   }
+      // }
+    // REQ-001/002: el resolver es la única fuente del área; setArea se llama SIEMPRE
+    // (null elimina la key 'area' — un área vieja nunca sobrevive).
+    selectedArea = get().resolveArea(empresaId);
+    authService.setArea(selectedArea);
 
       // isAuthenticated se escribe de forma síncrona aquí; isLoading:false va
       // en el mismo set para que el botón se rehabilite apenas se confirma la
@@ -338,11 +374,22 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ sucursal });
   },
 
-  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => {
+  // REQ-006: context switch re-resolves the área for the new empresa (detalle
+  // área kept when it belongs to it, única-área fallback, else null) and ALWAYS
+  // persists it — null removes the stale localStorage key.
+  changeEmpresaSucursal: async (empresa: Empresa, sucursal: Sucursal) => {
     authService.setEmpresa(empresa);
     authService.setSucursal(sucursal);
-    if (area) authService.setArea(area);
-    set({ empresa, sucursal, ...(area ? { area } : {}) });
+
+    // Catalog may be empty here (cleared after login commit / initialize)
+    if (get().areas.length === 0) {
+      const areas = await authService.getAreas();
+      set({ areas });
+    }
+
+    const areaResuelta = get().resolveArea(empresa.idEmpresa);
+    authService.setArea(areaResuelta);
+    set({ empresa, sucursal, area: areaResuelta });
   },
 
   setToken: (token: string) => {
@@ -401,6 +448,37 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     return profileInflight;
   },
 
+  resolveArea: (empresaId: string | number) => {
+    const { usuarioDetalle, areas } = get();
+    return resolveAreaFrom(usuarioDetalle, areas, empresaId);
+  },
+
+  loadProfile: async () => {
+    try {
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string } }>>('/profile');
+      const data = response.data.data;
+      const detalle = data?.detalle;
+      set({
+        usuarioDetalle: detalle
+          ? {
+              idEmpresa: detalle.idEmpresa ?? 0,
+              idSucursal: detalle.idSucursal ?? 0,
+              idArea: detalle.idArea ?? null,
+            }
+          : null,
+        puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
+        hasFirma: detalle ? !!detalle.firmaPath : false,
+        profileError: null,
+      });
+    } catch {
+      set({ hasFirma: false, profileError: PROFILE_LOAD_ERROR });
+    }
+  },
+
+  setCatalogs: (empresas: Empresa[], sucursales: Sucursal[], areas: Area[]) => {
+    set({ empresas, sucursales, areas });
+  },
+
   initialize: () => {
     const legacyToken = localStorage.getItem(LEGACY_TOKEN_KEY);
     if (legacyToken && !localStorage.getItem('accessToken')) {
@@ -440,7 +518,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         correo: user.correo || '',
       });
 
-      get().fetchProfileSignature();
+      // REQ-005: profile load feeds resolveArea/SelectEmpresaSucursal (fire-and-forget)
+      void get().loadProfile();
       void refreshPermissions();
       startPermissionsPolling();
     } else {

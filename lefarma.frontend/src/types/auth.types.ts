@@ -123,6 +123,7 @@ export interface AuthState {
   hasFirma: boolean | null;
   puedeSeleccionarEmpresas: boolean;
   usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
+  profileError: string | null;
 
   // Acciones existentes
   logout: () => Promise<void>;
@@ -131,7 +132,7 @@ export interface AuthState {
   setToken: (token: string) => void;
   setUser: (user: UserInfo) => void;
   initialize: () => void;
-  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal, area?: Area | null) => void;
+  changeEmpresaSucursal: (empresa: Empresa, sucursal: Sucursal) => Promise<void>;
 
   // Nuevas acciones para flujo de 3 pasos
   loginStepOne: (username: string) => Promise<void>;
@@ -150,8 +151,13 @@ export interface AuthState {
     domain: string,
     options?: { requireContextSelection?: boolean }
   ) => Promise<void>;
-  loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
+  loginStepThree: (empresaId: string, sucursalId: string) => Promise<void>;
   resetLoginFlow: () => void;
+
+  // Área resolver core — admin-managed only (REQ-001/005)
+  resolveArea: (empresaId: string | number) => Area | null;
+  loadProfile: () => Promise<void>;
+  setCatalogs: (empresas: Empresa[], sucursales: Sucursal[], areas: Area[]) => void;
 
   // Acciones de firma de firma
   setHasFirma: (has: boolean) => void;

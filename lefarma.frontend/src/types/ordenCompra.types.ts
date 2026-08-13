@@ -24,6 +24,26 @@ export interface OrdenCompraPartidaResponse {
   estadoFacturacion: number;
 }
 
+// ─── Cuenta de pago del tesorero / Historial (Response) ──────────────────────
+
+export interface CuentaPagoTesorero {
+  idFormaPago?: number | null;
+  formaPago?: string | null;
+  idBanco?: number | null;
+  banco?: string | null;
+  numeroCuenta?: string | null;
+  clabe?: string | null;
+}
+
+export interface OrdenCompraHistorialItem {
+  fecha: string;
+  idUsuario: number;
+  banco?: string | null;
+  cuenta?: string | null;
+  clabe?: string | null;
+  usuarioNombre?: string | null;
+}
+
 // ─── Orden de Compra (Response) ──────────────────────────────────────────────
 
 export interface OrdenCompraResponse {
@@ -47,6 +67,8 @@ export interface OrdenCompraResponse {
   idsFormaPago?: number[] | null;
   formasPagoNombres?: string[] | null;
   numeroMensualidades?: number | null;
+  cuentaPagoTesorero?: CuentaPagoTesorero | null;
+  historial?: OrdenCompraHistorialItem[] | null;
   sinDatosFiscales: boolean;
   razonSocialProveedor?: string | null;
   rfcProveedor?: string | null;

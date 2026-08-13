@@ -3,6 +3,7 @@ using Lefarma.API.Domain.Interfaces;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using System.Globalization;
 using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -471,6 +472,16 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             """;
     }
 
+    internal static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true)
+    {
+        // Invariant: punto decimal siempre, sin depender de la cultura del servidor
+        var numero = value.ToString("N2", CultureInfo.InvariantCulture);
+        return string.IsNullOrEmpty(simboloMoneda)
+            ? numero
+            : posicionIzquierda
+                ? $"{simboloMoneda} {numero}"
+                : $"{numero} {simboloMoneda}";
+    }
     private string BuildAsuntoPorDefecto(string tipoEntidad, string folio)
     {
         var tipo = tipoEntidad switch

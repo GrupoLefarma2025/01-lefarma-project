@@ -1,4 +1,4 @@
-﻿import { useState, FormEvent, useEffect, useMemo } from 'react';
+﻿import { useState, FormEvent, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,6 @@ import {
   CheckCircle,
   Building2,
   Building,
-  MapPin,
 } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
@@ -76,13 +75,15 @@ export default function Login({
     isAuthenticated,
     empresas,
     sucursales,
-    areas,
     puedeSeleccionarEmpresas,
     usuarioDetalle,
+    profileError,
     loginStepOne,
     loginStepTwo,
     loginStepThree,
+    resolveArea,
     resetLoginFlow,
+    loadProfile,
   } = useAuthStore();
 
   // Destino de retorno post-login opcional, establecido por el guard
@@ -106,8 +107,13 @@ export default function Login({
   const [selectedDomain, setSelectedDomain] = useState('');
   const [selectedEmpresa, setSelectedEmpresa] = useState('');
   const [selectedSucursal, setSelectedSucursal] = useState('');
-  const [selectedArea, setSelectedArea] = useState('');
   const [error, setError] = useState('');
+  // Evita doble auto-commit del paso 3 (StrictMode monta efectos dos veces) — patrón HandoffLogin
+  const ranRef = useRef(false);
+  // Selección manual del usuario en el paso 3: bloquea el auto-commit y la auto-selección.
+  // No se resetea al reintentar el profile a propósito: la elección manual sobrevive al retry.
+  // Se limpia solo al salir del paso 3 (submit o volver).
+  const manualSelectionRef = useRef(false);
   // Auto-selección cuando el usuario NO puede cambiar empresa/sucursal
   const autoSelectedEmpresa = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
@@ -132,33 +138,16 @@ export default function Login({
     return null;
   }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, sucursales]);
 
-  const autoSelectedArea = useMemo(() => {
-    if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
-    const { idArea } = usuarioDetalle;
-    if (idArea && idArea > 0) {
-      const existe = areas.some((a) => String(a.idArea) === String(idArea));
-      if (existe) return String(idArea);
-    }
-    return null;
-  }, [puedeSeleccionarEmpresas, usuarioDetalle, areas]);
-
   // Valores efectivos: auto-selección o los del usuario
-  const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;
-  const effectiveSucursal = autoSelectedSucursal ?? selectedSucursal;
-  const effectiveArea = autoSelectedArea ?? selectedArea;
+  // (si hubo selección manual en este paso, la auto-selección cede ante ella)
+  const effectiveEmpresa = manualSelectionRef.current ? selectedEmpresa : autoSelectedEmpresa ?? selectedEmpresa;
+  const effectiveSucursal = manualSelectionRef.current ? selectedSucursal : autoSelectedSucursal ?? selectedSucursal;
 
   const sucursalesFiltradas = sucursales.filter((s) => {
     if (!s.idSucursal || s.idSucursal === undefined) return false;
     if (!s.idEmpresa || s.idEmpresa === undefined) return false;
     return String(s.idEmpresa) === String(effectiveEmpresa);
   });
-
-  const areasFiltradas = useMemo(() => {
-    return areas.filter((a) => {
-      if (!a.idArea) return false;
-      return String(a.idEmpresa) === String(effectiveEmpresa);
-    });
-  }, [areas, effectiveEmpresa]);
 
   // --- Ajustes de estado durante el render (recomendado vs. setState dentro de useEffect) ---
 
@@ -178,17 +167,6 @@ export default function Login({
   if (loginStep === 3 && puedeSeleccionarEmpresas && usuarioDetalle && !selectedEmpresa) {
     if (usuarioDetalle.idEmpresa > 0) setSelectedEmpresa(String(usuarioDetalle.idEmpresa));
     if (usuarioDetalle.idSucursal > 0) setSelectedSucursal(String(usuarioDetalle.idSucursal));
-    if (usuarioDetalle.idArea && usuarioDetalle.idArea > 0) setSelectedArea(String(usuarioDetalle.idArea));
-  }
-
-  // Si no hay un área válida para la empresa elegida, caer al primero [0] (no dejar vacío)
-  if (
-    loginStep === 3 &&
-    effectiveEmpresa &&
-    areasFiltradas.length > 0 &&
-    !areasFiltradas.some((a) => String(a.idArea) === effectiveArea)
-  ) {
-    setSelectedArea(String(areasFiltradas[0].idArea));
   }
 
   // Navegacion al dashboard: side-effect real, va en efecto
@@ -202,6 +180,43 @@ export default function Login({
     }
     navigate(redirectTo, { replace: true });
   }, [isAuthenticated, navigate, safeReturn, redirectTo]);
+
+  // Área resuelta por la regla única (REQ-001): solo lectura, nunca un control (REQ-004/007)
+  const resolvedArea = useMemo(() => {
+    const empId = effectiveEmpresa || selectedEmpresa;
+    if (!empId) return null;
+    return resolveArea(empId);
+  }, [effectiveEmpresa, selectedEmpresa, resolveArea]);
+
+  // Auto-commit del paso 3 SOLO cuando el usuario no puede elegir empresa/sucursal
+  // (puedeSeleccionarEmpresas=false) y el detalle resuelve contexto válido (REQ-004).
+  // Cuando puede seleccionar, el paso 3 se muestra con defaults del detalle (prefill abajo)
+  // y el usuario confirma o cambia — el salto lo dejaría a medias sin chance de cambiar.
+  // ranRef: mismo patrón que HandoffLogin — StrictMode monta efectos dos veces en dev; evita
+  // el doble commit. Se rearma al salir del paso 3 para permitir re-login en el mismo mount.
+  useEffect(() => {
+    if (loginStep !== 3) {
+      ranRef.current = false;
+      manualSelectionRef.current = false;
+      return;
+    }
+    if (puedeSeleccionarEmpresas) return;
+    if (manualSelectionRef.current) return;
+    if (ranRef.current || isLoading || isAuthenticated) return;
+    if (!usuarioDetalle || usuarioDetalle.idEmpresa <= 0 || usuarioDetalle.idSucursal <= 0) return;
+
+    const empId = String(usuarioDetalle.idEmpresa);
+    const sucId = String(usuarioDetalle.idSucursal);
+    const empValida = empresas.some((e) => String(e.idEmpresa) === empId);
+    const sucValida = sucursales.some(
+      (s) => String(s.idEmpresa) === empId && String(s.idSucursal) === sucId
+    );
+    if (!empValida || !sucValida) return;
+    if (!resolveArea(empId)) return;
+
+    ranRef.current = true;
+    void loginStepThree(empId, sucId);
+  }, [loginStep, puedeSeleccionarEmpresas, isLoading, isAuthenticated, usuarioDetalle, empresas, sucursales, resolveArea, loginStepThree]);
 
   const handleStepOne = async (e: FormEvent) => {
     e.preventDefault();
@@ -250,7 +265,6 @@ export default function Login({
 
     const emp = effectiveEmpresa || selectedEmpresa;
     const suc = effectiveSucursal || selectedSucursal;
-    const ar = effectiveArea || selectedArea;
 
     if (!emp) {
       setError('Por favor selecciona una empresa');
@@ -262,13 +276,8 @@ export default function Login({
       return;
     }
 
-    if (areasFiltradas.length > 0 && !ar) {
-      setError('Por favor selecciona un área');
-      return;
-    }
-
     try {
-      await loginStepThree(emp, suc, ar);
+      await loginStepThree(emp, suc);
       // Honrar un destino de retorno del mismo origen si existe; de lo contrario
       // usar el redirect configurado (dashboard de CxP).
       if (safeReturn) {
@@ -290,7 +299,6 @@ export default function Login({
       setSelectedDomain('');
       setSelectedEmpresa('');
       setSelectedSucursal('');
-      setSelectedArea('');
     } else {
       resetLoginFlow();
     }
@@ -495,6 +503,22 @@ export default function Login({
                 </div>
               )}
 
+              {profileError && (
+                <div className="flex items-center justify-between gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-800">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0" />
+                    <span className="text-sm">{profileError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadProfile()}
+                    className="shrink-0 text-sm font-medium underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
+
               {displayName && (
                 <div className="bg-primary/10 rounded-lg px-4 py-2 text-center text-primary">
                   <p className="text-sm font-medium">Bienvenido, {displayName}</p>
@@ -513,9 +537,9 @@ export default function Login({
                 <Select
                   value={effectiveEmpresa || selectedEmpresa}
                   onValueChange={(val) => {
+                    manualSelectionRef.current = true;
                     setSelectedEmpresa(val);
                     setSelectedSucursal('');
-                    setSelectedArea('');
                   }}
                   disabled={!puedeSeleccionarEmpresas}
                 >
@@ -549,7 +573,10 @@ export default function Login({
                   </label>
                   <Select
                     value={effectiveSucursal || selectedSucursal}
-                    onValueChange={setSelectedSucursal}
+                    onValueChange={(val) => {
+                      manualSelectionRef.current = true;
+                      setSelectedSucursal(val);
+                    }}
                     disabled={sucursalesFiltradas.length === 0}
                   >
                     <SelectTrigger>
@@ -575,35 +602,13 @@ export default function Login({
                 </div>
               )}
 
-              {/* Área */}
-              {(effectiveEmpresa || selectedEmpresa) && (
+              {/* Área — solo lectura, asignada por administración (REQ-004/007) */}
+              {(effectiveEmpresa || selectedEmpresa) && resolvedArea && (
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <MapPin className="h-4 w-4" />
-                    Área
-                  </label>
-                  {areasFiltradas.length > 0 ? (
-                    <Select
-                      value={effectiveArea || selectedArea}
-                      onValueChange={setSelectedArea}
-                      disabled={areasFiltradas.length === 0}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un área" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {areasFiltradas.map((area) => (
-                          <SelectItem key={area.idArea} value={String(area.idArea)}>
-                            {area.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <p className="text-sm italic text-muted-foreground">
-                      No hay áreas disponibles para esta empresa.
-                    </p>
-                  )}
+                  <label className="text-sm font-medium">Área</label>
+                  <div className="rounded-md border bg-muted px-3 py-2 text-sm">
+                    {resolvedArea.nombre}
+                  </div>
                 </div>
               )}
 
@@ -613,7 +618,6 @@ export default function Login({
                 disabled={
                   !(effectiveEmpresa || selectedEmpresa) ||
                   !(effectiveSucursal || selectedSucursal) ||
-                  (areasFiltradas.length > 0 && !(effectiveArea || selectedArea)) ||
                   isLoading
                 }
               >

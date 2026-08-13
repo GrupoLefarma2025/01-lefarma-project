@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { authService } from '@/shared/auth/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';
-import type { Area } from '@/types/catalogo.types';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -19,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Building2, Building, MapPin, AlertCircle, ArrowLeft, Loader2, Lock } from 'lucide-react';
+import { Building2, Building, AlertCircle, ArrowLeft, Loader2, Lock } from 'lucide-react';
 import logoEstatico from '@/assets/logo.png';
 
 
@@ -29,7 +28,6 @@ export default function SelectEmpresaSucursal() {
 
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
   // Pre-cargar la ubicación actual del usuario como DEFAULT vía lazy init (sin efecto).
   const [selectedEmpresa, setSelectedEmpresa] = useState(() => {
     const s = authService.getEmpresa();
@@ -38,10 +36,6 @@ export default function SelectEmpresaSucursal() {
   const [selectedSucursal, setSelectedSucursal] = useState(() => {
     const s = authService.getSucursal();
     return s ? String(s.idSucursal) : '';
-  });
-  const [selectedArea, setSelectedArea] = useState(() => {
-    const a = authService.getArea();
-    return a ? String(a.idArea) : '';
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -57,9 +51,6 @@ export default function SelectEmpresaSucursal() {
         (s) => s.idSucursal != null && s.idEmpresa != null && String(s.idEmpresa) === String(selectedEmpresa)
       )
     : [];
-  const areasFiltradas = selectedEmpresa
-    ? areas.filter((a) => String(a.idEmpresa) === String(selectedEmpresa))
-    : [];
 
   // Ajuste de estado durante el render (recomendado vs. setState dentro de useEffect).
   // Si la sucursal/área seleccionada no es válida para la empresa, caer al primero [0].
@@ -70,19 +61,11 @@ export default function SelectEmpresaSucursal() {
     ) {
       setSelectedSucursal(String(sucursalesFiltradas[0].idSucursal));
     }
-    if (
-      areasFiltradas.length > 0 &&
-      !areasFiltradas.some((a) => String(a.idArea) === selectedArea)
-    ) {
-      setSelectedArea(String(areasFiltradas[0].idArea));
-    }
   }
-
-  const areaLista = areasFiltradas.length === 0 || !!selectedArea;
 
   // Auto-submit si el usuario no puede seleccionar empresa/sucursal (efecto: side-effect real)
   useEffect(() => {
-    if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal && areaLista) {
+    if (!puedeSeleccionarEmpresas && selectedEmpresa && selectedSucursal) {
       const form = formRef.current;
       if (form) {
         // Pequeño delay para asegurar que el state está actualizado
@@ -92,21 +75,50 @@ export default function SelectEmpresaSucursal() {
         return () => clearTimeout(timer);
       }
     }
-  }, [puedeSeleccionarEmpresas, selectedEmpresa, selectedSucursal, areaLista]);
+  }, [puedeSeleccionarEmpresas, selectedEmpresa, selectedSucursal]);
 
   const loadData = async () => {
     setIsLoading(true);
     setError('');
     try {
+      // REQ-005: profile first — usuarioDetalle / puedeSeleccionarEmpresas feed
+      // the store resolver and this screen's seeding.
+      const store = useAuthStore.getState();
+      await store.loadProfile();
+
       const [empresasData, sucursalesData, areasData] = await Promise.all([
         authService.getEmpresas(),
         authService.getSucursales(),
         authService.getAreas(),
       ]);
 
+      // REQ-001/005: push catalogs to the store so resolveArea has data.
+      store.setCatalogs(empresasData, sucursalesData, areasData);
+
       setEmpresas(empresasData);
       setSucursales(sucursalesData);
-      setAreas(areasData);
+
+      // REQ-003: seed empresa/sucursal from detalle when valid in catalogs
+      // (detalle canonical); localStorage lazy-init above is fallback only.
+      const detalle = useAuthStore.getState().usuarioDetalle;
+      if (detalle && detalle.idEmpresa > 0) {
+        const empresaValida = empresasData.some(
+          (e) => String(e.idEmpresa) === String(detalle.idEmpresa)
+        );
+        if (empresaValida) {
+          setSelectedEmpresa(String(detalle.idEmpresa));
+          if (detalle.idSucursal > 0) {
+            const sucursalValida = sucursalesData.some(
+              (s) =>
+                String(s.idSucursal) === String(detalle.idSucursal) &&
+                String(s.idEmpresa) === String(detalle.idEmpresa)
+            );
+            if (sucursalValida) {
+              setSelectedSucursal(String(detalle.idSucursal));
+            }
+          }
+        }
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -132,12 +144,6 @@ export default function SelectEmpresaSucursal() {
       return;
     }
 
-    const areasDeEmpresa = areas.filter((a) => String(a.idEmpresa) === String(selectedEmpresa));
-    if (areasDeEmpresa.length > 0 && !selectedArea) {
-      setError('Por favor selecciona un área');
-      return;
-    }
-
     try {
       const empresa = empresas.find(e => String(e.idEmpresa) === String(selectedEmpresa));
       const sucursal = sucursales.find(s => String(s.idSucursal) === String(selectedSucursal));
@@ -145,8 +151,8 @@ export default function SelectEmpresaSucursal() {
         setError('Empresa o sucursal no encontrada');
         return;
       }
-      const area = areas.find((a) => String(a.idArea) === String(selectedArea)) || null;
-      changeEmpresaSucursal(empresa, sucursal, area);
+      // REQ-006: área resolved and persisted by the store (no área param).
+      await changeEmpresaSucursal(empresa, sucursal);
       // Si no puede seleccionar, ir directo al dashboard sin mostrar el select
       navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
@@ -280,28 +286,6 @@ export default function SelectEmpresaSucursal() {
               </div>
             )}
 
-            {/* Selección de Área */}
-            {selectedEmpresa && !isLoading && areasFiltradas.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Área
-                </label>
-                <Select value={selectedArea} onValueChange={setSelectedArea}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecciona un área" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {areasFiltradas.map((area) => (
-                      <SelectItem key={area.idArea} value={String(area.idArea)}>
-                        {area.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
             {/* Botones */}
             <div className="flex flex-col gap-2">
               {puedeSeleccionarEmpresas && (
@@ -310,7 +294,6 @@ export default function SelectEmpresaSucursal() {
                   disabled={
                     !selectedEmpresa ||
                     !selectedSucursal ||
-                    (areasFiltradas.length > 0 && !selectedArea) ||
                     isLoading
                   }
                   className="w-full"

@@ -435,6 +435,9 @@ function UnidadMedidaSelector({
   );
 }
 
+// Empresa corporativa Grupo Lefarma — validado contra catalogos.empresas (IdEmpresa = 12)
+const ID_EMPRESA_GRUPO_LEFARMA = 12;
+
 export default function CrearOrdenCompra() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -447,14 +450,16 @@ export default function CrearOrdenCompra() {
     empresa: empresaSession,
     sucursal: sucursalSession,
     area: areaSession,
-    user,
+    usuarioDetalle,
+    resolveArea,
     hasFirma,
   } = useAuthStore();
-  const userDomain = user?.dominio;
   const [isSaving, setIsSaving] = useState(false);
+  const [datosGeneralesOpen, setDatosGeneralesOpen] = useState(false);
+  const datosGeneralesRef = useRef<HTMLDivElement>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [areas, setAreas] = useState<Area[]>([]);
+  const [, setSucursales] = useState<Sucursal[]>([]);
+  const [, setAreas] = useState<Area[]>([]);
   const [monedas, setMonedas] = useState<Moneda[]>([]);
   const [unidadesMedida, setUnidadesMedida] = useState<UnidadMedida[]>([]);
   const [medidas, setMedidas] = useState<Medida[]>([]);
@@ -475,7 +480,7 @@ export default function CrearOrdenCompra() {
     defaultValues: {
       idEmpresa: empresaSession?.idEmpresa ? Number(empresaSession.idEmpresa) : 0,
       idSucursal: sucursalSession?.idSucursal ? Number(sucursalSession.idSucursal) : 0,
-      idArea: areaSession?.idArea ? Number(areaSession.idArea) : 0,
+      idArea: Number(areaSession?.idArea ?? usuarioDetalle?.idArea ?? resolveArea(empresaSession?.idEmpresa ?? 0)?.idArea ?? 0),
       idTipoGasto: 0,
       fechaLimitePago: '',
       idMoneda: 1,
@@ -496,21 +501,14 @@ export default function CrearOrdenCompra() {
     name: 'partidas',
   });
 
-  const selectedEmpresaId = form.watch('idEmpresa');
-  const selectedEmpresa = empresas.find((e) => e.idEmpresa === selectedEmpresaId);
-  const empresaNombre = selectedEmpresa?.nombre?.toLowerCase() || '';
-  const canChangeEmpresa =
-    userDomain?.toLowerCase() === 'grupolefarma' && empresaNombre.startsWith('artricenteer');
-
-  const filteredSucursales = useMemo(() => {
-    if (!selectedEmpresaId) return sucursales;
-    return sucursales.filter((s) => s.idEmpresa === selectedEmpresaId);
-  }, [sucursales, selectedEmpresaId]);
-
-  const filteredAreas = useMemo(() => {
-    if (!selectedEmpresaId) return areas;
-    return areas.filter((a) => a.idEmpresa === selectedEmpresaId);
-  }, [areas, selectedEmpresaId]);
+  const isGrupoLefarma = /grupolefarma/i.test(empresaSession?.nombre ?? '');
+  const empresasSeleccionables = useMemo(() => {
+    if (!isGrupoLefarma) return empresas;
+    const filtradas = empresas.filter((e) => !/grupolefarma/i.test(e.nombre));
+    return empresaSession
+      ? [empresaSession, ...filtradas.filter((e) => e.idEmpresa !== empresaSession.idEmpresa)]
+      : filtradas;
+  }, [empresas, isGrupoLefarma, empresaSession]);
 
   const sinDatosFiscales = form.watch('sinDatosFiscales');
   const agregarProveedorPorPartida = form.watch('agregarProveedorPorPartida');
@@ -885,15 +883,30 @@ export default function CrearOrdenCompra() {
     console.log('🔵 [handleSave] isEditing:', isEditing);
     console.log('🔵 [handleSave] id (URL):', id);
 
-    if (hasFirma === false) {
+    setIsSaving(true);
+     if (hasFirma === false) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder guardar órdenes de compra.',
         duration: 6000,
       });
       return;
     }
-
     try {
+      // Regla de negocio: una OC del grupo lefarma (idempresa 12) no puede
+      // guardarse sin cambiar la empresa en Datos Generales.
+      if (values.idEmpresa === ID_EMPRESA_GRUPO_LEFARMA) {
+        toast.error('Necesitas cambiar la empresa de la orden de compra', {
+          description: `La orden no puede quedar con la empresa Grupo Lefarma. Selecciona otra empresa en Datos Generales para continuar.`,
+          duration: 8000,
+        });
+        setDatosGeneralesOpen(true);
+        setTimeout(() => {
+          datosGeneralesRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+        setIsSaving(false);
+        return;
+      }
+
       console.log('🔵 [handleSave] Validando fecha límite...');
       const fechaLimite = new Date(values.fechaLimitePago);
       const today = new Date();
@@ -1086,8 +1099,11 @@ export default function CrearOrdenCompra() {
       <Form {...form}>
         <form className="space-y-6">
           {/* Card: Datos Generales */}
-          <Collapsible defaultOpen={false}>
-            <Card>
+          <Collapsible
+            open={datosGeneralesOpen}
+            onOpenChange={setDatosGeneralesOpen}
+          >
+            <Card ref={datosGeneralesRef}>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer pb-4">
                   <CardTitle className="flex items-center justify-between text-lg font-semibold">
@@ -1108,11 +1124,10 @@ export default function CrearOrdenCompra() {
                         control={form.control}
                         name="idEmpresa"
                         render={({ field }) => (
-                            <PermissionElement require="orden_compra.puede_cambiar_empresa">
                           <FormItem>
                             <FormLabel>Empresa *</FormLabel>
                             <Select
-                              // disabled={!canChangeEmpresa}
+                              disabled={!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA}
                               onValueChange={(val) => {
                                 field.onChange(Number(val));
                               }}
@@ -1124,89 +1139,25 @@ export default function CrearOrdenCompra() {
                                 </SelectTrigger>
                               </FormControl>
                               <SelectContent>
-                                {empresas.map((e) => (
-                                  <SelectItem key={e.idEmpresa} value={String(e.idEmpresa)}>
+                                {empresasSeleccionables.map((e) => (
+                                  <SelectItem
+                                    key={e.idEmpresa}
+                                    value={String(e.idEmpresa)}
+                                  >
                                     {e.nombre}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
-                            {!canChangeEmpresa && (
+                            {!isGrupoLefarma && field.value !== ID_EMPRESA_GRUPO_LEFARMA && (
                               <FormDescription className="text-xs text-muted-foreground">
                                 La empresa no se puede cambiar
                               </FormDescription>
                             )}
                             <FormMessage />
                           </FormItem>
-                          </PermissionElement>
                         )}
                       />
-                      <FormField
-                        control={form.control}
-                        name="idSucursal"
-                        render={({ field }) => (
-                          <PermissionElement require="orden_compra.puede_cambiar_sucursal">
-
-                        
-                              <FormItem>
-                                <FormLabel>Sucursal *</FormLabel>
-                                <Select
-                                  onValueChange={(val) => {
-                                    field.onChange(Number(val));
-                                  }}
-                                  value={field.value ? String(field.value) : ''}
-                                >
-                                  <FormControl>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecciona sucursal..." />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent>
-                                    {filteredSucursales.map((s) => (
-                                      <SelectItem key={s.idSucursal} value={String(s.idSucursal)}>
-                                        {s.nombre}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            </PermissionElement>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="idArea"
-                        render={({ field }) => (
-                          <PermissionElement require="orden_compra.puede_cambiar_area">
-                          <FormItem>
-                            <FormLabel>Área *</FormLabel>
-                            <Select
-                              onValueChange={(val) => {
-                                field.onChange(Number(val));
-                              }}
-                              value={field.value ? String(field.value) : ''}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Selecciona área..." />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                {filteredAreas.map((a) => (
-                                  <SelectItem key={a.idArea} value={String(a.idArea)}>
-                                    {a.nombre}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                              <FormMessage />
-                            </FormItem>
-                            </PermissionElement>
-                          )}
-                        />
-
-                        
                       </div>
                   </FormSection>
                 </CardContent>

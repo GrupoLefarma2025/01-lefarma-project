@@ -19,6 +19,7 @@ import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
+
 export interface HeaderProps {
   /**
    * Show empresa/sucursal/area context info and the "Cambiar Ubicación"
@@ -37,6 +38,9 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState(false);
 
+  // Solo el personal de Grupo Lefarma (empresa 12) puede cambiar de empresa/sucursal
+  const isGrupoLefarma = /grupolefarma/i.test(empresa?.nombre ?? '');
+
   const handleThemeChange = (tema: string) => {
     if (tema === 'light' || tema === 'dark' || tema === 'system') {
       setTema(tema);
@@ -45,6 +49,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
   const handleLogout = async () => {
     await logout();
+    // logout() ya hace redirect a /login, no necesitamos navegar aquí
   };
 
   const getThemeIcon = () => {
@@ -60,35 +65,35 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
   return (
     <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${hasFirma === false ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
-      {/* Lado izquierdo: Toggle + Información de ubicación */}
+      {/* Left side: Toggle + Location Info (hidden on mobile) */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
 
-        {/* Empresa + Sucursal + Área: solo cuando la app usa contexto (CxP) */}
+        {/* Empresa + Sucursal: md+ only */}
+         {/* Empresa + Sucursal + Área: solo cuando la app usa contexto (CxP) */}
         {showContext && (
-          <div className="hidden md:flex items-center gap-4">
-            <div className="h-4 w-px bg-border" />
-            <div className="flex items-center gap-2 text-sm">
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-              <span className="text-foreground font-medium">{empresa?.nombre || 'Sin empresa'}</span>
-            </div>
-            <div className="h-4 w-px bg-border" />
-            <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-muted-foreground" />
-              <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
-            </div>
-            {area && (
-              <>
-                <div className="h-4 w-px bg-border" />
-                <div className="flex items-center gap-2 text-sm">
-                  <Layers className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">{area.nombre}</span>
-                </div>
-              </>
-            )}
+        <div className="hidden md:flex items-center gap-4">
+          <div className="h-4 w-px bg-border" />
+          <div className="flex items-center gap-2 text-sm">
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-foreground font-medium">{empresa?.nombre || 'Sin empresa'}</span>
           </div>
+          <div className="h-4 w-px bg-border" />
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">{sucursal?.nombre || 'Sin sucursal'}</span>
+          </div>
+          {area && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-2 text-sm">
+                <Layers className="h-4 w-4 text-muted-foreground" />
+                <span className="text-muted-foreground">{area.nombre}</span>
+              </div>
+            </>
+          )}
+        </div>
         )}
-
         {hasFirma === false && (
           <div className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
             <PenLine className="h-3 w-3" />
@@ -107,7 +112,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
         </div>
       )}
 
-      {/* Lado derecho: Tema + Notificaciones + Menú de usuario */}
+   {/* Lado derecho: Tema + Notificaciones + Menú de usuario */}
       <div className="flex items-center gap-2">
         {/* Theme Dropdown */}
         <DropdownMenu>
@@ -136,10 +141,10 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Notification Bell */}
+        {/* Notification Bell - always visible */}
         <NotificationBell onError={(error) => console.error('Notification error:', error)} />
 
-        {/* User Menu */}
+        {/* User Menu - avatar only (compact) */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
@@ -149,6 +154,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
+            {/* User Info */}
             <DropdownMenuLabel className="flex flex-col gap-1">
               <span className="font-medium">{user?.nombre || user?.username}</span>
               <span className="text-xs font-normal text-muted-foreground">{user?.correo}</span>
@@ -159,42 +165,42 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
             <DropdownMenuSeparator />
 
-            {/* Información de ubicación actual (móvil) — solo para apps con contexto */}
-            {showContext && (
-              <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-3 w-3" />
-                  <span className="truncate">{empresa?.nombre || 'Sin empresa'}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-3 w-3" />
-                  <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
-                </div>
-                {area && (
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-3 w-3" />
-                    <span className="truncate">{area.nombre}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <PenLine className="h-3 w-3" />
-                  {hasFirma === true ? (
-                    <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
-                  ) : hasFirma === false ? (
-                    <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                      <AlertTriangle className="h-3 w-3" />
-                      Sin firma digital
-                    </span>
-                  ) : (
-                    <span>Verificando firma...</span>
-                  )}
-                </div>
+            {/* Current Location Info (mobile-friendly) */}
+             {showContext && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground space-y-1">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-3 w-3" />
+                <span className="truncate">{empresa?.nombre || 'Sin empresa'}</span>
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <MapPin className="h-3 w-3" />
+                <span className="truncate">{sucursal?.nombre || 'Sin sucursal'}</span>
+              </div>
+              {area && (
+                <div className="flex items-center gap-2">
+                  <Layers className="h-3 w-3" />
+                  <span className="truncate">{area.nombre}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <PenLine className="h-3 w-3" />
+                {hasFirma === true ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
+                ) : hasFirma === false ? (
+                  <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Sin firma digital
+                  </span>
+                ) : (
+                  <span>Verificando firma...</span>
+                )}
+              </div>
+            </div>
+             )}
 
             {showContext && <DropdownMenuSeparator />}
 
-            {/* Actions */}
+          {/* Actions */}
             {configPath && (
               <DropdownMenuItem onClick={() => navigate(configPath)}>
                 <User className="mr-2 h-4 w-4" />
@@ -202,14 +208,15 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
               </DropdownMenuItem>
             )}
             {showContext && (
-              <DropdownMenuItem onClick={() => setModalOpen(true)}>
-                <Building2 className="mr-2 h-4 w-4" />
-                <span>Cambiar Ubicación</span>
-              </DropdownMenuItem>
+              isGrupoLefarma && (
+                <DropdownMenuItem onClick={() => setModalOpen(true)}>
+                    <Building2 className="mr-2 h-4 w-4" />
+                    <span>Cambiar Ubicación</span>
+                  </DropdownMenuItem>
+              )
             )}
 
             {(configPath || showContext) && <DropdownMenuSeparator />}
-
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Cerrar Sesión</span>
@@ -218,7 +225,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
         </DropdownMenu>
       </div>
 
-      {showContext && <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />}
+       {showContext && <CambiarUbicacionModal open={modalOpen} onOpenChange={setModalOpen} />}
     </header>
   );
 };

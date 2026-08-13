@@ -27,6 +27,12 @@ export interface SubirComprobanteParams {
   fechaPago?: string | null;
   montoPago?: number | null;
   idMedioPago?: number | null;
+  idFormaPago?: number | null;
+  formaPago?: string | null;
+  idBanco?: number | null;
+  banco?: string | null;
+  numeroCuenta?: string | null;
+  clabe?: string | null;
 }
 
 export const comprobanteService = {
@@ -66,6 +72,12 @@ export const comprobanteService = {
     if (params.fechaPago) form.append('fechaPago', params.fechaPago);
     if (params.montoPago != null) form.append('montoPago', String(params.montoPago));
     if (params.idMedioPago != null) form.append('idMedioPago', String(params.idMedioPago));
+    if (params.idFormaPago != null) form.append('idFormaPago', String(params.idFormaPago));
+    if (params.formaPago) form.append('formaPago', params.formaPago);
+    if (params.idBanco != null) form.append('idBanco', String(params.idBanco));
+    if (params.banco) form.append('banco', params.banco);
+    if (params.numeroCuenta) form.append('numeroCuenta', params.numeroCuenta);
+    if (params.clabe) form.append('clabe', params.clabe);
     const res = await API.post<ApiResponse<ComprobanteResponse>>(
       BASE,
       form,

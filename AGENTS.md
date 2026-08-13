@@ -133,6 +133,45 @@ dotnet test tests/Lefarma.UnitTests/      # single project
 - Scripts are numbered (`000_`, `001_`, `002_`, ..., `024_`, `06_`, `06B_`). There are gaps and inconsistent prefixes; apply in chronological order, not alphabetical.
 - Three connection strings: `DefaultConnection` (Lefarma main), `AsokamConnection` (legacy Asokam), `AsistenciasConnection` (attendance system on `192.168.1.5`).
 
+## Planning a New Feature or Module (mandatory)
+
+Planning artifacts live in `lefarma.docs/<modulo>/` with a fixed structure. Follow it exactly — do not invent new folders or naming schemes.
+
+### Structure
+
+```
+lefarma.docs/<modulo>/
+├── decisiones/     # ADRs: NNNNN_descripcion.md (5-digit, e.g. 00001_esquema-datos-educacion-medica.md)
+├── tareas/         # Task files: same number as the ADR they implement (tareas/00001_* implements decisiones/00001_*)
+├── diagramas/      # Diagrams: <adr-number>_<tipo>_<nombre>.html (e.g. 000001_er_esquema_completo.html)
+└── referencias/    # ONLY pdf/ (originals) and pdf-to-md/ (markdown conversions). No other source folders.
+```
+
+- Diagram numbers reference the ADR (`000001` → ADR `00001`), NOT a per-diagram sequence. One module has `000001_er_*`, `000001_arquitectura_*`, `000001_proceso_*`.
+- Files in `decisiones/` are our own planning, never cite them as sources. Valid sources: only `referencias/pdf/` and `referencias/pdf-to-md/`.
+
+### ADR format (decisiones/)
+
+- Frontmatter: `fecha_creacion`, `fecha_modificacion`, `resumen`.
+- Body (Nygard-based, ordered): `Status`, índice, Decisión (short), fases with the deep "why" (not just "what"), validación against legacy systems, Consequences, anexo listing fuentes.
+- `Status` values: `Proposed` | `Accepted` | `Deprecated` | `Superseded`. Put it as the first `##` section after frontmatter, before Índice.
+- `Consequences` section: positive, negative, and neutral outcomes that follow from the decision. May trigger follow-up ADRs (note them here).
+- Superseding: when a decision is replaced, do NOT rewrite the original ADR. Mark its `Status` as `Superseded by ADR-NNNNN` and create a new ADR referencing it.
+- Citations: source filename + literal quoted text. Never "guía #N" or "renglón N".
+
+### Database planning rules
+
+- Schema changes: a new numbered manual SQL script under `lefarma.database/<modulo>/`. Never EF migrations. Do NOT apply scripts to any database unless the user explicitly asks.
+- Columns: `id_*` (not `codigo_*`), `fecha DATE` (not `anio`).
+- Audit columns (`activo`, `fecha_creacion_modificacion`, `id_usuario_creacion/modificacion`) ONLY on master/aggregate tables. Child rows are physically deleted (hard DELETE) — no soft-delete flags on children.
+- Catalogs: create our own catalog tables with physical FK. Asokam is a read-only legacy reference — never assume a catalog exists there (verified missing: tipo_gerencia, municipio, quirófanos).
+
+### Diagrams
+
+- ONE consolidated ER per module (`*_er_esquema_completo.html`): all tables with full columns, types, PK/FK, computed formulas, CHECK/UNIQUE constraints. Not one file per table.
+- Use the `diagram-design` skill with the project custom skin (accent `#eb6c36`): 4px grid, orthogonal connectors (r=8), label masks with 6–10px gaps, max 2 accent uses, mono font only for technical content, no JetBrains Mono.
+- Validate diagrams by DOM inspection (element counts, no empty text nodes, all tables/columns present) — never by screenshot.
+
 ## Testing
 
 - Backend: xUnit + Moq + FluentAssertions. Integration tests use `Microsoft.AspNetCore.Mvc.Testing` and EF Core InMemory.

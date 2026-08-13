@@ -97,7 +97,7 @@
     "tinymce": "^8.3.2",
     "tunnel-rat": "^0.1.2",
     "vaul": "^1.1.2",
-    "xlsx": "^0.18.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "^4.3.6",
     "zustand": "^5.0.10"
   },
@@ -133,5 +133,9 @@
     "vite": "^7.3.1",
     "vite-tsconfig-paths": "^6.0.5",
     "vitest": "^3.2.4"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "@hono/node-server": "^2.0.5"
   }
 }

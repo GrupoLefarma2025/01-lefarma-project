@@ -21,7 +21,7 @@ import { AlertCircle, ArrowLeft, Building2, Building, MapPin } from 'lucide-reac
  * áreas por empresa efectiva.
  *
  * CONTRATO CRÍTICO — el slot NO navega. Al enviar el formulario, llama
- * `loginStepThree(emp, suc, ar)` que escribe `isAuthenticated: true` en el
+ * `loginStepThree(emp, suc)` que escribe `isAuthenticated: true` en el
  * authStore (verificado en `shared/auth/authStore.ts`). `<MultiStepLogin>`
  * observa ese flag y ejecuta el redirect a `?return=` o al destino configurado
  * (`dashboard`). Cualquier `navigate(...)` aquí duplicaría/competiría con el
@@ -149,7 +149,7 @@ export function CxpContextSelection() {
       // Finaliza la sesión escribiendo `isAuthenticated: true` en el store.
       // NO se navega aquí: `<MultiStepLogin>` observa `isAuthenticated` y
       // ejecuta el redirect a `?return=` o `dashboard`.
-      await loginStepThree(emp, suc, ar);
+      await loginStepThree(emp, suc);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al seleccionar ubicación';
       setError(message);
