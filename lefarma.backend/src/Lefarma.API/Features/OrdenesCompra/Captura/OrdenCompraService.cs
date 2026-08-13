@@ -5,6 +5,7 @@ using Lefarma.API.Domain.Interfaces.Operaciones;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.OrdenesCompra.Captura.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -122,7 +123,18 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                         .ToDictionaryAsync(fp => fp.IdFormaPago, fp => fp.NombreNormalizado ?? fp.Nombre)
                     : new Dictionary<int, string>();
 
-                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres)).ToList();
+                var foliosTransporte = items
+                    .Where(o => o.FolioTransporte.HasValue)
+                    .Select(o => o.FolioTransporte!.Value)
+                    .Distinct()
+                    .ToList();
+                var nombresTraslados = foliosTransporte.Count > 0
+                    ? await _asokamContext.EnviosCab.AsNoTracking()
+                        .Where(e => foliosTransporte.Contains(e.CodigoEnvio) && e.NombreTraslado != null)
+                        .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!)
+                    : new Dictionary<int, string>();
+
+                var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres, nombresTraslados)).ToList();
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }
@@ -185,7 +197,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     }
                 }
 
-                var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres);
+                var nombresTrasladosById = item.FolioTransporte.HasValue
+                    ? await _asokamContext.EnviosCab.AsNoTracking()
+                        .Where(e => e.CodigoEnvio == item.FolioTransporte.Value && e.NombreTraslado != null)
+                        .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!)
+                    : new Dictionary<int, string>();
+
+                var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres, nombresTrasladosById);
                 await EnriquecerNombresHistorialAsync(response.Historial);
                 return response;
             }
@@ -268,6 +286,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (workflow is null)
                     return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");
 
+                var validacionTransporte = await ValidarFolioTransporteAsync(request, ct);
+                if (validacionTransporte.IsError)
+                    return validacionTransporte.Errors;
+
                 var pasoInicio = workflow.Pasos?.FirstOrDefault(p => p.EsInicio);
                 if (pasoInicio is null)
                     return CommonErrors.Conflict("Workflow", "El workflow no tiene un paso inicial configurado.");
@@ -294,8 +316,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     RequierePagoAnticipado = request.RequierePagoAnticipado,
                     NotaFormaPago = request.NotaFormaPago,
                     NotasGenerales = request.NotasGenerales,
+                    FacturarA = request.FacturarA,
+                    DomicilioEntrega = request.DomicilioEntrega,
                     IdMoneda = request.IdMoneda,
                     TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m,
+                    FolioTransporte = request.FolioTransporte,
                     FechaLimitePago = request.FechaLimitePago,
                     FechaCreacion = DateTime.Now,
                     Subtotal = subtotal,
@@ -334,7 +359,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EnrichWideEvent("Create",entityId: result.IdOrden, nombre: result.Folio,
                     additionalContext: new Dictionary<string, object> { ["total"] = result.Total });
 
-                return ToResponse(result);
+                var nombresTrasladosCreate = result.FolioTransporte.HasValue
+                    ? await _asokamContext.EnviosCab.AsNoTracking()
+                        .Where(e => e.CodigoEnvio == result.FolioTransporte.Value && e.NombreTraslado != null)
+                        .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!, ct)
+                    : new Dictionary<int, string>();
+
+                return ToResponse(result, nombresTraslados: nombresTrasladosCreate);
             }
             catch (DbUpdateException ex)
             {
@@ -393,6 +424,10 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden.Estado?.IdEstado != 1) // 1 = Creada
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
 
+                var validacionTransporteUpdate = await ValidarFolioTransporteAsync(request, ct);
+                if (validacionTransporteUpdate.IsError)
+                    return validacionTransporteUpdate.Errors;
+
                 // Actualizar campos de la orden (no tocar IdOrden, Folio, IdUsuarioCreador, FechaSolicitud, Estado, IdPasoActual)
                 orden.IdEmpresa = request.IdEmpresa;
                 orden.IdSucursal = request.IdSucursal;
@@ -405,8 +440,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 orden.RequierePagoAnticipado = request.RequierePagoAnticipado;
                 orden.NotaFormaPago = request.NotaFormaPago;
                 orden.NotasGenerales = request.NotasGenerales;
+                orden.FacturarA = request.FacturarA;
+                orden.DomicilioEntrega = request.DomicilioEntrega;
                 orden.IdMoneda = request.IdMoneda;
                 orden.TipoCambioAplicado = request.TipoCambioAplicado > 0 ? request.TipoCambioAplicado : 1m;
+                orden.FolioTransporte = request.FolioTransporte;
 
                 var tipoImpuestoIdsUpdate = request.Partidas
                     .Where(p => p.IdTipoImpuesto.HasValue)
@@ -443,7 +481,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     // Bloquear si alguna tiene comprobantes (FK comprobantes_partidas_partida)
                     var idsAEliminar = aEliminar.Select(p => p.IdPartida).ToList();
                     var conComprobante = await _context.ComprobantesPartidas.AsNoTracking()
-                        .Where(cp => idsAEliminar.Contains(cp.IdPartida))
+                        .Where(cp => idsAEliminar.Contains(cp.IdPartida) && cp.Activo)
                         .Select(cp => cp.IdPartida)
                         .Distinct()
                         .ToListAsync(ct);
@@ -515,7 +553,12 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 await _context.SaveChangesAsync(ct);
 
                 EnrichWideEvent("Update",entityId: orden.IdOrden, nombre: orden.Folio);
-                return ToResponse(orden);
+                var nombresTrasladosUpdate = orden.FolioTransporte.HasValue
+                    ? await _asokamContext.EnviosCab.AsNoTracking()
+                        .Where(e => e.CodigoEnvio == orden.FolioTransporte.Value && e.NombreTraslado != null)
+                        .ToDictionaryAsync(e => e.CodigoEnvio, e => e.NombreTraslado!, ct)
+                    : new Dictionary<int, string>();
+                return ToResponse(orden, nombresTraslados: nombresTrasladosUpdate);
             }
             catch (DbUpdateException ex)
             {
@@ -546,7 +589,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             OrdenCompra o,
             Dictionary<int, UsuarioInfo>? usuariosInfo = null,
             Dictionary<int, string>? uomNombres = null,
-            Dictionary<int, string>? formasPagoNombres = null) => new()
+            Dictionary<int, string>? formasPagoNombres = null,
+            Dictionary<int, string>? nombresTraslados = null) => new()
         {
             IdOrden = o.IdOrden,
             Folio = o.Folio,
@@ -588,6 +632,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             SinDatosFiscales = o.SinDatosFiscales,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,
+            FacturarA = o.FacturarA,
+            DomicilioEntrega = o.DomicilioEntrega,
             IdCentroCosto = o.IdCentroCosto,
             CentroCostoNombre = o.CentroCosto?.Nombre,
             IdCuentaContable = o.IdCuentaContable,
@@ -611,6 +657,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             MonedaCodigo = o.Moneda?.Codigo,
             MonedaSimbolo = o.Moneda?.Simbolo,
             TipoCambioAplicado = o.TipoCambioAplicado,
+            FolioTransporte = o.FolioTransporte,
+            NombreTraslado = o.FolioTransporte.HasValue && nombresTraslados != null && nombresTraslados.TryGetValue(o.FolioTransporte.Value, out var nTraslado) ? nTraslado : null,
             Partidas = (o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).OrderBy(p => p.NumeroPartida).Select(p => new OrdenCompraPartidaResponse
             {
                 IdPartida = p.IdPartida,
@@ -669,6 +717,49 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     return null;
                 }
             }
+        }
+
+        /// <summary>
+        /// Si el tipo de gasto es Transportes, exige FolioTransporte y valida que exista en
+        /// enviosCab (tipoTraslado = 'transporte externo') y que no esté usado en otra orden.
+        /// </summary>
+        private async Task<ErrorOr<Success>> ValidarFolioTransporteAsync(CreateOrdenCompraRequest request, CancellationToken ct)
+        {
+            var esTransportes = await _context.TiposGasto.AsNoTracking()
+                .AnyAsync(t => t.IdTipoGasto == request.IdTipoGasto
+                            && t.NombreNormalizado != null
+                            && t.NombreNormalizado.ToLower().Contains("transport"), ct);
+
+            if (!esTransportes)
+                return Result.Success;
+
+            if (!request.FolioTransporte.HasValue)
+                return CommonErrors.Validation("FolioTransporte", "Para tipo de gasto 'Transportes' el folio de transporte es obligatorio");
+
+            var folio = request.FolioTransporte.Value;
+
+            var existe = await _asokamContext.EnviosCab.AsNoTracking()
+                .AnyAsync(e => e.CodigoEnvio == folio && e.TipoTraslado == "transporte externo", ct);
+            if (!existe)
+                return CommonErrors.Validation("FolioTransporte", "El folio de transporte no existe o no es un transporte externo válido");
+
+            // El folio queda "en uso" mientras exista una orden que no esté rechazada o cancelada.
+            // Al rechazar/cancelar la orden, el folio se libera para reutilizarse.
+            var estados = await _context.WorkflowEstados
+                .Where(e => e.Activo)
+                .ToDictionaryAsync(e => e.Codigo!, e => e.IdEstado, ct);
+            var idRechazada = estados.GetValueOrDefault(WorkflowEstadoCodigo.RECHAZADA);
+            var idCancelada = estados.GetValueOrDefault(WorkflowEstadoCodigo.CANCELADA);
+
+            var usado = await _context.OrdenesCompra.AsNoTracking()
+                .AnyAsync(o => o.FolioTransporte == folio
+                            && o.IdOrden != (request.IdOrden ?? 0)
+                            && o.IdEstado != idRechazada
+                            && o.IdEstado != idCancelada, ct);
+            if (usado)
+                return CommonErrors.Conflict("FolioTransporte", "Este folio de transporte ya fue utilizado en otra orden");
+
+            return Result.Success;
         }
     }
 }

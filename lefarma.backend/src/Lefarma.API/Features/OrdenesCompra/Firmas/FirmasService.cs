@@ -154,7 +154,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
 
                     // Anular comprobantes asociados a esta orden
                     var idsComprobantes = await _context.ComprobantesPartidas
-                        .Where(cp => idPartidas.Contains(cp.IdPartida))
+                        .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Activo)
                         .Select(cp => cp.IdComprobante)
                         .Distinct()
                         .ToListAsync();

@@ -78,6 +78,7 @@ CREATE TABLE operaciones.comprobantes_partidas (
     importe_asignado    DECIMAL(18,2) NOT NULL,
     notas               VARCHAR(500) NULL,
     fecha_asignacion    DATETIME2 NOT NULL DEFAULT GETDATE(),
+    activo              BIT NOT NULL DEFAULT 1,
 
     CONSTRAINT PK_comprobantes_partidas PRIMARY KEY CLUSTERED (id_asignacion),
     CONSTRAINT FK_comprobantes_partidas_comprobante FOREIGN KEY (id_comprobante)

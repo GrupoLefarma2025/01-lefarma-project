@@ -30,6 +30,8 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
             builder.Property(o => o.SinDatosFiscales).HasColumnName("sin_datos_fiscales").HasDefaultValue(false);
             builder.Property(o => o.NotaFormaPago).HasColumnName("nota_forma_pago").HasMaxLength(500);
             builder.Property(o => o.NotasGenerales).HasColumnName("notas_generales").HasMaxLength(1000);
+            builder.Property(o => o.FacturarA).HasColumnName("facturar_a").HasMaxLength(800);
+            builder.Property(o => o.DomicilioEntrega).HasColumnName("domicilio_entrega").HasMaxLength(800);
             builder.Property(o => o.IdCentroCosto).HasColumnName("id_centro_costo");
             builder.Property(o => o.IdCuentaContable).HasColumnName("id_cuenta_contable");
             builder.Property(o => o.RequiereComprobacionPago).HasColumnName("requiere_comprobacion_pago").HasDefaultValue(true);
@@ -69,6 +71,7 @@ public class OrdenCompraConfiguration : IEntityTypeConfiguration<OrdenCompra>
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.Property(o => o.IdMoneda).HasColumnName("id_moneda");
+            builder.Property(o => o.FolioTransporte).HasColumnName("folio_transporte");
             builder.Property(o => o.TipoCambioAplicado)
                 .HasColumnName("tipo_cambio_aplicado")
                 .HasPrecision(18, 6)

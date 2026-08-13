@@ -123,8 +123,14 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
     setCfdiPreview(null);
     setSubmitError(null);
     setLoading(true);
-    try { const preview = await comprobanteService.parsearXml(file); setCfdiPreview(preview); }
-    catch { toast.error('El XML no es un CFDI valido o esta malformado'); setXmlFile(null); }
+    try { 
+      const preview = await comprobanteService.parsearXml(file); setCfdiPreview(preview); 
+    }
+    catch (error: unknown) {
+      console.error('[CFDI] Error parseando XML:', error);
+      toast.error('Factura CFDI no valida. Verifica que sea el archivo XML correcto.');
+      setXmlFile(null);
+    }
     finally { setLoading(false); }
   };
 
@@ -147,9 +153,10 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
       setComprobanteSubido(comp);
       setStep('archivos');
     } catch (error: unknown) {
-      const apiErr = toApiError(error);
-      const msg = apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante';
-      setSubmitError(msg);
+        console.error('[CFDI] Error al subir comprobante:', error);
+        const apiErr = toApiError(error);
+        toast.error('No se pudo registrar el comprobante. Intenta de nuevo.');
+        setSubmitError(apiErr.errors?.[0]?.description ?? apiErr.message);
     } finally { setLoading(false); }
   };
 
@@ -204,6 +211,7 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
       toast.success('Asignacion guardada.');
       handleClose();
     } catch (error: unknown) {
+      console.error('[CFDI] Error al asignar partidas:', error);
       const apiErr = toApiError(error);
       toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
     } finally { setLoading(false); }
@@ -319,7 +327,6 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
                 <div className="rounded-lg border bg-muted/20 p-3 text-xs space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
-                      <CheckCircle2 className="h-3.5 w-3.5" /> CFDI valido
                     </div>
                     {satStatus && (
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold

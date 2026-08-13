@@ -66,6 +66,8 @@ public class OrdenCompraResponse
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public string? FacturarA { get; set; }
+        public string? DomicilioEntrega { get; set; }
         public int? IdCentroCosto { get; set; }
         public string? CentroCostoNombre { get; set; }
         public int? IdCuentaContable { get; set; }
@@ -89,6 +91,8 @@ public class OrdenCompraResponse
         public string? MonedaCodigo { get; set; }
         public string? MonedaSimbolo { get; set; }
         public decimal TipoCambioAplicado { get; set; }
+        public int? FolioTransporte { get; set; }
+        public string? NombreTraslado { get; set; }
         public List<OrdenCompraPartidaResponse> Partidas { get; set; } = new();
     }
 
@@ -119,8 +123,11 @@ public class OrdenCompraResponse
         public bool RequierePagoAnticipado { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public string? FacturarA { get; set; }
+        public string? DomicilioEntrega { get; set; }
         public int? IdMoneda { get; set; }
         public decimal TipoCambioAplicado { get; set; } = 1m;
+        public int? FolioTransporte { get; set; }
         public required List<CreatePartidaRequest> Partidas { get; set; }
     }
 

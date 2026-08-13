@@ -207,4 +207,21 @@ public class ComprobanteController : ControllerBase
             Message = $"Comprobantes de {categoria} eliminados correctamente"
         }));
     }
+
+    /// <summary>
+    /// Obtiene el historial de comprobantes (gasto o pago) de una orden, incluyendo los cancelados.
+    /// </summary>
+    [HttpGet("historial-comprobantes")]
+    [SwaggerOperation(Summary = "Historial de comprobantes de una orden")]
+    public async Task<IActionResult> GetHistorialComprobantes(
+        [FromQuery] int idOrden, [FromQuery] string categoria = "pago", CancellationToken ct = default)
+    {
+        var result = await _service.GetHistorialComprobantesAsync(idOrden, categoria, ct);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<List<HistorialComprobanteResponse>>
+        {
+            Success = true,
+            Message = "Historial obtenido",
+            Data = data
+        }));
+    }
 }
