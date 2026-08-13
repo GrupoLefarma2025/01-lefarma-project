@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, RefreshCw, Eye } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
@@ -9,7 +10,7 @@ import { toast } from 'sonner';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { vacacionesApi } from '../../services/vacaciones.api';
-import type { SaldoVacacionesResponse, DiaUsuarioResponse } from '@/types/vacaciones.types';
+import type { SaldoVacacionesResponse, DiaHabilResponse } from '@/types/vacaciones.types';
 
 export function SaldosVacacionesPage() {
   usePageTitle('Saldos de vacaciones', 'Lista de saldos de vacaciones');
@@ -17,7 +18,7 @@ export function SaldosVacacionesPage() {
   const [items, setItems] = useState<SaldoVacacionesResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [diasUsuario, setDiasUsuario] = useState<DiaUsuarioResponse[]>([]);
+  const [diasUsuario, setDiasUsuario] = useState<DiaHabilResponse[]>([]);
   const [loadingDias, setLoadingDias] = useState(false);
   const [selectedUsuario, setSelectedUsuario] = useState<SaldoVacacionesResponse | null>(null);
 
@@ -57,10 +58,10 @@ export function SaldosVacacionesPage() {
     try {
       setSelectedUsuario(row);
       setLoadingDias(true);
-      const response = await vacacionesApi.getDiasUsuario({ idUsuario: row.idUsuario, anio: row.anio });
+      const response = await vacacionesApi.getDiasHabiles({ idEmpresa: row.idEmpresa, anio: row.anio });
       setDiasUsuario(response.data.data ?? []);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al obtener días del usuario');
+      toast.error(toApiError(error).message ?? 'Error al obtener días hábiles de la empresa');
     } finally {
       setLoadingDias(false);
     }
@@ -88,13 +89,29 @@ export function SaldosVacacionesPage() {
     },
   ];
 
-  const diasColumns: ColumnDef<DiaUsuarioResponse>[] = [
+  const diasColumns: ColumnDef<DiaHabilResponse>[] = [
     { accessorKey: 'fecha', header: 'Fecha' },
-    { accessorKey: 'tipoDiaNombre', header: 'Tipo' },
-    { accessorKey: 'origen', header: 'Origen' },
-    { accessorKey: 'estado', header: 'Estado' },
-    { accessorKey: 'consumeSaldo', header: 'Consume saldo' },
-    { accessorKey: 'comentarios', header: 'Comentarios' },
+    { accessorKey: 'descripcion', header: 'Descripción' },
+    {
+      accessorKey: 'consumeSaldo',
+      header: 'Consume saldo',
+      cell: ({ row }) =>
+        row.original.consumeSaldo ? (
+          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
+        ) : (
+          <Badge variant="secondary">No</Badge>
+        ),
+    },
+    {
+      accessorKey: 'permiteSaldoNegativo',
+      header: 'Permite saldo negativo',
+      cell: ({ row }) =>
+        row.original.permiteSaldoNegativo ? (
+          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
+        ) : (
+          <Badge variant="secondary">No</Badge>
+        ),
+    },
   ];
 
   return (
@@ -155,7 +172,7 @@ export function SaldosVacacionesPage() {
             setDiasUsuario([]);
           }
         }}
-        title={`Días de ${selectedUsuario?.usuarioNombre ?? 'Usuario'} — Nómina: ${selectedUsuario?.nomina ?? '—'} | Año: ${selectedUsuario?.anio ?? '—'}`}
+        title={`Días hábiles — ${selectedUsuario?.usuarioNombre ?? 'Usuario'} | Empresa: ${selectedUsuario?.idEmpresa ?? '—'} | Año: ${selectedUsuario?.anio ?? '—'}`}
         size="wide"
       >
         <div className="py-4">

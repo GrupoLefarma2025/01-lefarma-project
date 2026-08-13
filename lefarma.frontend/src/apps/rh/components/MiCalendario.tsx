@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { API } from '@/shared/api/apiClient';
-import { calendarioApi, misIncidenciasChecadoApi, misDiasJornadaApi, diasNoHabilesApi } from '../services/rh.api';
+import { calendarioApi, misIncidenciasChecadoApi, misDiasJornadaApi, diasHabilesApi } from '../services/rh.api';
 import type { ApiResponse } from '@/types/api.types';
 import type {
   CalendarioGlobalEvento,
@@ -39,7 +39,7 @@ import type {
   IncidenciaChecadoResponse,
   SolicitudPersonalResponse,
 } from '@/types/solicitudPersonal.types';
-import type { DiaNoHabilResponse } from '@/types/vacaciones.types';
+import type { DiaHabilResponse } from '@/types/vacaciones.types';
 
 const DIAS_SEMANA = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -141,17 +141,17 @@ function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
 function useCalendario(anio: number, mes: number) {
   const [eventos, setEventos] = useState<CalendarioGlobalEvento[]>([]);
   const [diasJornada, setDiasJornada] = useState<DiasJornadaResponse | null>(null);
-  const [diasNoHabiles, setDiasNoHabiles] = useState<DiaNoHabilResponse[]>([]);
+  const [diasHabiles, setDiasHabiles] = useState<DiaHabilResponse[]>([]);
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchCalendario = async () => {
     try {
       setLoading(true);
-      const [calRes, jornadaRes, noHabilesRes, incRes] = await Promise.all([
+      const [calRes, jornadaRes, habilesRes, incRes] = await Promise.all([
         calendarioApi.get({ anio, mes, estados: ['CERRADA'] }),
         misDiasJornadaApi.get({ anio, mes }).catch(() => null),
-        diasNoHabilesApi.get({ anio, mes }).catch(() => null),
+        diasHabilesApi.get({ anio, mes }).catch(() => null),
         misIncidenciasChecadoApi.get({ anio, mes }).catch(() => null),
       ]);
       if (calRes.data.success) {
@@ -164,10 +164,10 @@ function useCalendario(anio: number, mes: number) {
       } else {
         setDiasJornada(null);
       }
-      if (noHabilesRes?.data.success) {
-        setDiasNoHabiles(noHabilesRes.data.data ?? []);
+      if (habilesRes?.data.success) {
+        setDiasHabiles(habilesRes.data.data ?? []);
       } else {
-        setDiasNoHabiles([]);
+        setDiasHabiles([]);
       }
       if (incRes?.data.success) {
         setIncidencias(incRes.data.data ?? []);
@@ -181,7 +181,7 @@ function useCalendario(anio: number, mes: number) {
       }
       setEventos([]);
       setDiasJornada(null);
-      setDiasNoHabiles([]);
+      setDiasHabiles([]);
       setIncidencias([]);
     } finally {
       setLoading(false);
@@ -232,7 +232,7 @@ function useCalendario(anio: number, mes: number) {
       incidenciasPorFecha.set(key, i);
     });
 
-    diasNoHabiles.forEach((d) => {
+    diasHabiles.forEach((d) => {
       if (d.consumeSaldo) return;
       const key = new Date(d.fecha).toISOString().split('T')[0];
       noLaborablesSet.add(key);
@@ -261,7 +261,7 @@ function useCalendario(anio: number, mes: number) {
     }
 
     return resultado;
-  }, [eventos, diasJornada, diasNoHabiles, incidencias, anio, mes]);
+  }, [eventos, diasJornada, diasHabiles, incidencias, anio, mes]);
 
   return { dias, loading, refetch: fetchCalendario };
 }
