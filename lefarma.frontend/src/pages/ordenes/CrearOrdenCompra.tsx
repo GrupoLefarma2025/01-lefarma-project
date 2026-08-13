@@ -2403,8 +2403,9 @@ export default function CrearOrdenCompra() {
                   <FormItem>
                     <FormLabel>Facturar a</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Nombre o razón social a facturar"
+                      <Textarea
+                        placeholder="Datos de facturación (nombre, RFC, dirección, etc.)"
+                        rows={3}
                         maxLength={800}
                         {...field}
                       />
@@ -2420,8 +2421,9 @@ export default function CrearOrdenCompra() {
                   <FormItem>
                     <FormLabel>Domicilio de entrega</FormLabel>
                     <FormControl>
-                      <Input
-                        placeholder="Domicilio donde se entregará la mercancía"
+                      <Textarea
+                        placeholder="Datos del domicilio de entrega (calle, colonia, ciudad, estado, CP, etc.)"
+                        rows={3}
                         maxLength={800}
                         {...field}
                       />

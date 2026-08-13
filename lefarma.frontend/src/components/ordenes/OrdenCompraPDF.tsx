@@ -96,11 +96,11 @@ const WHITE = '#ffffff';
 const s: Record<string, React.CSSProperties> = {
   page: {
     fontFamily: "'Arial', sans-serif",
-    fontSize: 9,
+    fontSize: 12,
     color: '#000',
     background: WHITE,
-    padding: '20px 24px',
-    maxWidth: 820,
+    padding: '18px 16px',
+    maxWidth: 800,
     margin: '0 auto',
     boxSizing: 'border-box',
   },
@@ -124,13 +124,13 @@ const s: Record<string, React.CSSProperties> = {
     lineHeight: 1,
   },
   logoSubText: {
-    fontSize: 8,
+    fontSize: 10,
     color: DARK_BLUE,
     letterSpacing: 2,
     marginTop: 1,
   },
   logoTagline: {
-    fontSize: 8,
+    fontSize: 10,
     color: '#e74c3c',
     fontStyle: 'italic',
     marginTop: 2,
@@ -139,15 +139,15 @@ const s: Record<string, React.CSSProperties> = {
     flex: 1,
     textAlign: 'center',
     fontWeight: 700,
-    fontSize: 14,
+    fontSize: 16,
     letterSpacing: 2,
     color: '#000',
     textTransform: 'uppercase',
   },
   folioBox: {
-    width: 180,
+    width: 280,
     border: `1px solid ${BORDER}`,
-    fontSize: 9,
+    fontSize: 12,
   },
   folioRow: {
     display: 'flex',
@@ -158,7 +158,7 @@ const s: Record<string, React.CSSProperties> = {
     color: WHITE,
     fontWeight: 700,
     padding: '2px 6px',
-    width: 60,
+    width: 110,
     textAlign: 'center',
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
@@ -177,7 +177,7 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     textAlign: 'center',
     padding: '3px 0',
-    fontSize: 9,
+    fontSize: 12,
     letterSpacing: 0.5,
     border: `1px solid ${BORDER}`,
     borderBottom: 'none',
@@ -196,7 +196,7 @@ const s: Record<string, React.CSSProperties> = {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
     textAlign: 'left' as const,
-    fontSize: 8.5,
+    fontSize: 12,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
@@ -206,7 +206,7 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     verticalAlign: 'top' as const,
     whiteSpace: 'nowrap' as const,
     printColorAdjust: 'exact' as const,
@@ -215,13 +215,13 @@ const s: Record<string, React.CSSProperties> = {
   tdValue: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     verticalAlign: 'top' as const,
   },
   tdLink: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     color: '#1155cc',
     textDecoration: 'underline',
     verticalAlign: 'top' as const,
@@ -232,7 +232,7 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     textAlign: 'center' as const,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
@@ -240,29 +240,29 @@ const s: Record<string, React.CSSProperties> = {
   deliveryTd: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     verticalAlign: 'top' as const,
     textAlign: 'center' as const,
   },
   deliveryTdDesc: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     verticalAlign: 'top' as const,
     textAlign: 'left' as const,
   },
   deliveryTdRight: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    fontSize: 12,
     verticalAlign: 'top' as const,
     textAlign: 'right' as const,
   },
   emptyTd: {
     padding: '3px 5px',
     border: `1px solid ${BORDER}`,
-    fontSize: 8.5,
-    height: 18,
+    fontSize: 12,
+    height: 24,
     textAlign: 'right' as const,
     color: '#555',
   },
@@ -273,11 +273,24 @@ const s: Record<string, React.CSSProperties> = {
     border: `1px solid ${BORDER}`,
     borderTop: 'none',
   },
+  freeFieldsSection: {
+    display: 'flex',
+    gap: 0,
+    border: `1px solid ${BORDER}`,
+    borderTop: 'none',
+  },
+  freeField: {
+    flex: 1,
+    padding: '4px 6px',
+    borderRight: `1px solid ${BORDER}`,
+    fontSize: 12,
+  },
   obsBox: {
     flex: 1,
     padding: '4px 6px',
     borderRight: `1px solid ${BORDER}`,
-    fontSize: 8.5,
+    borderBottom: `1px solid ${BORDER}`,
+    fontSize: 12,
   },
   obsHeader: {
     background: HEADER_BG,
@@ -286,13 +299,13 @@ const s: Record<string, React.CSSProperties> = {
     textAlign: 'center' as const,
     padding: '2px 4px',
     marginBottom: 4,
-    fontSize: 8.5,
+    fontSize: 12,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
   totalsBox: {
-    width: 220,
-    fontSize: 8.5,
+    width: 240,
+    fontSize: 12,
   },
   totalRow: {
     display: 'flex',
@@ -305,18 +318,18 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   totalValue: {
-    width: 80,
+    width: 110,
     textAlign: 'right' as const,
     padding: '2px 6px',
     borderLeft: `1px solid ${BORDER}`,
   },
   totalValueBold: {
-    width: 80,
+    width: 110,
     textAlign: 'right' as const,
     padding: '2px 6px',
     borderLeft: `1px solid ${BORDER}`,
     fontWeight: 700,
-    fontSize: 9.5,
+    fontSize: 12,
   },
   firmasTable: {
     width: '70%',
@@ -335,7 +348,7 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     padding: '2px 4px',
     border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
+    fontSize: 10,
     textAlign: 'left' as const,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
@@ -346,22 +359,22 @@ const s: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     padding: '2px 4px',
     border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
-    width: 60,
+    fontSize: 10,
+    width: 90,
     printColorAdjust: 'exact' as const,
     WebkitPrintColorAdjust: 'exact' as const,
   },
   firmaTd: {
     padding: '2px 4px',
     border: `1px solid ${BORDER}`,
-    fontSize: 7.5,
-    height: 14,
+    fontSize: 10,
+    height: 22,
   },
   footer: {
     display: 'flex',
     justifyContent: 'space-between',
     marginTop: 6,
-    fontSize: 7.5,
+    fontSize: 10,
     color: '#333',
   },
 };
@@ -431,15 +444,9 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
           <div style={s.folioRow}>
             <div style={s.folioLabelCell}>Fecha</div>
             <div style={s.folioValueCell}>
-              {orden.fechaSolicitud ? fmtDateLarga(orden.fechaSolicitud) : '-'}
+              {orden.fechaSolicitud ? fmtDateLarga(orden.fechaSolicitud) : orden.fechaCreacion ? fmtDateLarga(orden.fechaCreacion) : '-'}
             </div>
           </div>
-          {orden.nombreTraslado && (
-            <div style={{ ...s.folioRow, borderTop: `1px solid ${BORDER}` }}>
-              <div style={s.folioLabelCell}>Folio Transporte</div>
-              <div style={s.folioValueCell}>{orden.nombreTraslado}</div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -574,7 +581,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
       <div style={s.bottomSection}>
         <div style={s.obsBox}>
           <div style={s.obsHeader}>Observaciones</div>
-          <div style={{ fontSize: 8, lineHeight: 1.4 }}>{orden.notasGenerales ?? '-'}</div>
+          <div style={{ fontSize: 12, lineHeight: 1.4 }}>{orden.notasGenerales ?? '-'}</div>
         </div>
         <div style={s.totalsBox}>
           {[
@@ -593,9 +600,36 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       </div>
 
+      {/* ── FOLIO DE TRANSPORTE / FACTURAR A / DOMICILIO (una fila por campo, ancho completo) ── */}
+      {(orden.nombreTraslado || orden.facturarA || orden.domicilioEntrega) && (
+        <table style={{ ...s.table, marginTop: 6 }}>
+          <tbody>
+            {orden.nombreTraslado && (
+              <tr>
+                <td style={s.thBlue}>Folio de transporte</td>
+                <td style={s.tdValue} colSpan={5}>{orden.nombreTraslado}</td>
+              </tr>
+            )}
+            {orden.facturarA && (
+              <tr>
+                <td style={s.thBlue}>Facturar a</td>
+                <td style={s.tdValue} colSpan={5}>{orden.facturarA}</td>
+              </tr>
+            )}
+            {orden.domicilioEntrega && (
+              <tr>
+                <td style={s.thBlue}>Domicilio de entrega</td>
+                <td style={s.tdValue} colSpan={5}>{orden.domicilioEntrega}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
       {/* ── FLUJO DINÁMICO ── */}
       {flujoPasos.length > 0 && (
-        <table style={{ ...s.firmasTable, width: '100%' }}>
+        <div style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          <table style={{ ...s.firmasTable, width: '100%' }}>
           <thead>
             <tr style={s.firmaThRow}>
               <th style={{ ...s.firmaTh, width: '5%' }}>#</th>
@@ -650,6 +684,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
             })}
           </tbody>
         </table>
+        </div>
       )}
 
       {/* ── FOOTER ── */}
