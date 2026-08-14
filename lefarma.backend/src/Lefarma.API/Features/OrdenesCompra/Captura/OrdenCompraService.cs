@@ -24,7 +24,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly AsokamDbContext _asokamContext;
         protected override string EntityName => "OrdenCompra";
 
-        private record UsuarioInfo(string Nombre, string? Puesto);
+        private record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null);
 
         public OrdenCompraService(
             IOrdenCompraRepository repo,
@@ -102,7 +102,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var userIds = items.Select(o => o.IdUsuarioCreador).Distinct().ToList();
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
-                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
+                    .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo));
 
                 var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
                                   .Select(p => p.IdUnidadMedida)
@@ -159,9 +159,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var usuariosInfo = new Dictionary<int, UsuarioInfo>();
                 var uInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => u.IdUsuario == item.IdUsuarioCreador)
-                    .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto })
+                    .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo })
                     .FirstOrDefaultAsync();
-                if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto);
+                if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto, uInfo.Correo);
 
                 var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
                 var uomNombres = await _context.UnidadesMedida.AsNoTracking()
@@ -205,6 +205,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
                 var response = ToResponse(item, usuariosInfo, uomNombres, formasPagoNombres, nombresTrasladosById);
                 await EnriquecerNombresHistorialAsync(response.Historial);
+                response.SegundoAutorizador = await ResolverSegundoAutorizadorAsync(item);
                 return response;
             }
             catch (Exception ex)
@@ -212,6 +213,61 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 EnrichWideEvent("GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError("obtener la orden de compra");
             }
+        }
+
+        //resuelve el nombre del segundo autorizador: el primer paso del workflow siempre es EsInicio
+        // (quien crea la orden), se toma el siguiente paso y se trae su participante
+        private async Task<string?> ResolverSegundoAutorizadorAsync(OrdenCompra o)
+        {
+            if (o.IdWorkflow == 0) return null;
+
+            var workflow = await _context.Workflows
+                .AsNoTracking()
+                .Include(w => w.Pasos)
+                    .ThenInclude(p => p.Participantes)
+                .FirstOrDefaultAsync(w => w.IdWorkflow == o.IdWorkflow);
+            if (workflow is null) return null;
+
+            // Ordenar pasos y omitir el paso inicial (EsInicio) donde actúa quien creó la orden.
+            var pasos = workflow.Pasos
+                .Where(p => p.Activo && !p.EsInicio)
+                .OrderBy(p => p.Orden)
+                .ToList();
+            if (pasos.Count == 0) return null;
+
+            var pasoObjetivo = pasos.FirstOrDefault(p => p.Participantes.Any(pt => pt.Activo && (pt.IdUsuario != null || pt.IdRol != null)));
+            if (pasoObjetivo is null) return null;
+
+            var participante = pasoObjetivo.Participantes
+                .Where(p => p.Activo)
+                .OrderByDescending(p => p.IdUsuario != null)
+                .FirstOrDefault();
+            if (participante is null) return null;
+
+            if (participante.IdUsuario is int idUsuario)
+            {
+                return await _asokamContext.Usuarios.AsNoTracking()
+                    .Where(u => u.IdUsuario == idUsuario)
+                    .Select(u => u.NombreCompleto ?? u.SamAccountName)
+                    .FirstOrDefaultAsync();
+            }
+
+            if (participante.IdRol is int idRol)
+            {
+                var primerUsuarioRol = await _asokamContext.UsuariosRoles.AsNoTracking()
+                    .Where(ur => ur.IdRol == idRol && (ur.FechaExpiracion == null || ur.FechaExpiracion > DateTime.Now))
+                    .Select(ur => ur.IdUsuario)
+                    .FirstOrDefaultAsync();
+                if (primerUsuarioRol > 0)
+                {
+                    return await _asokamContext.Usuarios.AsNoTracking()
+                        .Where(u => u.IdUsuario == primerUsuarioRol)
+                        .Select(u => u.NombreCompleto ?? u.SamAccountName)
+                        .FirstOrDefaultAsync();
+                }
+            }
+
+            return null;
         }
 
         // ponytail: los nombres de usuario del historial se resuelven solo en el detalle (GetById);
@@ -629,6 +685,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IdUsuarioCreador = o.IdUsuarioCreador,
             SolicitanteNombre = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out var ui) ? ui.Nombre : null,
             SolicitantePuesto = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Puesto : null,
+            SolicitanteCorreo = usuariosInfo != null && usuariosInfo.TryGetValue(o.IdUsuarioCreador, out ui) ? ui.Correo : null,
             SinDatosFiscales = o.SinDatosFiscales,
             NotaFormaPago = o.NotaFormaPago,
             NotasGenerales = o.NotasGenerales,

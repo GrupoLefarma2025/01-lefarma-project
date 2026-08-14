@@ -77,6 +77,8 @@ export interface OrdenCompraResponse {
   idUsuarioCreador?: number;
   solicitanteNombre?: string | null;
   solicitantePuesto?: string | null;
+  solicitanteCorreo?: string | null;
+  segundoAutorizador?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
   facturarA?: string | null;
