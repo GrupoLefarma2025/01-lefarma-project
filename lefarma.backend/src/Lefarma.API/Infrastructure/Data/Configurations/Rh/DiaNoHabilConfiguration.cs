@@ -20,6 +20,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
             builder.Property(e => e.Fecha).HasColumnName("fecha");
             builder.Property(e => e.Descripcion).HasColumnName("descripcion").HasMaxLength(100).IsRequired(false);
             builder.Property(e => e.ConsumeSaldo).HasColumnName("consume_saldo");
+            builder.Property(e => e.PermiteSaldoNegativo).HasColumnName("permite_saldo_negativo");
             builder.Property(e => e.Activo).HasColumnName("activo").HasDefaultValue(true);
             builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
 

@@ -75,7 +75,7 @@ export const misDiasJornadaApi = {
     }),
 };
 
-export const diasNoHabilesApi = {
+export const diasHabilesApi = {
   get: (request: DiaHabilFilters) =>
     API.get<ApiResponse<DiaHabilResponse[]>>('/rh/vacaciones/dias-habiles', {
       params: request,
@@ -190,7 +190,7 @@ export default {
   calendarioApi,
   calendarioLaboralApi,
   misDiasJornadaApi,
-  diasNoHabilesApi,
+  diasHabilesApi,
   misIncidenciasChecadoApi,
   incidenciasChecadoApi,
   notificarIncidenciaChecadoApi,

@@ -1043,9 +1043,28 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             var diasQueConsumen = await ContarDiasQueConsumenSaldoAsync(
                 idUsuario, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
 
-            // Permitir saldo negativo — no rechazar, solo continuar
-            // El balance resultante sería: saldo.DiasPendientes - diasQueConsumen
-            if (saldo.DiasPendientes < diasQueConsumen)
+            if (saldo.DiasPendientes >= diasQueConsumen)
+                return Result.Success;
+
+            // Saldo insuficiente: solo se permite saldo negativo si TODOS los días del rango
+            // están registrados en dias_habiles con PermiteSaldoNegativo = true.
+            var fechas = Enumerable.Range(0, (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1)
+                .Select(d => solicitud.FechaInicio.Value.Date.AddDays(d))
+                .ToList();
+
+            var diasHabiles = await _context.DiasHabiles
+                .AsNoTracking()
+                .Where(d => d.Activo && d.IdEmpresa == solicitud.IdEmpresa && fechas.Contains(d.Fecha))
+                .Select(d => new { d.Fecha, d.PermiteSaldoNegativo })
+                .ToListAsync();
+
+            var permiteNegativo = fechas.All(f =>
+            {
+                var dia = diasHabiles.FirstOrDefault(x => x.Fecha.Date == f);
+                return dia != null && dia.PermiteSaldoNegativo;
+            });
+
+            if (!permiteNegativo)
             {
                 return CommonErrors.Validation("saldo",
                     $"Saldo insuficiente de vacaciones. Disponible: {(int)saldo.DiasPendientes}, Días solicitados: {diasQueConsumen}.");
