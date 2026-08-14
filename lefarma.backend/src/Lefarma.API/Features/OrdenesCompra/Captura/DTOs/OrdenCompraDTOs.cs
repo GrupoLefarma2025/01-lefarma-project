@@ -63,6 +63,8 @@ public class OrdenCompraResponse
         public int IdUsuarioCreador { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
+        public string? SolicitanteCorreo { get; set; }
+        public string? SegundoAutorizador { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }

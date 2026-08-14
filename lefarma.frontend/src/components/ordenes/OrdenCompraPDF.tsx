@@ -430,6 +430,14 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
      const _logoKey = Number(orden.idEmpresa);
   const _logoSrc = LOGOS[_logoKey] ;
 
+  const esCorreoGrupolefarma = (orden.solicitanteCorreo ?? '')
+    .toLowerCase()
+    .trim()
+    .endsWith('@grupolefarma.com.mx');
+  const nombreSolicitanteMostrar = esCorreoGrupolefarma
+    ? (orden.segundoAutorizador ?? orden.solicitanteNombre ?? '-')
+    : (orden.solicitanteNombre ?? '-');
+
   return (
     <div id="orden-compra-pdf-print" style={s.page}>
       {/* ── HEADER ── */}
@@ -468,7 +476,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
           </tr>
           <tr>
             <td style={s.thBlue}>Nombre del solicitante</td>
-            <td style={s.tdValue}>{orden.solicitanteNombre ?? '-'}</td>
+            <td style={s.tdValue}>{nombreSolicitanteMostrar}</td>
             <td style={s.thBlue}>Puesto</td>
             <td style={s.tdValue}>{orden.solicitantePuesto ?? '-'}</td>
             <td style={s.thBlue}>Fecha máxima de pago</td>
