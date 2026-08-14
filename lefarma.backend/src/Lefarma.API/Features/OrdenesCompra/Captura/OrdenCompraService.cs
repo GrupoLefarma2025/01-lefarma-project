@@ -135,6 +135,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     : new Dictionary<int, string>();
 
                 var response = items.Select(o => ToResponse(o, usuariosInfo, uomNombres, formasPagoNombres, nombresTraslados)).ToList();
+                for (var i = 0; i < items.Count; i++)
+                    response[i].SegundoAutorizador = await ResolverSegundoAutorizadorAsync(items[i]);
+
                 EnrichWideEvent("GetAll", count: response.Count);
                 return response;
             }
@@ -215,8 +218,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        //resuelve el nombre del segundo autorizador: el primer paso del workflow siempre es EsInicio
-        // (quien crea la orden), se toma el siguiente paso y se trae su participante
+        // Resuelve el nombre del segundo autorizador: el primer paso del workflow siempre es EsInicio
+        // (quien crea la orden), se toma el siguiente paso y se trae su participante.
         private async Task<string?> ResolverSegundoAutorizadorAsync(OrdenCompra o)
         {
             if (o.IdWorkflow == 0) return null;

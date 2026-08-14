@@ -55,6 +55,16 @@ function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): str
   }
 }
 
+function nombreSolicitanteMostrar(o: OrdenCompraResponse): string {
+  const esCorreoGrupolefarma = (o.solicitanteCorreo ?? '')
+    .toLowerCase()
+    .trim()
+    .endsWith('@grupolefarma.com.mx');
+  return esCorreoGrupolefarma
+    ? (o.segundoAutorizador ?? o.solicitanteNombre ?? '—')
+    : (o.solicitanteNombre ?? '—');
+}
+
 interface OrdenRow {
   folio: string;
   fechaElaboracion: string;
@@ -98,7 +108,7 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
     rows.push({
       folio: o.folio,
       fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
-      solicitante: o.solicitanteNombre ?? '—',
+      solicitante: nombreSolicitanteMostrar(o),
       fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
       mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
       sucursal: o.sucursalNombre ?? `Suc. ${o.idSucursal}`,
