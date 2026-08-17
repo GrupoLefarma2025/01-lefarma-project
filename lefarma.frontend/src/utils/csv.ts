@@ -329,6 +329,12 @@ export const DIAS_HABILES_CSV_COLUMNS: DiaHabilCsvColumn[] = [
     required: false,
     exampleValues: ['false', 'true', 'false'],
   },
+  {
+    key: 'permite_saldo_negativo',
+    label: 'permite_saldo_negativo',
+    required: false,
+    exampleValues: ['false', 'true', 'false'],
+  },
 ];
 
 export function buildTemplateDiasHabilesCsv(): Blob {
@@ -352,6 +358,7 @@ export interface DiaHabilCsvRow {
   anio?: string;
   descripcion?: string;
   consume_saldo?: string;
+  permite_saldo_negativo?: string;
 }
 
 export function parseConsumeSaldo(value: string | undefined): boolean {

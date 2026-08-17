@@ -11,6 +11,7 @@ export interface DiaHabilResponse {
   descripcion?: string;
   activo: boolean;
   consumeSaldo: boolean;
+  permiteSaldoNegativo: boolean;
 }
 
 export interface DiaHabilFechaRequest {
@@ -19,6 +20,7 @@ export interface DiaHabilFechaRequest {
   dia: number;
   descripcion?: string;
   consumeSaldo: boolean;
+  permiteSaldoNegativo: boolean;
 }
 
 export interface CargaDiasHabilesRequest {
