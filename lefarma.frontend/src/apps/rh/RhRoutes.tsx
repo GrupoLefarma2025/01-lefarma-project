@@ -31,6 +31,8 @@ import Perfil from '@/pages/Perfil';
  * omite el slot `step3` (el flujo de 2 pasos es el default de la fábrica).
  */
 export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
+  const resolvedBlockedPath = variant === 'root' ? undefined : '/rh/bloqueado';
+
   return createAppRoutes({
     appKey: 'rh',
     variant,
@@ -44,7 +46,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route path="dashboard" element={<RhDashboard />} />
 
         <Route path="solicitudes" element={
-        <PermissionGuard require="solicitud_personal.ver_listado">
+        <PermissionGuard blockedPath={resolvedBlockedPath} require="solicitud_personal.ver_listado">
               <SolicitudesPersonal />
             </PermissionGuard>
             } 
@@ -53,7 +55,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="solicitudes/gestion"
           element={
-            <PermissionGuard require="solicitud_personal.puede_ver_todas">
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="solicitud_personal.puede_ver_todas">
               <GestionSolicitudes />
             </PermissionGuard>
           }
@@ -62,7 +64,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="catalogos/tipos-solicitud"
           element={
-            <PermissionGuard requireAny={['tipos-solicitud.ver_listado']}>
+            <PermissionGuard blockedPath={resolvedBlockedPath} requireAny={['tipos-solicitud.ver_listado']}>
               <TiposSolicitudList />
             </PermissionGuard>
           }
@@ -71,7 +73,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="incidencias-checado"
           element={
-            <PermissionGuard require="incidencias_checado.ver_todas">
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="incidencias_checado.ver_todas">
               <IncidenciasChecadoList />
             </PermissionGuard>
           }
@@ -80,7 +82,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="vacaciones/dias-habiles"
           element={
-            <PermissionGuard require="vacaciones.dias_habiles.ver">
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="vacaciones.dias_habiles.ver">
               <DiasHabilesPage />
             </PermissionGuard>
           }
@@ -89,7 +91,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="vacaciones/saldos"
           element={
-            <PermissionGuard require="vacaciones.saldos.ver">
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="vacaciones.saldos.ver">
               <SaldosVacacionesPage />
             </PermissionGuard>
           }
@@ -98,7 +100,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         <Route
           path="jefes-niveles"
           element={
-            <PermissionGuard require="solicitud_personal.jefes_niveles.ver">
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="solicitud_personal.jefes_niveles.ver">
               <JefesNivelesList />
             </PermissionGuard>
           }

@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-08-10 13:54
-fecha_modificacion: 2026-08-10 18:25
+fecha_modificacion: 2026-08-13 14:15
 resumen: Planificación del módulo Educación Médica (proceso Talleres Médicos en Hospitales): schema de base de datos, backend y frontend.
 ---
 
@@ -16,6 +16,8 @@ Accepted
 - [[#Decisión|Decisión]]
 - [[#Fases|Fases]]
 - [[#Fase 0 — Planificación|Fase 0 — Planificación]]
+  - [[#0.1 Los 7 formularios y su operación real|0.1 Los 7 formularios y su operación real]]
+  - [[#0.2 Operación real vs. papel|0.2 Operación real vs. papel]]
 - [[#Fase 1 — Base de datos|Fase 1 — Base de datos]]
   - [[#1.1 Schema educacion_medica (script 0002)|1.1 Schema]]
   - [[#1.2 Catálogo + 11 tablas operacionales (script 0003) — el porqué de cada columna|1.2 Catálogo + 11 tablas operacionales]]
@@ -69,6 +71,109 @@ El módulo Educación Médica **no tenía nada en la base de datos**, por lo que
 
 4. **1 catálogo + 11 tablas, no más.**
    *Por qué:* cubren el ciclo completo del taller (programa anual → selección mensual → matriz → materiales → asistencia → aprobaciones → evidencias). Ventas IMSS (Slice 3) no tiene tablas aún: requiere su propia decisión (00002).
+
+### 0.1 Los 7 formularios y su operación real
+
+Cada formato tiene un dueño de captura y una cadena de firmas distinta. Hoy todo opera en **papel + correo electrónico**. Las citas literales de cada formulario viven en `referencias/pdf-to-md/Formularios/`.
+
+#### FOR-002 — Base de Datos de Hospitales (anual)
+
+**Qué es:** el filtro de hospitales objetivo del año. Por cada hospital: Clave Única de Establecimientos de Salud (CLUES), estado, municipio, nombre, número de quirófanos (**el único dato capturado a mano**) y las 7 anestesias calculadas.
+
+**La cascada de cálculo — 1 dato manual → 7 columnas calculadas.** Cada porcentaje se aplica sobre el resultado del nivel anterior; los del nivel 3 son **de las Regionales (AR), no del total**:
+
+| Nivel | Columna | Fórmula | Detalle |
+|---|---|---|---|
+| 1 | Anestesias Totales (AT) | `AT = NQ × 2.5 × 250` | NQ = n.º de quirófanos (único dato manual); 2.5 = cirugías promedio por día por quirófano; 250 = días laborables al año. Supuestos del negocio: **ningún documento justifica su origen** |
+| 2 | Anestesias Generales (AG) | `AG = AT × 30%` | AG + AR = 100% del total |
+| 2 | Anestesias Regionales (AR) | `AR = AT × 70%` | Base de los subtipos del nivel 3 |
+| 3 | Anestesias Epidurales (AE) | `AE = AR × 35%` | 35% de las regionales |
+| 3 | Anestesias Subdurales (AS) | `AS = AR × 45%` | 45% de las regionales |
+| 3 | Mixtas obesos (MO) | `MO = AR × 2%` | 2% de las regionales |
+| 3 | Mixtas no obesos (MNO) | `MNO = AR × 18%` | 18% de las regionales · Comprobación: 35 + 45 + 2 + 18 = 100% de AR |
+
+**Ejemplo con números reales** (hospital con 6 quirófanos):
+
+| Paso | Fórmula | Resultado |
+|---|---|---|
+| Anestesias Totales | 6 × 2.5 × 250 | **3,750** al año |
+| Generales | 3,750 × 30% | 1,125 |
+| Regionales | 3,750 × 70% | 2,625 |
+| Epidurales | 2,625 × 35% | 919 |
+| Subdurales | 2,625 × 45% | 1,181 |
+| Mixtas obesos | 2,625 × 2% | 53 |
+| Mixtas no obesos | 2,625 × 18% | 473 |
+| Comprobación | 919 + 1,181 + 53 + 473 | **2,625 ✓** |
+
+> **Discrepancia pendiente de confirmar con el área:** el Anexo 2 del instructivo IDT-002 desglosa la Mixta como 20% = M-Adulto 18% + M-Obeso 1% + M-Pediátrico 1% (3 categorías), mientras FOR-002 (que define las columnas) usa Mixtas obesos 2% + Mixtas no obesos 18% (2 columnas). Ambas suman 20%; este ADR implementa FOR-002.
+
+**Para qué sirve:** estima el **tamaño del mercado de anestesia** de cada hospital (procedimientos al año por tipo). Los productos Lefarma corresponden a tipos de anestesia, por eso el desglose. Con estas cifras se aplica el **Pareto 70/30** (se visitan los hospitales que concentran el 70% de procedimientos) y se clasifica el Concentrado Anual (con SIA → se visitan; sin SIA → venta directa).
+
+**Quién lo carga:** los Gerentes de Ventas durante la reunión anual (tercera semana de noviembre), junto con el Ejecutivo de Estadística y el Coordinador de Educación Médica. La base completa la arma el Ejecutivo de Estadística en el FOR-001 (solicitada por correo por el Coordinador de Educación Médica en la primera semana de noviembre; el Ejecutivo de Estadística tiene 5 días hábiles).
+
+**Quién valida:** firma de conformidad del Gerente General + los Gerentes de Ventas en la reunión; después **Dirección Corporativa autoriza** (junto con el FOR-001 y el FOR-003).
+
+#### FOR-003 — Programa Anual (anual)
+
+**Qué es:** el plan del año: definición, periodos, gerencia, hospitales objetivo (con o sin Servicio Integral de Anestesia), **meta = número de hospitales × 1.5 talleres**, productos a promocionar (R-III, R-II, R-I, B-27G, B-22G, T) y resumen de capacidad (semanas de trabajo, talleres por semana, talleres por especialista, especialistas necesarios contra especialistas disponibles).
+
+**Quién lo carga:** el equipo en la misma reunión anual (Gerentes de Ventas + Gerente General + Coordinador de Educación Médica + Ejecutivo de Estadística).
+
+**Quién valida:** firma del Gerente General y de los Gerentes de Ventas; **autoriza Dirección Corporativa**. Se **revisa trimestralmente** y se actualiza si hay un acuerdo comercial nuevo con un Servicio Integral de Anestesia.
+
+#### FOR-004 — Selección Mensual (día 15 de cada mes)
+
+**Qué es:** los hospitales a visitar en los **próximos 45 días calendario**: región, hospital, estado, ciudad o municipio, ejecutivo asignado, producto a promocionar, observaciones.
+
+**Quién lo carga:** el Gerente de Ventas con el Gerente General en la reunión del día 15 (reglas: mínimo 4 hospitales por zona en cada viaje, al menos 64 talleres al mes por gerencia, priorizar hospitales aún no visitados en el año).
+
+**Quién valida:** el **Gerente General firma** cada formato y pide la firma de cada Gerente de Ventas. Después el Gerente de Ventas **notifica por correo a sus Ejecutivos de Ventas** anexando el FOR-004 firmado.
+
+#### FOR-005 — Matriz de Talleres (mensual, es el corazón del proceso)
+
+**Qué es:** la logística y costos de cada taller: hospital, número de participantes, ejecutivo, fecha y hora, equipo de proyección (sí/no, propio o rentado), y los 4 recursos (muestras de producto, folletos, gastos de envío, box lunch) con su costo unitario → **Costo Total**.
+
+**Cómo llega y quién lo carga** (dos manos):
+
+1. El **Ejecutivo de Ventas** visita el hospital, aplica el guion de promoción ("Speech"), y si el Jefe de Servicio acepta el taller, captura los datos de la visita (los campos 1 al 12).
+2. Envía el FOR-005 al **Gerente de Ventas**, quien **concentra todas las matrices en una sola, la firma** y la manda por correo al Auxiliar Administrativo de Educación Médica el día 15.
+3. El **Auxiliar Administrativo de Educación Médica agrega los costos** (costo unitario por cada recurso) y el día 17 publica el Calendario.
+
+**Quién valida** (3 firmas en cadena): el **Gerente de Ventas firma** el concentrado → el **Coordinador Administrativo revisa** los costos contra las políticas y firma → **Dirección Corporativa autoriza** (a más tardar el día 20 del mes).
+
+#### FOR-006 — Calendario (día 17)
+
+**Qué es:** la agenda mensual por semana: ciudad, especialista asignado y, por cada día (lunes a domingo), el Ejecutivo de Ventas, el hospital y la fecha-hora de la visita.
+
+**Quién lo carga:** el Auxiliar Administrativo de Educación Médica, el día 17, y lo manda por correo a los Gerentes de Ventas, a los Especialistas de Producto y al Gerente General.
+
+**Quién valida:** **nadie firma operativamente** — es un vacío documentado: el formato no trae bloque de firma.
+
+#### FOR-007 — Material para Talleres (acuse de entrega)
+
+**Qué es:** qué material se entregó al Ejecutivo de Ventas por taller: producto y cantidad, checklist (lista de asistencia, folletos, equipo de cómputo, proyector, dulces, modelo anatómico) y la firma del ejecutivo que recibe.
+
+**Cómo llega:** matriz autorizada → el Coordinador Administrativo genera el **Pedido interno** (lo firma) → el Auxiliar Administrativo de Almacén entrega el material al Auxiliar Administrativo de Educación Médica → éste **arma los paquetes** y firma la Orden de Remisión → entrega presencial en la Ciudad de México (de 4:30 a 6:30 de la tarde) o foránea por paquetería (**7 días calendario antes** del taller + carta porte).
+
+**Quién valida:** el **Ejecutivo de Ventas firma al recibir** y verifica cantidades y funcionamiento del equipo; en talleres foráneos envía la copia firmada el mismo día. Si falta algo, el Auxiliar Administrativo y el Coordinador Administrativo lo completan un día antes del taller.
+
+#### FOR-008 — Registro de Asistencia (día del taller)
+
+**Qué es:** encabezado (fecha, hora de inicio y fin, tema, institución, unidad médica, lugar, especialista) + lista de hasta 20 médicos: nombre, puesto, teléfono celular, correo electrónico, **firma**; y observaciones marcando al **médico líder positivo o negativo** del producto.
+
+**Quién lo carga:** los propios asistentes al registrarse (el Especialista de Producto recibe y da la bienvenida; el Ejecutivo de Ventas entrega el box lunch y verifica que lo registrado coincida con los presentes). El Ejecutivo de Ventas lo fotografía y lo envía por correo al Auxiliar Administrativo de Educación Médica, anexado a las fotos de evidencia.
+
+**Quién valida:** **cada médico firma su propio renglón**. No hay aprobación jerárquica posterior.
+
+### 0.2 Operación real vs. papel
+
+Cosas levantadas con el área que **no están en los instructivos** (detalle completo de reglas en `reglas-negocio.md` §5):
+
+1. **Ejecutivos de Ventas y Especialistas de Producto capturan hospitales.** El instructivo de Selección Mensual (IDT-003) dice que solo el Ejecutivo de Ventas carga la Matriz; en la práctica el **Especialista de Producto también carga** parte de los hospitales. El módulo refleja la operación real, no el papel.
+2. **Capacidad y pareo:** máximo 3 visitas por día y 8 por semana por persona; cada ruta **empareja 1 Ejecutivo de Ventas + 1 Especialista de Producto**; los hospitales de la misma zona se asignan a la misma persona.
+3. **Las zonas NO se heredan:** `genContactosCat.zona` está vacío en un 97.6% → las zonas de visita **se calcularán por agrupamiento (clustering) GPS** sobre latitud y longitud (poblados al 100%).
+4. **No hay fuerza de ventas en Asokam:** `app.Usuarios.Puesto` está al 100% como "Sin asignar" y `crmEquipoVentasCat` está vacío → los roles Ejecutivo de Ventas, Especialista de Producto y Gerente de Ventas, y el pareo, serán **propios del módulo**.
+5. **Vacío del Calendario:** hoy nadie lo firma; al digitalizar habrá que definir si **hereda la autorización de la Matriz** o si tiene aprobación propia.
 
 ---
 
@@ -346,7 +451,10 @@ Prefijo: `/api/educacion-medica`. Cada endpoint digitaliza una operación que ho
 | `POST /hospitales` | Alta hospital + extensión | FOR-002 fila nueva | **Valida `codigoContacto` en Asokam**; solo captura quirófanos y encabezado; la BD calcula AT/AG/AR/AE/AS/MO/MNO (PERSISTED) |
 | `PUT /hospitales/{codigo}` | Edita extensión | FOR-002 corrección | Misma validación; recálculo automático al cambiar quirófanos |
 | `DELETE /hospitales/{codigo}` | Soft delete | Baja de la base | `activo = 0` (madre) |
-| `GET /ejecutivos` | Ejecutivos y especialistas | Estructura organizacional (Roles: EV/EP/GV) | Read-only desde `app.Usuarios` (Asokam) |
+| `GET /usuarios` | Usuarios para asignar roles/pareo | El **alta de ejecutivos se hace en la pantalla de Roles existente** del hub; el módulo solo los consume | Read-only desde `app.Usuarios` (Asokam) |
+| `GET/POST/PUT/DELETE /equipos-pareo` | Roles EV/EP/GV + pareo EV+EP por ruta | §0.2 (4): no hay fuerza de ventas en Asokam → roles y pareo propios del módulo | **Valida capacidad**: máx. 3 visitas/día y 8/semana por persona; hospitales de la misma zona → misma persona |
+| `GET/POST/PUT/DELETE /tipo-gerencia` | CRUD del catálogo | Catálogo propio `tipo_gerencia` (§1.2.0) | UNIQUE `descripcion` |
+| `GET/PUT /parametros` | Parámetros configurables | reglas-negocio §7: ~128 sesiones/mes, split IMSS/ISSSTE/Otros, máx. visitas/día y semana | Solo GG/admin |
 | `GET /productos` | Catálogo de productos | FOR-003/005 usan claves R-III…T | Read-only desde `genProductosCat` (Asokam) |
 
 #### Programa Anual (Slice 2)
@@ -378,11 +486,20 @@ Prefijo: `/api/educacion-medica`. Cada endpoint digitaliza una operación que ho
 | `POST /talleres/{id}/aprobaciones` | Firma Elaboró/Revisó/Autorizó | Pie de firmas de los formularios | Rol válido, permiso del rol firmante; log inmutable |
 | `GET/POST/DELETE /talleres/{id}/evidencias` | Evidencias post-taller | Auditoría / CQ / Tecnovigilancia | Solo después de `Realizado` |
 
+#### Transversales (Slice 2)
+
+| Endpoint | Qué hace | Porqué | Validaciones |
+|---|---|---|---|
+| `GET /aprobaciones/pendientes` | **Bandeja de Autorizaciones**: pendientes por rol (programa, selección, taller) | Digitaliza las cadenas de firma del papel (GG/CA/DC) y la separación de funciones (quien elabora no autoriza) | Solo pendientes del rol firmante; quien firma no puede editar |
+| `GET /talleres/asignaciones/{idUsuario}` | **Asignación del Ejecutivo**: "mis hospitales del mes" | Reemplaza el correo del GV del día 15 (IDT-003) | Solo asignaciones del usuario (EV) |
+| `GET /indicadores/semanal` | **Dashboard**: los 6 indicadores semanales | Reporte semanal del CEM a GG/DC | Agrega talleres por semana |
+| `GET /panel-mes` | **Panel del mes**: selección vs calendario vs realizados, estados de aprobación, costos acumulados | Vista de seguimiento mensual | — |
+
 ### 2.2 Catálogos (Slice 1)
-Hospitales (con cálculos automáticos), Ejecutivos (read-only), Productos (read-only).
+Hospitales (con cálculos automáticos), Productos (read-only), Tipo de Gerencia, Equipos y pareo (roles + pareo propios del módulo), Parámetros. El **alta de ejecutivos se liga a la pantalla de Roles existente** del hub.
 
 ### 2.3 Taller completo (Slice 2, proceso core)
-Programas Anuales, Selecciones Mensuales, Talleres con state machine, recursos + costo, materiales, asistencias, aprobaciones, evidencias.
+Programas Anuales, Selecciones Mensuales, Talleres con state machine, recursos + costo, materiales, asistencias, aprobaciones, evidencias, Bandeja de Autorizaciones, Asignación del Ejecutivo, Indicadores y Panel del mes.
 
 ---
 
@@ -401,9 +518,13 @@ Roles según [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]] y los responsa
 
 | Pantalla | Ruta | Formulario que reemplaza | Qué hace | Roles |
 |---|---|---|---|---|
-| **Hospitales** | `/catalogos/hospitales` | FOR-002 | Tabla CLUES + quirófanos; **calcula AT/AG/AR/AE/AS/MO/MNO solos** (el usuario solo captura quirófanos); filtros gerencia/SIA/año | GG/GV: CRUD · AEM/CA: R/W · EV/EP: R |
-| **Ejecutivos** | `/catalogos/ejecutivos` | Roles y Abreviaturas | Catálogo de EV/EP/GV con zona y gerencia (read-only desde Asokam) | GG: CRUD · CA: R/W · EV/EP: R (propio) |
+| **Hospitales** | `/catalogos/hospitales` | FOR-002 | Tabla clave única de establecimientos de salud (CLUES) + quirófanos; **calcula AT/AG/AR/AE/AS/MO/MNO solos** (el usuario solo captura quirófanos); filtros gerencia/SIA/año | GG/GV: CRUD · AEM/CA: R/W · EV/EP: R |
 | **Productos** | `/catalogos/productos` | FOR-001/FOR-005 (productos) | Catálogo de claves R-III…T (read-only desde Asokam) | GG/CA: CRUD · GV/EV/EP: R |
+| **Tipo de Gerencia** | `/catalogos/tipo-gerencia` | Catálogo propio | CRUD mínimo del catálogo IMSS/Descentralizado/Privado (extensible) | Admin: CRUD |
+| **Equipos y pareo** | `/catalogos/equipos-pareo` | §0.2 (4) | Asigna roles EV/EP/GV a usuarios + tabla de pareo EV+EP por ruta; **valida capacidad** (3 visitas/día, 8/semana) | GG: CRUD · CA: R/W · EV/EP: R |
+| **Parámetros** | `/catalogos/parametros` | reglas-negocio §7 | Configurables sin código: ~128 sesiones/mes, split IMSS/ISSSTE/Otros, máx. visitas/día y semana | GG/admin: R/W |
+
+> **Nota — alta de ejecutivos:** no hay pantalla propia de ejecutivos; se liga a la **pantalla de Roles ya existente** del hub para dar de alta EV/EP/GV, y el módulo los consume vía `GET /usuarios` para equipos y pareo.
 
 #### Taller completo (Slice 2)
 
@@ -417,6 +538,15 @@ Roles según [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]] y los responsa
 | **Solicitud Materiales** (tab de TallerDetail) | `/talleres/materiales` | FOR-007 + IDT-004 | Solicitud/entrega: checklist (lista, flayers, cómputo, proyector, dulces, modelo), estatus, firma de recibido | AEM: CRUD · CA/Aux. Almacén: R/W · EV: R/W (recibe) · GG/DC: R |
 | **Evidencias** (tab de TallerDetail) | — (dentro de TallerDetail) | Proceso | Fotos/videos/documentos post-taller | EP/EV: captura · CQ/TECNO: R |
 
+| **Recursos y costos** (tab de TallerDetail) | `/talleres/matriz` | FOR-005 (costos) | Los 4 recursos (muestras, folletos, envío, box lunch) con cantidad × costo unitario; **Costo Total calculado al vuelo**; resumen visible | AEM: R/W (costos) · EV: R/W (cantidades) · CA: A · DC: R |
+| **Bandeja de Autorizaciones** | `/talleres/aprobaciones` | Pie de firmas del proceso | Transversal: pendientes por rol — "CA: revisar costos" → "DC: autorizar Matriz" → el taller avanza de estado (Borrador→Elaborado→Revisado→Autorizado→…). **Quien firma no puede editar** (separación de funciones) | CA/DC/GG/GV: A (por rol) |
+| **Asignación del Ejecutivo** | `/talleres/mis-asignaciones` | FOR-004 (notificación) | El EV ve "mis hospitales del mes" (notificación digital del día 15 en vez del correo del GV) | EV: R (propio) |
+| **Autorización del Programa** | `/talleres/programa-anual` (vista de firma) | FOR-003 (autorización) | GG/DC ven el programa completo y aprueban/rechazan con comentario; la firma de DC cierra el año | GG: A · DC: A |
+| **Autorización de la Selección** | `/talleres/seleccion` (vista de firma) | FOR-004 (firma) | GG firma + solicita la firma de cada GV (doble firma como el papel) | GG: A · GV: A |
+| **Revisión trimestral** | `/talleres/programa-anual` (banner) | IDT-002 (revisión trimestral) | Recordatorio/flujo para reautorizar el programa cada trimestre o por nuevo acuerdo con SIA | CEM: R/W · DC: A |
+| **Dashboard de Indicadores** | `/talleres/indicadores` | Reporte del CEM | Los 6 indicadores semanales (realizados vs programados, producto entregado, satisfacción, asistentes/adscritos/residentes); reporte a GG/DC | CEM: R/W (presenta) · GG/DC: R |
+| **Panel del mes** | `/talleres/panel` | Seguimiento mensual | Selección vs calendario vs talleres realizados, estado de autorizaciones, costos acumulados | GG/DC/CA: R |
+
 > **Ventas IMSS (Metas, Plan de Trabajo, Reporte Semanal, Reporte de Visitas, Indicador)** queda fuera de este ADR: requiere la decisión 00002 y sus propias tablas. Ver [[referencias/pdf-to-md/Procesos/Proceso de Ventas IMSS]].
 
 ### 3.2 Permisos — cada permiso y por qué existe
@@ -428,8 +558,12 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 | `baseapp.hub.puede_ver_educacion_medica` | Muestra el tile del módulo en el hub | Llave de entrada (ya registrado en `apps/_registry.ts`); sin él el módulo es invisible |
 | `educacion_medica.hospitales.puede_ver` | Ver pantalla Hospitales | EV/EP consultan la base para preparar visitas (matriz R) |
 | `educacion_medica.hospitales.puede_gestionar` | Crear/editar/eliminar hospitales | GG/GV mantienen la base (CRUD) y AEM/CA capturan (R/W) |
-| `educacion_medica.ejecutivos.puede_ver` | Ver catálogo de ejecutivos | Consulta organizacional |
-| `educacion_medica.ejecutivos.puede_gestionar` | Editar ejecutivos | GG (CRUD) y CA (R/W) |
+| `educacion_medica.equipos.puede_ver` | Ver equipos y pareo | Consulta organizacional (EV/EP/GV) |
+| `educacion_medica.equipos.puede_gestionar` | Asignar roles y pareo EV+EP | GG (CRUD) y CA (R/W) |
+| `educacion_medica.tipo_gerencia.puede_gestionar` | CRUD del catálogo de gerencia | Admin |
+| `educacion_medica.parametros.puede_gestionar` | Editar parámetros configurables | GG/admin |
+| `educacion_medica.aprobaciones.puede_ver` | Ver la Bandeja de Autorizaciones | CA/DC/GG/GV ven sus pendientes; las firmas usan los `puede_autorizar` de cada entidad |
+| `educacion_medica.indicadores.puede_ver` | Ver Dashboard y Panel del mes | GG/DC/CA (R) |
 | `educacion_medica.productos.puede_ver` | Ver productos | Todos consultan claves |
 | `educacion_medica.productos.puede_gestionar` | Editar productos | GG/CA (CRUD) |
 | `educacion_medica.programas.puede_ver` | Ver Programa Anual | EV/EP (R) |
@@ -470,6 +604,51 @@ Patrón del repo: `baseapp.hub.puede_ver_*` para el tile del hub; `app.recurso.p
 ## Anexo — Archivos originales
 
 > Documentos fuente de esta decisión. Los originales viven en `referencias/` (pdf-to-md = `lefarma.docs/educacion-medica/referencias/pdf-to-md/`).
+
+### Mapa documento ↔ archivo físico
+
+Cada documento del proceso (`ASK-CEM-*`) mapea a su archivo real en `referencias/`. Convención de carpetas:
+
+- `referencias/pdf/` — **originales** entregados por el área (22 PDFs: 12 de Educación Médica, 10 de Ventas).
+- `referencias/pdf-to-md/Educacion_medica/` — conversión **espejo 1:1** de los PDFs de Educación Médica.
+- `referencias/pdf-to-md/Formularios/`, `Instructivos/`, `Procesos/`, `Referencias/`, `Roles/`, `Diagramas/` — versiones **limpias** (frontmatter + wikilinks); son las únicas que se citan como fuente en este ADR.
+
+| Código | Documento | PDF (original) | MD limpio |
+|---|---|---|---|
+| `ASK-CEM-DDP-001` | Proceso Talleres Médicos en Hospitales (v02) | ✅ `pdf/Educacion_medica/Talleres médicos en hospitales.pdf` | ✅ `Procesos/Talleres Médicos en Hospitales.md` |
+| `ASK-CEM-IDT-001` | Preparación y Autorización de Material (v02) | ✅ `pdf/Educacion_medica/Preparación y autorización de material de talleres médicos.pdf` | ✅ `Instructivos/Preparación y Autorización de Material de Talleres Médicos.md` |
+| `ASK-CEM-IDT-002` | Elaboración del Concentrado Anual (v02) | ✅ `pdf/Educacion_medica/Elaboración del concentrado anual de Talleres Médicos.pdf` | ✅ `Instructivos/Elaboración del Concentrado Anual de Talleres Médicos.md` |
+| `ASK-CEM-IDT-003` | Selección Mensual de Hospitales (v02) | ✅ `pdf/Educacion_medica/Selección mensual de hospitales para talleres médicos.pdf` | ✅ `Instructivos/Selección Mensual de Hospitales para Talleres Médicos.md` |
+| `ASK-CEM-IDT-004` | Solicitud y Entrega de Materiales (v01) | ✅ `pdf/Educacion_medica/Solicitud y entrega de materiales para Talleres Médicos.pdf` | ✅ `Instructivos/Solicitud y Entrega de Materiales para Talleres Médicos.md` |
+| `ASK-CEM-IDT-005` | Impartición de Talleres Médicos (v01) | ✅ `pdf/Educacion_medica/Impartición de talleres Médicos.pdf` | ✅ `Instructivos/Impartición de Talleres Médicos.md` |
+| `ASK-CEM-FOR-001` | Base de datos del Sistema Público de Salud | ❌ sin PDF propio | ✅ `Referencias/ASK-CEM-FOR-001 Base de datos de Hospitales del Sistema Público de Salud.md` |
+| `ASK-CEM-FOR-002` | Base de Datos de Hospitales | ✅ `pdf/Educacion_medica/ASK-CEM-FOR-002 ED - Base de datos de hospitales para Talleres Médicos.pdf` | ✅ `Formularios/ASK-CEM-FOR-002 Base de Datos de Hospitales.md` |
+| `ASK-CEM-FOR-003` | Programa Anual de Talleres Médicos | ✅ `pdf/Educacion_medica/ASK-CEM-FOR-003 ED - Programa anual de Talleres Médicos.pdf` | ✅ `Formularios/ASK-CEM-FOR-003 Programa Anual de Talleres Médicos.md` |
+| `ASK-CEM-FOR-004` | Selección de Hospitales | ❌ sin PDF propio — digitalizado del **Anexo 1 de IDT-003** | ✅ `Formularios/ASK-CEM-FOR-004 Selección de Hospitales para Talleres Médicos.md` |
+| `ASK-CEM-FOR-005` | Matriz de Talleres Médicos | ✅ `pdf/Educacion_medica/ASK-CEM-FOR-005 ED - Matriz de Talleres Médicos.pdf` | ✅ `Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos.md` |
+| `ASK-CEM-FOR-006` | Calendario de Talleres Médicos | ✅ `pdf/Educacion_medica/ASK-CEM-FOR-006 ED - Calendario de Talleres Médicos.pdf` | ✅ `Formularios/ASK-CEM-FOR-006 Calendario de Talleres Médicos.md` |
+| `ASK-CEM-FOR-007` | Material para Talleres Médicos | ❌ sin PDF propio — digitalizado del **Anexo 2 de IDT-004** | ✅ `Formularios/ASK-CEM-FOR-007 Material para Talleres Médicos.md` |
+| `ASK-CEM-FOR-008` | Registro de Asistencia | ✅ pero el archivo no lleva código en el nombre: `pdf/Educacion_medica/Registro de Asistencia .pdf` (con espacio residual) | ✅ `Formularios/ASK-CEM-FOR-008 Registro de Asistencia.md` |
+
+**Documentos auxiliares** citados por los instructivos (solo MD, sin PDF en la entrega):
+
+| Código | Archivo MD |
+|---|---|
+| `ASK-CEM-ANE-001` Speech para promover el Taller Médico | `Referencias/ASK-CEM-ANE-001 Speech para promover el Taller Médico.md` |
+| `ASK-CBA-FOR-001` Plantilla de Presentación Asokam | `Referencias/ASK-CBA-FOR-001 Plantilla de Presentación Asokam.md` |
+| `ASK-TES-FOR-001` Depósito Box Lunch | `Referencias/ASK-TES-FOR-001 Depósito Box Lunch para Talleres Médicos IMSS y Descentralizados.md` |
+| `ASK-ADM-FOR-001` Solicitud de Viáticos | `Referencias/ASK-ADM-FOR-001 Solicitud de Viáticos.md` |
+| `ASK-GGE-IDT-001` Solicitud y aprobación de viáticos | `Referencias/ASK-GGE-IDT-001 Solicitud y aprobación de viáticos.md` |
+| Diagrama del Proceso de Talleres Médicos | `Diagramas/Diagrama del Proceso de Talleres Médicos.md` (sin PDF) |
+| Roles y Abreviaturas | `Roles/Roles y Abreviaturas.md` |
+
+**Hallazgos del mapeo:**
+
+1. **FOR-001, FOR-004 y FOR-007 no tienen PDF**: FOR-004 y FOR-007 se digitalizaron desde los anexos de IDT-003/IDT-004; FOR-001 llegó como MD suelto en `Referencias/`.
+2. **El PDF de FOR-008 no lleva código** en el nombre y tiene un espacio residual (`"Registro de Asistencia .pdf"`).
+3. **PDF duplicado sin código**: `pdf/Educacion_medica/Matriz de Talleres Médicos.pdf` (además del FOR-005 con código) — pendiente confirmar con el área si es ejemplo o versión llenada.
+4. **`pdf/Ventas/`** (10 PDFs `ASK-VEN-*`) está físicamente en el repo pero **fuera del alcance** de este ADR → alimentará el ADR 00002.
+5. Los MD limpios **no son copia literal** de `Educacion_medica/`: tienen frontmatter, wikilinks y normalización de nombres (ej. "concentrado anual" → "Concentrado Anual"). Para citar fuentes se usan siempre los limpios.
 
 ### Procesos y diagramas
 - [[referencias/pdf-to-md/Procesos/Talleres Médicos en Hospitales]] — proceso `ASK-CEM-DDP-001` (fuente del ciclo completo)

@@ -6,6 +6,19 @@ import { educacionMedicaMenuItems } from './menuItems';
 
 import { EducacionMedicaDashboard } from './pages/EducacionMedicaDashboard';
 import Perfil from '@/pages/Perfil';
+import HospitalesPage from './pages/catalogos/HospitalesPage';
+import ProductosPage from './pages/catalogos/ProductosPage';
+import TipoGerenciaPage from './pages/catalogos/TipoGerenciaPage';
+import EquiposPareoPage from './pages/catalogos/EquiposPareoPage';
+import ParametrosPage from './pages/catalogos/ParametrosPage';
+import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
+import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
+import CalendarioPage from './pages/planificacion/CalendarioPage';
+import TallerPage from './pages/taller/TallerPage';
+import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
+import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
+import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
+import PanelMesPage from './pages/seguimiento/PanelMesPage';
 
 /**
  * Educación Médica route table — delega TODO el scaffolding a la fábrica
@@ -43,6 +56,21 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         */}
         <Route path="dashboard" element={<EducacionMedicaDashboard />} />
         <Route path="perfil" element={<Perfil />} />
+
+        {/* wireframe: sin guard de permisos hasta implementar */}
+        <Route path="catalogos/hospitales" element={<HospitalesPage />} />
+        <Route path="catalogos/productos" element={<ProductosPage />} />
+        <Route path="catalogos/tipo-gerencia" element={<TipoGerenciaPage />} />
+        <Route path="catalogos/equipos-pareo" element={<EquiposPareoPage />} />
+        <Route path="catalogos/parametros" element={<ParametrosPage />} />
+        <Route path="programa-anual" element={<ProgramaAnualPage />} />
+        <Route path="seleccion" element={<SeleccionMensualPage />} />
+        <Route path="calendario" element={<CalendarioPage />} />
+        <Route path="talleres" element={<TallerPage />} />
+        <Route path="aprobaciones" element={<BandejaAprobacionesPage />} />
+        <Route path="mis-asignaciones" element={<MisAsignacionesPage />} />
+        <Route path="indicadores" element={<IndicadoresPage />} />
+        <Route path="panel-mes" element={<PanelMesPage />} />
       </>
     ),
   });

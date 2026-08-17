@@ -172,6 +172,47 @@ lefarma.docs/<modulo>/
 - Use the `diagram-design` skill with the project custom skin (accent `#eb6c36`): 4px grid, orthogonal connectors (r=8), label masks with 6–10px gaps, max 2 accent uses, mono font only for technical content, no JetBrains Mono.
 - Validate diagrams by DOM inspection (element counts, no empty text nodes, all tables/columns present) — never by screenshot.
 
+## Documentation & Diagram Pipeline (Educación Médica)
+
+Proven workflow for planning and documenting modules. Living artifacts in `lefarma.docs/educacion-medica/`:
+
+- `reglas-negocio.md` — master business doc: AS-IS §4 (32 steps), TO-BE rules §5, data model §6 (includes ER Mermaid §6.4 + state machine §6.5), glossary §9.
+- `decisiones/00001_esquema-datos-educacion-medica.md` — technical ADR: tables, endpoints, screens (§3.1), permissions (§3.2).
+- `tareas/00001_*` — phase plan; keep it in sync with the ADR (screens/endpoints/permisos).
+- `presentacion-proceso.md` — business presentation for process owners (no tech terms, no document references, business voice, confirm-list at the end).
+- `explicacion-proceso.docx` — consolidated synthesis (pandoc, 8 embedded diagrams). Its MD source was deleted by the user; rebuild from the DOCX/memory if needed.
+- `diagramas/` — inventory: 4 legacy HTML (er_esquema_completo, arquitectura_modulo, proceso_operativo, flujo_general) + 3 new HTML with project skin (flujo_as-is_proceso, arquitectura_to-be_modulo, timeline_desarrollo_fases) + 5 Mermaid pairs `000001_*_mermaid.{mmd,svg}` (flujo AS-IS, state machine, arquitectura, ER, timeline) + PNG renders used in exports.
+
+### Diagrams — three methods
+
+1. **Standalone HTML with project skin** → `diagram-design` skill. Skin tokens: paper `#f5f5f5`, ink `#2d3142`, muted `#4f5d75`, soft `#7a8399`, accent `#eb6c36`; fonts Geist / Geist Mono / Instrument Serif. Validate by DOM inspection (counts, no empty text nodes), never screenshot.
+2. **Mermaid** → `pretty-mermaid` skill (`node scripts/render.mjs --format svg --theme github-light`). Supports ONLY flowchart/sequence/state/class/ER — **no pie**. Render one file at a time (batch loses files silently). First render after auto-installing `beautiful-mermaid` may fail (ESM loader warning) — just retry.
+3. **Mermaid code blocks inside MD** (Obsidian renders them automatically).
+
+Naming: `000001_<tipo>_<nombre>` (6 digits reference the ADR: `000001` → ADR `00001`).
+
+### Exporting to DOCX / PDF
+
+- **Pandoc portable** (no install): download the windows-x86_64 zip from https://github.com/jgm/pandoc/releases, extract to `%TEMP%\opencode\pandoc`, run `pandoc.exe` directly.
+- **Images must be PNG** — pandoc on Windows can't embed SVG without `rsvg-convert` (not installed). Convert HTML/SVG → PNG by opening `file:///` in Chrome DevTools and taking a fullPage screenshot.
+- **Image paths resolve against the CWD, not the input file**: run pandoc from the folder that contains the MD (or use `--resource-path`).
+- **DOCX:** `pandoc file.md -o out.docx --standalone`. Verify by unzipping the docx and checking `word/media/` + `document.xml` (tables count, image count).
+- **PDF:** `pandoc --standalone --embed-resources --css=style.css -o out.html file.md`, then headless browser: `msedge --headless --print-to-pdf=out.pdf --print-to-pdf-no-header --no-pdf-header-footer file:///.../out.html`. Give the build MD real CSS (tables, headings) or the PDF looks raw.
+- **Pie charts for exports**: pretty-mermaid can't render pies → build a temp HTML that loads `mermaid.min.js` from CDN with the pie code, then screenshot each rendered `<svg>` by element uid in Chrome DevTools.
+
+### Content rules (user preferences, hard)
+
+- Every abbreviation spelled out on first use + a glossary section with ALL of them.
+- Distinguish documented facts from interpretation (mark the latter explicitly).
+- Technical docs: cite sources as filename + literal quote. **Presentation docs for process owners: NO document references (no FOR-/IDT-/ASK- codes), NO tech terms (no tables/endpoints/SQL), business voice, everything explicit — nothing left to assumption; list open decisions at the end.**
+- Formal documents: no redundant header blocks (don't restate the title/subtitle in a "Para/Objetivo" block).
+- Iterate in MD first; export DOCX/PDF only after the user approves the MD.
+
+### Environment lessons
+
+- OpenCode sub-agents (`task`/general) are flaky: they can return an empty result without creating files. Verify files on disk after EVERY delegation; prefer inline work for small/mechanical writes; when delegating, use self-contained prompts (no file reads) and small scopes.
+- PowerShell gotcha: `-not $c -match "x"` does NOT test absence (operator precedence) — use `grep`/`Select-String`/`.Contains()`.
+
 ## Testing
 
 - Backend: xUnit + Moq + FluentAssertions. Integration tests use `Microsoft.AspNetCore.Mvc.Testing` and EF Core InMemory.

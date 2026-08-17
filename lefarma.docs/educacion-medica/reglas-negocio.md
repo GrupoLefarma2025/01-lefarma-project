@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-08-10 17:45
-fecha_modificacion: 2026-08-10 17:50
+fecha_modificacion: 2026-08-13 18:50
 resumen: Documento maestro único del módulo Educación Médica — brief + proceso AS-IS (32 pasos detallados) + reglas de negocio (TO-BE) + modelo de datos y dependencias del legacy (Asokam).
 ---
 
@@ -483,6 +483,119 @@ Reconstrucción del flujo operativo tal como ocurre hoy —enteramente sobre pap
 - `Instructivos/Impartición de Talleres Médicos.md` — ASK-CEM-IDT-005 v01 (Fase D)
 - `Formularios/ASK-CEM-FOR-002 … 003 … 004 … 005 … 006 … 007 … 008 *.md` — formatos operativos (Fases A2, B, C, D)
 
+### 4.7 Recorrido ejecutivo del flujo — qué pasa, por qué y cálculos
+
+> Recorrido narrativo del proceso completo, complemento de §4.1–4.3 (donde vive el detalle paso a paso con citas literales). Los "Por qué" marcados como *interpretación* son razonamiento de planificación, **no** citas de las fuentes.
+
+**El ciclo en una mirada:** el año opera en dos engranes — uno **anual** (noviembre: planificación) y uno **mensual** (día 15: selección → taller → cierre). El mensual corre 12 veces y el anual lo alimenta.
+
+#### FASE A — Planificación anual (noviembre)
+
+**A1 · Material didáctico (IDT-001).** El Coordinador de Educación Médica revisa, la primera semana de noviembre, las presentaciones de producto que los Especialistas de Producto usarán el año siguiente. Cada presentación debe traer 7 temas obligatorios: quiénes son Lefarma/Asokam, el producto, propuestas de valor y normas de calidad, beneficios (anestesiólogo / institución / paciente), evolución del producto, **atención de quejas** y datos de contacto. Cadena de aprobación (máx. 2 días por paso): Gerente General aprueba → Diseñador Gráfico maqueta en la plantilla autorizada (ASK-CBA-FOR-001) → revisión conjunta (EP + Especialista de Anestesiología + I&D) → **Dirección Corporativa autoriza** → resguardo en Quality Web. *Por qué (interpretación):* el material es el insumo que los Especialistas usan todo el año; sin presentación autorizada no hay taller consistente.
+
+**A2 · Concentrado anual y programa (IDT-002).** El Coordinador solicita por correo (1ª semana de noviembre) la base de hospitales al Ejecutivo de Estadística, que tiene **5 días hábiles** para armar el FOR-001 (datos del portal DGIS: CLUES, estado, municipio, institución, nivel de atención, número de quirófanos).
+
+**La cascada de anestesias** (estimador del mercado de cada hospital; 1 dato manual → 7 columnas calculadas):
+
+| Nivel | Columna | Fórmula | Detalle |
+|---|---|---|---|
+| 1 | Anestesias Totales (AT) | **AT = NQ × 2.5 × 250** | NQ = quirófanos (dato manual); 2.5 = cirugías promedio por día por quirófano; 250 = días laborables al año. Supuestos del negocio, sin justificación documentada |
+| 2 | Generales (AG) | **AG = AT × 30%** | 30 + 70 = 100% del total |
+| 2 | Regionales (AR) | **AR = AT × 70%** | Base de los subtipos |
+| 3 | Epidurales (AE) | **AE = AR × 35%** | Los % del nivel 3 son **de AR, no del total** |
+| 3 | Subdurales (AS) | **AS = AR × 45%** | — |
+| 3 | Mixtas obesos (MO) | **MO = AR × 2%** | — |
+| 3 | Mixtas no obesos (MNO) | **MNO = AR × 18%** | 35+45+2+18 = 100% de AR |
+
+Ejemplo (6 quirófanos): AT = 6 × 2.5 × 250 = **3,750/año** → AG 1,125 · AR 2,625 → AE 919 · AS 1,181 · MO 53 · MNO 473 · comprobación 919+1,181+53+473 = **2,625 ✓**.
+
+Luego el **Pareto 70/30**: se ordenan los hospitales por volumen de anestesias y solo se visitan los que concentran el **70% del mercado** (el 30% de cola no). Se separan por institución (IMSS / descentralizados) y por con/sin SIA. *Por qué (interpretación):* no existe el dato real de anestesias por hospital; este estimador por quirófanos permite priorizar dónde conviene el taller, y el desglose importa porque los productos se venden por tipo de anestesia.
+
+**La reunión anual (3ª semana de noviembre)** decide los hospitales objetivo (FOR-002) con criterios documentados: valor de mercado (Pareto), costos de traslado y distancias, tipo de hospital, SIA sí/no, índice de inseguridad de la localidad. Después el **programa anual (FOR-003)** con sus cálculos de capacidad:
+
+| Cálculo | Fórmula |
+|---|---|
+| Meta anual de talleres | **Total talleres = N° de hospitales × 1.5** (supuesto: 1.5 talleres por hospital al año) |
+| Talleres por semana | Total de talleres ÷ semanas de trabajo |
+| Especialistas necesarios | Talleres/semana ÷ talleres por especialista |
+| Especialistas a contratar | Necesarios − Disponibles (por gerencia: IMSS y Descentralizados por separado) |
+
+Firman de conformidad (GG + GV) → el Coordinador presenta FOR-001/002/003 a **Dirección Corporativa, que autoriza**. *Por qué 1.5 (interpretación):* el negocio asume un taller y medio por hospital al año — ni uno (poco mercado) ni dos (sobreexposición); no está justificado en los documentos.
+
+#### FASE B — Selección mensual (día 15 de cada mes · IDT-003)
+
+El Gerente General se reúne con los Gerentes de Ventas el día 15 (siguiente día hábil si no se labora) y eligen los hospitales de los **próximos 45 días calendario**. Reglas de selección (literales):
+
+| Regla | Valor |
+|---|---|
+| Meta mensual | **≥ 64 talleres/mes IMSS + ≥ 64 Descentralizados = ~128/mes** |
+| Agrupación geográfica | Mínimo **4 hospitales por zona** en cada viaje foráneo |
+| Cuota por EP | ≥ 4 hospitales y **6 talleres por semana** |
+| Viajes foráneos | Máx. **3 por especialista por mes** (más si la operación lo demanda, documentándolo) |
+| Prioridad | Hospitales sin talleres en el año; si ya se visitó, los de más tiempo desde el último |
+
+Se registra el FOR-004 (región, hospital, estado, ciudad/municipio, ejecutivo, producto, observaciones). **GG firma cada formato** y solicita firma de cada GV → el GV **notifica por correo a sus EV** anexando el FOR-004. El EV visita el hospital, se reúne con el **Jefe de Servicio de Anestesia**, ejecuta el Speech (ASK-CEM-ANE-001); si el hospital acepta, captura la Matriz (FOR-005); si no, el GV reagenda. *Por qué (interpretación):* la ventana de 45 días cubre el mes en curso + el siguiente; el día 15 deja quince días para costear y entregar material antes de los talleres — cadencia fija que nunca se desfasa.
+
+> **Operación real (no documentada en el papel):** el instructivo asigna la captura de la Matriz solo al EV; en la práctica **el EP también carga hospitales** (ver §5.1).
+
+#### FASE C — Programación, costos y materiales (día 15 → día 20+ · IDT-004)
+
+1. **EV captura el FOR-005** (Matriz): hospital, n.º de participantes, ejecutivo, fecha/hora, equipo de proyección (sí/no, propio/rentado), producto y cantidad. Lo envía al GV.
+2. **GV concentra** todas las matrices en una sola, la firma y la envía al AEM el día 15.
+3. **AEM costea** los 4 recursos y publica el Calendario (FOR-006) el día 17 (a GV, EP y GG).
+
+**El cálculo de costos (Costo Total del taller):**
+
+| Recurso | Cómo se calcula |
+|---|---|
+| Muestras de producto | Cantidad (piezas); costo lo registra el AEM |
+| Folletos | Cantidad × costo unitario |
+| Gastos de envío | Interno/externo; servicios × costo unitario |
+| Box lunch | N.º de servicios × costo unitario |
+| **Costo Total** | **Σ de los 4 subtotales** (producto + folleto + envío + box lunch) |
+
+4. **3 firmas en cadena:** CA revisa costos contra políticas y firma → **DC autoriza la Matriz a más tardar el día 20** → se devuelve al AEM.
+5. **Tres flujos paralelos:** (a) **material** — CA genera el Pedido interno (firma) → Aux. Almacén entrega → AEM arma paquetes (producto, folletos, registro de asistencia, dulces, cómputo/proyector si aplica) y firma la Orden de Remisión; (b) **box lunch** — Aux. de Pagos programa depósitos (ASK-TES-FOR-001) y **los martes DC autoriza el importe** → Tesorero deposita (proveedor o EV); (c) **viáticos** — AEM solicita según ASK-GGE-IDT-001.
+6. **Entrega del material:** CDMX — presencial **4:30–6:30 p.m.**; foránea — paquetería **7 días calendario antes** + carta porte, y si son **≤ 5 equipos se los lleva el EP**. El **EV firma el FOR-007 de recibido** y verifica cantidades y equipo; si falta algo, AEM + CA lo completan un día antes del taller. *Por qué el día 20 (interpretación):* la cadena costeo→revisión→autorización necesita su ventana para dejar material, pagos y viáticos listos para el mes siguiente.
+
+#### FASE D — Impartición (día del taller · IDT-005)
+
+**La víspera:** el EV confirma la cita (lugar, n.º de asistentes, horario), avisa al EP por teléfono si hay cambio y coordina/compara el box lunch; revisa su paquete (producto, folletos, registro, proyector si aplica, box lunch). El EP revisa el suyo (modelo anatómico, botella de agua, laptop cargada, presentación, apuntador láser).
+
+**El día T:** llegan **1 hora antes**, montan y prueban; el EV avisa por WhatsApp al GV. **Registro (FOR-008):** el EP recibe y da la bienvenida; cada médico se registra (nombre, puesto, teléfono, correo, **firma**; hasta 20 filas) y el EV entrega box lunch verificando que registrados = presentes. **Umbral: 80% de participantes para iniciar.** Dinámica de 4 etapas: (1) teórica — **máx. 15 minutos**; (2) práctica con el **modelo anatómico**; (3) preguntas y respuestas; (4) encuesta de satisfacción por **código QR** del área de Calidad. **Cierre:** el EV recoge equipo, toma **fotos de evidencia**, envía FOR-008 + fotos al AEM; con el Jefe de Servicio notifican incidencias y **entregan muestras** (y sobrantes de box lunch/folletos si hay). *Por qué 80% y 15 min (interpretación):* el 80% evita arrancar con sala vacía; los 15 minutos hacen de la presentación un gancho — el valor está en la práctica y el contacto con el médico.
+
+#### FASE E — Cierre e indicadores
+
+El AEM recibe la documentación (FOR-008, fotos, lista de entrega de producto), **la registra en la base de datos** y elabora los indicadores. El CEM los presenta **semanalmente** a GG y DC:
+
+| Indicador semanal |
+|---|
+| 1. N.º de talleres realizados vs. programados |
+| 2. N.º de producto entregado |
+| 3. Resultados de satisfacción de los talleres |
+| 4. N.º de médicos que acudieron al taller |
+| 5. N.º de médicos adscritos |
+| 6. N.º de médicos residentes |
+
+Además, el programa anual se **revisa trimestralmente** y se actualiza si surge un acuerdo comercial con un hospital con SIA. *Por qué (interpretación):* los indicadores miden el cumplimiento del plan anual y retroalimentan la selección mensual siguiente; el ciclo cierra y vuelve a empezar el siguiente día 15.
+
+#### Consolidado de todos los cálculos
+
+| Cálculo | Fórmula | Dónde vive |
+|---|---|---|
+| Anestesias Totales | NQ × 2.5 × 250 | FOR-002 (PERSISTED) |
+| Generales / Regionales | AT × 30% / AT × 70% | FOR-002 (PERSISTED) |
+| Epidurales / Subdurales | AR × 35% / AR × 45% | FOR-002 (PERSISTED) |
+| Mixtas obeso / no obeso | AR × 2% / AR × 18% | FOR-002 (PERSISTED) |
+| Pareto 70/30 | Hospitales ordenados por AT | Concentrado anual |
+| Meta anual | Hospitales × 1.5 | FOR-003 (servicio) |
+| Talleres/semana | Total ÷ semanas de trabajo | FOR-003 (servicio) |
+| Especialistas necesarios | Talleres/semana ÷ talleres por especialista | FOR-003 |
+| Especialistas a contratar | Necesarios − disponibles | FOR-003 |
+| Meta mensual | ≥ 64 + 64 = ~128 | Selección (IDT-003) |
+| Costo total del taller | Σ (cantidad × costo unitario) de los 4 recursos | FOR-005 (servicio) |
+| Umbral de inicio | 80% de participantes | Impartición (IDT-005) |
+
 ---
 
 ## 5. Reglas de la digitalización (TO-BE)
@@ -619,6 +732,45 @@ Investigación de la BD Asokam (2026-08-10): el módulo es **más greenfield de 
 
 ---
 
+### 6.4 Esquema ER de las tablas del módulo (código Mermaid)
+
+El detalle técnico completo (scripts SQL, endpoints, pantallas, permisos) vive en [[decisiones/00001_esquema-datos-educacion-medica]] y el plan de implementación en [[tareas/00001_esquema-datos-educacion-medica]].
+
+```mermaid
+erDiagram
+    TIPO_GERENCIA ||--o{ HOSPITAL_EXTENSION : "clasifica (FK física)"
+    HOSPITAL_EXTENSION ||--o{ PROGRAMAS_ANUALES_DETALLES : "incluye (N:M con producto Asokam)"
+    PROGRAMAS_ANUALES ||--|{ PROGRAMAS_ANUALES_DETALLES : "detalle (FOR-003)"
+    SELECCIONES_MENSUALES ||--|{ SELECCIONES_MENSUALES_HOSPITALES : "elige (FOR-004)"
+    HOSPITAL_EXTENSION ||--o{ SELECCIONES_MENSUALES_HOSPITALES : "seleccionado"
+    SELECCIONES_MENSUALES_HOSPITALES ||--o{ TALLERES : "genera (FOR-005)"
+    TALLERES ||--|{ TALLER_RECURSOS : "costea (polimórfico)"
+    TALLERES ||--|| TALLER_MATERIALES : "prepara (FOR-007)"
+    TALLERES ||--o{ TALLER_ASISTENCIAS : "registra (FOR-008)"
+    TALLERES ||--o{ TALLER_APROBACIONES : "firma (log)"
+    TALLERES ||--o{ TALLER_EVIDENCIAS : "evidencia (post-taller)"
+```
+
+> Los scripts SQL manuales están en `lefarma.database/educacion-medica/` (`0003_..._create-tablas-operacionales.lefarma.sql`: catálogo `tipo_gerencia` + las 11 tablas operacionales). Sin EF migrations.
+
+### 6.5 Máquina de estados del taller (código Mermaid)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Borrador
+    Borrador --> Elaborado : elabora (EV/EP)
+    Elaborado --> Revisado : CA revisa costos
+    Revisado --> Autorizado : DC autoriza Matriz
+    Autorizado --> Programado : agenda en calendario
+    Programado --> EnCurso : inicia taller
+    EnCurso --> Realizado : cierra con evidencias
+    Borrador --> Cancelado : cancela
+    Realizado --> [*]
+    Cancelado --> [*]
+```
+
+> Restricciones: CHECK `estado` en BD + transiciones validadas en servicio; DELETE solo en `Borrador`; cada firma es un registro en `taller_aprobaciones` (log).
+
 ## 7. Parámetros configurables
 
 Consolidado de todos los valores que el área puede ajustar **en cualquier momento** sin tocar código:
@@ -639,3 +791,54 @@ Consolidado de todos los valores que el área puede ajustar **en cualquier momen
 - Instructivos: [[referencias/pdf-to-md/Instructivos/]] (IDT-001 a IDT-005: Preparación de Material, Concentrado Anual, Selección Mensual, Solicitud y Entrega de Materiales, Impartición)
 - Formularios: [[referencias/pdf-to-md/Formularios/]] (FOR-002 a FOR-008: Base de Datos de Hospitales, Programa Anual, Selección de Hospitales, Matriz, Calendario, Material, Registro de Asistencia)
 - Roles y abreviaturas: [[referencias/pdf-to-md/Roles/Roles y Abreviaturas]]
+
+## 9. Glosario de siglas
+
+Regla del documento: toda abreviatura se escribe completa la primera vez que aparece y todas se listan aquí. Las expansiones marcadas con `*` no están documentadas en las fuentes leídas; se registran con su significado de uso.
+
+| Sigla | Nombre completo | Significado en una línea |
+|---|---|---|
+| **AEM** | Auxiliar Administrativo de Educación Médica | Recibe la Matriz el día 15, costea, elabora el Calendario (día 17), gestiona material y registra evidencias |
+| **AE** | Anestesias Epidurales | Subtipo de anestesia regional; `AE = AR × 35%` |
+| **AG** | Anestesias Generales | `AG = AT × 30%` |
+| **AR** | Anestesias Regionales | `AR = AT × 70%`; base de los cuatro subtipos |
+| **AS** | Anestesias Subdurales | `AS = AR × 45%` |
+| **ASK** | Prefijo de código documental* | Identifica documentos controlados del sistema de gestión (ej. `ASK-CEM-DDP-001`) |
+| **AT** | Anestesias Totales | `AT = NQ × 2.5 × 250`; estimador del mercado de anestesia del hospital |
+| **BD** | Base de Datos | Base de hospitales que el Ejecutivo de Estadística arma y que el Auxiliar Administrativo registra |
+| **CA** | Coordinador Administrativo | Revisa los costos contra las políticas, firma la Matriz y genera el Pedido interno |
+| **CDMX** | Ciudad de México* | Entrega presencial de material en horario de 4:30 a 6:30 de la tarde |
+| **CEM** | Coordinador de Educación Médica | Revisa el material didáctico, coordina la reunión anual y presenta los indicadores semanales |
+| **CLUES** | Clave Única de Establecimientos de Salud | Identificador del hospital en la base; viene de `genContactosCat.clues` (Asokam) |
+| **CQ** | Control de Quejas | No interviene en el proceso; solo aparece como tema obligatorio de la presentación |
+| **CRUD** | Create, Read, Update, Delete* | Operaciones de gestión completa sobre un recurso |
+| **DC** | Dirección Corporativa (Director Corporativo) | Autoriza material didáctico, programa anual, Matriz mensual y box lunch |
+| **DIG** | Diseñador Gráfico | Diseña la presentación en la plantilla autorizada `ASK-CBA-FOR-001` |
+| **EE** | Ejecutivo de Estadística | Arma la base FOR-001 en 5 días hábiles |
+| **EP** | Especialista de Producto | Imparte el taller, captura asistencia y evidencias |
+| **EV** | Ejecutivo de Ventas | Visita el hospital, captura la Matriz, recibe material y asiste al taller |
+| **FK** | Foreign Key (llave foránea)* | Referencia de una tabla hacia otra; hacia Asokam es "FK lógica" validada en servicio |
+| **FOR** | Formulario | Formatos operativos del proceso (FOR-001 a FOR-008) |
+| **GG** | Gerente General | Aprueba programas anuales y firma selecciones mensuales |
+| **GV** | Gerente de Ventas | Concentra y firma la Matriz; notifica por correo a sus Ejecutivos de Ventas |
+| **I&D** | Investigación y Desarrollo | Revisa la presentación en la revisión conjunta |
+| **IDT** | Instructivo | Instructivos de trabajo del proceso (IDT-001 a IDT-005) |
+| **IMSS** | Instituto Mexicano del Seguro Social* | Una de las gerencias/segmentos de la operación (las fuentes usan la sigla sin expandirla) |
+| **ISSSTE** | Instituto de Seguridad y Servicios Sociales de los Trabajadores del Estado* | Institución del sistema público; en la digitalización es un segmento configurable del split de sesiones |
+| **MO** | Mixtas obesos | `MO = AR × 2%` |
+| **MNO** | Mixtas no obesos | `MNO = AR × 18%` |
+| **NQ** | Número de quirófanos | Único dato capturado a mano en la cascada de anestesias |
+| **SIA** | Servicio Integral de Anestesia | Hospitales con SIA se visitan; sin SIA es venta directa |
+| **TECNO** | Tecnovigilancia | No interviene en el proceso; en la app consulta evidencias post-taller |
+| **UMAE** | Unidad Médica de Alta Especialidad* | Tipo de sede real de taller (vs. almacenes/distribuidores) |
+| **HGZ** | Hospital General de Zona* | Tipo de sede real de taller |
+| **SEDESA** | Secretaría de Salud* | Institución listada entre las instituciones del catálogo Asokam |
+| **ANE / CBA / TES / GGE / ADM / DDP** | Componentes de códigos documentales* | Aparecen en códigos auxiliares (`ASK-CEM-ANE-001` Speech, `ASK-CBA-FOR-001` plantilla, `ASK-TES-FOR-001` depósito, `ASK-GGE-IDT-001` viáticos, `ASK-ADM-FOR-001` viáticos, `ASK-CEM-DDP-001` proceso); su expansión no está documentada en las fuentes |
+| **GPS** | Sistema de posicionamiento global* | Base del cálculo de zonas de visita (agrupamiento sobre latitud/longitud) |
+| **PDF / MD / QR** | Formato de documento portátil / Markdown / código de respuesta rápida* | Soportes del expediente físico (PDF), de las fuentes (MD) y de la encuesta de satisfacción (QR) |
+| **EF / SSMS / SQL** | Entity Framework / SQL Server Management Studio / Structured Query Language* | Herramientas de la capa de datos del backend |
+| **SPA / API** | Single Page Application / Application Programming Interface* | Aplicación frontend (SPA) y su interfaz de servicios (API) |
+| **PERSISTED / CHECK / UNIQUE** | Columnas calculadas persistidas / restricción de valores / restricción de unicidad* | Mecanismos SQL usados en el schema (cascada calculada por la BD, state machine y anti-duplicados) |
+| **N:M / CSV** | Muchos a muchos / valores separados por coma* | Relación programa↔hospital×producto (N:M) y claves de producto guardadas como CSV |
+| **RH / CxP** | Recursos Humanos / Cuentas por Pagar* | Apps existentes del hub cuyo patrón de pantallas reutiliza el módulo |
+| **GRA / ADIS / TODOS** | Valores del catálogo `genGerenciasCat` de Asokam* | Valores que "no aplican al módulo" |

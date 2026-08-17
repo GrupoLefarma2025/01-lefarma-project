@@ -10,6 +10,10 @@
 - [[diagramas/000001_er_esquema_completo|000001 · ER esquema completo]] — las 12 tablas en un solo diagrama, con todas sus columnas
 - [[diagramas/000001_arquitectura_modulo|000001 · Arquitectura del módulo]] — SPA → API → BD + Asokam (lectura)
 - [[diagramas/000001_proceso_operativo|000001 · Proceso operativo]] — programa anual → selección → taller → firmas → reporte
+- [[diagramas/000001_flujo_as-is_proceso|000001 · Flujo AS-IS (papel)]] — fases A–E con formularios, firmas y ciclo mensual
+- [[diagramas/000001_arquitectura_to-be_modulo|000001 · Arquitectura TO-BE]] — 3 capas + state machine del taller
+- [[diagramas/000001_timeline_desarrollo_fases|000001 · Timeline de desarrollo]] — Fases 1–4
+- Variantes Mermaid (`*_mermaid.mmd`/`.svg`): flujo AS-IS, arquitectura TO-BE, state machine, ER y timeline
 
 ## Fase 0 — Planificación
 
@@ -54,6 +58,7 @@
 - [ ] Feature `Features/EducacionMedica/` (Talleres, ProgramasAnuales, SeleccionesMensuales)
 - [ ] Servicios con validación cross-DB (FKs lógicas a Asokam, sin capa Repository)
 - [ ] Permisos `educacion-medica.*` en `app.Permisos` (Asokam)
+- [ ] Endpoints de catálogo: `hospitales` (cálculos automáticos), `productos` (read-only), `tipo-gerencia` (CRUD), `equipos-pareo` (CRUD + validación de capacidad), `parametros` (GET/PUT), `usuarios` (read-only, alta en Roles del hub)
 - [ ] Verificar: alta de hospital con cálculo AT/AG/AR automático
 
 ### 2.2 Taller completo (Slice 2, proceso core)
@@ -66,6 +71,7 @@
 - [ ] Asistencias 1:N (`taller_asistencias`, FOR-008)
 - [ ] Aprobaciones como log (`taller_aprobaciones`: Elaboró/Revisó/Autorizó)
 - [ ] Evidencias (`taller_evidencias`)
+- [ ] Transversales: `GET /aprobaciones/pendientes` (Bandeja de Autorizaciones), `GET /talleres/asignaciones/{idUsuario}` (Asignación del Ejecutivo), `GET /indicadores/semanal` (Dashboard), `GET /panel-mes` (Panel del mes)
 - [ ] Verificación end-to-end: crear un taller de principio a fin, firmar, registrar asistencia, calcular costo total
 
 ## Fase 3 — Frontend
@@ -73,19 +79,25 @@
 ### 3.1 Catálogos (Slice 1)
 
 - [ ] Servicio `services/educacionMedica.api.ts` (cliente axios central)
-- [ ] Pantalla **Hospitales** (con cálculos automáticos AT/AG/AR)
-- [ ] Pantalla **Ejecutivos** (read-only desde Asokam)
+- [ ] Pantalla **Hospitales** (con cálculos automáticos AT/AG/AR; clave única de establecimientos de salud — CLUES)
+- [ ] Sin pantalla propia de ejecutivos: el alta se liga a la pantalla de **Roles** existente del hub (ADR §3.1); el módulo consume `GET /usuarios`
 - [ ] Pantalla **Productos** (read-only desde Asokam)
+- [ ] Pantalla **Tipo de Gerencia** (CRUD del catálogo propio)
+- [ ] Pantalla **Equipos y pareo** (roles EV/EP/GV + pareo; valida capacidad 3/día, 8/semana)
+- [ ] Pantalla **Parámetros** (configurables sin código)
 - [ ] Rutas en `EducacionMedicaRoutes.tsx` + entradas en `menuItems.tsx`
 - [ ] Permiso hub: `baseapp.hub.puede_ver_educacion_medica` (verificado en `_registry.ts`)
 
 ### 3.2 Taller completo (Slice 2)
 
-- [ ] Pantalla **Selección Mensual**
-- [ ] Pantalla **Programa Anual**
+- [ ] Pantalla **Selección Mensual** + **Autorización de la Selección** (doble firma GG + GV)
+- [ ] Pantalla **Programa Anual** + **Autorización del Programa** (GG/DC) + **Revisión trimestral** (banner)
 - [ ] Pantalla **Calendario**
-- [ ] Pantalla **TallerDetail** (Matriz + Asistencia + Materiales + Aprobaciones como tabs)
-- [ ] Pantalla **Evidencias**
+- [ ] Pantalla **TallerDetail** (Matriz + Recursos y costos + Asistencia + Materiales + Aprobaciones + Evidencias como tabs)
+- [ ] Pantalla **Bandeja de Autorizaciones** (pendientes por rol; quien firma no edita)
+- [ ] Pantalla **Asignación del Ejecutivo** ("mis hospitales del mes")
+- [ ] Pantalla **Dashboard de Indicadores** (los 6 indicadores semanales)
+- [ ] Pantalla **Panel del mes**
 - [ ] Verificación: taller completo desde la SPA (crear → firmar → asistencia → costo)
 
 ## Fase 4 — Ventas IMSS (Slice 3) — requiere nueva decisión
