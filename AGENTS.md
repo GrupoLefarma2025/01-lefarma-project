@@ -249,3 +249,8 @@ These are committed for convenience in local development. Never use them for pro
 - DB password: `L4_CL4VE_S3cReta_Y_sUp3r__SEGUR4_123!`
 - JWT secret: `tu-clave-secreta-super-segura-de-al-menos-32-caracteres-aqui`
 - SMTP password: `Aut0r1z5c10n3s$$001`
+
+## Restrictions
+
+- Los mensajes de commit se redactan SIEMPRE en español, sin importar que la instrucción se haya dado en inglés. Por ejemplo, en lugar de «feat: point updater at production SISCO server», escribe el mensaje en español.
+
