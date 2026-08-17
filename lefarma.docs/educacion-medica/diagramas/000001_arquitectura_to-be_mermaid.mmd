@@ -1,0 +1,19 @@
+flowchart TD
+    subgraph SPA["SPA React — hub"]
+        P1["Catálogos: Hospitales · Productos · Tipo de Gerencia · Equipos y pareo · Parámetros"]
+        P2["Taller: Programa Anual · Selección · Calendario · TallerDetail (Recursos · Materiales · Asistencia · Aprobaciones · Evidencias)"]
+        P3["Transversales: Bandeja de Autorizaciones · Asignación del Ejecutivo · Dashboard · Panel del mes"]
+    end
+    subgraph API["API .NET — /api/educacion-medica"]
+        E1["catálogos · talleres (state machine) · recursos+costo · materiales · asistencias · aprobaciones · evidencias"]
+        E2["transversales: aprobaciones/pendientes · asignaciones/{id} · indicadores/semanal · panel-mes"]
+    end
+    subgraph SQL["SQL Server"]
+        L["Lefarma · schema educacion_medica · 11 tablas · cascada PERSISTED · scripts manuales"]
+        AK["Asokam solo lectura · genContactosCat · genProductosCat · app.Usuarios · FK lógica"]
+    end
+    Roles["Pantalla de Roles del hub — alta de ejecutivos [externa]"]
+    SPA -->|"axios /api/*"| API
+    API -->|"EF Core"| L
+    API -.->|"solo lectura"| AK
+    SPA -.->|"alta de ejecutivos"| Roles

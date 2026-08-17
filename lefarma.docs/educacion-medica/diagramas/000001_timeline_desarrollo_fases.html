@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan de desarrollo por fases — Módulo Educación Médica</title>
+<style>
+  :root {
+    --ink: #23211d;
+    --paper: #faf8f4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--paper);
+    padding: 24px 16px;
+    font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  }
+  #wrap {
+    max-width: 1800px;
+    margin: 0 auto;
+    background: #ffffff;
+    border: 1px solid #ded9cf;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(35,33,29,.05), 0 16px 48px rgba(35,33,29,.07);
+    overflow-x: auto;
+  }
+  svg text { font-family: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif; }
+  .mono { font-family: 'Cascadia Code', Consolas, 'SF Mono', Menlo, monospace; }
+  .b { font-weight: 600; }
+  .title { font-size: 26px; font-weight: 700; fill: #23211d; }
+  .kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; }
+  .kicker.on { fill: #eb6c36; }
+  .kicker.off { fill: #9a948a; }
+  .sub { font-size: 12.5px; font-weight: 700; fill: #3b362e; }
+  .lbl { font-size: 11.5px; fill: #4b453c; }
+  .mut { font-size: 11px; fill: #777064; }
+  .gray { fill: #8d867b; }
+  .num { font-size: 12.5px; font-weight: 700; fill: #ffffff; text-anchor: middle; }
+  .dot { fill: #b6afa1; }
+  .ph { fill: #ffffff; stroke: #d9d4c9; stroke-width: 1; }
+  .ph.off { fill: #f2f0ea; }
+  .conn { fill: none; stroke: #b3ada1; stroke-width: 2; stroke-linecap: round; }
+  .conn.dash { stroke: #bdb7ab; stroke-dasharray: 1 6; }
+  .tl { stroke: #b3ada1; stroke-width: 2.5; stroke-linecap: round; }
+  .mask { fill: #ffffff; }
+  .node { fill: #eb6c36; }
+  .node.off { fill: #a9a29a; }
+  .arrow { fill: #b3ada1; }
+  .legend { font-size: 11px; fill: #777064; }
+</style>
+</head>
+<body>
+<div id="wrap">
+<svg id="timeline" xmlns="http://www.w3.org/2000/svg" width="1720" height="760" viewBox="0 0 1720 760" role="img" aria-label="Plan de desarrollo por fases — Módulo Educación Médica">
+  <defs>
+    <pattern id="grid" width="4" height="4" patternUnits="userSpaceOnUse">
+      <path d="M 4 0 L 0 0 0 4" fill="none" stroke="#241f18" stroke-opacity="0.05" stroke-width="1"/>
+    </pattern>
+  </defs>
+
+  <rect width="1720" height="760" fill="url(#grid)"/>
+
+  <text x="860" y="46" text-anchor="middle" class="title">Plan de desarrollo por fases — Módulo Educación Médica</text>
+
+  <line x1="104" y1="152" x2="1644" y2="152" class="tl"/>
+  <path d="M 1648 152 l -12 -7 v 14 z" class="arrow"/>
+
+  <circle cx="240" cy="152" r="17" class="mask"/>
+  <circle cx="668" cy="152" r="17" class="mask"/>
+  <circle cx="1096" cy="152" r="17" class="mask"/>
+  <circle cx="1494" cy="152" r="17" class="mask"/>
+  <circle cx="240" cy="152" r="11" class="node"/>
+  <circle cx="668" cy="152" r="11" class="node"/>
+  <circle cx="1096" cy="152" r="11" class="node"/>
+  <circle cx="1494" cy="152" r="11" class="node off"/>
+  <text x="240" y="156.5" class="num">1</text>
+  <text x="668" y="156.5" class="num">2</text>
+  <text x="1096" y="156.5" class="num">3</text>
+  <text x="1494" y="156.5" class="num">4</text>
+
+  <path d="M 240 170 v 18 a 8 8 0 0 1 8 8 h 12 v 14" class="conn"/>
+  <path d="M 668 170 v 18 a 8 8 0 0 1 8 8 h 12 v 14" class="conn"/>
+  <path d="M 1096 170 v 18 a 8 8 0 0 1 8 8 h 12 v 14" class="conn"/>
+  <path d="M 1494 170 v 18 a 8 8 0 0 1 8 8 h 12 v 14" class="conn dash"/>
+
+  <rect x="40" y="210" width="400" height="400" rx="8" class="ph"/>
+  <rect x="468" y="210" width="400" height="356" rx="8" class="ph"/>
+  <rect x="896" y="210" width="400" height="260" rx="8" class="ph"/>
+  <rect x="1324" y="210" width="340" height="144" rx="8" class="ph off"/>
+
+  <!-- FASE 1 -->
+  <text x="64" y="242" class="kicker on">FASE 1 · BASE DE DATOS</text>
+  <circle cx="58" cy="266" r="2.5" class="dot"/>
+  <text x="64" y="270" class="lbl"><tspan class="mono b">Script 0002</tspan><tspan> — crear schema </tspan><tspan class="mono">educacion_medica</tspan></text>
+  <text x="64" y="287" class="mut">aplicado en dev y prod</text>
+  <circle cx="58" cy="312" r="2.5" class="dot"/>
+  <text x="64" y="316" class="lbl"><tspan class="mono b">Script 0003</tspan><tspan> — catálogo </tspan><tspan class="mono">tipo_gerencia</tspan><tspan> + 11 tablas</tspan></text>
+  <text x="64" y="334" class="mono lbl">hospital_extension</text>
+  <text x="64" y="349" class="mono lbl">programas_anuales</text>
+  <text x="64" y="364" class="mono lbl">programas_anuales_detalles</text>
+  <text x="64" y="379" class="mono lbl">selecciones_mensuales</text>
+  <text x="64" y="394" class="mono lbl">selecciones_mensuales_hospitales</text>
+  <text x="64" y="409" class="mono lbl">talleres</text>
+  <text x="288" y="334" class="mono lbl">taller_recursos</text>
+  <text x="288" y="349" class="mono lbl">taller_materiales</text>
+  <text x="288" y="364" class="mono lbl">taller_asistencias</text>
+  <text x="288" y="379" class="mono lbl">taller_aprobaciones</text>
+  <text x="288" y="394" class="mono lbl">taller_evidencias</text>
+  <circle cx="58" cy="430" r="2.5" class="dot"/>
+  <text x="64" y="434" class="lbl"><tspan class="mono">hospital_extension</tspan><tspan> — cascada </tspan><tspan class="mono">PERSISTED</tspan></text>
+  <text x="64" y="451" class="mono mut">AT · AG · AR · AE · AS · MO · MNO</text>
+  <circle cx="58" cy="472" r="2.5" class="dot"/>
+  <text x="64" y="476" class="lbl"><tspan class="mono">talleres</tspan><tspan> — state machine</tspan></text>
+  <circle cx="58" cy="501" r="2.5" class="dot"/>
+  <text x="64" y="505" class="lbl"><tspan class="mono b">Script 0004</tspan><tspan> — índices para FK lógicas</tspan></text>
+  <circle cx="58" cy="518" r="2.5" class="dot"/>
+  <text x="64" y="522" class="lbl"><tspan class="mono">MS_Description</tspan><tspan> en schema, tablas y columnas</tspan></text>
+  <circle cx="58" cy="543" r="2.5" class="dot"/>
+  <text x="64" y="547" class="lbl"><tspan>Sin </tspan><tspan class="mono">EF migrations</tspan></text>
+
+  <!-- FASE 2 -->
+  <text x="492" y="242" class="kicker on">FASE 2 · BACKEND</text>
+  <text x="492" y="270" class="sub">Slice 1 · Catálogos</text>
+  <circle cx="486" cy="284" r="2.5" class="dot"/>
+  <text x="492" y="288" class="lbl">Hospitales — cálculos automáticos, solo captura quirófanos</text>
+  <circle cx="486" cy="301" r="2.5" class="dot"/>
+  <text x="492" y="305" class="lbl">Productos (read-only) · Tipo de Gerencia</text>
+  <circle cx="486" cy="318" r="2.5" class="dot"/>
+  <text x="492" y="322" class="lbl">Parámetros · Usuarios</text>
+  <circle cx="486" cy="335" r="2.5" class="dot"/>
+  <text x="492" y="339" class="lbl">Equipos-pareo — validación 3/día · 8/semana</text>
+  <text x="492" y="367" class="sub">Slice 2 · Taller completo</text>
+  <circle cx="486" cy="381" r="2.5" class="dot"/>
+  <text x="492" y="385" class="lbl">Programas · Selecciones · Talleres + state machine</text>
+  <circle cx="486" cy="398" r="2.5" class="dot"/>
+  <text x="492" y="402" class="lbl">Recursos / costo total · Materiales · Asistencias</text>
+  <circle cx="486" cy="415" r="2.5" class="dot"/>
+  <text x="492" y="419" class="lbl">Aprobaciones (log) · Evidencias</text>
+  <text x="492" y="447" class="sub">Transversales</text>
+  <circle cx="486" cy="461" r="2.5" class="dot"/>
+  <text x="492" y="465" class="mono lbl">aprobaciones/pendientes</text>
+  <circle cx="486" cy="478" r="2.5" class="dot"/>
+  <text x="492" y="482" class="mono lbl">asignaciones/{idUsuario}</text>
+  <circle cx="486" cy="495" r="2.5" class="dot"/>
+  <text x="492" y="499" class="mono lbl">indicadores/semanal · panel-mes</text>
+  <circle cx="486" cy="529" r="2.5" class="dot"/>
+  <text x="492" y="533" class="lbl"><tspan>Sin capa </tspan><tspan class="mono">Repository</tspan><tspan> — validación cross-DB en servicio</tspan></text>
+
+  <!-- FASE 3 -->
+  <text x="920" y="242" class="kicker on">FASE 3 · FRONTEND</text>
+  <text x="920" y="270" class="sub">Slice 1 · Catálogos</text>
+  <circle cx="914" cy="284" r="2.5" class="dot"/>
+  <text x="920" y="288" class="lbl"><tspan>Hospitales (</tspan><tspan class="mono">CLUES</tspan><tspan>) · Productos · Tipo de Gerencia</tspan></text>
+  <circle cx="914" cy="301" r="2.5" class="dot"/>
+  <text x="920" y="305" class="lbl">Equipos y pareo · Parámetros</text>
+  <circle cx="914" cy="318" r="2.5" class="dot"/>
+  <text x="920" y="322" class="lbl">Sin pantalla de ejecutivos → Roles del hub</text>
+  <text x="920" y="350" class="sub">Slice 2 · Taller completo</text>
+  <circle cx="914" cy="364" r="2.5" class="dot"/>
+  <text x="920" y="368" class="lbl">Programa Anual + Autorización + Revisión trimestral</text>
+  <circle cx="914" cy="381" r="2.5" class="dot"/>
+  <text x="920" y="385" class="lbl"><tspan>Selección + doble firma </tspan><tspan class="mono">GG/GV</tspan></text>
+  <circle cx="914" cy="398" r="2.5" class="dot"/>
+  <text x="920" y="402" class="lbl"><tspan>Calendario · </tspan><tspan class="mono">TallerDetail</tspan><tspan> (tabs)</tspan></text>
+  <circle cx="914" cy="415" r="2.5" class="dot"/>
+  <text x="920" y="419" class="lbl">Bandeja de Autorizaciones · Asignación del Ejecutivo</text>
+  <circle cx="914" cy="432" r="2.5" class="dot"/>
+  <text x="920" y="436" class="lbl">Dashboard · Panel del mes</text>
+
+  <!-- FASE 4 -->
+  <text x="1348" y="242" class="kicker off">FASE 4 · FUERA</text>
+  <text x="1348" y="270" class="sub gray">Ventas IMSS</text>
+  <circle cx="1342" cy="283" r="2.5" class="dot"/>
+  <text x="1348" y="287" class="lbl gray">Metas · Plan de Trabajo · Reportes</text>
+  <circle cx="1342" cy="300" r="2.5" class="dot"/>
+  <text x="1348" y="304" class="lbl gray"><tspan>Requiere </tspan><tspan class="mono">ADR 00002</tspan></text>
+
+  <!-- Leyenda -->
+  <line x1="40" y1="736" x2="68" y2="736" class="conn dash"/>
+  <text x="80" y="740" class="legend">Fuera de alcance — requiere ADR 00002</text>
+</svg>
+</div>
+<script>
+  (() => {
+    const svg = document.getElementById('timeline');
+    const wrap = document.getElementById('wrap');
+    const fit = () => {
+      const avail = wrap.clientWidth - 32;
+      const scale = Math.min(1, avail / 1720);
+      svg.style.width = Math.round(1720 * scale) + 'px';
+      svg.style.height = Math.round(760 * scale) + 'px';
+    };
+    window.addEventListener('resize', fit);
+    fit();
+  })();
+</script>
+</body>
+</html>

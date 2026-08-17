@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 312.58500000000004 826" width="312.58500000000004" height="826" style="--bg:#ffffff;--fg:#1f2328;--line:#d1d9e0;--accent:#0969da;--muted:#59636e;background:var(--bg)">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap');
+  text { font-family: 'Inter', system-ui, sans-serif; }
+  svg {
+    /* Derived from --bg and --fg (overridable via --line, --accent, etc.) */
+    --_text:          var(--fg);
+    --_text-sec:      var(--muted, color-mix(in srgb, var(--fg) 60%, var(--bg)));
+    --_text-muted:    var(--muted, color-mix(in srgb, var(--fg) 40%, var(--bg)));
+    --_text-faint:    color-mix(in srgb, var(--fg) 25%, var(--bg));
+    --_line:          var(--line, color-mix(in srgb, var(--fg) 30%, var(--bg)));
+    --_arrow:         var(--accent, color-mix(in srgb, var(--fg) 50%, var(--bg)));
+    --_node-fill:     var(--surface, color-mix(in srgb, var(--fg) 3%, var(--bg)));
+    --_node-stroke:   var(--border, color-mix(in srgb, var(--fg) 20%, var(--bg)));
+    --_group-fill:    var(--bg);
+    --_group-hdr:     color-mix(in srgb, var(--fg) 5%, var(--bg));
+    --_inner-stroke:  color-mix(in srgb, var(--fg) 12%, var(--bg));
+    --_key-badge:     color-mix(in srgb, var(--fg) 10%, var(--bg));
+  }
+</style>
+<defs>
+  <marker id="arrowhead" markerWidth="8" markerHeight="4.8" refX="8" refY="2.4" orient="auto">
+    <polygon points="0 0, 8 2.4, 0 4.8" fill="var(--_arrow)" />
+  </marker>
+  <marker id="arrowhead-start" markerWidth="8" markerHeight="4.8" refX="0" refY="2.4" orient="auto-start-reverse">
+    <polygon points="8 0, 0 2.4, 8 4.8" fill="var(--_arrow)" />
+  </marker>
+</defs>
+<polyline points="164.235,76 164.235,116" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="164.235,152 164.235,180.5 104.06,180.5 104.06,209" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,245 104.06,302" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,338 104.06,395" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,431 104.06,488" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,524 104.06,581" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,617 104.06,674" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="164.235,152 164.235,180.5 224.41000000000003,180.5 224.41000000000003,209" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="104.06,710 104.06,750" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<polyline points="224.41000000000003,245 224.41000000000003,302" fill="none" stroke="var(--_line)" stroke-width="0.75" marker-end="url(#arrowhead)" />
+<rect x="53.160000000000004" y="167" width="101.8" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="180.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">elabora (EV/EP)</text>
+<rect x="50.3" y="260" width="107.52000000000001" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="273.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">CA revisa costos</text>
+<rect x="44.58" y="353" width="118.96000000000001" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="366.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">DC autoriza Matriz</text>
+<rect x="38.86" y="446" width="130.4" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="459.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">agenda en calendario</text>
+<rect x="58.88" y="539" width="90.36" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="552.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">inicia taller</text>
+<rect x="36" y="632" width="136.12" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="104.06" y="645.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">cierra con evidencias</text>
+<rect x="196.39000000000001" y="167" width="56.04" height="27" rx="4" ry="4" fill="var(--bg)" stroke="var(--_inner-stroke)" stroke-width="0.5" />
+<text x="224.41000000000003" y="180.5" text-anchor="middle" dy="0.35em" font-size="11" font-weight="400" fill="var(--_text-muted)">cancela</text>
+<circle cx="164.235" cy="58" r="16" fill="var(--_text)" stroke="none" />
+<rect x="119.63500000000002" y="116" width="89.2" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="55.885" y="209" width="96.35000000000001" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="59.46" y="302" width="89.2" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="52.31" y="395" width="103.5" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="52.31" y="488" width="103.5" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="63.035" y="581" width="82.05000000000001" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="55.885" y="674" width="96.35000000000001" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<rect x="176.235" y="209" width="96.35000000000001" height="36" rx="6" ry="6" fill="var(--_node-fill)" stroke="var(--_node-stroke)" stroke-width="0.75" />
+<circle cx="104.06" cy="768" r="16" fill="none" stroke="var(--_text)" stroke-width="1.5" />
+<circle cx="104.06" cy="768" r="12" fill="var(--_text)" stroke="none" />
+<circle cx="224.41000000000003" cy="320" r="16" fill="none" stroke="var(--_text)" stroke-width="1.5" />
+<circle cx="224.41000000000003" cy="320" r="12" fill="var(--_text)" stroke="none" />
+
+<text x="164.235" y="134" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Borrador</text>
+<text x="104.06" y="227" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Elaborado</text>
+<text x="104.06" y="320" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Revisado</text>
+<text x="104.06" y="413" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Autorizado</text>
+<text x="104.06" y="506" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Programado</text>
+<text x="104.06" y="599" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">EnCurso</text>
+<text x="104.06" y="692" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Realizado</text>
+<text x="224.41000000000003" y="227" text-anchor="middle" dy="0.35em" font-size="13" font-weight="500" fill="var(--_text)">Cancelado</text>
+
+
+</svg>

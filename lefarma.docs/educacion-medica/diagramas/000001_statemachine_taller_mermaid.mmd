@@ -1,0 +1,11 @@
+stateDiagram-v2
+    [*] --> Borrador
+    Borrador --> Elaborado : elabora (EV/EP)
+    Elaborado --> Revisado : CA revisa costos
+    Revisado --> Autorizado : DC autoriza Matriz
+    Autorizado --> Programado : agenda en calendario
+    Programado --> EnCurso : inicia taller
+    EnCurso --> Realizado : cierra con evidencias
+    Borrador --> Cancelado : cancela
+    Realizado --> [*]
+    Cancelado --> [*]

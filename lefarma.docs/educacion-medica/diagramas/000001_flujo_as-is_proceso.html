@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Proceso AS-IS — Talleres Médicos en Hospitales</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-paper:#f5f5f5; --color-ink:#2d3142; --color-muted:#4f5d75;
+    --color-soft:#7a8399; --color-accent:#eb6c36;
+    --font-sans:'Geist',sans-serif; --font-serif:'Instrument Serif',serif; --font-mono:'Geist Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:var(--font-sans);background:var(--color-paper);color:var(--color-ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:3rem 2rem;}
+  .wrap{max-width:960px;width:100%;}
+  .eyebrow{font-family:var(--font-mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);margin-bottom:.5rem;}
+  h1{font-family:var(--font-serif);font-size:clamp(1.5rem,2.4vw + .75rem,2rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.25rem;}
+  .sub{font-family:var(--font-mono);font-size:.72rem;color:var(--color-soft);margin-bottom:1.5rem;}
+  svg{display:block;width:100%;height:auto;}
+  .colophon{margin-top:1.25rem;padding-top:.75rem;border-top:1px solid rgba(45,49,66,.12);font-family:var(--font-mono);font-size:.68rem;color:var(--color-soft);letter-spacing:.04em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Educación Médica · AS-IS</p>
+  <h1>Proceso AS-IS — Talleres Médicos en Hospitales</h1>
+  <p class="sub">Formularios, firmas y correo: cómo funciona hoy el ciclo sobre papel</p>
+
+  <svg viewBox="0 0 960 1040" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flujo del proceso AS-IS en cinco fases">
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+      </marker>
+    </defs>
+
+    <!-- Conectores (antes que las cajas) -->
+    <!-- A -> B -->
+    <line x1="480" y1="200" x2="480" y2="232" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <!-- B -> C -->
+    <line x1="480" y1="384" x2="480" y2="416" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <!-- C -> D -->
+    <line x1="480" y1="568" x2="480" y2="600" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <!-- D -> E -->
+    <line x1="480" y1="752" x2="480" y2="784" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <!-- A1 nota (dashed, horizontal) -->
+    <line x1="272" y1="96" x2="312" y2="96" stroke="#4f5d75" stroke-width="1" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+    <!-- Ciclo E -> B (dashed, accent, codos r=8) -->
+    <path d="M 640 864 L 752 864 Q 760 864 760 856 L 760 320 Q 760 312 752 312 L 648 312"
+          fill="none" stroke="#eb6c36" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow-accent)"/>
+
+    <!-- Labels de flechas (mask + gap 6-10px) -->
+    <rect x="488" y="213" width="88" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="492" y="222" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">AUTORIZADO</text>
+    <rect x="488" y="397" width="88" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="492" y="406" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-005 · GV</text>
+    <rect x="488" y="581" width="88" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="492" y="590" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-007 · EV</text>
+    <rect x="488" y="765" width="96" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="492" y="774" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-008 · FOTOS</text>
+    <rect x="772" y="578" width="112" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="776" y="587" fill="#eb6c36" font-size="8" font-family="'Geist Mono',monospace">SIGUIENTE DÍA 15</text>
+
+    <!-- Nota A1: fuera del alcance (dashed) -->
+    <rect x="32" y="64" width="240" height="104" rx="6" fill="#f5f5f5"/>
+    <rect x="32" y="64" width="240" height="104" rx="6" fill="rgba(45,49,66,.02)" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <rect x="40" y="72" width="36" height="12" rx="2" fill="transparent" stroke="rgba(79,93,117,.4)" stroke-width="0.8"/>
+    <text x="58" y="81" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.08em">FUERA</text>
+    <text x="48" y="100" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif">A1 · Material didáctico</text>
+    <text x="48" y="116" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">CEM + EP + I&amp;D revisan</text>
+    <text x="48" y="130" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">GG aprueba · DIG diseña</text>
+    <text x="48" y="144" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">DC autoriza → Quality Web</text>
+
+    <!-- FASE A -->
+    <rect x="320" y="20" width="320" height="180" rx="6" fill="#f5f5f5"/>
+    <rect x="320" y="20" width="320" height="180" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="328" y="28" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="342" y="37" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">A</text>
+    <text x="480" y="52" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif" text-anchor="middle">Planificación anual · noviembre</text>
+    <text x="336" y="72" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">A1 · IDT-001 · material didáctico → [fuera]</text>
+    <text x="336" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">A2 · IDT-002 · EE arma FOR-001 en 5 días</text>
+    <text x="336" y="104" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-002 · hospitales objetivo</text>
+    <text x="336" y="120" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-003 · programa anual · meta × 1.5</text>
+    <text x="336" y="136" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">reunión 3ª semana nov · GG + GV + EE</text>
+    <text x="336" y="152" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">DC autoriza el programa anual</text>
+
+    <!-- FASE B (focal) -->
+    <rect x="320" y="240" width="320" height="144" rx="6" fill="#f5f5f5"/>
+    <rect x="320" y="240" width="320" height="144" rx="6" fill="rgba(235,108,54,.08)" stroke="#eb6c36" stroke-width="1.2"/>
+    <rect x="328" y="248" width="28" height="12" rx="2" fill="transparent" stroke="rgba(235,108,54,.55)" stroke-width="0.8"/>
+    <text x="342" y="257" fill="#eb6c36" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">B</text>
+    <text x="480" y="268" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif" text-anchor="middle">Selección mensual · día 15</text>
+    <text x="336" y="288" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">IDT-003 · reunión GG + GV (45 días)</text>
+    <text x="336" y="304" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">mín 4 hospitales/zona · ≥ 64 + 64/mes</text>
+    <text x="336" y="320" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">firma FOR-004 · GG + GV</text>
+    <text x="336" y="336" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">EV visita y llena FOR-005</text>
+    <text x="336" y="352" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">GV concentra · firma · envía al AEM</text>
+
+    <!-- FASE C -->
+    <rect x="320" y="424" width="320" height="144" rx="6" fill="#f5f5f5"/>
+    <rect x="320" y="424" width="320" height="144" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="328" y="432" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="342" y="441" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">C</text>
+    <text x="480" y="452" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif" text-anchor="middle">Programación · costos · materiales</text>
+    <text x="336" y="472" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">IDT-004 · AEM costea FOR-005</text>
+    <text x="336" y="488" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-006 Calendario · día 17</text>
+    <text x="336" y="504" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">CA firma costos · DC autoriza día 20</text>
+    <text x="336" y="520" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">pedido interno · box lunch (DC, martes)</text>
+    <text x="336" y="536" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">AEM entrega · EV firma FOR-007</text>
+
+    <!-- FASE D -->
+    <rect x="320" y="608" width="320" height="144" rx="6" fill="#f5f5f5"/>
+    <rect x="320" y="608" width="320" height="144" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="328" y="616" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="342" y="625" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">D</text>
+    <text x="480" y="636" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif" text-anchor="middle">Impartición · día del taller</text>
+    <text x="336" y="656" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">IDT-005 · víspera EV · EP revisa · 1 h antes</text>
+    <text x="336" y="672" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">FOR-008 · hasta 20 médicos firman</text>
+    <text x="336" y="688" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">umbral 80 % · teoría máx 15 min</text>
+    <text x="336" y="704" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">práctica · encuesta satisfacción (QR)</text>
+    <text x="336" y="720" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">fotos + FOR-008 al AEM · cierre</text>
+
+    <!-- FASE E -->
+    <rect x="320" y="792" width="320" height="144" rx="6" fill="#f5f5f5"/>
+    <rect x="320" y="792" width="320" height="144" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="328" y="800" width="28" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="342" y="809" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">E</text>
+    <text x="480" y="820" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif" text-anchor="middle">Cierre · indicadores</text>
+    <text x="336" y="840" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">AEM registra en BD</text>
+    <text x="336" y="856" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">elabora los 6 indicadores</text>
+    <text x="336" y="872" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">CEM presenta semanal a GG + DC</text>
+    <text x="336" y="888" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">programa anual: revisión trimestral</text>
+
+    <!-- Leyenda -->
+    <line x1="32" y1="976" x2="928" y2="976" stroke="rgba(45,49,66,.10)" stroke-width="0.8"/>
+    <text x="32" y="992" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace" letter-spacing="0.14em">LEYENDA</text>
+    <rect x="116" y="984" width="24" height="16" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="148" y="996" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">fase del proceso</text>
+    <rect x="316" y="984" width="24" height="16" rx="4" fill="rgba(45,49,66,.02)" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="348" y="996" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">fuera del alcance</text>
+    <line x1="516" y1="992" x2="556" y2="992" stroke="#eb6c36" stroke-width="1.2" stroke-dasharray="6,4" marker-end="url(#arrow-accent)"/>
+    <text x="564" y="996" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">ciclo mensual</text>
+    <line x1="700" y1="992" x2="740" y2="992" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <text x="748" y="996" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">handoff / firma</text>
+  </svg>
+
+  <p class="colophon">lefarma.docs/educacion-medica · diagramas/000001_flujo_as-is_proceso.html · 2026-08-13</p>
+</div>
+</body>
+</html>

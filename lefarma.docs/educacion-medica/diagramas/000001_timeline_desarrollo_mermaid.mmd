@@ -1,0 +1,7 @@
+flowchart LR
+    F1["Fase 1 · Base de datos<br/>0002 schema · 0003 = tipo_gerencia + 11 tablas · 0004 índices<br/>cascada PERSISTED · MS_Description · sin EF migrations"]
+    F2["Fase 2 · Backend<br/>Slice 1 catálogos · Slice 2 taller completo<br/>transversales: aprobaciones · asignaciones · indicadores · panel-mes"]
+    F3["Fase 3 · Frontend<br/>catálogos (sin pantalla de ejecutivos → Roles del hub)<br/>taller completo · Bandeja · Dashboard · Panel del mes"]
+    F4["Fase 4 · FUERA · Ventas IMSS<br/>Metas · Plan de Trabajo · Reportes<br/>requiere ADR 00002"]
+    F1 --> F2 --> F3
+    F3 -.->|"fuera del alcance"| F4

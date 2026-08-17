@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Arquitectura TO-BE — Módulo Educación Médica</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --color-paper:#f5f5f5; --color-ink:#2d3142; --color-muted:#4f5d75;
+    --color-soft:#7a8399; --color-accent:#eb6c36;
+    --font-sans:'Geist',sans-serif; --font-serif:'Instrument Serif',serif; --font-mono:'Geist Mono',monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:var(--font-sans);background:var(--color-paper);color:var(--color-ink);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:3rem 2rem;}
+  .wrap{max-width:960px;width:100%;}
+  .eyebrow{font-family:var(--font-mono);font-size:.66rem;font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--color-muted);margin-bottom:.5rem;}
+  h1{font-family:var(--font-serif);font-size:clamp(1.5rem,2.4vw + .75rem,2rem);font-weight:400;letter-spacing:-.02em;line-height:1.15;margin-bottom:.25rem;}
+  .sub{font-family:var(--font-mono);font-size:.72rem;color:var(--color-soft);margin-bottom:1.5rem;}
+  .figcap{font-family:var(--font-mono);font-size:.72rem;color:var(--color-muted);letter-spacing:.08em;margin:1.5rem 0 .5rem;}
+  .note{font-family:var(--font-mono);font-size:.68rem;color:var(--color-soft);margin-top:.5rem;}
+  svg{display:block;width:100%;height:auto;}
+  .colophon{margin-top:1.25rem;padding-top:.75rem;border-top:1px solid rgba(45,49,66,.12);font-family:var(--font-mono);font-size:.68rem;color:var(--color-soft);letter-spacing:.04em;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Educación Médica · TO-BE</p>
+  <h1>Arquitectura TO-BE — Módulo Educación Médica</h1>
+  <p class="sub">Tres capas: SPA React · API .NET · SQL Server (Lefarma propio + Asokam solo lectura)</p>
+
+  <svg viewBox="0 0 960 620" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Arquitectura por capas del módulo">
+    <defs>
+      <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+      <marker id="arrow-accent" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#eb6c36"/>
+      </marker>
+    </defs>
+
+    <!-- Conectores -->
+    <line x1="480" y1="116" x2="480" y2="140" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+    <line x1="272" y1="244" x2="272" y2="268" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow)"/>
+    <line x1="688" y1="244" x2="688" y2="268" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+
+    <!-- Labels -->
+    <rect x="488" y="121" width="96" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="492" y="130" fill="#eb6c36" font-size="8" font-family="'Geist Mono',monospace">axios /api/*</text>
+    <rect x="280" y="249" width="72" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="284" y="258" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">EF Core</text>
+    <rect x="696" y="249" width="80" height="12" rx="2" fill="#f5f5f5"/>
+    <text x="700" y="258" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">solo lectura</text>
+
+    <!-- SPA -->
+    <rect x="80" y="20" width="800" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="80" y="20" width="800" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="88" y="28" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="106" y="37" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.08em">SPA</text>
+    <text x="132" y="37" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif">SPA React — hub</text>
+    <text x="96" y="56" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Catálogos: Hospitales · Productos · Tipo de Gerencia · Equipos y pareo · Parámetros</text>
+    <text x="96" y="72" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Taller: Programa Anual · Selección · Calendario · TallerDetail (Recursos · Materiales · Asistencia · Aprobaciones · Evidencias)</text>
+    <text x="96" y="88" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Transversales: Bandeja de Autorizaciones · Asignación del Ejecutivo · Dashboard · Panel del mes</text>
+    <text x="96" y="104" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">alta de ejecutivos → pantalla de Roles del hub [externa] · permiso: baseapp.hub.puede_ver_educacion_medica</text>
+
+    <!-- API -->
+    <rect x="80" y="148" width="800" height="96" rx="6" fill="#f5f5f5"/>
+    <rect x="80" y="148" width="800" height="96" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="88" y="156" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="106" y="165" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.08em">API</text>
+    <text x="132" y="165" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif">API .NET — /api/educacion-medica</text>
+    <text x="96" y="184" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Catálogos: hospitales · productos · tipo-gerencia · equipos-pareo (valida 3/día · 8/semana) · parametros · usuarios</text>
+    <text x="96" y="200" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Taller: programas · selecciones · talleres (state machine) · recursos + costo total · materiales · asistencias · aprobaciones · evidencias</text>
+    <text x="96" y="216" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">Transversales: aprobaciones/pendientes · asignaciones/{id} · indicadores/semanal · panel-mes</text>
+    <text x="96" y="232" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">sin capa Repository · validación cross-DB en servicio</text>
+
+    <!-- Lefarma -->
+    <rect x="80" y="276" width="384" height="196" rx="6" fill="#f5f5f5"/>
+    <rect x="80" y="276" width="384" height="196" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <rect x="88" y="284" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="106" y="293" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.08em">SQL</text>
+    <text x="132" y="293" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif">Lefarma · schema educacion_medica</text>
+    <text x="96" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">hospital_extension · cascada PERSISTED</text>
+    <text x="96" y="332" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">programas_anuales · _detalles</text>
+    <text x="96" y="348" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">selecciones_mensuales · _hospitales</text>
+    <text x="96" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">talleres · state machine (CHECK)</text>
+    <text x="96" y="380" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">taller_recursos · taller_materiales</text>
+    <text x="96" y="396" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">taller_asistencias · taller_aprobaciones</text>
+    <text x="96" y="412" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">taller_evidencias · catálogo tipo_gerencia</text>
+    <text x="96" y="432" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">11 tablas · traza FOR-002…FOR-008</text>
+    <text x="96" y="448" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">scripts SQL manuales · sin EF migrations</text>
+
+    <!-- Asokam -->
+    <rect x="496" y="276" width="384" height="196" rx="6" fill="#f5f5f5"/>
+    <rect x="496" y="276" width="384" height="196" rx="6" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)" stroke-width="1"/>
+    <rect x="504" y="284" width="36" height="12" rx="2" fill="transparent" stroke="rgba(45,49,66,.4)" stroke-width="0.8"/>
+    <text x="522" y="293" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle" letter-spacing="0.08em">RO</text>
+    <text x="548" y="293" fill="#2d3142" font-size="12" font-weight="600" font-family="'Geist',sans-serif">Asokam — solo lectura</text>
+    <text x="512" y="316" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">genContactosCat · 4,856 hospitales</text>
+    <text x="512" y="332" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">CLUES · quirófanos · lat/long</text>
+    <text x="512" y="348" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">genProductosCat · 117 claves R-III…T</text>
+    <text x="512" y="364" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace">app.Usuarios · usuarios del hub</text>
+    <text x="512" y="388" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">4 DbSets read-only</text>
+    <text x="512" y="404" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">FK lógica · validada en servicio</text>
+    <text x="512" y="420" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">no confiable: puestos y equipos vacíos</text>
+
+    <!-- Leyenda -->
+    <line x1="80" y1="524" x2="880" y2="524" stroke="rgba(45,49,66,.10)" stroke-width="0.8"/>
+    <text x="80" y="540" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace" letter-spacing="0.14em">LEYENDA</text>
+    <rect x="164" y="532" width="24" height="16" rx="4" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="196" y="544" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">capa del módulo</text>
+    <rect x="360" y="532" width="24" height="16" rx="4" fill="rgba(45,49,66,.03)" stroke="rgba(45,49,66,.30)" stroke-width="1"/>
+    <text x="392" y="544" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">legacy / externo</text>
+    <line x1="556" y1="540" x2="596" y2="540" stroke="#eb6c36" stroke-width="1.2" marker-end="url(#arrow-accent)"/>
+    <text x="604" y="544" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">llamada principal</text>
+    <line x1="736" y1="540" x2="776" y2="540" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+    <text x="784" y="544" fill="#4f5d75" font-size="8" font-family="'Geist',sans-serif">solo lectura</text>
+  </svg>
+
+  <p class="figcap">State machine · taller</p>
+  <svg viewBox="0 0 960 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Máquina de estados del taller">
+    <defs>
+      <marker id="arrow2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f5d75"/>
+      </marker>
+    </defs>
+
+    <!-- Transiciones -->
+    <line x1="144" y1="60" x2="156" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <line x1="276" y1="60" x2="288" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <line x1="408" y1="60" x2="420" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <line x1="540" y1="60" x2="552" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <line x1="672" y1="60" x2="684" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <line x1="804" y1="60" x2="816" y2="60" stroke="#4f5d75" stroke-width="1.2" marker-end="url(#arrow2)"/>
+    <!-- Realizado -> Cancelado (dashed) -->
+    <line x1="876" y1="80" x2="876" y2="132" stroke="#4f5d75" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow2)"/>
+
+    <!-- Estados -->
+    <rect x="24" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="24" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="84" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Borrador</text>
+
+    <rect x="156" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="156" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="216" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Elaborado</text>
+
+    <rect x="288" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="288" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="348" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Revisado</text>
+
+    <rect x="420" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="420" y="40" width="120" height="40" rx="6" fill="rgba(235,108,54,.08)" stroke="#eb6c36" stroke-width="1.2"/>
+    <text x="480" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Autorizado</text>
+
+    <rect x="552" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="552" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="612" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Programado</text>
+
+    <rect x="684" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="684" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="744" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">EnCurso</text>
+
+    <rect x="816" y="40" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="816" y="40" width="120" height="40" rx="6" fill="#ffffff" stroke="#2d3142" stroke-width="1"/>
+    <text x="876" y="64" fill="#2d3142" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Realizado</text>
+
+    <rect x="816" y="140" width="120" height="40" rx="6" fill="#f5f5f5"/>
+    <rect x="816" y="140" width="120" height="40" rx="6" fill="rgba(45,49,66,.02)" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+    <text x="876" y="164" fill="#4f5d75" font-size="8" font-family="'Geist Mono',monospace" text-anchor="middle">Cancelado</text>
+
+    <text x="24" y="204" fill="#7a8399" font-size="8" font-family="'Geist Mono',monospace">CHECK en BD · transiciones validadas en servicio · DELETE solo en Borrador · cada firma es un registro en taller_aprobaciones</text>
+  </svg>
+
+  <p class="colophon">lefarma.docs/educacion-medica · diagramas/000001_arquitectura_to-be_modulo.html · 2026-08-13</p>
+</div>
+</body>
+</html>

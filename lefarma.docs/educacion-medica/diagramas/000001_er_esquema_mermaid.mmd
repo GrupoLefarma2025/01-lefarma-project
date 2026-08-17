@@ -1,0 +1,12 @@
+erDiagram
+    TIPO_GERENCIA ||--o{ HOSPITAL_EXTENSION : "clasifica (FK física)"
+    HOSPITAL_EXTENSION ||--o{ PROGRAMAS_ANUALES_DETALLES : "incluye (N:M con producto Asokam)"
+    PROGRAMAS_ANUALES ||--|{ PROGRAMAS_ANUALES_DETALLES : "detalle (FOR-003)"
+    SELECCIONES_MENSUALES ||--|{ SELECCIONES_MENSUALES_HOSPITALES : "elige (FOR-004)"
+    HOSPITAL_EXTENSION ||--o{ SELECCIONES_MENSUALES_HOSPITALES : "seleccionado"
+    SELECCIONES_MENSUALES_HOSPITALES ||--o{ TALLERES : "genera (FOR-005)"
+    TALLERES ||--|{ TALLER_RECURSOS : "costea (polimórfico)"
+    TALLERES ||--|| TALLER_MATERIALES : "prepara (FOR-007)"
+    TALLERES ||--o{ TALLER_ASISTENCIAS : "registra (FOR-008)"
+    TALLERES ||--o{ TALLER_APROBACIONES : "firma (log)"
+    TALLERES ||--o{ TALLER_EVIDENCIAS : "evidencia (post-taller)"

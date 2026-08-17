@@ -1,0 +1,13 @@
+flowchart TD
+    A["Fase A · Planificación anual (nov)<br/>IDT-001/002 · FOR-001/002/003<br/>DC autoriza el programa anual"]
+    B["Fase B · Selección mensual (día 15)<br/>IDT-003 · FOR-004/005<br/>GG+GV firman · GV notifica a EV"]
+    C["Fase C · Costos y materiales (15→20+)<br/>IDT-004 · FOR-006/007<br/>CA firma costos · DC autoriza día 20"]
+    D["Fase D · Impartición<br/>IDT-005 · FOR-008<br/>umbral 80% · teoría máx 15 min"]
+    E["Fase E · Cierre e indicadores<br/>AEM registra · CEM presenta 6 indicadores"]
+    A1["A1 · Material didáctico<br/>GG aprueba · DIG diseña · DC autoriza<br/>resguardo en Quality Web"]
+    A -->|"programa autorizado"| B
+    B -->|"FOR-005 firmada (GV)"| C
+    C -->|"material + FOR-007 (EV)"| D
+    D -->|"FOR-008 + fotos"| E
+    E -.->|"siguiente día 15"| B
+    A -.->|"IDT-001 · fuera del alcance"| A1
