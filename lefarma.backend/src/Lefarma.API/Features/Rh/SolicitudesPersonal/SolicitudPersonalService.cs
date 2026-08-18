@@ -758,6 +758,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
 
+                var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo, soli.IdSolicitud);
+                if (validacionLimite.IsError)
+                    return validacionLimite.FirstError;
+
                 if (tipo.PideDiasSolicitados)
                 {
                     if (!request.DiasSolicitados.HasValue || request.DiasSolicitados.Value < 1)
@@ -779,13 +783,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     validacionFechasUpdate = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuarioSolicitante, ct);
                     if (validacionFechasUpdate.IsError)
                         return validacionFechasUpdate.FirstError;
-                }
-
-                if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
-                {
-                    var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo, soli.IdSolicitud);
-                    if (validacionLimite.IsError)
-                        return validacionLimite.FirstError;
                 }
 
                 soli.IdEmpresa = solicitante.IdEmpresa;
@@ -1118,7 +1115,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                     var solicitudesCerradas = await _context.SolicitudesPersonal
                         .AsNoTracking()
-                        .Where(s => s.IdUsuarioCreador == idUsuarioObjetivo
+                        .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuarioObjetivo
                             && tipoIds.Contains(s.IdTipoSolicitud)
                             && s.FechaCreacion >= fechaMin
                             && s.FechaCreacion <= fechaMax

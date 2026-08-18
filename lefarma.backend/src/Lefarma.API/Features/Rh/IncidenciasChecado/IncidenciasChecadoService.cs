@@ -520,7 +520,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             .Include(s => s.Estado)
             .Include(s => s.TipoSolicitud)
             .Where(s =>
-                idUsuarios.Contains(s.IdUsuarioCreador)
+                idUsuarios.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
                 && s.Estado != null
                 && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
@@ -529,6 +529,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             .Select(s => new
             {
                 s.IdUsuarioCreador,
+                s.IdUsuarioSolicitante,
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
@@ -539,7 +540,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         var usuarioSolicitudes = solicitudes
             .Join(
                 nominaUsuario,
-                s => s.IdUsuarioCreador,
+                s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador,
                 nu => nu.Value,
                 (s, nu) => new { Nomina = nu.Key, Solicitud = s })
             .GroupBy(x => x.Nomina)

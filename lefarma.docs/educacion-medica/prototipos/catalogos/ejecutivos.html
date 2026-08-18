@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ejecutivos — Educación Médica</title>
+  <link rel="stylesheet" href="../css/prototipo.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-name">Lefarma</div>
+        <div class="brand-module">Educación Médica · Prototipos</div>
+      </div>
+      <nav>
+        <div class="nav-group">
+          <span class="nav-title">Inicio</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../index.html"><span class="icon">⌂</span> Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Catálogos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="hospitales.html"><span class="icon">H</span> Hospitales</a></li>
+            <li><a class="nav-link active" href="ejecutivos.html"><span class="icon">E</span> Ejecutivos</a></li>
+            <li><a class="nav-link" href="productos.html"><span class="icon">P</span> Productos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Talleres Médicos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../talleres/programa-anual.html"><span class="icon">PA</span> Programa Anual</a></li>
+            <li><a class="nav-link" href="../talleres/seleccion-mensual.html"><span class="icon">SM</span> Selección Mensual</a></li>
+            <li><a class="nav-link" href="../talleres/calendario.html"><span class="icon">C</span> Calendario</a></li>
+            <li><a class="nav-link" href="../talleres/taller.html"><span class="icon">M</span> Matriz de Talleres</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>Catálogos</span> / <strong>Ejecutivos</strong>
+        </div>
+        <div class="user-chip">
+          <span>Usuario prototipo · Rol: Gerente General</span>
+          <div class="user-avatar">GG</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Ejecutivos de Ventas y Especialistas</h1>
+            <p class="page-subtitle">Catálogo derivado de roles del proceso · Solo lectura desde Asokam en el sistema real</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary">+ Nuevo</button>
+            <button class="btn btn-secondary">Editar</button>
+            <button class="btn btn-secondary">Eliminar</button>
+            <button class="btn btn-ghost">Importar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="form-row mb-0">
+              <label class="form-label">Gerencia</label>
+              <select class="form-select">
+                <option>Todas</option>
+                <option>IMSS</option>
+                <option>Descentralizado</option>
+              </select>
+              <label class="form-label">Región</label>
+              <select class="form-select">
+                <option>Todas</option>
+                <option>CDMX NORTE</option>
+                <option>NORESTE</option>
+                <option>OCCIDENTE</option>
+                <option>SURESTE</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="small-col">No.</th>
+                  <th>Nombre</th>
+                  <th>Zona / Región</th>
+                  <th>Puesto</th>
+                  <th>Gerencia</th>
+                  <th>Estatus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="small-col">1</td>
+                  <td>Carlos López Martínez</td>
+                  <td>NORESTE</td>
+                  <td>Gerente de Ventas</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">2</td>
+                  <td>Laura Hernández Ruiz</td>
+                  <td>OCCIDENTE</td>
+                  <td>Gerente de Ventas</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">3</td>
+                  <td>María Sánchez Vega</td>
+                  <td>CDMX NORTE</td>
+                  <td>Especialista de Producto</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">4</td>
+                  <td>Roberto Díaz Moreno</td>
+                  <td>SURESTE</td>
+                  <td>Especialista de Producto</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">5</td>
+                  <td>Ana Gómez Castillo</td>
+                  <td>CDMX NORTE</td>
+                  <td>Ejecutivo de Ventas</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">6</td>
+                  <td>Pedro Torres Flores</td>
+                  <td>NORESTE</td>
+                  <td>Ejecutivo de Ventas</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-warning">Vacaciones</span></td>
+                </tr>
+                <tr>
+                  <td class="small-col">7</td>
+                  <td>Sofía Mendoza Cruz</td>
+                  <td>OCCIDENTE</td>
+                  <td>Ejecutivo de Ventas</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Activo</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

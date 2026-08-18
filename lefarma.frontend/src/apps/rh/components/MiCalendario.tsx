@@ -707,7 +707,7 @@ export function MiCalendario() {
                         )}
                         title={
                           dia.esNoLaborable
-                            ? (dia.noHabilDescripcion ?? 'No es jornada laboral')
+                            ? (dia.noHabilDescripcion ?? 'Día de descanso')
                             : undefined
                         }
                       >
@@ -717,7 +717,7 @@ export function MiCalendario() {
 
                     {dia.esNoLaborable && (
                       <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
-                        {dia.noHabilDescripcion ?? 'No es jornada'}
+                        {dia.noHabilDescripcion ?? 'Descanso'}
                       </div>
                     )}
 
