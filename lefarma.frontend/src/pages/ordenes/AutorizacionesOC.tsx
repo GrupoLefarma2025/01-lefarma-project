@@ -1936,6 +1936,12 @@ export default function AutorizacionesOC() {
                                          <p className="font-medium">{partida.descripcion}</p>
                                          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                                            <span>Deducible: {partida.deducible ? 'Sí' : 'No'}</span>
+                                            {partida.ajusteRedondeo != null && (
+                                              <span>
+                                                Ajuste redondeo:{' '}
+                                                {formatCurrency(partida.ajusteRedondeo)}
+                                              </span>
+                                            )}
                                             {partida.idProveedor && !selectedOrden.idProveedor && (
                                               <span className="ml-2 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-medium text-blue-600">
                                                 Prov: {proveedoresMap.get(partida.idProveedor)?.razonSocial?.substring(0, 20) ?? 'N/A'}
@@ -2012,6 +2018,16 @@ export default function AutorizacionesOC() {
                                                   {formatCurrency(partida.otrosImpuestos)}
                                                 </p>
                                               </div>
+                                              {partida.ajusteRedondeo != null && (
+                                                <div className="rounded border bg-background px-2 py-1.5">
+                                                  <p className="text-muted-foreground">
+                                                    Ajuste por redondeo
+                                                  </p>
+                                                  <p className="font-medium">
+                                                    {formatCurrency(partida.ajusteRedondeo)}
+                                                  </p>
+                                                </div>
+                                              )}
                                               <div className="rounded border bg-background px-2 py-1.5">
                                                 <p className="text-muted-foreground">
                                                   Requiere Factura

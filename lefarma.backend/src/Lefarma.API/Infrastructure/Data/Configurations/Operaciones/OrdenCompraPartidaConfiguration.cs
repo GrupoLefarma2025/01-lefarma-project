@@ -22,6 +22,7 @@ public class OrdenCompraPartidaConfiguration : IEntityTypeConfiguration<OrdenCom
             builder.Property(p => p.TotalRetenciones).HasColumnName("total_retenciones").HasColumnType("decimal(18,2)").HasDefaultValue(0);
             builder.Property(p => p.OtrosImpuestos).HasColumnName("otros_impuestos").HasColumnType("decimal(18,2)").HasDefaultValue(0);
             builder.Property(p => p.Deducible).HasColumnName("deducible").HasDefaultValue(true);
+            builder.Property(p => p.AjusteRedondeo).HasColumnName("ajuste_redondeo").HasColumnType("decimal(18,2)");
             builder.Property(p => p.Total).HasColumnName("total").HasColumnType("decimal(18,2)");
             builder.Property(p => p.IdProveedor).HasColumnName("id_proveedor");
             builder.Property(p => p.IdsCuentasBancarias).HasColumnName("ids_cuentas_bancarias").HasColumnType("nvarchar(max)");
