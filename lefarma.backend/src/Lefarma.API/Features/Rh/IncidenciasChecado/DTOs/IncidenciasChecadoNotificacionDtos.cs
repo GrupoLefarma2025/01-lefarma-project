@@ -28,8 +28,10 @@ public class NotificarIncidenciaItemRequest
     public string? IncidenciaSalida { get; set; }
     public string? MsgError { get; set; }
     public bool Justificada { get; set; }
+    public bool Descuento { get; set; }
     public int? IdSolicitud { get; set; }
     public string? TipoSolicitudNombre { get; set; }
+    public List<IncidenciaCalculadaDto> IncidenciasCalculadas { get; set; } = new();
 }
 
 public class CanalNotificacionResult
@@ -54,6 +56,9 @@ public class NotificarIncidenciasResumenRequest
     public string? Periodo { get; set; }
     public DateTime? FechaInicio { get; set; }
     public DateTime? FechaFin { get; set; }
+    public bool TieneIncidenciaEntrada { get; set; } = true;
+    public bool TieneIncidenciaSalida { get; set; } = true;
+    public bool TieneIncidenciaOmision { get; set; } = true;
     public string Asunto { get; set; } = string.Empty;
     public string Mensaje { get; set; } = string.Empty;
     public List<int>? SelectedUserIds { get; set; }

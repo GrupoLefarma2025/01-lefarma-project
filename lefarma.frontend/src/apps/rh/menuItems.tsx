@@ -46,19 +46,25 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
       },
     ],
   },
-  {
-    title: 'Catálogos',
-    icon: List,
-    isCollapsible: true,
-    items: [
-      {
-        title: 'Tipos de Solicitud',
-        icon: FileText,
-        path: '/rh/catalogos/tipos-solicitud',
-        permission: { require: 'tipos-solicitud.ver_listado' },
-      },
-    ],
-  },
+    {
+      title: 'Catálogos',
+      icon: List,
+      isCollapsible: true,
+      items: [
+        {
+          title: 'Tipos de Solicitud',
+          icon: FileText,
+          path: '/rh/catalogos/tipos-solicitud',
+          permission: { require: 'tipos-solicitud.ver_listado' },
+        },
+        {
+          title: 'Configuración de descuentos',
+          icon: TimerIcon,
+          path: '/rh/catalogos/incidencias-checado-config',
+          permission: { require: 'incidencias_checado.crear' },
+        },
+      ],
+    },
   {
     title: 'Biometrico',
     icon: TimerIcon,

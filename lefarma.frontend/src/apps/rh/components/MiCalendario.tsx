@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
+import { Badge } from '@/components/ui/badge';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudDetalleTab } from './SolicitudDetalleTab';
@@ -131,11 +132,7 @@ interface DiaCelda {
 }
 
 function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
-  return (
-    incidencia.incidenciaEntrada?.trim() ||
-    incidencia.incidenciaSalida?.trim() ||
-    incidencia.msgError?.trim()
-  );
+  return (incidencia.incidenciasCalculadas ?? []).length > 0;
 }
 
 function useCalendario(anio: number, mes: number) {
@@ -327,16 +324,7 @@ function IncidenciaModal({
 }) {
   if (!incidencia) return null;
 
-  const incidencias: { label: string; text: string; tipo: 'entrada' | 'salida' | 'omision' }[] = [];
-  if (incidencia.incidenciaEntrada?.trim()) {
-    incidencias.push({ label: 'Entrada', text: incidencia.incidenciaEntrada, tipo: 'entrada' });
-  }
-  if (incidencia.incidenciaSalida?.trim()) {
-    incidencias.push({ label: 'Salida', text: incidencia.incidenciaSalida, tipo: 'salida' });
-  }
-  if (incidencia.msgError?.trim()) {
-    incidencias.push({ label: 'Omisión', text: incidencia.msgError, tipo: 'omision' });
-  }
+  const incidencias = incidencia.incidenciasCalculadas ?? [];
 
   return (
     <Modal
@@ -383,24 +371,27 @@ function IncidenciaModal({
           </div>
         )}
 
+        {incidencia.descuento && (
+          <div className="flex items-center gap-2 rounded bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
+            <AlertTriangle className="h-4 w-4" />
+            <span className="font-semibold">Genera descuento</span>
+          </div>
+        )}
+
         <div className="space-y-2">
           <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Detalle de incidencias
+            Tipos de incidencia
           </h4>
-          <div className="grid gap-2">
-            {incidencias.map((item) => (
-              <div
-                key={item.label}
-                className={cn(
-                  'rounded px-3 py-2 text-sm',
-                  item.tipo === 'omision'
-                    ? 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
-                    : 'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300'
-                )}
-              >
-                <span className="font-semibold">{item.label}:</span> {item.text}
-              </div>
-            ))}
+          <div className="flex flex-wrap gap-2">
+            {incidencias.length === 0 ? (
+              <span className="text-sm text-muted-foreground">-</span>
+            ) : (
+              incidencias.map((inc) => (
+                <Badge key={inc.tipoIncidencia} variant="outline">
+                  {inc.nombre}
+                </Badge>
+              ))
+            )}
           </div>
         </div>
 

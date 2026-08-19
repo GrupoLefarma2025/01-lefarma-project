@@ -205,6 +205,8 @@ builder.Services.AddScoped<Lefarma.API.Features.Rh.Calendario.ICalendarioService
 builder.Services.AddScoped<Lefarma.API.Features.Rh.Vacaciones.IVacacionesService, Lefarma.API.Features.Rh.Vacaciones.VacacionesService>();
 builder.Services.AddScoped<IIncidenciasChecadoNotificacionService, IncidenciasChecadoNotificacionService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciasChecadoService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciasChecadoService>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.IIncidenciaChecadoConfigService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigService>();
+builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciaChecadoConfigAdminService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigAdminService>();
 
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
