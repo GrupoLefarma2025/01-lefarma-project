@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Calendario — Educación Médica</title>
+  <link rel="stylesheet" href="../css/prototipo.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-name">Lefarma</div>
+        <div class="brand-module">Educación Médica · Prototipos</div>
+      </div>
+      <nav>
+        <div class="nav-group">
+          <span class="nav-title">Inicio</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../index.html"><span class="icon">⌂</span> Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Catálogos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../catalogos/hospitales.html"><span class="icon">H</span> Hospitales</a></li>
+            <li><a class="nav-link" href="../catalogos/ejecutivos.html"><span class="icon">E</span> Ejecutivos</a></li>
+            <li><a class="nav-link" href="../catalogos/productos.html"><span class="icon">P</span> Productos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Talleres Médicos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="programa-anual.html"><span class="icon">PA</span> Programa Anual</a></li>
+            <li><a class="nav-link" href="seleccion-mensual.html"><span class="icon">SM</span> Selección Mensual</a></li>
+            <li><a class="nav-link active" href="calendario.html"><span class="icon">C</span> Calendario</a></li>
+            <li><a class="nav-link" href="taller.html"><span class="icon">M</span> Matriz de Talleres</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>Talleres Médicos</span> / <strong>Calendario</strong>
+        </div>
+        <div class="user-chip">
+          <span>Usuario prototipo · Rol: Aux. Admin. Ed. Médica</span>
+          <div class="user-avatar">AEM</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Calendario de Talleres Médicos</h1>
+            <p class="page-subtitle">Formulario origen: ASK-CEM-FOR-006 · Elaborado el día 17 de cada mes</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary">+ Nuevo taller</button>
+            <button class="btn btn-secondary">Publicar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="form-row mb-0">
+              <label class="form-label">Año</label>
+              <select class="form-select">
+                <option>2026</option>
+                <option>2025</option>
+              </select>
+              <label class="form-label">Mes</label>
+              <select class="form-select">
+                <option>Agosto</option>
+                <option>Julio</option>
+                <option>Septiembre</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body" style="padding: 0;">
+            <div class="calendar-header">
+              <div class="day-label">Lunes</div>
+              <div class="day-label">Martes</div>
+              <div class="day-label">Miércoles</div>
+              <div class="day-label">Jueves</div>
+              <div class="day-label">Viernes</div>
+              <div class="day-label">Sábado</div>
+              <div class="day-label">Domingo</div>
+            </div>
+            <div class="calendar-grid">
+              <!-- Week 1 -->
+              <div class="calendar-day"><div class="day-number">27</div><span class="text-muted">Jul</span></div>
+              <div class="calendar-day"><div class="day-number">28</div><span class="text-muted">Jul</span></div>
+              <div class="calendar-day"><div class="day-number">29</div><span class="text-muted">Jul</span></div>
+              <div class="calendar-day"><div class="day-number">30</div><span class="text-muted">Jul</span></div>
+              <div class="calendar-day"><div class="day-number">31</div><span class="text-muted">Jul</span></div>
+              <div class="calendar-day weekend"><div class="day-number">1</div></div>
+              <div class="calendar-day weekend"><div class="day-number">2</div></div>
+
+              <!-- Week 2 -->
+              <div class="calendar-day"><div class="day-number">3</div></div>
+              <div class="calendar-day">
+                <div class="day-number">4</div>
+                <div class="workshop-card">
+                  <div class="wc-title">HGZ 1-A · 10:00</div>
+                  <div class="wc-meta">Ana Gómez + María Sánchez · CDMX</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">5</div></div>
+              <div class="calendar-day">
+                <div class="day-number">6</div>
+                <div class="workshop-card">
+                  <div class="wc-title">H. Regional 25 · 09:30</div>
+                  <div class="wc-meta">Pedro Torres + María Sánchez · MTY</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">7</div></div>
+              <div class="calendar-day weekend"><div class="day-number">8</div></div>
+              <div class="calendar-day weekend"><div class="day-number">9</div></div>
+
+              <!-- Week 3 -->
+              <div class="calendar-day">
+                <div class="day-number">10</div>
+                <div class="workshop-card">
+                  <div class="wc-title">H. General Ticomán · 11:00</div>
+                  <div class="wc-meta">Ana Gómez + María Sánchez · CDMX</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">11</div></div>
+              <div class="calendar-day">
+                <div class="day-number">12</div>
+                <div class="workshop-card">
+                  <div class="wc-title">H. General La Villa · 10:00</div>
+                  <div class="wc-meta">Ana Gómez + Roberto Díaz · CDMX</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">13</div></div>
+              <div class="calendar-day"><div class="day-number">14</div></div>
+              <div class="calendar-day weekend"><div class="day-number">15</div></div>
+              <div class="calendar-day weekend"><div class="day-number">16</div></div>
+
+              <!-- Week 4 -->
+              <div class="calendar-day">
+                <div class="day-number">17</div>
+                <div class="workshop-card">
+                  <div class="wc-title">H. San Juan de Dios · 09:00</div>
+                  <div class="wc-meta">Sofía Mendoza + Roberto Díaz · GDL</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">18</div></div>
+              <div class="calendar-day"><div class="day-number">19</div></div>
+              <div class="calendar-day">
+                <div class="day-number">20</div>
+                <div class="workshop-card">
+                  <div class="wc-title">HGZ 2 · 10:30</div>
+                  <div class="wc-meta">Roberto Díaz + María Sánchez · Mérida</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">21</div></div>
+              <div class="calendar-day weekend"><div class="day-number">22</div></div>
+              <div class="calendar-day weekend"><div class="day-number">23</div></div>
+
+              <!-- Week 5 -->
+              <div class="calendar-day"><div class="day-number">24</div></div>
+              <div class="calendar-day">
+                <div class="day-number">25</div>
+                <div class="workshop-card">
+                  <div class="wc-title">H. General Puebla · 09:30</div>
+                  <div class="wc-meta">Sofía Mendoza + Roberto Díaz · Puebla</div>
+                </div>
+              </div>
+              <div class="calendar-day"><div class="day-number">26</div></div>
+              <div class="calendar-day"><div class="day-number">27</div></div>
+              <div class="calendar-day"><div class="day-number">28</div></div>
+              <div class="calendar-day weekend"><div class="day-number">29</div></div>
+              <div class="calendar-day weekend"><div class="day-number">30</div></div>
+
+              <!-- Week 6 (overflow) -->
+              <div class="calendar-day"><div class="day-number">31</div></div>
+              <div class="calendar-day"><div class="day-number">1</div><span class="text-muted">Sep</span></div>
+              <div class="calendar-day"><div class="day-number">2</div><span class="text-muted">Sep</span></div>
+              <div class="calendar-day"><div class="day-number">3</div><span class="text-muted">Sep</span></div>
+              <div class="calendar-day"><div class="day-number">4</div><span class="text-muted">Sep</span></div>
+              <div class="calendar-day weekend"><div class="day-number">5</div><span class="text-muted">Sep</span></div>
+              <div class="calendar-day weekend"><div class="day-number">6</div><span class="text-muted">Sep</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hospitales — Educación Médica</title>
+  <link rel="stylesheet" href="../css/prototipo.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-name">Lefarma</div>
+        <div class="brand-module">Educación Médica · Prototipos</div>
+      </div>
+      <nav>
+        <div class="nav-group">
+          <span class="nav-title">Inicio</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../index.html"><span class="icon">⌂</span> Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Catálogos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link active" href="hospitales.html"><span class="icon">H</span> Hospitales</a></li>
+            <li><a class="nav-link" href="ejecutivos.html"><span class="icon">E</span> Ejecutivos</a></li>
+            <li><a class="nav-link" href="productos.html"><span class="icon">P</span> Productos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Talleres Médicos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../talleres/programa-anual.html"><span class="icon">PA</span> Programa Anual</a></li>
+            <li><a class="nav-link" href="../talleres/seleccion-mensual.html"><span class="icon">SM</span> Selección Mensual</a></li>
+            <li><a class="nav-link" href="../talleres/calendario.html"><span class="icon">C</span> Calendario</a></li>
+            <li><a class="nav-link" href="../talleres/taller.html"><span class="icon">M</span> Matriz de Talleres</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>Catálogos</span> / <strong>Hospitales</strong>
+        </div>
+        <div class="user-chip">
+          <span>Usuario prototipo · Rol: Gerente General</span>
+          <div class="user-avatar">GG</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Base de datos de Hospitales</h1>
+            <p class="page-subtitle">Formulario origen: ASK-CEM-FOR-002 · Cálculo automático de anestesias a partir del número de quirófanos</p>
+          </div>
+          <div class="toolbar">
+            <button class="btn btn-primary">+ Nuevo</button>
+            <button class="btn btn-secondary">Importar</button>
+            <button class="btn btn-secondary">Editar</button>
+            <button class="btn btn-secondary">Eliminar</button>
+            <button class="btn btn-ghost">Exportar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="form-row mb-0">
+              <label class="form-label">Gerencia</label>
+              <select class="form-select">
+                <option>Todas</option>
+                <option>IMSS</option>
+                <option>Descentralizado</option>
+              </select>
+              <label class="form-label">SIA</label>
+              <select class="form-select">
+                <option>Todos</option>
+                <option>Con SIA</option>
+                <option>Sin SIA</option>
+              </select>
+              <label class="form-label">Año</label>
+              <select class="form-select">
+                <option>2026</option>
+                <option>2025</option>
+              </select>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="note mb-2">
+              Las anestesias se calculan automáticamente: <strong>AT = NQ × 2.5 × 250</strong>; <strong>AG = AT × 30%</strong>; <strong>AR = AT × 70%</strong>; <strong>AE = AR × 35%</strong>; <strong>AS = AR × 45%</strong>; <strong>MO = AR × 2%</strong>; <strong>MNO = AR × 18%</strong>.
+            </div>
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th class="small-col">No.</th>
+                  <th>Gerencia</th>
+                  <th>SIA</th>
+                  <th>CLUES</th>
+                  <th>Estado</th>
+                  <th>Municipio</th>
+                  <th>Clave Institución</th>
+                  <th>Nombre de Hospital</th>
+                  <th class="num">N° quirófanos</th>
+                  <th class="num">AT</th>
+                  <th class="num">AG</th>
+                  <th class="num">AR</th>
+                  <th class="num">AE</th>
+                  <th class="num">AS</th>
+                  <th class="num">MO</th>
+                  <th class="num">MNO</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="small-col">1</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">DFSSA000101</td>
+                  <td>Ciudad de México</td>
+                  <td>Cuauhtémoc</td>
+                  <td>IMSS</td>
+                  <td>Hospital General de Zona 1-A</td>
+                  <td class="num">8</td>
+                  <td class="num">5,000</td>
+                  <td class="num">1,500</td>
+                  <td class="num">3,500</td>
+                  <td class="num">1,225</td>
+                  <td class="num">1,575</td>
+                  <td class="num">70</td>
+                  <td class="num">630</td>
+                </tr>
+                <tr>
+                  <td class="small-col">2</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">NLIMSS000123</td>
+                  <td>Nuevo León</td>
+                  <td>Monterrey</td>
+                  <td>IMSS</td>
+                  <td>Hospital Regional 25</td>
+                  <td class="num">12</td>
+                  <td class="num">7,500</td>
+                  <td class="num">2,250</td>
+                  <td class="num">5,250</td>
+                  <td class="num">1,837</td>
+                  <td class="num">2,362</td>
+                  <td class="num">105</td>
+                  <td class="num">945</td>
+                </tr>
+                <tr>
+                  <td class="small-col">3</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-muted">Sin SIA</span></td>
+                  <td class="mono">JASSA000456</td>
+                  <td>Jalisco</td>
+                  <td>Guadalajara</td>
+                  <td>SSA Federal</td>
+                  <td>Hospital General San Juan de Dios</td>
+                  <td class="num">6</td>
+                  <td class="num">3,750</td>
+                  <td class="num">1,125</td>
+                  <td class="num">2,625</td>
+                  <td class="num">918</td>
+                  <td class="num">1,181</td>
+                  <td class="num">52</td>
+                  <td class="num">472</td>
+                </tr>
+                <tr>
+                  <td class="small-col">4</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">QRO000789</td>
+                  <td>Querétaro</td>
+                  <td>San Juan del Río</td>
+                  <td>Secretaría de Salud</td>
+                  <td>Hospital General San Juan del Río</td>
+                  <td class="num">4</td>
+                  <td class="num">2,500</td>
+                  <td class="num">750</td>
+                  <td class="num">1,750</td>
+                  <td class="num">612</td>
+                  <td class="num">787</td>
+                  <td class="num">35</td>
+                  <td class="num">315</td>
+                </tr>
+                <tr>
+                  <td class="small-col">5</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">YUCIMSS000321</td>
+                  <td>Yucatán</td>
+                  <td>Mérida</td>
+                  <td>IMSS</td>
+                  <td>Hospital General Zona 2</td>
+                  <td class="num">5</td>
+                  <td class="num">3,125</td>
+                  <td class="num">938</td>
+                  <td class="num">2,188</td>
+                  <td class="num">766</td>
+                  <td class="num">984</td>
+                  <td class="num">44</td>
+                  <td class="num">394</td>
+                </tr>
+                <tr>
+                  <td class="small-col">6</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">PUE000654</td>
+                  <td>Puebla</td>
+                  <td>Puebla</td>
+                  <td>Secretaría de Salud</td>
+                  <td>Hospital General de Puebla</td>
+                  <td class="num">7</td>
+                  <td class="num">4,375</td>
+                  <td class="num">1,312</td>
+                  <td class="num">3,062</td>
+                  <td class="num">1,072</td>
+                  <td class="num">1,378</td>
+                  <td class="num">61</td>
+                  <td class="num">551</td>
+                </tr>
+                <tr>
+                  <td class="small-col">7</td>
+                  <td>IMSS</td>
+                  <td><span class="badge badge-muted">Sin SIA</span></td>
+                  <td class="mono">OAXIMSS000987</td>
+                  <td>Oaxaca</td>
+                  <td>Oaxaca</td>
+                  <td>IMSS</td>
+                  <td>Hospital Regional de Oaxaca</td>
+                  <td class="num">3</td>
+                  <td class="num">1,875</td>
+                  <td class="num">562</td>
+                  <td class="num">1,312</td>
+                  <td class="num">459</td>
+                  <td class="num">590</td>
+                  <td class="num">26</td>
+                  <td class="num">236</td>
+                </tr>
+                <tr>
+                  <td class="small-col">8</td>
+                  <td>Descentralizado</td>
+                  <td><span class="badge badge-success">Con SIA</span></td>
+                  <td class="mono">MOR000147</td>
+                  <td>Morelos</td>
+                  <td>Cuernavaca</td>
+                  <td>Secretaría de Salud</td>
+                  <td>Hospital General de Cuernavaca</td>
+                  <td class="num">9</td>
+                  <td class="num">5,625</td>
+                  <td class="num">1,688</td>
+                  <td class="num">3,938</td>
+                  <td class="num">1,378</td>
+                  <td class="num">1,772</td>
+                  <td class="num">79</td>
+                  <td class="num">709</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="8" class="text-right">Subtotales</td>
+                  <td class="num">54</td>
+                  <td class="num">33,750</td>
+                  <td class="num">10,125</td>
+                  <td class="num">23,625</td>
+                  <td class="num">8,267</td>
+                  <td class="num">10,629</td>
+                  <td class="num">472</td>
+                  <td class="num">4,252</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

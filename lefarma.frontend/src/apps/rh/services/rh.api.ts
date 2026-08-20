@@ -5,9 +5,11 @@ import type {
   CalendarioGlobalRequest,
   CalendarioLaboralRequest,
   CalendarioLaboralResponse,
+  CreateIncidenciaChecadoConfigRequest,
   CreateTipoSolicitudRequest,
   DiasJornadaRequest,
   DiasJornadaResponse,
+  IncidenciaChecadoConfigResponse,
   IncidenciaChecadoResponse,
   IncidenciasChecadoConsultaRequest,
   IncidenciasChecadoResumenEmpleadoRequest,
@@ -21,6 +23,7 @@ import type {
   SolicitudPersonalResponse,
   TipoSolicitudRequest,
   TipoSolicitudResponse,
+  UpdateIncidenciaChecadoConfigRequest,
   UpdateTipoSolicitudRequest,
   EmpleadoDestinatariosResponse
 } from '@/types/solicitudPersonal.types';
@@ -147,6 +150,19 @@ export const usuariosCatalogoApi = {
     ),
 };
 
+const INCIDENCIAS_CHECADO_CONFIG_ENDPOINT = '/rh/incidencias-checado-config';
+
+export const incidenciaChecadoConfigApi = {
+  getAll: () =>
+    API.get<ApiResponse<IncidenciaChecadoConfigResponse[]>>(INCIDENCIAS_CHECADO_CONFIG_ENDPOINT),
+  getById: (id: number) =>
+    API.get<ApiResponse<IncidenciaChecadoConfigResponse>>(`${INCIDENCIAS_CHECADO_CONFIG_ENDPOINT}/${id}`),
+  create: (payload: CreateIncidenciaChecadoConfigRequest) =>
+    API.post<ApiResponse<IncidenciaChecadoConfigResponse>>(INCIDENCIAS_CHECADO_CONFIG_ENDPOINT, payload),
+  update: (id: number, payload: UpdateIncidenciaChecadoConfigRequest) =>
+    API.put<ApiResponse<IncidenciaChecadoConfigResponse>>(`${INCIDENCIAS_CHECADO_CONFIG_ENDPOINT}/${id}`, payload),
+};
+
 export const notificarIncidenciaChecadoApi = {
   getPlantillas: () =>
     API.get<ApiResponse<PlantillaIncidenciaChecado[]>>('/rh/incidencias-checado/plantillas'),
@@ -195,6 +211,7 @@ export default {
   incidenciasChecadoApi,
   notificarIncidenciaChecadoApi,
   empleadoApi,
+  incidenciaChecadoConfigApi,
   solicitudesPersonalApi,
   tipoSolicitudApi,
   usuariosCatalogoApi,

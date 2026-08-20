@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Matriz de Talleres — Educación Médica</title>
+  <link rel="stylesheet" href="../css/prototipo.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-name">Lefarma</div>
+        <div class="brand-module">Educación Médica · Prototipos</div>
+      </div>
+      <nav>
+        <div class="nav-group">
+          <span class="nav-title">Inicio</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../index.html"><span class="icon">⌂</span> Dashboard</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Catálogos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="../catalogos/hospitales.html"><span class="icon">H</span> Hospitales</a></li>
+            <li><a class="nav-link" href="../catalogos/ejecutivos.html"><span class="icon">E</span> Ejecutivos</a></li>
+            <li><a class="nav-link" href="../catalogos/productos.html"><span class="icon">P</span> Productos</a></li>
+          </ul>
+        </div>
+        <div class="nav-group">
+          <span class="nav-title">Talleres Médicos</span>
+          <ul class="nav-list">
+            <li><a class="nav-link" href="programa-anual.html"><span class="icon">PA</span> Programa Anual</a></li>
+            <li><a class="nav-link" href="seleccion-mensual.html"><span class="icon">SM</span> Selección Mensual</a></li>
+            <li><a class="nav-link" href="calendario.html"><span class="icon">C</span> Calendario</a></li>
+            <li><a class="nav-link active" href="taller.html"><span class="icon">M</span> Matriz de Talleres</a></li>
+          </ul>
+        </div>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="breadcrumb">
+          <span>Talleres Médicos</span> / <strong>Matriz de Talleres</strong>
+        </div>
+        <div class="user-chip">
+          <span>Usuario prototipo · Rol: Director Corporativo</span>
+          <div class="user-avatar">DC</div>
+        </div>
+      </header>
+
+      <section class="content">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Detalle del Taller Médico</h1>
+            <p class="page-subtitle">Hospital General de Zona 1-A · Ciudad de México · 20/08/2026 · 10:30 h</p>
+          </div>
+          <div class="toolbar">
+            <span class="badge badge-default">Gerencia: IMSS</span>
+            <span class="badge badge-warning">Estado: Revisado</span>
+          </div>
+        </div>
+
+        <div class="state-stepper">
+          <span class="step completed">Borrador</span>
+          <span class="step completed">Elaborado</span>
+          <span class="step active">Revisado</span>
+          <span class="step">Autorizado</span>
+          <span class="step">Programado</span>
+          <span class="step">En curso</span>
+          <span class="step">Realizado</span>
+        </div>
+
+        <div class="action-panel">
+          <div class="action-info">
+            <span class="action-label">Acciones disponibles · Paso actual</span>
+            <span class="action-step">Autorización por Dirección Corporativa</span>
+          </div>
+          <div class="action-buttons">
+            <button class="btn btn-approve">Autorizar taller</button>
+            <button class="btn btn-return">Devolver a ajustes</button>
+            <button class="btn btn-reject">Rechazar</button>
+          </div>
+        </div>
+
+        <div class="tabset">
+          <!-- Radio controls -->
+          <input type="radio" name="taller-tab" id="tab-matriz" class="tab-input" checked>
+          <input type="radio" name="taller-tab" id="tab-materiales" class="tab-input">
+          <input type="radio" name="taller-tab" id="tab-asistencia" class="tab-input">
+          <input type="radio" name="taller-tab" id="tab-aprobaciones" class="tab-input">
+          <input type="radio" name="taller-tab" id="tab-evidencias" class="tab-input">
+
+          <div class="tab-nav">
+            <label for="tab-matriz" class="tab-label">📋 Matriz</label>
+            <label for="tab-materiales" class="tab-label">🎒 Materiales</label>
+            <label for="tab-asistencia" class="tab-label">✓ Asistencia</label>
+            <label for="tab-aprobaciones" class="tab-label">✍ Aprobaciones</label>
+            <label for="tab-evidencias" class="tab-label">📷 Evidencias</label>
+          </div>
+
+          <!-- TAB: Matriz -->
+          <div id="panel-matriz" class="tab-panel">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Datos generales</h3></div>
+              <div class="card-body">
+                <table class="data-table value-table" style="max-width: 800px;">
+                  <tbody>
+                    <tr><th>Región</th><td>CDMX NORTE</td></tr>
+                    <tr><th>Hospital</th><td>Hospital General de Zona 1-A</td></tr>
+                    <tr><th>Estado</th><td>Ciudad de México</td></tr>
+                    <tr><th>Ciudad / Municipio</th><td>Cuauhtémoc</td></tr>
+                    <tr><th>N° de participantes</th><td class="num">25</td></tr>
+                    <tr><th>Ejecutivo</th><td>Ana Gómez Castillo</td></tr>
+                    <tr><th>Especialista</th><td>María Sánchez Vega</td></tr>
+                    <tr><th>Fecha de taller</th><td>20/08/2026</td></tr>
+                    <tr><th>Hora</th><td>10:30</td></tr>
+                    <tr><th>¿Equipo de proyección?</th><td>Sí · Propio</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Recursos y costos</h3></div>
+              <div class="card-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th>Recurso</th>
+                      <th>Producto / Descripción</th>
+                      <th class="num">Cantidad</th>
+                      <th class="num">Costo unitario</th>
+                      <th class="num">Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><strong>Producto (muestras)</strong></td>
+                      <td>Raquimix III</td>
+                      <td class="num">30 piezas</td>
+                      <td class="num">$0.00</td>
+                      <td class="num">$0.00</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Folleto impreso</strong></td>
+                      <td>Folleto Raquimix</td>
+                      <td class="num">50 piezas</td>
+                      <td class="num">$5.00</td>
+                      <td class="num">$250.00</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Gastos de envío</strong></td>
+                      <td>Interno — entrega CDMX</td>
+                      <td class="num">1 servicio</td>
+                      <td class="num">$150.00</td>
+                      <td class="num">$150.00</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Box lunch</strong></td>
+                      <td>25 servicios</td>
+                      <td class="num">25</td>
+                      <td class="num">$120.00</td>
+                      <td class="num">$3,000.00</td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colspan="4" class="text-right"><strong>Costo Total</strong></td>
+                      <td class="num"><strong>$3,400.00</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
+                <div class="note mt-2">El costo total se recalcula automáticamente al modificar los recursos.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Materiales -->
+          <div id="panel-materiales" class="tab-panel">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Solicitud y entrega de materiales (FOR-007)</h3>
+                <span class="badge badge-success">Entregado</span>
+              </div>
+              <div class="card-body">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="small-col">No.</th>
+                      <th>Fecha</th>
+                      <th>Hospital</th>
+                      <th>Cargo / Puesto</th>
+                      <th>Nombre del Producto</th>
+                      <th class="num">Cantidad</th>
+                      <th class="small-col">Lista</th>
+                      <th class="small-col">Flayers</th>
+                      <th class="small-col">Cómputo</th>
+                      <th class="small-col">Proyector</th>
+                      <th class="small-col">Dulces</th>
+                      <th class="small-col">Modelo</th>
+                      <th>Observaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="small-col">1</td>
+                      <td>18/08/2026</td>
+                      <td>HGZ 1-A</td>
+                      <td>EV</td>
+                      <td>Raquimix III</td>
+                      <td class="num">30</td>
+                      <td class="text-center">Sí</td>
+                      <td class="text-center">Sí</td>
+                      <td class="text-center">Sí</td>
+                      <td class="text-center">No</td>
+                      <td class="text-center">Sí</td>
+                      <td class="text-center">No</td>
+                      <td>Entrega CDMX 17:00 h</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div class="mt-2">
+                  <p><strong>Nombre y firma del Ejecutivo que recibe:</strong> Ana Gómez Castillo ____________________ Fecha: 18/08/2026</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Asistencia -->
+          <div id="panel-asistencia" class="tab-panel">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Registro de Asistencia (FOR-008)</h3></div>
+              <div class="card-body">
+                <div class="form-row mb-2">
+                  <div><strong>Fecha:</strong> 20/08/2026</div>
+                  <div><strong>Tema:</strong> Raquimix III</div>
+                  <div><strong>Institución:</strong> IMSS</div>
+                  <div><strong>Unidad médica:</strong> HGZ 1-A</div>
+                  <div><strong>Lugar:</strong> Auditorio principal</div>
+                  <div><strong>Especialista:</strong> María Sánchez Vega</div>
+                  <div><strong>Ejecutivo:</strong> Ana Gómez Castillo</div>
+                </div>
+
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="small-col">No.</th>
+                      <th>Nombre</th>
+                      <th>Puesto</th>
+                      <th>Teléfono celular</th>
+                      <th>Correo electrónico</th>
+                      <th>Firma</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td class="small-col">1</td>
+                      <td>Dr. Alejandro Ramírez</td>
+                      <td>Jefe de Anestesiología</td>
+                      <td>55 1234 5678</td>
+                      <td>a.ramirez@hospital.mx</td>
+                      <td class="text-muted">________________</td>
+                    </tr>
+                    <tr>
+                      <td class="small-col">2</td>
+                      <td>Dra. Beatriz Núñez</td>
+                      <td>Anestesióloga</td>
+                      <td>55 2345 6789</td>
+                      <td>b.nunez@hospital.mx</td>
+                      <td class="text-muted">________________</td>
+                    </tr>
+                    <tr>
+                      <td class="small-col">3</td>
+                      <td>Dr. César Herrera</td>
+                      <td>Anestesiólogo</td>
+                      <td>55 3456 7890</td>
+                      <td>c.herrera@hospital.mx</td>
+                      <td class="text-muted">________________</td>
+                    </tr>
+                    <tr>
+                      <td class="small-col">4</td>
+                      <td>Dra. Diana Luna</td>
+                      <td>Residente de Anestesia</td>
+                      <td>55 4567 8901</td>
+                      <td>d.luna@hospital.mx</td>
+                      <td class="text-muted">________________</td>
+                    </tr>
+                    <tr>
+                      <td class="small-col">5</td>
+                      <td>Dr. Ernesto Vega</td>
+                      <td>Anestesiólogo adscrito</td>
+                      <td>55 5678 9012</td>
+                      <td>e.vega@hospital.mx</td>
+                      <td class="text-muted">________________</td>
+                    </tr>
+                    <!-- Empty rows to reach 20 -->
+                    <tr><td class="small-col">6</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">7</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">8</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">9</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">10</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">11</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">12</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">13</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">14</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">15</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">16</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">17</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">18</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">19</td><td colspan="5" class="empty-cell">—</td></tr>
+                    <tr><td class="small-col">20</td><td colspan="5" class="empty-cell">—</td></tr>
+                  </tbody>
+                </table>
+                <div class="mt-2">
+                  <strong>Observaciones:</strong> Dr. Alejandro Ramírez — médico líder positivo del producto.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Aprobaciones -->
+          <div id="panel-aprobaciones" class="tab-panel">
+            <div class="card">
+              <div class="card-header"><h3 class="card-title">Flujo de aprobaciones</h3></div>
+              <div class="card-body">
+                <div class="timeline">
+                  <div class="timeline-item completed">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-title">Elaboró · Ejecutivo de Ventas</div>
+                    <div class="timeline-meta">Aprobado · 15/08/2026 · Ana Gómez Castillo</div>
+                    <div class="timeline-comment">Hospital confirmó fecha y hora del taller.</div>
+                  </div>
+                  <div class="timeline-item completed">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-title">Revisó · Gerente de Ventas</div>
+                    <div class="timeline-meta">Aprobado · 16/08/2026 · Carlos López Martínez</div>
+                    <div class="timeline-comment">Matriz concentrada y recursos revisados.</div>
+                  </div>
+                  <div class="timeline-item completed">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-title">Revisó costos · Coordinador Administrativo</div>
+                    <div class="timeline-meta">Aprobado · 17/08/2026 · Coord. Admin.</div>
+                    <div class="timeline-comment">Costos dentro de política establecida.</div>
+                  </div>
+                  <div class="timeline-item active">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-title">Autorizó · Dirección Corporativa</div>
+                    <div class="timeline-meta">Pendiente</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB: Evidencias -->
+          <div id="panel-evidencias" class="tab-panel">
+            <div class="card">
+              <div class="card-header">
+                <h3 class="card-title">Evidencias del taller</h3>
+                <button class="btn btn-primary btn-sm">+ Subir evidencia</button>
+              </div>
+              <div class="card-body">
+                <div class="hub-grid" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+                  <div class="hub-card" href="#">
+                    <div class="hub-icon">🖼</div>
+                    <div class="hub-title">Montaje del taller</div>
+                    <div class="hub-desc">Foto · 20/08/2026 · 09:30 h</div>
+                    <div class="hub-tag">foto</div>
+                  </div>
+                  <div class="hub-card" href="#">
+                    <div class="hub-icon">🖼</div>
+                    <div class="hub-title">Box lunch y asistentes</div>
+                    <div class="hub-desc">Foto · 20/08/2026 · 10:15 h</div>
+                    <div class="hub-tag">foto</div>
+                  </div>
+                  <div class="hub-card" href="#">
+                    <div class="hub-icon">🎬</div>
+                    <div class="hub-title">Demostración práctica</div>
+                    <div class="hub-desc">Video · 20/08/2026 · 10:45 h</div>
+                    <div class="hub-tag">video</div>
+                  </div>
+                  <div class="hub-card" href="#">
+                    <div class="hub-icon">📄</div>
+                    <div class="hub-title">Acta de entrega de muestras</div>
+                    <div class="hub-desc">Documento · 20/08/2026</div>
+                    <div class="hub-tag">documento</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

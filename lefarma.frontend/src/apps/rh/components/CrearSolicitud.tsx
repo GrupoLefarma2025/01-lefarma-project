@@ -51,8 +51,19 @@ import {
   ChevronDown,
   ClipboardList,
   AlertCircle,
+  ChevronsUpDown,
 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxGroup,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+} from '@/components/kibo-ui/combobox';
 import type { Empresa, Sucursal, Area } from '@/types/catalogo.types';
 
 function FormSection({
@@ -243,6 +254,24 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     if (!selectedCategoria) return [];
     return tiposSolicitud.filter((t) => t.categoria === selectedCategoria);
   }, [tiposSolicitud, selectedCategoria]);
+
+  const usuarioOptions = useMemo(
+    () => [
+      { value: '', label: 'Para mí' },
+      ...usuarios
+        .filter((u) => u.esActivo)
+        .sort((a, b) =>
+          (a.nombreCompleto ?? a.samAccountName ?? '').localeCompare(
+            b.nombreCompleto ?? b.samAccountName ?? ''
+          )
+        )
+        .map((u) => ({
+          value: String(u.idUsuario),
+          label: u.nombreCompleto || u.samAccountName || `Usuario ${u.idUsuario}`,
+        })),
+    ],
+    [usuarios]
+  );
 
   useEffect(() => {
     const det = watchedDetalle ?? [];
@@ -620,29 +649,41 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Solicitante (opcional)</FormLabel>
-                        <Select
-                          value={field.value ? String(field.value) : ''}
-                          onValueChange={(v) => field.onChange(v ? Number(v) : undefined)}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Para mí" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {usuarios
-                              .sort((a, b) =>
-                                (a.nombreCompleto ?? a.samAccountName ?? '').localeCompare(
-                                  b.nombreCompleto ?? b.samAccountName ?? ''
-                                )
-                              )
-                              .map((u) => (
-                                <SelectItem key={u.idUsuario} value={String(u.idUsuario)}>
-                                  {u.nombreCompleto || u.samAccountName || `Usuario ${u.idUsuario}`}
-                                </SelectItem>
-                              ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <Combobox
+                            type="solicitante"
+                            value={String(field.value ?? '')}
+                            onValueChange={(v) =>
+                              field.onChange(v ? Number(v) : undefined)
+                            }
+                            data={usuarioOptions}
+                          >
+                            <ComboboxTrigger>
+                              <span className="flex w-full items-center justify-between gap-2">
+                                <span className="truncate">
+                                  {field.value
+                                    ? usuarioOptions.find((o) => o.value === String(field.value))?.label ??
+                                      `Usuario ${field.value}`
+                                    : 'Para mí'}
+                                </span>
+                                <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                              </span>
+                            </ComboboxTrigger>
+                            <ComboboxContent>
+                              <ComboboxInput placeholder="Buscar solicitante por nombre..." />
+                              <ComboboxEmpty>No se encontraron usuarios</ComboboxEmpty>
+                              <ComboboxList>
+                                <ComboboxGroup>
+                                  {usuarioOptions.map((opt) => (
+                                    <ComboboxItem key={opt.value} value={opt.value} keywords={[opt.label]}>
+                                      {opt.label} {opt.value && `(#${opt.value})`}
+                                    </ComboboxItem>
+                                  ))}
+                                </ComboboxGroup>
+                              </ComboboxList>
+                            </ComboboxContent>
+                          </Combobox>
+                        </FormControl>
                         <FormDescription className="text-xs">
                           Si no seleccionas ninguno, la solicitud será para ti.
                         </FormDescription>

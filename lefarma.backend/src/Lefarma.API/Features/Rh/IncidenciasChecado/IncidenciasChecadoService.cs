@@ -15,19 +15,29 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 {
     private readonly IIncidenciasChecadoRepository _repository;
     private readonly IEmpleadoRepository _empleadoRepository;
+    private readonly IIncidenciaChecadoConfigService _descuentoService;
     private readonly ApplicationDbContext _applicationDbContext;
 
     protected override string EntityName => "IncidenciasChecado";
 
+
+    private const string TardanzaEntrada = "TARDANZA_ENTRADA";
+    private const string TardanzaSalida = "TARDANZA_SALIDA";
+    private const string SalidaAnticipada = "SALIDA_ANTICIPADA";
+    private const string OmisionEntrada = "OMISION_ENTRADA";
+    private const string OmisionSalida = "OMISION_SALIDA";
+
     public IncidenciasChecadoService(
         IIncidenciasChecadoRepository repository,
         IEmpleadoRepository empleadoRepository,
+        IIncidenciaChecadoConfigService descuentoService,
         ApplicationDbContext applicationDbContext,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
         _repository = repository;
         _empleadoRepository = empleadoRepository;
+        _descuentoService = descuentoService;
         _applicationDbContext = applicationDbContext;
     }
 
@@ -71,11 +81,6 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             if (!string.IsNullOrWhiteSpace(request.Nombre))
                 query = query.Where(x => x.Nombre.Contains(request.Nombre));
 
-            query = query.Where(x =>
-                !string.IsNullOrWhiteSpace(x.IncidenciaEntrada) ||
-                !string.IsNullOrWhiteSpace(x.IncidenciaSalida) ||
-                !string.IsNullOrWhiteSpace(x.MsgError));
-
             var orderBy = string.IsNullOrWhiteSpace(request.OrderBy) ? "fecha" : request.OrderBy;
             var orderDirection = string.IsNullOrWhiteSpace(request.OrderDirection) ? "desc" : request.OrderDirection;
             query = (orderBy.ToLowerInvariant(), orderDirection.ToLowerInvariant()) switch
@@ -118,6 +123,11 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 .ToListAsync(cancellationToken);
 
             await EnriquecerJustificacionesAsync(items, cancellationToken);
+            await _descuentoService.EnriquecerDescuentosAsync(items, cancellationToken);
+
+            items = items
+                .Where(i => i.IncidenciasCalculadas.Count > 0)
+                .ToList();
 
             var context = new Dictionary<string, object>
             {
@@ -193,10 +203,6 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             var incEntrada = request.TieneIncidenciaEntrada;
             var incSalida = request.TieneIncidenciaSalida;
             var incOmision = request.TieneIncidenciaOmision;
-            query = query.Where(x =>
-                (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
-                (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
-                (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
 
             var orderBy = string.IsNullOrWhiteSpace(request.OrderBy) ? "fecha" : request.OrderBy;
             var orderDirection = string.IsNullOrWhiteSpace(request.OrderDirection) ? "desc" : request.OrderDirection;
@@ -215,13 +221,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 _ => query.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre)
             };
 
-            var totalCount = await query.CountAsync(cancellationToken);
-
-            var page = request.Page > 0 ? request.Page : 1;
-            var pageSize = request.PageSize > 0 ? request.PageSize : 10;
             var items = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
                 .Select(x => new IncidenciaChecadoResponse
                 {
                     Fecha = x.Fecha,
@@ -246,8 +246,23 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 .ToListAsync(cancellationToken);
 
             await EnriquecerJustificacionesAsync(items, cancellationToken);
+            await _descuentoService.EnriquecerDescuentosAsync(items, cancellationToken);
 
-            EnrichWideEvent("GetAll", count: items.Count, additionalContext: new Dictionary<string, object>
+            items = items
+                .Where(i => CumpleFiltroTipos(i, incEntrada, incSalida, incOmision))
+                .ToList();
+
+            var ordered = OrdenarItems(items, request.OrderBy, request.OrderDirection);
+
+            var page = request.Page > 0 ? request.Page : 1;
+            var pageSize = request.PageSize > 0 ? request.PageSize : 10;
+            var totalCount = ordered.Count();
+            var pagedItems = ordered
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            EnrichWideEvent("GetAll", count: pagedItems.Count, additionalContext: new Dictionary<string, object>
             {
                 ["page"] = page,
                 ["pageSize"] = pageSize,
@@ -256,7 +271,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 
             return new PagedResult<IncidenciaChecadoResponse>
             {
-                Items = items,
+                Items = pagedItems,
                 TotalCount = totalCount,
                 Page = page,
                 PageSize = pageSize
@@ -291,18 +306,9 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             var query = _repository.GetQueryable()
                 .Where(x => x.Nomina == nomina && x.Fecha >= fechaInicio && x.Fecha <= fechaFin);
 
-            var incEntrada = true;
-            var incSalida = true;
-            var incOmision = true;
-            query = query.Where(x =>
-                (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
-                (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
-                (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
-
             var items = await query
                 .OrderByDescending(x => x.Fecha)
                 .ThenBy(x => x.Nombre)
-                .Take(limite > 0 ? limite : 100)
                 .Select(x => new IncidenciaChecadoResponse
                 {
                     Fecha = x.Fecha,
@@ -327,6 +333,12 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 .ToListAsync(cancellationToken);
 
             await EnriquecerJustificacionesAsync(items, cancellationToken);
+            await _descuentoService.EnriquecerDescuentosAsync(items, cancellationToken);
+
+            items = items
+                .Where(i => CumpleFiltroTipos(i, true, true, true))
+                .Take(limite > 0 ? limite : 100)
+                .ToList();
 
             EnrichWideEvent("GetIncidenciasPorEmpleado", count: items.Count, additionalContext: new Dictionary<string, object>
             {
@@ -378,10 +390,6 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             var incEntrada = request.TieneIncidenciaEntrada;
             var incSalida = request.TieneIncidenciaSalida;
             var incOmision = request.TieneIncidenciaOmision;
-            query = query.Where(x =>
-                (incEntrada && !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)) ||
-                (incSalida && !string.IsNullOrWhiteSpace(x.IncidenciaSalida)) ||
-                (incOmision && !string.IsNullOrWhiteSpace(x.MsgError)));
 
             var rows = await query
                 .Where(x => x.Nomina.HasValue)
@@ -409,11 +417,14 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 .ToListAsync(cancellationToken);
 
             await EnriquecerJustificacionesAsync(rows, cancellationToken);
+            await _descuentoService.EnriquecerDescuentosAsync(rows, cancellationToken);
+
+            rows = rows
+                .Where(r => CumpleFiltroTipos(r, incEntrada, incSalida, incOmision))
+                .ToList();
 
             static int ContarIncidencias(IncidenciaChecadoResponse x) =>
-                (string.IsNullOrWhiteSpace(x.IncidenciaEntrada) ? 0 : 1) +
-                (string.IsNullOrWhiteSpace(x.IncidenciaSalida) ? 0 : 1) +
-                (string.IsNullOrWhiteSpace(x.MsgError) ? 0 : 1);
+                x.IncidenciasCalculadas.Count;
 
             var resumen = rows
                 .GroupBy(x => new { x.Nomina, x.Nombre })
@@ -425,11 +436,12 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                     Departamento = g.FirstOrDefault(x => !string.IsNullOrEmpty(x.Departamento))?.Departamento,
                     Puesto = g.FirstOrDefault(x => !string.IsNullOrEmpty(x.Puesto))?.Puesto,
                     TotalIncidencias = g.Sum(ContarIncidencias),
-                    Tardanzas = g.Count(x => !string.IsNullOrWhiteSpace(x.IncidenciaEntrada)),
-                    SalidasAnticipadas = g.Count(x => !string.IsNullOrWhiteSpace(x.IncidenciaSalida)),
-                    Omisiones = g.Count(x => !string.IsNullOrWhiteSpace(x.MsgError)),
+                    Tardanzas = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == TardanzaEntrada || i.TipoIncidencia == TardanzaSalida)),
+                    SalidasAnticipadas = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == SalidaAnticipada)),
+                    Omisiones = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == OmisionEntrada || i.TipoIncidencia == OmisionSalida)),
                     Justificadas = g.Where(x => x.Justificada).Sum(ContarIncidencias),
-                    Pendientes = g.Sum(ContarIncidencias) - g.Where(x => x.Justificada).Sum(ContarIncidencias)
+                    Pendientes = g.Sum(ContarIncidencias) - g.Where(x => x.Justificada).Sum(ContarIncidencias),
+                    Descuento = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.GeneraDescuento))
                 });
 
             var orderBy = request.OrderBy?.ToLowerInvariant();
@@ -520,7 +532,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             .Include(s => s.Estado)
             .Include(s => s.TipoSolicitud)
             .Where(s =>
-                idUsuarios.Contains(s.IdUsuarioCreador)
+                idUsuarios.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
                 && s.Estado != null
                 && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
@@ -529,6 +541,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             .Select(s => new
             {
                 s.IdUsuarioCreador,
+                s.IdUsuarioSolicitante,
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
@@ -539,7 +552,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         var usuarioSolicitudes = solicitudes
             .Join(
                 nominaUsuario,
-                s => s.IdUsuarioCreador,
+                s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador,
                 nu => nu.Value,
                 (s, nu) => new { Nomina = nu.Key, Solicitud = s })
             .GroupBy(x => x.Nomina)
@@ -588,6 +601,48 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
             "mes-anterior" => (new DateTime(hoy.Year, hoy.Month, 1).AddMonths(-1), new DateTime(hoy.Year, hoy.Month, 1).AddDays(-1)),
             "personalizado" => (fechaInicio ?? hoy, fechaFin ?? hoy),
             _ => (new DateTime(hoy.Year, hoy.Month, 1), new DateTime(hoy.Year, hoy.Month, DateTime.DaysInMonth(hoy.Year, hoy.Month)))
+        };
+    }
+
+    private static bool CumpleFiltroTipos(
+        IncidenciaChecadoResponse item,
+        bool entrada,
+        bool salida,
+        bool omision)
+    {
+        var tipos = item.IncidenciasCalculadas;
+
+        if (entrada && tipos.Any(i => i.TipoIncidencia == TardanzaEntrada))
+            return true;
+        if (salida && tipos.Any(i => i.TipoIncidencia == TardanzaSalida || i.TipoIncidencia == SalidaAnticipada))
+            return true;
+        if (omision && tipos.Any(i => i.TipoIncidencia == OmisionEntrada || i.TipoIncidencia == OmisionSalida))
+            return true;
+
+        return false;
+    }
+
+    private static IOrderedEnumerable<IncidenciaChecadoResponse> OrdenarItems(
+        IEnumerable<IncidenciaChecadoResponse> items,
+        string? orderBy,
+        string? orderDirection)
+    {
+        var campo = orderBy?.ToLowerInvariant();
+        var dir = orderDirection?.ToLowerInvariant();
+
+        return (campo, dir) switch
+        {
+            ("nomina", "asc") => items.OrderBy(x => x.Nomina),
+            ("nomina", "desc") => items.OrderByDescending(x => x.Nomina),
+            ("nombre", "asc") => items.OrderBy(x => x.Nombre),
+            ("nombre", "desc") => items.OrderByDescending(x => x.Nombre),
+            ("empresa", "asc") => items.OrderBy(x => x.Empresa),
+            ("empresa", "desc") => items.OrderByDescending(x => x.Empresa),
+            ("departamento", "asc") => items.OrderBy(x => x.Departamento),
+            ("departamento", "desc") => items.OrderByDescending(x => x.Departamento),
+            ("fecha", "asc") => items.OrderBy(x => x.Fecha),
+            ("fecha", "desc") => items.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre),
+            _ => items.OrderByDescending(x => x.Fecha).ThenBy(x => x.Nombre)
         };
     }
 
