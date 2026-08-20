@@ -324,12 +324,6 @@ export const DIAS_HABILES_CSV_COLUMNS: DiaHabilCsvColumn[] = [
     exampleValues: ['Año Nuevo', 'Día de la Constitución', ''],
   },
   {
-    key: 'consume_saldo',
-    label: 'consume_saldo',
-    required: false,
-    exampleValues: ['false', 'true', 'false'],
-  },
-  {
     key: 'permite_saldo_negativo',
     label: 'permite_saldo_negativo',
     required: false,
@@ -357,7 +351,6 @@ export interface DiaHabilCsvRow {
   mes?: string;
   anio?: string;
   descripcion?: string;
-  consume_saldo?: string;
   permite_saldo_negativo?: string;
 }
 

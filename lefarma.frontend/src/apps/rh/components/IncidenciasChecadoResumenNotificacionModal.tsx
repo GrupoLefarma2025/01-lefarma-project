@@ -31,6 +31,9 @@ interface IncidenciasChecadoResumenNotificacionModalProps {
   periodo?: string;
   fechaInicio?: string;
   fechaFin?: string;
+  tieneIncidenciaEntrada?: boolean;
+  tieneIncidenciaSalida?: boolean;
+  tieneIncidenciaOmision?: boolean;
   onEnviado?: () => void;
 }
 
@@ -48,6 +51,7 @@ const VARIABLES = [
   'FechaInicio',
   'FechaFin',
   'TotalIncidencias',
+  'TotalDescuentos',
   'TablaIncidencias',
 ];
 
@@ -57,7 +61,7 @@ const MENSAJE_DEFAULT = `<p>Hola {{Nombre}},</p>\n<p>Se registraron <strong>{{To
 const TABLA_EJEMPLO_HTML = `<table style="border-collapse: collapse; width: 100%; border: 1px solid #ccc;">\n  <thead>\n    <tr style="background-color: #f5f5f5;">\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Fecha</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Día</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entrada</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salida</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Descripción</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Justificada</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">01/01/2024</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Lunes</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">09:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Retardo</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">No</td>\n    </tr>\n  </tbody>\n</table>`;
 
 const VALORES_EJEMPLO: Record<string, string> = {
-  '{{Nombre}}': 'Juan Pérez',
+  '{{Nombre}}': 'jperez - Juan Pérez',
   '{{Nomina}}': '12345',
   '{{Empresa}}': 'Lefarma',
   '{{Departamento}}': 'Operaciones',
@@ -65,6 +69,7 @@ const VALORES_EJEMPLO: Record<string, string> = {
   '{{FechaInicio}}': '01/01/2024',
   '{{FechaFin}}': '15/01/2024',
   '{{TotalIncidencias}}': '3',
+  '{{TotalDescuentos}}': '1',
   '{{TablaIncidencias}}': TABLA_EJEMPLO_HTML,
 };
 
@@ -105,6 +110,9 @@ export function IncidenciasChecadoResumenNotificacionModal({
   periodo,
   fechaInicio,
   fechaFin,
+  tieneIncidenciaEntrada = true,
+  tieneIncidenciaSalida = true,
+  tieneIncidenciaOmision = true,
   onEnviado,
 }: IncidenciasChecadoResumenNotificacionModalProps) {
   const [plantillas, setPlantillas] = useState<PlantillaIncidenciaChecado[]>([]);
@@ -251,6 +259,9 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
         periodo,
         fechaInicio,
         fechaFin,
+        tieneIncidenciaEntrada,
+        tieneIncidenciaSalida,
+        tieneIncidenciaOmision,
         asunto: asunto.trim(),
         mensaje: mensajeNormalizado,
         empleadosDestinatarios: empleados.map(e => {
@@ -453,7 +464,7 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
                 <span>¿Qué significa cada variable?</span>
               </div>
               <ul className="space-y-0.5 text-xs text-blue-700 dark:text-blue-300">
-                <li><strong>Nombre</strong>: nombre completo del empleado.</li>
+                <li><strong>Nombre</strong>: usuario (samAccountName) seguido del nombre completo del empleado.</li>
                 <li><strong>Nomina</strong>: número de nómina del empleado.</li>
                 <li><strong>Empresa</strong>: empresa a la que pertenece.</li>
                 <li><strong>Departamento</strong>: departamento asignado.</li>
@@ -461,6 +472,7 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
                 <li><strong>FechaInicio</strong>: fecha inicial del período seleccionado.</li>
                 <li><strong>FechaFin</strong>: fecha final del período seleccionado.</li>
                 <li><strong>TotalIncidencias</strong>: cantidad total de incidencias del período.</li>
+                <li><strong>TotalDescuentos</strong>: cantidad total de descuentos generados en el período.</li>
                 <li><strong>TablaIncidencias</strong>: tabla con el detalle de incidencias (fecha, día, entrada, salida, descripción y justificación).</li>
               </ul>
             </div>

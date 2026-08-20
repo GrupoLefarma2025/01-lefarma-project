@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { toast } from 'sonner';
+import { Modal } from '@/components/ui/modal';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { vacacionesApi } from '../../services/vacaciones.api';
@@ -166,7 +167,7 @@ export function SaldosVacacionesPage() {
       <Modal
         id="dias-usuario-modal"
         open={selectedUsuario != null}
-        setOpen={(open) => {
+        setOpen={(open: boolean) => {
           if (!open) {
             setSelectedUsuario(null);
             setDiasUsuario([]);

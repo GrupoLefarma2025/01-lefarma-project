@@ -205,6 +205,12 @@ export interface CalendarioLaboralResponse {
   laborable: boolean;
 }
 
+export interface IncidenciaCalculada {
+  tipoIncidencia: string;
+  nombre: string;
+  generaDescuento: boolean;
+}
+
 export interface IncidenciaChecadoResponse {
   fecha: string;
   nomina?: number | null;
@@ -224,7 +230,9 @@ export interface IncidenciaChecadoResponse {
   msgError?: string | null;
   incidenciaEntrada?: string | null;
   incidenciaSalida?: string | null;
+  incidenciasCalculadas?: IncidenciaCalculada[];
   justificada?: boolean;
+  descuento?: boolean;
   idSolicitud?: number | null;
   tipoSolicitudNombre?: string | null;
 }
@@ -302,6 +310,7 @@ export interface IncidenciasChecadoResumenEmpleadoResponse {
   omisiones: number;
   justificadas: number;
   pendientes: number;
+  descuento: number;
 }
 
 export interface PagedResult<T> {
@@ -361,6 +370,9 @@ export interface NotificarIncidenciasResumenRequest {
   periodo?: string | null;
   fechaInicio?: string | null;
   fechaFin?: string | null;
+  tieneIncidenciaEntrada?: boolean;
+  tieneIncidenciaSalida?: boolean;
+  tieneIncidenciaOmision?: boolean;
   asunto: string;
   mensaje: string;
   listadoRowHtml?: string | null;
@@ -416,4 +428,39 @@ export interface EmpleadoDestinatarioItem {
   nomina: number;
   selectedUserIds: number[];
   copiarAUsuarioIncidencia: boolean;
+}
+
+export interface IncidenciaChecadoConfigResponse {
+  idConfig: number;
+  nombre: string;
+  descripcion: string;
+  tipoIncidencia: string;
+  minutosMin: number | null;
+  minutosMax: number | null;
+  cantidadAcumulada: number;
+  periodo: string;
+  prioridad: number;
+  registroEntrada: boolean;
+  registroSalida: boolean;
+  excluirDiasHabilesConsumenSaldo: boolean;
+  activo: boolean;
+}
+
+export interface CreateIncidenciaChecadoConfigRequest {
+  nombre: string;
+  descripcion: string;
+  tipoIncidencia: string;
+  minutosMin: number | null;
+  minutosMax: number | null;
+  cantidadAcumulada: number;
+  periodo: string;
+  prioridad: number;
+  registroEntrada: boolean;
+  registroSalida: boolean;
+  excluirDiasHabilesConsumenSaldo: boolean;
+  activo: boolean;
+}
+
+export interface UpdateIncidenciaChecadoConfigRequest extends CreateIncidenciaChecadoConfigRequest {
+  idConfig: number;
 }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { authService } from '@/shared/auth/authService';
 import type { Empresa } from '@/types/auth.types';
 import { Eye, Mail, RotateCcw, Search } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
@@ -112,10 +113,10 @@ interface Filters {
 export default function IncidenciasChecadoList() {
   usePageTitle('Incidencias de checado', 'Gestión de incidencias de checado');
 
-  const rangoInicial = useMemo(() => calcularRangoPeriodo('quincena-anterior'), []);
+  const rangoInicial = useMemo(() => calcularRangoPeriodo('mes-anterior'), []);
 
   const initialFilters: Filters = {
-    periodo: 'quincena-anterior',
+    periodo: 'mes-anterior',
     fechaInicio: rangoInicial.fechaInicio,
     fechaFin: rangoInicial.fechaFin,
     nomina: '',
@@ -287,6 +288,20 @@ export default function IncidenciasChecadoList() {
       {
         accessorKey: 'pendientes',
         header: 'Pendientes',
+      },
+      {
+        accessorKey: 'descuento',
+        header: 'Descuento',
+        cell: ({ row }) =>
+          row.original.descuento > 0 ? (
+            <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+              {row.original.descuento}
+            </span>
+          ) : (
+            <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+              No
+            </span>
+          ),
       },
       {
         id: 'actions',
@@ -539,6 +554,9 @@ export default function IncidenciasChecadoList() {
         periodo={appliedFilters.periodo}
         fechaInicio={appliedFilters.fechaInicio}
         fechaFin={appliedFilters.fechaFin}
+        tieneIncidenciaEntrada={appliedFilters.tieneIncidenciaEntrada}
+        tieneIncidenciaSalida={appliedFilters.tieneIncidenciaSalida}
+        tieneIncidenciaOmision={appliedFilters.tieneIncidenciaOmision}
         onEnviado={() => {
           fetchData(page, pageSize);
           setSelectedEmpleados([]);

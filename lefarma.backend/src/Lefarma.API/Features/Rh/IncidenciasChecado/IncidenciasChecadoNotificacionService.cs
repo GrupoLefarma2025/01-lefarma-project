@@ -21,9 +21,17 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
     private readonly IEmpleadoRepository _empleadoRepository;
     private readonly INotificationService _notificationService;
     private readonly IUsuarioConfiguracionRepository _usuarioConfiguracionRepository;
+    private readonly IIncidenciaChecadoConfigService _descuentoService;
     private readonly ApplicationDbContext _applicationDbContext;
+    private readonly AsokamDbContext _asokamContext;
 
     protected override string EntityName => "IncidenciasChecadoNotificacion";
+
+    private const string TardanzaEntrada = "TARDANZA_ENTRADA";
+    private const string TardanzaSalida = "TARDANZA_SALIDA";
+    private const string SalidaAnticipada = "SALIDA_ANTICIPADA";
+    private const string OmisionEntrada = "OMISION_ENTRADA";
+    private const string OmisionSalida = "OMISION_SALIDA";
 
     public IncidenciasChecadoNotificacionService(
         IIncidenciasChecadoPlantillaRepository plantillaRepository,
@@ -31,7 +39,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         IEmpleadoRepository empleadoRepository,
         INotificationService notificationService,
         IUsuarioConfiguracionRepository usuarioConfiguracionRepository,
+        IIncidenciaChecadoConfigService descuentoService,
         ApplicationDbContext applicationDbContext,
+        AsokamDbContext asokamContext,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -40,7 +50,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         _empleadoRepository = empleadoRepository;
         _notificationService = notificationService;
         _usuarioConfiguracionRepository = usuarioConfiguracionRepository;
+        _descuentoService = descuentoService;
         _applicationDbContext = applicationDbContext;
+        _asokamContext = asokamContext;
     }
 
     public async Task<Result<List<PlantillaIncidenciaChecadoResponse>>> GetPlantillasAsync(
@@ -103,7 +115,14 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             foreach (var nomina in request.Nominas.Distinct())
             {
-                var items = await ObtenerIncidenciasParaNotificacionAsync(nomina, fechaInicio, fechaFin, cancellationToken);
+                var items = await ObtenerIncidenciasParaNotificacionAsync(
+                    nomina,
+                    fechaInicio,
+                    fechaFin,
+                    request.TieneIncidenciaEntrada,
+                    request.TieneIncidenciaSalida,
+                    request.TieneIncidenciaOmision,
+                    cancellationToken);
                 if (items.Count == 0)
                 {
                     resultados.Add(new NotificacionPersonaResult
@@ -116,6 +135,20 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 }
 
                 var idUsuario = await _empleadoRepository.ResolverIdUsuarioPorNominaAsync(nomina, cancellationToken);
+
+                var nombreEmpleado = items.First().Nombre ?? string.Empty;
+                if (idUsuario.HasValue)
+                {
+                    var samAccountName = await _asokamContext.Usuarios
+                        .AsNoTracking()
+                        .Where(u => u.IdUsuario == idUsuario.Value)
+                        .Select(u => u.SamAccountName)
+                        .FirstOrDefaultAsync(cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(samAccountName))
+                    {
+                        nombreEmpleado = $"{samAccountName} - {nombreEmpleado}";
+                    }
+                }
 
                 // Determinar destinatarios
                 var itemPorEmpleado = request.EmpleadosDestinatarios?.FirstOrDefault(e => e.Nomina == nomina);
@@ -157,8 +190,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 }
 
                 var tablaHtml = BuildTablaIncidenciasHtml(items);
-                var asunto = AplicarVariablesResumen(request.Asunto, items, fechaInicio, fechaFin, tablaHtml);
-                var mensaje = AplicarVariablesResumen(request.Mensaje, items, fechaInicio, fechaFin, tablaHtml);
+                var asunto = AplicarVariablesResumen(request.Asunto, items, nombreEmpleado, fechaInicio, fechaFin, tablaHtml);
+                var mensaje = AplicarVariablesResumen(request.Mensaje, items, nombreEmpleado, fechaInicio, fechaFin, tablaHtml);
 
                 if (!mensaje.Contains("{{TablaIncidencias}}", StringComparison.OrdinalIgnoreCase) &&
                     !mensaje.Contains("<table", StringComparison.OrdinalIgnoreCase))
@@ -178,11 +211,12 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                     TemplateData = new Dictionary<string, object>
                     {
                         ["Nomina"] = nomina,
-                        ["Nombre"] = items.FirstOrDefault()?.Nombre ?? string.Empty,
+                        ["Nombre"] = nombreEmpleado,
                         ["FechaInicio"] = fechaInicio.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                         ["FechaFin"] = fechaFin.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
                         ["Periodo"] = request.Periodo ?? string.Empty,
-                        ["TotalIncidencias"] = items.Count,
+                        ["TotalIncidencias"] = items.Sum(i => i.IncidenciasCalculadas.Count),
+                        ["TotalDescuentos"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)),
                         ["Origen"] = "resumen-empleados"
                     },
                     Channels = new List<NotificationChannelRequest>
@@ -190,7 +224,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                         new()
                         {
                             ChannelType = "email",
-                            UserIds = destinatarios
+                            UserIds = destinatarios,
+                            ChannelSpecificData = new Dictionary<string, object> { ["fromName"] = "Recursos Humanos" }
                         }
                     }
                 };
@@ -294,14 +329,13 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         long nomina,
         DateTime fechaInicio,
         DateTime fechaFin,
+        bool tieneIncidenciaEntrada,
+        bool tieneIncidenciaSalida,
+        bool tieneIncidenciaOmision,
         CancellationToken cancellationToken)
     {
         var query = _incidenciasRepository.GetQueryable()
             .Where(x => x.Nomina == nomina && x.Fecha >= fechaInicio && x.Fecha <= fechaFin)
-            .Where(x =>
-                !string.IsNullOrWhiteSpace(x.IncidenciaEntrada) ||
-                !string.IsNullOrWhiteSpace(x.IncidenciaSalida) ||
-                !string.IsNullOrWhiteSpace(x.MsgError))
             .OrderByDescending(x => x.Fecha)
             .ThenBy(x => x.Nombre);
 
@@ -344,7 +378,11 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             .ToList();
 
         await EnriquecerJustificacionesAsync(resultado, cancellationToken);
-        return resultado;
+        await _descuentoService.EnriquecerDescuentosAsync(resultado, cancellationToken);
+
+        return resultado
+            .Where(i => CumpleFiltroTipos(i, tieneIncidenciaEntrada, tieneIncidenciaSalida, tieneIncidenciaOmision))
+            .ToList();
     }
 
     private async Task EnriquecerJustificacionesAsync(
@@ -373,7 +411,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             .Include(s => s.Estado)
             .Include(s => s.TipoSolicitud)
             .Where(s =>
-                idUsuarios.Contains(s.IdUsuarioCreador)
+                idUsuarios.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
                 && s.Estado != null
                 && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
@@ -382,6 +420,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             .Select(s => new
             {
                 s.IdUsuarioCreador,
+                s.IdUsuarioSolicitante,
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
@@ -392,7 +431,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         var usuarioSolicitudes = solicitudes
             .Join(
                 nominaUsuario,
-                s => s.IdUsuarioCreador,
+                s => s.IdUsuarioSolicitante ?? s.IdUsuarioCreador,
                 nu => nu.Value,
                 (s, nu) => new { Nomina = nu.Key, Solicitud = s })
             .GroupBy(x => x.Nomina)
@@ -459,6 +498,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
     private static string AplicarVariablesResumen(
         string? plantilla,
         IReadOnlyList<NotificarIncidenciaItemRequest> items,
+        string nombreEmpleado,
         DateTime fechaInicio,
         DateTime fechaFin,
         string? tablaHtml = null)
@@ -473,16 +513,16 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             return plantilla;
         }
 
-        var first = items[0];
         var sb = new StringBuilder(plantilla);
-        sb.Replace("{{Nombre}}", first.Nombre ?? string.Empty);
-        sb.Replace("{{Nomina}}", first.Nomina.ToString());
-        sb.Replace("{{Empresa}}", first.Empresa ?? string.Empty);
-        sb.Replace("{{Departamento}}", first.Departamento ?? string.Empty);
-        sb.Replace("{{Puesto}}", first.Puesto ?? string.Empty);
+        sb.Replace("{{Nombre}}", nombreEmpleado);
+        sb.Replace("{{Nomina}}", items[0].Nomina.ToString());
+        sb.Replace("{{Empresa}}", items[0].Empresa ?? string.Empty);
+        sb.Replace("{{Departamento}}", items[0].Departamento ?? string.Empty);
+        sb.Replace("{{Puesto}}", items[0].Puesto ?? string.Empty);
         sb.Replace("{{FechaInicio}}", fechaInicio.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
         sb.Replace("{{FechaFin}}", fechaFin.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
-        sb.Replace("{{TotalIncidencias}}", items.Count.ToString());
+        sb.Replace("{{TotalIncidencias}}", items.Sum(i => i.IncidenciasCalculadas.Count).ToString());
+        sb.Replace("{{TotalDescuentos}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)).ToString());
         sb.Replace("{{TablaIncidencias}}", tablaHtml ?? BuildTablaIncidenciasHtml(items));
         return sb.ToString();
     }
@@ -500,14 +540,18 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Entró</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salida</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salió</th>");
-        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Descripción</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Incidencia</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Justificada</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Descuento</th>");
         sb.AppendLine("    </tr>");
         sb.AppendLine("  </thead>");
         sb.AppendLine("  <tbody>");
 
         foreach (var item in items.OrderBy(i => i.Fecha))
         {
+            if (item.IncidenciasCalculadas.Count == 0)
+                continue;
+
             var fecha = item.Fecha.ToString("dd/MM/yyyy", cultura);
             var dia = item.Fecha.ToString("dddd", cultura);
             var entrada = item.Entrada ?? "-";
@@ -516,14 +560,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             var salio = item.Salio ?? "-";
             var justificada = item.Justificada ? "Sí" : "No";
 
-            AgregarFila(item.IncidenciaEntrada);
-            AgregarFila(item.IncidenciaSalida);
-            AgregarFila(item.MsgError);
-
-            void AgregarFila(string? descripcion)
+            foreach (var incidencia in item.IncidenciasCalculadas)
             {
-                if (string.IsNullOrWhiteSpace(descripcion))
-                    return;
+                var descuento = incidencia.GeneraDescuento ? "Sí" : "No";
 
                 sb.AppendLine("    <tr>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{fecha}</td>");
@@ -532,8 +571,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{entro}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salida}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salio}</td>");
-                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{descripcion}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{incidencia.Nombre}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{justificada}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{descuento}</td>");
                 sb.AppendLine("    </tr>");
             }
         }
@@ -575,5 +615,23 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             return Result<List<EmpleadoDestinatariosResponse>>.Failure(
                 "Error al obtener los destinatarios por empleado.");
         }
+    }
+
+    private static bool CumpleFiltroTipos(
+        NotificarIncidenciaItemRequest item,
+        bool entrada,
+        bool salida,
+        bool omision)
+    {
+        var tipos = item.IncidenciasCalculadas;
+
+        if (entrada && tipos.Any(i => i.TipoIncidencia == TardanzaEntrada))
+            return true;
+        if (salida && tipos.Any(i => i.TipoIncidencia == TardanzaSalida || i.TipoIncidencia == SalidaAnticipada))
+            return true;
+        if (omision && tipos.Any(i => i.TipoIncidencia == OmisionEntrada || i.TipoIncidencia == OmisionSalida))
+            return true;
+
+        return false;
     }
 }

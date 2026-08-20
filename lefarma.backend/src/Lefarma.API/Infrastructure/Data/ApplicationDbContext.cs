@@ -68,6 +68,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<TipoSolicitud> TiposSolicitud { get; set; }
         public DbSet<IncidenciaChecadoPlantilla> PlantillasIncidenciasChecado { get; set; }
         public DbSet<IncidenciaChecadoNotificacionHistorial> IncidenciasChecadoNotificacionesHistorial { get; set; }
+        public DbSet<IncidenciaChecadoConfig> IncidenciasChecadoConfig { get; set; }
         public DbSet<DiaHabil> DiasHabiles { get; set; }
         public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
 

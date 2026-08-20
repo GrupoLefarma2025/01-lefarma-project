@@ -5,6 +5,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { incidenciasChecadoApi, solicitudesPersonalApi } from '../services/rh.api';
 import type { IncidenciaChecadoResponse, SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
@@ -134,22 +135,16 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
         header: 'Incidencia',
         cell: ({ row }) => {
           const o = row.original;
-          const items: { label: string; text: string }[] = [];
-          if (o.incidenciaEntrada) items.push({ label: 'Entrada', text: o.incidenciaEntrada });
-          if (o.incidenciaSalida) items.push({ label: 'Salida', text: o.incidenciaSalida });
-          if (o.msgError) items.push({ label: 'Omisión', text: o.msgError });
-          if (items.length === 0) {
+          const incidencias = o.incidenciasCalculadas ?? [];
+          if (incidencias.length === 0) {
             return <span className="text-xs text-muted-foreground">-</span>;
           }
           return (
             <div className="flex flex-col gap-1">
-              {items.map((item, index) => (
-                <span
-                  key={index}
-                  className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-800"
-                >
-                  <span className="font-semibold">{item.label}:</span> {item.text}
-                </span>
+              {incidencias.map((inc, index) => (
+                <Badge key={index} variant="outline" className="w-fit">
+                  {inc.nombre}
+                </Badge>
               ))}
             </div>
           );
@@ -209,6 +204,25 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
           );
         },
       },
+      {
+        id: 'descuento',
+        header: 'Descuento',
+        cell: ({ row }) => {
+          const o = row.original;
+          if (o.descuento) {
+            return (
+              <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                Sí
+              </span>
+            );
+          }
+          return (
+            <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+              No
+            </span>
+          );
+        },
+      },
     ],
     [handleVerSolicitud]
   );
@@ -217,6 +231,11 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
     fechaFin
   ).toLocaleDateString('es-MX')}`;
 
+  const sortedData = useMemo(
+    () => [...data].sort((a, b) => a.fecha.localeCompare(b.fecha)),
+    [data]
+  );
+
   return (
     <>
       <Modal
@@ -224,7 +243,7 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
         open={open}
         setOpen={onClose}
         title={`Incidencias de ${nombre}`}
-        size="xl"
+        size="wide"
       >
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">{periodoLabel}</p>
@@ -236,7 +255,7 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
           ) : (
             <DataTable
               columns={columns}
-              data={data}
+              data={sortedData}
               loading={loading}
               pagination={false}
               showRefreshButton={false}
