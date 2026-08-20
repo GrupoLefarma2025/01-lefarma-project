@@ -33,6 +33,48 @@ function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
   return map;
 }
 
+export interface FirmanteFlow {
+  nombre: string;
+  url?: string;
+  esSolicitante: boolean;
+}
+
+// Firmantes según el flujo aprobado: primero el solicitante (paso esInicio) y después cada
+// paso ya firmado en orden de workflow (autorizadores → RH / Director General según el flujo).
+// Sin roles fijos: cada caja del PDF muestra SOLICITA/AUTORIZA + nombre + firma del firmante real.
+export function firmantesDelFlujo(
+  pasosWorkflow: WorkflowPasoFlowResponse[] = [],
+  historial: HistorialWorkflowItemResponse[] = [],
+): FirmanteFlow[] {
+  const porPaso = new Map<number, HistorialWorkflowItemResponse[]>();
+  for (const h of historial) {
+    const arr = porPaso.get(h.idPaso) ?? [];
+    arr.push(h);
+    porPaso.set(h.idPaso, arr);
+  }
+  const firmas = buildFirmasMap(historial);
+  // Una misma persona puede firmar varios pasos del flujo: una sola caja por nombre.
+  const vistos = new Set<string>();
+  return pasosWorkflow
+    .filter((p) => p.activo)
+    .sort((a, b) => a.orden - b.orden)
+    .flatMap((paso) => {
+      const eventos = porPaso.get(paso.idPaso) ?? [];
+      const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
+      if (!ultimo) return [];
+      const nombre = ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`;
+      if (vistos.has(nombre)) return [];
+      vistos.add(nombre);
+      return [
+        {
+          esSolicitante: !!paso.esInicio,
+          nombre,
+          url: ultimo.idUsuario > 0 ? firmas.get(ultimo.idUsuario) : undefined,
+        },
+      ];
+    });
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const HEADER_BG = '#1a3a5c';

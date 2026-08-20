@@ -5,6 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { authService } from '@/shared/auth/authService';
+import type { Empresa } from '@/types/auth.types';
 import { Eye, Mail, RotateCcw, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -136,6 +139,14 @@ export default function IncidenciasChecadoList() {
   const [notificarModalOpen, setNotificarModalOpen] = useState(false);
   const [detalleEmpleado, setDetalleEmpleado] = useState<IncidenciasChecadoResumenEmpleadoResponse | null>(null);
   const requestIdRef = useRef(0);
+
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  useEffect(() => {
+    authService
+      .getEmpresas()
+      .then(setEmpresas)
+      .catch(() => setEmpresas([]));
+  }, []);
 
   const fetchData = async (
     pageToFetch = page,
@@ -377,13 +388,22 @@ export default function IncidenciasChecadoList() {
 
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Empresa</label>
-              <Input
-                type="text"
-                placeholder="Empresa"
-                value={draftFilters.empresa}
-                onChange={(e) => updateDraft('empresa', e.target.value)}
-                className="h-10"
-              />
+              <Select
+                value={draftFilters.empresa || '__all__'}
+                onValueChange={(val) => updateDraft('empresa', val === '__all__' ? '' : val)}
+              >
+                <SelectTrigger className="h-10">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todas</SelectItem>
+                  {empresas.map((e) => (
+                    <SelectItem key={e.idEmpresa} value={e.nombre}>
+                      {e.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1">
