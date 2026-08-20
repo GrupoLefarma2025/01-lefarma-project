@@ -82,7 +82,6 @@ export function DiasHabilesPage() {
   // Carga manual
   const [fechaInput, setFechaInput] = useState('');
   const [descripcionInput, setDescripcionInput] = useState('');
-  const [consumeSaldoInput, setConsumeSaldoInput] = useState(false);
   const [permiteSaldoNegativoInput, setPermiteSaldoNegativoInput] = useState(false);
 
   // Carga CSV
@@ -257,19 +256,6 @@ export function DiasHabilesPage() {
       header: 'Empresa',
     },
     {
-      id: 'consumeSaldo',
-      header: 'Consume saldo',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={row.original.consumeSaldo}
-            onCheckedChange={(checked) => setConsumeSaldoStaged(row.original, checked)}
-          />
-          <span className="text-xs text-muted-foreground">{row.original.consumeSaldo ? 'Sí' : 'No'}</span>
-        </div>
-      ),
-    },
-    {
       id: 'permiteSaldoNegativo',
       header: 'Permite saldo negativo',
       cell: ({ row }) => (
@@ -353,13 +339,6 @@ export function DiasHabilesPage() {
     setStagedItems((prev) => prev.filter((s) => stagedKey(s) !== key));
   };
 
-  const setConsumeSaldoStaged = (item: StagedItem, consumeSaldo: boolean) => {
-    const key = stagedKey(item);
-    setStagedItems((prev) =>
-      prev.map((s) => (stagedKey(s) === key ? { ...s, consumeSaldo } : s)),
-    );
-  };
-
   const setPermiteSaldoNegativoStaged = (item: StagedItem, permiteSaldoNegativo: boolean) => {
     const key = stagedKey(item);
     setStagedItems((prev) =>
@@ -379,7 +358,7 @@ export function DiasHabilesPage() {
       mes: m,
       dia: d,
       descripcion: descripcionInput.trim() || undefined,
-      consumeSaldo: consumeSaldoInput,
+      consumeSaldo: !permiteSaldoNegativoInput,
       permiteSaldoNegativo: permiteSaldoNegativoInput,
       source: 'manual',
       idEmpresa: selectedEmpresa === '__all__' ? '__all__' : Number(selectedEmpresa),
@@ -393,7 +372,6 @@ export function DiasHabilesPage() {
     );
     setFechaInput('');
     setDescripcionInput('');
-    setConsumeSaldoInput(false);
     setPermiteSaldoNegativoInput(false);
     toast.success('Día agregado a la cola');
   };
@@ -446,7 +424,7 @@ export function DiasHabilesPage() {
         mes,
         dia,
         descripcion: desc || undefined,
-        consumeSaldo: parseConsumeSaldo(row.consume_saldo),
+        consumeSaldo: !parseConsumeSaldo(row.permite_saldo_negativo),
         permiteSaldoNegativo: parseConsumeSaldo(row.permite_saldo_negativo),
         source: 'csv',
         rowNumber: i + 2,
@@ -564,7 +542,6 @@ export function DiasHabilesPage() {
     resetCsv();
     setFechaInput('');
     setDescripcionInput('');
-    setConsumeSaldoInput(false);
     setPermiteSaldoNegativoInput(false);
   };
 
@@ -703,22 +680,11 @@ export function DiasHabilesPage() {
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Consume saldo</label>
-                    <p className="text-xs text-muted-foreground">
-                      Marca si este día debe descontar días de vacaciones.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={consumeSaldoInput}
-                    onCheckedChange={setConsumeSaldoInput}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
                     <label className="text-sm font-medium">Permite saldo negativo</label>
                     <p className="text-xs text-muted-foreground">
-                      Marca si este día puede dejar el saldo de vacaciones en negativo.
+                      Marca si este día puede dejar el saldo de vacaciones en negativo,
+                      es decir, si un empleado sin días disponibles aún puede tomar este día
+                      aunque su saldo quede en deuda y después se descuente de futuras vacaciones.
                     </p>
                   </div>
                   <Switch
@@ -799,7 +765,7 @@ export function DiasHabilesPage() {
                   </p>
                   {!csvFile && !dragActive && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion, consume_saldo, permite_saldo_negativo</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion, permite_saldo_negativo</span>
                     </p>
                   )}
                 </div>

@@ -29,7 +29,7 @@ export function EmailTemplateEditor({
     <div className="space-y-2">
       <div className="min-h-0 rounded-md border border-input">
         <Editor
-          apiKey="1y98o7v8qkqc9big87lvk4ekuo85bc6xrxzgue0jlmv5ip57"
+          apiKey="naoqo9ubluclcuqki7418vngqoy62wb8v6l09jcx7k9gwppm"
           onInit={(_, editor) => {
             editorRef.current = editor;
           }}
