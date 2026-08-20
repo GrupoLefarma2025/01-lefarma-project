@@ -23,6 +23,7 @@ public class IncidenciaChecadoConfigConfiguration : IEntityTypeConfiguration<Inc
         builder.Property(t => t.Prioridad).HasColumnName("prioridad").HasDefaultValue(0);
         builder.Property(t => t.RegistroEntrada).HasColumnName("registro_entrada").HasDefaultValue(false);
         builder.Property(t => t.RegistroSalida).HasColumnName("registro_salida").HasDefaultValue(false);
+        builder.Property(t => t.ExcluirDiasHabilesConsumenSaldo).HasColumnName("excluir_dias_habiles_consumen_saldo").HasDefaultValue(false);
         builder.Property(t => t.Activo).HasColumnName("activo").HasDefaultValue(true);
         builder.Property(t => t.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
         builder.Property(t => t.FechaModificacion).HasColumnName("fecha_modificacion").IsRequired(false);

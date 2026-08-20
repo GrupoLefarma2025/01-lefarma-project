@@ -127,8 +127,14 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
         if (reglas.Count == 0)
             return;
 
+        var diasQueConsumenSaldo = await ObtenerDiasQueConsumenSaldoAsync(items, cancellationToken);
+
+        // Si un dia tiene que consume saldo y no permite saldo negativo, entonces no se aplicará la regla a ese día, 
+        //o sea no se generará incidencia ni descuento, aunque la regla coincida
         var conRegla = items
             .SelectMany(i => ClasificarReglas(i, reglas).Select(r => new { Item = i, Regla = r }))
+            .Where(x => !(x.Regla.ExcluirDiasHabilesConsumenSaldo
+                          && diasQueConsumenSaldo.Contains((x.Item.Nomina, x.Item.Fecha.Date))))
             .ToList();
 
         var agrupados = conRegla
@@ -166,6 +172,68 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                 }
             }
         }
+    }
+
+    private async Task<HashSet<(long Nomina, DateTime Fecha)>> ObtenerDiasQueConsumenSaldoAsync(
+        List<ItemEvaluable> items,
+        CancellationToken cancellationToken)
+    {
+        var resultado = new HashSet<(long, DateTime)>();
+
+        var nominas = items
+            .Select(i => i.Nomina)
+            .Where(n => n != 0)
+            .Distinct()
+            .ToList();
+
+        if (nominas.Count == 0)
+            return resultado;
+
+        var fechas = items
+            .Select(i => i.Fecha.Date)
+            .Distinct()
+            .ToList();
+
+        var detalles = await _context.UsuariosDetalle
+            .AsNoTracking()
+            .Where(d => d.Activo && d.NumeroEmpleado != null && d.NumeroEmpleado != "")
+            .Select(d => new { d.NumeroEmpleado, d.IdEmpresa })
+            .ToListAsync(cancellationToken);
+
+        var nominaSet = nominas.ToHashSet();
+        var empresaPorNomina = new Dictionary<long, int>();
+        foreach (var d in detalles)
+        {
+            if (long.TryParse(d.NumeroEmpleado!.Trim(), out var nomina) && nominaSet.Contains(nomina))
+                empresaPorNomina.TryAdd(nomina, d.IdEmpresa);
+        }
+
+        if (empresaPorNomina.Count == 0)
+            return resultado;
+
+        var idEmpresas = empresaPorNomina.Values.Distinct().ToList();
+
+        // Obtener los días hábiles que consumen saldo y no permiten saldo negativo para las empresas y fechas relevantes
+        var diasHabiles = await _context.DiasHabiles
+            .AsNoTracking()
+            .Where(d => d.Activo && d.ConsumeSaldo && !d.PermiteSaldoNegativo && idEmpresas.Contains(d.IdEmpresa) && fechas.Contains(d.Fecha.Date))
+            .Select(d => new { d.IdEmpresa, d.Fecha })
+            .ToListAsync(cancellationToken);
+
+        var diasPorEmpresa = diasHabiles
+            .Select(d => (d.IdEmpresa, Fecha: d.Fecha.Date))
+            .ToHashSet();
+
+        foreach (var kvp in empresaPorNomina)
+        {
+            foreach (var fecha in fechas)
+            {
+                if (diasPorEmpresa.Contains((kvp.Value, fecha)))
+                    resultado.Add((kvp.Key, fecha));
+            }
+        }
+
+        return resultado;
     }
 
     private static List<IncidenciaChecadoConfig> ClasificarReglas(

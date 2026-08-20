@@ -57,6 +57,7 @@ public class IncidenciaChecadoConfigAdminService : IIncidenciaChecadoConfigAdmin
             Prioridad = request.Prioridad,
             RegistroEntrada = request.RegistroEntrada,
             RegistroSalida = request.RegistroSalida,
+            ExcluirDiasHabilesConsumenSaldo = request.ExcluirDiasHabilesConsumenSaldo,
             Activo = request.Activo,
         };
 
@@ -83,6 +84,7 @@ public class IncidenciaChecadoConfigAdminService : IIncidenciaChecadoConfigAdmin
         entity.Prioridad = request.Prioridad;
         entity.RegistroEntrada = request.RegistroEntrada;
         entity.RegistroSalida = request.RegistroSalida;
+        entity.ExcluirDiasHabilesConsumenSaldo = request.ExcluirDiasHabilesConsumenSaldo;
         entity.Activo = request.Activo;
 
         await _context.SaveChangesAsync(ct);
@@ -104,6 +106,7 @@ public class IncidenciaChecadoConfigAdminService : IIncidenciaChecadoConfigAdmin
             Prioridad = r.Prioridad,
             RegistroEntrada = r.RegistroEntrada,
             RegistroSalida = r.RegistroSalida,
+            ExcluirDiasHabilesConsumenSaldo = r.ExcluirDiasHabilesConsumenSaldo,
             Activo = r.Activo,
         };
     }

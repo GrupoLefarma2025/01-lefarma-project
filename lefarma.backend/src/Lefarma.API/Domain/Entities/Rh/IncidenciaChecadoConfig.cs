@@ -15,6 +15,7 @@ public class IncidenciaChecadoConfig
     public int Prioridad { get; set; }
     public bool RegistroEntrada { get; set; }
     public bool RegistroSalida { get; set; }
+    public bool ExcluirDiasHabilesConsumenSaldo { get; set; }
     public bool Activo { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime? FechaModificacion { get; set; }

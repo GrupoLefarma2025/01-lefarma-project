@@ -15,6 +15,7 @@ public class IncidenciaChecadoConfigResponse
     public int Prioridad { get; set; }
     public bool RegistroEntrada { get; set; }
     public bool RegistroSalida { get; set; }
+    public bool ExcluirDiasHabilesConsumenSaldo { get; set; }
     public bool Activo { get; set; }
 }
 
@@ -43,6 +44,7 @@ public class CreateIncidenciaChecadoConfigRequest
 
     public bool RegistroEntrada { get; set; }
     public bool RegistroSalida { get; set; }
+    public bool ExcluirDiasHabilesConsumenSaldo { get; set; }
 
     public bool Activo { get; set; } = true;
 }

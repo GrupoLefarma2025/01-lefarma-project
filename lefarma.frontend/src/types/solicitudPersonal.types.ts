@@ -442,6 +442,7 @@ export interface IncidenciaChecadoConfigResponse {
   prioridad: number;
   registroEntrada: boolean;
   registroSalida: boolean;
+  excluirDiasHabilesConsumenSaldo: boolean;
   activo: boolean;
 }
 
@@ -456,6 +457,7 @@ export interface CreateIncidenciaChecadoConfigRequest {
   prioridad: number;
   registroEntrada: boolean;
   registroSalida: boolean;
+  excluirDiasHabilesConsumenSaldo: boolean;
   activo: boolean;
 }
 

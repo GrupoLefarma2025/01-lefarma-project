@@ -45,6 +45,7 @@ const emptyForm = {
   prioridad: 0,
   registroEntrada: false,
   registroSalida: false,
+  excluirDiasHabilesConsumenSaldo: false,
   activo: true,
 };
 
@@ -120,6 +121,7 @@ export default function IncidenciasChecadoConfigList() {
         prioridad: item.prioridad,
         registroEntrada: item.registroEntrada,
         registroSalida: item.registroSalida,
+        excluirDiasHabilesConsumenSaldo: item.excluirDiasHabilesConsumenSaldo,
         activo: item.activo,
       });
       setErrors({});
@@ -174,6 +176,7 @@ export default function IncidenciasChecadoConfigList() {
         prioridad: form.prioridad,
         registroEntrada: form.registroEntrada,
         registroSalida: form.registroSalida,
+        excluirDiasHabilesConsumenSaldo: form.excluirDiasHabilesConsumenSaldo,
         activo: form.activo,
       };
 
@@ -401,6 +404,20 @@ export default function IncidenciasChecadoConfigList() {
             <div className="space-y-1 leading-none">
               <Label htmlFor="registroSalida">Registro de salida</Label>
               <p className="text-xs text-muted-foreground">Aplica para reglas de omisión de salida.</p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3 md:col-span-2">
+            <Checkbox
+              id="excluirDiasHabilesConsumenSaldo"
+              checked={form.excluirDiasHabilesConsumenSaldo}
+              onCheckedChange={(v) => updateField('excluirDiasHabilesConsumenSaldo', Boolean(v))}
+            />
+            <div className="space-y-1 leading-none">
+              <Label htmlFor="excluirDiasHabilesConsumenSaldo">Excluir días que consumen saldo</Label>
+              <p className="text-xs text-muted-foreground">
+                Si está activo, los días registrados en días hábiles con consume_saldo no generan incidencia ni descuento.
+              </p>
             </div>
           </div>
 
