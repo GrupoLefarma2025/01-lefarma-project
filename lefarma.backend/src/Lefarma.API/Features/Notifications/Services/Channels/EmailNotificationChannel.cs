@@ -74,7 +74,13 @@ public class EmailNotificationChannel : INotificationChannel
 
             // Create email message
             var emailMessage = new MimeMessage();
-            emailMessage.From.Add(new MailboxAddress(_settings.FromName, _settings.FromEmail));
+
+            // Revisa si se envia un nombre de remitente personalizado en los datos del canal, si no, usa el nombre de remitente configurado
+            var fromName = message.Data != null && message.Data.TryGetValue("fromName", out var fromNameObj)
+                && fromNameObj?.ToString() is { Length: > 0 } overrideName
+                ? overrideName
+                : _settings.FromName;
+            emailMessage.From.Add(new MailboxAddress(fromName, _settings.FromEmail));
 
             // Add recipients
             foreach (var recipient in recipients)

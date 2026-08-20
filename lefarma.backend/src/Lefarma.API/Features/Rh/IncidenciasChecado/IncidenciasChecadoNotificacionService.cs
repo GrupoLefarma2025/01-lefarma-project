@@ -224,7 +224,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                         new()
                         {
                             ChannelType = "email",
-                            UserIds = destinatarios
+                            UserIds = destinatarios,
+                            ChannelSpecificData = new Dictionary<string, object> { ["fromName"] = "Recursos Humanos" }
                         }
                     }
                 };
