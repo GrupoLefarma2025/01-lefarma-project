@@ -14,6 +14,9 @@ IF NOT EXISTS (
 )
 BEGIN
     ALTER TABLE rh.incidencias_checado_config
-        ADD excluir_dias_habiles_consumen_saldo BIT NOT NULL DEFAULT 0;
+        ADD excluir_dias_habiles_consumen_saldo BIT NOT NULL DEFAULT 1;
+
+UPDATE rh.incidencias_checado_config
+SET excluir_dias_habiles_consumen_saldo = 1
 END
 GO

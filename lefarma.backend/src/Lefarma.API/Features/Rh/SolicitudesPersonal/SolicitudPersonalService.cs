@@ -1148,6 +1148,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var (periodoInicio, periodoFin, periodoEtiqueta) = PeriodoHelper.ObtenerPeriodoActual(
                     ahora, PeriodoHelper.Quincena);
 
+                // Cabecera: usar el periodo del primer tipo con límite (cada tipo ya reporta su propio periodo)
+                //var (periodoInicio, periodoFin, periodoEtiqueta) = periodosPorTipo.Count > 0
+                    //? periodosPorTipo[0].Periodo
+                    //: PeriodoHelper.ObtenerPeriodoActual(ahora, PeriodoHelper.Quincena);
+
                 var anioActual = ahora.Year;
                 var saldos = await _context.SaldosVacacionesAnuales
                     .AsNoTracking()
