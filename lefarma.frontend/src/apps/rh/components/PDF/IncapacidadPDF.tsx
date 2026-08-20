@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { firmaUsuarioUrl, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
 
@@ -245,7 +245,7 @@ function FormCopy({
                     {sigImg(f.url)}
                     <div style={{ width: '100%', borderTop: BORDER }} />
                   </div>
-                  <div style={sigLabel}>{f.esSolicitante ? 'SOLICITA' : 'AUTORIZA'}</div>
+                  <div style={sigLabel}>{f.rol ?? (f.esSolicitante ? 'SOLICITA' : 'AUTORIZA')}</div>
                   <div style={{ ...sigLabel, fontWeight: 400, textAlign: 'center' }}>{f.nombre}</div>
                 </div>
               </div>
@@ -258,8 +258,18 @@ function FormCopy({
 }
 
 export function IncapacidadPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
-  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
-  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
+  // Firmantes del flujo aprobado + el empleado cuando RH crea la solicitud por él:
+  // el empleado va primero como SOLICITA y quien firmó el paso inicial queda como ELABORA.
+  const firmantes = useMemo(() => {
+    const flow = firmantesDelFlujo(pasosWorkflow, historial);
+    const { idUsuarioSolicitante, solicitanteNombre } = solicitud;
+    if (!idUsuarioSolicitante || !solicitanteNombre) return flow;
+    if (flow.some((f) => f.nombre === solicitanteNombre)) return flow;
+    return [
+      { nombre: solicitanteNombre, url: firmaUsuarioUrl(idUsuarioSolicitante), esSolicitante: true },
+      ...flow.map((f) => (f.esSolicitante ? { ...f, esSolicitante: false, rol: 'ELABORA' } : f)),
+    ];
+  }, [pasosWorkflow, historial, solicitud]);
 
   const typeIdx = incapacidadTypeIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 
