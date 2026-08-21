@@ -142,6 +142,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             solicitud.IdPasoActual = resultado.NuevoIdPaso;
             if (resultado.NuevoIdEstado.HasValue)
                 solicitud.IdEstado = resultado.NuevoIdEstado.Value;
+            _context.Entry(solicitud).Property(x => x.IdEstado).IsModified = true;
 
             // Lógica específica SP: setear FechaEnvio en acción ENVIAR
             var accion = workflowConfig.Pasos
