@@ -50,6 +50,12 @@ CREATE TABLE operaciones.comprobantes (
     fecha_pago          DATETIME NULL,
     monto_pago          DECIMAL(18,2) NULL,
 
+    -- Cuenta bancaria del pago (solo categoria='pago', la define el tesorero)
+    id_banco            INT NULL,                            -- FK → catalogos.bancos
+    numero_cuenta       NVARCHAR(50) NULL,
+    clabe               NVARCHAR(50) NULL,
+    id_forma_pago       INT NULL,                            -- FK → catalogos.formas_pago
+
     -- JSON flexible: absorbe CFDI, conceptos, datos especificos del medio de pago
     datos_adicionales   NVARCHAR(MAX) NULL,
 
@@ -59,10 +65,15 @@ CREATE TABLE operaciones.comprobantes (
     -- Auditoria
     fecha_creacion      DATETIME2 NOT NULL DEFAULT GETDATE(),
     fecha_modificacion  DATETIME2 NULL,
+    activo              BIT NOT NULL DEFAULT 1,              -- soft delete
 
     CONSTRAINT PK_comprobantes PRIMARY KEY CLUSTERED (id_comprobante),
     CONSTRAINT FK_comprobantes_medio_pago FOREIGN KEY (id_medio_pago)
-        REFERENCES catalogos.medios_pago (id_medio_pago)
+        REFERENCES catalogos.medios_pago (id_medio_pago),
+    CONSTRAINT FK_comprobantes_banco FOREIGN KEY (id_banco)
+        REFERENCES catalogos.bancos (id_banco),
+    CONSTRAINT FK_comprobantes_forma_pago FOREIGN KEY (id_forma_pago)
+        REFERENCES catalogos.formas_pago (id_forma_pago)
 );
 
 -- ─── 2. RECREAR comprobantes_partidas ───────────────────────────────────────
