@@ -142,15 +142,16 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             solicitud.IdPasoActual = resultado.NuevoIdPaso;
             if (resultado.NuevoIdEstado.HasValue)
                 solicitud.IdEstado = resultado.NuevoIdEstado.Value;
+            _context.Entry(solicitud).Property(x => x.IdEstado).IsModified = true;
 
             // Lógica específica SP: setear FechaEnvio en acción ENVIAR
             var accion = workflowConfig.Pasos
                 .SelectMany(p => p.AccionesOrigen)
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion);
             if (accion?.TipoAccion?.Codigo == "ENVIAR" && !solicitud.FechaEnvio.HasValue)
-                solicitud.FechaEnvio = DateTime.UtcNow;
+                solicitud.FechaEnvio = DateTime.Now;
 
-            solicitud.FechaModificacion = DateTime.UtcNow;
+            solicitud.FechaModificacion = DateTime.Now;
 
             // validacion de límite por periodo si la acción cierra la solicitud
             var nuevoEstado = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
