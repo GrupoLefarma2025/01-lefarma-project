@@ -683,7 +683,16 @@ setNombresFirmas({
               </div>
             ) : isSingleOrden && singleOrden ? (
               <div className="bg-white shadow-sm rounded overflow-hidden">
-                <OrdenCompraConcentradoPDF orden={singleOrden} firmaElaboro={firmaElaboroUrl} proveedoresMap={proveedoresMap} />
+                <OrdenCompraConcentradoPDF 
+                  orden={singleOrden} 
+                  firmaSolicitante={firmaElaboroUrl}
+                  nombreSolicitante={user?.nombre ?? user?.username}
+                  firmaReviso={firmaRevisoUrl}
+                  nombreReviso={nombresFirmas.reviso}
+                  firmaAutorizo={firmaElaboroUrl}
+                  nombreAutorizo={nombresFirmas.autorizo}
+                  proveedoresMap={proveedoresMap} 
+                />
               </div>
             ) : (
               <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
@@ -761,7 +770,12 @@ setNombresFirmas({
               <OrdenCompraConcentradoPDF
                 id="envio-concentrado-pdf-preview"
                 orden={singleOrden}
-                firmaElaboro={firmaElaboroUrl}
+                firmaSolicitante={firmaElaboroUrl}
+                nombreSolicitante={user?.nombre ?? user?.username}
+                firmaReviso={firmaRevisoUrl}
+                nombreReviso={nombresFirmas.reviso}
+                firmaAutorizo={firmaElaboroUrl}
+                nombreAutorizo={nombresFirmas.autorizo}
                 proveedoresMap={proveedoresMap}
               />
             ) : (
@@ -770,10 +784,10 @@ setNombresFirmas({
                 ordenes={ordenesSeleccionadas}
                 agrupacion={agrupacion}
                 generadoPor={user?.nombre ?? user?.username}
-firmaAutorizo={firmaElaboroUrl}
-                  firmaReviso={firmaRevisoUrl}
-                  nombreAutorizo={nombresFirmas.autorizo}
-nombreReviso={nombresFirmas.reviso}
+                firmaAutorizo={firmaElaboroUrl}
+                firmaReviso={firmaRevisoUrl}
+                nombreAutorizo={nombresFirmas.autorizo}
+                nombreReviso={nombresFirmas.reviso}
               />
             )}
           </div>
@@ -834,7 +848,12 @@ nombreReviso={nombresFirmas.reviso}
           {isSingleOrden && singleOrden ? (
             <OrdenCompraConcentradoPDF
               orden={singleOrden}
-              firmaElaboro={firmaElaboroUrl}
+              firmaSolicitante={firmaElaboroUrl}
+              nombreSolicitante={user?.nombre ?? user?.username}
+              firmaReviso={firmaRevisoUrl}
+              nombreReviso={nombresFirmas.reviso}
+              firmaAutorizo={firmaElaboroUrl}
+              nombreAutorizo={nombresFirmas.autorizo}
               proveedoresMap={proveedoresMap}
             />
           ) : (
