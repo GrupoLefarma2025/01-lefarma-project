@@ -327,6 +327,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 PorcentajeIva = p.PorcentajeIva,
                     TotalRetenciones = p.TotalRetenciones,
                     OtrosImpuestos = p.OtrosImpuestos,
+                    AjusteRedondeo = p.AjusteRedondeo,
                     Deducible = p.Deducible,
                     IdProveedor = p.IdProveedor,
                     IdsCuentasBancarias = p.IdsCuentasBancarias,
@@ -341,7 +342,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var totalRetenciones = partidas.Sum(p => p.TotalRetenciones);
                 var totalOtrosImpuestos = partidas.Sum(p => p.OtrosImpuestos);
 
-                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos + partidas.Sum(p => p.AjusteRedondeo ?? 0m);
 
                 var workflow = await _workflowResolver.ResolveWorkflowIdAsync("ORDEN_COMPRA", idUsuario, request.IdEmpresa, request.IdSucursal, request.IdArea, request.IdTipoGasto, request.IdProveedor);
 
@@ -590,6 +591,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     partida.PorcentajeIva = p.IdTipoImpuesto.HasValue && impuestosDictUpdate.TryGetValue(p.IdTipoImpuesto.Value, out var tasaActualizar) ? tasaActualizar * 100 : p.PorcentajeIva;
                     partida.TotalRetenciones = p.TotalRetenciones;
                     partida.OtrosImpuestos = p.OtrosImpuestos;
+                    partida.AjusteRedondeo = p.AjusteRedondeo;
                     partida.Deducible = p.Deducible;
                     partida.IdProveedor = p.IdProveedor;
                     partida.IdsCuentasBancarias = p.IdsCuentasBancarias;
@@ -605,7 +607,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var totalIva = sobrevivientes.Sum(p => ((p.PrecioUnitario * p.Cantidad) - p.Descuento) * (p.PorcentajeIva / 100m));
                 var totalRetenciones = sobrevivientes.Sum(p => p.TotalRetenciones);
                 var totalOtrosImpuestos = sobrevivientes.Sum(p => p.OtrosImpuestos);
-                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
+                var total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos + sobrevivientes.Sum(p => p.AjusteRedondeo ?? 0m);
 
 
                 // Recalcular totales
@@ -637,15 +639,16 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             }
         }
 
-        private static decimal CalcularTotalPartida(CreatePartidaRequest p)
+        internal static decimal CalcularTotalPartida(CreatePartidaRequest p)
         {
             // Subtotal = precio base sin impuestos ni retenciones
             decimal subtotal = (p.PrecioUnitario * p.Cantidad) - p.Descuento;
 
-            // Total = subtotal + impuestos - retenciones
+            // Total = subtotal + impuestos - retenciones + ajuste por redondeo
             decimal total = subtotal * (1 + p.PorcentajeIva / 100)
                             - p.TotalRetenciones
-                            + p.OtrosImpuestos;
+                            + p.OtrosImpuestos
+                            + (p.AjusteRedondeo ?? 0m);
 
             return total;
         }
@@ -739,6 +742,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 PorcentajeIva = p.PorcentajeIva,
                 TotalRetenciones = p.TotalRetenciones,
                 OtrosImpuestos = p.OtrosImpuestos,
+                AjusteRedondeo = p.AjusteRedondeo,
                 Deducible = p.Deducible,
                 Total = p.Total,
                 IdProveedor = p.IdProveedor,

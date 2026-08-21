@@ -58,6 +58,7 @@ import {
   Check,
   Search,
   ChevronDown,
+  CircleDollarSign,
 } from 'lucide-react';
 import {
   Command,
@@ -111,6 +112,12 @@ const partidaSchema = z.object({
   porcentajeIva: z.number().min(0).max(100),
   totalRetenciones: z.number().min(0),
   otrosImpuestos: z.number().min(0),
+  ajusteRedondeo: z
+    .number()
+    .min(-5, 'El ajuste por redondeo no puede ser mayor a 5 pesos.')
+    .max(5, 'El ajuste por redondeo no puede ser mayor a 5 pesos.')
+    .optional()
+    .nullable(),
   requiereFactura: z.boolean(),
   deducible: z.boolean(),
   idProveedor: z.number().optional().nullable(),
@@ -207,6 +214,7 @@ const emptyPartida: PartidaFormValues = {
   porcentajeIva: 16,
   totalRetenciones: 0,
   otrosImpuestos: 0,
+  ajusteRedondeo: null,
   requiereFactura: true,
   deducible: false,
   idProveedor: undefined,
@@ -565,6 +573,7 @@ export default function CrearOrdenCompra() {
     let totalRetenciones = 0;
     let totalOtrosImpuestos = 0;
     let totalDescuentos = 0;
+    let totalAjusteRedondeo = 0;
     for (const p of watchedPartidas || []) {
       const base = (p.precioUnitario || 0) * (p.cantidad || 0) - (p.descuento || 0);
       subtotal += base;
@@ -573,9 +582,19 @@ export default function CrearOrdenCompra() {
       const otrosImpuestosValor = p.otrosImpuestos || 0;
       totalOtrosImpuestos += otrosImpuestosValor;
       totalDescuentos += p.descuento || 0;
+      totalAjusteRedondeo += p.ajusteRedondeo ?? 0;
     }
-    const total = subtotal + totalIva - totalRetenciones + totalOtrosImpuestos;
-    return { subtotal, totalIva, totalRetenciones, totalOtrosImpuestos, total, totalDescuentos };
+    const total =
+      subtotal + totalIva - totalRetenciones + totalOtrosImpuestos + totalAjusteRedondeo;
+    return {
+      subtotal,
+      totalIva,
+      totalRetenciones,
+      totalOtrosImpuestos,
+      total,
+      totalDescuentos,
+      totalAjusteRedondeo,
+    };
   }, [watchedPartidas]);
   const fetchCatalogs = () => {
     // Cargar todos los catálogos en paralelo sin bloquear la UI
@@ -881,6 +900,7 @@ export default function CrearOrdenCompra() {
                     porcentajeIva: Number(p.porcentajeIva),
                     totalRetenciones: Number(p.totalRetenciones),
                     otrosImpuestos: Number(p.otrosImpuestos),
+                    ajusteRedondeo: p.ajusteRedondeo ?? null,
                     requiereFactura: p.requiereFactura,
                     deducible: p.deducible ?? false,
                     idProveedor: p.idProveedor || undefined,
@@ -1041,6 +1061,7 @@ export default function CrearOrdenCompra() {
           porcentajeIva: p.porcentajeIva,
           totalRetenciones: p.totalRetenciones,
           otrosImpuestos: p.otrosImpuestos,
+          ajusteRedondeo: p.ajusteRedondeo ?? null,
           requiereFactura: p.requiereFactura,
           deducible: p.deducible ?? false,
           idProveedor: p.idProveedor || null,
@@ -1753,7 +1774,11 @@ export default function CrearOrdenCompra() {
                 const lineIva = lineBase * ((p?.porcentajeIva || 0) / 100);
                 const otrosImpuestosValor = p?.otrosImpuestos || 0;
                 const lineTotal =
-                  lineBase + lineIva - (p?.totalRetenciones || 0) + otrosImpuestosValor;
+                  lineBase +
+                  lineIva -
+                  (p?.totalRetenciones || 0) +
+                  otrosImpuestosValor +
+                  (p?.ajusteRedondeo ?? 0);
                 return (
                   <div key={item.id} className="space-y-4">
                     {index > 0 && (
@@ -1807,6 +1832,58 @@ export default function CrearOrdenCompra() {
                           <span className="bg-primary/10 ring-primary/20 inline-flex items-center rounded-full px-4 py-1.5 text-sm font-bold text-primary ring-1">
                             Total {fmt(lineTotal)}
                           </span>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                title="Ajuste por redondeo"
+                                className={cn(
+                                  'h-7 w-7',
+                                  p?.ajusteRedondeo != null && 'text-primary'
+                                )}
+                              >
+                                <CircleDollarSign className="h-3.5 w-3.5" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-56 p-3" align="end">
+                              <FormField
+                                control={form.control}
+                                name={`partidas.${index}.ajusteRedondeo`}
+                                render={({ field }) => (
+                                  <FormItem>
+                                    <FormLabel>Ajuste por redondeo</FormLabel>
+                                    <FormControl>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min={-5}
+                                        max={5}
+                                        placeholder="Sin ajuste"
+                                        value={field.value ?? ''}
+                                        onChange={(e) => {
+                                          const raw = e.target.value;
+                                          if (raw === '') {
+                                            field.onChange(null);
+                                            form.trigger(`partidas.${index}.ajusteRedondeo`);
+                                            return;
+                                          }
+                                          const num = parseFloat(raw);
+                                          field.onChange(isNaN(num) ? null : num);
+                                          form.trigger(`partidas.${index}.ajusteRedondeo`);
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormDescription className="text-xs">
+                                      Entre −5 y 5 pesos. Vacío = sin ajuste.
+                                    </FormDescription>
+                                    <FormMessage />
+                                  </FormItem>
+                                )}
+                              />
+                            </PopoverContent>
+                          </Popover>
                           <Button
                             type="button"
                             variant="ghost"
@@ -2232,7 +2309,12 @@ export default function CrearOrdenCompra() {
                   const base = (p?.precioUnitario || 0) * (p?.cantidad || 0) - (p?.descuento || 0);
                   const iva = base * ((p?.porcentajeIva || 0) / 100);
                   const otrosImpuestosValor = p?.otrosImpuestos || 0;
-                  const partTotal = base + iva - (p?.totalRetenciones || 0) + otrosImpuestosValor;
+                  const partTotal =
+                    base +
+                    iva -
+                    (p?.totalRetenciones || 0) +
+                    otrosImpuestosValor +
+                    (p?.ajusteRedondeo ?? 0);
                   const pDesc = p?.descripcion?.slice(0, 25) || `Partida ${idx + 1}`;
                   return (
                     <div key={idx} className="rounded-md border bg-card p-2 shadow-sm">
@@ -2317,6 +2399,20 @@ export default function CrearOrdenCompra() {
                       <span className="text-muted-foreground">Otros</span>
                       <span className="font-medium tabular-nums">
                         {fmt(totales.totalOtrosImpuestos)}
+                      </span>
+                    </div>
+                  )}
+                  {totales.totalAjusteRedondeo !== 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Ajuste por redondeo</span>
+                      <span
+                        className={cn(
+                          'font-medium tabular-nums',
+                          totales.totalAjusteRedondeo < 0 && 'text-destructive'
+                        )}
+                      >
+                        {totales.totalAjusteRedondeo > 0 ? '+' : '−'}
+                        {fmt(Math.abs(totales.totalAjusteRedondeo))}
                       </span>
                     </div>
                   )}
@@ -2432,6 +2528,7 @@ export default function CrearOrdenCompra() {
                       porcentajeIva: '% IVA',
                       totalRetenciones: 'Retenciones',
                       otrosImpuestos: 'Otros impuestos',
+                      ajusteRedondeo: 'Ajuste por redondeo',
                       idProveedor: 'Proveedor de partida',
                       idCuentaBancaria: 'Cuenta bancaria de partida',
                     };
@@ -2450,15 +2547,17 @@ export default function CrearOrdenCompra() {
                           for (const [campo, fieldErr] of Object.entries(fields)) {
                             if (!fieldErr) continue;
                             const label = PARTIDA_FIELD_NAMES[campo] ?? campo;
-                            const msg = fieldErr.message ?? 'Requerido';
-                            missing.push(`Partida ${n}: ${label}`);
+                            const msg = fieldErr.message ?? '';
+                            const generic = !msg || msg === 'Required' || msg === 'Invalid input';
+                            missing.push(`Partida ${n}: ${generic ? label : msg}`);
                             devDetails.push(`  partidas[${idx}].${campo} → ${msg}`);
                           }
                         }
                       } else if (typeof err === 'object' && 'message' in (err as object)) {
-                        const msg = (err as FieldErr).message ?? 'Requerido';
+                        const msg = (err as FieldErr).message ?? '';
+                        const generic = !msg || msg === 'Required' || msg === 'Invalid input';
                         const label = FIELD_NAMES[key] ?? key;
-                        missing.push(label);
+                        missing.push(generic ? label : msg);
                         devDetails.push(`  ${key} → ${msg}`);
                       }
                     }
@@ -2471,7 +2570,7 @@ export default function CrearOrdenCompra() {
                     console.groupEnd();
 
                     if (missing.length > 0) {
-                      toast.error('Faltan campos obligatorios', {
+                      toast.error('Revisa los campos marcados', {
                         description: missing.join(' · '),
                         duration: 8000,
                       });

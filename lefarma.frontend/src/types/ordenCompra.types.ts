@@ -13,6 +13,7 @@ export interface OrdenCompraPartidaResponse {
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;
+  ajusteRedondeo?: number | null;
   deducible: boolean;
   total: number;
   idProveedor?: number | null;
@@ -123,6 +124,7 @@ export interface CreatePartidaRequest {
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;
+  ajusteRedondeo?: number | null;
   deducible: boolean;
   idProveedor?: number | null;
   idCuentaBancaria?: number | null;

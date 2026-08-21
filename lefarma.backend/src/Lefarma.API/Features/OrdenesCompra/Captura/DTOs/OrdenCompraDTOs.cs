@@ -146,6 +146,7 @@ public class OrdenCompraResponse
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
+        public decimal? AjusteRedondeo { get; set; }
         public bool Deducible { get; set; }
         public decimal Total { get; set; }
         public string? UnidadMedidaNombre { get; set; }
@@ -171,6 +172,7 @@ public class OrdenCompraResponse
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
+        public decimal? AjusteRedondeo { get; set; }
         public bool Deducible { get; set; } = true;
         public int? IdProveedor { get; set; }
         public string? IdsCuentasBancarias { get; set; }
