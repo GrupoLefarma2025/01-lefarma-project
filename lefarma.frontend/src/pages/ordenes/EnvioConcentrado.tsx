@@ -192,6 +192,41 @@ export default function EnvioConcentrado() {
     return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
   })();
 
+  // Firma del revisor (usuario 73 en Asokam — Marco Polo) para el concentrado multi
+  const firmaRevisoUrl = (() => {
+    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    return `${apiUrl}/media/archivos/firmas_usuarios/73.png`;
+  })();
+
+  // ── Nombres completos de Revisó (44) y Autorizó (41) para etiquetas ──────
+  const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await API.get<{ data: { idUsuario: number; nombreCompleto: string }[] }>(
+          '/auth/usuarios'
+        );
+        if (cancelled) return;
+        const users = res.data?.data ?? [];
+        // El NombreCompleto de Asokam trae prefijo numérico ('44 Marco Polo...') → se limpia
+        const nombreLimpio = (s?: string) => s?.replace(/^\d+\s+/, '');
+setNombresFirmas({
+        // IdUsuario de Asokam: 73 = Marco Polo (Revisó), 63 = Diego (Autorizó)
+        reviso: nombreLimpio(users.find((u) => u.idUsuario === 73)?.nombreCompleto),
+        autorizo: nombreLimpio(users.find((u) => u.idUsuario === 63)?.nombreCompleto),
+      });
+      } catch {
+        // silent fail: las etiquetas quedan sin nombre
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // ── Proveedor (con cuentas bancarias) para el PDF individual ────────────
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
 
@@ -326,7 +361,10 @@ export default function EnvioConcentrado() {
       ordenes: ordenesSeleccionadas,
       agrupacion,
       generadoPor: user?.nombre ?? user?.username,
-      firmaElaboro: firmaElaboroUrl,
+      firmaAutorizo: firmaElaboroUrl,
+      firmaReviso: firmaRevisoUrl,
+      nombreAutorizo: nombresFirmas.autorizo,
+      nombreReviso: nombresFirmas.reviso,
     });
   }
 
@@ -732,7 +770,10 @@ export default function EnvioConcentrado() {
                 ordenes={ordenesSeleccionadas}
                 agrupacion={agrupacion}
                 generadoPor={user?.nombre ?? user?.username}
-                firmaElaboro={firmaElaboroUrl}
+firmaAutorizo={firmaElaboroUrl}
+                  firmaReviso={firmaRevisoUrl}
+                  nombreAutorizo={nombresFirmas.autorizo}
+nombreReviso={nombresFirmas.reviso}
               />
             )}
           </div>
@@ -801,7 +842,8 @@ export default function EnvioConcentrado() {
               ordenes={ordenesSeleccionadas}
               agrupacion={agrupacion}
               generadoPor={user?.nombre ?? user?.username}
-              firmaElaboro={firmaElaboroUrl}
+              firmaAutorizo={firmaElaboroUrl}
+              firmaReviso={firmaRevisoUrl}
             />
           )}
         </div>,
