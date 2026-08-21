@@ -148,9 +148,9 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 .SelectMany(p => p.AccionesOrigen)
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion);
             if (accion?.TipoAccion?.Codigo == "ENVIAR" && !solicitud.FechaEnvio.HasValue)
-                solicitud.FechaEnvio = DateTime.UtcNow;
+                solicitud.FechaEnvio = DateTime.Now;
 
-            solicitud.FechaModificacion = DateTime.UtcNow;
+            solicitud.FechaModificacion = DateTime.Now;
 
             // validacion de límite por periodo si la acción cierra la solicitud
             var nuevoEstado = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
