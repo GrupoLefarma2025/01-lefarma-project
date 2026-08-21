@@ -298,6 +298,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
+                if (idUsuario <= 0)
+                    return CommonErrors.Validation("idUsuario", "El usuario es inválido, posiblemente no esté autenticado.");
+
                 var folio = await _repo.GenerarFolioAsync();
 
                 var tipoImpuestoIds = request.Partidas
@@ -346,7 +349,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (workflow is null)
                     return CommonErrors.Conflict("Workflow", $"No existe un workflow activo para 'ORDEN_COMPRA'.");
 
-                var validacionTransporte = await ValidarFolioTransporteAsync(request, ct);
+                var validacionTransporte = await ValidarFolioTransporteAsync(request, null, ct);
                 if (validacionTransporte.IsError)
                     return validacionTransporte.Errors;
 
@@ -474,6 +477,9 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
+                if (idUsuario <= 0)
+                    return CommonErrors.Validation("idUsuario", "El usuario es inválido, posiblemente no esté autenticado.");
+
                 var orden = await _repo.GetWithPartidasAsync(id);
                 if (orden == null)
                     return CommonErrors.NotFound("OrdenCompra", id.ToString());
@@ -484,7 +490,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 if (orden.Estado?.IdEstado != 1) // 1 = Creada
                     return CommonErrors.Conflict("OrdenCompra", "Solo se pueden editar órdenes en estado Creada.");
 
-                var validacionTransporteUpdate = await ValidarFolioTransporteAsync(request, ct);
+                var validacionTransporteUpdate = await ValidarFolioTransporteAsync(request, orden.IdOrden, ct);
                 if (validacionTransporteUpdate.IsError)
                     return validacionTransporteUpdate.Errors;
 
@@ -787,7 +793,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         /// Si el tipo de gasto es Transportes, exige FolioTransporte y valida que exista en
         /// enviosCab (tipoTraslado = 'transporte externo') y que no esté usado en otra orden.
         /// </summary>
-        private async Task<ErrorOr<Success>> ValidarFolioTransporteAsync(CreateOrdenCompraRequest request, CancellationToken ct)
+        private async Task<ErrorOr<Success>> ValidarFolioTransporteAsync(CreateOrdenCompraRequest request, int? idOrden, CancellationToken ct)
         {
             var esTransportes = await _context.TiposGasto.AsNoTracking()
                 .AnyAsync(t => t.IdTipoGasto == request.IdTipoGasto
@@ -817,9 +823,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
 
             var usado = await _context.OrdenesCompra.AsNoTracking()
                 .AnyAsync(o => o.FolioTransporte == folio
-                            && o.IdOrden != (request.IdOrden ?? 0)
+                            && (idOrden == null || o.IdOrden != idOrden)// excluye la orden actual si es edición
                             && o.IdEstado != idRechazada
                             && o.IdEstado != idCancelada, ct);
+
+            //Si el folio ya está en uso y no es la misma orden que se está editando, se lanza conflicto
             if (usado)
                 return CommonErrors.Conflict("FolioTransporte", "Este folio de transporte ya fue utilizado en otra orden");
 
