@@ -13,7 +13,8 @@
 --   usuario de ejecución tenga READ sobre Asokam (mismo servidor 192.168.4.2).
 --
 -- Clasificación por institución (derivable, no manual):
---   La lógica canónica vive en Asokam dbo.vwDiarioDeVentas (CASE ClienteAgrupado).
+--   La lógica canónica vive en Asokam dbo.vwDiarioDeVentas (CASE cuyo nombre
+--   original es ClienteAgrupado; en el módulo se expone como 'institucion').
 --   IMSS=contacto 364, Bienestar=385, ISSSTE=370; los hospitales cuelgan como
 --   hijas vía codigoContactoPrincipal. Esta vista replica esa lógica para el
 --   catálogo de contactos (sin datos de venta). Ver ADR 00001 §1.2.12 y

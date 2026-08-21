@@ -421,6 +421,14 @@ Antes de fijar columnas se consultó la BD real (`Asokam` en 192.168.4.2, solo l
 | `estado` con CHECK en `talleres` | State machine explícita del ciclo de vida | CHECK con los 8 estados + validación de transiciones en el servicio (la BD rechaza valores inválidos, el servicio rechaza saltos ilegales) |
 | Scripts numerados DbUp (0002, 0003) | Pipeline del repo: orden por id, guards idempotentes, `app.SchemaVersions` | Cada cambio nuevo = script `0004_...` con guards `IF NOT EXISTS`; nunca editar un script ya aplicado |
 
+### 1.5 Glosario — Qué es cada cosa
+
+| Término | Qué es | Cómo se obtiene |
+|---|---|---|
+| **CLUES** | Clave Única de Establecimientos de Salud. Código oficial de 8 caracteres con el que la Secretaría de Salud identifica cada hospital/clínica/unidad médica en México (ej. `CSST0608091`). | Solo se muestra: viene de Asokam, columna `clues` del contacto. No se edita. |
+| **con_sia** | Indicador bit (sí/no) de que el hospital tiene contrato SIA. SIA = Servicio Integral de Anestesias (programa interno de anestesias que se realiza en el hospital). | Se captura manualmente (dato de negocio). Si está marcado, en el clasificador de ventas aparece como SIA IMSS. |
+| **sector** | Clasificación de la institución a la que pertenece el hospital (gerencia/segmento comercial): IMSS, Bienestar, ISSSTE, SIA IMSS, Instituciones, Descentralizado o Privado. | No se captura a mano: se deriva con la lógica `institucion` (en Asokam la columna calculada se llama `ClienteAgrupado`) de `dbo.vwDiarioDeVentas` y se resuelve en la vista `vw_hospitales_clasificados`. El módulo solo lo muestra y lo usa para filtrar. |
+
 ---
 
 ## Fase 2 — Backend

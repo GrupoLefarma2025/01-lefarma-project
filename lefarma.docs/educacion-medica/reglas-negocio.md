@@ -659,7 +659,7 @@ La clasificación **se deriva de la jerarquía** de `genContactosCat.codigoConta
 | **370** | ISSSTE | 8 |
 | **385** | Bienestar | 4,225 |
 
-La **lógica de clasificación YA EXISTE** en `dbo.vwDiarioDeVentas` (`CASE ClienteAgrupado`):
+La **lógica de clasificación YA EXISTE** en `dbo.vwDiarioDeVentas` (columna calculada `ClienteAgrupado`; en el módulo se expone como `institucion`):
 
 | Condición | Clasificación |
 |-----------|---------------|
@@ -726,7 +726,7 @@ Investigación de la BD Asokam (2026-08-10): el módulo es **más greenfield de 
 | Gerencias (IMSS / Descentralizado) | `dbo.genGerenciasCat` |
 | Regiones × Delegación | `dbo.genRegionesXDelegacionCat` |
 | Estados | `dbo.genEstadosCat` |
-| Clasificación de clientes (vista) | `dbo.vwDiarioDeVentas` (`CASE ClienteAgrupado`) |
+| Clasificación de clientes (vista) | `dbo.vwDiarioDeVentas` (columna calculada `ClienteAgrupado`; en el módulo `institucion`) |
 
 **Fuera de alcance:** `genEstatusEventosCat`, `genTiposEventosCat` (licitaciones), `genUnidadesCompradorasCat` (procurement IMSS).
 
