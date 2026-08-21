@@ -12,9 +12,11 @@ import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/Env
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
 import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
 import { useAuthStore } from '@/store/authStore';
+import { FileViewer } from '@/components/archivos/FileViewer';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -40,7 +42,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { Printer, Paperclip, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download, Eye, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 
@@ -123,6 +125,9 @@ export default function EnvioConcentrado() {
   const [envioResult, setEnvioResult] = useState<EnvioConcentradoResponse | null>(null);
   const [envioError, setEnvioError] = useState<string | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null);
+  const [verSoporte, setVerSoporte] = useState(false);
+  const soporteInputRef = useRef<HTMLInputElement>(null);
   const [comentario, setComentario] = useState(
     'Autorización enviada desde el sistema de control de gastos'
   );
@@ -408,7 +413,10 @@ setNombresFirmas({
       formData.append('correo', '41@grupolefarma.com.mx');
       formData.append('correoCC', '');
       formData.append('archivo', pdfBlob, 'concentrado.pdf');
-      formData.append('tieneDocumentoSoporte', 'false');
+      formData.append('tieneDocumentoSoporte', archivoSoporte ? 'true' : 'false');
+      if (archivoSoporte) {
+        formData.append('archivoSoporte', archivoSoporte, archivoSoporte.name);
+      }
 
       const res = await API.post<ApiResponse<EnvioConcentradoResponse>>(
         '/ordenes/envio-concentrado/pdf',
@@ -417,6 +425,7 @@ setNombresFirmas({
       const data = res.data.data!;
       setEnvioResult(data);
       if ((data.exitosas ?? 0) > 0) {
+        setArchivoSoporte(null);
         setTimeout(fetchOrdenes, 800);
         setSelected(new Set());
       }
@@ -793,6 +802,66 @@ setNombresFirmas({
           </div>
 
           <div className="space-y-1.5 shrink-0">
+          <Label htmlFor="soporte-envio" className="text-sm font-medium">
+            PDF de soporte (opcional)
+          </Label>
+           {archivoSoporte && (
+    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800">
+      PDF seleccionado
+    </span>
+  )}
+          <div className="flex items-center gap-2">
+            <Input
+              id="soporte-envio"
+              type="file"
+              accept="application/pdf,.pdf"
+              ref={soporteInputRef}
+              disabled={enviando}
+              onChange={(e) => setArchivoSoporte(e.target.files?.[0] ?? null)}
+              className={cn(
+                archivoSoporte && "border-green-500 bg-green-50 file:text-green-700 hover:border-green-600"
+              )}
+            />
+            {/* {archivoSoporte && (
+              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                {archivoSoporte.name}
+              </span>
+            )} */}
+            {archivoSoporte && (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="h-8 gap-1 px-2"
+                onClick={() => setVerSoporte(true)}
+                disabled={enviando}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Ver
+              </Button>
+            )}
+            {archivoSoporte && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => {
+                  setArchivoSoporte(null);
+                  if (soporteInputRef.current) soporteInputRef.current.value = '';
+                }}
+                disabled={enviando}
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+              Este pdf se enviará como <code className="font-mono">documento de soporte</code> para el envío concentrado. Solo se acepta uno y en formato PDF.
+            </p>
+          </div>
+
+          <div className="space-y-1.5 shrink-0">
             <Label htmlFor="comentario-envio" className="text-sm font-medium">
               Comentario del envío
             </Label>
@@ -842,6 +911,12 @@ setNombresFirmas({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Vista previa del PDF de soporte */}
+      <FileViewer
+        localFile={archivoSoporte}
+        open={verSoporte}
+        onClose={() => setVerSoporte(false)}
+      />
 
       {createPortal(
         <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
