@@ -127,6 +127,5 @@ modelBuilder.Entity<DocumentoInterfaseSolicitud>(entity =>
             entity.Property(e => e.FechaHoraLlegada).HasColumnName("fechaHoraLlegada");
             entity.ToTable("enviosCab", "dbo");
         });
-        });
     }
 }
