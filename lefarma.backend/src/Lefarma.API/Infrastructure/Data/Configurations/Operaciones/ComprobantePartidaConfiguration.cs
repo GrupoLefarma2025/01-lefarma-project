@@ -19,6 +19,7 @@ public class ComprobantePartidaConfiguration : IEntityTypeConfiguration<Comproba
         builder.Property(c => c.ImporteAsignado).HasColumnName("importe_asignado").HasColumnType("decimal(18,2)").IsRequired();
         builder.Property(c => c.Notas).HasColumnName("notas").HasMaxLength(500);
         builder.Property(c => c.FechaAsignacion).HasColumnName("fecha_asignacion").HasDefaultValueSql("GETDATE()");
+        builder.Property(c => c.Activo).HasColumnName("activo").HasDefaultValue(true);
 
         builder.HasOne(cp => cp.Partida)
             .WithMany()

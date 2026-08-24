@@ -40,6 +40,10 @@
 
   <ItemGroup>
     <Folder Include="Features\Asistencias\" />
+    <InternalsVisibleTo Include="Lefarma.UnitTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Infrastructure\Data\Migrations\" />
     <Folder Include="Shared\Exceptions\" />
     <Folder Include="Validators\" />

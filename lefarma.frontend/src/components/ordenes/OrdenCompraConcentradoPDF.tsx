@@ -26,7 +26,12 @@ interface ProveedorInfo {
 
 interface Props {
   orden: OrdenCompraResponse;
-  firmaElaboro?: string;
+  firmaSolicitante?: string;
+  firmaReviso?: string;
+  firmaAutorizo?: string;
+  nombreSolicitante?: string;
+  nombreReviso?: string;
+  nombreAutorizo?: string;
   id?: string;
   proveedoresMap?: Map<number, ProveedorInfo>;
 }
@@ -307,7 +312,7 @@ const Logo: React.FC<{ src: string }> = ({ src }) => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
+export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso, firmaAutorizo, nombreSolicitante, nombreReviso, nombreAutorizo, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
@@ -492,13 +497,45 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
       <div style={s.firmaSection}>
         <div style={s.firmaHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {/* Elaboró (GAF) */}
-          <div style={s.firmaBox}>
-            <div style={s.firmaLabel}>Elaboró (GAF)</div>
+          {/* Solicitante */}
+          {/* <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreSolicitante ? `Solicitante — ${nombreSolicitante}` : 'Solicitante'}</div>
             <div style={s.firmaContent}>
-              {firmaElaboro ? (
+              {firmaSolicitante ? (
                 <img
-                  src={firmaElaboro}
+                  src={firmaSolicitante}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={s.firmaPlaceholder}> sin firma </span>
+              )}
+            </div>
+          </div> */}
+          {/* Revisó */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó'}</div>
+            <div style={s.firmaContent}>
+              {firmaReviso ? (
+                <img
+                  src={firmaReviso}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={s.firmaPlaceholder}> sin firma </span>
+              )}
+            </div>
+          </div>
+          {/* Autorizó */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó'}</div>
+            <div style={s.firmaContent}>
+              {firmaAutorizo ? (
+                <img
+                  src={firmaAutorizo}
                   alt="Firma"
                   style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
                   crossOrigin="anonymous"
@@ -517,6 +554,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
           </div>
         </div>
       </div>
+
     </div>
   );
 }

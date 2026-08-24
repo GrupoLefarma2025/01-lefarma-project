@@ -128,6 +128,20 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 // Lógica específica OC: reset facturación en DEVOLVER
                 await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
 
+                // Documento JSON compartido: el tesorero escribe solo cuentaPagoTesorero,
+                // preservando las claves de los demas flujos (merge-on-write).
+                if (request.DatosAdicionales != null
+                    && request.DatosAdicionales.TryGetValue("cuentaPagoTesorero", out var cuentaRaw))
+                {
+                    var cuentaPago = ExtraerCuentaPago(cuentaRaw);
+                    if (cuentaPago != null)
+                    {
+                        orden.IdsCuentasBancarias = OrdenCompraDocumentoJson.MergeClavesJson(
+                            orden.IdsCuentasBancarias,
+                            new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuentaPago });
+                    }
+                }
+
                 // Actualizar estado de la orden + fechas de ciclo de vida
                 await ActualizarEstadoYFechasAsync(orden, resultado);
 
@@ -135,7 +149,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                     workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-                // Disparar notificación fire-and-forget (USANDO HELPER)
+// Disparar notificación fire-and-forget (USANDO HELPER)
                 var variables = ConstruirVariablesNotificacion(orden);
                 var partidasHtml = notificacion.IncluirPartidas
                     ? BuildPartidasTable(orden.Partidas,

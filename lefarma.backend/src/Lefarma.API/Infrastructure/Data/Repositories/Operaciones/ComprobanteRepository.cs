@@ -16,16 +16,16 @@ public class ComprobanteRepository : BaseRepository<Comprobante>, IComprobanteRe
     public async Task<Comprobante?> GetByIdConAsignacionesAsync(int idComprobante, CancellationToken ct = default)
         => await _context.Comprobantes
             .Include(c => c.Asignaciones)
-            .FirstOrDefaultAsync(c => c.IdComprobante == idComprobante, ct);
+            .FirstOrDefaultAsync(c => c.IdComprobante == idComprobante && c.Activo, ct);
 
     public async Task<bool> UuidExisteAsync(string uuid, CancellationToken ct = default)
         => await _context.Comprobantes.AnyAsync(c =>
-            c.DatosAdicionales != null && EF.Functions.Like(c.DatosAdicionales, $"%\"uuid\":\"{uuid}\"%"), ct);
+            c.Activo && c.DatosAdicionales != null && EF.Functions.Like(c.DatosAdicionales, $"%\"uuid\":\"{uuid}\"%"), ct);
 
     public async Task<IEnumerable<ComprobantePartida>> GetAsignacionesByPartidaAsync(int idPartida, CancellationToken ct = default)
         => await _context.ComprobantesPartidas
             .Include(cp => cp.Comprobante)
-            .Where(cp => cp.IdPartida == idPartida)
+            .Where(cp => cp.IdPartida == idPartida && cp.Comprobante!.Activo && cp.Activo)
             .OrderByDescending(cp => cp.FechaAsignacion)
             .ToListAsync(ct);
 }

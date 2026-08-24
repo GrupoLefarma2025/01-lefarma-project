@@ -89,12 +89,15 @@ public sealed class SatValidationService : ISatValidationService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "No se pudo contactar al SAT para validar UUID {Uuid}", uuid);
+            _logger.LogError(ex,
+                "SAT request failed: UUID={Uuid}, ExceptionType={Type}, Message={Msg}",
+                uuid, ex.GetType().Name, ex.Message);
             return new SatValidacionResult(
                 Contactado: false,
                 Estado: null,
-                CodigoEstatus: null,
-                EstatusCancelacion: null);
+                CodigoEstatus: $"Error de conexion: {ex.GetType().Name}",
+                EstatusCancelacion: null,
+                PermitirAvanzar: false);
         }
     }
 
@@ -109,7 +112,9 @@ public sealed class SatValidationService : ISatValidationService
                 .FirstOrDefault(e => e.Name.LocalName == "ConsultaResult");
 
             if (result is null)
+            {
                 return new SatValidacionResult(false, null, null, null);
+            }
 
             var estado = result.Descendants()
                 .FirstOrDefault(e => e.Name.LocalName == "Estado")?.Value;
@@ -126,7 +131,7 @@ public sealed class SatValidationService : ISatValidationService
                 CodigoEstatus: codigo,
                 EstatusCancelacion: string.IsNullOrWhiteSpace(cancelacion) ? null : cancelacion);
         }
-        catch
+        catch (Exception ex)
         {
             return new SatValidacionResult(false, null, null, null);
         }

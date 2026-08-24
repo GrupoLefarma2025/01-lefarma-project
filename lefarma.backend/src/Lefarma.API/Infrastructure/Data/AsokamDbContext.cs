@@ -23,8 +23,9 @@ public class AsokamDbContext : DbContext
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
     public DbSet<Documento> Documentos { get; set; } = null!;
     public DbSet<DocumentoInterfaseOC> DocumentosInterfaseOC { get; set; } = null!;
-    public DbSet<DocumentoInterfaseSolicitud> DocumentosInterfaseSolicitud { get; set; } = null!;
+public DbSet<DocumentoInterfaseSolicitud> DocumentosInterfaseSolicitud { get; set; } = null!;
     public DbSet<GenCalendarioReg> GenCalendarioReg { get; set; } = null!;
+    public DbSet<EnviosCab> EnviosCab { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,12 +108,25 @@ public class AsokamDbContext : DbContext
             entity.ToTable("DocumentosInterfaseOC", "app");
         });
 
-        modelBuilder.Entity<DocumentoInterfaseSolicitud>(entity =>
+modelBuilder.Entity<DocumentoInterfaseSolicitud>(entity =>
         {
             entity.HasKey(e => e.IdDocumentoFirmar);
             entity.Property(e => e.IdDocumentoFirmar).HasColumnName("id_documento_firmar");
             entity.Property(e => e.IdEnvio).HasColumnName("id_envio");
             entity.ToTable("DocumentosInterfaseSolicitud", "app");
+        });
+
+        modelBuilder.Entity<EnviosCab>(entity =>
+        {
+            entity.HasKey(e => e.CodigoEnvio);
+            entity.Property(e => e.CodigoEnvio).HasColumnName("codigoEnvio").ValueGeneratedNever();
+            entity.Property(e => e.NombreTraslado).HasColumnName("nombreTraslado");
+            entity.Property(e => e.TipoTraslado).HasColumnName("tipoTraslado");
+            entity.Property(e => e.Estado).HasColumnName("estado");
+            entity.Property(e => e.FechaHoraSalida).HasColumnName("fechaHoraSalida");
+            entity.Property(e => e.FechaHoraLlegada).HasColumnName("fechaHoraLlegada");
+            entity.ToTable("enviosCab", "dbo");
+        });
         });
     }
 }
