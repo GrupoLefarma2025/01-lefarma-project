@@ -118,6 +118,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddDbContext<AsokamDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("AsokamConnection")));
 
+builder.Services.AddDbContext<AsistenciasDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("AsistenciasConnection")));
+
 // Repositorios
 builder.Services.AddScoped<IEmpresaRepository, EmpresaRepository>();
 builder.Services.AddScoped<ISucursalRepository, SucursalRepository>();

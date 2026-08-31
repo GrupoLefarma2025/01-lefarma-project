@@ -58,6 +58,17 @@ function getMes(d: string) {
   }
 }
 
+/** Folio + partida cell as 3 intentional lines ('OC-2026' / '00171' / '- 1'), mirroring the
+ *  jsPDF table; cell styles use white-space: pre-line so '\n' breaks the line. Falls back to
+ *  the whole folio when it has fewer than 3 dash-separated segments. All '-' preserved. */
+function folioPartidaCell(folio: string, numeroPartida: number): string {
+  const parts = folio.split('-');
+  if (parts.length >= 3) {
+    return `${parts.slice(0, -1).join('-')}\n${parts[parts.length - 1]}\n- ${numeroPartida}`;
+  }
+  return `${folio}\n- ${numeroPartida}`;
+}
+
 function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): string {
   switch (agrupacion) {
     case 'sucursal':
@@ -88,10 +99,9 @@ interface OrdenRow {
   descuento: number;
   iva: number;
   otrosImpuestos: number;
+  retenciones: number;
   importeTotal: number;
   formaPago: string;
-  medioPago: string;
-  notaOrden: string;
   groupKey: string;
 }
 
@@ -108,13 +118,14 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       return s + base * (p.porcentajeIva / 100);
     }, 0);
     const otrosImpuestos = o.partidas.reduce((s, p) => s + p.otrosImpuestos, 0);
+    const retenciones = o.partidas.reduce((s, p) => s + p.totalRetenciones, 0);
     const importeTotal = o.partidas.reduce((s, p) => s + p.total, 0);
     const descripcion = o.partidas.map((p) => p.descripcion).join('\n');
     const unidadMedida = o.partidas.map((p) => p.unidadMedidaNombre ?? String(p.idUnidadMedida)).join('\n');
 
     rows.push({
       folio: o.folio,
-      fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
+      fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
       solicitante: o.solicitanteNombre ?? '—',
       fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
       mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
@@ -128,10 +139,9 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       descuento,
       iva,
       otrosImpuestos,
+      retenciones,
       importeTotal,
       formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
-      medioPago: o.notaFormaPago ?? '—',
-      notaOrden: o.notasGenerales ?? '—',
       groupKey: gk,
     });
   }
@@ -172,10 +182,9 @@ interface PartidaRow {
   descuento: number;
   iva: number;
   otrosImpuestos: number;
+  retenciones: number;
   importeTotal: number;
   formaPago: string;
-  medioPago: string;
-  notaOrden: string;
   groupKey: string;
 }
 
@@ -189,7 +198,7 @@ function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: Agrupacion
         idOrden: o.idOrden,
         folio: o.folio,
         numeroPartida: p.numeroPartida,
-        fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
+        fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
         solicitante: o.solicitanteNombre ?? '—',
         fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
         mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
@@ -203,10 +212,9 @@ function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: Agrupacion
         descuento: p.descuento,
         iva: base * (p.porcentajeIva / 100),
         otrosImpuestos: p.otrosImpuestos,
+        retenciones: p.totalRetenciones,
         importeTotal: p.total,
-        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
-        medioPago: o.notaFormaPago ?? '—',
-        notaOrden: o.notasGenerales ?? '—',
+        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : o.cuentaPagoTesorero?.formaPago ?? '—',
         groupKey: gk,
       });
     }
@@ -443,26 +451,28 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
+// Sums to exactly 100%: 'Comentario de Pago' and 'Nota de la Orden' removed and their
+// 12.16% redistributed proportionally across the remaining columns (plus rounding fix
+// on Descripción so the total is exact).
 const COL_WIDTHS = [
-  '6%',   // Folio
-  '4%',   // Fecha elab
-  '5%',   // Solicitante
-  '4%',   // F. Límite Pago
-  '3%',   // Mes
-  '5%',   // Sucursal
-  '2.5%', // Cantidad
-  '3%',   // U. Medida
-  '7%',   // Proveedor
-  '10%',  // Descripción
-  '5%',   // Precio Unit
-  '5%',   // Subtotal
-  '4%',   // Descuento
-  '5%',   // Impuesto
-  '4%',   // Otros Imp
-  '5.5%', // Importe Total
-  '6%',   // Forma Pago
-  '6%',   // Comentario de Pago
-  '6%',   // Nota de la Orden
+  '7.47%',  // Folio
+  '4.62%',  // Fecha elab
+  '4.84%',  // Solicitante
+  '5.34%',  // F. Límite Pago
+  '3.46%',  // Mes
+  '5.12%',  // Sucursal
+  '2.88%',  // Cantidad
+  '3.46%',  // U. Medida
+  '8.08%',  // Proveedor
+  '11.56%', // Descripción
+  '5.77%',  // Precio Unit
+  '5.77%',  // Subtotal
+  '4.62%',  // Descuento
+  '5.77%',  // Impuesto
+  '4.62%',  // Otros Imp
+  '4.62%',  // Retenciones
+  '6.35%',  // Importe Total
+  '5.65%',  // Forma Pago
 ];
 
 const COL_HEADERS = [
@@ -481,10 +491,9 @@ const COL_HEADERS = [
   'Descuento',
   'Impuesto',
   'Otros Imp.',
+  'Retenc.',
   'Importe Total',
   'Forma Pago',
-  'Comentario de Pago',
-  'Nota de la Orden',
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -542,7 +551,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
               <thead>
                 <tr>
                   {COL_HEADERS.map((h, i) => (
-                    <th key={i} style={i >= 10 && i <= 15 ? s.thR : s.th}>{h}</th>
+                    <th key={i} style={i >= 10 && i <= 16 ? s.thR : s.th}>{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -564,7 +573,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                         const isFirst = i === 0;
                         return (
                           <tr key={`${orden.idOrden}-${i}`}>
-                            <td style={td}>{`${r.folio} - ${r.numeroPartida}`}</td>
+                            <td style={td}>{folioPartidaCell(r.folio, r.numeroPartida)}</td>
                             <td style={td}>{r.fechaElaboracion}</td>
                             <td style={td}>{r.solicitante}</td>
                             <td style={td}>{r.fechaLimitePago}</td>
@@ -579,10 +588,9 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                             <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
                             <td style={tdr}>{fmtMoney(r.iva)}</td>
                             <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
+                            <td style={tdr}>{r.retenciones > 0 ? fmtMoney(r.retenciones) : '—'}</td>
                             <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>
                             {isFirst && <td style={td} rowSpan={n}>{r.formaPago}</td>}
-                            {isFirst && <td style={td} rowSpan={n}>{r.medioPago}</td>}
-                            {isFirst && <td style={td} rowSpan={n}>{r.notaOrden}</td>}
                           </tr>
                         );
                       })}
@@ -604,7 +612,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                           Subtotal — Orden {orden.folio}
                         </td>
                         <td
-                          colSpan={3}
+                          colSpan={2}
                           style={{
                             padding: '2px 4px',
                             border: `1px solid ${BORDER}`,
@@ -641,7 +649,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     Subtotal — {grupo}
                   </td>
                   <td
-                    colSpan={3}
+                    colSpan={2}
                     style={{
                       padding: '2px 4px',
                       border: `1px solid ${BORDER}`,
@@ -673,7 +681,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
             <thead>
               <tr>
                 {COL_HEADERS.map((h, i) => (
-                  <th key={i} style={i >= 10 && i <= 15 ? s.thR : s.th}>{h}</th>
+                  <th key={i} style={i >= 10 && i <= 16 ? s.thR : s.th}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -699,10 +707,9 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
                     <td style={tdr}>{fmtMoney(r.iva)}</td>
                     <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
+                    <td style={tdr}>{r.retenciones > 0 ? fmtMoney(r.retenciones) : '—'}</td>
                     <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>
                     <td style={td}>{r.formaPago}</td>
-                    <td style={td}>{r.medioPago}</td>
-                    <td style={td}>{r.notaOrden}</td>
                   </tr>
                 );
               })}
@@ -724,7 +731,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                   Subtotal — {grupo}
                 </td>
                 <td
-                  colSpan={3}
+                  colSpan={2}
                   style={{
                     padding: '2px 4px',
                     border: `1px solid ${BORDER}`,

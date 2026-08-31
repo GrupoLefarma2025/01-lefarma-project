@@ -42,6 +42,17 @@ function getMes(d: string) {
   }
 }
 
+/** Folio + partida cell as 3 intentional lines so autoTable never breaks numbers mid-token:
+ *  'OC-2026' / '00171' / '- 1'. Falls back to the whole folio when it has fewer than 3
+ *  dash-separated segments. All '-' characters are preserved. */
+function folioPartidaCell(folio: string, numeroPartida: number): string {
+  const parts = folio.split('-');
+  if (parts.length >= 3) {
+    return `${parts.slice(0, -1).join('-')}\n${parts[parts.length - 1]}\n- ${numeroPartida}`;
+  }
+  return `${folio}\n- ${numeroPartida}`;
+}
+
 function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): string {
   switch (agrupacion) {
     case 'sucursal':
@@ -81,10 +92,9 @@ interface OrdenRow {
   descuento: number;
   iva: number;
   otrosImpuestos: number;
+  retenciones: number;
   importeTotal: number;
   formaPago: string;
-  medioPago: string;
-  notaOrden: string;
   groupKey: string;
 }
 
@@ -101,13 +111,14 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       return s + base * (p.porcentajeIva / 100);
     }, 0);
     const otrosImpuestos = o.partidas.reduce((s, p) => s + p.otrosImpuestos, 0);
+    const retenciones = o.partidas.reduce((s, p) => s + p.totalRetenciones, 0);
     const importeTotal = o.partidas.reduce((s, p) => s + p.total, 0);
     const descripcion = o.partidas.map((p) => p.descripcion).join('\n');
     const unidadMedida = o.partidas.map((p) => p.unidadMedidaNombre ?? String(p.idUnidadMedida)).join('\n');
 
     rows.push({
       folio: o.folio,
-      fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
+      fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
       solicitante: nombreSolicitanteMostrar(o),
       fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
       mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
@@ -121,10 +132,9 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       descuento,
       iva,
       otrosImpuestos,
+      retenciones,
       importeTotal,
-      formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
-      medioPago: o.notaFormaPago ?? '—',
-      notaOrden: o.notasGenerales ?? '—',
+      formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : o.cuentaPagoTesorero?.formaPago ?? '—',
       groupKey: gk,
     });
   }
@@ -165,10 +175,9 @@ interface PartidaRow {
   descuento: number;
   iva: number;
   otrosImpuestos: number;
+  retenciones: number;
   importeTotal: number;
   formaPago: string;
-  medioPago: string;
-  notaOrden: string;
   groupKey: string;
 }
 
@@ -182,7 +191,7 @@ function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: Agrupacion
         idOrden: o.idOrden,
         folio: o.folio,
         numeroPartida: p.numeroPartida,
-        fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
+        fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
         solicitante: nombreSolicitanteMostrar(o),
         fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
         mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
@@ -196,10 +205,9 @@ function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: Agrupacion
         descuento: p.descuento,
         iva: base * (p.porcentajeIva / 100),
         otrosImpuestos: p.otrosImpuestos,
+        retenciones: p.totalRetenciones,
         importeTotal: p.total,
-        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
-        medioPago: o.notaFormaPago ?? '—',
-        notaOrden: o.notasGenerales ?? '—',
+        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : o.cuentaPagoTesorero?.formaPago ?? '—',
         groupKey: gk,
       });
     }
@@ -285,7 +293,7 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
-    format: 'a4',
+    format: 'letter',
   });
 
   const fechaStr = new Date().toLocaleDateString('es-MX', {
@@ -343,17 +351,30 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
   const colHeaders = [
     'Folio', 'F. Elab.', 'Solicitante', 'F. Límite Pago', 'Mes', 'Sucursal',
     'Cant.', 'U. Med.', 'Proveedor', 'Descripción', 'P. Unitario', 'Subtotal',
-    'Descuento', 'Impuesto', 'Otros Imp.', 'Importe Total', 'Forma Pago',
-    'Comentario de Pago', 'Nota de la Orden'
+    'Descuento', 'Impuesto', 'Otros Imp.', 'Retenc.', 'Importe Total', 'Forma Pago'
   ];
 
+  // Width tweaks (pass 2): Folio ÷2, F. Límite Pago ×0.7, Mes ×0.7, U. Med. ×0.7, F. Elab. ×0.9
+  // Pass 3: Solicitante −15% (20→17) and Sucursal −10% (18→16.2) to free horizontal space.
   const colStyles = [
-    { cellWidth: 18 }, { cellWidth: 12 }, { cellWidth: 20 }, { cellWidth: 14 },
-    { cellWidth: 12 }, { cellWidth: 18 }, { cellWidth: 10 }, { cellWidth: 14 },
+    { cellWidth: 10.4 },  { cellWidth: 10.8 }, { cellWidth: 17 }, { cellWidth: 11.8 },
+    { cellWidth: 8.4 }, { cellWidth: 16.2 }, { cellWidth: 10 }, { cellWidth: 9.8 },
     { cellWidth: 22 }, { cellWidth: 30 }, { cellWidth: 18 }, { cellWidth: 18 },
-    { cellWidth: 16 }, { cellWidth: 16 }, { cellWidth: 14 }, { cellWidth: 20 },
-    { cellWidth: 20 }, { cellWidth: 24 }, { cellWidth: 24 }
+    { cellWidth: 16 }, { cellWidth: 16 }, { cellWidth: 14 }, { cellWidth: 14 },
+    { cellWidth: 20 },
+    { cellWidth: 16.6 }
   ];
+
+  // Scale-to-page: shrink every column by the same factor so the table fits exactly the
+  // printable width of the current paper (Letter landscape 279mm − 10mm margins per side
+  // = 259mm; A4 landscape would give 277mm). Derived from the live page size so the table
+  // always fits whatever format jsPDF uses. Without this, right-side columns get cut off.
+  const PRINTABLE_WIDTH_MM = pageW - 20;
+  const totalConfiguredWidth = colStyles.reduce((sum, c) => sum + c.cellWidth, 0);
+  const fitFactor = PRINTABLE_WIDTH_MM / totalConfiguredWidth;
+  for (const c of colStyles) {
+    c.cellWidth = Math.round(c.cellWidth * fitFactor * 100) / 100;
+  }
 
   // ── GROUPS ──
   for (let gi = 0; gi < grupos.length; gi++) {
@@ -378,7 +399,7 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
         orden.partidas.forEach((r, i) => {
           const isFirst = i === 0;
           const cells = [
-            `${r.folio} - ${r.numeroPartida}`,
+            folioPartidaCell(r.folio, r.numeroPartida),
             r.fechaElaboracion,
             r.solicitante,
             r.fechaLimitePago,
@@ -393,17 +414,16 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
             r.descuento > 0 ? fmtMoney(r.descuento) : '—',
             fmtMoney(r.iva),
             r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—',
+            r.retenciones > 0 ? fmtMoney(r.retenciones) : '—',
             fmtMoney(r.importeTotal),
             isFirst ? r.formaPago : '',
-            isFirst ? r.medioPago : '',
-            isFirst ? r.notaOrden : '',
           ];
           body.push(tinted ? cells.map((c) => ({ content: c, styles: { fillColor: ORDER_TINT } })) : cells);
         });
         // Subtotal por orden — separador sutil entre órdenes
         body.push([
           { content: `Subtotal — Orden ${orden.folio}`, colSpan: 16, styles: { fontStyle: 'bold', fillColor: ORDER_SUBTOTAL_BG } },
-          { content: fmtMoney(orden.subtotal), colSpan: 3, styles: { fontStyle: 'bold', fillColor: ORDER_SUBTOTAL_BG, halign: 'right' } }
+          { content: fmtMoney(orden.subtotal), colSpan: 2, styles: { fontStyle: 'bold', fillColor: ORDER_SUBTOTAL_BG, halign: 'right' } }
         ]);
       });
     } else {
@@ -425,10 +445,9 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
           r.descuento > 0 ? fmtMoney(r.descuento) : '—',
           fmtMoney(r.iva),
           r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—',
+          r.retenciones > 0 ? fmtMoney(r.retenciones) : '—',
           fmtMoney(r.importeTotal),
           r.formaPago,
-          r.medioPago,
-          r.notaOrden,
         ]);
       });
     }
@@ -436,14 +455,23 @@ export async function generarConcentradoPDF(options: GenerarPdfOptions): Promise
     // Subtotal row (grupo)
     body.push([
       { content: `Subtotal — ${grupo}`, colSpan: 16, styles: { fontStyle: 'bold', fillColor: '#d9e8f8' } },
-      { content: fmtMoney(subtotal), colSpan: 3, styles: { fontStyle: 'bold', fillColor: '#d9e8f8', halign: 'right' } }
+      { content: fmtMoney(subtotal), colSpan: 2, styles: { fontStyle: 'bold', fillColor: '#d9e8f8', halign: 'right' } }
     ]);
 
-    autoTable(doc, {
-      head: [colHeaders],
-      body,
-      startY,
-      theme: 'grid',
+  // Excel-style: numeric body columns right-aligned (headers keep current alignment)
+  // 6: Cant. · 10: P. Unitario · 11: Subtotal · 12: Descuento · 13: Impuesto · 14: Otros Imp. · 15: Retenciones · 16: Importe Total
+  const RIGHT_ALIGNED_COLS = new Set([6, 10, 11, 12, 13, 14, 15, 16]);
+
+  autoTable(doc, {
+    head: [colHeaders],
+    body,
+    startY,
+    theme: 'grid',
+    didParseCell: (data) => {
+      if (data.section === 'body' && RIGHT_ALIGNED_COLS.has(data.column.index)) {
+        data.cell.styles.halign = 'right';
+      }
+    },
       styles: {
         fontSize: 6,
         cellPadding: 1,
