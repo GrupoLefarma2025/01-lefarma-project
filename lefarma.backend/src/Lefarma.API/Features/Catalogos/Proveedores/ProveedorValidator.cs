@@ -31,22 +31,22 @@ public class CreateProveedorRequestValidator : AbstractValidator<CreateProveedor
     }
 }
 
-public class CreateProveedorDetalleRequestValidator : AbstractValidator<CreateProveedorDetalleRequest?>
+public class CreateProveedorDetalleRequestValidator : AbstractValidator<CreateProveedorDetalleRequest>
 {
     public CreateProveedorDetalleRequestValidator()
     {
-        RuleFor(x => x!.PersonaContactoNombre)
+        RuleFor(x => x.PersonaContactoNombre)
             .MaximumLength(255).WithMessage("La persona de contacto no puede tener más de 255 caracteres")
-            .When(x => !string.IsNullOrWhiteSpace(x!.PersonaContactoNombre));
+            .When(x => !string.IsNullOrWhiteSpace(x.PersonaContactoNombre));
 
-        RuleFor(x => x!.ContactoTelefono)
+        RuleFor(x => x.ContactoTelefono)
             .MaximumLength(20).WithMessage("El teléfono no puede tener más de 20 caracteres")
-            .When(x => !string.IsNullOrWhiteSpace(x!.ContactoTelefono));
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoTelefono));
 
-        RuleFor(x => x!.ContactoEmail)
+        RuleFor(x => x.ContactoEmail)
             .MaximumLength(255).WithMessage("El email no puede tener más de 255 caracteres")
             .EmailAddress().WithMessage("El email no tiene un formato válido")
-            .When(x => !string.IsNullOrWhiteSpace(x!.ContactoEmail));
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoEmail));
     }
 }
 
@@ -82,22 +82,22 @@ public class UpdateProveedorRequestValidator : AbstractValidator<UpdateProveedor
     }
 }
 
-public class UpdateProveedorDetalleRequestValidator : AbstractValidator<UpdateProveedorDetalleRequest?>
+public class UpdateProveedorDetalleRequestValidator : AbstractValidator<UpdateProveedorDetalleRequest>
 {
     public UpdateProveedorDetalleRequestValidator()
     {
-        RuleFor(x => x!.PersonaContactoNombre)
+        RuleFor(x => x.PersonaContactoNombre)
             .MaximumLength(255).WithMessage("La persona de contacto no puede tener más de 255 caracteres")
-            .When(x => !string.IsNullOrWhiteSpace(x!.PersonaContactoNombre));
+            .When(x => !string.IsNullOrWhiteSpace(x.PersonaContactoNombre));
 
-        RuleFor(x => x!.ContactoTelefono)
+        RuleFor(x => x.ContactoTelefono)
             .MaximumLength(20).WithMessage("El teléfono no puede tener más de 20 caracteres")
-            .When(x => !string.IsNullOrWhiteSpace(x!.ContactoTelefono));
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoTelefono));
 
-        RuleFor(x => x!.ContactoEmail)
+        RuleFor(x => x.ContactoEmail)
             .MaximumLength(255).WithMessage("El email no puede tener más de 255 caracteres")
             .EmailAddress().WithMessage("El email no tiene un formato válido")
-            .When(x => !string.IsNullOrWhiteSpace(x!.ContactoEmail));
+            .When(x => !string.IsNullOrWhiteSpace(x.ContactoEmail));
     }
 }
 

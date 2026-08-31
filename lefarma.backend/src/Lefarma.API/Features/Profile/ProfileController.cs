@@ -79,6 +79,28 @@ public class ProfileController : ControllerBase
         }));
     }
 
+    [HttpGet("firma/check")]
+    [SwaggerOperation(Summary = "Verificar si el usuario tiene firma digital")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CheckSignature(CancellationToken cancellationToken = default)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuario no autenticado"
+            });
+
+        var result = await _profileService.HasFirmaAsync(userId.Value, cancellationToken);
+        return result.ToActionResult(this, tieneFirma => Ok(new ApiResponse<bool>
+        {
+            Success = true,
+            Data = tieneFirma
+        }));
+    }
+
     [HttpPost("firma")]
     [SwaggerOperation(Summary = "Subir firma digital")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]

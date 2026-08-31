@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import {
   DropdownMenu,
   DropdownMenuContent,

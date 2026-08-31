@@ -2,6 +2,7 @@ using ErrorOr;
 using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Profile.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -18,6 +19,7 @@ public class ProfileService : BaseService, IProfileService
 {
     private readonly AsokamDbContext _asokamContext;
     private readonly ApplicationDbContext _appContext;
+    private readonly UserPermissionService _permissionService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
     private readonly IWebHostEnvironment _env;
     protected override string EntityName => "Profile";
@@ -25,6 +27,7 @@ public class ProfileService : BaseService, IProfileService
     public ProfileService(
         AsokamDbContext asokamContext,
         ApplicationDbContext appContext,
+        UserPermissionService permissionService,
         IOptions<ArchivosSettings> archivosSettings,
         IWebHostEnvironment env,
         IWideEventAccessor wideEventAccessor)
@@ -32,6 +35,7 @@ public class ProfileService : BaseService, IProfileService
     {
         _asokamContext = asokamContext;
         _appContext = appContext;
+        _permissionService = permissionService;
         _archivosSettings = archivosSettings;
         _env = env;
     }
@@ -68,26 +72,8 @@ public class ProfileService : BaseService, IProfileService
                 .Select(ur => ur.Rol.NombreRol)
                 .ToListAsync(cancellationToken);
 
-            // Obtener permisos (de roles + directos)
-            var roleIds = await _asokamContext.UsuariosRoles
-                .Where(ur => ur.IdUsuario == userId)
-                .Select(ur => ur.IdRol)
-                .ToListAsync(cancellationToken);
-
-            var permisosFromRoles = await _asokamContext.RolesPermisos
-                .Include(rp => rp.Permiso)
-                .Where(rp => roleIds.Contains(rp.IdRol) && rp.Permiso.EsActivo)
-                .Select(rp => rp.Permiso.CodigoPermiso)
-                .ToListAsync(cancellationToken);
-
-            var permisosDirectos = await _asokamContext.UsuariosPermisos
-                .Include(up => up.Permiso)
-                .Where(up => up.IdUsuario == userId && up.Permiso.EsActivo)
-                .Where(up => up.FechaExpiracion == null || up.FechaExpiracion > DateTime.UtcNow)
-                .Select(up => up.Permiso.CodigoPermiso)
-                .ToListAsync(cancellationToken);
-
-            var permisos = permisosFromRoles.Union(permisosDirectos).Distinct().ToList();
+            // Permisos via cache compartido (5 min) — misma fuente que PermissionHandler
+            var permisos = (await _permissionService.GetPermissionsAsync(userId)).ToList();
 
             var response = new ProfileResponse
             {
@@ -100,7 +86,7 @@ public class ProfileService : BaseService, IProfileService
                 UltimoLogin = usuario.UltimoLogin,
                 FechaCreacion = usuario.FechaCreacion,
                 Roles = roles,
-                Permisos = permisos,
+                Permissions = permisos,
                 PuedeSeleccionarEmpresas = puedeSeleccionarEmpresas,
                 Detalle = detalle != null ? new UsuarioDetalleData
                 {
@@ -111,7 +97,6 @@ public class ProfileService : BaseService, IProfileService
                     Puesto = detalle.Puesto,
                     NumeroEmpleado = detalle.NumeroEmpleado,
                     FirmaPath = detalle.FirmaPath,
-                    FirmaDocumento = detalle.FirmaDocumento,
                     TelefonoOficina = detalle.TelefonoOficina,
                     Extension = detalle.Extension,
                     Celular = detalle.Celular,
@@ -176,9 +161,6 @@ public class ProfileService : BaseService, IProfileService
 
             if (!string.IsNullOrWhiteSpace(request.FirmaPath))
                 detalle.FirmaPath = request.FirmaPath;
-
-            if (request.FirmaDocumento.HasValue)
-                detalle.FirmaDocumento = request.FirmaDocumento.Value;
 
 
             if (!string.IsNullOrWhiteSpace(request.TelefonoOficina))
@@ -252,6 +234,23 @@ public class ProfileService : BaseService, IProfileService
         {
             EnrichWideEvent(action: "UpdateProfile", entityId: userId, exception: ex);
             return CommonErrors.DatabaseError("actualizar el perfil");
+        }
+    }
+
+    public async Task<ErrorOr<bool>> HasFirmaAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var tieneFirma = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPath), cancellationToken);
+
+            return tieneFirma;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "HasFirma", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("verificar la firma digital");
         }
     }
 

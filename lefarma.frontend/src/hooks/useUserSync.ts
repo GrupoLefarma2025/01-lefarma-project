@@ -1,6 +1,6 @@
 ﻿import { useEffect, useRef, useCallback } from 'react';
 import { sseService } from '@/services/sseService';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 import type { SseUserUpdatedEvent, SseConnectionState } from '@/types/sse.types';
 
 

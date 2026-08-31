@@ -28,8 +28,8 @@ export function useTableFilters<TData>({
   defaultVisibleColumns?: string[];
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
 }): UseTableFiltersReturn {
-  // Extract column IDs from column definitions
-  // Use useMemo to prevent recalculation on every render (Vercel best practice)
+  // Extraer IDs de columna de las definiciones de columnas
+  // Usar useMemo para evitar recálculo en cada render (buena práctica de Vercel)
   const allColumnIds = useMemo(() =>
     allColumns
       .map(col => col.id || (('accessorKey' in col && typeof col.accessorKey === 'string') ? col.accessorKey : '') || '')
@@ -37,7 +37,7 @@ export function useTableFilters<TData>({
     [allColumns]
   );
 
-  // State
+  // Estado
   const [activeFilters, setActiveFilters] = useState<ColumnFilter[]>([]);
   const [searchColumnIds, setSearchColumnIds] = useState<string[]>(defaultSearchColumns);
   const [visibleColumnIds, setVisibleColumnIds] = useState<string[]>(
@@ -45,27 +45,27 @@ export function useTableFilters<TData>({
   );
   const [columnFilterConfigs, setColumnFilterConfigs] = useState<Record<string, ColumnFilterConfig>>(initialColumnFilterConfigs);
 
-  // Track initialization to prevent auto-save race condition
+  // Trackear inicialización para prevenir race condition de auto-save
   const isInitialized = useRef(false);
   const isLoadingConfig = useRef(false);
 
-  // Keep a ref to the current value of allColumnIds to avoid stale closure issues
+  // Mantener un ref al valor actual de allColumnIds para evitar problemas de stale closure
   const allColumnIdsRef = useRef(allColumnIds);
   useEffect(() => {
     allColumnIdsRef.current = allColumnIds;
   }, [allColumnIds]);
 
-  // Load config on mount and when columns change
-  // Only load when allColumnIds has values (not empty)
+  // Cargar config al montar y cuando cambian las columnas
+  // Solo cargar cuando allColumnIds tiene valores (no vacío)
   useEffect(() => {
-    // Wait until allColumnIds is populated
+    // Esperar hasta que allColumnIds esté poblado
     if (allColumnIds.length === 0) {
       return;
     }
 
     isLoadingConfig.current = true;
     loadConfig();
-    // Use setTimeout to set flag false after all state updates are processed
+    // Usar setTimeout para poner el flag en false después de que se procesen todas las actualizaciones de state
     setTimeout(() => {
       isLoadingConfig.current = false;
       isInitialized.current = true;
@@ -73,10 +73,10 @@ export function useTableFilters<TData>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tableId, allColumnIds]);
 
-  // Actions
+  // Acciones
   const addFilter = useCallback((filter: ColumnFilter) => {
     setActiveFilters(prev => {
-      // Remove existing filter for same column
+      // Remover filtro existente para la misma columna
       const filtered = prev.filter(f => f.columnId !== filter.columnId);
       return [...filtered, filter];
     });
@@ -115,14 +115,14 @@ export function useTableFilters<TData>({
     }));
   }, []);
 
-  // Persistence
+  // Persistencia
   const saveConfig = useCallback((overrides?: { searchColumns?: string[]; visibleColumns?: string[] }) => {
-    // Use ref to get current value
+    // Usar ref para obtener el valor actual
     const currentAllColumnIds = allColumnIdsRef.current;
 
     const config: TableConfig = {
       tableId,
-      visibleColumns: overrides?.visibleColumns ?? visibleColumnIds, // Use override if provided, else use state
+      visibleColumns: overrides?.visibleColumns ?? visibleColumnIds, // Usar override si se proporciona, si no usar state
       searchColumns: overrides?.searchColumns ?? searchColumnIds,
       lastFilters: activeFilters.reduce((acc, filter) => {
         acc[filter.columnId] = filter;
@@ -135,7 +135,7 @@ export function useTableFilters<TData>({
 
   const loadConfig = useCallback(() => {
     const saved = getConfig(tableId);
-    // IMPORTANT: Read the CURRENT value from the ref to avoid stale closure
+    // IMPORTANTE: Leer el valor ACTUAL del ref para evitar stale closure
     const currentAllColumnIds = allColumnIdsRef.current;
 
     if (!currentAllColumnIds || currentAllColumnIds.length === 0) {
@@ -143,7 +143,7 @@ export function useTableFilters<TData>({
     }
 
     if (saved) {
-      // Load searchColumns from localStorage (respect user's selection)
+      // Cargar searchColumns desde localStorage (respeta selección del usuario)
       const cleanSearchColumns = saved.searchColumns.filter(id => id && currentAllColumnIds.includes(id));
       setSearchColumnIds(cleanSearchColumns);
 
@@ -154,8 +154,8 @@ export function useTableFilters<TData>({
         setColumnFilterConfigs(saved.columnFilterConfigs);
       }
 
-      // Load visibleColumns from localStorage (respect user's selection)
-      // If empty or missing, default to all columns
+      // Cargar visibleColumns desde localStorage (respeta selección del usuario)
+      // Si está vacío o falta, por defecto son todas las columnas
       const savedVisible = saved.visibleColumns && saved.visibleColumns.length > 0
         ? saved.visibleColumns.filter(id => currentAllColumnIds.includes(id))
         : currentAllColumnIds;
@@ -168,7 +168,7 @@ export function useTableFilters<TData>({
     }
   }, [tableId, defaultSearchColumns, defaultVisibleColumns, saveConfigToStorage]);
 
-  // Auto-save when state changes (only after initialization, not during load)
+  // Auto-save cuando cambia el state (solo después de inicialización, no durante load)
   useEffect(() => {
     if (isInitialized.current && !isLoadingConfig.current) {
       saveConfig();

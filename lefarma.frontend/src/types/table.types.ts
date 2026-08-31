@@ -1,45 +1,45 @@
 ﻿/**
- * Supported filter types based on column data type
+ * Tipos de filtro soportados según el tipo de dato de la columna
  */
 export type FilterType = 'text' | 'number' | 'boolean' | 'select' | 'date';
 
 /**
- * Operators for text filters
+ * Operadores para filtros de texto
  */
 export type TextOperator = 'contains' | 'exact' | 'startsWith' | 'endsWith';
 
 /**
- * Operators for number filters
+ * Operadores para filtros numéricos
  */
 export type NumberOperator = 'equals' | 'notEquals' | 'greaterThan' | 'lessThan' | 'between';
 
 /**
- * Values for boolean filters
+ * Valores para filtros booleanos
  */
 export type BooleanValue = 'all' | 'true' | 'false';
 
 /**
- * Active filter on a column
+ * Filtro activo en una columna
  */
 export interface ColumnFilter {
   columnId: string;
   type: FilterType;
   operator: TextOperator | NumberOperator | BooleanValue;
   value: string | number | boolean | string[] | number[];
-  displayLabel: string; // Human-readable label for badges
+  displayLabel: string; // Etiqueta legible para badges
 }
 
 /**
- * Configuration for a single column's filter behavior
+ * Configuración del comportamiento de filtro de una sola columna
  */
 export interface ColumnFilterConfig {
   type: FilterType;
-  // For 'select' type - available options
+  // Para tipo 'select' - opciones disponibles
   options?: { value: string; label: string }[];
-  // For 'number' type - min/max values
+  // Para tipo 'number' - valores min/max
   min?: number;
   max?: number;
-  // Extended filter settings (used in FilterConfig panel)
+  // Ajustes extendidos de filtro (usados en el panel FilterConfig)
   textOperator?: 'contains' | 'exact';
   textCaseSensitive?: boolean;
   numberMin?: number;
@@ -51,19 +51,19 @@ export interface ColumnFilterConfig {
 }
 
 /**
- * Configuration passed to DataTable for filters
+ * Configuración pasada a DataTable para filtros
  */
 export interface FilterConfig {
   tableId: string;
-  searchableColumns: string[]; // All columns that CAN be searched
-  defaultSearchColumns?: string[]; // Default columns to search (subset of searchableColumns)
-  defaultVisibleColumns?: string[]; // Default visible columns (subset of all columns)
+  searchableColumns: string[]; // Todas las columnas que PUEDEN ser buscadas
+  defaultSearchColumns?: string[]; // Columnas por defecto a buscar (subconjunto de searchableColumns)
+  defaultVisibleColumns?: string[]; // Columnas visibles por defecto (subconjunto de todas las columnas)
   columnFilterConfigs?: Record<string, ColumnFilterConfig>;
   onColumnFilterChange?: (columnId: string, config: ColumnFilterConfig) => void;
 }
 
 /**
- * Complete table configuration stored in localStorage
+ * Configuración completa de tabla almacenada en localStorage
  */
 export interface TableConfig {
   tableId: string;
@@ -74,16 +74,16 @@ export interface TableConfig {
 }
 
 /**
- * State returned by useTableFilters hook
+ * Estado retornado por el hook useTableFilters
  */
 export interface UseTableFiltersReturn {
-  // State
+  // Estado
   activeFilters: ColumnFilter[];
   searchColumnIds: string[];
   visibleColumnIds: string[];
   columnFilterConfigs: Record<string, ColumnFilterConfig>;
 
-  // Actions
+  // Acciones
   addFilter: (filter: ColumnFilter) => void;
   removeFilter: (columnId: string) => void;
   clearAllFilters: () => void;
@@ -92,7 +92,7 @@ export interface UseTableFiltersReturn {
   resetToDefaults: () => void;
   setColumnFilterConfig: (columnId: string, config: ColumnFilterConfig) => void;
 
-  // Persistence
+  // Persistencia
   saveConfig: (overrides?: { searchColumns?: string[]; visibleColumns?: string[] }) => void;
   loadConfig: () => void;
 }

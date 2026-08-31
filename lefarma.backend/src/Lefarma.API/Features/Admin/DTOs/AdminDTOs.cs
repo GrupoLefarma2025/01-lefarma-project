@@ -100,7 +100,6 @@ namespace Lefarma.API.Features.Admin.DTOs
 
         public string? AvatarUrl { get; set; }
         public string? FirmaPath { get; set; }
-        public bool FirmaDocumento { get; set; } = true;
         public string TemaInterfaz { get; set; } = "light";
         public string? DashboardInicio { get; set; }
 
@@ -142,7 +141,6 @@ namespace Lefarma.API.Features.Admin.DTOs
 
         public string? AvatarUrl { get; set; }
         public string? FirmaPath { get; set; }
-        public bool FirmaDocumento { get; set; } = true;
         public string TemaInterfaz { get; set; } = "light";
         public string? DashboardInicio { get; set; }
 

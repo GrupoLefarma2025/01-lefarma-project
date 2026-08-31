@@ -75,6 +75,24 @@ public class ArchivosController : ControllerBase
             }
         }
 
+        // Renombrar archivos adjuntos de solicitudes de personal con formato: {folioSinGuiones}-{ddMMyyyy}-adjunto_{N}.ext
+        if (request.EntidadTipo == "SolicitudPersonal" && request.Carpeta == "solicitudes-personal")
+        {
+            var folio = await _db.SolicitudesPersonal
+                .Where(s => s.IdSolicitud == request.EntidadId)
+                .Select(s => s.Folio)
+                .FirstOrDefaultAsync();
+
+            if (!string.IsNullOrWhiteSpace(folio))
+            {
+                var folioLimpio = folio.Replace("-", "");
+                var fecha = DateTime.Now.ToString("ddMMyyyy");
+                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta);
+                var ext = Path.GetExtension(file.FileName);
+                fileName = $"{folioLimpio}-{fecha}-adjunto_{count + 1}{ext}";
+            }
+        }
+
         // Renombrar archivos de comprobantes (pago/gasto): {folioSinGuiones}-{ddMMyyyy}-{tipo}_{N}.ext
         if (request.EntidadTipo == "OrdenCompra" && request.Carpeta == "comprobantes")
         {

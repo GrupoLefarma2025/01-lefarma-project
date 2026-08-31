@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
@@ -70,6 +70,7 @@ import { archivoService } from '@/services/archivoService';
 import { toast } from 'sonner';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { ComprobanteResponse, PartidaPendienteResponse, HistorialComprobante } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
@@ -79,6 +80,8 @@ import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
 import type { ProgresoPasoPDF, HistorialPDFItem, PasoPDFConfig } from '@/components/ordenes/FlujoOrdenPDF';
 import { OrdenCompraPDF } from '@/components/ordenes/OrdenCompraPDF';
 import { toApiError } from '@/utils/errors';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
 
 interface AccionDisponibleResponse {
   idAccion: number;
@@ -263,7 +266,7 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
 
   for (const handler of handlers) {
     try {
-      // Field: input/selector/checkbox — requerido viene del handler (valida Y guarda)
+      // Field: input/selector/checkbox — requerido viene del handler (valida y guarda)
       if (handler.handlerKey === 'Field' && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
@@ -350,6 +353,7 @@ export default function AutorizacionesOC() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const idOrdenParam = searchParams.get('idOrden') ? Number(searchParams.get('idOrden')) : null;
+  const { hasFirma, fetchProfileSignature } = useAuthStore();
 
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [ordenes, setOrdenes] = useState<OrdenCompraResponse[]>([]);
@@ -379,16 +383,16 @@ export default function AutorizacionesOC() {
     {}
   );
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
-  // File upload for DocumentRequired handlers
+  // Subida de archivos para handlers DocumentRequired
   const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
-  // Free-form adjuntos for steps with permite_adjunto=true
+  // Adjuntos libres para pasos con permite_adjunto=true
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
   // Archivos adjuntos de la orden seleccionada
   const [archivosOrden, setArchivosOrden] = useState<ArchivoListItem[]>([]);
   const [loadingArchivos, setLoadingArchivos] = useState(false);
   const [viewerArchivoId, setViewerArchivoId] = useState<number | null>(null);
 
-  // Facturación tab state
+  // Estado del tab de facturación
   const [partidasPendientes, setPartidasPendientes] = useState<PartidaPendienteResponse[]>([]);
   const [partidasPendientesPago, setPartidasPendientesPago] = useState<PartidaPendienteResponse[]>([]);
   const [loadingFacturacion, setLoadingFacturacion] = useState(false);
@@ -518,7 +522,7 @@ export default function AutorizacionesOC() {
       const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
       const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
 
-      // Build map of userId → firmaDocumento (default true if not present)
+      // Construir mapa de userId → firmaDocumento (por defecto true si no está presente)
       const firmaDocumentoByUser = new Map<number, boolean>();
       for (const h of historialData) {
         if (h.idUsuario > 0 && !firmaDocumentoByUser.has(h.idUsuario)) {
@@ -528,7 +532,7 @@ export default function AutorizacionesOC() {
 
       const newFirmasMap = new Map<number, string>();
       userIds.forEach(userId => {
-        // Skip users where firmaDocumento is explicitly false
+        // Omitir usuarios donde firmaDocumento es explícitamente false
         if (firmaDocumentoByUser.get(userId) === false) return;
         newFirmasMap.set(userId, `${apiUrl}/media/archivos/firmas_usuarios/${userId}.png?t=${Date.now()}`);
       });
@@ -675,21 +679,18 @@ export default function AutorizacionesOC() {
 
   const fetchEstados = async () => {
     try {
-      const res = await API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados');
-      if (res.data?.success) {
-        setWorkflowEstados(res.data.data || []);
-      }
+      setWorkflowEstados(await fetchWorkflowEstados());
     } catch {
-      // silent fail
+      // fallo silencioso
     }
   };
 
-  // Helper to get formaPago ID regardless of casing (backend uses IdFormaPago/PascalCase)
+  // Helper para obtener el ID de formaPago sin importar mayúsculas/minúsculas (backend usa IdFormaPago/PascalCase)
   const getFormaPagoId = (fp: Record<string, unknown>): number => {
     return (fp.idFormaPago ?? fp.IdFormaPago) as number;
   };
 
-  // Helper to get formaPago nombre regardless of casing
+  // Helper para obtener el nombre de formaPago sin importar mayúsculas/minúsculas
   const getFormaPagoNombre = (fp: Record<string, unknown>): string => {
     return (fp.nombre ?? fp.Nombre ?? 'Sin nombre') as string;
   };
@@ -701,7 +702,7 @@ export default function AutorizacionesOC() {
         const map = new Map<number, FormaPago>();
         for (const fp of res.data.data) {
           const fpRecord = fp as unknown as Record<string, unknown>;
-          // Transform from PascalCase (backend) to camelCase (frontend type)
+          // Transformar de PascalCase (backend) a camelCase (tipo del frontend)
           const transformed: FormaPago = {
             idFormaPago: getFormaPagoId(fpRecord),
             nombre: getFormaPagoNombre(fpRecord),
@@ -711,7 +712,7 @@ export default function AutorizacionesOC() {
         setFormasPagoMap(map);
       }
     } catch {
-      // silent fail
+      // fallo silencioso
     }
   };
 
@@ -726,12 +727,13 @@ export default function AutorizacionesOC() {
         setAllProveedoresMap(map);
       }
     } catch {
-      // silent fail
+      // fallo silencioso
     }
   };
 
   useEffect(() => {
-  const cargarDatos = async () => {
+    fetchProfileSignature();
+    const cargarDatos = async () => {
     try {
       // Promise.all dispara todas las peticiones al mismo tiempo
       await Promise.all([
@@ -820,15 +822,23 @@ export default function AutorizacionesOC() {
     : null;
 
   const abrirModalFirma = async (accion: AccionDisponibleResponse) => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
+        duration: 6000,
+      });
+      return;
+    }
+
     setAccionSeleccionada(accion);
     setComentarioFirma('');
 
-    // Pre-populate campos with existing values from the order
+    // Precargar campos con valores existentes de la orden
     const campos = getCamposParaAccion(accion);
     const initialValues: Record<string, unknown> = {};
     if (selectedOrden) {
       const ordenAny = selectedOrden as unknown as Record<string, unknown>;
-      // Convert snake_case nombreTecnico to camelCase for lookup in the TS response object
+      // Convertir snake_case nombreTecnico a camelCase para lookup en el objeto TS de respuesta
       const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
       for (const { campo, inputKey } of campos) {
         const existing =
@@ -844,7 +854,7 @@ export default function AutorizacionesOC() {
     setArchivoSubidos({});
     setAdjuntosLibres([]);
 
-    // Fetch catalogs for Selector campos that aren't already loaded
+    // Obtener catálogos para campos Selector que no estén ya cargados
     const selectorCampos = campos.filter(
       (c) => c.campo.tipoControl === 'Selector' && c.campo.sourceCatalog
     );
@@ -859,11 +869,11 @@ export default function AutorizacionesOC() {
             const LABEL_KEYS = ['nombre', 'name', 'etiqueta', 'label', 'titulo'];
             const normalized = items
               .map((item) => {
-                // Find numeric id field (e.g. idCentroCosto, idArea, id, ...)
+                // Buscar campo id numérico (ej: idCentroCosto, idArea, id, ...)
                 const idKey = Object.keys(item).find(
                   (k) => /^id/i.test(k) && typeof item[k] === 'number'
                 );
-                // Special case: if item has 'cuenta' field, combine with descripcion
+                // Caso especial: si el item tiene campo 'cuenta', combinar con descripcion
                 const labelValue =
                   'cuenta' in item
                     ? `${item['cuenta']}${'descripcion' in item ? ` — ${item['descripcion']}` : ''}`
@@ -909,7 +919,7 @@ export default function AutorizacionesOC() {
             comprobante_pago: [{ idComprobante: 0 } as ComprobanteResponse],
           }));
         }
-      } catch { /* silent */ }
+      } catch { /* silencioso */ }
     }
 
     setIsFirmarModalOpen(true);
@@ -946,7 +956,7 @@ export default function AutorizacionesOC() {
       ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/20 dark:border-amber-800'
       : 'bg-emerald-50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-800';
 
-  // Dynamic campos for the modal based on the selected action's handlers
+  // Campos dinámicos para el modal basados en los handlers de la acción seleccionada
   const camposParaAccion = useMemo(
     () => getCamposParaAccion(accionSeleccionada),
     [accionSeleccionada]
@@ -989,11 +999,18 @@ export default function AutorizacionesOC() {
 
   const enviarFirma = async () => {
     if (!selectedOrden || !accionSeleccionada) return;
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar órdenes.',
+        duration: 6000,
+      });
+      return;
+    }
     setIsSubmittingFirma(true);
     try {
       const datosAdicionales: Record<string, unknown> = {};
 
-      // Validate required campos and build datosAdicionales dynamically
+      // Validar campos requeridos y construir datosAdicionales dinámicamente
       for (const { campo, requerido, inputKey } of camposParaAccion) {
         if (campo.tipoControl === 'Archivo') {
           if (requerido) {
@@ -1032,7 +1049,7 @@ export default function AutorizacionesOC() {
         if (!isEmpty) datosAdicionales[inputKey] = val;
       }
 
-      // Add content type from last uploaded file (for SmartAudit)
+      // Agregar content type del último archivo subido (para SmartAudit)
       const archivosList = Object.values(archivoSubidos).flat();
       if (archivosList.length > 0) {
         datosAdicionales['archivoContentType'] = archivosList[0].tipoMime;
@@ -1044,7 +1061,7 @@ export default function AutorizacionesOC() {
         return;
       }
 
-      // Validate requiereAdjunto from action config
+      // Validar requiereAdjunto del config de la acción
       if (accionSeleccionada?.requiereAdjunto && adjuntosLibres.length === 0) {
         toast.error('Debes adjuntar al menos un documento para esta acción');
         setIsSubmittingFirma(false);
@@ -1084,7 +1101,7 @@ export default function AutorizacionesOC() {
     return pasosMap.get(selectedOrden.idPasoActual)?.orden ?? null;
   }, [selectedOrden?.idPasoActual, pasosMap]);
 
-  // Current paso config — has permiteAdjunto / requiereAdjunto
+  // Config del paso actual — tiene permiteAdjunto / requiereAdjunto
   const currentPaso = useMemo(
     () => (selectedOrden?.idPasoActual != null ? (pasosMap.get(selectedOrden.idPasoActual) ?? null) : null),
     [selectedOrden?.idPasoActual, pasosMap]
@@ -1367,6 +1384,8 @@ export default function AutorizacionesOC() {
 
   return (
     <div className="space-y-6">
+      {hasFirma === false && <SignatureAlert />}
+
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
           <Card>
@@ -2171,7 +2190,7 @@ export default function AutorizacionesOC() {
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
-                              // Dot visual
+                              // Visual del dot
                               const dotBg = isCompletado
                                 ? 'bg-emerald-500 border-emerald-500'
                                 : isActual
@@ -2196,7 +2215,7 @@ export default function AutorizacionesOC() {
                                       ? Clock
                                       : null;
 
-                              // Card border/bg
+                              // Borde/fondo de la tarjeta
                               const cardClass = isActual
                                 ? isActualRechazada
                                   ? 'border-l-red-400 bg-red-50/60 dark:bg-red-950/15'
@@ -2817,7 +2836,7 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Dynamic campos based on action handlers */}
+          {/* Campos dinámicos según los action handlers */}
           {camposParaAccion.length > 0 && (
             <div className="space-y-3">
               <h4 className="flex items-center gap-2 text-sm font-semibold">
@@ -3006,7 +3025,7 @@ export default function AutorizacionesOC() {
                   );
                 }
 
-                // Default: Texto
+                // Por defecto: Texto
                 return (
                   <div key={inputKey} className="space-y-1.5">
                     <Label htmlFor={fieldId}>
@@ -3059,7 +3078,7 @@ export default function AutorizacionesOC() {
             )}
           </div>
 
-          {/* Adjunto libre — visible when action allows free attachments */}
+          {/* Adjunto libre — visible cuando la acción permite adjuntos libres */}
           {accionSeleccionada?.permiteAdjunto && selectedOrden && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">

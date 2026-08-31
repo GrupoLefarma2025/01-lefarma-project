@@ -3,18 +3,18 @@ import { persist } from 'zustand/middleware';
 import type { ConfigState, UIConfig, SistemaInfo, ConfiguracionGlobal } from '@/types/config.types';
 import type { UIPresetId, VisualPreferences, ComponentPreferences } from '@/types/config.types';
 import { UI_PRESETS } from '@/constants/uiPresets';
-import { useAuthStore } from './authStore';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 
 const DEFAULT_UI_CONFIG: UIConfig = {
   tema: 'light',
-  presetId: 'estandar', // NEW
-  visual: { // NEW
+  presetId: 'estandar', // NUEVO
+  visual: { // NUEVO
     densidad: 'comodo',
     fontSize: 'medium',
     animations: true,
   },
-  componentes: { // NEW
+  componentes: { // NUEVO
     tables: {
       density: 'standard',
       defaultPageSize: 20,
@@ -77,11 +77,11 @@ const DEFAULT_GLOBAL_CONFIG: ConfiguracionGlobal = {
   },
 };
 
-// Helper function to apply visual preferences via CSS variables
+// Función de utilidad para aplicar preferencias visuales vía variables CSS
 const applyVisualPreferences = (visual: VisualPreferences) => {
   const root = document.documentElement;
 
-  // Font scale
+  // Escala de fuente
   const fontScales: Record<VisualPreferences['fontSize'], number> = {
     small: 0.875,
     medium: 1,
@@ -89,14 +89,14 @@ const applyVisualPreferences = (visual: VisualPreferences) => {
   };
   root.style.setProperty('--font-scale', fontScales[visual.fontSize].toString());
 
-  // Spacing factor
+  // Factor de espaciado
   const spacingFactors: Record<VisualPreferences['densidad'], number> = {
     compacto: 0.75,
     comodo: 1,
   };
   root.style.setProperty('--spacing-factor', spacingFactors[visual.densidad].toString());
 
-  // Animations
+  // Animaciones
   if (!visual.animations) {
     root.setAttribute('data-no-animations', 'true');
     root.style.setProperty('--transition-duration', '0ms');

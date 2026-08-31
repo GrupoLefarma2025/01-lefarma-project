@@ -58,30 +58,6 @@ public interface ITokenService
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Generates a short-lived, single-use handoff token for cross-system SSO.
-    /// Stored in the same opaque-token table with Scope = "handoff".
-    /// </summary>
-    /// <param name="usuario">The user the token authenticates.</param>
-    /// <param name="ttlSeconds">Token lifetime in seconds.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The raw handoff token value (not hashed).</returns>
-    Task<ErrorOr<string>> GenerateHandoffTokenAsync(
-        Usuario usuario,
-        int ttlSeconds,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Atomically consumes a handoff token (single-use): validates scope, expiry and
-    /// not-yet-used, then claims it. Returns the stored token entity with the user loaded.
-    /// </summary>
-    /// <param name="token">The handoff token value.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The handoff token entity if valid and successfully claimed, or an error.</returns>
-    Task<ErrorOr<RefreshToken>> ConsumeHandoffTokenAsync(
-        string token,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
     /// Revokes a refresh token.
     /// </summary>
     /// <param name="token">The refresh token value to revoke.</param>

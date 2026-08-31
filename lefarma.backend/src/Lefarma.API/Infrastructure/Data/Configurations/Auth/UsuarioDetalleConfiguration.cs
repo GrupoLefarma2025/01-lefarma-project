@@ -41,11 +41,6 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("firma_path")
             .HasMaxLength(500);
 
-        builder.Property(ud => ud.FirmaDocumento)
-            .HasColumnName("firma_documento")
-            .HasDefaultValue(true)
-            .IsRequired();
-
         // Contacto
         builder.Property(ud => ud.TelefonoOficina)
             .HasColumnName("telefono_oficina")
@@ -122,6 +117,10 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
         builder.Property(ud => ud.DashboardInicio)
             .HasColumnName("dashboard_inicio")
             .HasMaxLength(50);
+
+        builder.Property(ud => ud.DestinatariosIncidenciasDefault)
+            .HasColumnName("destinatarios_incidencias_default")
+            .HasColumnType("NVARCHAR(MAX)");
 
         builder.Property(ud => ud.Activo)
             .HasColumnName("activo")

@@ -208,9 +208,9 @@ export const ComboboxInput = ({
     defaultProp: defaultValue ?? inputValue,
     prop: controlledValue,
     onChange: (newValue) => {
-      // Sync with context state
+      // Sincroniza con el estado del contexto
       setInputValue(newValue);
-      // Call external onChange if provided
+      // Llama al onChange externo si se proporciona
       controlledOnValueChange?.(newValue);
     },
   });

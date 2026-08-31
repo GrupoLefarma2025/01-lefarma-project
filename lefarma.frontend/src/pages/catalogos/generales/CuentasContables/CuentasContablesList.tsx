@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import type { Empresa } from '@/types/catalogo.types';
 import { useForm } from 'react-hook-form';
@@ -462,7 +462,7 @@ export default function CuentasContablesList() {
           </PermissionElement>
         </div>
 
-        {/* Table */}
+        {/* Tabla */}
         <div className="relative">
           {!loading && cuentas.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card py-16 text-center">

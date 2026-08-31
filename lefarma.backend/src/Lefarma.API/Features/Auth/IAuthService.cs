@@ -52,29 +52,4 @@ public interface IAuthService
         string? refreshToken = null,
         int? usuarioId = null,
         CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Generates a short-lived single-use handoff token for the authenticated user,
-    /// used to log in to another system that shares this backend without re-entering credentials.
-    /// </summary>
-    /// <param name="usuarioId">The authenticated user's ID.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The handoff token and its lifetime.</returns>
-    Task<ErrorOr<HandoffTokenResponse>> GenerateHandoffAsync(
-        int usuarioId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Exchanges a handoff token for a full session (access + refresh tokens).
-    /// </summary>
-    /// <param name="token">The handoff token to exchange.</param>
-    /// <param name="ipAddress">Client IP address.</param>
-    /// <param name="userAgent">Client user agent.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Login response with tokens and user info.</returns>
-    Task<ErrorOr<LoginResponse>> ExchangeHandoffAsync(
-        string token,
-        string? ipAddress = null,
-        string? userAgent = null,
-        CancellationToken cancellationToken = default);
 }

@@ -20,6 +20,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public int IdPaso { get; set; }
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool RequiereJefeInmediato { get; set; }
+        public int? NivelJefe { get; set; }
         public bool Activo { get; set; }
     }
 
@@ -56,6 +58,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public List<WorkflowPasoResponse> Pasos { get; set; } = new();
         public List<WorkflowCampoResponse> Campos { get; set; } = new();
         public WorkflowStatsResponse? Stats { get; set; }
+        public List<int> IdUsuariosJefeExcluidos { get; set; } = new();
     }
 
     public class WorkflowStatsResponse
@@ -262,6 +265,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool RequiereJefeInmediato { get; set; }
+        public int? NivelJefe { get; set; }
         public bool Activo { get; set; } = true;
     }
 
@@ -269,6 +274,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
     {
         public int? IdRol { get; set; }
         public int? IdUsuario { get; set; }
+        public bool RequiereJefeInmediato { get; set; }
+        public int? NivelJefe { get; set; }
         public bool Activo { get; set; } = true;
     }
 

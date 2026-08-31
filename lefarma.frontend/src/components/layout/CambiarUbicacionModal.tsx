@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from 'react';
-import { useAuthStore } from '@/store/authStore';
-import { authService } from '@/services/authService';
+import { useAuthStore } from '@/shared/auth/authStore';
+import { authService } from '@/shared/auth/authService';
 import { Empresa, Sucursal } from '@/types/auth.types';
 import {
   Dialog,

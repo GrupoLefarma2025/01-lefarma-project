@@ -1,25 +1,21 @@
 using Lefarma.API.Domain.Entities.Asistencias;
 using Microsoft.EntityFrameworkCore;
 
-namespace Lefarma.API.Infrastructure.Data;
-public class AsistenciasDbContext : DbContext
+namespace Lefarma.API.Infrastructure.Data
 {
-    public AsistenciasDbContext(DbContextOptions<AsistenciasDbContext> options) : base(options)
+    public class AsistenciasDbContext : DbContext
     {
-    }
+        public AsistenciasDbContext(DbContextOptions<AsistenciasDbContext> options) : base(options) { }
 
-    public DbSet<VwEmpleado> VwEmpleados { get; set; } = null!;
+        public DbSet<VwEmpleado> VwEmpleados { get; set; }
+        public DbSet<VwEmpleadoYJefe> VwEmpleadosYJefes { get; set; }
+        public DbSet<IncidenciasChecado> IncidenciasChecados { get; set; }
 
-    protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<VwEmpleado>(entity =>
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            entity.HasNoKey();
-            entity.ToView("vwEmpleados", "dbo");
-            entity.Property(e => e.Correo).HasColumnName("correo");
-            entity.Property(e => e.Puesto).HasColumnName("puesto");
-        });
+            modelBuilder.Entity<VwEmpleado>().HasNoKey(). ToView("vwEmpleados", "dbo");
+            modelBuilder.Entity<VwEmpleadoYJefe>().HasNoKey().ToView("vwEmpleadosYJefes", "dbo");
+            modelBuilder.Entity<IncidenciasChecado>().HasNoKey().ToView("incidenciasChecado", "dbo");
+        }
     }
 }

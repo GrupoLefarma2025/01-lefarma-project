@@ -133,14 +133,14 @@ class SseService {
 
   private handleMessage(eventType: SseEventType, event: MessageEvent): void {
     try {
-      const data = JSON.parse(event.data) as SseEvent; // Data from trusted backend SSE endpoint
+      const data = JSON.parse(event.data) as SseEvent; // Data del endpoint SSE confiable del backend
       const callbacks = this.listeners.get(eventType);
       
       if (callbacks) {
         callbacks.forEach(callback => callback(data));
       }
     } catch {
-      // Ignore parse errors
+      // Ignorar errores de parseo
     }
   }
 

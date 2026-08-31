@@ -13,7 +13,7 @@ import {
 
 import * as XLSX from 'xlsx';
 import { archivoService } from '@/services/archivoService';
-import { API } from '@/services/api';
+import { API } from '@/shared/api/apiClient';
 import type { Archivo } from '@/types/archivo.types';
 import { ExcelTable } from './ExcelTable';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
