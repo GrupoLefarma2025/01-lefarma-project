@@ -28,7 +28,7 @@ public class Comprobante
     public virtual MedioPago? MedioPago { get; set; }
     public virtual Banco? Banco { get; set; }
 
-    public bool Activo { get; set; } = true;
+    public bool? Activo { get; set; } = true;
     public int? IdBanco { get; set; }
     public string? NumeroCuenta { get; set; }
     public string? Clabe { get; set; }

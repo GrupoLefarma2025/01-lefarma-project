@@ -482,6 +482,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 ? $"{simboloMoneda} {numero}"
                 : $"{numero} {simboloMoneda}";
     }
+
     private string BuildAsuntoPorDefecto(string tipoEntidad, string folio)
     {
         var tipo = tipoEntidad switch

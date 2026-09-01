@@ -438,7 +438,9 @@ app.UseCors("CorsPolicy");
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
-c.SwaggerEndpoint($"{pathBase}/swagger/v1/swagger.json", "Lefarma API v1");
+    // Ruta relativa: resuelve contra la URL que ve el navegador (ej. /CxP/swagger/index.html
+    // -> /CxP/swagger/v1/swagger.json). Funciona detrás de directorio virtual IIS o proxy.
+    c.SwaggerEndpoint("./v1/swagger.json", "Lefarma API v1");
     // c.RoutePrefix = ""; // Hacer que Swagger est disponible en la raz
 });
 // }

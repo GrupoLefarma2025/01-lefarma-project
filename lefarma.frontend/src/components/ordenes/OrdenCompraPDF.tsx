@@ -34,6 +34,10 @@ interface ProveedorInfo {
   razonSocial: string;
   rfc?: string;
   cuentasFormaPago?: ProveedorCuentaBancaria[];
+  detalle?: {
+    personaContactoNombre?: string;
+    contactoTelefono?: string;
+  };
 }
 
 interface PasoFlowItem {
@@ -452,7 +456,7 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
           <div style={s.folioRow}>
             <div style={s.folioLabelCell}>Fecha</div>
             <div style={s.folioValueCell}>
-              {orden.fechaSolicitud ? fmtDateLarga(orden.fechaSolicitud) : orden.fechaCreacion ? fmtDateLarga(orden.fechaCreacion) : '-'}
+              {orden.fechaCreacion ? fmtDateLarga(orden.fechaCreacion) : '-'}
             </div>
           </div>
         </div>
@@ -496,6 +500,20 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
             <td style={s.tdValue} colSpan={5}>
               {orden.idProveedor
                 ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? '-')
+                : '-'}
+            </td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Contacto</td>
+            <td style={s.tdValue} colSpan={2}>
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.detalle?.personaContactoNombre ?? orden.personaContacto ?? '-')
+                : (orden.personaContacto ?? '-')}
+            </td>
+            <td style={s.thBlue}>Teléfono</td>
+            <td style={s.tdValue} colSpan={2}>
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.detalle?.contactoTelefono ?? '-')
                 : '-'}
             </td>
           </tr>
@@ -594,8 +612,9 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         <div style={s.totalsBox}>
           {[
             { label: 'Subtotal', value: (orden.partidas ?? []).reduce((sum, p) => sum + (p.precioUnitario * p.cantidad), 0), bold: false },
-            { label: 'Descuentos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
-            { label: 'Impuesto', value: orden.totalIva, bold: false },
+            { label: 'Descuento', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
+            { label: 'Impuestos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.otrosImpuestos, 0) + orden.totalIva, bold: false },
+            { label: 'Retenciones', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.totalRetenciones, 0), bold: false },
             { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} style={s.totalRow}>
@@ -608,28 +627,26 @@ export function OrdenCompraPDF({ orden, historial = [], pasosWorkflow = [], prov
         </div>
       </div>
 
-      {/* ── FOLIO DE TRANSPORTE / FACTURAR A / DOMICILIO (una fila por campo, ancho completo) ── */}
-      {(orden.nombreTraslado || orden.facturarA || orden.domicilioEntrega) && (
+      {/* ── LUGAR DE ENTREGA (debajo de Observaciones) ── */}
+      <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+        <div style={s.obsHeader}>Lugar de entrega</div>
+        <div style={{ padding: '4px 6px', fontSize: 12, lineHeight: 1.4 }}>{orden.domicilioEntrega ?? '-'}</div>
+      </div>
+
+      {/* ── DATOS DE FACTURACIÓN (debajo de Lugar de entrega) ── */}
+      <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+        <div style={s.obsHeader}>Datos de facturación</div>
+        <div style={{ padding: '4px 6px', fontSize: 12, lineHeight: 1.4 }}>{orden.facturarA ?? '-'}</div>
+      </div>
+
+      {/* ── FOLIO DE TRANSPORTE (una fila, ancho completo) ── */}
+      {orden.nombreTraslado && (
         <table style={{ ...s.table, marginTop: 6 }}>
           <tbody>
-            {orden.nombreTraslado && (
-              <tr>
-                <td style={s.thBlue}>Folio de transporte</td>
-                <td style={s.tdValue} colSpan={5}>{orden.nombreTraslado}</td>
-              </tr>
-            )}
-            {orden.facturarA && (
-              <tr>
-                <td style={s.thBlue}>Facturar a</td>
-                <td style={s.tdValue} colSpan={5}>{orden.facturarA}</td>
-              </tr>
-            )}
-            {orden.domicilioEntrega && (
-              <tr>
-                <td style={s.thBlue}>Domicilio de entrega</td>
-                <td style={s.tdValue} colSpan={5}>{orden.domicilioEntrega}</td>
-              </tr>
-            )}
+            <tr>
+              <td style={s.thBlue}>Folio de transporte</td>
+              <td style={s.tdValue} colSpan={5}>{orden.nombreTraslado}</td>
+            </tr>
           </tbody>
         </table>
       )}
