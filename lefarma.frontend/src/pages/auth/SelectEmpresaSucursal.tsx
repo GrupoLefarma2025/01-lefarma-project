@@ -28,7 +28,7 @@ export default function SelectEmpresaSucursal() {
 
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  // Pre-cargar la ubicación actual del usuario como DEFAULT vía lazy init (sin efecto).
+  // Pre-cargar la ubicacion actual del usuario como DEFAULT via lazy init (sin efecto).
   const [selectedEmpresa, setSelectedEmpresa] = useState(() => {
     const s = authService.getEmpresa();
     return s ? String(s.idEmpresa) : '';
@@ -53,7 +53,7 @@ export default function SelectEmpresaSucursal() {
     : [];
 
   // Ajuste de estado durante el render (recomendado vs. setState dentro de useEffect).
-  // Si la sucursal/área seleccionada no es válida para la empresa, caer al primero [0].
+  // Si la sucursal seleccionada no es valida para la empresa, caer al primero [0].
   if (selectedEmpresa) {
     if (
       sucursalesFiltradas.length > 0 &&

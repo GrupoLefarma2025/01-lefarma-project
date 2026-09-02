@@ -1,4 +1,5 @@
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Asistencias;
 using Lefarma.API.Domain.Entities.Operaciones;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Operaciones;
@@ -13,6 +14,7 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using System.Linq;
 
@@ -25,11 +27,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         private readonly IWorkflowResolver _workflowResolver;
         private readonly ApplicationDbContext _context;
         private readonly AsokamDbContext _asokamContext;
+        private readonly AsistenciasDbContext _asistenciasContext;
+        private readonly ILogger<OrdenCompraService> _logger;
         private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
         private readonly IProfileService _profileService;
         protected override string EntityName => "OrdenCompra";
 
-        private record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null);
+        internal record UsuarioInfo(string Nombre, string? Puesto, string? Correo = null);
 
         public OrdenCompraService(
             IOrdenCompraRepository repo,
@@ -37,9 +41,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             IWorkflowResolver workflowResolver,
             ApplicationDbContext context,
             AsokamDbContext asokamContext,
+            AsistenciasDbContext asistenciasContext,
             IJefeInmediatoResolver jefeInmediatoResolver,
             IProfileService profileService,
-            IWideEventAccessor wideEventAccessor)
+            IWideEventAccessor wideEventAccessor,
+            ILogger<OrdenCompraService> logger)
             : base(wideEventAccessor)
         {
             _repo = repo;
@@ -47,6 +53,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
             _workflowResolver = workflowResolver;
             _context = context;
             _asokamContext = asokamContext;
+            _asistenciasContext = asistenciasContext;
+            _logger = logger;
             _jefeInmediatoResolver = jefeInmediatoResolver;
             _profileService = profileService;
         }
@@ -155,6 +163,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 var usuariosInfo = await _asokamContext.Usuarios.AsNoTracking()
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo));
+                await AsignarPuestosDesdeAsistenciasAsync(usuariosInfo);
 
                 var uomIds = items.SelectMany(o => o.Partidas ?? Enumerable.Empty<OrdenCompraPartida>())
                                   .Select(p => p.IdUnidadMedida)
@@ -217,6 +226,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                     .Select(u => new { u.IdUsuario, Nombre = u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto, u.Correo })
                     .FirstOrDefaultAsync();
                 if (uInfo != null) usuariosInfo[uInfo.IdUsuario] = new UsuarioInfo(uInfo.Nombre, uInfo.Puesto, uInfo.Correo);
+                await AsignarPuestosDesdeAsistenciasAsync(usuariosInfo);
 
                 var uomIds = (item.Partidas ?? Enumerable.Empty<OrdenCompraPartida>()).Select(p => p.IdUnidadMedida).Distinct().ToList();
                 var uomNombres = await _context.UnidadesMedida.AsNoTracking()
@@ -350,7 +360,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
         {
             try
             {
-if (idUsuario <= 0)
+                if (idUsuario <= 0)
                     return CommonErrors.Validation("idUsuario", "El usuario es inválido, posiblemente no esté autenticado.");
 
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -547,7 +557,7 @@ if (idUsuario <= 0)
         {
             try
             {
-if (idUsuario <= 0)
+                if (idUsuario <= 0)
                     return CommonErrors.Validation("idUsuario", "El usuario es inválido, posiblemente no esté autenticado.");
 
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -713,7 +723,7 @@ if (idUsuario <= 0)
             }
         }
 
-private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
+        private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
         {
             var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
             if (tieneFirma.IsError)
@@ -737,6 +747,52 @@ private async Task<ErrorOr<Success>> ValidarFirmaUsuarioAsync(int idUsuario)
                             + (p.AjusteRedondeo ?? 0m);
 
             return total;
+        }
+
+        // The 'Puesto' shown in PDFs must come from Asistencias.dbo.vwEmpleados because
+        // app.Usuarios.Puesto defaults to 'Sin asignar'. Match key: full email,
+        // app.Usuarios.Correo == vwEmpleados.correo, compared case-insensitively
+        // (e.g. user 'Adriana Arredondo Ortiz' has Correo '1a41@asokam.mx' in Asokam and
+        // the same correo in vwEmpleados with puesto 'AUXILIAR DE COMPRAS').
+        internal static void AplicarPuestosDeAsistencias(Dictionary<int, UsuarioInfo> usuariosInfo, IEnumerable<VwEmpleado> empleados)
+        {
+            var puestoPorCorreo = empleados
+                .Where(e => !string.IsNullOrWhiteSpace(e.Correo) && !string.IsNullOrWhiteSpace(e.Puesto))
+                .GroupBy(e => e.Correo!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First().Puesto!.Trim(), StringComparer.OrdinalIgnoreCase);
+            if (puestoPorCorreo.Count == 0) return;
+
+            foreach (var id in usuariosInfo.Keys.ToList())
+            {
+                var info = usuariosInfo[id];
+                if (!string.IsNullOrWhiteSpace(info.Correo) && puestoPorCorreo.TryGetValue(info.Correo.Trim(), out var puesto))
+                    usuariosInfo[id] = info with { Puesto = puesto };
+            }
+        }
+
+        private async Task AsignarPuestosDesdeAsistenciasAsync(Dictionary<int, UsuarioInfo> usuariosInfo)
+        {
+            try
+            {
+                var correos = usuariosInfo.Values
+                    .Where(u => !string.IsNullOrWhiteSpace(u.Correo))
+                    .Select(u => u.Correo!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (correos.Count == 0) return;
+
+                // One batched query for all users; never per-user lookups.
+                var empleados = await _asistenciasContext.VwEmpleados.AsNoTracking()
+                    .Where(e => e.Correo != null && correos.Contains(e.Correo))
+                    .ToListAsync();
+
+                AplicarPuestosDeAsistencias(usuariosInfo, empleados);
+            }
+            catch (Exception ex)
+            {
+                // An unreachable Asistencias server must never fail the orden listing.
+                _logger.LogWarning(ex, "No se pudieron obtener puestos desde Asistencias.dbo.vwEmpleados; se conservan los puestos actuales.");
+            }
         }
 
         private static OrdenCompraResponse ToResponse(

@@ -23,7 +23,7 @@ public class AsokamDbContext : DbContext
     public DbSet<AuditLog> AuditLogs { get; set; } = null!;
     public DbSet<Documento> Documentos { get; set; } = null!;
     public DbSet<DocumentoInterfaseOC> DocumentosInterfaseOC { get; set; } = null!;
-public DbSet<DocumentoInterfaseSolicitud> DocumentosInterfaseSolicitud { get; set; } = null!;
+    public DbSet<DocumentoInterfaseSolicitud> DocumentosInterfaseSolicitud { get; set; } = null!;
     public DbSet<GenCalendarioReg> GenCalendarioReg { get; set; } = null!;
     public DbSet<EnviosCab> EnviosCab { get; set; } = null!;
 

@@ -166,7 +166,7 @@ public class ComprobanteService : IComprobanteService
                 .FirstOrDefaultAsync(ct)) ?? $"OC-{request.IdOrden}";
 
             var countPrevios = await _db.Comprobantes
-                .CountAsync(c => c.Activo && c.Categoria == request.Categoria
+                .CountAsync(c => (c.Activo ?? true) && c.Categoria == request.Categoria
                     && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.IdOrden), ct);
 
             var prefijo = esPago ? "Pago" : "Gasto";
@@ -292,7 +292,7 @@ public class ComprobanteService : IComprobanteService
 
             var idPartidas = partidas.Select(p => p.IdPartida).ToList();
             var pagadoPorPartida = await _db.ComprobantesPartidas
-                .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Comprobante!.Categoria == "pago" && cp.Comprobante.Activo && cp.Activo)
+                .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Comprobante!.Categoria == "pago" && (cp.Comprobante.Activo ?? true) && cp.Activo)
                 .GroupBy(cp => cp.IdPartida)
                 .Select(g => new { IdPartida = g.Key, ImportePagado = g.Sum(cp => cp.ImporteAsignado) })
                 .ToDictionaryAsync(x => x.IdPartida, x => x.ImportePagado, ct);
@@ -373,7 +373,7 @@ public class ComprobanteService : IComprobanteService
                     .Where(cp => cp.IdPartida == item.IdPartida
                               && cp.IdComprobante != idComprobante
                               && cp.Comprobante!.Categoria == "pago"
-                              && cp.Comprobante.Activo
+                              && (cp.Comprobante.Activo ?? true)
                               && cp.Activo)
                     .SumAsync(cp => cp.ImporteAsignado, ct);
                 var importePendientePago = partida.Total - importeYaPagado;
@@ -490,7 +490,7 @@ public class ComprobanteService : IComprobanteService
         // Buscar todos los comprobantes de la categoría para esta orden
         var comprobantes = await _db.Comprobantes
             .Include(c => c.Asignaciones)
-            .Where(c => c.Activo && c.Categoria == categoria
+            .Where(c => (c.Activo ?? true) && c.Categoria == categoria
                 && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == idOrden))
             .ToListAsync(ct);
 

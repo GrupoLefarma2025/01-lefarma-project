@@ -200,7 +200,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
             {showContext && <DropdownMenuSeparator />}
 
-          {/* Actions */}
+            {/* Actions */}
             {configPath && (
               <DropdownMenuItem onClick={() => navigate(configPath)}>
                 <User className="mr-2 h-4 w-4" />
@@ -208,12 +208,10 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
               </DropdownMenuItem>
             )}
             {showContext && (
-              isGrupoLefarma && (
-                <DropdownMenuItem onClick={() => setModalOpen(true)}>
-                    <Building2 className="mr-2 h-4 w-4" />
-                    <span>Cambiar Ubicación</span>
-                  </DropdownMenuItem>
-              )
+              <DropdownMenuItem onClick={() => setModalOpen(true)}>
+                <Building2 className="mr-2 h-4 w-4" />
+                <span>Cambiar Ubicación</span>
+              </DropdownMenuItem>
             )}
 
             {(configPath || showContext) && <DropdownMenuSeparator />}

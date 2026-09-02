@@ -8,6 +8,7 @@ using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using System.Text;
 
 namespace Lefarma.API.Features.Config.Workflows.Notification
@@ -203,7 +204,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                         ["ListadoPendientes"] = listadoHtml,
                         ["Folios"] = folios,
                         ["Folio"] = entities.Count == 1 ? entities[0].Folio : folios,
-                        ["Total"] = entities.Count == 1 && entities[0].MontoTotal.HasValue ? entities[0].MontoTotal.Value.ToString("C2") : "",
+                        ["Total"] = entities.Count == 1 && entities[0].MontoTotal.HasValue ? FormatearMonto(entities[0]) : "",
                         ["UrlOrden"] = urlEntidad,
                         ["ColorTema"] = "#d97706",
                         ["Icono"] = "⏰",
@@ -339,6 +340,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
         {
             var query = _db.OrdenesCompra
                 .Include(o => o.Proveedor)
+                .Include(o => o.Moneda)
                 .Where(o => o.IdPasoActual != null && pasosIds.Contains(o.IdPasoActual.Value));
 
             if (rec.MontoMinimo.HasValue) query = query.Where(o => o.Total >= rec.MontoMinimo.Value);
@@ -355,6 +357,8 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 MontoTotal = o.Total,
                 FechaEnPaso = o.FechaSolicitud,
                 EtiquetaExtra = o.Proveedor?.RazonSocial,
+                SimboloMoneda = o.Moneda?.Simbolo,
+                PosicionIzquierdaMoneda = o.Moneda?.PosicionIzquierda ?? true,
                 TipoEntidad = CodigoProceso.ORDEN_COMPRA,
                 IdUsuarioCreador = o.IdUsuarioCreador
             }).ToList();
@@ -416,7 +420,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                         ["Folio"] = e.Folio,
                         ["Proveedor"] = e.EtiquetaExtra ?? "",
                         ["Detalle"] = e.EtiquetaExtra ?? "",
-                        ["Total"] = e.MontoTotal?.ToString("C2") ?? "",
+                        ["Total"] = e.MontoTotal.HasValue ? FormatearMonto(e) : "",
                         ["DiasEspera"] = e.FechaEnPaso.HasValue ? ((int)(DateTime.Now - e.FechaEnPaso).Value.TotalDays).ToString() : "0"
                     };
                     sb.Append(Interpolate(rowTemplate, rowCtx));
@@ -424,7 +428,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 else
                 {
                     var dias = e.FechaEnPaso.HasValue ? (int)(DateTime.Now - e.FechaEnPaso).Value.TotalDays : 0;
-                    var montoStr = e.MontoTotal?.ToString("C2") ?? "—";
+                    var montoStr = FormatearMonto(e);
                     sb.Append($"<tr style='border-top:1px solid #e5e7eb'>" +
                         $"<td style='padding:6px 10px'>{e.Folio}</td>" +
                         $"<td style='padding:6px 10px'>{e.EtiquetaExtra ?? ""}</td>" +
@@ -437,6 +441,14 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                 sb.Append($"<tr><td colspan='4' style='padding:6px 10px;color:#6b7280'>... y {entities.Count - 10} más</td></tr>");
             sb.Append("</table>");
             return sb.ToString();
+        }
+
+        private static string FormatearMonto(ReminderEntity e)
+        {
+            // Moneda de la orden; si no viene, peso mexicano ("$", a la izquierda)
+            var numero = e.MontoTotal!.Value.ToString("N2", CultureInfo.InvariantCulture);
+            var simbolo = string.IsNullOrWhiteSpace(e.SimboloMoneda) ? "$" : e.SimboloMoneda;
+            return e.PosicionIzquierdaMoneda ? $"{simbolo} {numero}" : $"{numero} {simbolo}";
         }
 
         private static string Interpolate(string template, Dictionary<string, string> ctx)
@@ -453,6 +465,8 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
             public int? IdPasoActual { get; init; }
             public string Folio { get; init; } = null!;
             public decimal? MontoTotal { get; init; }
+            public string? SimboloMoneda { get; init; }
+            public bool PosicionIzquierdaMoneda { get; init; } = true;
             public DateTime? FechaEnPaso { get; init; }
             public string? EtiquetaExtra { get; init; }
             public string TipoEntidad { get; init; } = null!;
