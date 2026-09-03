@@ -2,6 +2,7 @@ using System.Reflection;
 using ErrorOr;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Rh;
+using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Profile;
@@ -38,6 +39,7 @@ public class SolicitudPersonalServiceTests
         ApplicationDbContext context, ITipoSolicitudRepository? tipoRepository = null)
     {
         return new SolicitudPersonalService(
+            Mock.Of<IAdminRepository>(),
             Mock.Of<ISolicitudPersonalRepository>(),
             tipoRepository ?? Mock.Of<ITipoSolicitudRepository>(),
             Mock.Of<IWorkflowResolver>(),

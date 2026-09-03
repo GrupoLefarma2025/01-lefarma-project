@@ -59,7 +59,7 @@ public record ComprobanteResponse(
     int? IdMedioPago,
     string? MedioPagoNombre,
     string? DatosAdicionales,
-    bool Activo,
+    bool? Activo,
     int? IdBanco,
     string? NumeroCuenta,
     string? Clabe,
@@ -157,7 +157,7 @@ public record ComprobanteAsignacionResponse(
 
 public record HistorialComprobanteResponse(
     int IdComprobante,
-    bool Activo,
+    bool? Activo,
     DateTime FechaPago,
     decimal Monto,
     string MedioPago,

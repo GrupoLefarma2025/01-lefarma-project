@@ -8,8 +8,9 @@ using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Features.Config.Workflows.Notification;
 using Lefarma.API.Features.OrdenesCompra.Firmas.DTOs;
-using Lefarma.API.Features.Profile;
+using Lefarma.API.Features.OrdenesCompra.Firmas.Handlers;
 using Lefarma.API.Features.OrdenesCompra.Captura;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -125,22 +126,24 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 if (!resultado.Exitoso)
                     return CommonErrors.Validation("Workflow", resultado.Error ?? "Error en el motor de workflow.");
 
-                // Lógica específica OC: reset facturación en DEVOLVER
-                await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
-
                 // Documento JSON compartido: el tesorero escribe solo cuentaPagoTesorero,
                 // preservando las claves de los demas flujos (merge-on-write).
+                // Debe ejecutarse ANTES de ActualizarEstadoYFechasAsync, que persiste la orden.
+                var jsonDocumento = orden.IdsCuentasBancarias;
                 if (request.DatosAdicionales != null
                     && request.DatosAdicionales.TryGetValue("cuentaPagoTesorero", out var cuentaRaw))
                 {
                     var cuentaPago = ExtraerCuentaPago(cuentaRaw);
                     if (cuentaPago != null)
                     {
-                        orden.IdsCuentasBancarias = OrdenCompraDocumentoJson.MergeClavesJson(
-                            orden.IdsCuentasBancarias,
+                        jsonDocumento = OrdenCompraDocumentoJson.MergeClavesJson(jsonDocumento,
                             new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuentaPago });
                     }
                 }
+                orden.IdsCuentasBancarias = jsonDocumento;
+
+                // Lógica específica OC: reset facturación en DEVOLVER
+                await ProcesarDevolucionAsync(workflowConfig, request.IdAccion, idOrden);
 
                 // Actualizar estado de la orden + fechas de ciclo de vida
                 await ActualizarEstadoYFechasAsync(orden, resultado);
@@ -149,7 +152,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
                 var notificacion = WorkflowFirmaHelper.ResolverNotificacion(
                     workflowConfig, request.IdAccion, resultado.NuevoIdPaso);
 
-// Disparar notificación fire-and-forget (USANDO HELPER)
+                // Disparar notificación fire-and-forget (USANDO HELPER)
                 var variables = ConstruirVariablesNotificacion(orden);
                 var partidasHtml = notificacion.IncluirPartidas
                     ? BuildPartidasTable(orden.Partidas,
@@ -770,6 +773,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Firmas
             if (string.IsNullOrWhiteSpace(banco) && string.IsNullOrWhiteSpace(cuenta)) return null;
             return new Dictionary<string, string?> { ["banco"] = banco, ["cuenta"] = cuenta };
         }
+
         private async Task ProcesarDevolucionAsync(Workflow workflow, int idAccion, int idOrden)
         {
             var accionEntity = workflow.Pasos
