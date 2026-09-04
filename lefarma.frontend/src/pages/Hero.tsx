@@ -52,7 +52,7 @@ export default function Hero() {
           <img src={logoEstatico} alt="Grupo LeFarma" className="h-10 w-auto" />
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => navigate('/ayuda')}
+              onClick={() => navigate('/cxp/ayuda')}
               variant="ghost"
               className="text-muted-foreground hover:text-foreground"
             >
@@ -128,7 +128,7 @@ export default function Hero() {
                 <Button
                   size="lg"
                   variant="outline"
-                  onClick={() => navigate('/ayuda')}
+                  onClick={() => navigate('/cxp/ayuda')}
                   className="gap-2 border-primary px-8 text-base text-primary hover:bg-primary hover:text-primary-foreground"
                 >
                   Ayuda

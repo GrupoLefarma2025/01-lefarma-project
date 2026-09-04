@@ -154,7 +154,7 @@ export default function SelectEmpresaSucursal() {
       // REQ-006: área resolved and persisted by the store (no área param).
       await changeEmpresaSucursal(empresa, sucursal);
       // Si no puede seleccionar, ir directo al dashboard sin mostrar el select
-      navigate('/dashboard', { replace: true });
+      navigate('/cxp/dashboard', { replace: true });
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Error al cambiar ubicación';
@@ -163,7 +163,7 @@ export default function SelectEmpresaSucursal() {
   };
 
   const handleCancel = () => {
-    navigate('/dashboard');
+    navigate('/cxp/dashboard');
   };
 
   const empresaSeleccionada = empresas.find(

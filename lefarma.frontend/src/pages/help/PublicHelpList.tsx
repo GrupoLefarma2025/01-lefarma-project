@@ -67,15 +67,15 @@ export default function PublicHelpList() {
   const handleModuleSelect = (mod: string) => {
     setIsSidebarOpen(false);
     if (mod) {
-      navigate(`/ayuda/${encodeURIComponent(mod)}`);
+      navigate(`/cxp/ayuda/${encodeURIComponent(mod)}`);
     } else {
-      navigate('/ayuda');
+      navigate('/cxp/ayuda');
     }
   };
 
   const handleBack = () => {
     if (decodedModulo) {
-      navigate('/ayuda');
+      navigate('/cxp/ayuda');
     }
   };
 
