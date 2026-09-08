@@ -7,7 +7,7 @@ import { useAuthStore } from '@/shared/auth/authStore';
 /**
  * Landing SSO headless. Lee ?token=<handoff>&page=<ruta> de la URL,
  * intercambia el token de handoff de un solo uso por una sesión y redirige.
- * URL: /handoff-login?token=XXX&page=/ordenes/autorizaciones
+ * URL: /cxp/handoff-login?token=XXX&page=/cxp/ordenes/autorizaciones
  */
 export default function HandoffLogin() {
   const [params] = useSearchParams();
@@ -35,7 +35,7 @@ export default function HandoffLogin() {
         await authService.exchangeHandoff(token);
         useAuthStore.getState().initialize(); // inicia sesión desde los tokens almacenados
         // Sin página -> seleccionar empresa/sucursal (front2 no tiene ninguno, dominio distinto = diferente localStorage)
-        navigate(page || '/select-empresa', { replace: true });
+        navigate(page || '/cxp/select-empresa', { replace: true });
       } catch {
         setError('El enlace de acceso es invalido o expiro. Inicia sesion normalmente.');
         setTimeout(() => navigate('/login', { replace: true }), 2500);

@@ -1371,7 +1371,7 @@ export default function AutorizacionesOC() {
               size="sm"
               variant="outline"
               className="gap-1.5"
-              onClick={(e) => { e.stopPropagation(); navigate(`/ordenes/editar/${row.original.idOrden}`); }}
+              onClick={(e) => { e.stopPropagation(); navigate(`/cxp/ordenes/editar/${row.original.idOrden}`); }}
             >
               <Pencil className="h-3.5 w-3.5" />
               Editar
@@ -1691,7 +1691,7 @@ export default function AutorizacionesOC() {
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => navigate('/catalogos/proveedores')}
+                                      onClick={() => navigate('/cxp/catalogos/proveedores')}
                                       className="ml-auto rounded bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted/80"
                                     >
                                       Ir a proveedores →

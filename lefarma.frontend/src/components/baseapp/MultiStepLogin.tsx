@@ -41,6 +41,13 @@ export interface MultiStepLoginProps {
   step3Description?: string;
   /** Subtítulo bajo el logo, ej. "Sistema de Gestión de Recursos Humanos". */
   subtitle?: string;
+  /**
+   * Nombre corto de la app en la que se hace login (ej. 'Cuentas por Pagar').
+   * Se muestra en la esquina inferior derecha, junto a la versión.
+   * Al omitirse (login del hub) el fondo exterior usa el degradado
+   * distintivo del hub.
+   */
+  appName?: string;
 }
 
 /**
@@ -64,6 +71,7 @@ export function MultiStepLogin({
   step3Label = 'Contexto',
   step3Description,
   subtitle,
+  appName,
 }: MultiStepLoginProps) {
   const navigate = useNavigate();
   const hasStep3 = step3 !== undefined;
@@ -193,8 +201,48 @@ export function MultiStepLogin({
   }, [resetLoginFlow]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md shadow-xl">
+    <div
+      className={
+        appName
+          ? 'flex min-h-screen items-center justify-center bg-background p-4'
+          : 'relative flex min-h-screen items-center justify-center overflow-hidden p-4'
+      }
+      /* Fondo cristal solo del login raíz (hub). Estilos inline porque el
+         tailwind.config define los colores como var() sin <alpha-value>:
+         los modificadores /opacity de Tailwind no se generan con esa forma. */
+      style={
+        appName
+          ? undefined
+          : {
+              background:
+                'linear-gradient(to bottom right, color-mix(in srgb, var(--primary) 20%, transparent), color-mix(in srgb, var(--primary) 5%, transparent) 50%, color-mix(in srgb, var(--primary) 30%, transparent))',
+            }
+      }
+    >
+      {/* Manchas de color detrás de la tarjeta: le dan al backdrop-blur algo
+          que difuminar para lograr el efecto cristal del login raíz. */}
+      {!appName && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-32 -right-32 h-96 w-96 rounded-full blur-3xl"
+            style={{ background: 'color-mix(in srgb, var(--primary) 30%, transparent)' }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-32 -left-32 h-96 w-96 rounded-full blur-3xl"
+            style={{ background: 'color-mix(in srgb, var(--primary) 25%, transparent)' }}
+          />
+        </>
+      )}
+      <Card
+        className={appName ? 'w-full max-w-md shadow-xl' : 'w-full max-w-md shadow-xl backdrop-blur-xl'}
+        style={
+          appName
+            ? undefined
+            : { backgroundColor: 'color-mix(in srgb, var(--card) 60%, transparent)' }
+        }
+      >
         <CardHeader className="space-y-1 text-center">
           <div className="mb-2 flex justify-center">
             <img
@@ -341,7 +389,12 @@ export function MultiStepLogin({
           {/* PASO 3: contenido inyectado por la app consumidora */}
           {loginStep === 3 && step3}
 
-          <div className="mt-6 text-center text-sm text-gray-600">
+          <div className="relative mt-6 text-center text-sm text-gray-600">
+            {appName && (
+              <p className="absolute right-0 bottom-0 font-medium text-foreground/70">
+                {appName}
+              </p>
+            )}
             <p>Versión {import.meta.env.VITE_APP_VERSION || '1.0.0'}</p>
           </div>
         </CardContent>

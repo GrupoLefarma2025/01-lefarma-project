@@ -1092,13 +1092,13 @@ export default function CrearOrdenCompra() {
       console.log('🟢 [guardarOrden] Response recibido:', JSON.stringify(response.data, null, 2));
 
       if (response.data.success) {
-        console.log('🟢 [guardarOrden] ✅ Éxito - navigate a /ordenes/autorizaciones');
+        console.log('🟢 [guardarOrden] ✅ Éxito - navigate a /cxp/ordenes/autorizaciones');
         toast.success(
           isEditing
             ? 'Orden de compra actualizada correctamente.'
             : 'Orden de compra creada correctamente.'
         );
-        navigate('/ordenes/autorizaciones');
+        navigate('/cxp/ordenes/autorizaciones');
       } else {
         console.warn('🟡 [guardarOrden] ⚠️ Response success=false:', response.data.message);
         toast.error(response.data.message ?? 'Error al crear la orden de compra');
@@ -2497,7 +2497,7 @@ export default function CrearOrdenCompra() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => navigate('/ordenes/autorizaciones')}
+              onClick={() => navigate('/cxp/ordenes/autorizaciones')}
             >
               <X className="mr-2 h-4 w-4" /> Cancelar
             </Button>

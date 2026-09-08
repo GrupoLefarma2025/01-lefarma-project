@@ -242,7 +242,7 @@ export function NotificationBell({ onError }: NotificationBellProps) {
             {notifications.length > 5 && (
               <DropdownMenuItem
                 className="cursor-pointer"
-                onClick={() => navigate('/notificaciones')}
+                onClick={() => navigate('/cxp/notificaciones')}
               >
                 <ExternalLink className="h-4 w-4 mr-2" />
                 Ver todas las notificaciones

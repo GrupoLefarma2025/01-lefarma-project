@@ -70,7 +70,7 @@ export default function HelpView() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/help')}
+          onClick={() => navigate('/cxp/help')}
         >
           <ChevronLeft className="mr-1 md:mr-2 h-4 w-4" />
           <span className="hidden sm:inline">Volver</span>
@@ -128,7 +128,7 @@ export default function HelpView() {
           <p className="text-muted-foreground mb-4">
             El artículo que buscas no existe o ha sido eliminado.
           </p>
-          <Button variant="outline" onClick={() => navigate('/help')}>
+          <Button variant="outline" onClick={() => navigate('/cxp/help')}>
             <ChevronLeft className="mr-2 h-4 w-4" />
             Volver al centro de ayuda
           </Button>

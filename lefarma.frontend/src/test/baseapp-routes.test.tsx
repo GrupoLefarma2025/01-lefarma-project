@@ -3,6 +3,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { authService } from '@/shared/auth/authService';
 import { BaseAppRoutes } from '@/apps/baseapp/BaseAppRoutes';
 
 /**
@@ -16,7 +17,8 @@ import { BaseAppRoutes } from '@/apps/baseapp/BaseAppRoutes';
  *   `Home` launcher with the enabled `cxp` entry.
  * - Profile: `/perfil` guarded + rendered inside the shell.
  * - CxP subtree mounting: `/cxp/*` resolves within the subtree; index
- *   auth→`dashboard`, unauth→`/cxp/login`.
+ *   auth+ubicación→`dashboard` (missing empresa/sucursal → select-empresa),
+ *   unauth→`/cxp/login`.
  * - Cross-app SSO: authenticated hub→cxp navigation needs no re-login.
  *
  * Mock strategy: heavy leaf pages reduce to deterministic text markers,
@@ -55,6 +57,9 @@ vi.mock('@/pages/Perfil', () => ({
 }));
 vi.mock('@/pages/NotFound', () => ({
   default: () => <div>NOT_FOUND_MARK</div>,
+}));
+vi.mock('@/pages/auth/SelectEmpresaSucursal', () => ({
+  default: () => <div>SELECT_EMPRESA_MARK</div>,
 }));
 
 // MainLayout pulls in the full sidebar/header tree; reduce it to a passthrough
@@ -168,10 +173,35 @@ describe('BaseAppRoutes — corrected shell navigation (nav-reorg)', () => {
 
   describe('App Subtree Mounting — CxP at /cxp/ (cxp-app spec)', () => {
     it('authenticated /cxp index redirects to the Dashboard (no launcher, no prompt)', () => {
+      // Ubicación gate: empresa+sucursal seeded so the index lands on the
+      // Dashboard (same state a user has after completing step 3 of login).
+      authService.setEmpresa({
+        idEmpresa: 1,
+        nombre: 'Empresa Test',
+        codigo: 'EMP1',
+        activo: true,
+        puedeSeleccionarEmpresas: true,
+      });
+      authService.setSucursal({
+        idSucursal: 1,
+        idEmpresa: 1,
+        nombre: 'Sucursal Test',
+        codigo: 'SUC1',
+        activo: true,
+      });
       useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
       renderAt('/cxp');
-      // Subtree index lands directly on the Dashboard (auth-only gate).
+      // Subtree index lands directly on the Dashboard (auth + ubicación gate).
       expect(screen.getByText('DASHBOARD_MARK')).toBeInTheDocument();
+    });
+
+    it('authenticated /cxp index without empresa/sucursal redirects to select-empresa', () => {
+      // Authenticated but no ubicación persisted → the CxP index must route
+      // to the empresa/sucursal selection screen instead of the Dashboard.
+      useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
+      renderAt('/cxp');
+      expect(screen.getByText('SELECT_EMPRESA_MARK')).toBeInTheDocument();
+      expect(screen.queryByText('DASHBOARD_MARK')).not.toBeInTheDocument();
     });
 
     it('unauthenticated /cxp index redirects to the subtree /cxp/login', () => {
