@@ -27,7 +27,15 @@ export function DatePicker({
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
 
-  const dateValue = value ? new Date(value + 'T00:00:00') : undefined;
+  const dateValue = (() => {
+    if (!value) return undefined;
+    const d = new Date(
+      value.includes('T') || value.includes(' ') || value.includes('Z')
+        ? value
+        : `${value}T00:00:00`
+    );
+    return isNaN(d.getTime()) ? undefined : d;
+  })();
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

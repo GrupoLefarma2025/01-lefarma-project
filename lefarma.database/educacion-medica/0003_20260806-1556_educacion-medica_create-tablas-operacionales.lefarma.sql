@@ -51,11 +51,71 @@ END
 GO
 
 -- ============================================================
--- 1) hospital_extension
---    1:1 extiende dbo.genContactosCat (Asokam) con los cálculos fijos de
---    anestesias del ASK-CEM-FOR-002. Las columnas AT/AG/AR/AE/AS/MO/MNO son
---    PERSISTED (decision propuesta §4.4): la BD las calcula y guarda.
---    La PK lógica es el hospital (UNIQUE id_hospital), validado en servicio.
+-- 1.1) parametros_anestesias
+--    Factores configurables del calculo de anestesias del FOR-002.
+--    Versionado por anio para permitir ajustes anuales sin afectar
+--    datos historicos. Los valores se aplican en el backend al
+--    insertar/actualizar hospital_extension y al recalcular masivamente.
+-- ============================================================
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE schema_id = SCHEMA_ID('educacion_medica') AND name = 'parametros_anestesias')
+BEGIN
+    CREATE TABLE educacion_medica.parametros_anestesias
+    (
+        id_parametro_anestesia  INT IDENTITY(1,1) NOT NULL,
+        anio                    INT NOT NULL,                -- version del anio al que aplica
+        clave                   VARCHAR(50) NOT NULL,        -- nombre del factor
+        valor                   DECIMAL(10,6) NOT NULL,      -- valor numerico del factor
+        descripcion             NVARCHAR(250) NULL,         -- descripcion legible del factor
+        orden                   INT NOT NULL DEFAULT 0,    -- orden de presentacion
+        activo                  BIT NOT NULL CONSTRAINT DF_parametros_anestesias_activo DEFAULT 1,
+        fecha_creacion          DATETIME2 NOT NULL CONSTRAINT DF_parametros_anestesias_fecha_creacion DEFAULT SYSUTCDATETIME(),
+        fecha_modificacion      DATETIME2 NOT NULL CONSTRAINT DF_parametros_anestesias_fecha_modificacion DEFAULT SYSUTCDATETIME(),
+        id_usuario_creacion     INT NULL,
+        id_usuario_modificacion INT NULL,
+        CONSTRAINT PK_parametros_anestesias PRIMARY KEY (id_parametro_anestesia),
+        CONSTRAINT UQ_parametros_anestesias_anio_clave UNIQUE (anio, clave)
+    );
+    PRINT 'Tabla [educacion_medica].[parametros_anestesias] creada.';
+END
+ELSE
+BEGIN
+    PRINT 'Tabla [educacion_medica].[parametros_anestesias] ya existe. Skip.';
+END
+GO
+
+-- Semilla del catalogo de parametros (solo si no existen para el anio actual)
+DECLARE @anio_actual INT = YEAR(GETDATE());
+
+IF NOT EXISTS (SELECT 1 FROM educacion_medica.parametros_anestesias WHERE anio = @anio_actual)
+BEGIN
+    INSERT INTO educacion_medica.parametros_anestesias (anio, clave, valor, descripcion, orden)
+    VALUES
+        (@anio_actual, 'factor_cirugias_dia',     2.5,    'Cirugias promedio por dia por quirofano', 1),
+        (@anio_actual, 'dias_laborables_anio',    250.0,  'Dias laborables al ano', 2),
+        (@anio_actual, 'pct_generales',           0.30,   'Porcentaje de anestesias generales sobre el total', 3),
+        (@anio_actual, 'pct_regionales',          0.70,   'Porcentaje de anestesias regionales sobre el total', 4),
+        (@anio_actual, 'pct_epidurales',          0.35,   'Porcentaje de epidurales sobre las regionales', 5),
+        (@anio_actual, 'pct_subdurales',          0.45,   'Porcentaje de subdurales sobre las regionales', 6),
+        (@anio_actual, 'pct_mixtas_obesos',       0.02,   'Porcentaje de mixtas obesos sobre las regionales', 7),
+        (@anio_actual, 'pct_mixtas_no_obesos',    0.18,   'Porcentaje de mixtas no obesos sobre las regionales', 8);
+    PRINT 'Parametros de anestesias sembrados para el anio ' + CAST(@anio_actual AS VARCHAR(4)) + '.';
+END
+GO
+
+-- Documentacion [parametros_anestesias]
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.parametros_anestesias') AND minor_id = 0 AND name = 'MS_Description')
+    EXEC sp_addextendedproperty @name = N'MS_Description',
+        @value = N'Factores configurables del calculo de anestesias del FOR-002, versionados por anio.',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'parametros_anestesias';
+GO
+
+-- ============================================================
+-- 1.2) hospital_extension
+--    1:1 extiende dbo.genContactosCat (Asokam). Las columnas AT/AG/AR/AE/AS/MO/MNO
+--    se calculan en el backend a partir de los parametros de anestesias activos
+--    y se almacenan como columnas normales para permitir parametrizacion.
 -- ============================================================
 -- ============================================================
 -- 0) tipo_gerencia (CATALOGO)
@@ -164,13 +224,15 @@ BEGIN
         id_tipo_gerencia                INT NULL,      -- 'IMSS' | 'Descentralizado'
         con_sia                      BIT NULL,              -- 1 = con SIA, 0 = sin SIA
         numero_quirofanos            INT NULL,              -- número de quirófanos del hospital
-        anestesias_totales           AS CAST(ROUND(numero_quirofanos * 2.5 * 250, 2) AS DECIMAL(18,2)) PERSISTED,      -- AT = NQ x 2.5 x 250
-        anestesias_generales         AS CAST(ROUND(anestesias_totales * 0.30, 2) AS DECIMAL(18,2)) PERSISTED,           -- AG = AT x 30%
-        anestesias_regionales        AS CAST(ROUND(anestesias_totales * 0.70, 2) AS DECIMAL(18,2)) PERSISTED,           -- AR = AT x 70%
-        anestesias_epidurales        AS CAST(ROUND(anestesias_regionales * 0.35, 2) AS DECIMAL(18,2)) PERSISTED,         -- AE = AR x 35%
-        anestesias_subdurales        AS CAST(ROUND(anestesias_regionales * 0.45, 2) AS DECIMAL(18,2)) PERSISTED,         -- AS = AR x 45%
-        anestesias_mixtas_obesos     AS CAST(ROUND(anestesias_regionales * 0.02, 2) AS DECIMAL(18,2)) PERSISTED,         -- MO = AR x 2%
-        anestesias_mixtas_no_obesos  AS CAST(ROUND(anestesias_regionales * 0.18, 2) AS DECIMAL(18,2)) PERSISTED,         -- MNO = AR x 18%
+        anestesias_totales           DECIMAL(18,2) NULL,      -- AT = NQ x factor_cirugias_dia x dias_laborables_anio
+        anestesias_generales         DECIMAL(18,2) NULL,      -- AG = AT x pct_generales
+        anestesias_regionales        DECIMAL(18,2) NULL,      -- AR = AT x pct_regionales
+        anestesias_epidurales        DECIMAL(18,2) NULL,      -- AE = AR x pct_epidurales
+        anestesias_subdurales        DECIMAL(18,2) NULL,      -- AS = AR x pct_subdurales
+        anestesias_mixtas_obesos     DECIMAL(18,2) NULL,      -- MO = AR x pct_mixtas_obesos
+        anestesias_mixtas_no_obesos  DECIMAL(18,2) NULL,      -- MNO = AR x pct_mixtas_no_obesos
+        es_zona_metropolitana    BIT NULL,              -- 1 = local (CDMX / zona metropolitana), 0 = foraneo, NULL = sin clasificar (base de la regla de viajes foraneos, IDT-003 2.2)
+        id_region                INT NULL,              -- FK fisica -> regiones_cat (creada en script 0010; constraint FK_hospital_extension_region en 0010)
         activo                       BIT NOT NULL CONSTRAINT DF_hospital_extension_activo DEFAULT 1,
         fecha_creacion               DATETIME2 NOT NULL CONSTRAINT DF_hospital_extension_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion           DATETIME2 NOT NULL CONSTRAINT DF_hospital_extension_fecha_modificacion DEFAULT SYSUTCDATETIME(),
@@ -193,7 +255,7 @@ END
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension') AND minor_id = 0 AND name = 'MS_Description')
     EXEC sp_addextendedproperty @name = N'MS_Description',
-        @value = N'Extension 1:1 del hospital (dbo.genContactosCat, Asokam) con los calculos fijos de anestesias del FOR-002; las columnas AT/AG/AR/AE/AS/MO/MNO son PERSISTED.',
+        @value = N'Extension 1:1 del hospital (dbo.genContactosCat, Asokam) con los calculos de anestesias del FOR-002; las columnas AT/AG/AR/AE/AS/MO/MNO se calculan en el backend a partir de los parametros de anestesias activos.',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension';
 
@@ -219,23 +281,23 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anio', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'fecha', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Fecha de la base de datos (FOR-002)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
-        @level2type = N'COLUMN', @level2name = N'anio';
+        @level2type = N'COLUMN', @level2name = N'fecha';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'tipo_gerencia', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'id_tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
-        @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
+        @level2type = N'COLUMN', @level2name = N'id_tipo_gerencia';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
@@ -262,7 +324,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_totales', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'AT = NQ x 2.5 x 250 (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'AT = NQ x 2.5 x 250 (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_totales';
@@ -272,7 +334,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_generales', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'AG = AT x 30% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'AG = AT x 30% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_generales';
@@ -282,7 +344,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_regionales', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'AR = AT x 70% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'AR = AT x 70% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_regionales';
@@ -292,7 +354,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_epidurales', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'AE = AR x 35% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'AE = AR x 35% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_epidurales';
@@ -302,7 +364,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_subdurales', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'AS = AR x 45% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'AS = AR x 45% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_subdurales';
@@ -312,7 +374,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_mixtas_obesos', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'MO = AR x 2% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'MO = AR x 2% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_mixtas_obesos';
@@ -322,10 +384,30 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
       AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'anestesias_mixtas_no_obesos', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'MNO = AR x 18% (columna PERSISTED, la calcula la BD)',
+        @name = N'MS_Description', @value = N'MNO = AR x 18% (calculada en el backend con los parametros activos)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'hospital_extension',
         @level2type = N'COLUMN', @level2name = N'anestesias_mixtas_no_obesos';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'es_zona_metropolitana', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'1 = local (CDMX / zona metropolitana), 0 = foraneo, NULL = sin clasificar (el algoritmo de rutas lo cuenta como foraneo y advierte). Base de la regla de max 3 viajes foraneos por especialista al mes (IDT-003 2.2)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'hospital_extension',
+        @level2type = N'COLUMN', @level2name = N'es_zona_metropolitana';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.hospital_extension'), 'id_region', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Region de catalogo asignada al hospital (FK fisica a regiones_cat; constraint creada en script 0010). NULL = sin asignar: se resuelve por GPS contra el centroide o se asigna manualmente',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'hospital_extension',
+        @level2type = N'COLUMN', @level2name = N'id_region';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.hospital_extension')
@@ -444,13 +526,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'anio', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'fecha', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
-        @name = N'MS_Description', @value = N'Fecha del programa',
+        @name = N'MS_Description', @value = N'Fecha (año) del programa',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
-        @level2type = N'COLUMN', @level2name = N'anio';
+        @level2type = N'COLUMN', @level2name = N'fecha';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
@@ -484,13 +566,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'tipo_gerencia', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.programas_anuales'), 'id_tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'programas_anuales',
-        @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
+        @level2type = N'COLUMN', @level2name = N'id_tipo_gerencia';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.programas_anuales')
@@ -789,13 +871,17 @@ BEGIN
         fecha_inicio_vigencia DATE NULL,                -- primer día del periodo de 45 días
         fecha_fin_vigencia   DATE NULL,                 -- último día del periodo de 45 días
         talleres_objetivo_mes INT NULL,                 -- mínimo de talleres a programar el mes (doc.: ≥64 por gerencia)
+        estado                VARCHAR(15) NOT NULL CONSTRAINT DF_selecciones_mensuales_estado DEFAULT 'Borrador', -- maquina de estados: Borrador -> EnRevision -> Autorizada -> Cerrada (doble firma GV + GG)
+        firma_gv_fecha        DATETIME2 NULL,           -- fecha de firma del Gerente de Ventas (primera firma)
+        firma_gg_fecha        DATETIME2 NULL,           -- fecha de firma de la Gerencia General (segunda firma; completa la autorizacion)
         activo                BIT NOT NULL CONSTRAINT DF_selecciones_mensuales_activo DEFAULT 1,
         fecha_creacion       DATETIME2 NOT NULL CONSTRAINT DF_selecciones_mensuales_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion   DATETIME2 NOT NULL CONSTRAINT DF_selecciones_mensuales_fecha_modificacion DEFAULT SYSUTCDATETIME(),
         id_usuario_creacion     INT NULL,
         id_usuario_modificacion INT NULL,
         CONSTRAINT FK_selecciones_mensuales_tipo_gerencia FOREIGN KEY (id_tipo_gerencia) REFERENCES educacion_medica.tipo_gerencia (id_tipo_gerencia),
-        CONSTRAINT PK_seleccion_mensual PRIMARY KEY (id_seleccion_mensual)
+        CONSTRAINT PK_seleccion_mensual PRIMARY KEY (id_seleccion_mensual),
+        CONSTRAINT CK_selecciones_mensuales_estado CHECK (estado IN ('Borrador','EnRevision','Autorizada','Cerrada'))
     );
     PRINT 'Tabla [educacion_medica].[selecciones_mensuales] creada.';
 END
@@ -836,13 +922,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
-      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'tipo_gerencia', 'ColumnId')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'id_tipo_gerencia', 'ColumnId')
       AND name = 'MS_Description')
     EXEC sp_addextendedproperty
         @name = N'MS_Description', @value = N'Referencia al catalogo educacion_medica.tipo_gerencia (IMSS/Descentralizado/Privado)',
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
-        @level2type = N'COLUMN', @level2name = N'tipo_gerencia';
+        @level2type = N'COLUMN', @level2name = N'id_tipo_gerencia';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
@@ -873,6 +959,36 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
         @level2type = N'COLUMN', @level2name = N'talleres_objetivo_mes';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'estado', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Maquina de estados de la seleccion: Borrador -> EnRevision -> Autorizada (doble firma GV+GG) -> Cerrada',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
+        @level2type = N'COLUMN', @level2name = N'estado';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'firma_gv_fecha', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Fecha de firma del Gerente de Ventas (primera firma de la doble firma)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
+        @level2type = N'COLUMN', @level2name = N'firma_gv_fecha';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales'), 'firma_gg_fecha', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Fecha de firma de la Gerencia General (segunda firma; completa la doble firma y autoriza la seleccion)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales',
+        @level2type = N'COLUMN', @level2name = N'firma_gg_fecha';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales')
@@ -943,12 +1059,19 @@ BEGIN
         id_ejecutivo      INT NULL,          -- FK lógica -> app.Usuarios (Asokam)
         producto_a_promocionar NVARCHAR(150) NULL,
         observaciones         NVARCHAR(300) NULL,
+        latitud_snapshot      DECIMAL(10,7) NULL,       -- latitud congelada al agregar el hospital a la seleccion (snapshot; Asokam puede cambiar despues)
+        longitud_snapshot     DECIMAL(10,7) NULL,       -- longitud congelada al agregar el hospital a la seleccion (snapshot)
+        id_region             INT NULL,                 -- region calculada dentro de la seleccion (FK fisica a selecciones_regiones; constraint creada en script 0007)
+        origen                VARCHAR(20) NULL,         -- NULL = region del hospital (hospital_extension) o alta manual, 'GPS' = sin region y ubicado por centroide mas cercano
+        id_ranking_ejecucion  INT NULL,                 -- ejecucion del ranking que genero la sugerencia (FK fisica a ranking_ejecuciones; constraint creada en script 0009)
+        score_sugerencia      DECIMAL(5,2) NULL,        -- score de prioridad al aceptar la sugerencia (snapshot; NULL = alta manual)
         fecha_creacion        DATETIME2 NOT NULL CONSTRAINT DF_sel_hospital_fecha_creacion DEFAULT SYSUTCDATETIME(),
         fecha_modificacion    DATETIME2 NOT NULL CONSTRAINT DF_sel_hospital_fecha_modificacion DEFAULT SYSUTCDATETIME(),
         id_usuario_creacion     INT NULL,
         id_usuario_modificacion INT NULL,
         CONSTRAINT PK_seleccion_hospital PRIMARY KEY (id_seleccion_hospital),
-        CONSTRAINT FK_seleccion_hospital_seleccion FOREIGN KEY (id_seleccion_mensual) REFERENCES educacion_medica.selecciones_mensuales (id_seleccion_mensual) ON DELETE CASCADE
+        CONSTRAINT FK_seleccion_hospital_seleccion FOREIGN KEY (id_seleccion_mensual) REFERENCES educacion_medica.selecciones_mensuales (id_seleccion_mensual) ON DELETE CASCADE,
+        CONSTRAINT UQ_seleccion_hospital_unica UNIQUE (id_seleccion_mensual, id_hospital)
     );
     PRINT 'Tabla [educacion_medica].[selecciones_mensuales_hospitales] creada.';
 END
@@ -1056,6 +1179,66 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
         @level0type = N'SCHEMA', @level0name = N'educacion_medica',
         @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
         @level2type = N'COLUMN', @level2name = N'observaciones';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'latitud_snapshot', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Latitud del hospital congelada al momento de agregarlo a la seleccion (snapshot; el catálogo Asokam puede cambiar después)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'latitud_snapshot';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'longitud_snapshot', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Longitud del hospital congelada al momento de agregarlo a la seleccion (snapshot)',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'longitud_snapshot';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_region', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Region calculada (por region de catalogo del hospital, o por GPS al centroide mas cercano) a la que pertenece el hospital dentro de la seleccion. FK fisica creada en script 0007. La asignacion a equipo vive a nivel region (selecciones_regiones.id_equipo), no a nivel hospital; id_ejecutivo queda en desuso',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'id_region';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'origen', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Origen de la asignacion de region en la agrupacion: NULL = region del hospital (hospital_extension) o agregado manual, ''GPS'' = sin region asignada y ubicado por centroide mas cercano',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'origen';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'id_ranking_ejecucion', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Ejecucion del ranking que genero la sugerencia (FK educacion_medica.ranking_ejecuciones; constraint creada en script 0009). NULL = alta manual.',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'id_ranking_ejecucion';
+
+IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
+    WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')
+      AND minor_id = COLUMNPROPERTY(OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales'), 'score_sugerencia', 'ColumnId')
+      AND name = 'MS_Description')
+    EXEC sp_addextendedproperty
+        @name = N'MS_Description', @value = N'Score de prioridad del hospital al momento de aceptar la sugerencia (snapshot). NULL = alta manual.',
+        @level0type = N'SCHEMA', @level0name = N'educacion_medica',
+        @level1type = N'TABLE',  @level1name = N'selecciones_mensuales_hospitales',
+        @level2type = N'COLUMN', @level2name = N'score_sugerencia';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties
     WHERE major_id = OBJECT_ID('educacion_medica.selecciones_mensuales_hospitales')

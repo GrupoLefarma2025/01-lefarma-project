@@ -208,6 +208,30 @@ builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenci
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.Rh.IIncidenciaChecadoConfigService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigService>();
 builder.Services.AddScoped<Lefarma.API.Features.Rh.IncidenciasChecado.IIncidenciaChecadoConfigAdminService, Lefarma.API.Features.Rh.IncidenciasChecado.IncidenciaChecadoConfigAdminService>();
 
+// Educación Médica
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IHospitalRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.HospitalRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IHospitalExtensionRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.HospitalExtensionRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IProductoRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.ProductoRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.ITipoGerenciaRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.TipoGerenciaRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IParametroAnestesiaRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.ParametroAnestesiaRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IEquipoPareoRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.EquipoPareoRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.ISeleccionMensualRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.SeleccionMensualRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IRutaRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.RutaRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IParametroModuloRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.ParametroModuloRepository>();
+builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.EducacionMedica.IRegionRepository, Lefarma.API.Infrastructure.Data.Repositories.EducacionMedica.RegionRepository>();
+
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IHospitalService, Lefarma.API.Features.EducacionMedica.HospitalService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IProductoService, Lefarma.API.Features.EducacionMedica.ProductoService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITipoGerenciaService, Lefarma.API.Features.EducacionMedica.TipoGerenciaService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IParametroAnestesiaService, Lefarma.API.Features.EducacionMedica.ParametroAnestesiaService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IEquipoPareoService, Lefarma.API.Features.EducacionMedica.EquipoPareoService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ISeleccionMensualService, Lefarma.API.Features.EducacionMedica.SeleccionMensualService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRutasService, Lefarma.API.Features.EducacionMedica.RutasService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IParametroModuloService, Lefarma.API.Features.EducacionMedica.ParametroModuloService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRegionService, Lefarma.API.Features.EducacionMedica.RegionService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IRankingHospitalesService, Lefarma.API.Features.EducacionMedica.Services.RankingHospitalesService>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IConfigRankingService, Lefarma.API.Features.EducacionMedica.Services.ConfigRankingService>();
+
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
 

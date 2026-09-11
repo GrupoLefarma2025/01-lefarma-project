@@ -820,3 +820,35 @@
   padding-top: calc(var(--spacing-factor) * 1rem);
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
+
+/* ===== Impresion del resumen de seleccion =====
+   El contenido imprimible vive en un portal propio (.print:block en
+   ResumenSeleccionModal); aqui solo se oculta todo lo demas. */
+@media print {
+  #root {
+    display: none !important;
+  }
+
+  /* Ocultar el overlay oscuro y el dialogo abiertos (pantalla) */
+  body > .fixed.inset-0.z-50.bg-black\/80 {
+    display: none !important;
+  }
+
+  [role="dialog"] {
+    display: none !important;
+  }
+}
+
+/* ===== Impresion de la planificacion de rutas (RutasPrintModal) =====
+   Portal #rutas-print visible solo al imprimir; bordes y colores forzados. */
+@media print {
+  #rutas-print {
+    color: #000;
+    font-size: 10.5pt;
+  }
+
+  #rutas-print * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

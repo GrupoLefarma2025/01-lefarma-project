@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-08-10 13:54
-fecha_modificacion: 2026-08-13 14:15
+fecha_modificacion: 2026-08-22 17:45
 resumen: Planificación del módulo Educación Médica (proceso Talleres Médicos en Hospitales): schema de base de datos, backend y frontend.
 ---
 
@@ -8,7 +8,9 @@ resumen: Planificación del módulo Educación Médica (proceso Talleres Médico
 
 ## Status
 
-Accepted
+Superseded by ADR-00002
+
+> El cálculo de anestesias cambió de columnas `PERSISTED` en `hospital_extension` a columnas almacenadas calculadas en el backend a partir de factores configurables en `parametros_anestesias` por año. Ver ADR-00002 para el diseño actual.
 
 ## Índice
 
