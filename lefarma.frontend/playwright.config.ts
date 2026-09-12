@@ -8,7 +8,7 @@ export default defineConfig({
   workers: 1,
   reporter: 'html',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5180',
     trace: 'on-first-retry',
   },
 
@@ -20,8 +20,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
+    // Puerto propio: el 5173 de esta máquina pertenece a otro proyecto (sisco2-1).
+    command: 'npm run dev -- --port 5180 --strictPort',
+    url: 'http://localhost:5180',
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
   },
