@@ -1,5 +1,6 @@
 using Lefarma.API.Domain.Entities.Asokam;
 using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Rh;
 using Microsoft.EntityFrameworkCore;
 
@@ -26,6 +27,9 @@ public class AsokamDbContext : DbContext
     public DbSet<DocumentoInterfaseSolicitud> DocumentosInterfaseSolicitud { get; set; } = null!;
     public DbSet<GenCalendarioReg> GenCalendarioReg { get; set; } = null!;
     public DbSet<EnviosCab> EnviosCab { get; set; } = null!;
+    public DbSet<Hospital> Hospitales { get; set; } = null!;
+    public DbSet<GenEstado> GenEstados { get; set; } = null!;
+    public DbSet<Producto> Productos { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

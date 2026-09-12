@@ -1,7 +1,7 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
-type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'full';
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'wide' | 'w75' | 'full';
 
 interface ModalProps {
     id: string;
@@ -16,7 +16,6 @@ interface ModalProps {
 }
 
 export const Modal: React.FC<ModalProps> = ({
-    id,
     open,
     setOpen,
     title = 'Modal',
@@ -39,6 +38,8 @@ export const Modal: React.FC<ModalProps> = ({
                 return 'max-w-xl';
             case 'wide':
                 return 'max-w-[90vw] max-h-[90vh]';
+            case 'w75':
+                return 'w-[75vw] max-w-[75vw] max-h-[90vh]';
             case 'full':
                 return 'max-w-[80vw] max-h-[90vh]';
             default:

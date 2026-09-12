@@ -1,6 +1,7 @@
 using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Logging;
 using Lefarma.API.Domain.Entities.Notifications;
 using Lefarma.API.Domain.Entities.Operaciones;
@@ -71,6 +72,25 @@ public class ApplicationDbContext : DbContext
         public DbSet<IncidenciaChecadoConfig> IncidenciasChecadoConfig { get; set; }
         public DbSet<DiaHabil> DiasHabiles { get; set; }
         public DbSet<SaldoVacacionesAnual> SaldosVacacionesAnuales { get; set; }
+
+        // DbSets - Educación Médica
+        public DbSet<HospitalExtension> HospitalesExtension { get; set; }
+        public DbSet<RegionCatalogo> RegionesCat { get; set; }
+        public DbSet<RegionEstado> RegionesEstados { get; set; }
+        public DbSet<TipoGerencia> TiposGerencia { get; set; }
+        public DbSet<ParametroAnestesia> ParametrosAnestesia { get; set; }
+        public DbSet<EquipoPareo> EquiposPareo { get; set; }
+        public DbSet<SeleccionMensual> SeleccionesMensuales { get; set; }
+        public DbSet<SeleccionHospital> SeleccionesHospitales { get; set; }
+        public DbSet<SeleccionRegion> SeleccionesRegiones { get; set; }
+        public DbSet<Ruta> Rutas { get; set; }
+        public DbSet<RutaVisita> RutasVisitas { get; set; }
+        public DbSet<ParametroModulo> ParametrosModulo { get; set; }
+        public DbSet<ConfigRanking> ConfigsRanking { get; set; }
+        public DbSet<ConfigRankingFactor> ConfigsRankingFactores { get; set; }
+        public DbSet<RankingEjecucion> RankingsEjecuciones { get; set; }
+        public DbSet<RankingEjecucionHospital> RankingsEjecucionesHospitales { get; set; }
+        public DbSet<Taller> Talleres { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

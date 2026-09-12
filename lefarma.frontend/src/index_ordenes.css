@@ -836,3 +836,46 @@
   padding-top: calc(var(--spacing-factor) * 1rem);
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
+
+/* ===== Impresion del resumen de seleccion (educacion medica) =====
+   El contenido imprimible vive en un portal propio (createPortal a body,
+   ver ResumenSeleccionModal). El bloque @media print de arriba oculta TODO
+   con visibility:hidden; aqui se re-visible el resumen y se saca al resto
+   del DOM (#root, dialogo y overlay abiertos) del flujo de impresion. */
+@media print {
+  #root,
+  [role="dialog"],
+  body > .fixed.inset-0.z-50.bg-black\/80 {
+    display: none !important;
+  }
+
+  #resumen-seleccion-print,
+  #resumen-seleccion-print * {
+    visibility: visible !important;
+    color: #111 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  #resumen-seleccion-print {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #fff !important;
+    font-family: 'Geist Variable', 'Geist', ui-sans-serif, sans-serif !important;
+    font-size: 10pt !important;
+    padding: 0 !important;
+  }
+
+  #resumen-seleccion-print table {
+    width: 100% !important;
+  }
+
+  #resumen-seleccion-print thead {
+    display: table-header-group;
+  }
+
+  #resumen-seleccion-print tr {
+    break-inside: avoid;
+  }
+}

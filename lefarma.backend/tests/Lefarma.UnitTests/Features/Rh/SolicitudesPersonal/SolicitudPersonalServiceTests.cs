@@ -39,6 +39,7 @@ public class SolicitudPersonalServiceTests
         ApplicationDbContext context, ITipoSolicitudRepository? tipoRepository = null)
     {
         return new SolicitudPersonalService(
+            Mock.Of<Lefarma.API.Domain.Interfaces.Admin.IAdminRepository>(),
             Mock.Of<IAdminRepository>(),
             Mock.Of<ISolicitudPersonalRepository>(),
             tipoRepository ?? Mock.Of<ITipoSolicitudRepository>(),

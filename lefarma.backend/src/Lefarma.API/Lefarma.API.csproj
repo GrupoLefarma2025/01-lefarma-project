@@ -41,6 +41,8 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Lefarma.UnitTests" />
+    <Folder Include="Domain\Entities\EducacionMedica\" />
+    <Folder Include="Domain\Interfaces\EducacionMedica\" />
     <Folder Include="Features\Asistencias\" />
     <Folder Include="Infrastructure\Data\Migrations\" />
     <Folder Include="Shared\Exceptions\" />

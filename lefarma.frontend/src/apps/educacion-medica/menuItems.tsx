@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   HelpCircle,
-  LayoutGrid,
   Hospital,
   Package,
   Building2,
@@ -17,6 +16,9 @@ import {
   MapPin,
   LineChart,
   BarChart3,
+  Sparkles,
+  List,
+  Globe,
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
@@ -33,7 +35,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
   },
   {
     title: 'Catálogos',
-    icon: LayoutGrid,
+    icon: List,
     isCollapsible: true,
     items: [
       {
@@ -52,6 +54,11 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         path: '/educacion-medica/catalogos/tipo-gerencia',
       },
       {
+        title: 'Regiones',
+        icon: Globe,
+        path: '/educacion-medica/catalogos/regiones',
+      },
+      {
         title: 'Equipos y pareo',
         icon: Users,
         path: '/educacion-medica/catalogos/equipos-pareo',
@@ -60,6 +67,11 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         title: 'Parámetros',
         icon: Settings,
         path: '/educacion-medica/catalogos/parametros',
+      },
+      {
+        title: 'Ranking',
+        icon: Sparkles,
+        path: '/educacion-medica/catalogos/config-ranking',
       },
     ],
   },
