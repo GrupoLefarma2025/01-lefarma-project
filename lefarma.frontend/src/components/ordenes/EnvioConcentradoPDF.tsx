@@ -18,7 +18,14 @@ interface Props {
   agrupacion: AgrupacionKey;
   generadoPor?: string;
   id?: string;
-  firmaElaboro?: string;
+  /** Firma del GAF — rol Autorizó */
+  firmaAutorizo?: string;
+  /** Firma del revisor (usuario 44) — rol Revisó */
+  firmaReviso?: string;
+  /** Nombre completo del revisor (usuario 44) para la etiqueta */
+  nombreReviso?: string;
+  /** Nombre completo del autorizador (GAF, usuario 41) para la etiqueta */
+  nombreAutorizo?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -51,6 +58,17 @@ function getMes(d: string) {
   }
 }
 
+/** Folio + partida cell as 3 intentional lines ('OC-2026' / '00171' / '- 1'), mirroring the
+ *  jsPDF table; cell styles use white-space: pre-line so '\n' breaks the line. Falls back to
+ *  the whole folio when it has fewer than 3 dash-separated segments. All '-' preserved. */
+function folioPartidaCell(folio: string, numeroPartida: number): string {
+  const parts = folio.split('-');
+  if (parts.length >= 3) {
+    return `${parts.slice(0, -1).join('-')}\n${parts[parts.length - 1]}\n- ${numeroPartida}`;
+  }
+  return `${folio}\n- ${numeroPartida}`;
+}
+
 function getGroupKey(orden: OrdenCompraResponse, agrupacion: AgrupacionKey): string {
   switch (agrupacion) {
     case 'sucursal':
@@ -81,10 +99,9 @@ interface OrdenRow {
   descuento: number;
   iva: number;
   otrosImpuestos: number;
+  retenciones: number;
   importeTotal: number;
   formaPago: string;
-  medioPago: string;
-  notaOrden: string;
   groupKey: string;
 }
 
@@ -101,13 +118,14 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       return s + base * (p.porcentajeIva / 100);
     }, 0);
     const otrosImpuestos = o.partidas.reduce((s, p) => s + p.otrosImpuestos, 0);
+    const retenciones = o.partidas.reduce((s, p) => s + p.totalRetenciones, 0);
     const importeTotal = o.partidas.reduce((s, p) => s + p.total, 0);
     const descripcion = o.partidas.map((p) => p.descripcion).join('\n');
     const unidadMedida = o.partidas.map((p) => p.unidadMedidaNombre ?? String(p.idUnidadMedida)).join('\n');
 
     rows.push({
       folio: o.folio,
-      fechaElaboracion: o.fechaSolicitud ? fmtDate(o.fechaSolicitud) : '—',
+      fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
       solicitante: o.solicitanteNombre ?? '—',
       fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
       mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
@@ -121,10 +139,9 @@ function buildRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): O
       descuento,
       iva,
       otrosImpuestos,
+      retenciones,
       importeTotal,
       formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : '—',
-      medioPago: o.notaFormaPago ?? '—',
-      notaOrden: o.notasGenerales ?? '—',
       groupKey: gk,
     });
   }
@@ -146,6 +163,96 @@ function agruparRows(rows: OrdenRow[]): Array<{ grupo: string; rows: OrdenRow[];
     }));
 }
 
+// One flat row per partida (modo detalle con 2+ órdenes)
+interface PartidaRow {
+  idOrden: number;
+  folio: string;
+  numeroPartida: number;
+  fechaElaboracion: string;
+  solicitante: string;
+  fechaLimitePago: string;
+  mes: string;
+  sucursal: string;
+  cantidad: number;
+  unidadMedida: string;
+  proveedor: string;
+  descripcion: string;
+  precioUnitario: number;
+  subtotalPartida: number;
+  descuento: number;
+  iva: number;
+  otrosImpuestos: number;
+  retenciones: number;
+  importeTotal: number;
+  formaPago: string;
+  groupKey: string;
+}
+
+function buildPartidaRows(ordenes: OrdenCompraResponse[], agrupacion: AgrupacionKey): PartidaRow[] {
+  const rows: PartidaRow[] = [];
+  for (const o of ordenes) {
+    const gk = getGroupKey(o, agrupacion);
+    for (const p of o.partidas) {
+      const base = p.cantidad * p.precioUnitario - p.descuento;
+      rows.push({
+        idOrden: o.idOrden,
+        folio: o.folio,
+        numeroPartida: p.numeroPartida,
+        fechaElaboracion: o.fechaCreacion ? fmtDate(o.fechaCreacion) : '—',
+        solicitante: o.solicitanteNombre ?? '—',
+        fechaLimitePago: o.fechaLimitePago ? fmtDate(o.fechaLimitePago) : '—',
+        mes: o.fechaLimitePago ? getMes(o.fechaLimitePago) : '—',
+        sucursal: o.sucursalNombre ?? `Suc. ${o.idSucursal}`,
+        cantidad: p.cantidad,
+        unidadMedida: p.unidadMedidaNombre ?? String(p.idUnidadMedida),
+        proveedor: o.razonSocialProveedor ?? (o.idProveedor ? `Proveedor ${o.idProveedor}` : '—'),
+        descripcion: p.descripcion,
+        precioUnitario: p.precioUnitario,
+        subtotalPartida: base,
+        descuento: p.descuento,
+        iva: base * (p.porcentajeIva / 100),
+        otrosImpuestos: p.otrosImpuestos,
+        retenciones: p.totalRetenciones,
+        importeTotal: p.total,
+        formaPago: o.formasPagoNombres?.length ? o.formasPagoNombres.join(', ') : o.cuentaPagoTesorero?.formaPago ?? '—',
+        groupKey: gk,
+      });
+    }
+  }
+  return rows;
+}
+
+function agruparPartidas(rows: PartidaRow[]): Array<{
+  grupo: string;
+  ordenes: Array<{ idOrden: number; folio: string; partidas: PartidaRow[]; subtotal: number }>;
+  subtotal: number;
+}> {
+  const map = new Map<string, PartidaRow[]>();
+  for (const r of rows) {
+    if (!map.has(r.groupKey)) map.set(r.groupKey, []);
+    map.get(r.groupKey)!.push(r);
+  }
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b, 'es-MX'))
+    .map(([grupo, filas]) => {
+      const ordenes: Array<{ idOrden: number; folio: string; partidas: PartidaRow[]; subtotal: number }> = [];
+      for (const f of filas) {
+        const actual = ordenes[ordenes.length - 1];
+        if (actual && actual.idOrden === f.idOrden) {
+          actual.partidas.push(f);
+        } else {
+          ordenes.push({ idOrden: f.idOrden, folio: f.folio, partidas: [f], subtotal: 0 });
+        }
+      }
+      for (const ord of ordenes) ord.subtotal = ord.partidas.reduce((s, p) => s + p.importeTotal, 0);
+      return {
+        grupo,
+        ordenes,
+        subtotal: ordenes.reduce((s, o) => s + o.subtotal, 0),
+      };
+    });
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const DARK = '#1a3a5c';
@@ -154,6 +261,9 @@ const WHITE = '#ffffff';
 const HEADER_BG = '#1a3a5c';
 const COL_BG = '#2c5f8a';
 const EVEN_BG = '#f0f5fb';
+// Separador sutil entre bloques de orden (modo detalle por partida)
+const ORDER_TINT = '#f7fafd';
+const ORDER_SUBTOTAL_BG = '#e6effb';
 
 const s: Record<string, React.CSSProperties> = {
   page: {
@@ -341,26 +451,28 @@ const s: Record<string, React.CSSProperties> = {
   },
 };
 
+// Sums to exactly 100%: 'Comentario de Pago' and 'Nota de la Orden' removed and their
+// 12.16% redistributed proportionally across the remaining columns (plus rounding fix
+// on Descripción so the total is exact).
 const COL_WIDTHS = [
-  '6%',   // Folio
-  '4%',   // Fecha elab
-  '5%',   // Solicitante
-  '4%',   // F. Límite Pago
-  '3%',   // Mes
-  '5%',   // Sucursal
-  '2.5%', // Cantidad
-  '3%',   // U. Medida
-  '7%',   // Proveedor
-  '10%',  // Descripción
-  '5%',   // Precio Unit
-  '5%',   // Subtotal
-  '4%',   // Descuento
-  '5%',   // Impuesto
-  '4%',   // Otros Imp
-  '5.5%', // Importe Total
-  '6%',   // Forma Pago
-  '6%',   // Comentario de Pago
-  '6%',   // Nota de la Orden
+  '7.47%',  // Folio
+  '4.62%',  // Fecha elab
+  '4.84%',  // Solicitante
+  '5.34%',  // F. Límite Pago
+  '3.46%',  // Mes
+  '5.12%',  // Sucursal
+  '2.88%',  // Cantidad
+  '3.46%',  // U. Medida
+  '8.08%',  // Proveedor
+  '11.56%', // Descripción
+  '5.77%',  // Precio Unit
+  '5.77%',  // Subtotal
+  '4.62%',  // Descuento
+  '5.77%',  // Impuesto
+  '4.62%',  // Otros Imp
+  '4.62%',  // Retenciones
+  '6.35%',  // Importe Total
+  '5.65%',  // Forma Pago
 ];
 
 const COL_HEADERS = [
@@ -379,19 +491,23 @@ const COL_HEADERS = [
   'Descuento',
   'Impuesto',
   'Otros Imp.',
+  'Retenc.',
   'Importe Total',
   'Forma Pago',
-  'Comentario de Pago',
-  'Nota de la Orden',
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print', firmaElaboro }: Props) {
+export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'envio-concentrado-pdf-print', firmaAutorizo, firmaReviso, nombreReviso, nombreAutorizo }: Props) {
+  const detallePartidas = ordenes.length > 1;
   const allRows = buildRows(ordenes, agrupacion);
+  const partidaRows = detallePartidas ? buildPartidaRows(ordenes, agrupacion) : [];
   const grupos = agruparRows(allRows);
-  const grandTotal = allRows.reduce((s, r) => s + r.importeTotal, 0);
-  const totalPartidas = allRows.length;
+  const gruposPartidas = detallePartidas ? agruparPartidas(partidaRows) : [];
+  const grandTotal = detallePartidas
+    ? partidaRows.reduce((s, r) => s + r.importeTotal, 0)
+    : allRows.reduce((s, r) => s + r.importeTotal, 0);
+  const totalPartidas = detallePartidas ? partidaRows.length : allRows.length;
   const ahora = new Date();
   const fechaStr = ahora.toLocaleDateString('es-MX', {
     day: '2-digit',
@@ -423,8 +539,139 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
         </div>
       </div>
 
-      {/* ── GRUPOS ── */}
-      {grupos.map(({ grupo, rows, subtotal }) => (
+      {/* ── GRUPOS (modo detalle por partida) ── */}
+      {detallePartidas &&
+        gruposPartidas.map(({ grupo, ordenes: bloqueOrdenes, subtotal }) => (
+          <div key={grupo} style={{ marginBottom: 4 }}>
+            <div style={s.groupHeader}>▸ {grupo.toUpperCase()}</div>
+            <table style={s.table}>
+              <colgroup>
+                {COL_WIDTHS.map((w, i) => <col key={i} style={{ width: w }} />)}
+              </colgroup>
+              <thead>
+                <tr>
+                  {COL_HEADERS.map((h, i) => (
+                    <th key={i} style={i >= 10 && i <= 16 ? s.thR : s.th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bloqueOrdenes.map((orden, oi) => {
+                  const tinted = oi % 2 === 1;
+                  const n = orden.partidas.length;
+                  const tdTint = tinted
+                    ? { ...s.td, background: ORDER_TINT, printColorAdjust: 'exact' as const, WebkitPrintColorAdjust: 'exact' as const }
+                    : s.td;
+                  const tdrTint = tinted
+                    ? { ...s.tdR, background: ORDER_TINT, printColorAdjust: 'exact' as const, WebkitPrintColorAdjust: 'exact' as const }
+                    : s.tdR;
+                  return (
+                    <React.Fragment key={orden.idOrden}>
+                      {orden.partidas.map((r, i) => {
+                        const td = tinted ? tdTint : s.td;
+                        const tdr = tinted ? tdrTint : s.tdR;
+                        const isFirst = i === 0;
+                        return (
+                          <tr key={`${orden.idOrden}-${i}`}>
+                            <td style={td}>{folioPartidaCell(r.folio, r.numeroPartida)}</td>
+                            <td style={td}>{r.fechaElaboracion}</td>
+                            <td style={td}>{r.solicitante}</td>
+                            <td style={td}>{r.fechaLimitePago}</td>
+                            <td style={td}>{r.mes}</td>
+                            <td style={td}>{r.sucursal}</td>
+                            <td style={tdr}>{r.cantidad}</td>
+                            <td style={td}>{r.unidadMedida}</td>
+                            <td style={td}>{r.proveedor}</td>
+                            <td style={td}>{r.descripcion}</td>
+                            <td style={tdr}>{fmtMoney(r.precioUnitario)}</td>
+                            <td style={tdr}>{fmtMoney(r.subtotalPartida)}</td>
+                            <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
+                            <td style={tdr}>{fmtMoney(r.iva)}</td>
+                            <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
+                            <td style={tdr}>{r.retenciones > 0 ? fmtMoney(r.retenciones) : '—'}</td>
+                            <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>
+                            {isFirst && <td style={td} rowSpan={n}>{r.formaPago}</td>}
+                          </tr>
+                        );
+                      })}
+                      {/* Order subtotal — separador sutil entre órdenes */}
+                      <tr style={s.subtotalRow}>
+                        <td
+                          colSpan={16}
+                          style={{
+                            padding: '2px 4px',
+                            border: `1px solid ${BORDER}`,
+                            fontSize: 7,
+                            fontWeight: 700,
+                            textAlign: 'right' as const,
+                            background: ORDER_SUBTOTAL_BG,
+                            printColorAdjust: 'exact' as const,
+                            WebkitPrintColorAdjust: 'exact' as const,
+                          }}
+                        >
+                          Subtotal — Orden {orden.folio}
+                        </td>
+                        <td
+                          colSpan={2}
+                          style={{
+                            padding: '2px 4px',
+                            border: `1px solid ${BORDER}`,
+                            fontSize: 7.5,
+                            fontWeight: 700,
+                            textAlign: 'right' as const,
+                            color: DARK,
+                            background: ORDER_SUBTOTAL_BG,
+                            printColorAdjust: 'exact' as const,
+                            WebkitPrintColorAdjust: 'exact' as const,
+                          }}
+                        >
+                          {fmtMoney(orden.subtotal)}
+                        </td>
+                      </tr>
+                    </React.Fragment>
+                  );
+                })}
+                {/* Group subtotal */}
+                <tr style={s.subtotalRow}>
+                  <td
+                    colSpan={16}
+                    style={{
+                      padding: '2px 4px',
+                      border: `1px solid ${BORDER}`,
+                      fontSize: 7,
+                      fontWeight: 700,
+                      textAlign: 'right' as const,
+                      background: '#d9e8f8',
+                      printColorAdjust: 'exact' as const,
+                      WebkitPrintColorAdjust: 'exact' as const,
+                    }}
+                  >
+                    Subtotal — {grupo}
+                  </td>
+                  <td
+                    colSpan={2}
+                    style={{
+                      padding: '2px 4px',
+                      border: `1px solid ${BORDER}`,
+                      fontSize: 7.5,
+                      fontWeight: 700,
+                      textAlign: 'right' as const,
+                      color: DARK,
+                      background: '#d9e8f8',
+                      printColorAdjust: 'exact' as const,
+                      WebkitPrintColorAdjust: 'exact' as const,
+                    }}
+                  >
+                    {fmtMoney(subtotal)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+      {/* ── GRUPOS (modo por orden) ── */}
+      {!detallePartidas && grupos.map(({ grupo, rows, subtotal }) => (
         <div key={grupo} style={{ marginBottom: 4 }}>
           <div style={s.groupHeader}>▸ {grupo.toUpperCase()}</div>
           <table style={s.table}>
@@ -434,7 +681,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
             <thead>
               <tr>
                 {COL_HEADERS.map((h, i) => (
-                  <th key={i} style={i >= 10 && i <= 15 ? s.thR : s.th}>{h}</th>
+                  <th key={i} style={i >= 10 && i <= 16 ? s.thR : s.th}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -460,10 +707,9 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                     <td style={tdr}>{r.descuento > 0 ? fmtMoney(r.descuento) : '—'}</td>
                     <td style={tdr}>{fmtMoney(r.iva)}</td>
                     <td style={tdr}>{r.otrosImpuestos > 0 ? fmtMoney(r.otrosImpuestos) : '—'}</td>
+                    <td style={tdr}>{r.retenciones > 0 ? fmtMoney(r.retenciones) : '—'}</td>
                     <td style={{ ...tdr, fontWeight: 600 }}>{fmtMoney(r.importeTotal)}</td>
                     <td style={td}>{r.formaPago}</td>
-                    <td style={td}>{r.medioPago}</td>
-                    <td style={td}>{r.notaOrden}</td>
                   </tr>
                 );
               })}
@@ -485,7 +731,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                   Subtotal — {grupo}
                 </td>
                 <td
-                  colSpan={3}
+                  colSpan={2}
                   style={{
                     padding: '2px 4px',
                     border: `1px solid ${BORDER}`,
@@ -551,7 +797,7 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
                 printColorAdjust: 'exact' as const,
                 WebkitPrintColorAdjust: 'exact' as const,
               }}>
-                Ordenes totales
+                {detallePartidas ? 'Partidas totales' : 'Ordenes totales'}
               </td>
               <td style={{
                 padding: '3px 8px',
@@ -572,13 +818,29 @@ export function EnvioConcentradoPDF({ ordenes, agrupacion, generadoPor, id = 'en
       <div style={s.firmaSection}>
         <div style={s.groupHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {/* Elaboró (GAF) */}
+          {/* Revisó (usuario 44) */}
           <div style={s.firmaBox}>
-            <div style={s.firmaLabel}>Elaboró (GAF)</div>
+            <div style={s.firmaLabel}>{nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó'}</div>
             <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
-              {firmaElaboro ? (
+              {firmaReviso ? (
                 <img
-                  src={firmaElaboro}
+                  src={firmaReviso}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={{ fontWeight: 700, fontSize: 14, color: DARK, letterSpacing: 2 }}> sin firma </span>
+              )}
+            </div>
+          </div>
+          {/* Autorizó (GAF) */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó'}</div>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 8, minHeight: 40 }}>
+              {firmaAutorizo ? (
+                <img
+                  src={firmaAutorizo}
                   alt="Firma"
                   style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
                   crossOrigin="anonymous"

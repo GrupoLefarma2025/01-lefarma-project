@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- módulo de helpers + dispatcher de PDFs, no HMR-sensible */
 import React, { useMemo } from 'react';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
@@ -21,16 +22,65 @@ export interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
+// URL de la firma PNG subida desde el perfil del usuario (cache-bust con timestamp).
+export function firmaUsuarioUrl(idUsuario: number): string {
   const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
   const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+  return `${apiUrl}/media/archivos/firmas_usuarios/${idUsuario}.png?t=${Date.now()}`;
+}
+
+function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
   const map = new Map<number, string>();
   for (const h of historial) {
     if (h.idUsuario > 0 && !map.has(h.idUsuario)) {
-      map.set(h.idUsuario, `${apiUrl}/media/archivos/firmas_usuarios/${h.idUsuario}.png?t=${Date.now()}`);
+      map.set(h.idUsuario, firmaUsuarioUrl(h.idUsuario));
     }
   }
   return map;
+}
+
+export interface FirmanteFlow {
+  nombre: string;
+  url?: string;
+  esSolicitante: boolean;
+  /** Etiqueta de la caja (SOLICITA/AUTORIZA/ELABORA); si falta, se deduce de esSolicitante. */
+  rol?: string;
+}
+
+// Firmantes según el flujo aprobado: primero el solicitante (paso esInicio) y después cada
+// paso ya firmado en orden de workflow (autorizadores → RH / Director General según el flujo).
+// Sin roles fijos: cada caja del PDF muestra SOLICITA/AUTORIZA + nombre + firma del firmante real.
+export function firmantesDelFlujo(
+  pasosWorkflow: WorkflowPasoFlowResponse[] = [],
+  historial: HistorialWorkflowItemResponse[] = [],
+): FirmanteFlow[] {
+  const porPaso = new Map<number, HistorialWorkflowItemResponse[]>();
+  for (const h of historial) {
+    const arr = porPaso.get(h.idPaso) ?? [];
+    arr.push(h);
+    porPaso.set(h.idPaso, arr);
+  }
+  const firmas = buildFirmasMap(historial);
+  // Una misma persona puede firmar varios pasos del flujo: una sola caja por nombre.
+  const vistos = new Set<string>();
+  return pasosWorkflow
+    .filter((p) => p.activo)
+    .sort((a, b) => a.orden - b.orden)
+    .flatMap((paso) => {
+      const eventos = porPaso.get(paso.idPaso) ?? [];
+      const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
+      if (!ultimo) return [];
+      const nombre = ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`;
+      if (vistos.has(nombre)) return [];
+      vistos.add(nombre);
+      return [
+        {
+          esSolicitante: !!paso.esInicio,
+          nombre,
+          url: ultimo.idUsuario > 0 ? firmas.get(ultimo.idUsuario) : undefined,
+        },
+      ];
+    });
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────

@@ -59,6 +59,11 @@ public record ComprobanteResponse(
     int? IdMedioPago,
     string? MedioPagoNombre,
     string? DatosAdicionales,
+    bool? Activo,
+    int? IdBanco,
+    string? NumeroCuenta,
+    string? Clabe,
+    int? IdFormaPago,
     List<ComprobanteConceptoResponse> Conceptos
 );
 
@@ -148,4 +153,22 @@ public record ComprobanteAsignacionResponse(
     decimal ImporteAsignado,
     DateTime FechaAsignacion,
     string? Notas
+);
+
+public record HistorialComprobanteResponse(
+    int IdComprobante,
+    bool? Activo,
+    DateTime FechaPago,
+    decimal Monto,
+    string MedioPago,
+    int? IdBanco,
+    string? NombreBanco,
+    string? NumeroCuenta,
+    string? Clabe,
+    int? IdFormaPago,
+    int IdUsuarioSubio,
+    string? NombreUsuarioSubio,
+    string? ReferenciaPago,
+    byte Estado,
+    string TipoComprobante
 );

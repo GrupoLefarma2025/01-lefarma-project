@@ -27,6 +27,7 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="Microsoft.OpenApi" Version="2.12.2" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Serilog.Expressions" Version="5.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
@@ -39,6 +40,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="Lefarma.UnitTests" />
     <Folder Include="Domain\Entities\EducacionMedica\" />
     <Folder Include="Domain\Interfaces\EducacionMedica\" />
     <Folder Include="Features\Asistencias\" />

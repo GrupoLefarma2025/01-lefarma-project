@@ -121,7 +121,7 @@ public class ArchivosController : ControllerBase
                     var folioLimpio = folio.Replace("-", "");
                     var fecha = DateTime.Now.ToString("ddMMyyyy");
                     var count = await _db.Comprobantes
-                        .CountAsync(c => c.Categoria == tipoComprobante
+                        .CountAsync(c => (c.Activo ?? true) && c.Categoria == tipoComprobante
                             && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.EntidadId));
 
                     var ext = Path.GetExtension(file.FileName);

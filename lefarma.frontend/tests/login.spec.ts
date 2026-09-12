@@ -1,93 +1,54 @@
 import { test, expect } from '@playwright/test';
 
+/**
+ * E2E de login (flujo global en `/`).
+ *
+ * Requiere el backend corriendo en http://localhost:5174 (el webServer de
+ * playwright.config.ts solo levanta Vite en :5173).
+ *
+ * Credenciales de desarrollo (usuario 54). El flujo es multi-paso:
+ * usuario -> contraseña -> (selección de contexto, auto-commit si aplica).
+ */
+
+const USUARIO = '54';
+const PASSWORD = 'tt01tt';
+
 test.describe('Login Flow', () => {
-  test('debería hacer login con usuario 54 y capturar logs', async ({ page }) => {
-    // Coleccionar todos los logs de consola
-    const logs: string[] = [];
-    page.on('console', (msg) => {
-      const text = msg.text();
-      logs.push(`[${msg.type()}] ${text}`);
-    });
+  test('login con credenciales válidas redirige al dashboard', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    // Navegar a la página de login
-    await page.goto('http://localhost:5173/', {
-      waitUntil: 'networkidle',
-    });
+    // Paso 1: usuario
+    const inputUsuario = page.locator('input[type="text"]');
+    await expect(inputUsuario).toBeVisible();
+    await inputUsuario.fill(USUARIO);
+    await page.locator('button[type="submit"]').click();
 
-    // Esperar a que la página cargue
-    await expect(page.locator('input[type="text"]')).toBeVisible();
+    // Paso 2: contraseña
+    const inputPassword = page.locator('input[type="password"]');
+    await expect(inputPassword).toBeVisible({ timeout: 10_000 });
+    await inputPassword.fill(PASSWORD);
+    await page.locator('button[type="submit"]').click();
 
-    console.log('🔍 Paso 1: Ingresando usuario...');
-    // PASO 1: Ingresar usuario
-    await page.fill('input[type="text"]', '54');
-    await page.click('button[type="submit"]');
+    // Post-login: redirección al dashboard (incluye auto-commit del paso 3 si aplica)
+    await page.waitForURL(/\/dashboard/, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
 
-    // Esperar a que aparezca el input de password
-    await expect(page.locator('input[type="password"]')).toBeVisible({ timeout: 5000 });
+  test('login con contraseña inválida muestra error y no entra', async ({ page }) => {
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
 
-    console.log('🔍 Paso 2: Ingresando password...');
-    // PASO 2: Ingresar password
-    await page.fill('input[type="password"]', 'tt01tt');
-    await page.click('button[type="submit"]');
+    const inputUsuario = page.locator('input[type="text"]');
+    await expect(inputUsuario).toBeVisible();
+    await inputUsuario.fill(USUARIO);
+    await page.locator('button[type="submit"]').click();
 
-    // Esperar 3 segundos para ver los logs de SSE
-    console.log('⏳ Esperando 3 segundos para capturar logs de SSE...');
-    await page.waitForTimeout(3000);
+    const inputPassword = page.locator('input[type="password"]');
+    await expect(inputPassword).toBeVisible({ timeout: 10_000 });
+    await inputPassword.fill('password-incorrecto');
+    await page.locator('button[type="submit"]').click();
 
-    // Imprimir todos los logs capturados
-    console.log('\n📋 LOGS DE CONSOLA CAPTURADOS:');
-    console.log('='.repeat(80));
-    for (const log of logs) {
-      // Filtrar logs relevantes (notificaciones, SSE, errores)
-      if (
-        log.includes('SSE') ||
-        log.includes('notification') ||
-        log.includes('Notification') ||
-        log.includes('error') ||
-        log.includes('Error')
-      ) {
-        console.log(log);
-      }
-    }
-    console.log('='.repeat(80));
-
-    // Verificar que no haya errores críticos
-    const errorLogs = logs.filter(log =>
-      log.toLowerCase().includes('error') &&
-      !log.includes('DevTools') &&
-      !log.includes('Download the React DevTools')
-    );
-
-    if (errorLogs.length > 0) {
-      console.log('\n❌ ERRORES ENCONTRADOS:');
-      errorLogs.forEach(log => console.log(`  ${log}`));
-    } else {
-      console.log('\n✅ No se encontraron errores críticos');
-    }
-
-    // Buscar el bucle infinito de SSE
-    const sseConnectLogs = logs.filter(log => log.includes('SSE') && log.includes('Conectando'));
-    const sseDisconnectLogs = logs.filter(log => log.includes('SSE') && log.includes('Desconectando'));
-
-    console.log(`\n📊 ESTADÍSTICAS DE SSE:`);
-    console.log(`  Conexiones: ${sseConnectLogs.length}`);
-    console.log(`  Desconexiones: ${sseDisconnectLogs.length}`);
-
-    if (sseConnectLogs.length > 3) {
-      console.log('\n⚠️  POSIBLE BUCLE INFINITO DETECTADO:');
-      console.log(`  Se detectaron ${sseConnectLogs.length} intentos de conexión en 3 segundos`);
-    } else {
-      console.log('\n✅ No hay bucle infinito de SSE');
-    }
-
-    // Verificar el estado de autenticación
-    const currentUrl = page.url();
-    console.log(`\n🌐 URL actual: ${currentUrl}`);
-
-    if (currentUrl.includes('/dashboard')) {
-      console.log('✅ Login exitoso - Usuario redirigido al dashboard');
-    } else if (currentUrl.includes('/login')) {
-      console.log('⚠️  Login no completado - Usuario aún en página de login');
-    }
+    // Sigue en el login y no navega al dashboard
+    await page.waitForTimeout(3_000);
+    expect(page.url()).not.toContain('/dashboard');
   });
 });

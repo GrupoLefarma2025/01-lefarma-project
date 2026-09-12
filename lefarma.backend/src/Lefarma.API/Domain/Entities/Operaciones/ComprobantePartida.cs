@@ -13,6 +13,7 @@ public class ComprobantePartida
 
     public string? Notas { get; set; }
     public DateTime FechaAsignacion { get; set; }
+    public bool Activo { get; set; } = true;
 
     public virtual Comprobante? Comprobante { get; set; }
     public virtual OrdenCompraPartida? Partida { get; set; }

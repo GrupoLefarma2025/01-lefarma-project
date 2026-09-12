@@ -254,6 +254,11 @@
     visibility: hidden;
   }
 
+  /* Eliminar el contenedor raíz de la app para que el PDF (portal en body) inicie en la página 1 */
+  #root {
+    display: none !important;
+  }
+
   /* ── FLUJO ── */
   body.print-flujo #flujo-pdf-print,
   body.print-flujo #flujo-pdf-print * {
@@ -286,9 +291,7 @@
 
   body.print-orden #orden-compra-pdf-print {
     display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    position: static !important;
     width: 100% !important;
     background: #fff !important;
     color: #111 !important;
@@ -300,6 +303,11 @@
 
   body.print-orden #orden-compra-pdf-print table {
     page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  body.print-orden #orden-compra-pdf-print thead {
+    display: table-header-group;
   }
 
   body.print-orden #orden-compra-pdf-print img {

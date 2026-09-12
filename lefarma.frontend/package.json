@@ -13,7 +13,9 @@
     "publish": "pwsh -ExecutionPolicy Bypass -File scripts/publish.ps1",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:login": "playwright test tests/login.spec.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

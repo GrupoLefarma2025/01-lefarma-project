@@ -1,6 +1,11 @@
 ﻿import { Navigate } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { checkPermission, usePermissionVersion } from '@/utils/permissions';
+import {
+  checkPermission,
+  usePermissionVersion,
+  hasPermissionsLoaded,
+} from '@/utils/permissions';
+import { InlineLoader } from '@/components/ui/inline-loader';
 
 
 interface PermissionGuardProps {
@@ -28,6 +33,16 @@ export function PermissionGuard({
   children,
 }: PermissionGuardProps) {
   usePermissionVersion(); // subscribe — re-render when permissions change
+
+  // Espera al primer fetch de permisos (GET /profile) antes de decidir.
+  // Con el cache aun vacio, "no tiene permiso" significa "aun no se sabe",
+  // no "denegado": sin esta espera, un F5 a una ruta protegida redirige a
+  // /bloqueado aunque el usuario si tenga el permiso (race entre boot y fetch
+  // fire-and-forget en authStore.initialize()).
+  if (!hasPermissionsLoaded()) {
+    return <InlineLoader message="Verificando permisos…" />;
+  }
+
   const hasPermission = checkPermission({ require, requireAny, exclude });
 
   if (!hasPermission) {

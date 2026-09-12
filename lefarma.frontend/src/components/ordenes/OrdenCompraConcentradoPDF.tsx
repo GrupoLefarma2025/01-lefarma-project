@@ -22,11 +22,20 @@ interface ProveedorInfo {
   razonSocial: string;
   rfc?: string;
   cuentasFormaPago?: ProveedorCuentaBancaria[];
+  detalle?: {
+    personaContactoNombre?: string;
+    contactoTelefono?: string;
+  };
 }
 
 interface Props {
   orden: OrdenCompraResponse;
-  firmaElaboro?: string;
+  firmaSolicitante?: string;
+  firmaReviso?: string;
+  firmaAutorizo?: string;
+  nombreSolicitante?: string;
+  nombreReviso?: string;
+  nombreAutorizo?: string;
   id?: string;
   proveedoresMap?: Map<number, ProveedorInfo>;
 }
@@ -307,7 +316,7 @@ const Logo: React.FC<{ src: string }> = ({ src }) => (
 
 const EMPTY_LINES = 7;
 
-export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
+export function OrdenCompraConcentradoPDF({ orden, firmaSolicitante, firmaReviso, firmaAutorizo, nombreSolicitante, nombreReviso, nombreAutorizo, id = 'orden-compra-concentrado-pdf-print', proveedoresMap }: Props) {
   const proveedores = proveedoresMap ?? new Map<number, ProveedorInfo>();
   const emptyRows = Math.max(0, EMPTY_LINES - (orden.partidas?.length ?? 0));
 
@@ -335,7 +344,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
           <div style={s.folioRow}>
             <div style={s.folioLabelCell}>Fecha Elaboración</div>
             <div style={s.folioValueCell}>
-              {orden.fechaSolicitud ? fmtDate(orden.fechaSolicitud) : '-'}
+              {orden.fechaCreacion ? fmtDate(orden.fechaCreacion) : '-'}
             </div>
           </div>
         </div>
@@ -380,6 +389,20 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
               {orden.idProveedor
                 ? (proveedores.get(Number(orden.idProveedor))?.razonSocial ?? orden.razonSocialProveedor ?? '-')
                 : (orden.razonSocialProveedor ?? '-')}
+            </td>
+          </tr>
+          <tr>
+            <td style={s.thBlue}>Contacto</td>
+            <td style={s.tdValue} colSpan={2}>
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.detalle?.personaContactoNombre ?? orden.personaContacto ?? '-')
+                : (orden.personaContacto ?? '-')}
+            </td>
+            <td style={s.thBlue}>Teléfono</td>
+            <td style={s.tdValue} colSpan={2}>
+              {orden.idProveedor
+                ? (proveedores.get(Number(orden.idProveedor))?.detalle?.contactoTelefono ?? '-')
+                : '-'}
             </td>
           </tr>
           <tr>
@@ -474,8 +497,9 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
         <div style={s.totalsBox}>
           {[
             { label: 'Subtotal', value: (orden.partidas ?? []).reduce((sum, p) => sum + (p.precioUnitario * p.cantidad), 0), bold: false },
-            { label: 'Descuentos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
-            { label: 'Impuesto', value: orden.totalIva, bold: false },
+            { label: 'Descuento', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.descuento, 0), bold: false },
+            { label: 'Impuestos', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.otrosImpuestos, 0) + orden.totalIva, bold: false },
+            { label: 'Retenciones', value: (orden.partidas ?? []).reduce((sum, p) => sum + p.totalRetenciones, 0), bold: false },
             { label: 'Total', value: orden.total, bold: true },
           ].map(({ label, value, bold }) => (
             <div key={label} style={s.totalRow}>
@@ -488,17 +512,61 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
         </div>
       </div>
 
+      {/* ── LUGAR DE ENTREGA (debajo de Observaciones) ── */}
+      <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+        <div style={s.obsHeader}>Lugar de entrega</div>
+        <div style={{ padding: '4px 6px', fontSize: 8.5, lineHeight: 1.4 }}>{orden.domicilioEntrega ?? '-'}</div>
+      </div>
+
+      {/* ── DATOS DE FACTURACIÓN (debajo de Lugar de entrega) ── */}
+      <div style={{ border: `1px solid ${BORDER}`, borderTop: 'none' }}>
+        <div style={s.obsHeader}>Datos de facturación</div>
+        <div style={{ padding: '4px 6px', fontSize: 8.5, lineHeight: 1.4 }}>{orden.facturarA ?? '-'}</div>
+      </div>
+
       {/* ── FIRMAS (Concentrado) ── */}
       <div style={s.firmaSection}>
         <div style={s.firmaHeader}>Autorizaciones</div>
         <div style={s.firmaGrid}>
-          {/* Elaboró (GAF) */}
-          <div style={s.firmaBox}>
-            <div style={s.firmaLabel}>Elaboró (GAF)</div>
+          {/* Solicitante */}
+          {/* <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreSolicitante ? `Solicitante — ${nombreSolicitante}` : 'Solicitante'}</div>
             <div style={s.firmaContent}>
-              {firmaElaboro ? (
+              {firmaSolicitante ? (
                 <img
-                  src={firmaElaboro}
+                  src={firmaSolicitante}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={s.firmaPlaceholder}> sin firma </span>
+              )}
+            </div>
+          </div> */}
+          {/* Revisó */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreReviso ? `Revisó — ${nombreReviso}` : 'Revisó'}</div>
+            <div style={s.firmaContent}>
+              {firmaReviso ? (
+                <img
+                  src={firmaReviso}
+                  alt="Firma"
+                  style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
+                  crossOrigin="anonymous"
+                />
+              ) : (
+                <span style={s.firmaPlaceholder}> sin firma </span>
+              )}
+            </div>
+          </div>
+          {/* Autorizó */}
+          <div style={s.firmaBox}>
+            <div style={s.firmaLabel}>{nombreAutorizo ? `Autorizó — ${nombreAutorizo}` : 'Autorizó'}</div>
+            <div style={s.firmaContent}>
+              {firmaAutorizo ? (
+                <img
+                  src={firmaAutorizo}
                   alt="Firma"
                   style={{ maxWidth: 120, maxHeight: 40, objectFit: 'contain' }}
                   crossOrigin="anonymous"
@@ -517,6 +585,7 @@ export function OrdenCompraConcentradoPDF({ orden, firmaElaboro, id = 'orden-com
           </div>
         </div>
       </div>
+
     </div>
   );
 }

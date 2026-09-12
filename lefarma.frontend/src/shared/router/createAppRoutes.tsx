@@ -4,6 +4,7 @@ import { Navigate, Route, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { ProtectedRoute, PublicOnlyRoute } from '@/routes/LandingRoute';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { authService } from '@/shared/auth/authService';
 import { MultiStepLogin } from '@/components/baseapp/MultiStepLogin';
 import BlockedPage from '@/pages/auth/BlockedPage';
 import NotFound from '@/pages/NotFound';
@@ -15,18 +16,47 @@ const PageLoader = () => (
 );
 
 /**
+ * Nombre visible de cada app en su login (esquina inferior derecha, junto a
+ * la versión). Si un appKey no está en el mapa, el login no muestra nombre.
+ */
+const APP_LOGIN_NAMES: Record<string, string> = {
+  cxp: 'Cuentas por Pagar',
+  rh: 'Recursos Humanos',
+  'educacion-medica': 'Educación Médica',
+};
+
+/**
  * Resolvedor de índice de subárbol consciente de auth. Lógica idéntica para
  * cada app: usuarios autenticados aterrizan en `dashboard`; usuarios no
  * autenticados son redirigidos al login del subárbol con el destino deseado
  * preservado vía `?return=` (spec app-routing: "preserving the return URL").
+ *
+ * Excepción CxP (requiresUbicacion): el login de CxP tiene un 3er paso de
+ * ubicación (empresa/sucursal/área). Un usuario autenticado que entra a /cxp
+ * sin ubicación persistida (p.ej. desde el hub u otra app) es enviado a
+ * `select-empresa`; si ya la seleccionó, entra directo al dashboard.
  */
-function AppSubtreeIndex({ loginPath }: { loginPath: string }) {
+function AppSubtreeIndex({
+  loginPath,
+  requiresUbicacion,
+}: {
+  loginPath: string;
+  requiresUbicacion?: boolean;
+}) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
 
   if (!isInitialized) return <PageLoader />;
-  if (isAuthenticated) return <Navigate to="dashboard" replace />;
+  if (isAuthenticated) {
+    if (
+      requiresUbicacion &&
+      !(authService.getEmpresa() && authService.getSucursal())
+    ) {
+      return <Navigate to="select-empresa" replace />;
+    }
+    return <Navigate to="dashboard" replace />;
+  }
   const from = location.pathname + location.search;
   return <Navigate to={`${loginPath}?return=${encodeURIComponent(from)}`} replace />;
 }
@@ -132,7 +162,7 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
     variant === 'root' ? (
       rootIndexElement ?? <Navigate to={resolvedLoginPath} replace />
     ) : (
-      <AppSubtreeIndex loginPath={resolvedLoginPath} />
+      <AppSubtreeIndex loginPath={resolvedLoginPath} requiresUbicacion={appKey === 'cxp'} />
     );
 
   const publicOnlyRoute =
@@ -163,6 +193,7 @@ export function createAppRoutes(config: AppRoutesConfig): ReactNode {
               step3Label={step3Label}
               step3Description={step3Description}
               subtitle={loginSubtitle}
+              appName={APP_LOGIN_NAMES[appKey]}
             />
           }
         />

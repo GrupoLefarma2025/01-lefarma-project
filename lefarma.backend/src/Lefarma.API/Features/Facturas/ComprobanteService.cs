@@ -32,6 +32,7 @@ public class ComprobanteService : IComprobanteService
     };
 
     private readonly ApplicationDbContext _db;
+    private readonly AsokamDbContext _asokamContext;
     private readonly IComprobanteRepository _repo;
     private readonly IArchivoService _archivoService;
     private readonly ISatValidationService _sat;
@@ -39,12 +40,14 @@ public class ComprobanteService : IComprobanteService
 
     public ComprobanteService(
         ApplicationDbContext db,
+        AsokamDbContext asokamDbContext,
         IComprobanteRepository repo,
         IArchivoService archivoService,
         ISatValidationService sat,
         ILogger<ComprobanteService> logger)
     {
         _db = db;
+        _asokamContext = asokamDbContext;
         _repo = repo;
         _archivoService = archivoService;
         _sat = sat;
@@ -58,9 +61,10 @@ public class ComprobanteService : IComprobanteService
         {
             preview = CfdiParser.Parse(xmlContent);
         }
-        catch (FormatException)
+        catch (FormatException ex)
         {
-            return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado");
+            _logger.LogWarning(ex, "Error parseando XML en preview");
+            return CommonErrors.Validation("XmlInvalido", $"El XML no es un CFDI valido: {ex.Message}");
         }
 
         if (preview.Uuid is not null && preview.RfcEmisor is not null && preview.RfcReceptor is not null)
@@ -92,8 +96,14 @@ public class ComprobanteService : IComprobanteService
 
         if (esCfdi && !string.IsNullOrEmpty(xmlContent))
         {
-            try { cfdi = CfdiParser.Parse(xmlContent); }
-            catch (FormatException) { return CommonErrors.Validation("XmlInvalido", "El XML no es un CFDI valido o esta malformado"); }
+            try { 
+                cfdi = CfdiParser.Parse(xmlContent); 
+            }
+            catch (FormatException ex)
+            {
+                _logger.LogWarning(ex, "Error parseando XML CFDI para orden {IdOrden}", request.IdOrden);
+                return CommonErrors.Validation("XmlInvalido", $"El XML no es un CFDI valido: {ex.Message}");
+            }
 
             if (cfdi.Uuid != null && await _repo.UuidExisteAsync(cfdi.Uuid, ct))
                 return CommonErrors.Conflict("Comprobante", "Ya existe una factura registrada con este UUID CFDI");
@@ -101,10 +111,21 @@ public class ComprobanteService : IComprobanteService
             if (cfdi.Uuid is not null && cfdi.RfcEmisor is not null && cfdi.RfcReceptor is not null)
             {
                 var sat = await _sat.ValidarAsync(cfdi.Uuid, cfdi.RfcEmisor, cfdi.RfcReceptor, cfdi.Total, ct);
-            if (!sat.Contactado && !sat.PermitirAvanzar)
-                return CommonErrors.Failure("Comprobante", "No fue posible validar el CFDI con el SAT.");
-            if (!sat.EsVigente && !sat.PermitirAvanzar)
-                return CommonErrors.Validation("SatNoVigente", $"El CFDI no puede ser registrado. Estado SAT: {sat.Estado ?? "Desconocido"}");
+                if (!sat.Contactado && !sat.PermitirAvanzar)
+                {
+                    var detalle = !string.IsNullOrWhiteSpace(sat.CodigoEstatus)
+                        ? $" Detalle SAT: {sat.CodigoEstatus}."
+                        : " Intenta de nuevo mas tarde.";
+                    return CommonErrors.Failure("SatNoDisponible", $"No fue posible validar el CFDI con el SAT.{detalle}");
+                }
+                if (!sat.EsVigente && !sat.PermitirAvanzar)
+                {
+                    var cancelacion = !string.IsNullOrWhiteSpace(sat.EstatusCancelacion)
+                        ? $" Cancelacion: {sat.EstatusCancelacion}."
+                        : "";
+                    return CommonErrors.Validation("SatNoVigente",
+                        $"El CFDI no esta vigente ante el SAT. Estado: {sat.Estado ?? "Desconocido"}.{cancelacion}");
+                }
             }
         }
 
@@ -127,7 +148,12 @@ public class ComprobanteService : IComprobanteService
                 FechaPago        = request.FechaPago,
                 MontoPago        = request.MontoPago,
                 Estado           = 0,
-                FechaCreacion    = DateTime.UtcNow
+                FechaCreacion    = DateTime.UtcNow,
+                IdBanco = request.IdBanco,
+                NumeroCuenta = request.NumeroCuenta?.Trim(),
+                Clabe = request.Clabe?.Trim(),
+                IdFormaPago = request.IdFormaPago,
+                Activo = true,
             };
 
             _db.Comprobantes.Add(comprobante);
@@ -140,7 +166,7 @@ public class ComprobanteService : IComprobanteService
                 .FirstOrDefaultAsync(ct)) ?? $"OC-{request.IdOrden}";
 
             var countPrevios = await _db.Comprobantes
-                .CountAsync(c => c.Categoria == request.Categoria
+                .CountAsync(c => (c.Activo ?? true) && c.Categoria == request.Categoria
                     && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == request.IdOrden), ct);
 
             var prefijo = esPago ? "Pago" : "Gasto";
@@ -209,7 +235,24 @@ public class ComprobanteService : IComprobanteService
             }
 
             if (request.IdOrden.HasValue && esPago)
-                await RegistrarCuentaPagoTesoreroAsync(request.IdOrden.Value, idUsuario, request, ct);
+            {
+                var orden = await _db.OrdenesCompra.FindAsync([request.IdOrden.Value], ct);
+                if (orden != null)
+                {
+                    var cuenta = new
+                    {
+                        request.IdFormaPago,
+                        request.FormaPago,
+                        request.IdBanco,
+                        request.Banco,
+                        request.NumeroCuenta,
+                        request.Clabe
+                    };
+                    orden.IdsCuentasBancarias = OrdenCompraDocumentoJson.MergeClavesJson(orden.IdsCuentasBancarias,
+                        new Dictionary<string, object?> { ["cuentaPagoTesorero"] = cuenta });
+                    await _db.SaveChangesAsync(ct);
+                }
+            }
 
             await tx.CommitAsync(ct);
             return MapToResponse(comprobante);
@@ -217,7 +260,9 @@ public class ComprobanteService : IComprobanteService
         catch (Exception ex)
         {
             await tx.RollbackAsync(ct);
-            _logger.LogError(ex, "Error al subir comprobante");
+            _logger.LogError(ex,
+            "Error al subir comprobante: Orden={IdOrden}, Categoria={Categoria}, Tipo={Tipo}, Usuario={IdUsuario}",
+            request.IdOrden, request.Categoria, request.TipoComprobante, idUsuario);
             throw;
         }
     }
@@ -247,7 +292,7 @@ public class ComprobanteService : IComprobanteService
 
             var idPartidas = partidas.Select(p => p.IdPartida).ToList();
             var pagadoPorPartida = await _db.ComprobantesPartidas
-                .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Comprobante!.Categoria == "pago")
+                .Where(cp => idPartidas.Contains(cp.IdPartida) && cp.Comprobante!.Categoria == "pago" && (cp.Comprobante.Activo ?? true) && cp.Activo)
                 .GroupBy(cp => cp.IdPartida)
                 .Select(g => new { IdPartida = g.Key, ImportePagado = g.Sum(cp => cp.ImporteAsignado) })
                 .ToDictionaryAsync(x => x.IdPartida, x => x.ImportePagado, ct);
@@ -327,7 +372,9 @@ public class ComprobanteService : IComprobanteService
                 var importeYaPagado = await _db.ComprobantesPartidas
                     .Where(cp => cp.IdPartida == item.IdPartida
                               && cp.IdComprobante != idComprobante
-                              && cp.Comprobante!.Categoria == "pago")
+                              && cp.Comprobante!.Categoria == "pago"
+                              && (cp.Comprobante.Activo ?? true)
+                              && cp.Activo)
                     .SumAsync(cp => cp.ImporteAsignado, ct);
                 var importePendientePago = partida.Total - importeYaPagado;
                 if (item.ImporteAsignado > importePendientePago + Tolerancia)
@@ -443,7 +490,7 @@ public class ComprobanteService : IComprobanteService
         // Buscar todos los comprobantes de la categoría para esta orden
         var comprobantes = await _db.Comprobantes
             .Include(c => c.Asignaciones)
-            .Where(c => c.Categoria == categoria
+            .Where(c => (c.Activo ?? true) && c.Categoria == categoria
                 && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == idOrden))
             .ToListAsync(ct);
 
@@ -484,8 +531,10 @@ public class ComprobanteService : IComprobanteService
                     await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
                 }
 
-                // Eliminar asignaciones 
-                _db.ComprobantesPartidas.RemoveRange(comprobante.Asignaciones);
+                // Soft-delete de asignaciones (se conservan para el historial de comprobantes)
+                await _db.ComprobantesPartidas
+                    .Where(cp => cp.IdComprobante == comprobante.IdComprobante)
+                    .ExecuteUpdateAsync(s => s.SetProperty(cp => cp.Activo, false), ct);
 
                 // Desactivar archivos relacionados (buscar por idComprobante en metadata)
                 var archivosRelacionados = await _db.Archivos
@@ -501,7 +550,23 @@ public class ComprobanteService : IComprobanteService
                 }
 
                 // Eliminar comprobante
-                _db.Comprobantes.Remove(comprobante);
+                //_db.Comprobantes.Remove(comprobante);
+
+                //Se cambia a soft delete para mantener el historial de comprobantes eliminados
+                comprobante.Activo = false;
+                comprobante.Estado = 3; // Rechazado/Cancelado
+                comprobante.FechaModificacion = DateTime.UtcNow;
+
+                if (categoria == "pago")
+                {
+                    var orden = await _db.OrdenesCompra.FirstOrDefaultAsync(o => o.IdOrden == idOrden, ct);
+                    if (orden != null)
+                    {
+                        orden.IdsCuentasBancarias = OrdenCompraDocumentoJson.MergeClavesJson(
+                            orden.IdsCuentasBancarias,
+                            new Dictionary<string, object?> { ["cuentaPagoTesorero"] = null });
+                    }
+                }
             }
 
             await _db.SaveChangesAsync(ct);
@@ -515,6 +580,44 @@ public class ComprobanteService : IComprobanteService
             _logger.LogError(ex, "Error al eliminar comprobantes de {Categoria} para orden {IdOrden}", categoria, idOrden);
             throw;
         }
+    }
+
+    public async Task<ErrorOr<List<HistorialComprobanteResponse>>> GetHistorialComprobantesAsync(
+    int idOrden, string categoria, CancellationToken ct)
+    {
+        var comprobantes = await _db.Comprobantes
+        .Include(c => c.MedioPago)
+        .Include(c => c.Banco)
+        .Where(c => c.Categoria == categoria
+            && _db.ComprobantesPartidas.Any(cp => cp.IdComprobante == c.IdComprobante && cp.Partida!.IdOrden == idOrden))
+        .OrderByDescending(c => c.FechaCreacion)
+        .ToListAsync(ct);
+
+        // Lookup de usuarios (AsokamDbContext)
+        var usuariosIds = comprobantes.Select(c => c.IdUsuarioSubio).Distinct().ToList();
+        var usuariosMap = usuariosIds.Count > 0
+            ? await _asokamContext.Usuarios
+                .Where(u => usuariosIds.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", ct)
+            : new Dictionary<int, string>();
+
+        return comprobantes.Select(c => new HistorialComprobanteResponse(
+            IdComprobante: c.IdComprobante,
+            Activo: c.Activo,
+            FechaPago: c.FechaPago ?? c.FechaCreacion,
+            Monto: c.MontoPago ?? c.Total,
+            MedioPago: c.MedioPago?.Nombre ?? c.TipoComprobante,
+            IdBanco: c.IdBanco,
+            NombreBanco: c.Banco?.Nombre,
+            NumeroCuenta: c.NumeroCuenta,
+            Clabe: c.Clabe,
+            IdFormaPago: c.IdFormaPago,
+            IdUsuarioSubio: c.IdUsuarioSubio,
+            NombreUsuarioSubio: usuariosMap.TryGetValue(c.IdUsuarioSubio, out var usuario) ? usuario : $"Usuario {c.IdUsuarioSubio}",
+            ReferenciaPago: c.ReferenciaPago,
+            Estado: c.Estado,
+            TipoComprobante: c.TipoComprobante
+        )).ToList();
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
@@ -680,6 +783,11 @@ public class ComprobanteService : IComprobanteService
             IdMedioPago:       c.IdMedioPago,
             MedioPagoNombre:   c.MedioPago?.Nombre,
             DatosAdicionales:  c.DatosAdicionales,
+            Activo: c.Activo,
+            IdBanco: c.IdBanco,
+            NumeroCuenta: c.NumeroCuenta,
+            Clabe: c.Clabe,
+            IdFormaPago: c.IdFormaPago,
             Conceptos:         ParseConceptos(c).ToList()
         );
     }

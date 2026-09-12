@@ -151,7 +151,7 @@ export interface AuthState {
     domain: string,
     options?: { requireContextSelection?: boolean }
   ) => Promise<void>;
-  loginStepThree: (empresaId: string, sucursalId: string) => Promise<void>;
+  loginStepThree: (empresaId: string, sucursalId: string, areaId?: string) => Promise<void>;
   resetLoginFlow: () => void;
 
   // Área resolver core — admin-managed only (REQ-001/005)
@@ -159,7 +159,7 @@ export interface AuthState {
   loadProfile: () => Promise<void>;
   setCatalogs: (empresas: Empresa[], sucursales: Sucursal[], areas: Area[]) => void;
 
-  // Acciones de firma de firma
+  // Firma signature actions
   setHasFirma: (has: boolean) => void;
   fetchProfileSignature: () => Promise<void>;
 

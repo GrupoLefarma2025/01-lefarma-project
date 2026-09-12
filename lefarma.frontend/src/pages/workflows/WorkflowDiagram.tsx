@@ -113,7 +113,7 @@ export default function WorkflowDiagram() {
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al cargar el workflow');
-      navigate('/workflows');
+      navigate('/cxp/workflows');
     } finally {
       setLoading(false);
     }
@@ -265,7 +265,7 @@ export default function WorkflowDiagram() {
       <div className="flex flex-col items-center justify-center h-[600px] gap-4">
         <WorkflowIcon className="h-12 w-12 text-muted-foreground/40" />
         <p className="text-muted-foreground">Workflow no encontrado</p>
-        <Button onClick={() => navigate('/workflows')}>
+        <Button onClick={() => navigate('/cxp/workflows')}>
           <ArrowLeft className="mr-2 h-4 w-4" /> Volver a workflows
         </Button>
       </div>
@@ -280,7 +280,7 @@ export default function WorkflowDiagram() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => navigate('/workflows')}
+            onClick={() => navigate('/cxp/workflows')}
             className="gap-2"
           >
             <ArrowLeft className="h-4 w-4" />

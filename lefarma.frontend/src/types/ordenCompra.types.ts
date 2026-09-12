@@ -13,6 +13,7 @@ export interface OrdenCompraPartidaResponse {
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;
+  ajusteRedondeo?: number | null;
   deducible: boolean;
   total: number;
   idProveedor?: number | null;
@@ -77,8 +78,12 @@ export interface OrdenCompraResponse {
   idUsuarioCreador?: number;
   solicitanteNombre?: string | null;
   solicitantePuesto?: string | null;
+  solicitanteCorreo?: string | null;
+  segundoAutorizador?: string | null;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
+  facturarA?: string | null;
+  domicilioEntrega?: string | null;
   idCentroCosto?: number | null;
   centroCostoNombre?: string | null;
   cuentaContable?: number | null;
@@ -102,6 +107,8 @@ export interface OrdenCompraResponse {
   monedaCodigo?: string | null;
   monedaSimbolo?: string | null;
   tipoCambioAplicado: number;
+  folioTransporte?: number | null;
+  nombreTraslado?: string | null;
   partidas: OrdenCompraPartidaResponse[];
 }
 
@@ -117,6 +124,7 @@ export interface CreatePartidaRequest {
   porcentajeIva: number;
   totalRetenciones: number;
   otrosImpuestos: number;
+  ajusteRedondeo?: number | null;
   deducible: boolean;
   idProveedor?: number | null;
   idCuentaBancaria?: number | null;
@@ -140,8 +148,11 @@ idsCuentasBancarias?: number[] | null;
   requierePagoAnticipado: boolean;
   notaFormaPago?: string | null;
   notasGenerales?: string | null;
+  facturarA?: string | null;
+  domicilioEntrega?: string | null;
   idMoneda?: number | null;
   tipoCambioAplicado?: number;
+  folioTransporte?: number | null;
   partidas: CreatePartidaRequest[];
 }
 

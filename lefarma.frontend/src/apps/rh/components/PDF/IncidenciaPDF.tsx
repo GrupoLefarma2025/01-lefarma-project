@@ -1,22 +1,9 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
+import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import type { HistorialWorkflowItemResponse } from '@/types/solicitudPersonalWorkflow.types';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
-
-// ponytail: buildFirmasMap duplicated from SolicitudPersonalPDF (not exported there).
-// Exporting it would refactor an unrelated file; inlining the ~10 lines is the smaller diff.
-function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-  const map = new Map<number, string>();
-  for (const h of historial) {
-    if (h.idUsuario > 0 && !map.has(h.idUsuario)) {
-      map.set(h.idUsuario, `${apiUrl}/media/archivos/firmas_usuarios/${h.idUsuario}.png?t=${Date.now()}`);
-    }
-  }
-  return map;
-}
 
 const BLUE = '#00B0F0';
 const CBOX = '#41719C';
@@ -213,14 +200,9 @@ const NOTES = [
   'el cual requerirá aprobación de Dirección Corporativa.',
 ];
 
-interface Firmante {
-  nombre: string;
-  url?: string;
-}
-
 type Solicitud = Props['solicitud'];
 
-function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: (Firmante | null)[] }) {
+function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: FirmanteFlow[] }) {
   const tipoNorm = normalize(solicitud.tipoSolicitudNombre);
   const empresa = solicitud.empresaNombre ?? `ID ${solicitud.idEmpresa}`;
   const area = solicitud.areaNombre ?? `ID ${solicitud.idArea}`;
@@ -236,7 +218,7 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: (
   const fillRepos = idxPerm === 1 ? 1 : idxPerm === 3 ? 2 : 0;
 
   const sigCell: React.CSSProperties = {
-    height: 26,
+    height: 44,
     verticalAlign: 'bottom',
     textAlign: 'center',
   };
@@ -248,9 +230,9 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: (
     verticalAlign: 'top',
     fontWeight: 700,
   };
-  const sigImg = (f: Firmante | null | undefined) =>
+  const sigImg = (f: FirmanteFlow | null | undefined) =>
     f?.url ? (
-      <img src={f.url} alt="Firma" style={{ height: 22, objectFit: 'contain', ...PRINT_EXACT }} />
+      <img src={f.url} alt="Firma" style={{ height: 36, objectFit: 'contain', ...PRINT_EXACT }} />
     ) : null;
 
   const colLeft: React.CSSProperties = { width: '38%', paddingRight: 6, boxSizing: 'border-box' };
@@ -385,38 +367,41 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: (
           <div style={{ minHeight: 26, padding: '1px 0', textAlign: 'justify' }}>{solicitud.motivo ?? ''}</div>
         </div>
 
-        {/* FIRMAS — FIRMAS no es full-width; la celda del empleado sube 2 filas (como el original) */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <td colSpan={3} style={{ borderBottom: BORDER, textAlign: 'center', fontSize: 7, fontWeight: 700 }}>
-                FIRMAS DE AUTORIZACIÓN
-              </td>
-              <td rowSpan={2} style={{ ...sigCell, borderLeft: BORDER }} />
-            </tr>
-            <tr>
-              <td style={{ ...sigCell, ...s.vDiv, width: '25%' }}>{sigImg(firmantes[0])}</td>
-              <td style={{ ...sigCell, ...s.vDiv, width: '25%' }} />
-              <td style={{ ...sigCell, ...s.vDiv, width: '25%' }}>{sigImg(firmantes[1])}</td>
-            </tr>
-            <tr>
-              <td colSpan={2} style={{ ...sigLabel, ...s.vDiv }}>
-                Vo.Bo. JEFE DIRECTO
-                <div style={{ fontWeight: 400 }}>{firmantes[0]?.nombre ?? ''}</div>
-              </td>
-              <td style={{ ...sigLabel, ...s.vDiv }}>
-                RECURSOS HUMANOS
-                <div style={{ fontWeight: 400 }}>{firmantes[1]?.nombre ?? ''}</div>
-              </td>
-              <td style={sigLabel}>
-                FIRMA
-                <br />
-                EMPLEADO
-                <div style={{ fontWeight: 400 }}>{firmantes[2]?.nombre ?? ''}</div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        {/* FIRMAS — una caja por firmante del flujo aprobado (SOLICITA + cada AUTORIZA firmado) */}
+        <div style={{ borderTop: BORDER }}>
+          <div style={{ borderBottom: BORDER, textAlign: 'center', fontSize: 7, fontWeight: 700, padding: '1px 0' }}>
+            FIRMAS DE AUTORIZACIÓN
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+            {firmantes.map((f, i) => (
+              <div
+                key={i}
+                style={{
+                  flex: '1 1 23%',
+                  minWidth: 140,
+                  boxSizing: 'border-box',
+                  borderLeft: i > 0 ? BORDER : undefined,
+                }}
+              >
+                <div
+                  style={{
+                    ...sigCell,
+                    display: 'flex',
+                    alignItems: 'flex-end',
+                    justifyContent: 'center',
+                    padding: '0 4px',
+                  }}
+                >
+                  {sigImg(f)}
+                </div>
+                <div style={sigLabel}>
+                  {f.esSolicitante ? 'SOLICITA' : 'AUTORIZA'}
+                  <div style={{ fontWeight: 400 }}>{f.nombre}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* FOOTER (fuera del borde, como el formato) */}
@@ -431,28 +416,8 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: (
 }
 
 export function IncidenciaPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
-  const firmasMap = useMemo(() => buildFirmasMap(historial), [historial]);
-
-  // ponytail: role->column mapping needs confirmation; slots filled left-to-right by workflow order
-  // (jefe directo, RH, empleado). Unsigned slots stay empty so signatures don't shift columns.
-  const firmantes = useMemo(
-    () =>
-      pasosWorkflow
-        .filter((p) => p.activo)
-        .sort((a, b) => a.orden - b.orden)
-        .map((paso): Firmante | null => {
-          const eventos = historial.filter((h) => h.idPaso === paso.idPaso);
-          const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
-          return ultimo
-            ? {
-                nombre: ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`,
-                url: ultimo.idUsuario > 0 ? firmasMap.get(ultimo.idUsuario) : undefined,
-              }
-            : null;
-        })
-        .slice(0, 3),
-    [pasosWorkflow, historial, firmasMap],
-  );
+  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
+  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
 
   // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (

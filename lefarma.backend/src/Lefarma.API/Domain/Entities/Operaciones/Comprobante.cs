@@ -26,5 +26,13 @@ public class Comprobante
     public DateTime? FechaModificacion { get; set; }
 
     public virtual MedioPago? MedioPago { get; set; }
+    public virtual Banco? Banco { get; set; }
+
+    public bool? Activo { get; set; } = true;
+    public int? IdBanco { get; set; }
+    public string? NumeroCuenta { get; set; }
+    public string? Clabe { get; set; }
+    public int? IdFormaPago { get; set; }
+
     public virtual ICollection<ComprobantePartida> Asignaciones { get; set; } = [];
 }

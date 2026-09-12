@@ -1,28 +1,8 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import type { HistorialWorkflowItemResponse } from '@/types/solicitudPersonalWorkflow.types';
+import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
-
-// ponytail: buildFirmasMap duplicated from SolicitudPersonalPDF (not exported there).
-// Exporting it would refactor an unrelated file; inlining the ~10 lines is the smaller diff.
-function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-  const map = new Map<number, string>();
-  for (const h of historial) {
-    if (h.idUsuario > 0 && !map.has(h.idUsuario)) {
-      map.set(h.idUsuario, `${apiUrl}/media/archivos/firmas_usuarios/${h.idUsuario}.png?t=${Date.now()}`);
-    }
-  }
-  return map;
-}
-
-function firmaUrl(idUsuario: number) {
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-  return `${apiUrl}/media/archivos/firmas_usuarios/${idUsuario}.png?t=${Date.now()}`;
-}
 
 const BLACK = '#000000';
 const BORDER = `1px solid ${BLACK}`;
@@ -103,13 +83,7 @@ const Blank: React.FC<{ children?: React.ReactNode; w?: number }> = ({ children,
 
 type Solicitud = Props['solicitud'];
 
-interface Firmas {
-  solicitante?: string;
-  autorizacion?: string;
-  nomina?: string;
-}
-
-function FormCopy({ solicitud, reasonIdx, firmas }: { solicitud: Solicitud; reasonIdx: number; firmas: Firmas }) {
+function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; reasonIdx: number; firmantes: FirmanteFlow[] }) {
   const ini = splitFecha(solicitud.fechaInicio);
   const fin = splitFecha(solicitud.fechaFin);
 
@@ -125,11 +99,11 @@ function FormCopy({ solicitud, reasonIdx, firmas }: { solicitud: Solicitud; reas
 
   const sigImg = (url?: string) =>
     url ? (
-      <img src={url} alt="Firma" style={{ maxHeight: 30, objectFit: 'contain', ...PRINT_EXACT }} />
+      <img src={url} alt="Firma" style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }} />
     ) : null;
   const sigCell: React.CSSProperties = {
     borderTop: BORDER,
-    height: 58,
+    height: 72,
     verticalAlign: 'top',
     textAlign: 'center',
     padding: '4px 2px 2px',
@@ -228,87 +202,50 @@ function FormCopy({ solicitud, reasonIdx, firmas }: { solicitud: Solicitud; reas
           </table>
         </div>
 
-        {/* FIRMAS */}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <tbody>
-            <tr>
-              <td style={sigCell}>
+        {/* FIRMAS — una caja por firmante del flujo aprobado (SOLICITA + cada AUTORIZA firmado) */}
+        <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+          {firmantes.map((f, i) => (
+            <div
+              key={i}
+              style={{
+                flex: '1 1 23%',
+                minWidth: 140,
+                boxSizing: 'border-box',
+                borderLeft: i > 0 ? BORDER : undefined,
+              }}
+            >
+              <div style={sigCell}>
                 <div style={sigInner}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{sigImg(firmas.solicitante)}</div>
-                  <div style={sigLabel}>FIRMA SOLICITANTE</div>
+                  {/* Firma encima de una línea continua (la línea es elemento propio, no un border del contenedor). */}
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
+                    {sigImg(f.url)}
+                    <div style={{ width: '100%', borderTop: BORDER }} />
+                  </div>
+                  <div style={sigLabel}>{f.esSolicitante ? 'SOLICITA' : 'AUTORIZA'}</div>
+                  <div style={{ ...sigLabel, fontWeight: 400, textAlign: 'center' }}>{f.nombre}</div>
                 </div>
-              </td>
-              <td style={{ ...sigCell, borderLeft: BORDER }}>
-                <div style={sigInner}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{sigImg(firmas.autorizacion)}</div>
-                  <div style={sigLabel}>FIRMA AUTORIZACION</div>
-                </div>
-              </td>
-              <td style={{ ...sigCell, borderLeft: BORDER }}>
-                <div style={sigInner}>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center' }}>{sigImg(firmas.nomina)}</div>
-                  <div style={sigLabel}>JEFE NÓMINAS</div>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
 }
 
 export function GoceDeSueldoPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
-  const firmasMap = useMemo(() => buildFirmasMap(historial), [historial]);
-
-  const flujoPasos = useMemo(() => {
-    const porPaso = new Map<number, HistorialWorkflowItemResponse[]>();
-    for (const h of historial) {
-      const arr = porPaso.get(h.idPaso) ?? [];
-      arr.push(h);
-      porPaso.set(h.idPaso, arr);
-    }
-    return pasosWorkflow
-      .filter((p) => p.activo)
-      .sort((a, b) => a.orden - b.orden)
-      .map((paso) => {
-        const eventos = porPaso.get(paso.idPaso) ?? [];
-        const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
-        return { paso, ultimo };
-      });
-  }, [pasosWorkflow, historial]);
-
-  // ponytail: FIRMA AUTORIZACION — step name keyword match; fallback to first non-start step with event
-  const autorizacion = useMemo(() => {
-    const byName = flujoPasos.find(
-      (f) => f.ultimo && /autoriz|jefe|directo|valida|aprueba/i.test(f.paso.nombrePaso),
-    );
-    if (byName?.ultimo) return byName.ultimo;
-    return flujoPasos.find((f) => f.ultimo && !f.paso.esInicio)?.ultimo ?? null;
-  }, [flujoPasos]);
-
-  // ponytail: JEFE NÓMINAS — step name keyword match; empty cell if no match
-  const nomina = useMemo(
-    () =>
-      flujoPasos.find((f) => f.ultimo && /n[oó]mina|nomina|rh|recursos/i.test(f.paso.nombrePaso))?.ultimo ?? null,
-    [flujoPasos],
-  );
-
-  const firmas: Firmas = {
-    solicitante: solicitud.idUsuarioCreador > 0 ? firmaUrl(solicitud.idUsuarioCreador) : undefined,
-    autorizacion: autorizacion && autorizacion.idUsuario > 0 ? firmasMap.get(autorizacion.idUsuario) : undefined,
-    nomina: nomina && nomina.idUsuario > 0 ? firmasMap.get(nomina.idUsuario) : undefined,
-  };
+  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
+  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
 
   const reasonIdx = goceReasonIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 
   // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
-      <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmas={firmas} />
+      <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmantes={firmantes} />
       {/* ponytail: inter-copy cut gap (40px ≈ 10.6mm); keeps both copies on one A4 with default print margins. */}
       <div style={{ height: 40 }} />
-      <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmas={firmas} />
+      <FormCopy solicitud={solicitud} reasonIdx={reasonIdx} firmantes={firmantes} />
     </div>
   );
 }

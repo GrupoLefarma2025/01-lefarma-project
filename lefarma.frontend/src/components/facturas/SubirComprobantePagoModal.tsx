@@ -128,7 +128,10 @@ export function SubirComprobantePagoModal({
   const medioSeleccionado = mediosPago.find(m => m.idMedioPago === idMedioPago);
 
   // Pendiente al abrir el modal
-  const pendienteOrden = totalOrden != null ? Math.max(0, totalOrden - totalPagado) : undefined;
+  // redondear pendienteOrden a 2 decimales
+  const pendienteOrden = totalOrden != null
+  ? Math.max(0, Math.round((totalOrden - totalPagado) * 100) / 100)
+  : undefined;
 
   // Sincronizar monto y cuenta pre-cargada cuando se abre el modal
   useEffect(() => {
@@ -193,19 +196,20 @@ export function SubirComprobantePagoModal({
         nombrePaso:       nombrePaso ?? null,
         nombreAccion:     nombreAccion ?? null,
         idMedioPago:      idMedioPago,
-        idFormaPago:      sinCambioCuenta ? null : idFormaPago,
-        formaPago:        sinCambioCuenta ? null : (formaPagoNombre.trim() || null),
-        idBanco:          sinCambioCuenta ? null : idBanco,
-        banco:            sinCambioCuenta ? null : (bancos.find(b => b.idBanco === idBanco)?.nombre ?? null),
-        numeroCuenta:     sinCambioCuenta ? null : (numeroCuenta.trim() || null),
-        clabe:            sinCambioCuenta ? null : (clabe.trim() || null),
+        idFormaPago:  idFormaPago,
+        formaPago:    formaPagoNombre.trim() || null,
+        idBanco:      idBanco,
+        banco:        bancos.find(b => b.idBanco === idBanco)?.nombre ?? null,
+        numeroCuenta: numeroCuenta.trim() || null,
+        clabe:        clabe.trim() || null,
       });
       setComprobanteSubido(comp);
       setStep('archivo');
     } catch (error: unknown) {
-      const apiErr = toApiError(error);
-      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante');
-    } finally {
+        const apiErr = toApiError(error);
+        toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al crear comprobante');
+        console.error('[Pago] Error al crear comprobante:', error);
+      } finally {
       setLoading(false);
     }
   };
@@ -218,14 +222,17 @@ export function SubirComprobantePagoModal({
 
     // Siempre ir al step asignar para que el usuario revise
     setAsignaciones(
-      partidasPendientes.map((p) => ({
-        idPartida: p.idPartida,
-        checked: true,
-        importe:   partidasPendientes.length === 1
-          ? String(Math.min(Number(monto), p.importePendiente).toFixed(2))
-          : '0',
-        notas:     '',
-      }))
+      partidasPendientes.map((p) => {
+        const pendTotal = partidasPendientes.reduce((s, x) => s + x.importePendiente, 0);
+        return {
+          idPartida: p.idPartida,
+          checked: true,
+          importe: pendTotal > 0
+            ? String(((p.importePendiente / pendTotal) * Number(monto)).toFixed(2))
+            : String((Number(monto) / partidasPendientes.length).toFixed(2)),
+          notas: '',
+        };
+      })
     );
     setStep('asignar');
   };
@@ -260,8 +267,9 @@ export function SubirComprobantePagoModal({
       toast.success('Pago asignado.');
       handleClose();
     } catch (error: unknown) {
-      const apiErr = toApiError(error);
-      toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
+        console.error('[Pago] Error al asignar partidas:', error);
+        const apiErr = toApiError(error);
+        toast.error(apiErr.errors?.[0]?.description ?? apiErr.message ?? 'Error al asignar partidas');
     } finally {
       setLoading(false);
     }

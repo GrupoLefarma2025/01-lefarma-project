@@ -12,9 +12,11 @@ import { EnvioConcentradoPDF, AGRUPACION_LABELS } from '@/components/ordenes/Env
 import type { AgrupacionKey } from '@/components/ordenes/EnvioConcentradoPDF';
 import { OrdenCompraConcentradoPDF } from '@/components/ordenes/OrdenCompraConcentradoPDF';
 import { useAuthStore } from '@/shared/auth/authStore';
+import { FileViewer } from '@/components/archivos/FileViewer';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -40,7 +42,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Printer, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download } from 'lucide-react';
+import { Printer, Paperclip, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download, Eye, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
 
@@ -123,6 +125,9 @@ export default function EnvioConcentrado() {
   const [envioResult, setEnvioResult] = useState<EnvioConcentradoResponse | null>(null);
   const [envioError, setEnvioError] = useState<string | null>(null);
   const [showPreviewDialog, setShowPreviewDialog] = useState(false);
+  const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null);
+  const [verSoporte, setVerSoporte] = useState(false);
+  const soporteInputRef = useRef<HTMLInputElement>(null);
   const [comentario, setComentario] = useState(
     'Autorización enviada desde el sistema de control de gastos'
   );
@@ -191,6 +196,41 @@ export default function EnvioConcentrado() {
     const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
     return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
   })();
+
+  // Firma del revisor (usuario 73 en Asokam — Marco Polo) para el concentrado multi
+  const firmaRevisoUrl = (() => {
+    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
+    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
+    return `${apiUrl}/media/archivos/firmas_usuarios/73.png`;
+  })();
+
+  // ── Nombres completos de Revisó (44) y Autorizó (41) para etiquetas ──────
+  const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await API.get<{ data: { idUsuario: number; nombreCompleto: string }[] }>(
+          '/auth/usuarios'
+        );
+        if (cancelled) return;
+        const users = res.data?.data ?? [];
+        // El NombreCompleto de Asokam trae prefijo numérico ('44 Marco Polo...') → se limpia
+        const nombreLimpio = (s?: string) => s?.replace(/^\d+\s+/, '');
+setNombresFirmas({
+        // IdUsuario de Asokam: 73 = Marco Polo (Revisó), 63 = Diego (Autorizó)
+        reviso: nombreLimpio(users.find((u) => u.idUsuario === 73)?.nombreCompleto),
+        autorizo: nombreLimpio(users.find((u) => u.idUsuario === 63)?.nombreCompleto),
+      });
+      } catch {
+        // silent fail: las etiquetas quedan sin nombre
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // ── Proveedor (con cuentas bancarias) para el PDF individual ────────────
   const [proveedoresMap, setProveedoresMap] = useState<Map<number, Proveedor>>(new Map());
@@ -326,7 +366,10 @@ export default function EnvioConcentrado() {
       ordenes: ordenesSeleccionadas,
       agrupacion,
       generadoPor: user?.nombre ?? user?.username,
-      firmaElaboro: firmaElaboroUrl,
+      firmaAutorizo: firmaElaboroUrl,
+      firmaReviso: firmaRevisoUrl,
+      nombreAutorizo: nombresFirmas.autorizo,
+      nombreReviso: nombresFirmas.reviso,
     });
   }
 
@@ -370,7 +413,10 @@ export default function EnvioConcentrado() {
       formData.append('correo', '41@grupolefarma.com.mx');
       formData.append('correoCC', '');
       formData.append('archivo', pdfBlob, 'concentrado.pdf');
-      formData.append('tieneDocumentoSoporte', 'false');
+      formData.append('tieneDocumentoSoporte', archivoSoporte ? 'true' : 'false');
+      if (archivoSoporte) {
+        formData.append('archivoSoporte', archivoSoporte, archivoSoporte.name);
+      }
 
       const res = await API.post<ApiResponse<EnvioConcentradoResponse>>(
         '/ordenes/envio-concentrado/pdf',
@@ -379,6 +425,7 @@ export default function EnvioConcentrado() {
       const data = res.data.data!;
       setEnvioResult(data);
       if ((data.exitosas ?? 0) > 0) {
+        setArchivoSoporte(null);
         setTimeout(fetchOrdenes, 800);
         setSelected(new Set());
       }
@@ -645,7 +692,16 @@ export default function EnvioConcentrado() {
               </div>
             ) : isSingleOrden && singleOrden ? (
               <div className="bg-white shadow-sm rounded overflow-hidden">
-                <OrdenCompraConcentradoPDF orden={singleOrden} firmaElaboro={firmaElaboroUrl} proveedoresMap={proveedoresMap} />
+                <OrdenCompraConcentradoPDF 
+                  orden={singleOrden} 
+                  firmaSolicitante={firmaElaboroUrl}
+                  nombreSolicitante={user?.nombre ?? user?.username}
+                  firmaReviso={firmaRevisoUrl}
+                  nombreReviso={nombresFirmas.reviso}
+                  firmaAutorizo={firmaElaboroUrl}
+                  nombreAutorizo={nombresFirmas.autorizo}
+                  proveedoresMap={proveedoresMap} 
+                />
               </div>
             ) : (
               <div id="envio-concentrado-preview" className="bg-white shadow-sm rounded overflow-hidden">
@@ -723,7 +779,12 @@ export default function EnvioConcentrado() {
               <OrdenCompraConcentradoPDF
                 id="envio-concentrado-pdf-preview"
                 orden={singleOrden}
-                firmaElaboro={firmaElaboroUrl}
+                firmaSolicitante={firmaElaboroUrl}
+                nombreSolicitante={user?.nombre ?? user?.username}
+                firmaReviso={firmaRevisoUrl}
+                nombreReviso={nombresFirmas.reviso}
+                firmaAutorizo={firmaElaboroUrl}
+                nombreAutorizo={nombresFirmas.autorizo}
                 proveedoresMap={proveedoresMap}
               />
             ) : (
@@ -732,9 +793,72 @@ export default function EnvioConcentrado() {
                 ordenes={ordenesSeleccionadas}
                 agrupacion={agrupacion}
                 generadoPor={user?.nombre ?? user?.username}
-                firmaElaboro={firmaElaboroUrl}
+                firmaAutorizo={firmaElaboroUrl}
+                firmaReviso={firmaRevisoUrl}
+                nombreAutorizo={nombresFirmas.autorizo}
+                nombreReviso={nombresFirmas.reviso}
               />
             )}
+          </div>
+
+          <div className="space-y-1.5 shrink-0">
+          <Label htmlFor="soporte-envio" className="text-sm font-medium">
+            PDF de soporte (opcional)
+          </Label>
+           {archivoSoporte && (
+    <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800">
+      PDF seleccionado
+    </span>
+  )}
+          <div className="flex items-center gap-2">
+            <Input
+              id="soporte-envio"
+              type="file"
+              accept="application/pdf,.pdf"
+              ref={soporteInputRef}
+              disabled={enviando}
+              onChange={(e) => setArchivoSoporte(e.target.files?.[0] ?? null)}
+              className={cn(
+                archivoSoporte && "border-green-500 bg-green-50 file:text-green-700 hover:border-green-600"
+              )}
+            />
+            {/* {archivoSoporte && (
+              <span className="text-xs text-muted-foreground truncate max-w-[180px]">
+                {archivoSoporte.name}
+              </span>
+            )} */}
+            {archivoSoporte && (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                className="h-8 gap-1 px-2"
+                onClick={() => setVerSoporte(true)}
+                disabled={enviando}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Ver
+              </Button>
+            )}
+            {archivoSoporte && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                className="h-8 px-2"
+                onClick={() => {
+                  setArchivoSoporte(null);
+                  if (soporteInputRef.current) soporteInputRef.current.value = '';
+                }}
+                disabled={enviando}
+              >
+                <Trash className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+              Este pdf se enviará como <code className="font-mono">documento de soporte</code> para el envío concentrado. Solo se acepta uno y en formato PDF.
+            </p>
           </div>
 
           <div className="space-y-1.5 shrink-0">
@@ -787,13 +911,24 @@ export default function EnvioConcentrado() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Vista previa del PDF de soporte */}
+      <FileViewer
+        localFile={archivoSoporte}
+        open={verSoporte}
+        onClose={() => setVerSoporte(false)}
+      />
 
       {createPortal(
         <div id="envio-concentrado-pdf-portal" style={{ position: 'fixed', left: '-9999px', top: 0 }}>
           {isSingleOrden && singleOrden ? (
             <OrdenCompraConcentradoPDF
               orden={singleOrden}
-              firmaElaboro={firmaElaboroUrl}
+              firmaSolicitante={firmaElaboroUrl}
+              nombreSolicitante={user?.nombre ?? user?.username}
+              firmaReviso={firmaRevisoUrl}
+              nombreReviso={nombresFirmas.reviso}
+              firmaAutorizo={firmaElaboroUrl}
+              nombreAutorizo={nombresFirmas.autorizo}
               proveedoresMap={proveedoresMap}
             />
           ) : (
@@ -801,7 +936,8 @@ export default function EnvioConcentrado() {
               ordenes={ordenesSeleccionadas}
               agrupacion={agrupacion}
               generadoPor={user?.nombre ?? user?.username}
-              firmaElaboro={firmaElaboroUrl}
+              firmaAutorizo={firmaElaboroUrl}
+              firmaReviso={firmaRevisoUrl}
             />
           )}
         </div>,

@@ -14,7 +14,9 @@ public class OrdenCompraPartida
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
         public bool Deducible { get; set; } = true;
-        // ((PrecioUnitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones + OtrosImpuestos
+        // Ajuste por redondeo (máx ±5): ajusta SOLO el total de la partida, no el subtotal/IVA
+        public decimal? AjusteRedondeo { get; set; }
+        // ((PrecioUnitario * Cantidad) - Descuento) * (1 + IVA/100) - Retenciones + OtrosImpuestos + AjusteRedondeo
         public decimal Total { get; set; }
 
         // Proveedor específico de la partida (puede diferir del proveedor principal de la orden)

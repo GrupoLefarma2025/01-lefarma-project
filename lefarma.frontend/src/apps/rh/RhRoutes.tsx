@@ -40,7 +40,12 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
     loginPath,
     loginSubtitle: 'Sistema de Gestión de Recursos Humanos',
     layout: (
-      <MainLayout items={rhMenuItems} brandTitle="Grupo Lefarma RH" brandPath="/rh/dashboard" />
+      <MainLayout
+        items={rhMenuItems}
+        brandTitle="Grupo Lefarma RH"
+        brandPath="/rh/dashboard"
+        configPath="/rh/perfil/configuracion"
+      />
     ),
     routes: (
       <>

@@ -40,8 +40,13 @@ $PublishTargets = @{
 function Stop-PortProcess([int]$Port) {
     $conn = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue | Select-Object -First 1
     if ($conn) {
+        $p = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
         Stop-Process -Id $conn.OwningProcess -Force -ErrorAction SilentlyContinue
         Start-Sleep -Seconds 1
+        Write-Host "Puerto $port : $($p.ProcessName) (PID $($conn.OwningProcess)) MATADO" -ForegroundColor Yellow
+    }
+    else {
+        Write-Host "Puerto $port : libre" -ForegroundColor DarkGray
     }
 }
 

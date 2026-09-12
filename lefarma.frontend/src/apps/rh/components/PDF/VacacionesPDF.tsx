@@ -1,21 +1,7 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import type { HistorialWorkflowItemResponse } from '@/types/solicitudPersonalWorkflow.types';
+import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import logoImage from '@/assets/logo.png';
-
-// ponytail: buildFirmasMap duplicated from SolicitudPersonalPDF (not exported there);
-// inlining ~10 lines is a smaller diff than refactoring an unrelated file.
-function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-  const map = new Map<number, string>();
-  for (const h of historial) {
-    if (h.idUsuario > 0 && !map.has(h.idUsuario)) {
-      map.set(h.idUsuario, `${apiUrl}/media/archivos/firmas_usuarios/${h.idUsuario}.png?t=${Date.now()}`);
-    }
-  }
-  return map;
-}
 
 // Split an ISO date into DÍA/MES/AÑO without JS-Date timezone drift.
 function splitFecha(fecha?: string | null) {
@@ -82,13 +68,15 @@ const fillLine: React.CSSProperties = {
   overflowWrap: 'anywhere',
 };
 
+// ponytail: sin borderBottom aquí — la línea la dibuja el helper firma() como elemento
+// propio debajo de la imagen, para que quede continua y la firma encima (sin cortarla).
 const firmaLine: React.CSSProperties = {
   flex: 1,
-  borderBottom: `1px solid ${BLACK}`,
   display: 'flex',
-  alignItems: 'flex-end',
-  justifyContent: 'center',
-  height: 30,
+  flexDirection: 'column',
+  justifyContent: 'flex-end',
+  alignItems: 'center',
+  height: 44,
   padding: '0 6px',
 };
 
@@ -109,44 +97,21 @@ const ctlCell: React.CSSProperties = {
 };
 
 const sigImgStyle: React.CSSProperties = {
-  height: 24,
+  height: 40,
   objectFit: 'contain',
   maxWidth: '100%',
 };
 
-interface Firmante {
-  nombre: string;
-  url?: string;
-}
-
 export function VacacionesPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
-  const firmasMap = useMemo(() => buildFirmasMap(historial), [historial]);
-
-  // ponytail: role->slot mapping is best-effort by workflow order
-  // ([0] solicitante, [1] jefe de área, [2] jefe nómina); unsigned slots stay blank.
-  const firmantes = useMemo(
-    () =>
-      pasosWorkflow
-        .filter((p) => p.activo)
-        .sort((a, b) => a.orden - b.orden)
-        .map((paso): Firmante | null => {
-          const eventos = historial.filter((h) => h.idPaso === paso.idPaso);
-          const ultimo = eventos.length > 0 ? eventos[eventos.length - 1] : null;
-          return ultimo
-            ? {
-                nombre: ultimo.nombreUsuario ?? `Usuario ${ultimo.idUsuario}`,
-                url: ultimo.idUsuario > 0 ? firmasMap.get(ultimo.idUsuario) : undefined,
-              }
-            : null;
-        })
-        .slice(0, 3),
-    [pasosWorkflow, historial, firmasMap],
-  );
+  // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
+  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
+  const autorizan = firmantes.filter((f) => !f.esSolicitante);
+  const solicitanteSig = firmantes.find((f) => f.esSolicitante) ?? firmantes[0];
 
   const empresa = solicitud.empresaNombre ?? '';
   const trabajador = solicitud.solicitanteNombre ?? '';
   const area = solicitud.areaNombre ?? '';
-  const para = firmantes[1]?.nombre ?? '';
+  const para = autorizan[0]?.nombre ?? '';
 
   const elab = splitFecha(solicitud.fechaCreacion);
   const dias = solicitud.diasSolicitados ?? '';
@@ -162,11 +127,16 @@ export function VacacionesPDF({ solicitud, historial = [], pasosWorkflow = [] }:
   const reg = splitFecha(solicitud.fechaRegreso);
   const regMes = reg.m ? MONTHS[parseInt(reg.m, 10) - 1] ?? '' : '';
 
-  const solicitaNombre = firmantes[0]?.nombre ?? trabajador;
+  const solicitaNombre = solicitanteSig?.nombre ?? trabajador;
 
   // ponytail: plain function returning JSX (not a nested component) to satisfy
   // react-hooks/static-components — a nested component remounts every render.
-  const firma = (f?: string) => (f ? <img src={f} alt="Firma" style={sigImgStyle} /> : null);
+  const firma = (f?: string) => (
+    <>
+      {f ? <img src={f} alt="Firma" style={sigImgStyle} /> : null}
+      <span style={{ display: 'block', width: '100%', borderBottom: `1px solid ${BLACK}` }} />
+    </>
+  );
 
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
@@ -225,7 +195,7 @@ export function VacacionesPDF({ solicitud, historial = [], pasosWorkflow = [] }:
               <span style={{ whiteSpace: 'nowrap' }}>PARA:&nbsp;</span>
               <span style={fillLine}>{para}</span>
             </div>
-            <div style={s.sub}>(Jefe de área)</div>
+            <div style={s.sub}>(Autoriza)</div>
           </div>
         </div>
 
@@ -276,39 +246,26 @@ export function VacacionesPDF({ solicitud, historial = [], pasosWorkflow = [] }:
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <span style={{ whiteSpace: 'nowrap' }}>FIRMA:&nbsp;</span>
             <span style={firmaLine}>
-              {firma(firmantes[0]?.url)}
+              {firma(solicitanteSig?.url)}
             </span>
           </div>
         </div>
 
-        {/* AUTORIZACIONES */}
-        <div style={{ display: 'flex', gap: 30, marginTop: 75 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ marginBottom: 10 }}>AUTORIZACION&nbsp;&nbsp;JEFE&nbsp;&nbsp;DE ÁREA</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 8 }}>
-              <span style={{ whiteSpace: 'nowrap' }}>NOMBRE&nbsp;</span>
-              <span style={fillLine}>{firmantes[1]?.nombre ?? ''}</span>
+        {/* AUTORIZACIONES — una caja por autorizador del flujo */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 30, marginTop: 75 }}>
+          {autorizan.map((f, i) => (
+            <div key={i} style={{ flex: '1 1 30%', minWidth: 180 }}>
+              <div style={{ marginBottom: 10 }}>AUTORIZA</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 8 }}>
+                <span style={{ whiteSpace: 'nowrap' }}>NOMBRE&nbsp;</span>
+                <span style={fillLine}>{f.nombre}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <span style={{ whiteSpace: 'nowrap' }}>FIRMA&nbsp;</span>
+                <span style={firmaLine}>{firma(f.url)}</span>
+              </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <span style={{ whiteSpace: 'nowrap' }}>FIRMA&nbsp;</span>
-              <span style={firmaLine}>
-                {firma(firmantes[1]?.url)}
-              </span>
-            </div>
-          </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ textAlign: 'center', marginBottom: 10 }}>Vo. Bo. JEFE NOMINA</div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', marginBottom: 8 }}>
-              <span style={{ whiteSpace: 'nowrap' }}>NOMBRE&nbsp;</span>
-              <span style={fillLine}>{firmantes[2]?.nombre ?? ''}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-              <span style={{ whiteSpace: 'nowrap' }}>FIRMA&nbsp;</span>
-              <span style={firmaLine}>
-                {firma(firmantes[2]?.url)}
-              </span>
-            </div>
-          </div>
+          ))}
         </div>
 
         {/* FECHA DE REGRESO */}

@@ -22,9 +22,6 @@ import {
 
 const LEGACY_TOKEN_KEY = 'token';
 
-// ponytail: in-flight dedup so concurrent fetchProfileSignature calls share one /profile request
-let profileInflight: Promise<void> | null = null;
-
 const PROFILE_LOAD_ERROR = 'No se pudo cargar tu perfil. Puedes seleccionar empresa y sucursal manualmente.';
 
 // Single área resolver (REQ-001):
@@ -50,6 +47,9 @@ function resolveAreaFrom(
 
   return null;
 }
+
+// ponytail: in-flight dedup so concurrent fetchProfileSignature calls share one /profile request
+let profileInflight: Promise<void> | null = null;
 
 export const useAuthStore = create<AuthState>()((set, get) => ({
   user: null,
@@ -260,14 +260,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     }
   },
 
-  loginStepThree: async (empresaId: string, sucursalId: string) => {
+  loginStepThree: async (empresaId: string, sucursalId: string, areaId?: string) => {
     // isLoading ahora refleja el patrón de loginStepOne/Two: se activa al
     // inicio y se desactiva tanto en la ruta de éxito como en cualquier throw.
     // Evita el doble-submit del botón del paso 3 y habilita el feedback
     // "Procesando…" del slot (que lee isLoading del store).
     set({ isLoading: true });
     try {
-      const { empresas, sucursales } = get();
+      const { empresas, sucursales, areas } = get();
 
       const empresa = empresas.find((e) => String(e.idEmpresa) === String(empresaId));
       const sucursal = sucursales.find((s) => String(s.idSucursal) === String(sucursalId));
@@ -279,17 +279,16 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       authService.setEmpresa(empresa);
       authService.setSucursal(sucursal);
 
+      // REQ-001/002: sin areaId explícito el resolver es la única fuente del área;
+      // setArea se llama SIEMPRE (null elimina la key 'area' — un área vieja
+      // nunca sobrevive). Con areaId explícito manda el área elegida.
       let selectedArea: Area | null = null;
-      // if (areaId) {
-      //   selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
-      //   if (selectedArea) {
-      //     authService.setArea(selectedArea);
-      //   }
-      // }
-    // REQ-001/002: el resolver es la única fuente del área; setArea se llama SIEMPRE
-    // (null elimina la key 'area' — un área vieja nunca sobrevive).
-    selectedArea = get().resolveArea(empresaId);
-    authService.setArea(selectedArea);
+      if (areaId) {
+        selectedArea = areas.find((a) => String(a.idArea) === String(areaId)) || null;
+      } else {
+        selectedArea = get().resolveArea(empresaId);
+      }
+      authService.setArea(selectedArea);
 
       // isAuthenticated se escribe de forma síncrona aquí; isLoading:false va
       // en el mismo set para que el botón se rehabilite apenas se confirma la
@@ -520,6 +519,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       // REQ-005: profile load feeds resolveArea/SelectEmpresaSucursal (fire-and-forget)
       void get().loadProfile();
+      get().fetchProfileSignature();
       void refreshPermissions();
       startPermissionsPolling();
     } else {

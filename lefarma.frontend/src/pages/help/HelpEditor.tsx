@@ -121,7 +121,7 @@ export default function HelpEditor() {
         // Create new article
         await helpService.create(formData);
       }
-      navigate('/help');
+      navigate('/cxp/help');
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.errors?.[0]?.description ?? err.message ?? (isEditMode ? 'Error al actualizar artículo' : 'Error al crear artículo'));
@@ -135,7 +135,7 @@ export default function HelpEditor() {
       {/* Back Button */}
       <Button
         variant="ghost"
-        onClick={() => navigate('/help')}
+        onClick={() => navigate('/cxp/help')}
         className="mb-6"
       >
         <ChevronLeft className="mr-2 h-4 w-4" />
@@ -254,7 +254,7 @@ export default function HelpEditor() {
           <Button type="submit" disabled={isLoading}>
             {isLoading ? 'Guardando...' : isEditMode ? 'Actualizar Artículo' : 'Crear Artículo'}
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate('/help')}>
+          <Button type="button" variant="outline" onClick={() => navigate('/cxp/help')}>
             Cancelar
           </Button>
         </div>

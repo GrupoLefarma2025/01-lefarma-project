@@ -7,10 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Check, Eraser, Loader2, PenLine, Smartphone, Undo2 } from 'lucide-react';
+import { Check, Eraser, Loader2, PenLine, Undo2 } from 'lucide-react';
 
-const CANVAS_WIDTH = 1280;
-const CANVAS_HEIGHT = 720;
+// Internal resolution of the pad. Landscape keeps the wide 16:9 pad; portrait
+// (phone/tablet held upright) uses a taller 3:4 pad so there is room to sign
+// without forcing the user to rotate the device.
+const CANVAS_LANDSCAPE = { w: 1280, h: 720 } as const;
+const CANVAS_PORTRAIT = { w: 900, h: 1200 } as const;
 
 // Pen tuning: slow strokes draw thick, fast strokes draw thin (ballpoint feel)
 const MAX_W = 5.5;
@@ -77,8 +80,17 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
   const strokesRef = useRef<Point[][]>([]);
   const drawingRef = useRef(false);
   const lastRawRef = useRef<{ x: number; y: number; t: number; w: number } | null>(null);
+  const portraitRef = useRef(false);
   const [isEmpty, setIsEmpty] = useState(true);
-  const [isCoarsePortrait, setIsCoarsePortrait] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
+
+  // Reset the emptiness flag during render when the dialog opens (React's
+  // adjust-state-when-props-change pattern; avoids setState inside an effect).
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setIsEmpty(true);
+  }
 
   const redrawAll = useCallback(() => {
     const canvas = canvasRef.current;
@@ -91,8 +103,14 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
 
   useEffect(() => {
     const check = () => {
-      const coarse = window.matchMedia('(pointer: coarse)').matches;
-      setIsCoarsePortrait(coarse && window.innerHeight > window.innerWidth);
+      const portrait = window.innerHeight > window.innerWidth;
+      if (portraitRef.current !== portrait) {
+        portraitRef.current = portrait;
+        // Canvas aspect changes with orientation; old strokes would distort.
+        strokesRef.current = [];
+        setIsEmpty(true);
+        setIsPortrait(portrait);
+      }
     };
     check();
     window.addEventListener('resize', check);
@@ -106,10 +124,14 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
   useEffect(() => {
     if (open) {
       strokesRef.current = [];
-      setIsEmpty(true);
       redrawAll();
     }
   }, [open, redrawAll]);
+
+  // Repaint after the canvas switches aspect (changing width/height wipes the surface)
+  useEffect(() => {
+    if (open) redrawAll();
+  }, [isPortrait, open, redrawAll]);
 
   const toCanvasPoint = (clientX: number, clientY: number): { x: number; y: number } => {
     const canvas = canvasRef.current!;
@@ -180,7 +202,35 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas || strokesRef.current.length === 0) return;
-    canvas.toBlob((blob) => {
+    // Trim to the ink's bounding box so both pad orientations export the same
+    // tight PNG (downstream PDFs place firmas in fixed wide boxes, e.g. 40x12).
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const stroke of strokesRef.current) {
+      for (const { x, y, w } of stroke) {
+        const r = w / 2;
+        minX = Math.min(minX, x - r);
+        maxX = Math.max(maxX, x + r);
+        minY = Math.min(minY, y - r);
+        maxY = Math.max(maxY, y + r);
+      }
+    }
+    const pad = 24;
+    const sx = Math.max(0, Math.floor(minX) - pad);
+    const sy = Math.max(0, Math.floor(minY) - pad);
+    const sw = Math.min(canvas.width - sx, Math.ceil(maxX) + pad - sx);
+    const sh = Math.min(canvas.height - sy, Math.ceil(maxY) + pad - sy);
+    const out = document.createElement('canvas');
+    out.width = sw;
+    out.height = sh;
+    const ctx = out.getContext('2d');
+    if (!ctx) return;
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, sw, sh);
+    ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    out.toBlob((blob) => {
       if (!blob) return;
       onSave(new File([blob], 'firma.png', { type: 'image/png' }));
     }, 'image/png');
@@ -188,7 +238,7 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
+      <DialogContent className="max-h-[94dvh] w-[94vw] max-w-3xl gap-3 p-4 sm:gap-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PenLine className="h-5 w-5" />
@@ -198,43 +248,51 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
             Firma dentro del recuadro usando el mouse, el dedo o un lápiz digital.
           </DialogDescription>
         </DialogHeader>
-        {isCoarsePortrait ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-lg border bg-muted/30 py-16">
-            <Smartphone className="h-10 w-10 rotate-90 text-muted-foreground" />
-            <p className="text-center text-sm font-medium text-muted-foreground">
-              Gira tu celular a horizontal para firmar con el dedo
-            </p>
-          </div>
-        ) : (
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-white">
           <canvas
             ref={canvasRef}
-            width={CANVAS_WIDTH}
-            height={CANVAS_HEIGHT}
-            className="aspect-video w-full h-auto touch-none select-none rounded-lg border bg-white"
+            width={isPortrait ? CANVAS_PORTRAIT.w : CANVAS_LANDSCAPE.w}
+            height={isPortrait ? CANVAS_PORTRAIT.h : CANVAS_LANDSCAPE.h}
+            className="h-auto w-auto max-h-full max-w-full touch-none select-none"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerEnd}
             onPointerLeave={handlePointerEnd}
           />
-        )}
-        <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={handleUndo} disabled={isEmpty || isCoarsePortrait}>
-            <Undo2 className="mr-2 h-4 w-4" />
-            Deshacer
+        </div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleUndo}
+            disabled={isEmpty}
+            className="shrink-0"
+          >
+            <Undo2 />
+            <span className="hidden sm:inline">Deshacer</span>
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={handleClear} disabled={isEmpty || isCoarsePortrait}>
-            <Eraser className="mr-2 h-4 w-4" />
-            Limpiar
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleClear}
+            disabled={isEmpty}
+            className="shrink-0"
+          >
+            <Eraser />
+            <span className="hidden sm:inline">Limpiar</span>
           </Button>
           <Button
             type="button"
             variant="default"
             size="sm"
             onClick={handleSave}
-            disabled={isEmpty || isSaving || isCoarsePortrait}
+            disabled={isEmpty || isSaving}
+            className="shrink-0"
           >
-            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
-            Guardar firma
+            {isSaving ? <Loader2 className="animate-spin" /> : <Check />}
+            <span>Guardar firma</span>
           </Button>
         </div>
       </DialogContent>

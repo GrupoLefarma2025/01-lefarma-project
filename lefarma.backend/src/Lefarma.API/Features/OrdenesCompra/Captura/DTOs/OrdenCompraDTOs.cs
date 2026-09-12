@@ -53,9 +53,13 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public int IdUsuarioCreador { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
+        public string? SolicitanteCorreo { get; set; }
+        public string? SegundoAutorizador { get; set; }
         public bool SinDatosFiscales { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public string? FacturarA { get; set; }
+        public string? DomicilioEntrega { get; set; }
         public int? IdCentroCosto { get; set; }
         public string? CentroCostoNombre { get; set; }
         public int? IdCuentaContable { get; set; }
@@ -79,6 +83,8 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public string? MonedaCodigo { get; set; }
         public string? MonedaSimbolo { get; set; }
         public decimal TipoCambioAplicado { get; set; }
+        public int? FolioTransporte { get; set; }
+        public string? NombreTraslado { get; set; }
         public List<OrdenCompraPartidaResponse> Partidas { get; set; } = new();
     }
 
@@ -109,8 +115,11 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public bool RequierePagoAnticipado { get; set; }
         public string? NotaFormaPago { get; set; }
         public string? NotasGenerales { get; set; }
+        public string? FacturarA { get; set; }
+        public string? DomicilioEntrega { get; set; }
         public int? IdMoneda { get; set; }
         public decimal TipoCambioAplicado { get; set; } = 1m;
+        public int? FolioTransporte { get; set; }
         public required List<CreatePartidaRequest> Partidas { get; set; }
     }
 
@@ -127,6 +136,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
+        public decimal? AjusteRedondeo { get; set; }
         public bool Deducible { get; set; }
         public decimal Total { get; set; }
         public string? UnidadMedidaNombre { get; set; }
@@ -152,6 +162,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura.DTOs
         public decimal PorcentajeIva { get; set; }
         public decimal TotalRetenciones { get; set; }
         public decimal OtrosImpuestos { get; set; }
+        public decimal? AjusteRedondeo { get; set; }
         public bool Deducible { get; set; } = true;
         public int? IdProveedor { get; set; }
         public string? IdsCuentasBancarias { get; set; }
