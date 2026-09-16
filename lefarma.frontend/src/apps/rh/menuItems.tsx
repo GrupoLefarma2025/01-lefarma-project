@@ -36,7 +36,6 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         title: 'Solicitudes',
         icon: FileCheck2,
         path: '/rh/solicitudes',
-        permission: { require: 'solicitud_personal.ver_listado' },
       },
       {
         title: 'Gestión',
