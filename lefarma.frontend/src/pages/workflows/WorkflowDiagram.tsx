@@ -83,6 +83,17 @@ interface LocalCanalTemplate {
   activo?: boolean;
 }
 
+/**
+ * Valores del scope TIPO_GERENCIA para los mappings de Educación Médica.
+ * Deben coincidir con el catálogo `educacion_medica.tipo_gerencia` (ids 1/2/3)
+ * que envían los servicios al resolver el workflow.
+ */
+const TIPOS_GERENCIA_MAPPING: { id: number; label: string }[] = [
+  { id: 1, label: 'IMSS' },
+  { id: 2, label: 'Descentralizado' },
+  { id: 3, label: 'Privado' },
+];
+
 export default function WorkflowDiagram() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -1782,6 +1793,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                   {(code === 'PROVEEDOR' || code === 'PROVEEDOR_ESPECIFICO') && proveedores.map(p => <SelectItem key={p.idProveedor} value={String(p.idProveedor)}>{p.razonSocial}</SelectItem>)}
                   {code === 'CATEGORIA' && categoriasSolicitud.map(c => <SelectItem key={c.idCategoria} value={String(c.idCategoria)}>{c.nombre}</SelectItem>)}
                   {code === 'TIPO_SOLICITUD' && tiposSolicitud.map(t => <SelectItem key={t.idTipoSolicitud} value={String(t.idTipoSolicitud)}>{t.nombre}</SelectItem>)}
+                  {code === 'TIPO_GERENCIA' && TIPOS_GERENCIA_MAPPING.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.label}</SelectItem>)}
                 </SelectContent>
               </Select>
             );

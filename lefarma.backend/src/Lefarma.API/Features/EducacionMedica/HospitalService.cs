@@ -228,6 +228,8 @@ public class HospitalService : IHospitalService
         var parametros = await _parametroAnestesiaRepository.GetByAnioAsync(anioActual, ct);
         var factores = parametros.ToDictionary(p => p.Clave, p => p.Valor);
 
+        var existing = await _extensionRepository.GetByHospitalIdAsync(idHospital, ct);
+
         if (request.IdRegion.HasValue)
         {
             var region = await _regionRepository.GetByIdAsync(request.IdRegion.Value, ct);
@@ -235,9 +237,20 @@ public class HospitalService : IHospitalService
             {
                 throw new InvalidOperationException($"No existe la región {request.IdRegion.Value}.");
             }
-        }
 
-        var existing = await _extensionRepository.GetByHospitalIdAsync(idHospital, ct);
+            var gerenciaEfectiva = request.IdTipoGerencia ?? existing?.IdTipoGerencia;
+            if (gerenciaEfectiva is null)
+            {
+                throw new InvalidOperationException(
+                    "El hospital no tiene gerencia asignada. Asigne una gerencia antes de asignarle región.");
+            }
+
+            if (region.IdTipoGerencia != gerenciaEfectiva)
+            {
+                throw new InvalidOperationException(
+                    $"La región '{region.Nombre}' pertenece a otra gerencia; solo se pueden asignar regiones de la gerencia del hospital.");
+            }
+        }
 
         if (existing is null)
         {

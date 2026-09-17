@@ -1,9 +1,14 @@
+using ErrorOr;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Interfaces.EducacionMedica;
+using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -142,7 +147,11 @@ public class SeleccionMensualServiceTests
         Mock<IRegionRepository>? regionRepository = null,
         Mock<IHospitalExtensionRepository>? extensionRepository = null,
         List<ParametroModulo>? parametros = null,
-        List<TipoGerencia>? tiposGerencias = null)
+        List<TipoGerencia>? tiposGerencias = null,
+        WorkflowTestHarness? workflow = null,
+        Mock<IProfileService>? profileService = null,
+        Mock<IWorkflowQueryService>? workflowQuery = null,
+        AsokamDbContext? asokam = null)
     {
         hospitalRepository ??= new Mock<IHospitalRepository>();
         hospitalRepository
@@ -175,6 +184,15 @@ public class SeleccionMensualServiceTests
             .Setup(r => r.GetAllAsync(It.IsAny<CancellationToken>()))
             .ReturnsAsync(parametros ?? []);
 
+        workflow ??= WorkflowTestHarness.Crear();
+        if (profileService is null)
+        {
+            profileService = new Mock<IProfileService>();
+            profileService
+                .Setup(p => p.HasFirmaAsync(It.IsAny<int>()))
+                .ReturnsAsync(true);
+        }
+
         return new SeleccionMensualService(
             repository,
             hospitalRepository.Object,
@@ -183,8 +201,14 @@ public class SeleccionMensualServiceTests
             parametroRepository.Object,
             regionRepository.Object,
             extensionRepository.Object,
-            CreateAsokamInMemoryContext(),
-            NullLogger<SeleccionMensualService>.Instance);
+            asokam ?? CreateAsokamInMemoryContext(),
+            NullLogger<SeleccionMensualService>.Instance,
+            workflow.Engine,
+            workflow.CreateResolverMock().Object,
+            workflow.WorkflowRepo,
+            (workflowQuery ?? new Mock<IWorkflowQueryService>()).Object,
+            profileService.Object,
+            workflow.JefeResolverMock.Object);
     }
 
     private static Mock<IRegionRepository> CreateRegionRepositoryMock()
@@ -209,14 +233,34 @@ public class SeleccionMensualServiceTests
         TalleresObjetivoMes = 64,
     };
 
-    private static SeleccionMensual SeleccionEnRevision(FakeSeleccionRepository repo)
+    private static SeleccionMensual SeleccionEditable(FakeSeleccionRepository repo)
     {
         var seleccion = new SeleccionMensual
         {
             FechaSeleccion = new DateOnly(2026, 8, 15),
             FechaInicioVigencia = new DateOnly(2026, 9, 1),
             FechaFinVigencia = new DateOnly(2026, 10, 15),
+            Estado = SeleccionMensual.EstadoBorrador,
+            Activo = true,
+        };
+        repo.Selecciones.Add(seleccion);
+        seleccion.IdSeleccionMensual = repo.Selecciones.Count;
+        return seleccion;
+    }
+
+    private static SeleccionMensual SeleccionEnPasoGg(FakeSeleccionRepository repo, WorkflowTestHarness workflow, int? idTipoGerencia = 1)
+    {
+        var esDesc = idTipoGerencia == 2;
+        var seleccion = new SeleccionMensual
+        {
+            FechaSeleccion = new DateOnly(2026, 8, 15),
+            FechaInicioVigencia = new DateOnly(2026, 9, 1),
+            FechaFinVigencia = new DateOnly(2026, 10, 15),
+            IdTipoGerencia = idTipoGerencia,
             Estado = SeleccionMensual.EstadoEnRevision,
+            IdWorkflow = esDesc ? workflow.WfSeleccionDesc.IdWorkflow : workflow.WfSeleccion.IdWorkflow,
+            IdPasoActual = esDesc ? workflow.PasosSeleccionDesc["Gg"] : workflow.PasosSeleccion["Gg"],
+            IdUsuarioCreacion = 99,
             Activo = true,
         };
         repo.Selecciones.Add(seleccion);
@@ -286,7 +330,7 @@ public class SeleccionMensualServiceTests
     public async Task AgruparAsync_Debe_Reemplazar_RegionesPrevias()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         repo.Regiones.Add(new SeleccionRegion
         {
             IdRegion = 99,
@@ -317,7 +361,7 @@ public class SeleccionMensualServiceTests
     public async Task AsignarEquipoAsync_CapacidadInsuficiente_Debe_Lanzar()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         var zona = new SeleccionRegion
         {
             IdRegion = 1,
@@ -345,7 +389,7 @@ public class SeleccionMensualServiceTests
     public async Task AsignarEquipoAsync_DentroDeCapacidad_Debe_Asignar()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         var zona = new SeleccionRegion
         {
             IdRegion = 1,
@@ -373,33 +417,202 @@ public class SeleccionMensualServiceTests
     }
 
     [Fact]
-    public async Task AutorizarAsync_GgAntesDeGv_Debe_Lanzar()
+    public async Task EnviarRevisionAsync_Debe_AsignarWorkflowYPasoFirmaGg()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
-        var service = CreateService(repo);
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = new SeleccionMensual
+        {
+            FechaSeleccion = new DateOnly(2026, 8, 15),
+            FechaInicioVigencia = new DateOnly(2026, 9, 1),
+            FechaFinVigencia = new DateOnly(2026, 10, 15),
+            IdTipoGerencia = 1,
+            Estado = SeleccionMensual.EstadoBorrador,
+            IdUsuarioCreacion = 99,
+            Activo = true,
+        };
+        repo.Selecciones.Add(seleccion);
+        seleccion.IdSeleccionMensual = repo.Selecciones.Count;
+        repo.Regiones.Add(new SeleccionRegion { IdSeleccionMensual = seleccion.IdSeleccionMensual, IdRegion = 1, IdEquipo = EquipoId });
+        var service = CreateService(repo, workflow: workflow);
 
-        var request = new AutorizarSeleccionRequest { Rol = "GG" };
-        var act = () => service.AutorizarAsync(seleccion.IdSeleccionMensual, request, idUsuario: 99);
+        var dto = await service.EnviarRevisionAsync(seleccion.IdSeleccionMensual, idUsuario: 99);
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Gerente de Ventas*");
+        seleccion.Estado.Should().Be(SeleccionMensual.EstadoEnRevision);
+        seleccion.IdWorkflow.Should().Be(workflow.WfSeleccion.IdWorkflow);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccion["Gg"]);
+        seleccion.FirmaGgFecha.Should().BeNull();
+        seleccion.FirmaGvFecha.Should().BeNull();
+        dto.Estado.Should().Be(SeleccionMensual.EstadoEnRevision);
     }
 
     [Fact]
-    public async Task AutorizarAsync_DobleFirmaCompleta_Debe_Autorizar()
+    public async Task EnviarRevisionAsync_NoCreador_Debe_Lanzar()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
-        var service = CreateService(repo);
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = new SeleccionMensual
+        {
+            FechaSeleccion = new DateOnly(2026, 8, 15),
+            FechaInicioVigencia = new DateOnly(2026, 9, 1),
+            FechaFinVigencia = new DateOnly(2026, 10, 15),
+            IdTipoGerencia = 1,
+            Estado = SeleccionMensual.EstadoBorrador,
+            IdUsuarioCreacion = 99,
+            Activo = true,
+        };
+        repo.Selecciones.Add(seleccion);
+        seleccion.IdSeleccionMensual = repo.Selecciones.Count;
+        repo.Regiones.Add(new SeleccionRegion { IdSeleccionMensual = seleccion.IdSeleccionMensual, IdRegion = 1, IdEquipo = EquipoId });
+        var service = CreateService(repo, workflow: workflow);
 
-        await service.AutorizarAsync(seleccion.IdSeleccionMensual, new AutorizarSeleccionRequest { Rol = "GV" }, idUsuario: 1);
+        var act = () => service.EnviarRevisionAsync(seleccion.IdSeleccionMensual, idUsuario: 55);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*creador*");
+    }
+
+    [Fact]
+    public async Task FirmarAsync_GvAntesDeGg_Debe_Lanzar()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGg(repo, workflow);
+        var service = CreateService(repo, workflow: workflow);
+
+        var act = () => service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GvImssAutorizar"] },
+            idUsuario: workflow.UsuarioGvImss);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*no está disponible*");
+    }
+
+    [Fact]
+    public async Task FirmarAsync_GgLuegoGv_Debe_Autorizar()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGg(repo, workflow, idTipoGerencia: 1);
+        var service = CreateService(repo, workflow: workflow);
+
+        await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GgAutorizar"] },
+            idUsuario: workflow.UsuarioGg);
+
         seleccion.Estado.Should().Be(SeleccionMensual.EstadoEnRevision);
-        seleccion.FirmaGvFecha.Should().NotBeNull();
-
-        await service.AutorizarAsync(seleccion.IdSeleccionMensual, new AutorizarSeleccionRequest { Rol = "GG" }, idUsuario: 2);
-        seleccion.Estado.Should().Be(SeleccionMensual.EstadoAutorizada);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccion["GvImss"], "la condición por gerencia enruta a IMSS");
         seleccion.FirmaGgFecha.Should().NotBeNull();
+        seleccion.FirmaGvFecha.Should().BeNull();
+
+        await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GvImssAutorizar"] },
+            idUsuario: workflow.UsuarioGvImss);
+
+        seleccion.Estado.Should().Be(SeleccionMensual.EstadoAutorizada);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccion["Final"]);
+        seleccion.FirmaGvFecha.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task EnviarRevisionYFirmas_GerenciaDescentralizado_Debe_UsarWorkflowDescendiente()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = new SeleccionMensual
+        {
+            FechaSeleccion = new DateOnly(2026, 8, 15),
+            FechaInicioVigencia = new DateOnly(2026, 9, 1),
+            FechaFinVigencia = new DateOnly(2026, 10, 15),
+            IdTipoGerencia = 2,
+            Estado = SeleccionMensual.EstadoBorrador,
+            IdUsuarioCreacion = 99,
+            Activo = true,
+        };
+        repo.Selecciones.Add(seleccion);
+        seleccion.IdSeleccionMensual = repo.Selecciones.Count;
+        repo.Regiones.Add(new SeleccionRegion { IdSeleccionMensual = seleccion.IdSeleccionMensual, IdRegion = 1, IdEquipo = EquipoId });
+        var service = CreateService(repo, workflow: workflow);
+
+        // El resolver (mock) rutea por scope TIPO_GERENCIA: 2 => workflow Descentralizado
+        await service.EnviarRevisionAsync(seleccion.IdSeleccionMensual, idUsuario: 99);
+        seleccion.IdWorkflow.Should().Be(workflow.WfSeleccionDesc.IdWorkflow);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccionDesc["Gg"]);
+
+        await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccionDesc["GgAutorizar"] },
+            idUsuario: workflow.UsuarioGg);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccionDesc["GvDesc"]);
+
+        await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccionDesc["GvDescAutorizar"] },
+            idUsuario: workflow.UsuarioGvDesc);
+
+        seleccion.Estado.Should().Be(SeleccionMensual.EstadoAutorizada);
+        seleccion.FirmaGvFecha.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task FirmarAsync_NoParticipante_Debe_Lanzar()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGg(repo, workflow);
+        var service = CreateService(repo, workflow: workflow);
+
+        var act = () => service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GgAutorizar"] },
+            idUsuario: 777);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*No eres participante*");
+    }
+
+    [Fact]
+    public async Task FirmarAsync_Devolver_Debe_RegresarABorradorYLimpiarFirmas()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGg(repo, workflow);
+        seleccion.FirmaGgFecha = DateTime.UtcNow;
+        var service = CreateService(repo, workflow: workflow);
+
+        await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GgDevolver"], Comentario = "Falta revisar la región norte" },
+            idUsuario: workflow.UsuarioGg);
+
+        seleccion.Estado.Should().Be(SeleccionMensual.EstadoBorrador);
+        seleccion.IdPasoActual.Should().Be(workflow.PasosSeleccion["Inicio"]);
+        seleccion.FirmaGgFecha.Should().BeNull();
+        seleccion.FirmaGvFecha.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task FirmarAsync_SinFirmaDigital_Debe_Lanzar()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGg(repo, workflow);
+        var profileService = new Mock<IProfileService>();
+        profileService
+            .Setup(p => p.HasFirmaAsync(It.IsAny<int>()))
+            .ReturnsAsync(false);
+        var service = CreateService(repo, workflow: workflow, profileService: profileService);
+
+        var act = () => service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GgAutorizar"] },
+            idUsuario: workflow.UsuarioGg);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*firma digital*");
     }
 
     [Fact]
@@ -445,7 +658,7 @@ public class SeleccionMensualServiceTests
     public async Task DividirRegionAsync_Debe_RepartirHospitales()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         var zona = new SeleccionRegion
         {
             IdRegion = 1,
@@ -490,7 +703,7 @@ public class SeleccionMensualServiceTests
     public async Task AsignarRegionAHospitalAsync_SinRegion_DebeAsignarYRecalcularRegion()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         var region = new SeleccionRegion
         {
             IdRegion = 1,
@@ -533,7 +746,7 @@ public class SeleccionMensualServiceTests
     public async Task AsignarRegionAHospitalAsync_HospitalConRegion_DebeLanzar()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         repo.Regiones.Add(new SeleccionRegion
         {
             IdRegion = 1,
@@ -560,8 +773,8 @@ public class SeleccionMensualServiceTests
     public async Task GetAllAsync_DebeContarHospitalesYRegiones_PorSeleccion()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion1 = SeleccionEnRevision(repo);
-        var seleccion2 = SeleccionEnRevision(repo);
+        var seleccion1 = SeleccionEditable(repo);
+        var seleccion2 = SeleccionEditable(repo);
         repo.Hospitales.Add(new SeleccionHospital
         {
             IdSeleccionHospital = 1,
@@ -588,7 +801,7 @@ public class SeleccionMensualServiceTests
         });
 
         var service = CreateService(repo);
-        var lista = await service.GetAllAsync(null, null);
+        var lista = await service.GetAllAsync(null, null, idUsuario: 99);
 
         lista.Should().HaveCount(2);
         var dto1 = lista.First(s => s.IdSeleccionMensual == seleccion1.IdSeleccionMensual);
@@ -600,10 +813,61 @@ public class SeleccionMensualServiceTests
     }
 
     [Fact]
+    public async Task GetAllAsync_DebeEnriquecerEtapaCreadorYAcciones()
+    {
+        var repo = new FakeSeleccionRepository();
+        var seleccion = SeleccionEditable(repo);
+        var workflow = WorkflowTestHarness.Crear();
+
+        seleccion.IdWorkflow = workflow.WfSeleccion.IdWorkflow;
+        seleccion.IdPasoActual = workflow.PasosSeleccion["Gg"];
+        seleccion.IdUsuarioCreacion = 77;
+        seleccion.FechaCreacion = new DateTime(2026, 8, 20, 10, 30, 0);
+
+        var asokam = CreateAsokamInMemoryContext();
+        asokam.Usuarios.Add(new Usuario { IdUsuario = 77, NombreCompleto = "Laura Pérez" });
+        await asokam.SaveChangesAsync();
+
+        var queryMock = new Mock<IWorkflowQueryService>();
+        queryMock
+            .Setup(q => q.GetAccionesDisponiblesAsync(
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<int>(),
+                It.IsAny<string>(),
+                It.IsAny<Lefarma.API.Domain.Interfaces.Config.IWorkflowEntity>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int _, int _, int idPasoActual, int _, string _,
+                Lefarma.API.Domain.Interfaces.Config.IWorkflowEntity _, CancellationToken _) =>
+                idPasoActual == workflow.PasosSeleccion["Gg"]
+                    ? ErrorOrFactory.From<IEnumerable<AccionDisponibleResponse>>(
+                    [
+                        new AccionDisponibleResponse
+                        {
+                            IdAccion = 500,
+                            IdTipoAccion = 1,
+                            TipoAccionCodigo = "AUTORIZAR",
+                            TipoAccionNombre = "Autorizar",
+                        },
+                    ])
+                    : ErrorOrFactory.From<IEnumerable<AccionDisponibleResponse>>([]));
+
+        var service = CreateService(repo, workflow: workflow, workflowQuery: queryMock, asokam: asokam);
+        var lista = await service.GetAllAsync(null, null, idUsuario: 10);
+
+        var dto = lista.Single(s => s.IdSeleccionMensual == seleccion.IdSeleccionMensual);
+        dto.PasoActualNombre.Should().Be("Firma Gerencia General");
+        dto.NombreUsuarioCreacion.Should().Be("Laura Pérez");
+        dto.FechaCreacion.Should().Be(seleccion.FechaCreacion);
+        dto.Acciones.Should().ContainSingle(a => a.IdAccion == 500);
+    }
+
+    [Fact]
     public async Task AgruparAsync_HospitalesSinRegionNiCoordenadas_Debe_Avisar()
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         repo.Hospitales.Add(new SeleccionHospital
         {
             IdSeleccionHospital = 1,
@@ -628,7 +892,7 @@ public class SeleccionMensualServiceTests
         List<EquipoPareo>? equipos = null)
     {
         var repo = new FakeSeleccionRepository();
-        var seleccion = SeleccionEnRevision(repo);
+        var seleccion = SeleccionEditable(repo);
         var extensionMock = SeedAgrupacion(repo, seleccion, hospitales);
 
         var equipoMock = new Mock<IEquipoPareoRepository>();

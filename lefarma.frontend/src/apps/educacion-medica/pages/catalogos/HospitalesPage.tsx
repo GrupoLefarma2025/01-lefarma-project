@@ -23,7 +23,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Card, CardContent } from '@/components/ui/card';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Search, Pencil, Loader2, RotateCcw, Map, MapPin, Sparkles } from 'lucide-react';
@@ -146,6 +146,10 @@ export default function HospitalesPage() {
       numeroQuirofanos: '',
     },
   });
+
+  // Las regiones son por gerencia: el select de región del formulario solo
+  // muestra las de la gerencia elegida (o todas si aún no se elige).
+  const gerenciaFormulario = useWatch({ control: form.control, name: 'idTipoGerencia' });
 
   const fetchTiposGerencia = async () => {
     try {
@@ -578,11 +582,19 @@ export default function HospitalesPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={NONE_VALUE}>Todas</SelectItem>
-                  {zonas.map((zona) => (
-                    <SelectItem key={zona.idRegion} value={String(zona.idRegion)}>
-                      {zona.nombre}
-                    </SelectItem>
-                  ))}
+                  {zonas
+                    .filter(
+                      (zona) =>
+                        filters.idTipoGerencia === NONE_VALUE ||
+                        String(zona.idTipoGerencia) === filters.idTipoGerencia
+                    )
+                    .map((zona) => (
+                      <SelectItem key={zona.idRegion} value={String(zona.idRegion)}>
+                        {filters.idTipoGerencia === NONE_VALUE && zona.nombreGerencia
+                          ? `${zona.nombre} (${zona.nombreGerencia})`
+                          : zona.nombre}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -812,11 +824,20 @@ export default function HospitalesPage() {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value={NONE_VALUE}>Sin región</SelectItem>
-                        {zonas.map((zona) => (
-                          <SelectItem key={zona.idRegion} value={String(zona.idRegion)}>
-                            {zona.nombre}
-                          </SelectItem>
-                        ))}
+                        {zonas
+                          .filter(
+                            (zona) =>
+                              !gerenciaFormulario ||
+                              gerenciaFormulario === TIPO_GERENCIA_NONE ||
+                              String(zona.idTipoGerencia) === gerenciaFormulario
+                          )
+                          .map((zona) => (
+                            <SelectItem key={zona.idRegion} value={String(zona.idRegion)}>
+                              {gerenciaFormulario === TIPO_GERENCIA_NONE && zona.nombreGerencia
+                                ? `${zona.nombre} (${zona.nombreGerencia})`
+                                : zona.nombre}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                     {sugerencia && (

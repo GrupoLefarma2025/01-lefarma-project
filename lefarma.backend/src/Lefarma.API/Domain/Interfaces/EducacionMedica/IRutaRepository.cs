@@ -11,6 +11,29 @@ public interface IRutaRepository
         int idSeleccionMensual,
         CancellationToken cancellationToken = default);
 
+    // Versiones de rutas (entidad autorizable del workflow, ADR-00006)
+
+    Task<Domain.Entities.EducacionMedica.RutaVersion?> GetVersionAsync(
+        int idSeleccionMensual,
+        int version,
+        CancellationToken cancellationToken = default);
+
+    Task<Domain.Entities.EducacionMedica.RutaVersion?> GetVersionByIdAsync(
+        int idRutaVersion,
+        CancellationToken cancellationToken = default);
+
+    Task<Domain.Entities.EducacionMedica.RutaVersion?> GetVersionMaximaAsync(
+        int idSeleccionMensual,
+        CancellationToken cancellationToken = default);
+
+    Task<Domain.Entities.EducacionMedica.RutaVersion> CreateVersionAsync(
+        Domain.Entities.EducacionMedica.RutaVersion version,
+        CancellationToken cancellationToken = default);
+
+    Task<Domain.Entities.EducacionMedica.RutaVersion> UpdateVersionAsync(
+        Domain.Entities.EducacionMedica.RutaVersion version,
+        CancellationToken cancellationToken = default);
+
     Task<List<Domain.Entities.EducacionMedica.Ruta>> GetConfirmadasPorEquiposAsync(
         IEnumerable<int> idsEquipos,
         CancellationToken cancellationToken = default);

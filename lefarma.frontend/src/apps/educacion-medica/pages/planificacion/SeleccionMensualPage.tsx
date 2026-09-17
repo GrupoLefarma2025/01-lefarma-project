@@ -1,30 +1,47 @@
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { isAxiosError } from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { WorkflowAccionModal } from '@/components/workflows/WorkflowAccionModal';
+import { WorkflowAccionesPanel } from '@/components/workflows/WorkflowAccionesPanel';
+import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
+import { useAuthStore } from '@/shared/auth/authStore';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Switch } from '@/components/ui/switch';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   AlertTriangle,
-  CalendarDays,
+  ArrowLeft,
   Loader2,
   Plus,
   Printer,
-  RefreshCcw,
+  RotateCcw,
   Route as RouteIcon,
   Scissors,
+  Search,
   Sparkles,
   UserCheck,
-} from 'lucide-react';import { usePageTitle } from '@/hooks/usePageTitle';
+} from 'lucide-react';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
+import { API } from '@/shared/api/apiClient';
+import { ApiResponse } from '@/types/api.types';
+import type { WorkflowEstado } from '@/types/workflow.types';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
+  AccionDisponible,
   AgruparSeleccionResponse,
   EquipoPareo,
   FiltrosDisponibles,
@@ -41,6 +58,14 @@ import { CatalogoSearchSelect } from '@/apps/educacion-medica/components/Catalog
 import { RankingModal } from '@/apps/educacion-medica/components/RankingModal';
 import { RegionesPanel } from '@/apps/educacion-medica/components/RegionesPanel';
 import { ResumenSeleccionModal } from '@/apps/educacion-medica/components/ResumenSeleccionModal';
+import { SeleccionesTable } from '@/apps/educacion-medica/components/SeleccionesTable';
+import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
+import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
+import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
+import {
+  formatearFechaSeleccion as formatearFecha,
+  formatearPeriodoSeleccion,
+} from '@/apps/educacion-medica/components/seleccionUtils';
 
 const HospitalesMap = lazy(() =>
   import('@/apps/educacion-medica/components/HospitalesMap').then((m) => ({
@@ -55,26 +80,57 @@ const ESTADO_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' | 'des
   Cerrada: 'destructive',
 };
 
-function formatearFecha(fecha: string | null): string {
-  if (!fecha) return '—';
-  const [anio, mes, dia] = fecha.split('-');
-  return `${dia}/${mes}/${anio}`;
-}
-
 function VarianteEstado({ estado }: { estado: string }) {
   return <Badge variant={ESTADO_VARIANTS[estado] ?? 'outline'}>{estado}</Badge>;
 }
 
+interface FiltrosSelecciones {
+  busqueda: string;
+  idTipoGerencia: string; // 'all' | idTipoGerencia
+  idEstado: string; // 'all' | idEstado workflow
+  periodo: string; // 'all' | 'YYYY-MM'
+}
+
+const FILTROS_INICIALES: FiltrosSelecciones = {
+  busqueda: '',
+  idTipoGerencia: 'all',
+  idEstado: 'all',
+  periodo: 'all',
+};
+
 export default function SeleccionMensualPage() {
-  usePageTitle('Selección y reparto', 'Educación Médica');
+  usePageTitle('Selección Mensual', 'Educación Médica');
   const navigate = useNavigate();
+  const { hasFirma } = useAuthStore();
+
+  // La URL es la fuente de verdad del documento abierto: /seleccion?idSeleccion=123
+  const [searchParams, setSearchParams] = useSearchParams();
+  const seleccionId = useMemo(() => {
+    const idParam = searchParams.get('idSeleccion');
+    const id = idParam ? Number(idParam) : NaN;
+    return Number.isNaN(id) || id <= 0 ? null : id;
+  }, [searchParams]);
 
   const [selecciones, setSelecciones] = useState<SeleccionMensual[]>([]);
-  const [seleccionId, setSeleccionId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<SeleccionDetalle | null>(null);
   const [equipos, setEquipos] = useState<EquipoPareo[]>([]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [accionesWorkflow, setAccionesWorkflow] = useState<AccionDisponible[]>([]);
+  const [accionFirma, setAccionFirma] = useState<AccionWorkflow | null>(null);
+
+  // Listado: filtros (cliente) + estados del workflow
+  const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
+  const [draftFiltros, setDraftFiltros] = useState<FiltrosSelecciones>(FILTROS_INICIALES);
+  const [appliedFiltros, setAppliedFiltros] = useState<FiltrosSelecciones>(FILTROS_INICIALES);
+
+  // Modales de fila del listado (firma / historial / archivos)
+  const [documentoLista, setDocumentoLista] = useState<SeleccionMensual | null>(null);
+  const [modalesLista, setModalesLista] = useState({
+    firma: false,
+    historial: false,
+    archivos: false,
+  });
 
   const [modalNueva, setModalNueva] = useState(false);
   const [nuevaFecha, setNuevaFecha] = useState<string | null>(null);
@@ -117,6 +173,16 @@ export default function SeleccionMensualPage() {
   const [mostrarAjenos, setMostrarAjenos] = useState(true);
   const regionesInicializadasPara = useRef<number | null>(null);
 
+  const abrirSeleccion = (id: number) => {
+    setSearchParams({ idSeleccion: String(id) });
+  };
+
+  const volverALista = () => {
+    setSearchParams({});
+    setDetalle(null);
+    setHospitalesCercanos([]);
+  };
+
   const manejarRegionesAbiertas = (abiertas: string[]) => {
     const recienAbierta = abiertas.find((id) => !regionesAbiertas.includes(id));
     setRegionExpandidaId(recienAbierta != null ? Number(recienAbierta) : null);
@@ -153,28 +219,85 @@ export default function SeleccionMensualPage() {
   }, []);
 
   useEffect(() => {
-    fetchSelecciones();
+    let cancelado = false;
+
+    educacionMedicaApi.seleccionesMensuales
+      .getAll()
+      .then((response) => {
+        if (cancelado) return;
+        if (response.data.success) {
+          setSelecciones(response.data.data ?? []);
+        } else {
+          toast.error(response.data.message ?? 'Error al cargar selecciones');
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelado) toast.error(toApiError(error).message ?? 'Error al cargar selecciones');
+      })
+      .finally(() => {
+        if (!cancelado) setLoading(false);
+      });
+
     educacionMedicaApi.equiposPareo
       .getAll({ soloVigentes: true })
       .then((response) => {
-        if (response.data.success) setEquipos(response.data.data ?? []);
+        if (!cancelado && response.data.success) setEquipos(response.data.data ?? []);
       })
       .catch(() => undefined);
+
     educacionMedicaApi.tipoGerencia
       .getAll()
       .then((response) => {
-        if (response.data.success) setTiposGerencia(response.data.data ?? []);
+        if (!cancelado && response.data.success) setTiposGerencia(response.data.data ?? []);
       })
       .catch(() => undefined);
-  }, [fetchSelecciones]);
+
+    API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
+      .then((res) => {
+        if (!cancelado && res.data.success) setWorkflowEstados(res.data.data || []);
+      })
+      .catch(() => {
+        if (!cancelado) setWorkflowEstados([]);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   useEffect(() => {
-    if (seleccionId !== null) {
-      fetchDetalle(seleccionId);
-    } else {
-      setDetalle(null);
-    }
-  }, [seleccionId, fetchDetalle]);
+    if (seleccionId === null) return;
+    let cancelado = false;
+
+    educacionMedicaApi.seleccionesMensuales
+      .getById(seleccionId)
+      .then((response) => {
+        if (cancelado) return;
+        if (response.data.success) {
+          setDetalle(response.data.data ?? null);
+        } else {
+          toast.error(response.data.message ?? 'Error al cargar la selección');
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelado) toast.error(toApiError(error).message ?? 'Error al cargar la selección');
+      });
+
+    educacionMedicaApi.seleccionesMensuales
+      .hospitalesCercanos(seleccionId)
+      .then((response) => {
+        if (!cancelado && response.data.success) {
+          setHospitalesCercanos(response.data.data ?? []);
+        }
+      })
+      .catch(() => {
+        // Informativo: una falla aquí no debe bloquear la vista.
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [seleccionId]);
 
   const fetchHospitalesCercanos = useCallback(async (id: number) => {
     try {
@@ -186,14 +309,6 @@ export default function SeleccionMensualPage() {
       // Informativo: una falla aquí no debe bloquear la vista.
     }
   }, []);
-
-  useEffect(() => {
-    if (seleccionId === null) {
-      setHospitalesCercanos([]);
-      return;
-    }
-    void fetchHospitalesCercanos(seleccionId);
-  }, [seleccionId, fetchHospitalesCercanos]);
 
   // Al cambiar de selección, abrir la primera región con problema (sin equipo > advertencia <4)
   useEffect(() => {
@@ -216,6 +331,99 @@ export default function SeleccionMensualPage() {
     }
   };
 
+  // ── Filtros del listado ────────────────────────────────────────────────────
+  const seleccionesFiltradas = useMemo(() => {
+    return selecciones.filter((s) => {
+      if (appliedFiltros.idTipoGerencia !== 'all' && s.idTipoGerencia !== Number(appliedFiltros.idTipoGerencia))
+        return false;
+      if (appliedFiltros.idEstado !== 'all' && s.idEstado !== Number(appliedFiltros.idEstado))
+        return false;
+      if (appliedFiltros.periodo !== 'all' && s.fechaSeleccion.slice(0, 7) !== appliedFiltros.periodo)
+        return false;
+      if (appliedFiltros.busqueda.trim()) {
+        const term = appliedFiltros.busqueda.trim().toLowerCase();
+        const texto = `${formatearPeriodoSeleccion(s.fechaSeleccion)} ${s.tipoGerencia ?? ''} ${s.nombreUsuarioCreacion ?? ''}`.toLowerCase();
+        if (!texto.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [selecciones, appliedFiltros]);
+
+  const periodosDisponibles = useMemo(() => {
+    const set = new Set(selecciones.map((s) => s.fechaSeleccion.slice(0, 7)));
+    return [...set].sort().reverse();
+  }, [selecciones]);
+
+  const updateDraft = <K extends keyof FiltrosSelecciones>(key: K, value: FiltrosSelecciones[K]) => {
+    setDraftFiltros((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const aplicarFiltros = () => setAppliedFiltros(draftFiltros);
+
+  const limpiarFiltros = () => {
+    setDraftFiltros(FILTROS_INICIALES);
+    setAppliedFiltros(FILTROS_INICIALES);
+  };
+
+  // ── Modales de fila del listado ────────────────────────────────────────────
+  const abrirFirmaLista = (s: SeleccionMensual) => {
+    if (hasFirma === false) {
+      toast.warning('No has cargado tu firma digital', {
+        description: 'Ve a Configuración > Perfil para subir tu firma y poder firmar documentos.',
+        duration: 6000,
+      });
+      return;
+    }
+    setDocumentoLista(s);
+    setModalesLista({ firma: true, historial: false, archivos: false });
+  };
+
+  const abrirHistorialLista = (s: SeleccionMensual) => {
+    setDocumentoLista(s);
+    setModalesLista({ firma: false, historial: true, archivos: false });
+  };
+
+  const abrirArchivosLista = (s: SeleccionMensual) => {
+    setDocumentoLista(s);
+    setModalesLista({ firma: false, historial: false, archivos: true });
+  };
+
+  const cerrarModalLista = () => {
+    setModalesLista({ firma: false, historial: false, archivos: false });
+    setDocumentoLista(null);
+  };
+
+  const confirmarFirmaLista = async (
+    accion: AccionWorkflow,
+    comentario?: string,
+    datosAdicionales?: Record<string, unknown> | null
+  ) => {
+    if (!documentoLista) return;
+    setGuardando(true);
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.firmar(
+        documentoLista.idSeleccionMensual,
+        {
+          idAccion: accion.idAccion,
+          comentario: comentario ?? null,
+          datosAdicionales: datosAdicionales ?? null,
+        }
+      );
+      if (response.data.success) {
+        toast.success(response.data.message || 'Acción aplicada.');
+        cerrarModalLista();
+        await fetchSelecciones();
+      } else {
+        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+      }
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  // ── Nueva selección ────────────────────────────────────────────────────────
   const errorFechasNueva = useMemo(() => {
     if (nuevaInicio && nuevaFin && nuevaFin <= nuevaInicio) {
       return 'La fecha de fin de vigencia debe ser posterior al inicio.';
@@ -263,8 +471,8 @@ export default function SeleccionMensualPage() {
       if (response.data.success && response.data.data) {
         toast.success('Selección creada en Borrador.');
         setModalNueva(false);
-        setSeleccionId(response.data.data.idSeleccionMensual);
-        await refrescar();
+        abrirSeleccion(response.data.data.idSeleccionMensual);
+        await fetchSelecciones();
       } else {
         toast.error(response.data.message ?? 'Error al crear la selección');
       }
@@ -275,6 +483,7 @@ export default function SeleccionMensualPage() {
     }
   };
 
+  // ── Detalle: hospitales ────────────────────────────────────────────────────
   const abrirModalHospital = () => {
     setGerenciaFiltro(null);
     setHospitalesGerencia([]);
@@ -543,9 +752,7 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  const accionEstado = async (
-    accion: 'enviarRevision' | 'autorizarGV' | 'autorizarGG' | 'cerrar'
-  ) => {
+  const accionEstado = async (accion: 'enviarRevision' | 'cerrar') => {
     if (!detalle) return;
     setGuardando(true);
     try {
@@ -553,11 +760,7 @@ export default function SeleccionMensualPage() {
       const response =
         accion === 'enviarRevision'
           ? await api.enviarRevision(detalle.idSeleccionMensual)
-          : accion === 'autorizarGV'
-            ? await api.autorizar(detalle.idSeleccionMensual, { rol: 'GV' })
-            : accion === 'autorizarGG'
-              ? await api.autorizar(detalle.idSeleccionMensual, { rol: 'GG' })
-              : await api.cerrar(detalle.idSeleccionMensual);
+          : await api.cerrar(detalle.idSeleccionMensual);
 
       if (response.data.success) {
         toast.success(response.data.message || 'Acción aplicada.');
@@ -570,6 +773,66 @@ export default function SeleccionMensualPage() {
     } finally {
       setGuardando(false);
     }
+  };
+
+  // Acciones de workflow disponibles para el usuario en el paso actual (firmas GG/GV, devolver)
+  useEffect(() => {
+    if (!detalle || detalle.estado !== 'EnRevision') return;
+
+    let cancelado = false;
+    educacionMedicaApi.seleccionesMensuales
+      .accionesDisponibles(detalle.idSeleccionMensual)
+      .then((res) => {
+        if (!cancelado && res.data.success) {
+          setAccionesWorkflow(res.data.data ?? []);
+        }
+      })
+      .catch(() => {
+        if (!cancelado) setAccionesWorkflow([]);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [detalle]);
+
+  // Solo se usan acciones si la selección está en revisión: al cambiar de documento la
+  // vista deja de mostrarlas sin resetear estado dentro del efecto.
+  const accionesWorkflowActual = detalle?.estado === 'EnRevision' ? accionesWorkflow : [];
+
+  const ejecutarAccionWorkflow = async (
+    accion: AccionWorkflow,
+    comentario?: string,
+    datosAdicionales?: Record<string, unknown> | null
+  ) => {
+    if (!detalle) return;
+    setGuardando(true);
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.firmar(
+        detalle.idSeleccionMensual,
+        { idAccion: accion.idAccion, comentario: comentario ?? null, datosAdicionales: datosAdicionales ?? null }
+      );
+
+      if (response.data.success) {
+        toast.success(response.data.message || 'Acción aplicada.');
+        setAccionFirma(null);
+        await refrescar();
+      } else {
+        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+      }
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const abrirFirma = (accion: AccionWorkflow) => {
+    if (hasFirma === false) {
+      toast.error('No tienes firma digital registrada. Cárgala en Configuración > Perfil.');
+      return;
+    }
+    setAccionFirma(accion);
   };
 
   const hospitalesPorRegion = useMemo(() => {
@@ -631,7 +894,6 @@ export default function SeleccionMensualPage() {
       efectivo[region.idRegion] = region.idRegion === mapaRegionId ? '#eb6c36' : '#c3c8d1';
     }
     return efectivo;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorPorRegion, mapaRegionId, detalle]);
 
   const focusCodigos = useMemo(() => {
@@ -642,371 +904,521 @@ export default function SeleccionMensualPage() {
     return codigos.length > 0 ? codigos : undefined;
   }, [regionExpandidaId, hospitalesPorRegion]);
 
-  const editable = detalle?.estado === 'Borrador' || detalle?.estado === 'EnRevision';
+  const editable = detalle?.estado === 'Borrador';
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+  // ── Modo lista ─────────────────────────────────────────────────────────────
+  if (seleccionId === null) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h1 className="text-lg font-semibold">Selección Mensual</h1>
+            <p className="text-sm text-muted-foreground">
+              Gestiona las selecciones mensuales de hospitales para Educación Médica.
+            </p>
+          </div>
           <Button size="sm" onClick={abrirModalNueva}>
             <Plus className="mr-2 h-4 w-4" />
-            Nueva selección
-          </Button>
-          <Button variant="outline" size="sm" onClick={refrescar}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Actualizar
+            Crear selección
           </Button>
         </div>
-      </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Selecciones mensuales</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : selecciones.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No hay selecciones. Crea la de la reunión del día 15.
-            </p>
-          ) : (
-            selecciones.map((seleccion) => (
-              <Button
-                key={seleccion.idSeleccionMensual}
-                variant={seleccionId === seleccion.idSeleccionMensual ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setSeleccionId(seleccion.idSeleccionMensual)}
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Buscar</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={draftFiltros.busqueda}
+                  onChange={(e) => updateDraft('busqueda', e.target.value)}
+                  placeholder="Período, gerencia o creador..."
+                  className="h-10 pl-8"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Gerencia</label>
+              <Select
+                value={draftFiltros.idTipoGerencia}
+                onValueChange={(v) => updateDraft('idTipoGerencia', v)}
               >
-                <CalendarDays className="mr-2 h-4 w-4" />
-                {formatearFecha(seleccion.fechaSeleccion)} · {seleccion.totalHospitales} hosp.
-                <Badge variant={ESTADO_VARIANTS[seleccion.estado] ?? 'outline'} className="ml-2">
-                  {seleccion.estado}
-                </Badge>
-              </Button>
-            ))
-          )}
-        </CardContent>
-      </Card>
-
-      {detalle && (
-        <>
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">
-                Selección #{detalle.idSeleccionMensual} ·{' '}
-                {formatearFecha(detalle.fechaSeleccion)}
-                {detalle.tipoGerencia ? ` · ${detalle.tipoGerencia}` : ''}
-              </CardTitle>
-              <VarianteEstado estado={detalle.estado} />
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 text-sm sm:grid-cols-4">
-                <div>
-                  <p className="text-muted-foreground">Vigencia</p>
-                  <p>
-                    {formatearFecha(detalle.fechaInicioVigencia)} —{' '}
-                    {formatearFecha(detalle.fechaFinVigencia)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Hospitales</p>
-                  <p>{detalle.totalHospitales}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Regiones</p>
-                  <p>{detalle.totalRegiones}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Objetivo talleres/mes</p>
-                  <p>{detalle.talleresObjetivoMes ?? '—'}</p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" onClick={() => setModalResumen(true)}>
-                  <Printer className="mr-2 h-4 w-4" />
-                  Resumen
-                </Button>
-                {detalle.estado === 'Borrador' && (
-                  <Button
-                    size="sm"
-                    disabled={guardando}
-                    onClick={() => accionEstado('enviarRevision')}
-                  >
-                    <UserCheck className="mr-2 h-4 w-4" />
-                    Enviar a autorización
-                  </Button>
-                )}
-                {detalle.estado === 'EnRevision' && (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={guardando || detalle.firmaGvFecha !== null}
-                      onClick={() => accionEstado('autorizarGV')}
-                    >
-                      {detalle.firmaGvFecha ? '✓' : '1.'} Firma Gerente de Ventas
-                    </Button>
-                    <Button
-                      size="sm"
-                      disabled={guardando || detalle.firmaGvFecha === null || detalle.firmaGgFecha !== null}
-                      onClick={() => accionEstado('autorizarGG')}
-                    >
-                      {detalle.firmaGgFecha ? '✓' : '2.'} Firma Gerencia General
-                    </Button>
-                  </>
-                )}
-                {detalle.estado === 'Autorizada' && (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
-                      }
-                    >
-                      <RouteIcon className="mr-2 h-4 w-4" />
-                      Planificar rutas
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={guardando}
-                      onClick={() => accionEstado('cerrar')}
-                    >
-                      Cerrar selección
-                    </Button>
-                  </>
-                )}
-                {editable && (
-                  <>
-                    <Button size="sm" variant="outline" onClick={abrirModalHospital}>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Agregar hospital
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={guardando || rankingCargando} onClick={abrirRanking}>
-                      <Sparkles className="mr-2 h-4 w-4" />
-                      Sugerir hospitales
-                    </Button>
-                    <Button size="sm" variant="outline" disabled={guardando} onClick={agrupar}>
-                      <Scissors className="mr-2 h-4 w-4" />
-                      Recalcular regiones
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {avisosAgrupacion.length > 0 && (
-            <Alert>
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Avisos de la agrupación</AlertTitle>
-              <AlertDescription>
-                <ul className="list-disc pl-4">
-                  {avisosAgrupacion.map((aviso) => (
-                    <li key={aviso}>{aviso}</li>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las gerencias</SelectItem>
+                  {tiposGerencia.map((g) => (
+                    <SelectItem key={g.idTipoGerencia} value={String(g.idTipoGerencia)}>
+                      {g.descripcion}
+                    </SelectItem>
                   ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Estado</label>
+              <Select value={draftFiltros.idEstado} onValueChange={(v) => updateDraft('idEstado', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  {workflowEstados
+                    .filter((e) => e.activo)
+                    .sort((a, b) => a.idEstado - b.idEstado)
+                    .map((e) => (
+                      <SelectItem key={e.idEstado} value={String(e.idEstado)}>
+                        {e.nombre ?? `Estado ${e.idEstado}`}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select value={draftFiltros.periodo} onValueChange={(v) => updateDraft('periodo', v)}>
+                <SelectTrigger className="h-10">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los períodos</SelectItem>
+                  {periodosDisponibles.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {formatearPeriodoSeleccion(`${p}-01`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-            <Card>
-              <CardContent className="pt-6">
-                <RegionesPanel
-                  regiones={detalle.regiones}
-                  hospitalesPorRegion={hospitalesPorRegion}
-                  totalHospitales={detalle.totalHospitales}
-                  equipos={equipos}
-                  editable={editable}
-                  guardando={guardando}
-                  regionesAbiertas={regionesAbiertas}
-                  onRegionesAbiertasChange={manejarRegionesAbiertas}
-                  onHoverRegion={setRegionHoverId}
-                  onHoverHospital={setHospitalHoverId}
-                  onAsignarEquipo={asignarEquipo}
-                  onQuitarHospital={quitarHospital}
-                  onDividir={setRegionDividir}
-                  onRecalcular={() => void agrupar()}
-                  onMoverARegion={moverARegion}
-                  cercanosPorRegion={cercanosPorRegion}
-                />
-              </CardContent>
-            </Card>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={limpiarFiltros} disabled={loading}>
+              <RotateCcw className="mr-1.5 h-4 w-4" />
+              Limpiar filtros
+            </Button>
+            <Button size="sm" onClick={aplicarFiltros} disabled={loading}>
+              <Search className="mr-1.5 h-4 w-4" />
+              Buscar
+            </Button>
+          </div>
+        </div>
 
-            <div className="space-y-2 self-start lg:sticky lg:top-4">
-              <Suspense
-                fallback={
-                  <div className="flex h-[40vh] items-center justify-center rounded-md border bg-muted">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  </div>
+        <SeleccionesTable
+          data={seleccionesFiltradas}
+          loading={loading}
+          title="Selecciones mensuales"
+          subtitle="Todas las selecciones creadas, en cualquier estado"
+          onVer={(s) => abrirSeleccion(s.idSeleccionMensual)}
+          onEditar={(s) => abrirSeleccion(s.idSeleccionMensual)}
+          onFirma={abrirFirmaLista}
+          onHistorial={abrirHistorialLista}
+          onArchivos={abrirArchivosLista}
+          onRefresh={() => void fetchSelecciones()}
+        />
+
+        {documentoLista && (
+          <>
+            <DocumentoFirmaModal
+              open={modalesLista.firma}
+              onClose={cerrarModalLista}
+              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              estadoTexto={documentoLista.estadoNombre ?? documentoLista.estado}
+              pasoNombre={documentoLista.pasoActualNombre}
+              tipo="seleccion"
+              idEntidad={documentoLista.idSeleccionMensual}
+              idPasoActual={documentoLista.idPasoActual}
+              acciones={documentoLista.acciones}
+              hasFirma={hasFirma ?? undefined}
+              guardando={guardando}
+              onConfirmar={confirmarFirmaLista}
+            />
+
+            <DocumentoHistorialModal
+              open={modalesLista.historial}
+              onClose={cerrarModalLista}
+              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              estadoTexto={documentoLista.estadoNombre ?? documentoLista.estado}
+              tipo="seleccion"
+              idEntidad={documentoLista.idSeleccionMensual}
+              idWorkflow={documentoLista.idWorkflow}
+              idPasoActual={documentoLista.idPasoActual}
+            />
+
+            <DocumentoArchivosModal
+              open={modalesLista.archivos}
+              onClose={cerrarModalLista}
+              documento={`Selección ${formatearPeriodoSeleccion(documentoLista.fechaSeleccion)}`}
+              tipo="seleccion"
+              idEntidad={documentoLista.idSeleccionMensual}
+            />
+          </>
+        )}
+
+        {/* ── Modal: nueva selección ── */}
+        <Modal
+          id="modal-nueva-seleccion"
+          open={modalNueva}
+          setOpen={setModalNueva}
+          title="Nueva selección mensual"
+          size="md"
+          footer={
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setModalNueva(false)}>
+                Cancelar
+              </Button>
+              <Button
+                disabled={
+                  guardando ||
+                  !nuevaGerencia ||
+                  !nuevaFecha ||
+                  !nuevaInicio ||
+                  !nuevaFin ||
+                  Boolean(errorFechasNueva)
                 }
+                onClick={crearSeleccion}
               >
-                <HospitalesMap
-                  hospitales={detalle.hospitales.map((hospital) => ({
-                    codigoContacto: hospital.idSeleccionHospital,
-                    nombreContacto: hospital.nombreHospital ?? `Hospital ${hospital.idHospital}`,
-                    nombreCorto: null,
-                    clues: null,
-                    ciudad: hospital.ciudadMunicipio,
-                    codigoEstado: hospital.entidadFederativa,
-                    latitud: hospital.latitudSnapshot,
-                    longitud: hospital.longitudSnapshot,
-                    idRegion: hospital.idRegion,
-                    regionNombre: hospital.nombreRegion,
-                  }))}
-                  centroides={detalle.regiones
-                    .filter((region) => region.centroLatitud !== null && region.centroLongitud !== null)
-                    .map((region) => ({
-                      idRegion: region.idRegion,
-                      nombre: region.nombre ?? `Región ${region.idRegion}`,
-                      latitud: region.centroLatitud as number,
-                      longitud: region.centroLongitud as number,
-                      cantidadHospitales: region.cantidadHospitales,
-                    }))}
-                  colorPorRegion={colorPorRegionEfectivo}
-                  colorSinRegion={mapaRegionId != null ? '#c3c8d1' : undefined}
-                  highlightCodigo={hospitalHoverId}
-                  focusCodigos={focusCodigos}
-                  hospitalesAjenos={mostrarAjenos ? hospitalesCercanos : undefined}
-                />
-              </Suspense>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                {detalle.regiones.map((region) => (
-                  <span key={region.idRegion} className="inline-flex items-center gap-1.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full border border-white shadow-sm"
-                      style={{ backgroundColor: colorPorRegion[region.idRegion] }}
-                    />
-                    {region.nombre ?? `Región ${region.idRegion}`}
-                  </span>
-                ))}
-                {(hospitalesPorRegion.get(null) ?? []).length > 0 && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full border border-white shadow-sm"
-                      style={{ backgroundColor: '#2d3142' }}
-                    />
-                    Sin región
-                  </span>
-                )}
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-white bg-[#eb6c36] text-[8px] font-bold text-white shadow-sm">
-                    Z
-                  </span>
-                  Centro de región
-                </span>
-                {hospitalesCercanos.length > 0 && (
-                  <label className="inline-flex cursor-pointer items-center gap-1.5">
-                    <span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-[#eb6c36]" />
-                    Otras gerencias ({hospitalesCercanos.length})
-                    <Switch
-                      checked={mostrarAjenos}
-                      onCheckedChange={setMostrarAjenos}
-                      className="scale-75"
-                    />
-                  </label>
-                )}
-              </div>
+                {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Crear
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Tipo de gerencia</label>
+              <CatalogoSearchSelect
+                items={tiposGerencia.map((tipo) => ({
+                  id: tipo.idTipoGerencia,
+                  label: tipo.descripcion,
+                }))}
+                value={nuevaGerencia}
+                onChange={(id) => setNuevaGerencia(id)}
+                placeholder="Selecciona la gerencia..."
+              />
               <p className="text-xs text-muted-foreground">
-                Al pasar el cursor o expandir una región, sus hospitales se resaltan en naranja y
-                las demás regiones se atenúan en gris.
+                Gerencia responsable de la selección. La meta de talleres es por gerencia (al menos
+                64 IMSS / 64 descentralizados); cada gerencia firma su propia selección.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Fecha de la reunión (día 15)</label>
+              <DatePicker value={nuevaFecha} onChange={setNuevaFecha} placeholder="Seleccionar" />
+              <p className="text-xs text-muted-foreground">
+                Reunión mensual donde se eligen los hospitales de los próximos 45 días (normalmente
+                el día 15 o el siguiente día hábil).
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Inicio de vigencia</label>
+              <DatePicker value={nuevaInicio} onChange={setNuevaInicio} placeholder="Seleccionar" />
+              <p className="text-xs text-muted-foreground">
+                Primer día del periodo que se va a planificar.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Fin de vigencia (~45 días)</label>
+              <DatePicker value={nuevaFin} onChange={setNuevaFin} placeholder="Seleccionar" />
+              <p className="text-xs text-muted-foreground">
+                Último día del periodo. Las rutas se distribuyen entre los días laborales (Lun–Vie)
+                de este rango; la capacidad de cada equipo se calcula sobre estas fechas.
+              </p>
+              {errorFechasNueva && <p className="text-xs text-destructive">{errorFechasNueva}</p>}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Objetivo de talleres del mes</label>
+              <Input
+                type="number"
+                min={1}
+                value={nuevoObjetivo}
+                onChange={(e) => setNuevoObjetivo(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Meta mínima de talleres a programar en el mes. Se usa la operación documentada: al
+                menos 64 por gerencia (~128 en total), configurable aquí y en Parámetros.
               </p>
             </div>
           </div>
-        </>
+        </Modal>
+      </div>
+    );
+  }
+
+  // ── Modo detalle ───────────────────────────────────────────────────────────
+  if (!detalle) {
+    return (
+      <div className="space-y-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-2 h-7 px-2 text-xs text-muted-foreground"
+          onClick={volverALista}
+        >
+          <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+          Volver a selecciones
+        </Button>
+        <div className="flex items-center justify-center py-20 text-muted-foreground">
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          Cargando selección...
+        </div>
+      </div>
+    );
+  }
+
+  const estadoTexto = detalle.estadoNombre ?? detalle.estado;
+  const estadoColor = detalle.estadoColor;
+  const badgeEstado =
+    estadoColor != null ? (
+      <span
+        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold"
+        style={{
+          borderColor: estadoColor,
+          color: estadoColor,
+          backgroundColor: estadoColor + '15',
+        }}
+      >
+        {estadoTexto}
+      </span>
+    ) : (
+      <VarianteEstado estado={detalle.estado} />
+    );
+
+  return (
+    <div className="space-y-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="-ml-2 h-7 px-2 text-xs text-muted-foreground"
+        onClick={volverALista}
+      >
+        <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
+        Volver a selecciones
+      </Button>
+
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div>
+            <CardTitle className="text-base">
+              Selección {formatearPeriodoSeleccion(detalle.fechaSeleccion)}
+            </CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {detalle.tipoGerencia ?? 'Sin gerencia'} · Selección #{detalle.idSeleccionMensual}
+            </p>
+          </div>
+          {badgeEstado}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {detalle.estado === 'EnRevision' && (
+            <WorkflowAccionesPanel
+              acciones={accionesWorkflowActual}
+              onAccionClick={abrirFirma}
+              isSubmitting={guardando}
+              hasFirma={hasFirma ?? undefined}
+              vacioTexto="Esperando firmas: primero Gerencia General y luego el Gerente de Ventas de la gerencia."
+            />
+          )}
+
+          <div className="grid gap-4 text-sm sm:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground">Vigencia</p>
+              <p>
+                {formatearFecha(detalle.fechaInicioVigencia)} —{' '}
+                {formatearFecha(detalle.fechaFinVigencia)}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Hospitales</p>
+              <p>{detalle.totalHospitales}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Regiones</p>
+              <p>{detalle.totalRegiones}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Objetivo talleres/mes</p>
+              <p>{detalle.talleresObjetivoMes ?? '—'}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setModalResumen(true)}>
+              <Printer className="mr-2 h-4 w-4" />
+              Resumen
+            </Button>
+            {detalle.estado === 'Borrador' && (
+              <Button
+                size="sm"
+                disabled={guardando}
+                onClick={() => accionEstado('enviarRevision')}
+              >
+                <UserCheck className="mr-2 h-4 w-4" />
+                Enviar a autorización
+              </Button>
+            )}
+            {detalle.estado === 'Autorizada' && (
+              <>
+                <Button
+                  size="sm"
+                  onClick={() =>
+                    navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
+                  }
+                >
+                  <RouteIcon className="mr-2 h-4 w-4" />
+                  Planificar rutas
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={guardando}
+                  onClick={() => accionEstado('cerrar')}
+                >
+                  Cerrar selección
+                </Button>
+              </>
+            )}
+            {editable && (
+              <>
+                <Button size="sm" variant="outline" onClick={abrirModalHospital}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Agregar hospital
+                </Button>
+                <Button size="sm" variant="outline" disabled={guardando || rankingCargando} onClick={abrirRanking}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Sugerir hospitales
+                </Button>
+                <Button size="sm" variant="outline" disabled={guardando} onClick={agrupar}>
+                  <Scissors className="mr-2 h-4 w-4" />
+                  Recalcular regiones
+                </Button>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {avisosAgrupacion.length > 0 && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>Avisos de la agrupación</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc pl-4">
+              {avisosAgrupacion.map((aviso) => (
+                <li key={aviso}>{aviso}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
       )}
 
-      <Modal
-        id="modal-nueva-seleccion"
-        open={modalNueva}
-        setOpen={setModalNueva}
-        title="Nueva selección mensual"
-        size="md"
-        footer={
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setModalNueva(false)}>
-              Cancelar
-            </Button>
-            <Button
-              disabled={
-                guardando ||
-                !nuevaGerencia ||
-                !nuevaFecha ||
-                !nuevaInicio ||
-                !nuevaFin ||
-                Boolean(errorFechasNueva)
-              }
-              onClick={crearSeleccion}
-            >
-              {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Tipo de gerencia</label>
-            <CatalogoSearchSelect
-              items={tiposGerencia.map((tipo) => ({
-                id: tipo.idTipoGerencia,
-                label: tipo.descripcion,
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <Card>
+          <CardContent className="pt-6">
+            <RegionesPanel
+              regiones={detalle.regiones}
+              hospitalesPorRegion={hospitalesPorRegion}
+              totalHospitales={detalle.totalHospitales}
+              equipos={equipos}
+              editable={editable}
+              guardando={guardando}
+              regionesAbiertas={regionesAbiertas}
+              onRegionesAbiertasChange={manejarRegionesAbiertas}
+              onHoverRegion={setRegionHoverId}
+              onHoverHospital={setHospitalHoverId}
+              onAsignarEquipo={asignarEquipo}
+              onQuitarHospital={quitarHospital}
+              onDividir={setRegionDividir}
+              onRecalcular={() => void agrupar()}
+              onMoverARegion={moverARegion}
+              cercanosPorRegion={cercanosPorRegion}
+            />
+          </CardContent>
+        </Card>
+
+        <div className="space-y-2 self-start lg:sticky lg:top-4">
+          <Suspense
+            fallback={
+              <div className="flex h-[40vh] items-center justify-center rounded-md border bg-muted">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </div>
+            }
+          >
+            <HospitalesMap
+              hospitales={detalle.hospitales.map((hospital) => ({
+                codigoContacto: hospital.idSeleccionHospital,
+                nombreContacto: hospital.nombreHospital ?? `Hospital ${hospital.idHospital}`,
+                nombreCorto: null,
+                clues: null,
+                ciudad: hospital.ciudadMunicipio,
+                codigoEstado: hospital.entidadFederativa,
+                latitud: hospital.latitudSnapshot,
+                longitud: hospital.longitudSnapshot,
+                idRegion: hospital.idRegion,
+                regionNombre: hospital.nombreRegion,
               }))}
-              value={nuevaGerencia}
-              onChange={(id) => setNuevaGerencia(id)}
-              placeholder="Selecciona la gerencia..."
+              centroides={detalle.regiones
+                .filter((region) => region.centroLatitud !== null && region.centroLongitud !== null)
+                .map((region) => ({
+                  idRegion: region.idRegion,
+                  nombre: region.nombre ?? `Región ${region.idRegion}`,
+                  latitud: region.centroLatitud as number,
+                  longitud: region.centroLongitud as number,
+                  cantidadHospitales: region.cantidadHospitales,
+                }))}
+              colorPorRegion={colorPorRegionEfectivo}
+              colorSinRegion={mapaRegionId != null ? '#c3c8d1' : undefined}
+              highlightCodigo={hospitalHoverId}
+              focusCodigos={focusCodigos}
+              hospitalesAjenos={mostrarAjenos ? hospitalesCercanos : undefined}
             />
-            <p className="text-xs text-muted-foreground">
-              Gerencia responsable de la selección. La meta de talleres es por gerencia (al menos
-              64 IMSS / 64 descentralizados); cada gerencia firma su propia selección.
-            </p>
+          </Suspense>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {detalle.regiones.map((region) => (
+              <span key={region.idRegion} className="inline-flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-full border border-white shadow-sm"
+                  style={{ backgroundColor: colorPorRegion[region.idRegion] }}
+                />
+                {region.nombre ?? `Región ${region.idRegion}`}
+              </span>
+            ))}
+            {(hospitalesPorRegion.get(null) ?? []).length > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-full border border-white shadow-sm"
+                  style={{ backgroundColor: '#2d3142' }}
+                />
+                Sin región
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1.5">
+              <span className="flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-white bg-[#eb6c36] text-[8px] font-bold text-white shadow-sm">
+                Z
+              </span>
+              Centro de región
+            </span>
+            {hospitalesCercanos.length > 0 && (
+              <label className="inline-flex cursor-pointer items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full border-2 border-dashed border-[#eb6c36]" />
+                Otras gerencias ({hospitalesCercanos.length})
+                <Switch
+                  checked={mostrarAjenos}
+                  onCheckedChange={setMostrarAjenos}
+                  className="scale-75"
+                />
+              </label>
+            )}
           </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Fecha de la reunión (día 15)</label>
-            <DatePicker value={nuevaFecha} onChange={setNuevaFecha} placeholder="Seleccionar" />
-            <p className="text-xs text-muted-foreground">
-              Reunión mensual donde se eligen los hospitales de los próximos 45 días (normalmente
-              el día 15 o el siguiente día hábil).
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Inicio de vigencia</label>
-            <DatePicker value={nuevaInicio} onChange={setNuevaInicio} placeholder="Seleccionar" />
-            <p className="text-xs text-muted-foreground">
-              Primer día del periodo que se va a planificar.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Fin de vigencia (~45 días)</label>
-            <DatePicker value={nuevaFin} onChange={setNuevaFin} placeholder="Seleccionar" />
-            <p className="text-xs text-muted-foreground">
-              Último día del periodo. Las rutas se distribuyen entre los días laborales (Lun–Vie)
-              de este rango; la capacidad de cada equipo se calcula sobre estas fechas.
-            </p>
-            {errorFechasNueva && <p className="text-xs text-destructive">{errorFechasNueva}</p>}
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Objetivo de talleres del mes</label>
-            <Input
-              type="number"
-              min={1}
-              value={nuevoObjetivo}
-              onChange={(e) => setNuevoObjetivo(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Meta mínima de talleres a programar en el mes. Se usa la operación documentada: al
-              menos 64 por gerencia (~128 en total), configurable aquí y en Parámetros.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Al pasar el cursor o expandir una región, sus hospitales se resaltan en naranja y las
+            demás regiones se atenúan en gris.
+          </p>
         </div>
-      </Modal>
+      </div>
 
       <Modal
         id="modal-agregar-hospital"
@@ -1123,14 +1535,27 @@ export default function SeleccionMensualPage() {
         </div>
       </Modal>
 
-      {detalle && (
-        <ResumenSeleccionModal
-          open={modalResumen}
-          onOpenChange={setModalResumen}
-          detalle={detalle}
-          equipos={equipos}
-        />
-      )}
+      <ResumenSeleccionModal
+        open={modalResumen}
+        onOpenChange={setModalResumen}
+        detalle={detalle}
+        equipos={equipos}
+      />
+
+      <WorkflowAccionModal
+        open={accionFirma !== null}
+        onClose={() => setAccionFirma(null)}
+        accion={accionFirma}
+        tituloEntidad={`Selección mensual ${formatearFecha(detalle.fechaSeleccion)}`}
+        hasFirma={hasFirma ?? undefined}
+        guardando={guardando}
+        entidadTipo="SeleccionMensual"
+        entidadId={detalle.idSeleccionMensual}
+        carpetaAdjuntos="educacion-medica-selecciones"
+        onConfirmar={(comentario, datosAdicionales) => {
+          if (accionFirma) void ejecutarAccionWorkflow(accionFirma, comentario, datosAdicionales);
+        }}
+      />
 
       <RankingModal
         key={rankingEjecucion?.idRankingEjecucion ?? 0}
@@ -1141,7 +1566,7 @@ export default function SeleccionMensualPage() {
         guardando={guardando}
         cargando={rankingCargando}
         onRegenerar={regenerarRanking}
-        cantidadDefault={detalle?.talleresObjetivoMes ?? null}
+        cantidadDefault={detalle.talleresObjetivoMes ?? null}
         filtrosDisponibles={filtrosDisponibles}
         filtros={rankingFiltros}
         onFiltrosChange={setRankingFiltros}

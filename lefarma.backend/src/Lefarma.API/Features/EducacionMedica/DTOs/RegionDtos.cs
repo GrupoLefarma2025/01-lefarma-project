@@ -3,6 +3,8 @@ namespace Lefarma.API.Features.EducacionMedica.DTOs;
 public class RegionDto
 {
     public int IdRegion { get; set; }
+    public int IdTipoGerencia { get; set; }
+    public string? NombreGerencia { get; set; }
     public string Nombre { get; set; } = string.Empty;
     public decimal? CentroLatitud { get; set; }
     public decimal? CentroLongitud { get; set; }
@@ -19,6 +21,9 @@ public class RegionEstadoResumenDto
 
 public class UpsertRegionRequest
 {
+    /// <summary>Gerencia dueña de la región (IMSS o Descentralizado). Inmutable al actualizar.</summary>
+    public int IdTipoGerencia { get; set; }
+
     public string Nombre { get; set; } = string.Empty;
     public decimal? CentroLatitud { get; set; }
     public decimal? CentroLongitud { get; set; }
@@ -95,6 +100,8 @@ public class RegionEstadoDto
     public string? NombreEstado { get; set; }
     public int IdRegion { get; set; }
     public string? NombreRegion { get; set; }
+    public int IdTipoGerencia { get; set; }
+    public string? NombreGerencia { get; set; }
 }
 
 public class UpsertRegionEstadoRequest

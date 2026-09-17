@@ -34,7 +34,11 @@ import type {
   DividirRegionRequest,
   MoverHospitalARegionRequest,
   HospitalCercanoOtraSeleccion,
-  AutorizarSeleccionRequest,
+  FirmarWorkflowRequest,
+  AccionDisponible,
+  HistorialWorkflowItem,
+  RutaVersionDto,
+  PendienteAprobacion,
   AgruparSeleccionResponse,
   SeleccionHospital,
   SeleccionRegion,
@@ -122,26 +126,36 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<TipoGerencia[]>>(`${BASE}/tipo-gerencia`),
   },
   regiones: {
-    getAll: () =>
-      API.get<ApiResponse<Region[]>>(`${BASE}/regiones`),
+    getAll: (idTipoGerencia?: number) =>
+      API.get<ApiResponse<Region[]>>(`${BASE}/regiones`, {
+        params: { idTipoGerencia },
+      }),
     create: (payload: UpsertRegionRequest) =>
       API.post<ApiResponse<Region>>(`${BASE}/regiones`, payload),
     update: (idRegion: number, payload: UpsertRegionRequest) =>
       API.put<ApiResponse<Region>>(`${BASE}/regiones/${idRegion}`, payload),
-    getEstadosCatalogo: () =>
-      API.get<ApiResponse<EstadoCatalogo[]>>(`${BASE}/regiones/estados-catalogo`),
+    getEstadosCatalogo: (idTipoGerencia?: number) =>
+      API.get<ApiResponse<EstadoCatalogo[]>>(`${BASE}/regiones/estados-catalogo`, {
+        params: { idTipoGerencia },
+      }),
     getSugerencia: (codigoContacto: number) =>
       API.get<ApiResponse<SugerenciaRegionResponse>>(
         `${BASE}/regiones/sugerencia/${codigoContacto}`
       ),
-    previewAplicarMapeo: () =>
-      API.post<ApiResponse<AplicarMapeoResponse>>(`${BASE}/regiones/aplicar-mapeo/preview`),
-    aplicarMapeo: () =>
+    previewAplicarMapeo: (idTipoGerencia?: number | null) =>
+      API.post<ApiResponse<AplicarMapeoResponse>>(`${BASE}/regiones/aplicar-mapeo/preview`, null, {
+        params: { idTipoGerencia },
+      }),
+    aplicarMapeo: (idTipoGerencia?: number | null) =>
       API.post<ApiResponse<{ hospitalesReasignados: number; porEstado: number; porGps: number }>>(
-        `${BASE}/regiones/aplicar-mapeo`
+        `${BASE}/regiones/aplicar-mapeo`,
+        null,
+        { params: { idTipoGerencia } }
       ),
-    getMapeoEstados: () =>
-      API.get<ApiResponse<RegionEstado[]>>(`${BASE}/regiones/estados`),
+    getMapeoEstados: (idTipoGerencia?: number) =>
+      API.get<ApiResponse<RegionEstado[]>>(`${BASE}/regiones/estados`, {
+        params: { idTipoGerencia },
+      }),
     upsertMapeoEstado: (codigoEstado: number, payload: UpsertRegionEstadoRequest) =>
       API.put<ApiResponse<RegionEstado>>(`${BASE}/regiones/estados/${codigoEstado}`, payload),
     asignarHospital: (codigoContacto: number, payload: AsignarRegionHospitalRequest) =>
@@ -248,10 +262,18 @@ export const educacionMedicaApi = {
       API.post<ApiResponse<SeleccionMensual>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/enviar-revision`
       ),
-    autorizar: (idSeleccionMensual: number, payload: AutorizarSeleccionRequest) =>
+    firmar: (idSeleccionMensual: number, payload: FirmarWorkflowRequest) =>
       API.post<ApiResponse<SeleccionMensual>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/autorizar`,
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/firmar`,
         payload
+      ),
+    accionesDisponibles: (idSeleccionMensual: number) =>
+      API.get<ApiResponse<AccionDisponible[]>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/acciones-disponibles`
+      ),
+    historial: (idSeleccionMensual: number) =>
+      API.get<ApiResponse<HistorialWorkflowItem[]>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/historial`
       ),
     cerrar: (idSeleccionMensual: number) =>
       API.post<ApiResponse<SeleccionMensual>>(
@@ -314,9 +336,19 @@ export const educacionMedicaApi = {
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/generar`,
         { estrategia }
       ),
-    confirmar: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<Ruta[]>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/confirmar`
+    version: (idSeleccionMensual: number, version?: number) =>
+      API.get<ApiResponse<RutaVersionDto | null>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/version`,
+        { params: version !== undefined ? { version } : undefined }
+      ),
+    firmarVersion: (idRutaVersion: number, payload: FirmarWorkflowRequest) =>
+      API.post<ApiResponse<RutaVersionDto>>(
+        `${BASE}/rutas/version/${idRutaVersion}/firmar`,
+        payload
+      ),
+    historialVersion: (idRutaVersion: number) =>
+      API.get<ApiResponse<HistorialWorkflowItem[]>>(
+        `${BASE}/rutas/version/${idRutaVersion}/historial`
       ),
     cancelar: (idSeleccionMensual: number, payload: CancelarRutasRequest) =>
       API.post<ApiResponse<Ruta[]>>(
@@ -339,6 +371,12 @@ export const educacionMedicaApi = {
       ),
     asignaciones: (idUsuario: number) =>
       API.get<ApiResponse<Asignacion[]>>(`${BASE}/talleres/asignaciones/${idUsuario}`),
+  },
+  aprobaciones: {
+    getDocumentos: (filtro: 'pendientes' | 'mios' | 'todos' = 'pendientes') =>
+      API.get<ApiResponse<PendienteAprobacion[]>>(`${BASE}/aprobaciones/documentos`, {
+        params: { filtro },
+      }),
   },
   parametrosModulo: {
     getAll: () =>

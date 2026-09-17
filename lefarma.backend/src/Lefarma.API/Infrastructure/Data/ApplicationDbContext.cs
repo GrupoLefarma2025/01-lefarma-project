@@ -83,8 +83,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<SeleccionMensual> SeleccionesMensuales { get; set; }
         public DbSet<SeleccionHospital> SeleccionesHospitales { get; set; }
         public DbSet<SeleccionRegion> SeleccionesRegiones { get; set; }
-        public DbSet<Ruta> Rutas { get; set; }
-        public DbSet<RutaVisita> RutasVisitas { get; set; }
+    public DbSet<Ruta> Rutas { get; set; }
+    public DbSet<RutaVisita> RutasVisitas { get; set; }
+    public DbSet<RutaVersion> RutasVersiones { get; set; }
         public DbSet<ParametroModulo> ParametrosModulo { get; set; }
         public DbSet<ConfigRanking> ConfigsRanking { get; set; }
         public DbSet<ConfigRankingFactor> ConfigsRankingFactores { get; set; }

@@ -12,6 +12,7 @@ public class RegionCatalogoConfiguration : IEntityTypeConfiguration<RegionCatalo
         builder.HasKey(e => e.IdRegion);
 
         builder.Property(e => e.IdRegion).HasColumnName("id_region");
+        builder.Property(e => e.IdTipoGerencia).HasColumnName("id_tipo_gerencia");
         builder.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(50);
         builder.Property(e => e.CentroLatitud).HasColumnName("centro_latitud").HasPrecision(9, 6);
         builder.Property(e => e.CentroLongitud).HasColumnName("centro_longitud").HasPrecision(9, 6);
@@ -21,6 +22,6 @@ public class RegionCatalogoConfiguration : IEntityTypeConfiguration<RegionCatalo
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        builder.HasIndex(e => e.Nombre).IsUnique();
+        builder.HasIndex(e => new { e.IdTipoGerencia, e.Nombre }).IsUnique();
     }
 }

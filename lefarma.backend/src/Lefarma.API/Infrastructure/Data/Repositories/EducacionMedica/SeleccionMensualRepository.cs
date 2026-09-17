@@ -19,7 +19,9 @@ public class SeleccionMensualRepository : ISeleccionMensualRepository
         int? mes,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.SeleccionesMensuales.AsNoTracking().Where(s => s.Activo);
+        var query = _context.SeleccionesMensuales.AsNoTracking()
+            .Include(s => s.EstadoWorkflow)
+            .Where(s => s.Activo);
 
         if (anio.HasValue)
         {
@@ -41,6 +43,7 @@ public class SeleccionMensualRepository : ISeleccionMensualRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.SeleccionesMensuales
+            .Include(s => s.EstadoWorkflow)
             .FirstOrDefaultAsync(s => s.IdSeleccionMensual == idSeleccionMensual && s.Activo, cancellationToken);
     }
 

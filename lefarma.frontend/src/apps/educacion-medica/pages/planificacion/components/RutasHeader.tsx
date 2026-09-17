@@ -49,7 +49,7 @@ export function RutasHeader({
         onClick={onBack}
       >
         <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />
-        Volver a Selección y reparto
+        Volver a Selección Mensual
       </Button>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
