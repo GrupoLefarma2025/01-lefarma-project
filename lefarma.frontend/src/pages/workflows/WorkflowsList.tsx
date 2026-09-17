@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { WorkflowWithStats } from '@/types/workflow.types';
@@ -45,7 +52,7 @@ const workflowSchema = z.object({
   descripcion: z.string().optional().or(z.literal('')),
   codigoProceso: z
     .string()
-    .min(3, 'El código debe tener al menos 3 caracteres')
+    .min(3, 'Selecciona el código del proceso')
     .regex(/^[A-Z_]+$/, 'El código debe estar en mayúsculas y usar guiones bajos'),
   version: z.number().min(1, 'La versión debe ser mayor a 0'),
   activo: z.boolean(),
@@ -53,6 +60,14 @@ const workflowSchema = z.object({
 
 type WorkflowFormValues = z.infer<typeof workflowSchema>;
 type WorkflowRequest = WorkflowFormValues & { idWorkflow: number };
+
+/** Procesos/códigos conocidos del sistema (evita que se capturen códigos arbitrarios). */
+const PROCESOS_CONOCIDOS: { value: string; label: string }[] = [
+  { value: 'ORDEN_COMPRA', label: 'Orden de Compra' },
+  { value: 'SOLICITUD_PERSONAL', label: 'Solicitud de Personal' },
+  { value: 'EDUCACION_MEDICA_SELECCION', label: 'Educación Médica · Selección mensual' },
+  { value: 'EDUCACION_MEDICA_RUTAS', label: 'Educación Médica · Planificación de rutas' },
+];
 
 export default function WorkflowsList() {
   usePageTitle('Workflows', 'Gestión de flujos de autorización y procesos');
@@ -89,6 +104,21 @@ export default function WorkflowsList() {
       activo: true,
     },
   });
+
+  // Opciones del select de código de proceso: conocidos + los que ya existan en BD
+  // (para no bloquear códigos en uso que no estén en la lista).
+  const procesosDisponibles = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const proceso of PROCESOS_CONOCIDOS) {
+      mapa.set(proceso.value, proceso.label);
+    }
+    for (const workflow of workflows) {
+      if (workflow.codigoProceso && !mapa.has(workflow.codigoProceso)) {
+        mapa.set(workflow.codigoProceso, workflow.codigoProceso);
+      }
+    }
+    return [...mapa.entries()].map(([value, label]) => ({ value, label }));
+  }, [workflows]);
 
   const fetchWorkflows = async () => {
     try {
@@ -481,16 +511,29 @@ export default function WorkflowsList() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Código del Proceso</FormLabel>
-                  <FormControl>
-                    <Input 
-                      placeholder="Ej: ORDEN_COMPRA" 
-                      {...field}
-                      className="font-mono"
-                      onChange={(e) => field.onChange(e.target.value.toUpperCase())}
-                    />
-                  </FormControl>
+                  <Select
+                    value={field.value ?? ''}
+                    onValueChange={field.onChange}
+                    disabled={isEditing}
+                  >
+                    <FormControl>
+                      <SelectTrigger className="font-mono">
+                        <SelectValue placeholder="Selecciona el proceso" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {procesosDisponibles.map((proceso) => (
+                        <SelectItem key={proceso.value} value={proceso.value}>
+                          <span className="font-mono text-xs">{proceso.value}</span>
+                          <span className="ml-2 text-muted-foreground">{proceso.label}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormDescription>
-                    Identificador único en mayúsculas (sin espacios, usa guiones bajos)
+                    {isEditing
+                      ? 'El código del proceso no se puede cambiar después de crear el workflow.'
+                      : 'Proceso al que pertenece el workflow. Elige uno de la lista para mantener códigos consistentes.'}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

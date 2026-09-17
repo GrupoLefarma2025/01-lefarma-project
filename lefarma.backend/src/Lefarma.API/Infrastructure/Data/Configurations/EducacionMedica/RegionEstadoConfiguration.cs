@@ -14,12 +14,13 @@ public class RegionEstadoConfiguration : IEntityTypeConfiguration<RegionEstado>
         builder.Property(e => e.IdRegionEstado).HasColumnName("id_region_estado");
         builder.Property(e => e.CodigoEstado).HasColumnName("codigo_estado");
         builder.Property(e => e.IdRegion).HasColumnName("id_region");
+        builder.Property(e => e.IdTipoGerencia).HasColumnName("id_tipo_gerencia");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
 
-        builder.HasIndex(e => e.CodigoEstado).IsUnique();
+        builder.HasIndex(e => new { e.IdTipoGerencia, e.CodigoEstado }).IsUnique();
 
         builder.HasOne(e => e.Region)
             .WithMany()

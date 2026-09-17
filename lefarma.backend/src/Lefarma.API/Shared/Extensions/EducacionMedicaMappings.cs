@@ -153,6 +153,12 @@ public static class EducacionMedicaMappings
             FirmaGgFecha = seleccion.FirmaGgFecha,
             TotalHospitales = totalHospitales,
             TotalRegiones = totalRegiones,
+            FechaCreacion = seleccion.FechaCreacion,
+            IdWorkflow = seleccion.IdWorkflow,
+            IdPasoActual = seleccion.IdPasoActual,
+            IdEstado = seleccion.IdEstado,
+            EstadoNombre = seleccion.EstadoWorkflow?.Nombre,
+            EstadoColor = seleccion.EstadoWorkflow?.ColorHex,
         };
     }
 

@@ -253,6 +253,12 @@ public class WorkflowService : BaseService, IWorkflowService
                             "PROVEEDOR" => m.ScopeId.HasValue && proveedores.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "CATEGORIA" => m.ScopeId.HasValue && Enum.IsDefined(typeof(CategoriaSolicitud), m.ScopeId.Value) ? ((CategoriaSolicitud)m.ScopeId.Value).ToString() : "N/A",
                             "TIPO_SOLICITUD" => m.ScopeId.HasValue && tiposSolicitud.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
+                            "TIPO_GERENCIA" => m.ScopeId switch
+                            {
+                                1 => "IMSS (Educación Médica)",
+                                2 => "Descentralizado (Educación Médica)",
+                                _ => "N/A"
+                            },
                             "GLOBAL" or "DEFAULT" => "Todo el Sistema",
                             _ => $"ID: {m.ScopeId}"
                         },

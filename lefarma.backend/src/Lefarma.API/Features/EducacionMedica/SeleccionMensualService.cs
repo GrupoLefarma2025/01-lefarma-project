@@ -1,8 +1,16 @@
+using ErrorOr;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
+using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.EducacionMedica;
+using Lefarma.API.Features.Config.Workflows;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
+using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
+using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -25,6 +33,12 @@ public class SeleccionMensualService : ISeleccionMensualService
     private readonly IHospitalExtensionRepository _extensionRepository;
     private readonly AsokamDbContext _asokamContext;
     private readonly ILogger<SeleccionMensualService> _logger;
+    private readonly IWorkflowEngine _engine;
+    private readonly IWorkflowResolver _workflowResolver;
+    private readonly IWorkflowRepository _workflowRepo;
+    private readonly IWorkflowQueryService _workflowQuery;
+    private readonly IProfileService _profileService;
+    private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
 
     public SeleccionMensualService(
         ISeleccionMensualRepository repository,
@@ -35,7 +49,13 @@ public class SeleccionMensualService : ISeleccionMensualService
         IRegionRepository regionRepository,
         IHospitalExtensionRepository extensionRepository,
         AsokamDbContext asokamContext,
-        ILogger<SeleccionMensualService> logger)
+        ILogger<SeleccionMensualService> logger,
+        IWorkflowEngine engine,
+        IWorkflowResolver workflowResolver,
+        IWorkflowRepository workflowRepo,
+        IWorkflowQueryService workflowQuery,
+        IProfileService profileService,
+        IJefeInmediatoResolver jefeInmediatoResolver)
     {
         _repository = repository;
         _hospitalRepository = hospitalRepository;
@@ -46,9 +66,19 @@ public class SeleccionMensualService : ISeleccionMensualService
         _extensionRepository = extensionRepository;
         _asokamContext = asokamContext;
         _logger = logger;
+        _engine = engine;
+        _workflowResolver = workflowResolver;
+        _workflowRepo = workflowRepo;
+        _workflowQuery = workflowQuery;
+        _profileService = profileService;
+        _jefeInmediatoResolver = jefeInmediatoResolver;
     }
 
-    public async Task<List<SeleccionMensualDto>> GetAllAsync(int? anio, int? mes, CancellationToken ct = default)
+    public async Task<List<SeleccionMensualDto>> GetAllAsync(
+        int? anio,
+        int? mes,
+        int idUsuario,
+        CancellationToken ct = default)
     {
         var selecciones = await _repository.GetAllAsync(anio, mes, ct);
         if (selecciones.Count == 0)
@@ -58,23 +88,79 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         var tiposDict = await ObtenerTiposGerenciaAsync(ct);
 
+        // Pasos activos de todos los workflows: resuelve la "Etapa" sin importar si el
+        // paso es inicial/final (mismo criterio que la Bandeja de Autorizaciones).
+        var pasos = await _workflowRepo.GetQueryable()
+            .SelectMany(w => w.Pasos)
+            .Where(p => p.Activo)
+            .Select(p => new { p.IdPaso, p.NombrePaso })
+            .ToListAsync(ct);
+        var pasosDict = pasos.ToDictionary(p => p.IdPaso, p => p.NombrePaso);
+
+        // Nombres de creadores en una sola consulta a Asokam.
+        var idsCreadores = selecciones
+            .Where(s => s.IdUsuarioCreacion.HasValue)
+            .Select(s => s.IdUsuarioCreacion!.Value)
+            .Distinct()
+            .ToList();
+        var nombresDict = idsCreadores.Count == 0
+            ? new Dictionary<int, string>()
+            : await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => idsCreadores.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? string.Empty, ct);
+
         // Secuencial a proposito: el repositorio comparte la instancia de ApplicationDbContext
         // y EF no permite operaciones concurrentes sobre el mismo contexto.
         var conteosDict = new Dictionary<int, (int TotalHospitales, int TotalRegiones)>();
+        var accionesDict = new Dictionary<int, List<AccionDisponibleResponse>>();
         foreach (var s in selecciones)
         {
             var hospitales = await _repository.GetHospitalesAsync(s.IdSeleccionMensual, ct);
             var regiones = await _repository.GetRegionesAsync(s.IdSeleccionMensual, ct);
             conteosDict[s.IdSeleccionMensual] = (hospitales.Count, regiones.Count);
+            accionesDict[s.IdSeleccionMensual] = await ObtenerAccionesAsync(s, idUsuario, ct);
         }
 
         return selecciones
             .Select(s =>
             {
                 var (totalHospitales, totalRegiones) = conteosDict[s.IdSeleccionMensual];
-                return s.ToResponse(tiposDict, totalHospitales, totalRegiones);
+                var dto = s.ToResponse(tiposDict, totalHospitales, totalRegiones);
+                dto.PasoActualNombre = s.IdPasoActual.HasValue
+                    ? pasosDict.GetValueOrDefault(s.IdPasoActual.Value)
+                    : null;
+                dto.NombreUsuarioCreacion = s.IdUsuarioCreacion.HasValue
+                    ? nombresDict.GetValueOrDefault(s.IdUsuarioCreacion.Value)
+                    : null;
+                dto.Acciones = accionesDict[s.IdSeleccionMensual];
+                return dto;
             })
             .ToList();
+    }
+
+    private async Task<List<AccionDisponibleResponse>> ObtenerAccionesAsync(
+        SeleccionMensual seleccion,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
+        {
+            return [];
+        }
+
+        var resultado = await _workflowQuery.GetAccionesDisponiblesAsync(
+            seleccion.IdWorkflow.Value,
+            seleccion.IdSeleccionMensual,
+            seleccion.IdPasoActual.Value,
+            idUsuario,
+            CodigoProceso.EDUCACION_MEDICA_SELECCION,
+            seleccion,
+            ct);
+
+        return resultado.IsError || resultado.Value is null
+            ? []
+            : resultado.Value.ToList();
     }
 
     public async Task<SeleccionDetalleDto?> GetByIdAsync(int idSeleccionMensual, CancellationToken ct = default)
@@ -788,75 +874,156 @@ public class SeleccionMensualService : ISeleccionMensualService
     {
         var seleccion = await ObtenerSeleccionEditableAsync(idSeleccionMensual, ct);
 
-        if (seleccion.Estado != SeleccionMensual.EstadoBorrador)
-        {
-            throw new InvalidOperationException($"Solo una selección en Borrador puede enviarse a revisión (estado actual: {seleccion.Estado}).");
-        }
-
         var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
         if (!regiones.Any(z => z.IdEquipo.HasValue))
         {
             throw new InvalidOperationException("Asigne al menos una región a un equipo antes de enviar a revisión.");
         }
 
-        seleccion.Estado = SeleccionMensual.EstadoEnRevision;
-        seleccion.IdUsuarioModificacion = idUsuario;
+        if (seleccion.IdUsuarioCreacion.HasValue && seleccion.IdUsuarioCreacion.Value != idUsuario)
+        {
+            throw new InvalidOperationException("Solo el creador de la selección puede enviarla a revisión.");
+        }
+
+        // El envío es una acción del motor: Borrador -> Firma Gerencia General (ADR-00006)
+        var workflow = await ResolverWorkflowAsync(seleccion.IdTipoGerencia, ct);
+        var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio)
+            ?? throw new InvalidOperationException("El workflow de selección no tiene paso inicial configurado.");
+
+        seleccion.IdWorkflow = workflow.IdWorkflow;
+        seleccion.IdPasoActual = pasoInicio.IdPaso;
+        seleccion.IdEstado = pasoInicio.IdEstado;
+
+        var accionEnviar = pasoInicio.AccionesOrigen.FirstOrDefault(a => a.Activo && a.TipoAccion?.Codigo == "ENVIAR")
+            ?? throw new InvalidOperationException("El paso inicial del workflow de selección no tiene la acción ENVIAR configurada.");
+
+        var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
+            IdWorkflow: workflow.IdWorkflow,
+            IdEntidad: seleccion.IdSeleccionMensual,
+            TipoEntidad: CodigoProceso.EDUCACION_MEDICA_SELECCION,
+            Entidad: seleccion,
+            IdAccion: accionEnviar.IdAccion,
+            IdUsuario: idUsuario,
+            Orden: null!,
+            Comentario: null,
+            DatosAdicionales: null));
+        if (!resultado.Exitoso)
+        {
+            throw new InvalidOperationException(resultado.Error ?? "Error en el motor de workflow.");
+        }
+
+        AplicarResultadoWorkflow(seleccion, workflow, resultado, "ENVIAR", idUsuario);
         await _repository.UpdateAsync(seleccion, ct);
 
-        var tiposDict = await ObtenerTiposGerenciaAsync(ct);
-        var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
-        return seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
+        _logger.LogInformation(
+            "Selección {IdSeleccion} enviada a revisión por usuario {IdUsuario} (paso {IdPaso}).",
+            seleccion.IdSeleccionMensual, idUsuario, seleccion.IdPasoActual);
+
+        return await ArmarDtoAsync(seleccion, ct);
     }
 
-    public async Task<SeleccionMensualDto> AutorizarAsync(
+    public async Task<SeleccionMensualDto> FirmarAsync(
         int idSeleccionMensual,
-        AutorizarSeleccionRequest request,
+        FirmarWorkflowRequest request,
         int idUsuario,
         CancellationToken ct = default)
     {
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
 
-        if (seleccion.Estado != SeleccionMensual.EstadoEnRevision)
+        if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
         {
-            throw new InvalidOperationException(
-                seleccion.Estado == SeleccionMensual.EstadoBorrador
-                    ? "La selección está en Borrador; envíela a revisión antes de autorizar."
-                    : $"La selección no puede autorizarse en estado {seleccion.Estado}.");
+            throw new InvalidOperationException("La selección no está en un workflow activo; envíala a revisión primero.");
         }
 
-        if (request.Rol == "GV")
+        await ValidarFirmaUsuarioAsync(idUsuario);
+
+        var workflow = await _workflowRepo.GetQueryable()
+            .Include(w => w.Pasos)
+                .ThenInclude(p => p.AccionesOrigen)
+                    .ThenInclude(a => a.TipoAccion)
+            .Include(w => w.Pasos)
+                .ThenInclude(p => p.Participantes)
+            .FirstOrDefaultAsync(w => w.IdWorkflow == seleccion.IdWorkflow, ct)
+            ?? throw new InvalidOperationException("No se encontró la configuración del workflow de la selección.");
+
+        var pasoActual = workflow.Pasos.FirstOrDefault(p => p.IdPaso == seleccion.IdPasoActual && p.Activo)
+            ?? throw new InvalidOperationException("La selección no tiene un paso activo válido en el workflow.");
+
+        var accion = pasoActual.AccionesOrigen.FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo)
+            ?? throw new InvalidOperationException("La acción no está disponible en el paso actual.");
+
+        var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
+            pasoActual, workflow.IdWorkflow, idUsuario, seleccion.IdUsuarioCreacion ?? 0,
+            _asokamContext, _jefeInmediatoResolver);
+        if (validacion.IsError)
         {
-            if (seleccion.FirmaGvFecha.HasValue)
-            {
-                throw new InvalidOperationException("El Gerente de Ventas ya firmó esta selección.");
-            }
-
-            seleccion.FirmaGvFecha = DateTime.UtcNow;
+            throw new InvalidOperationException(validacion.FirstError.Description);
         }
-        else
+
+        var resultado = await _engine.EjecutarAccionAsync(new WorkflowContext(
+            IdWorkflow: workflow.IdWorkflow,
+            IdEntidad: seleccion.IdSeleccionMensual,
+            TipoEntidad: CodigoProceso.EDUCACION_MEDICA_SELECCION,
+            Entidad: seleccion,
+            IdAccion: request.IdAccion,
+            IdUsuario: idUsuario,
+            Orden: null!,
+            Comentario: request.Comentario,
+            DatosAdicionales: request.DatosAdicionales));
+        if (!resultado.Exitoso)
         {
-            if (!seleccion.FirmaGvFecha.HasValue)
-            {
-                throw new InvalidOperationException("Primero debe firmar el Gerente de Ventas (doble firma GV → GG).");
-            }
-
-            if (seleccion.FirmaGgFecha.HasValue)
-            {
-                throw new InvalidOperationException("La Gerencia General ya firmó esta selección.");
-            }
-
-            seleccion.FirmaGgFecha = DateTime.UtcNow;
-            seleccion.Estado = SeleccionMensual.EstadoAutorizada;
+            throw new InvalidOperationException(resultado.Error ?? "Error en el motor de workflow.");
         }
 
-        seleccion.IdUsuarioModificacion = idUsuario;
+        AplicarResultadoWorkflow(seleccion, workflow, resultado, accion.TipoAccion?.Codigo ?? string.Empty, idUsuario);
         await _repository.UpdateAsync(seleccion, ct);
 
-        var tiposDict = await ObtenerTiposGerenciaAsync(ct);
-        var hospitales = await _repository.GetHospitalesAsync(idSeleccionMensual, ct);
-        var regiones = await _repository.GetRegionesAsync(idSeleccionMensual, ct);
-        return seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
+        _logger.LogInformation(
+            "Selección {IdSeleccion}: acción {IdAccion} ejecutada por usuario {IdUsuario} -> paso {IdPaso} ({Estado}).",
+            seleccion.IdSeleccionMensual, request.IdAccion, idUsuario, seleccion.IdPasoActual, seleccion.Estado);
+
+        return await ArmarDtoAsync(seleccion, ct);
+    }
+
+    public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(
+        int idSeleccionMensual,
+        int idUsuario,
+        CancellationToken ct = default)
+    {
+        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
+        if (seleccion is null)
+        {
+            return CommonErrors.NotFound("SeleccionMensual", idSeleccionMensual.ToString());
+        }
+
+        if (seleccion.IdWorkflow is null || seleccion.IdPasoActual is null)
+        {
+            return ErrorOrFactory.From(Enumerable.Empty<AccionDisponibleResponse>());
+        }
+
+        return await _workflowQuery.GetAccionesDisponiblesAsync(
+            seleccion.IdWorkflow.Value,
+            seleccion.IdSeleccionMensual,
+            seleccion.IdPasoActual.Value,
+            idUsuario,
+            CodigoProceso.EDUCACION_MEDICA_SELECCION,
+            seleccion,
+            ct);
+    }
+
+    public async Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialAsync(
+        int idSeleccionMensual,
+        CancellationToken ct = default)
+    {
+        var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct);
+        if (seleccion is null)
+        {
+            return CommonErrors.NotFound("SeleccionMensual", idSeleccionMensual.ToString());
+        }
+
+        return await _workflowQuery.GetHistorialWorkflowAsync(
+            seleccion.IdSeleccionMensual, CodigoProceso.EDUCACION_MEDICA_SELECCION, ct);
     }
 
     public async Task<SeleccionMensualDto> CerrarAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default)
@@ -879,6 +1046,77 @@ public class SeleccionMensualService : ISeleccionMensualService
         return seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
     }
 
+    private async Task<Workflow> ResolverWorkflowAsync(int? idTipoGerencia, CancellationToken ct)
+    {
+        if (idTipoGerencia is null)
+        {
+            throw new InvalidOperationException(
+                "La selección no tiene tipo de gerencia configurado; no se puede determinar el workflow de autorización.");
+        }
+
+        var workflow = await _workflowResolver.ResolveWorkflowIdAsync(
+            CodigoProceso.EDUCACION_MEDICA_SELECCION,
+            new Dictionary<string, int?> { [WorkflowScope.TIPO_GERENCIA] = idTipoGerencia });
+
+        return workflow
+            ?? throw new InvalidOperationException(
+                "No hay workflow configurado para la selección de esa gerencia. Aplica el script 0014 y crea el mapping (EDUCACION_MEDICA_SELECCION + Tipo de gerencia) en el admin de workflows.");
+    }
+
+    private async Task ValidarFirmaUsuarioAsync(int idUsuario)
+    {
+        var tieneFirma = await _profileService.HasFirmaAsync(idUsuario);
+        if (tieneFirma.IsError || !tieneFirma.Value)
+        {
+            throw new InvalidOperationException(
+                "El usuario no tiene una firma digital registrada. Cárguela en Configuración > Perfil para continuar.");
+        }
+    }
+
+    /// <summary>
+    /// Sincroniza el estado de negocio y las fechas de firma a partir del paso alcanzado:
+    /// paso inicial = Borrador (limpia firmas); intermedio = EnRevision (firmó GG con AUTORIZAR);
+    /// final = Autorizada (firmó GV).
+    /// </summary>
+    private static void AplicarResultadoWorkflow(SeleccionMensual seleccion, Workflow workflow, WorkflowEjecucionResult resultado, string codigoAccion, int idUsuario)
+    {
+        seleccion.IdPasoActual = resultado.NuevoIdPaso ?? seleccion.IdPasoActual;
+        seleccion.IdEstado = resultado.NuevoIdEstado ?? seleccion.IdEstado;
+        seleccion.IdUsuarioModificacion = idUsuario;
+
+        var paso = workflow.Pasos.FirstOrDefault(p => p.IdPaso == seleccion.IdPasoActual);
+        if (paso is null) return;
+
+        if (paso.EsInicio)
+        {
+            seleccion.Estado = SeleccionMensual.EstadoBorrador;
+            seleccion.FirmaGgFecha = null;
+            seleccion.FirmaGvFecha = null;
+        }
+        else if (paso.EsFinal)
+        {
+            seleccion.Estado = SeleccionMensual.EstadoAutorizada;
+            seleccion.FirmaGgFecha ??= DateTime.UtcNow;
+            seleccion.FirmaGvFecha = DateTime.UtcNow;
+        }
+        else
+        {
+            seleccion.Estado = SeleccionMensual.EstadoEnRevision;
+            if (codigoAccion == "AUTORIZAR")
+            {
+                seleccion.FirmaGgFecha = DateTime.UtcNow;
+            }
+        }
+    }
+
+    private async Task<SeleccionMensualDto> ArmarDtoAsync(SeleccionMensual seleccion, CancellationToken ct)
+    {
+        var tiposDict = await ObtenerTiposGerenciaAsync(ct);
+        var hospitales = await _repository.GetHospitalesAsync(seleccion.IdSeleccionMensual, ct);
+        var regiones = await _repository.GetRegionesAsync(seleccion.IdSeleccionMensual, ct);
+        return seleccion.ToResponse(tiposDict, hospitales.Count, regiones.Count);
+    }
+
     private async Task<(int MaxDia, int MaxSemana)> LeerCapacidadesAsync(CancellationToken ct)
     {
         var parametros = await _parametroRepository.GetAllAsync(ct);
@@ -894,9 +1132,10 @@ public class SeleccionMensualService : ISeleccionMensualService
         var seleccion = await _repository.GetByIdAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
 
-        if (seleccion.Estado is SeleccionMensual.EstadoAutorizada or SeleccionMensual.EstadoCerrada)
+        if (seleccion.Estado != SeleccionMensual.EstadoBorrador)
         {
-            throw new InvalidOperationException($"La selección está {seleccion.Estado.ToLowerInvariant()} y ya no admite cambios.");
+            throw new InvalidOperationException(
+                $"La selección está {seleccion.Estado.ToLowerInvariant()} y ya no admite cambios; solo una selección en Borrador es editable (una devolución la regresa a Borrador).");
         }
 
         return seleccion;

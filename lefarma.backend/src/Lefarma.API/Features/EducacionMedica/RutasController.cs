@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -66,22 +67,38 @@ public class RutasController : ControllerBase
         }
     }
 
-    [HttpPost("selecciones-mensuales/{idSeleccionMensual:int}/rutas/confirmar")]
+    [HttpGet("selecciones-mensuales/{idSeleccionMensual:int}/rutas/version")]
     [SwaggerOperation(
-        Summary = "Confirmar rutas (draft → confirmada)",
-        Description = "Valida cobertura 100% de los hospitales de la selección y confirma todas las rutas del draft actual; publica las asignaciones que alimenta 'mis hospitales del mes'.")]
-    [SwaggerResponse(200, "Rutas confirmadas", typeof(ApiResponse<List<RutaDto>>))]
-    [SwaggerResponse(409, "Sin draft o cobertura incompleta")]
-    public async Task<IActionResult> Confirmar(int idSeleccionMensual, CancellationToken ct)
+        Summary = "Estado de autorización de la versión de rutas",
+        Description = "Devuelve la versión activa (o la indicada) con su paso actual, si es editable y las acciones disponibles para el usuario.")]
+    [SwaggerResponse(200, "Versión de rutas", typeof(ApiResponse<RutaVersionDto>))]
+    public async Task<IActionResult> GetVersion(int idSeleccionMensual, [FromQuery] int? version, CancellationToken ct)
+    {
+        var dto = await _service.GetVersionInfoAsync(idSeleccionMensual, version, GetUserId(), ct);
+        return Ok(new ApiResponse<RutaVersionDto?>
+        {
+            Success = true,
+            Message = "Versión de rutas obtenida.",
+            Data = dto
+        });
+    }
+
+    [HttpPost("rutas/version/{idRutaVersion:int}/firmar")]
+    [SwaggerOperation(
+        Summary = "Ejecutar una acción del workflow sobre la versión de rutas",
+        Description = "Enviar a autorización (planificador), firmar GV → CA → DC, devolver a Draft o cancelar, según las acciones disponibles del paso actual.")]
+    [SwaggerResponse(200, "Acción registrada", typeof(ApiResponse<RutaVersionDto>))]
+    [SwaggerResponse(409, "Acción no disponible para el usuario o estado inválido")]
+    public async Task<IActionResult> FirmarVersion(int idRutaVersion, [FromBody] FirmarWorkflowRequest request, CancellationToken ct)
     {
         try
         {
-            var rutas = await _service.ConfirmarAsync(idSeleccionMensual, GetUserId(), ct);
-            return Ok(new ApiResponse<List<RutaDto>>
+            var dto = await _service.FirmarVersionAsync(idRutaVersion, request, GetUserId(), ct);
+            return Ok(new ApiResponse<RutaVersionDto>
             {
                 Success = true,
-                Message = "Rutas confirmadas exitosamente.",
-                Data = rutas
+                Message = "Acción registrada exitosamente.",
+                Data = dto
             });
         }
         catch (InvalidOperationException ex)
@@ -90,12 +107,31 @@ public class RutasController : ControllerBase
         }
     }
 
+    [HttpGet("rutas/version/{idRutaVersion:int}/historial")]
+    [SwaggerOperation(Summary = "Historial de workflow de la versión de rutas (bitácora)")]
+    [SwaggerResponse(200, "Historial", typeof(ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>))]
+    public async Task<IActionResult> GetHistorialVersion(int idRutaVersion, CancellationToken ct)
+    {
+        var resultado = await _service.GetHistorialVersionAsync(idRutaVersion, ct);
+        if (resultado.IsError)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = resultado.FirstError.Description });
+        }
+
+        return Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
+        {
+            Success = true,
+            Message = "Historial obtenido.",
+            Data = resultado.Value
+        });
+    }
+
     [HttpPost("selecciones-mensuales/{idSeleccionMensual:int}/rutas/cancelar")]
     [SwaggerOperation(
-        Summary = "Cancelar rutas confirmadas",
-        Description = "Confirmada → Cancelada (flujo de cambio post-confirmación); habilita regenerar una nueva propuesta. Requiere motivo.")]
+        Summary = "Cancelar la versión activa de rutas",
+        Description = "Pone la versión activa (draft, en autorización o confirmada) en Cancelada; habilita regenerar una nueva propuesta. Requiere motivo.")]
     [SwaggerResponse(200, "Rutas canceladas", typeof(ApiResponse<List<RutaDto>>))]
-    [SwaggerResponse(409, "No hay rutas confirmadas")]
+    [SwaggerResponse(409, "No hay versiones por cancelar")]
     public async Task<IActionResult> Cancelar(
         int idSeleccionMensual,
         [FromBody] CancelarRutasRequest request,

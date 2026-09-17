@@ -4,6 +4,7 @@ namespace Lefarma.API.Domain.Interfaces.Config {
 public interface IWorkflowRepository : IBaseRepository<Workflow>
     {
         Task<Workflow?> GetByCodigoProcesoAsync(string codigoProceso);
+        Task<WorkflowPaso?> GetPasoAsync(int idPaso, CancellationToken cancellationToken = default);
         Task<WorkflowPaso?> GetPasoByIdEstadoAsync(int idWorkflow, int idEstado);
         Task<ICollection<WorkflowAccion>> GetAccionesDisponiblesAsync(int idPaso);
         Task<ICollection<WorkflowAccionHandler>> GetAccionHandlersAsync(int idAccion);

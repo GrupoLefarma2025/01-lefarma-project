@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   Form,
   FormControl,
@@ -28,6 +38,7 @@ import type {
   EstadoCatalogo,
   HospitalUbicacion,
   AplicarMapeoResponse,
+  TipoGerencia,
 } from '@/apps/educacion-medica/types/educacionMedica.types';
 
 const regionSchema = z.object({
@@ -84,14 +95,32 @@ export default function RegionesPage() {
   const [saving, setSaving] = useState(false);
   const [estadosSeleccionados, setEstadosSeleccionados] = useState<number[]>([]);
 
+  // Regiones por gerencia: IMSS y Descentralizado mantienen su propio catálogo.
+  const [gerencias, setGerencias] = useState<TipoGerencia[]>([]);
+  const [idTipoGerencia, setIdTipoGerencia] = useState<number | null>(null);
+  const [formGerencia, setFormGerencia] = useState<number | null>(null);
+
   const [mapaRegion, setMapaRegion] = useState<Region | null>(null);
   const [mapaTodas, setMapaTodas] = useState(false);
   const [mapaHospitales, setMapaHospitales] = useState<HospitalUbicacion[]>([]);
+  const [mapaRegionesTodas, setMapaRegionesTodas] = useState<Region[]>([]);
   const [loadingMapa, setLoadingMapa] = useState(false);
 
+  const [mapeoAbierto, setMapeoAbierto] = useState(false);
+  const [mapeoPaso, setMapeoPaso] = useState<'seleccion' | 'preview'>('seleccion');
+  const [mapeoGerencia, setMapeoGerencia] = useState<string>('ambas');
   const [previewMapeo, setPreviewMapeo] = useState<AplicarMapeoResponse | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [aplicandoMapeo, setAplicandoMapeo] = useState(false);
+
+  const gerenciaActual = useMemo(
+    () => gerencias.find((g) => g.idTipoGerencia === idTipoGerencia) ?? null,
+    [gerencias, idTipoGerencia]
+  );
+
+  // El mapa "de todas" muestra las regiones de ambas gerencias; el mapa por
+  // región usa las de la pestaña activa.
+  const regionesMapa = mapaTodas ? mapaRegionesTodas : regiones;
 
   const form = useForm<RegionFormValues>({
     resolver: zodResolver(regionSchema),
@@ -103,9 +132,9 @@ export default function RegionesPage() {
     },
   });
 
-  const fetchRegiones = useCallback(async () => {
+  const fetchRegiones = useCallback(async (gerencia?: number | null) => {
     try {
-      const response = await educacionMedicaApi.regiones.getAll();
+      const response = await educacionMedicaApi.regiones.getAll(gerencia ?? undefined);
       if (response.data.success) {
         setRegiones(response.data.data ?? []);
       } else {
@@ -116,14 +145,39 @@ export default function RegionesPage() {
     }
   }, []);
 
-  // Carga inicial: setState solo tras await (evita renders en cascada).
+  // Catálogo de gerencias: solo IMSS y Descentralizado participan de la logística.
   useEffect(() => {
     let cancelado = false;
     (async () => {
       try {
+        const response = await educacionMedicaApi.tipoGerencia.getAll();
+        if (cancelado) return;
+        const permitidas = (response.data.data ?? []).filter(
+          (g) => g.descripcion === 'IMSS' || g.descripcion === 'Descentralizado'
+        );
+        setGerencias(permitidas);
+        setIdTipoGerencia((prev) => prev ?? permitidas[0]?.idTipoGerencia ?? null);
+      } catch (error: unknown) {
+        if (!cancelado) {
+          toast.error(toApiError(error).message ?? 'Error al cargar las gerencias');
+          setLoadingRegiones(false);
+        }
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  // Carga de regiones + catálogo de estados de la gerencia activa.
+  useEffect(() => {
+    if (idTipoGerencia == null) return;
+    let cancelado = false;
+    (async () => {
+      try {
         const [rRegiones, rCatalogo] = await Promise.all([
-          educacionMedicaApi.regiones.getAll(),
-          educacionMedicaApi.regiones.getEstadosCatalogo(),
+          educacionMedicaApi.regiones.getAll(idTipoGerencia),
+          educacionMedicaApi.regiones.getEstadosCatalogo(idTipoGerencia),
         ]);
         if (cancelado) return;
         if (rRegiones.data.success) {
@@ -149,11 +203,12 @@ export default function RegionesPage() {
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [idTipoGerencia]);
 
   const openNueva = () => {
     setEditing(null);
     setEstadosSeleccionados([]);
+    setFormGerencia(idTipoGerencia);
     form.reset({ nombre: '', centroLatitud: '', centroLongitud: '', activo: true });
     setModalOpen(true);
   };
@@ -162,6 +217,7 @@ export default function RegionesPage() {
     (region: Region) => {
       setEditing(region);
       setEstadosSeleccionados(region.estados.map((e) => e.codigoEstado));
+      setFormGerencia(region.idTipoGerencia);
       form.reset({
         nombre: region.nombre,
         centroLatitud: region.centroLatitud != null ? String(region.centroLatitud) : '',
@@ -182,6 +238,11 @@ export default function RegionesPage() {
   };
 
   const handleSave = async (values: RegionFormValues) => {
+    if (formGerencia == null) {
+      toast.error('Seleccione la gerencia de la región.');
+      return;
+    }
+
     let centroLatitud: number | null;
     let centroLongitud: number | null;
     try {
@@ -195,6 +256,7 @@ export default function RegionesPage() {
     setSaving(true);
     try {
       const payload = {
+        idTipoGerencia: formGerencia,
         nombre: values.nombre,
         centroLatitud,
         centroLongitud,
@@ -214,7 +276,7 @@ export default function RegionesPage() {
           toast.success(editing ? 'Región actualizada correctamente' : 'Región creada correctamente');
         }
         setModalOpen(false);
-        await fetchRegiones();
+        await fetchRegiones(idTipoGerencia);
       } else {
         toast.error(response.data.message ?? 'Error al guardar la región');
       }
@@ -250,11 +312,17 @@ export default function RegionesPage() {
     setMapaTodas(true);
     setLoadingMapa(true);
     try {
-      const response = await educacionMedicaApi.hospitales.getUbicaciones();
-      if (response.data.success) {
-        setMapaHospitales(response.data.data ?? []);
+      const [rUbicaciones, rRegiones] = await Promise.all([
+        educacionMedicaApi.hospitales.getUbicaciones(),
+        educacionMedicaApi.regiones.getAll(),
+      ]);
+      if (rUbicaciones.data.success) {
+        setMapaHospitales(rUbicaciones.data.data ?? []);
       } else {
-        toast.error(response.data.message ?? 'Error al cargar hospitales');
+        toast.error(rUbicaciones.data.message ?? 'Error al cargar hospitales');
+      }
+      if (rRegiones.data.success) {
+        setMapaRegionesTodas(rRegiones.data.data ?? []);
       }
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'Error al cargar hospitales');
@@ -263,11 +331,23 @@ export default function RegionesPage() {
     }
   }, []);
 
-  const abrirPreviewMapeo = useCallback(async () => {
+  const abrirModalMapeo = () => {
+    setMapeoPaso('seleccion');
+    setMapeoGerencia(idTipoGerencia != null ? String(idTipoGerencia) : 'ambas');
+    setPreviewMapeo(null);
+    setMapeoAbierto(true);
+  };
+
+  const gerenciaMapeoParam = (): number | null =>
+    mapeoGerencia === 'ambas' ? null : Number(mapeoGerencia);
+
+  const calcularPreviewMapeo = async () => {
     setLoadingPreview(true);
     setPreviewMapeo(null);
     try {
-      const response = await educacionMedicaApi.regiones.previewAplicarMapeo();
+      const response = await educacionMedicaApi.regiones.previewAplicarMapeo(
+        gerenciaMapeoParam()
+      );
       if (response.data.success) {
         // Normaliza: un backend aún sin el pase GPS no envía los campos nuevos.
         const data: Partial<AplicarMapeoResponse> | undefined = response.data.data;
@@ -278,6 +358,7 @@ export default function RegionesPage() {
           totalPorGps: data?.totalPorGps ?? 0,
           sinCoordenadas: data?.sinCoordenadas ?? 0,
         });
+        setMapeoPaso('preview');
       } else {
         toast.error(response.data.message ?? 'Error al calcular el preview');
       }
@@ -286,19 +367,20 @@ export default function RegionesPage() {
     } finally {
       setLoadingPreview(false);
     }
-  }, []);
+  };
 
   const handleAplicarMapeo = async () => {
     setAplicandoMapeo(true);
     try {
-      const response = await educacionMedicaApi.regiones.aplicarMapeo();
+      const response = await educacionMedicaApi.regiones.aplicarMapeo(gerenciaMapeoParam());
       if (response.data.success) {
         toast.success(
           response.data.message ??
             `Mapeo aplicado: ${response.data.data?.hospitalesReasignados ?? 0} hospital(es).`
         );
+        setMapeoAbierto(false);
         setPreviewMapeo(null);
-        await fetchRegiones();
+        await fetchRegiones(idTipoGerencia);
       } else {
         toast.error(response.data.message ?? 'Error al aplicar el mapeo');
       }
@@ -313,6 +395,11 @@ export default function RegionesPage() {
     () => [
       { accessorKey: 'idRegion', header: 'ID' },
       { accessorKey: 'nombre', header: 'Región' },
+      {
+        id: 'gerencia',
+        header: 'Tipo de gerencia',
+        cell: ({ row }) => <span className="text-xs">{row.original.nombreGerencia ?? '-'}</span>,
+      },
       {
         id: 'estados',
         header: 'Estados',
@@ -371,6 +458,22 @@ export default function RegionesPage() {
 
   return (
     <div className="space-y-6">
+      <Tabs
+        value={idTipoGerencia != null ? String(idTipoGerencia) : undefined}
+        onValueChange={(v) => {
+          setLoadingRegiones(true);
+          setIdTipoGerencia(Number(v));
+        }}
+      >
+        <TabsList>
+          {gerencias.map((g) => (
+            <TabsTrigger key={g.idTipoGerencia} value={String(g.idTipoGerencia)}>
+              {g.descripcion}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+
       <div className="flex items-center justify-end gap-2">
         <Button
           size="sm"
@@ -384,7 +487,7 @@ export default function RegionesPage() {
         <Button
           size="sm"
           variant="outline"
-          onClick={() => void abrirPreviewMapeo()}
+          onClick={abrirModalMapeo}
           disabled={loadingPreview}
         >
           {loadingPreview ? (
@@ -403,22 +506,24 @@ export default function RegionesPage() {
       <DataTable
         columns={columnsRegiones}
         data={regiones}
-        title="Regiones"
-        subtitle="Regiones para la segmentación logística de hospitales (catálogo editable)"
+        title={`Regiones - ${gerenciaActual?.descripcion ?? 'Gerencia'}`}
+        subtitle="Regiones para la segmentación logística de hospitales (catálogo editable por gerencia)"
         showRowCount
         showRefreshButton
         onRefresh={() => {
           setLoadingRegiones(true);
-          void fetchRegiones().finally(() => setLoadingRegiones(false));
+          void fetchRegiones(idTipoGerencia).finally(() => setLoadingRegiones(false));
         }}
         loading={loadingRegiones}
       />
 
       <p className="text-xs text-muted-foreground">
-        La Ciudad de México (CDMX) no tiene región asignada por estado: sus hospitales se asignan
-        manualmente desde el catálogo de Hospitales. Editar los estados de una región no mueve
-        hospitales; usa &quot;Aplicar mapeo a hospitales&quot; para reasignarlas según el mapeo
-        actual.
+        Cada gerencia (IMSS y Descentralizado) maneja su propio catálogo de regiones y su propio
+        mapeo de estados: un mismo estado puede pertenecer a una región de IMSS y a una de
+        Descentralizado a la vez. La Ciudad de México (CDMX) no tiene región asignada por estado:
+        sus hospitales se asignan manualmente desde el catálogo de Hospitales. Editar los estados de
+        una región no mueve hospitales; usa &quot;Aplicar mapeo a hospitales&quot; para reasignarlas
+        según el mapeo de la gerencia elegida.
       </p>
 
       <Modal
@@ -445,6 +550,31 @@ export default function RegionesPage() {
       >
         <Form {...form}>
           <form className="space-y-4">
+            <div className="grid gap-1">
+              <Label className="text-sm">Gerencia</Label>
+              <Select
+                value={formGerencia != null ? String(formGerencia) : undefined}
+                onValueChange={(v) => setFormGerencia(Number(v))}
+                disabled={editing != null}
+              >
+                <SelectTrigger className="max-w-xs">
+                  <SelectValue placeholder="Seleccione la gerencia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gerencias.map((g) => (
+                    <SelectItem key={g.idTipoGerencia} value={String(g.idTipoGerencia)}>
+                      {g.descripcion}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {editing
+                  ? 'La gerencia de una región no se puede cambiar.'
+                  : 'Cada gerencia mantiene su propio catálogo de regiones y su propio mapeo de estados.'}
+              </p>
+            </div>
+
             <FormField
               control={form.control}
               name="nombre"
@@ -578,14 +708,17 @@ export default function RegionesPage() {
         ) : (
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-3">
-              {(mapaTodas ? regiones : regiones.filter((z) => z.idRegion === mapaRegion?.idRegion)).map(
+              {(mapaTodas ? regionesMapa : regionesMapa.filter((z) => z.idRegion === mapaRegion?.idRegion)).map(
                 (region) => (
                   <span key={region.idRegion} className="flex items-center gap-1.5 text-xs">
                     <span
                       className="inline-block h-3 w-3 rounded-full border border-white shadow"
-                      style={{ backgroundColor: colorDeRegion(regiones, region.idRegion) }}
+                      style={{ backgroundColor: colorDeRegion(regionesMapa, region.idRegion) }}
                     />
                     {region.nombre}
+                    {mapaTodas && region.nombreGerencia && (
+                      <span className="text-muted-foreground">({region.nombreGerencia})</span>
+                    )}
                   </span>
                 )
               )}
@@ -601,11 +734,11 @@ export default function RegionesPage() {
             <HospitalesMap
               hospitales={mapaHospitales}
               colorPorRegion={Object.fromEntries(
-                regiones.map((z) => [z.idRegion, colorDeRegion(regiones, z.idRegion) ?? '#2d3142'])
+                regionesMapa.map((z) => [z.idRegion, colorDeRegion(regionesMapa, z.idRegion) ?? '#2d3142'])
               )}
               centroides={
                 mapaTodas
-                  ? regiones
+                  ? regionesMapa
                       .filter(
                         (z) => z.centroLatitud != null && z.centroLongitud != null
                       )
@@ -635,34 +768,90 @@ export default function RegionesPage() {
 
       <Modal
         id="modal-aplicar-mapeo"
-        open={previewMapeo != null}
+        open={mapeoAbierto}
         setOpen={(open) => {
-          if (!open) setPreviewMapeo(null);
+          if (!open) {
+            setMapeoAbierto(false);
+            setPreviewMapeo(null);
+          }
         }}
         title="Aplicar mapeo a hospitales"
         size="lg"
         footer={
-          <div className="flex justify-end gap-2 pt-2">
-            <Button type="button" variant="outline" onClick={() => setPreviewMapeo(null)}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              onClick={() => void handleAplicarMapeo()}
-              disabled={
-                aplicandoMapeo ||
-                ((previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)) === 0
-              }
-            >
-              {aplicandoMapeo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Aplicar (
-              {(previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)}{' '}
-              hospital(es))
-            </Button>
-          </div>
+          mapeoPaso === 'seleccion' ? (
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setMapeoAbierto(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void calcularPreviewMapeo()}
+                disabled={loadingPreview}
+              >
+                {loadingPreview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Calcular preview
+              </Button>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setMapeoPaso('seleccion')}
+                disabled={aplicandoMapeo}
+              >
+                Volver
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleAplicarMapeo()}
+                disabled={
+                  aplicandoMapeo ||
+                  ((previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)) === 0
+                }
+              >
+                {aplicandoMapeo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Aplicar (
+                {(previewMapeo?.totalHospitales ?? 0) + (previewMapeo?.totalPorGps ?? 0)}{' '}
+                hospital(es))
+              </Button>
+            </div>
+          )
         }
       >
-        {previewMapeo == null ? (
+        {mapeoPaso === 'seleccion' ? (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Elige la gerencia a la que se aplicará el mapeo estado → región. Cada gerencia tiene
+              su propio mapeo y sus propias regiones.
+            </p>
+            <RadioGroup value={mapeoGerencia} onValueChange={setMapeoGerencia} className="gap-2">
+              {idTipoGerencia != null && (
+                <Label className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50">
+                  <RadioGroupItem value={String(idTipoGerencia)} />
+                  <span className="text-sm">
+                    Solo {gerenciaActual?.descripcion ?? 'la gerencia de la pestaña actual'}
+                  </span>
+                </Label>
+              )}
+              {gerencias
+                .filter((g) => g.idTipoGerencia !== idTipoGerencia)
+                .map((g) => (
+                  <Label
+                    key={g.idTipoGerencia}
+                    className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50"
+                  >
+                    <RadioGroupItem value={String(g.idTipoGerencia)} />
+                    <span className="text-sm">Solo {g.descripcion}</span>
+                  </Label>
+                ))}
+              <Label className="flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 hover:bg-muted/50">
+                <RadioGroupItem value="ambas" />
+                <span className="text-sm">Ambas gerencias</span>
+              </Label>
+            </RadioGroup>
+          </div>
+        ) : loadingPreview || previewMapeo == null ? (
           <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Calculando preview...

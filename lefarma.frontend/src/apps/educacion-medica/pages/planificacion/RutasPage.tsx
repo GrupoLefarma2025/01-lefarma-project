@@ -14,6 +14,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import { SignatureAlert } from '@/components/common/SignatureAlert';
+import { WorkflowAccionModal } from '@/components/workflows/WorkflowAccionModal';
+import { useAuthStore } from '@/shared/auth/authStore';
 import {
   Select,
   SelectContent,
@@ -27,9 +30,11 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
+  AccionDisponible,
   EstrategiaReparto,
   HospitalUbicacion,
   Ruta,
+  RutaVersionDto,
   RutaVisita,
   SeleccionDetalle,
 } from '@/apps/educacion-medica/types/educacionMedica.types';
@@ -84,6 +89,9 @@ export default function RutasPage() {
   const [seleccion, setSeleccion] = useState<SeleccionDetalle | null>(null);
   const [rutas, setRutas] = useState<Ruta[]>([]);
   const [version, setVersion] = useState<number | null>(null);
+  const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
+  const [accionFirmaRutas, setAccionFirmaRutas] = useState<AccionDisponible | null>(null);
+  const { hasFirma } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [avisosBackend, setAvisosBackend] = useState<string[]>([]);
@@ -151,6 +159,27 @@ export default function RutasPage() {
     fetchTodo(null);
   }, [fetchTodo]);
 
+  // Estado de autorización de la versión activa (workflow GV → CA → DC, ADR-00006)
+  useEffect(() => {
+    if (!idSeleccionMensual || Number.isNaN(idSeleccionMensual) || version === null) return;
+
+    let cancelado = false;
+    educacionMedicaApi.rutas
+      .version(idSeleccionMensual, version)
+      .then((res) => {
+        if (!cancelado && res.data.success) {
+          setVersionInfo(res.data.data ?? null);
+        }
+      })
+      .catch(() => {
+        // Sin información de la versión; la vista cae al modo de solo lectura
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [idSeleccionMensual, version, rutas]);
+
   useEffect(() => {
     educacionMedicaApi.parametrosModulo
       .getAll()
@@ -196,7 +225,20 @@ export default function RutasPage() {
 
   const estadoVersion: EstadoVersion | null =
     versionesInfo.find((v) => v.version === version)?.estado ?? null;
-  const editable = estadoVersion === 'Draft' && seleccion?.estado === 'Autorizada';
+  // Solo se usa la info de versión si corresponde a la versión seleccionada
+  // (evita resetear estado dentro de un efecto al cambiar de versión)
+  const versionInfoActual = versionInfo && versionInfo.version === version ? versionInfo : null;
+
+  const editable =
+    estadoVersion === 'Draft' &&
+    seleccion?.estado === 'Autorizada' &&
+    (versionInfoActual?.esEditable ?? true);
+  const accionEnviarRutas =
+    versionInfoActual?.acciones.find((a) => a.tipoAccionCodigo === 'ENVIAR') ?? null;
+  const accionesFirmaRutas =
+    versionInfoActual && !versionInfoActual.esEditable && !versionInfoActual.esFinal
+      ? versionInfoActual.acciones.filter((a) => a.tipoAccionCodigo !== 'CANCELAR')
+      : [];
   const hayDraft = rutasVisibles.some((r) => r.estado === 'Draft');
 
   const planificadasIds = useMemo(() => {
@@ -315,7 +357,7 @@ export default function RutasPage() {
       return 'Esta versión fue cancelada (solo lectura). Genera una propuesta nueva para retomar la calendarización.';
     }
     if (estadoVersion === 'Confirmada') {
-      return 'Rutas confirmadas y publicadas. Para modificarlas usa "Solicitar cambio" (cancelar → regenerar → confirmar).';
+      return 'Rutas confirmadas y publicadas. Para modificarlas usa "Solicitar cambio" (cancelar → regenerar → volver a firmar).';
     }
     if (seleccion && seleccion.estado !== 'Autorizada' && seleccion.estado !== 'Cerrada') {
       return 'La selección aún no está autorizada; autorízala en el paso Autorización para poder confirmar rutas.';
@@ -364,23 +406,47 @@ export default function RutasPage() {
     void generarInterno();
   };
 
-  const confirmar = async () => {
+  const firmarVersionRutas = async (
+    accion: AccionDisponible,
+    comentario?: string,
+    datosAdicionales?: Record<string, unknown> | null
+  ) => {
+    if (!versionInfoActual) return;
     setGuardando(true);
     try {
-      const response = await educacionMedicaApi.rutas.confirmar(idSeleccionMensual);
+      const response = await educacionMedicaApi.rutas.firmarVersion(versionInfoActual.idRutaVersion, {
+        idAccion: accion.idAccion,
+        comentario: comentario ?? null,
+        datosAdicionales: datosAdicionales ?? null,
+      });
+
       if (response.data.success) {
-        toast.success('Rutas confirmadas. Las asignaciones ya están publicadas.');
-        setAvisosBackend([]);
+        const confirmada = response.data.data?.estado === 'Confirmada';
+        if (confirmada) {
+          toast.success('Rutas confirmadas. Las asignaciones ya están publicadas.');
+          setAvisosBackend([]);
+        } else {
+          toast.success('Acción registrada.');
+        }
+        setAccionFirmaRutas(null);
         setEditadoManual(false);
         await fetchTodo();
       } else {
-        toast.error(response.data.message ?? 'Error al confirmar las rutas');
+        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
       }
     } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'Error al confirmar las rutas');
+      toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
     } finally {
       setGuardando(false);
     }
+  };
+
+  const abrirFirmaRutas = (accion: AccionDisponible) => {
+    if (hasFirma === false) {
+      toast.error('No tienes firma digital registrada. Cárgala en Configuración > Perfil.');
+      return;
+    }
+    setAccionFirmaRutas(accion);
   };
 
   const cancelar = async () => {
@@ -699,7 +765,7 @@ export default function RutasPage() {
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">Selecciona primero una selección mensual.</p>
         <Button variant="outline" onClick={() => navigate('/educacion-medica/seleccion')}>
-          Ir a Selección y reparto
+          Ir a Selección Mensual
         </Button>
       </div>
     );
@@ -779,12 +845,39 @@ export default function RutasPage() {
               Solicitar cambio
             </Button>
           )}
-          {hayDraft && editable && (
-            <Button size="sm" disabled={guardando} onClick={confirmar} className="font-semibold">
+          {versionInfoActual && !versionInfoActual.esFinal && !versionInfoActual.esEditable && (
+            <>
+              <span className="self-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                En autorización · {versionInfoActual.pasoNombre ?? 'pendiente de firma'}
+              </span>
+              {hasFirma === false && <SignatureAlert />}
+            </>
+          )}
+          {accionEnviarRutas && (
+            <Button
+              size="sm"
+              disabled={guardando}
+              onClick={() => abrirFirmaRutas(accionEnviarRutas)}
+              className="font-semibold"
+            >
               <Gavel className="mr-2 h-4 w-4" />
-              Confirmar rutas
+              Enviar a autorización
             </Button>
           )}
+          {accionesFirmaRutas.map((accion) => (
+            <Button
+              key={accion.idAccion}
+              size="sm"
+              variant={accion.tipoAccionCodigo === 'DEVOLVER' ? 'outline' : 'default'}
+              disabled={guardando}
+              className={accion.tipoAccionCodigo === 'DEVOLVER' ? '' : 'font-semibold'}
+              onClick={() => abrirFirmaRutas(accion)}
+            >
+              {accion.tipoAccionCodigo === 'DEVOLVER'
+                ? 'Devolver a Draft'
+                : (accion.tipoAccionNombre ?? 'Firmar')}
+            </Button>
+          ))}
         </div>
       )}
 
@@ -832,7 +925,7 @@ export default function RutasPage() {
                 planificar rutas.
               </p>
               <Button variant="outline" className="mt-4" onClick={() => navigate('/educacion-medica/seleccion')}>
-                Ir a Selección y reparto
+                Ir a Selección Mensual
               </Button>
             </>
           )}
@@ -1001,6 +1094,22 @@ export default function RutasPage() {
           />
         </div>
       </Modal>
+
+      <WorkflowAccionModal
+        open={accionFirmaRutas !== null}
+        onClose={() => setAccionFirmaRutas(null)}
+        accion={accionFirmaRutas}
+        tituloEntidad={versionInfoActual ? `Rutas v${versionInfoActual.version}` : null}
+        hasFirma={hasFirma ?? undefined}
+        guardando={guardando}
+        entidadTipo="RutaVersion"
+        entidadId={versionInfoActual?.idRutaVersion}
+        carpetaAdjuntos="educacion-medica-rutas"
+        idPasoActual={versionInfoActual?.idPasoActual}
+        onConfirmar={(comentario, datosAdicionales) => {
+          if (accionFirmaRutas) void firmarVersionRutas(accionFirmaRutas, comentario, datosAdicionales);
+        }}
+      />
     </div>
   );
 }

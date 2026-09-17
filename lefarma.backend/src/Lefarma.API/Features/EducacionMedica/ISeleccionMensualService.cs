@@ -1,8 +1,14 @@
+using ErrorOr;
+
 namespace Lefarma.API.Features.EducacionMedica;
 
 public interface ISeleccionMensualService
 {
-    Task<List<DTOs.SeleccionMensualDto>> GetAllAsync(int? anio, int? mes, CancellationToken ct = default);
+    Task<List<DTOs.SeleccionMensualDto>> GetAllAsync(
+        int? anio,
+        int? mes,
+        int idUsuario,
+        CancellationToken ct = default);
 
     Task<DTOs.SeleccionDetalleDto?> GetByIdAsync(int idSeleccionMensual, CancellationToken ct = default);
 
@@ -48,10 +54,22 @@ public interface ISeleccionMensualService
 
     Task<DTOs.SeleccionMensualDto> EnviarRevisionAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);
 
-    Task<DTOs.SeleccionMensualDto> AutorizarAsync(
+    /// <summary>Ejecuta una acción del workflow (firmar GG/GV, devolver) sobre la selección.</summary>
+    Task<DTOs.SeleccionMensualDto> FirmarAsync(
         int idSeleccionMensual,
-        DTOs.AutorizarSeleccionRequest request,
+        DTOs.FirmarWorkflowRequest request,
         int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>Acciones disponibles del workflow para el usuario en el paso actual.</summary>
+    Task<ErrorOr<IEnumerable<Lefarma.API.Features.Config.Workflows.DTOs.AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(
+        int idSeleccionMensual,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>Historial (bitácora) del workflow de la selección.</summary>
+    Task<ErrorOr<IEnumerable<Lefarma.API.Features.Config.Workflows.DTOs.HistorialWorkflowItemResponse>>> GetHistorialAsync(
+        int idSeleccionMensual,
         CancellationToken ct = default);
 
     Task<DTOs.SeleccionMensualDto> CerrarAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);

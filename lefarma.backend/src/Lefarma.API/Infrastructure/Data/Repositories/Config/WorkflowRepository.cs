@@ -32,6 +32,11 @@ public class WorkflowRepository : BaseRepository<Workflow>, IWorkflowRepository
                     .ThenInclude(p => p.Participantes)
                 .FirstOrDefaultAsync(w => w.CodigoProceso == codigoProceso && w.Activo);
 
+        public async Task<WorkflowPaso?> GetPasoAsync(int idPaso, CancellationToken cancellationToken = default)
+            => await _context.WorkflowPasos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.IdPaso == idPaso, cancellationToken);
+
         public async Task<WorkflowPaso?> GetPasoByIdEstadoAsync(int idWorkflow, int idEstado)
             => await _context.WorkflowPasos
                 .FirstOrDefaultAsync(p => p.IdWorkflow == idWorkflow && p.IdEstado == idEstado);

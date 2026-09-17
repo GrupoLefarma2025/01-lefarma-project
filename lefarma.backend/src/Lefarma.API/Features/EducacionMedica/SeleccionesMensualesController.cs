@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -23,11 +24,11 @@ public class SeleccionesMensualesController : ControllerBase
     [HttpGet]
     [SwaggerOperation(
         Summary = "Obtener selecciones mensuales",
-        Description = "Retorna las selecciones mensuales filtradas por año y/o mes de la fecha de selección.")]
+        Description = "Retorna las selecciones mensuales filtradas por año y/o mes de la fecha de selección, con estado de workflow, etapa, creador y acciones disponibles del usuario.")]
     [SwaggerResponse(200, "Selecciones obtenidas", typeof(ApiResponse<List<SeleccionMensualDto>>))]
     public async Task<IActionResult> GetAll([FromQuery] int? anio, [FromQuery] int? mes, CancellationToken ct)
     {
-        var selecciones = await _service.GetAllAsync(anio, mes, ct);
+        var selecciones = await _service.GetAllAsync(anio, mes, GetUserId(), ct);
         return Ok(new ApiResponse<List<SeleccionMensualDto>>
         {
             Success = true,
@@ -264,24 +265,24 @@ public class SeleccionesMensualesController : ControllerBase
         }
     }
 
-    [HttpPost("{idSeleccionMensual:int}/autorizar")]
+    [HttpPost("{idSeleccionMensual:int}/firmar")]
     [SwaggerOperation(
-        Summary = "Firmar la selección (doble firma GV → GG)",
-        Description = "Primera firma: Gerente de Ventas. Segunda firma: Gerencia General; al completarse ambas la selección pasa a Autorizada.")]
-    [SwaggerResponse(200, "Firma registrada", typeof(ApiResponse<SeleccionMensualDto>))]
-    [SwaggerResponse(409, "Firma fuera de orden o estado inválido")]
-    public async Task<IActionResult> Autorizar(
+        Summary = "Ejecutar una acción del workflow sobre la selección",
+        Description = "Firmar (Gerencia General y después el Gerente de Ventas de la gerencia) o devolver a Borrador, según las acciones disponibles del paso actual.")]
+    [SwaggerResponse(200, "Acción registrada", typeof(ApiResponse<SeleccionMensualDto>))]
+    [SwaggerResponse(409, "Acción no disponible para el usuario o estado inválido")]
+    public async Task<IActionResult> Firmar(
         int idSeleccionMensual,
-        [FromBody] AutorizarSeleccionRequest request,
+        [FromBody] FirmarWorkflowRequest request,
         CancellationToken ct)
     {
         try
         {
-            var seleccion = await _service.AutorizarAsync(idSeleccionMensual, request, GetUserId(), ct);
+            var seleccion = await _service.FirmarAsync(idSeleccionMensual, request, GetUserId(), ct);
             return Ok(new ApiResponse<SeleccionMensualDto>
             {
                 Success = true,
-                Message = "Firma registrada exitosamente.",
+                Message = "Acción registrada exitosamente.",
                 Data = seleccion
             });
         }
@@ -289,6 +290,44 @@ public class SeleccionesMensualesController : ControllerBase
         {
             return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
+    }
+
+    [HttpGet("{idSeleccionMensual:int}/acciones-disponibles")]
+    [SwaggerOperation(Summary = "Acciones de workflow disponibles para el usuario en la selección")]
+    [SwaggerResponse(200, "Acciones disponibles", typeof(ApiResponse<IEnumerable<AccionDisponibleResponse>>))]
+    public async Task<IActionResult> GetAccionesDisponibles(int idSeleccionMensual, CancellationToken ct)
+    {
+        var resultado = await _service.GetAccionesDisponiblesAsync(idSeleccionMensual, GetUserId(), ct);
+        if (resultado.IsError)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = resultado.FirstError.Description });
+        }
+
+        return Ok(new ApiResponse<IEnumerable<AccionDisponibleResponse>>
+        {
+            Success = true,
+            Message = "Acciones disponibles obtenidas.",
+            Data = resultado.Value
+        });
+    }
+
+    [HttpGet("{idSeleccionMensual:int}/historial")]
+    [SwaggerOperation(Summary = "Historial de workflow de la selección (bitácora)")]
+    [SwaggerResponse(200, "Historial", typeof(ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>))]
+    public async Task<IActionResult> GetHistorial(int idSeleccionMensual, CancellationToken ct)
+    {
+        var resultado = await _service.GetHistorialAsync(idSeleccionMensual, ct);
+        if (resultado.IsError)
+        {
+            return NotFound(new ApiResponse<object> { Success = false, Message = resultado.FirstError.Description });
+        }
+
+        return Ok(new ApiResponse<IEnumerable<HistorialWorkflowItemResponse>>
+        {
+            Success = true,
+            Message = "Historial obtenido.",
+            Data = resultado.Value
+        });
     }
 
     [HttpPost("{idSeleccionMensual:int}/cerrar")]

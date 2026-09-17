@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Lefarma.API.Features.Config.Workflows.DTOs;
 
 namespace Lefarma.API.Features.EducacionMedica.DTOs;
 
@@ -16,6 +17,21 @@ public class SeleccionMensualDto
     public DateTime? FirmaGgFecha { get; set; }
     public int TotalHospitales { get; set; }
     public int TotalRegiones { get; set; }
+
+    /// <summary>Fecha de creación del registro (columna Fecha del listado).</summary>
+    public DateTime FechaCreacion { get; set; }
+    public int? IdWorkflow { get; set; }
+    public int? IdPasoActual { get; set; }
+    /// <summary>Estado del workflow (config.workflow_estados); mismo criterio que RH y la bandeja.</summary>
+    public int? IdEstado { get; set; }
+    public string? EstadoNombre { get; set; }
+    public string? EstadoColor { get; set; }
+    /// <summary>Nombre del paso actual del workflow (columna Etapa del listado).</summary>
+    public string? PasoActualNombre { get; set; }
+    /// <summary>Nombre del usuario creador (columna Creado por del listado).</summary>
+    public string? NombreUsuarioCreacion { get; set; }
+    /// <summary>Acciones del motor disponibles para el usuario en el paso actual; vacío si no es su turno.</summary>
+    public List<AccionDisponibleResponse> Acciones { get; set; } = [];
 }
 
 public class SeleccionHospitalDto
@@ -130,13 +146,6 @@ public class DividirRegionRequest
     [Required(ErrorMessage = "El motivo de la división es obligatorio.")]
     [MinLength(5, ErrorMessage = "El motivo de la división es obligatorio.")]
     public string Motivo { get; set; } = string.Empty;
-}
-
-public class AutorizarSeleccionRequest
-{
-    [Required(ErrorMessage = "El rol de la firma es obligatorio (GV o GG).")]
-    [RegularExpression("^(GV|GG)$", ErrorMessage = "El rol de la firma debe ser GV o GG.")]
-    public string Rol { get; set; } = string.Empty;
 }
 
 public class AgruparSeleccionResponse

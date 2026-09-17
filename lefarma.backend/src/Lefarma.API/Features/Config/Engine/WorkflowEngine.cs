@@ -374,6 +374,18 @@ namespace Lefarma.API.Features.Config.Engine
                         i.IdWorkflow, i.IdPasoActual, i.IdUsuarioCreador, i.IdUsuarioSolicitante))
                     .FirstOrDefaultAsync() ?? new(0, null, 0, null),
 
+                CodigoProceso.EDUCACION_MEDICA_SELECCION => await _context.SeleccionesMensuales
+                    .Where(s => s.IdSeleccionMensual == idEntidad)
+                    .Select(s => new WorkflowEntityContext(
+                        s.IdWorkflow ?? 0, s.IdPasoActual, s.IdUsuarioCreacion ?? 0, null))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
+
+                CodigoProceso.EDUCACION_MEDICA_RUTAS => await _context.RutasVersiones
+                    .Where(v => v.IdRutaVersion == idEntidad)
+                    .Select(v => new WorkflowEntityContext(
+                        v.IdWorkflow ?? 0, v.IdPasoActual, v.IdUsuarioCreacion ?? 0, null))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
+
                 _ => throw new NotSupportedException(
                     $"TipoEntidad '{tipoEntidad}' no soportado por el engine.")
             };

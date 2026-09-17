@@ -200,18 +200,18 @@ function ResumenContenido({ detalle, equipos }: ResumenContenidoProps) {
 
       <section className="grid gap-4 border-t pt-4 sm:grid-cols-2 break-inside-avoid">
         <div className="rounded-md border p-3 text-xs">
-          <p className="font-semibold">Revisó — Gerente de Ventas</p>
+          <p className="font-semibold">1. Firmó — Gerencia General</p>
           <p className="mt-2 text-muted-foreground">
-            {detalle.firmaGvFecha
-              ? `Firmado el ${formatearFecha(detalle.firmaGvFecha)}`
+            {detalle.firmaGgFecha
+              ? `Firmado el ${formatearFecha(detalle.firmaGgFecha)}`
               : 'Pendiente'}
           </p>
         </div>
         <div className="rounded-md border p-3 text-xs">
-          <p className="font-semibold">Autorizó — Gerencia General</p>
+          <p className="font-semibold">2. Firmó — Gerente de Ventas de la gerencia</p>
           <p className="mt-2 text-muted-foreground">
-            {detalle.firmaGgFecha
-              ? `Firmado el ${formatearFecha(detalle.firmaGgFecha)}`
+            {detalle.firmaGvFecha
+              ? `Firmado el ${formatearFecha(detalle.firmaGvFecha)}`
               : 'Pendiente'}
           </p>
         </div>

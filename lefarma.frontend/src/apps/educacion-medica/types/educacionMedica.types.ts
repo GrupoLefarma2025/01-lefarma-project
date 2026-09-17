@@ -1,3 +1,8 @@
+import type {
+  AccionHandlerMetadata,
+  WorkflowCampoMetadata,
+} from '@/components/workflows/workflowAccion';
+
 export interface HospitalExtension {
   idHospitalExtension: number;
   idHospital: number;
@@ -93,6 +98,8 @@ export interface RegionEstadoResumen {
 
 export interface Region {
   idRegion: number;
+  idTipoGerencia: number;
+  nombreGerencia: string | null;
   nombre: string;
   centroLatitud: number | null;
   centroLongitud: number | null;
@@ -102,6 +109,7 @@ export interface Region {
 }
 
 export interface UpsertRegionRequest {
+  idTipoGerencia: number;
   nombre: string;
   centroLatitud?: number | null;
   centroLongitud?: number | null;
@@ -154,6 +162,8 @@ export interface RegionEstado {
   nombreEstado: string | null;
   idRegion: number;
   nombreRegion: string | null;
+  idTipoGerencia?: number;
+  nombreGerencia?: string | null;
 }
 
 export interface UpsertRegionEstadoRequest {
@@ -282,6 +292,20 @@ export interface SeleccionMensual {
   firmaGgFecha: string | null;
   totalHospitales: number;
   totalRegiones: number;
+  /** Fecha de creación del registro (columna Fecha del listado). */
+  fechaCreacion: string;
+  idWorkflow: number | null;
+  idPasoActual: number | null;
+  /** Estado del workflow (catálogo config.workflow_estados); mismo criterio que la bandeja. */
+  idEstado: number | null;
+  estadoNombre: string | null;
+  estadoColor: string | null;
+  /** Nombre del paso actual del workflow (columna Etapa del listado). */
+  pasoActualNombre: string | null;
+  /** Nombre del usuario creador (columna Creado por del listado). */
+  nombreUsuarioCreacion: string | null;
+  /** Acciones disponibles para el usuario en el paso actual; vacío si no es su turno. */
+  acciones: AccionDisponible[];
 }
 
 export interface SeleccionHospital {
@@ -368,8 +392,82 @@ export interface MoverHospitalARegionRequest {
   idRegion: number;
 }
 
-export interface AutorizarSeleccionRequest {
-  rol: 'GV' | 'GG';
+export interface FirmarWorkflowRequest {
+  idAccion: number;
+  comentario?: string | null;
+  /** Valores de campos dinámicos configurados en la acción (handlers Field/Document). */
+  datosAdicionales?: Record<string, unknown> | null;
+}
+
+/**
+ * Acción del motor de workflow disponible para el usuario en el paso actual.
+ * Incluye la metadata de firma dinámica (handlers/campos/adjuntos) que arma
+ * el backend; la UI solo la usa cuando la acción la configura.
+ */
+export interface AccionDisponible {
+  idAccion: number;
+  idTipoAccion: number;
+  tipoAccionCodigo?: string | null;
+  tipoAccionNombre?: string | null;
+  tipoAccionCambiaEstado?: boolean | null;
+  requiereComentario: boolean;
+  requiereAdjunto: boolean;
+  permiteAdjunto?: boolean;
+  handlers?: AccionHandlerMetadata[];
+  camposWorkflow?: WorkflowCampoMetadata[];
+  camposRequeridos?: string[];
+}
+
+export interface HistorialWorkflowItem {
+  idEvento: number;
+  idEntidad: number;
+  idPaso: number;
+  nombrePaso?: string | null;
+  idAccion: number;
+  nombreAccion?: string | null;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  comentario?: string | null;
+  fechaEvento: string;
+}
+
+/** Estado de autorización de una versión de rutas (workflow GV → CA → DC). */
+export interface RutaVersionDto {
+  idRutaVersion: number;
+  version: number;
+  estado: 'Draft' | 'Confirmada' | 'Cancelada' | 'Archivada';
+  idPasoActual: number | null;
+  pasoNombre: string | null;
+  esEditable: boolean;
+  esFinal: boolean;
+  acciones: AccionDisponible[];
+}
+
+/** Item de la Bandeja de Autorizaciones del módulo. */
+export interface PendienteAprobacion {
+  tipo: 'seleccion' | 'rutas';
+  idEntidad: number;
+  idSeleccionMensual: number;
+  /** Workflow del documento (para dibujar el flujo en el historial). */
+  idWorkflow: number | null;
+  idPasoActual: number | null;
+  documento: string;
+  detalle: string | null;
+  idUsuarioCreador: number | null;
+  nombreUsuarioCreador: string | null;
+  pasoNombre: string | null;
+  /** Estado de dominio (Borrador, EnRevision, Autorizada... / Draft, Confirmada...). */
+  estado: string | null;
+  /** Estado del workflow (catálogo config.workflow_estados), mismo criterio que RH. */
+  idEstado: number | null;
+  estadoNombre: string | null;
+  estadoColor: string | null;
+  /** Fecha de creación del documento (convención única para ambos tipos). */
+  fecha?: string | null;
+  /** Número de versión cuando el documento es de rutas. */
+  versionRutas?: number | null;
+  /** Acciones disponibles para el usuario en el paso actual; vacío si no es su turno. */
+  acciones: AccionDisponible[];
 }
 
 export interface AgruparSeleccionResponse {

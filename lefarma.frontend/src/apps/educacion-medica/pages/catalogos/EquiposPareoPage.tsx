@@ -554,7 +554,9 @@ export default function EquiposPareoPage() {
               <SelectContent>
                 {regiones.map((region) => (
                   <SelectItem key={region.idRegion} value={String(region.idRegion)}>
-                    {region.nombre}
+                    {region.nombreGerencia
+                      ? `${region.nombre} (${region.nombreGerencia})`
+                      : region.nombre}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -621,7 +623,9 @@ export default function EquiposPareoPage() {
                   .filter((z) => !regionesOcupadasIds.has(z.idRegion))
                   .map((region) => (
                     <SelectItem key={region.idRegion} value={String(region.idRegion)}>
-                      {region.nombre}
+                      {region.nombreGerencia
+                        ? `${region.nombre} (${region.nombreGerencia})`
+                        : region.nombre}
                     </SelectItem>
                   ))}
               </SelectContent>
