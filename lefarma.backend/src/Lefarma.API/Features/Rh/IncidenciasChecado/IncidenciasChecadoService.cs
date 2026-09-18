@@ -436,7 +436,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                     Departamento = g.FirstOrDefault(x => !string.IsNullOrEmpty(x.Departamento))?.Departamento,
                     Puesto = g.FirstOrDefault(x => !string.IsNullOrEmpty(x.Puesto))?.Puesto,
                     TotalIncidencias = g.Sum(ContarIncidencias),
-                    Tardanzas = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == TardanzaEntrada || i.TipoIncidencia == TardanzaSalida)),
+                    Retardos = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == TardanzaEntrada || i.TipoIncidencia == TardanzaSalida)),
                     SalidasAnticipadas = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == SalidaAnticipada)),
                     Omisiones = g.Sum(x => x.IncidenciasCalculadas.Count(i => i.TipoIncidencia == OmisionEntrada || i.TipoIncidencia == OmisionSalida)),
                     Justificadas = g.Where(x => x.Justificada).Sum(ContarIncidencias),
@@ -454,8 +454,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 ("nombre", "desc") => resumen.OrderByDescending(x => x.Nombre),
                 ("totalincidencias", "asc") => resumen.OrderBy(x => x.TotalIncidencias),
                 ("totalincidencias", "desc") => resumen.OrderByDescending(x => x.TotalIncidencias),
-                ("tardanzas", "asc") => resumen.OrderBy(x => x.Tardanzas),
-                ("tardanzas", "desc") => resumen.OrderByDescending(x => x.Tardanzas),
+                ("retardos", "asc") => resumen.OrderBy(x => x.Retardos),
+                ("retardos", "desc") => resumen.OrderByDescending(x => x.Retardos),
                 ("salidasanticipadas", "asc") => resumen.OrderBy(x => x.SalidasAnticipadas),
                 ("salidasanticipadas", "desc") => resumen.OrderByDescending(x => x.SalidasAnticipadas),
                 ("omisiones", "asc") => resumen.OrderBy(x => x.Omisiones),
@@ -535,7 +535,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 idUsuarios.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
                 && s.Estado != null
-                && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
+                && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
+                && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
                 && s.FechaInicio.Value.Date <= fechaMax.Date
                 && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
@@ -545,6 +546,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
+                EstadoCodigo = s.Estado!.Codigo,
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
@@ -567,16 +569,27 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 continue;
 
             var itemDate = item.Fecha.Date;
-            var matching = solicitudesEmpleado
-                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate &&
-                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate));
+            var coincidencias = solicitudesEmpleado
+                .Where(s => s.FechaInicio.Date <= itemDate &&
+                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate))
+                .ToList();
 
-            if (matching == null)
+            if (coincidencias.Count == 0)
                 continue;
 
-            item.Justificada = true;
-            item.IdSolicitud = matching.IdSolicitud;
-            item.TipoSolicitudNombre = matching.TipoSolicitudNombre;
+            var cerrada = coincidencias.FirstOrDefault(s => s.EstadoCodigo == WorkflowEstadoCodigo.CERRADA);
+            if (cerrada is not null)
+            {
+                item.Justificada = true;
+                item.IdSolicitud = cerrada.IdSolicitud;
+                item.TipoSolicitudNombre = cerrada.TipoSolicitudNombre;
+                continue;
+            }
+
+            var enTramite = coincidencias[0];
+            item.EnTramite = true;
+            item.IdSolicitud = enTramite.IdSolicitud;
+            item.TipoSolicitudNombre = enTramite.TipoSolicitudNombre;
         }
     }
 

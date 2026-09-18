@@ -13,7 +13,9 @@
         public bool RequiereFechaFin { get; set; } 
         public bool RequiereFechaRegreso { get; set; } 
         public bool RequiereLugarComision { get; set; } 
+        // Sin uso en la lógica actual: solo se persiste por compatibilidad del catálogo de tipos de solicitud.
         public bool DescuentaNomina { get; set; } 
+        // Sin uso en la lógica actual: solo se persiste por compatibilidad del catálogo de tipos de solicitud.
         public bool DescuentaVacaciones { get; set; } 
         public bool RequiereDocumentacion { get; set; } 
         public bool PermiteFechasPasadas { get; set; }
@@ -23,6 +25,7 @@
         public bool PideDiasSolicitados { get; set; }
         public int? LimitePorPeriodo { get; set; }
         public string? PeriodoLimite { get; set; }
+        // Sin uso en la lógica actual: solo se persiste por compatibilidad del catálogo de tipos de solicitud.
         public int? TotalParaDescuento { get; set; }
         public bool Activo { get; set; }
         public DateTime FechaCreacion { get; set; }

@@ -349,9 +349,9 @@ function LegacyFormattedPDF({
           <tr>
             <td style={s.thBlue}>Categoría</td>
             <td style={s.tdValue}>{getCategoriaNombre(solicitud.categoria)}</td>
-            <td style={s.thBlue}>Tipo de solicitud</td>
+            <td style={s.thBlue}>Justificación de incidencias</td>
             <td style={s.tdValue} colSpan={3}>
-              {solicitud.tipoSolicitudNombre || `Tipo #${solicitud.idTipoSolicitud}`}
+              {solicitud.tipoSolicitudNombre || `Justificación #${solicitud.idTipoSolicitud}`}
             </td>
           </tr>
           <tr>

@@ -217,6 +217,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                         ["Periodo"] = request.Periodo ?? string.Empty,
                         ["TotalIncidencias"] = items.Sum(i => i.IncidenciasCalculadas.Count),
                         ["TotalDescuentos"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)),
+                        ["DescuentosJustificados"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && i.Justificada)),
+                        ["DescuentosPorJustificar"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && !i.Justificada)),
                         ["Origen"] = "resumen-empleados"
                     },
                     Channels = new List<NotificationChannelRequest>
@@ -414,7 +416,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 idUsuarios.Contains(s.IdUsuarioSolicitante ?? s.IdUsuarioCreador)
                 && s.FechaInicio.HasValue
                 && s.Estado != null
-                && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA
+                && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
+                && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
                 && s.FechaInicio.Value.Date <= fechaMax.Date
                 && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
@@ -424,6 +427,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 s.IdSolicitud,
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
+                EstadoCodigo = s.Estado!.Codigo,
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
@@ -443,16 +447,27 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 continue;
 
             var itemDate = item.Fecha.Date;
-            var matching = solicitudesEmpleado
-                .FirstOrDefault(s => s.FechaInicio.Date <= itemDate &&
-                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate));
+            var coincidencias = solicitudesEmpleado
+                .Where(s => s.FechaInicio.Date <= itemDate &&
+                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate))
+                .ToList();
 
-            if (matching == null)
+            if (coincidencias.Count == 0)
                 continue;
 
-            item.Justificada = true;
-            item.IdSolicitud = matching.IdSolicitud;
-            item.TipoSolicitudNombre = matching.TipoSolicitudNombre;
+            var cerrada = coincidencias.FirstOrDefault(s => s.EstadoCodigo == WorkflowEstadoCodigo.CERRADA);
+            if (cerrada is not null)
+            {
+                item.Justificada = true;
+                item.IdSolicitud = cerrada.IdSolicitud;
+                item.TipoSolicitudNombre = cerrada.TipoSolicitudNombre;
+                continue;
+            }
+
+            var enTramite = coincidencias[0];
+            item.EnTramite = true;
+            item.IdSolicitud = enTramite.IdSolicitud;
+            item.TipoSolicitudNombre = enTramite.TipoSolicitudNombre;
         }
     }
 
@@ -523,6 +538,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.Replace("{{FechaFin}}", fechaFin.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
         sb.Replace("{{TotalIncidencias}}", items.Sum(i => i.IncidenciasCalculadas.Count).ToString());
         sb.Replace("{{TotalDescuentos}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)).ToString());
+        sb.Replace("{{DescuentosJustificados}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && i.Justificada)).ToString());
+        sb.Replace("{{DescuentosPorJustificar}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && !i.Justificada)).ToString());
         sb.Replace("{{TablaIncidencias}}", tablaHtml ?? BuildTablaIncidenciasHtml(items));
         return sb.ToString();
     }
@@ -541,8 +558,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salida</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salió</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Incidencia</th>");
-        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Justificada</th>");
-        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Descuento</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Estatus</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">¿Genera descuento?</th>");
         sb.AppendLine("    </tr>");
         sb.AppendLine("  </thead>");
         sb.AppendLine("  <tbody>");
@@ -558,7 +575,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             var salida = item.Salida ?? "-";
             var entro = item.Entro ?? "-";
             var salio = item.Salio ?? "-";
-            var justificada = item.Justificada ? "Sí" : "No";
+            var estatus = item.Justificada ? "Justificada" : item.EnTramite ? "En trámite" : "Pendiente";
 
             foreach (var incidencia in item.IncidenciasCalculadas)
             {
@@ -572,7 +589,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salida}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salio}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{incidencia.Nombre}</td>");
-                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{justificada}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{estatus}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{descuento}</td>");
                 sb.AppendLine("    </tr>");
             }

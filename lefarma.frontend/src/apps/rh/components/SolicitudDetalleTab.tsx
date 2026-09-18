@@ -27,9 +27,9 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
           <p className="font-medium">{getCategoriaNombre(solicitud.categoria)}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
-          <p className="text-muted-foreground">Tipo de solicitud</p>
+          <p className="text-muted-foreground">Justificación de incidencias</p>
           <p className="font-medium">
-            {solicitud.tipoSolicitudNombre || `Tipo #${solicitud.idTipoSolicitud}`}
+            {solicitud.tipoSolicitudNombre || `Justificación #${solicitud.idTipoSolicitud}`}
           </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">

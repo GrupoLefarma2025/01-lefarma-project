@@ -10,7 +10,6 @@ using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
-using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -153,19 +152,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             solicitud.FechaModificacion = DateTime.Now;
 
-            // validacion de límite por periodo si la acción cierra la solicitud
             var nuevoEstado = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
-            if (nuevoEstado?.Codigo == WorkflowEstadoCodigo.CERRADA)
-            {
-                var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
-                var validacionLimite = await ValidarLimitePorPeriodoAsync(
-                    idUsuarioSolicitante, solicitud.IdTipoSolicitud, solicitud.IdSolicitud);
-                if (validacionLimite.IsError)
-                {
-                    if (transaction != null) await transaction.RollbackAsync();
-                    return validacionLimite.FirstError;
-                }
-            }
 
             await _context.SaveChangesAsync();
 
@@ -625,31 +612,4 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
         }
     }
 
-    private async Task<ErrorOr<Success>> ValidarLimitePorPeriodoAsync(
-        int idUsuario, int idTipoSolicitud, int? excluirIdSolicitud = null)
-    {
-        var tipo = await _tipoRepository.GetByIdAsync(idTipoSolicitud);
-        if (tipo is null || !tipo.LimitePorPeriodo.HasValue)
-            return Result.Success;
-
-        var (inicio, fin, _) = PeriodoHelper.ObtenerPeriodoActual(
-            DateTime.Now, tipo.PeriodoLimite ?? PeriodoHelper.Quincena);
-
-        var cerradas = await _tipoRepository.ContarSolicitudesCerradasEnPeriodoAsync(
-            idUsuario,
-            idTipoSolicitud,
-            inicio,
-            fin,
-            WorkflowEstadoCodigo.CERRADA,
-            excluirIdSolicitud);
-
-        if (cerradas >= tipo.LimitePorPeriodo.Value)
-        {
-            return CommonErrors.Validation(
-                "LimitePorPeriodo",
-                $"Has alcanzado el límite de {tipo.LimitePorPeriodo} solicitudes de tipo '{tipo.Nombre}' para el periodo actual.");
-        }
-
-        return Result.Success;
-    }
 }

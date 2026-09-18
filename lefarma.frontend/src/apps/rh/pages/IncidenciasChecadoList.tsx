@@ -270,8 +270,8 @@ export default function IncidenciasChecadoList() {
         header: 'Total incidencias',
       },
       {
-        accessorKey: 'tardanzas',
-        header: 'Tardanzas',
+        accessorKey: 'retardos',
+        header: 'Retardo',
       },
       {
         accessorKey: 'salidasAnticipadas',
@@ -291,7 +291,7 @@ export default function IncidenciasChecadoList() {
       },
       {
         accessorKey: 'descuento',
-        header: 'Descuento',
+        header: 'Descuento en nómina',
         cell: ({ row }) =>
           row.original.descuento > 0 ? (
             <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">

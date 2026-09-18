@@ -245,28 +245,37 @@ function SkeletonRows() {
 
 const COLLAPSE_KEY = 'limites-solicitud-card:collapsed';
 
-function leerColapsado(): boolean {
+function leerColapsado(storageKey: string, defaultCollapsed: boolean): boolean {
   try {
-    const valor = localStorage.getItem(COLLAPSE_KEY);
-    return valor === null ? true : valor === 'true';
+    const valor = localStorage.getItem(storageKey);
+    return valor === null ? defaultCollapsed : valor === 'true';
   } catch {
-    return true;
+    return defaultCollapsed;
   }
 }
 
 export function LimitesSolicitudCard({
   idUsuario,
   titulo,
-}: { idUsuario?: number; titulo?: string } = {}) {
+  refreshKey,
+  defaultCollapsed = true,
+  storageKey = COLLAPSE_KEY,
+}: {
+  idUsuario?: number;
+  titulo?: string;
+  refreshKey?: number;
+  defaultCollapsed?: boolean;
+  storageKey?: string;
+} = {}) {
   const [data, setData] = useState<MisLimitesResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(leerColapsado);
+  const [collapsed, setCollapsed] = useState(() => leerColapsado(storageKey, defaultCollapsed));
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem(COLLAPSE_KEY, String(next));
+        localStorage.setItem(storageKey, String(next));
       } catch {
         // localStorage no disponible
       }
@@ -307,13 +316,17 @@ export function LimitesSolicitudCard({
     return () => {
       cancelado = true;
     };
-  }, [cargarDatos]);
+  }, [cargarDatos, refreshKey]);
 
   const limites = (data?.limitesPorTipo ?? []).filter(
     (l) => !l.tipo.toLowerCase().includes('vacac')
   );
   const saldos = data?.saldosVacaciones ?? [];
   const saldoPrincipal = saldos[0];
+  const conteoTipos = limites.reduce((acc, l) => {
+    acc.set(l.tipo, (acc.get(l.tipo) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
 
   const resumen = limites.reduce(
     (acc, l) => {
@@ -375,7 +388,7 @@ export function LimitesSolicitudCard({
                 const sinLimite = l.limite === 0;
                 return (
                   <span
-                    key={l.idTipoSolicitud}
+                    key={`${l.idTipoSolicitud}-${l.periodoInicio}`}
                     className={cn(
                       'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
                       sinLimite
@@ -384,7 +397,13 @@ export function LimitesSolicitudCard({
                     )}
                   >
                     <Icon className="h-3 w-3" />
-                    {l.tipo}:{' '}
+                    {l.tipo}
+                    {(conteoTipos.get(l.tipo) ?? 0) > 1 &&
+                      ` · ${new Date(l.periodoInicio).toLocaleDateString('es-MX', {
+                        month: 'short',
+                        year: 'numeric',
+                      })}`}
+                    :{' '}
                     {sinLimite ? (
                       'sin límite'
                     ) : l.disponible === 0 ? (
@@ -454,8 +473,8 @@ export function LimitesSolicitudCard({
                   <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                   <p>
                     {resumen.bloqueados > 0
-                      ? `Tienes ${resumen.bloqueados} tipo${resumen.bloqueados === 1 ? '' : 's'} agotado${resumen.bloqueados === 1 ? '' : 's'}. No podrás crear nuevas solicitudes de estos tipos hasta el próximo periodo.`
-                      : `${resumen.casiAgotados} tipo${resumen.casiAgotados === 1 ? '' : 's'} a punto de agotarse.`}
+                      ? `Tienes ${resumen.bloqueados} límite${resumen.bloqueados === 1 ? '' : 's'} agotado${resumen.bloqueados === 1 ? '' : 's'}. No podrás crear nuevas solicitudes de esos tipos hasta que se libere cupo.`
+                      : `${resumen.casiAgotados} límite${resumen.casiAgotados === 1 ? '' : 's'} a punto de agotarse.`}
                   </p>
                 </div>
               )}
@@ -466,7 +485,7 @@ export function LimitesSolicitudCard({
                     Límites del periodo
                   </p>
                   {limites.map((l) => (
-                    <LimiteRow key={l.idTipoSolicitud} limite={l} />
+                    <LimiteRow key={`${l.idTipoSolicitud}-${l.periodoInicio}`} limite={l} />
                   ))}
                 </div>
               )}
@@ -483,9 +502,9 @@ export function LimitesSolicitudCard({
 
               {limites.length > 0 && (
                 <p className="text-muted-foreground/70 text-[10px]">
-                  Solo cuentan las solicitudes en estado{' '}
-                  <span className="font-semibold">cerrado</span>. Las pendientes, rechazadas y
-                  canceladas no cuentan.
+                  Los límites cuentan las solicitudes desde que se crean; canceladas y rechazadas no
+                  cuentan. Los descuentos justificados se cubren al cerrarse la solicitud (o quedan
+                  apartados si está en trámite), máximo 2 por mes.
                 </p>
               )}
             </>

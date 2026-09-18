@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LimitesSolicitudCard } from '../components/LimitesSolicitudCard';
 import { MiCalendario } from '../components/MiCalendario';
 
@@ -8,6 +9,8 @@ import { MiCalendario } from '../components/MiCalendario';
  * Employee Self-Service: calendario mensual de solicitudes cerradas.
  */
 export function RhDashboard() {
+  const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
+
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -19,10 +22,15 @@ export function RhDashboard() {
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-5">
         <div className="min-w-0 lg:col-span-3">
-          <MiCalendario />
+          <MiCalendario onSolicitudGuardada={() => setLimitesRefreshKey((k) => k + 1)} />
         </div>
         <div className="min-w-0 lg:col-span-2">
-          <LimitesSolicitudCard titulo="Mis límites y saldo" />
+          <LimitesSolicitudCard
+            titulo="Mis límites y saldo"
+            refreshKey={limitesRefreshKey}
+            defaultCollapsed={false}
+            storageKey="limites-solicitud-card:dashboard"
+          />
         </div>
       </div>
     </div>

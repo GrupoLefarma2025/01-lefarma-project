@@ -8,7 +8,10 @@ using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.Profile;
+using Lefarma.API.Features.Rh.IncidenciasChecado;
+using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
+using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Features.Rh.Vacaciones.DTOs;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -18,7 +21,10 @@ using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 
 namespace Lefarma.API.Features.Rh.SolicitudesPersonal
@@ -35,7 +41,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private readonly ISolicitudPersonalFirmasService _firmasService;
         private readonly IEmpleadoRepository _empleadoRepository;
         private readonly IIncidenciasChecadoRepository _incidenciasRepository;
+        private readonly IIncidenciasChecadoService _incidenciasChecadoService;
         private readonly IProfileService _profileService;
+        private readonly int _limiteDescuentosJustificadosMes;
         protected override string EntityName => "SolicitudPersonal";
 
         public SolicitudPersonalService(
@@ -49,7 +57,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             ISolicitudPersonalFirmasService firmasService,
             IEmpleadoRepository empleadoRepository,
             IIncidenciasChecadoRepository incidenciasRepository,
+            IIncidenciasChecadoService incidenciasChecadoService,
             IProfileService profileService,
+            IOptions<SolicitudesPersonalSettings> solicitudesSettings,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
         {
@@ -62,8 +72,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _firmasService = firmasService;
             _empleadoRepository = empleadoRepository;
             _incidenciasRepository = incidenciasRepository;
+            _incidenciasChecadoService = incidenciasChecadoService;
             _profileService = profileService;
             _adminRepository = adminRepository;
+            _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
         }
 
         public async Task<ErrorOr<PagedResult<SolicitudPersonalResponse>>> GetAllAsync(
@@ -486,6 +498,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         public async Task<ErrorOr<SolicitudPersonalResponse>> CreateAsync(
             CreateSolicitudPersonalRequest request, int idUsuario, bool puedeCrearParaOtro, CancellationToken ct = default)
         {
+            IDbContextTransaction? bloqueo = null;
             try
             {
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -517,6 +530,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     request.FechaFin = fechaFinCalculada;
                     request.Detalle = ExpandirDiasSolicitados(request.FechaInicio.Value, request.DiasSolicitados.Value);
                 }
+
+                bloqueo = await IniciarBloqueoSolicitudesUsuarioAsync(idUsuarioSolicitante, ct);
 
                 var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo);
                 if (validacionLimite.IsError)
@@ -555,6 +570,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     validacionFechas = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuarioSolicitante, ct);
                     if (validacionFechas.IsError)
                         return validacionFechas.FirstError;
+                }
+
+                if (tipo.Categoria == CategoriaSolicitud.Incidencia)
+                {
+                    var validacionDescuentos = await ValidarDescuentosJustificadosAsync(
+                        idUsuarioSolicitante, request.Detalle.Select(d => d.Fecha), null, ct);
+                    if (validacionDescuentos.IsError)
+                        return validacionDescuentos.FirstError;
                 }
 
                 var pasoInicial = workflow.Pasos.FirstOrDefault(p => p.EsInicio && p.Activo);
@@ -622,6 +645,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     return validacionSaldo.FirstError;
 
                 await _repository.AddAsync(solicitud);
+
+                if (bloqueo is not null)
+                {
+                    await bloqueo.CommitAsync(ct);
+                    await bloqueo.DisposeAsync();
+                    bloqueo = null;
+                }
 
                 var accionInicial = pasoInicial.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
 
@@ -712,6 +742,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
                 return solicitud.ToResponse(tipo, usuariosInfo, pasoFinal, estadoFinal?.Codigo);
             }
+            catch (SqlException ex) when (ex.Number == 51000)
+            {
+                EnrichWideEvent("Create", exception: ex);
+                return CommonErrors.Validation("SolicitudPersonal", "No se pudo validar la solicitud en este momento. Intenta guardar de nuevo.");
+            }
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent("Create", exception: ex);
@@ -722,11 +757,17 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 EnrichWideEvent("Create", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al crear la solicitud de personal.");
             }
+            finally
+            {
+                if (bloqueo is not null)
+                    await bloqueo.DisposeAsync();
+            }
         }
 
         public async Task<ErrorOr<SolicitudPersonalResponse>> UpdateAsync(
             int id, CreateSolicitudPersonalRequest request, int idUsuario, CancellationToken ct = default)
         {
+            IDbContextTransaction? bloqueo = null;
             try
             {
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -743,6 +784,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (soli.Estado?.Codigo != "CREADA")
                     return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes en estado Creada.");
 
+                var ahora = DateTime.Now;
+                if (soli.FechaCreacion.Year != ahora.Year || soli.FechaCreacion.Month != ahora.Month)
+                    return CommonErrors.Conflict("SolicitudPersonal", "Solo se pueden editar solicitudes creadas en el mes actual.");
+
                 //No se podra cambiar el tipo de solicitud si ya tiene detalle, para evitar inconsistencias en el workflow y en la validación de fechas y saldos
                 if (soli.IdTipoSolicitud != request.IdTipoSolicitud)
                     return CommonErrors.Conflict("SolicitudPersonal", "No se puede cambiar el tipo de solicitud, necesita crear una nueva.");
@@ -757,6 +802,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var tipo = await _tipoRepository.GetByIdAsync(request.IdTipoSolicitud);
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
+
+                bloqueo = await IniciarBloqueoSolicitudesUsuarioAsync(idUsuarioSolicitante, ct);
 
                 var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo, soli.IdSolicitud);
                 if (validacionLimite.IsError)
@@ -783,6 +830,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     validacionFechasUpdate = await ValidarFechasPermitidas(tipo, new[] { request.FechaInicio.Value }, idUsuarioSolicitante, ct);
                     if (validacionFechasUpdate.IsError)
                         return validacionFechasUpdate.FirstError;
+                }
+
+                if (tipo.Categoria == CategoriaSolicitud.Incidencia)
+                {
+                    var validacionDescuentos = await ValidarDescuentosJustificadosAsync(
+                        idUsuarioSolicitante, request.Detalle.Select(d => d.Fecha), soli.IdSolicitud, ct);
+                    if (validacionDescuentos.IsError)
+                        return validacionDescuentos.FirstError;
                 }
 
                 soli.IdEmpresa = solicitante.IdEmpresa;
@@ -837,8 +892,20 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 await _repository.UpdateAsync(soli);
 
+                if (bloqueo is not null)
+                {
+                    await bloqueo.CommitAsync(ct);
+                    await bloqueo.DisposeAsync();
+                    bloqueo = null;
+                }
+
                 EnrichWideEvent("Update", entityId: soli.IdSolicitud, nombre: soli.Folio);
                 return soli.ToResponse(tipo, null, null, null);
+            }
+            catch (SqlException ex) when (ex.Number == 51000)
+            {
+                EnrichWideEvent("Update", exception: ex);
+                return CommonErrors.Validation("SolicitudPersonal", "No se pudo validar la solicitud en este momento. Intenta guardar de nuevo.");
             }
             catch (DbUpdateException ex)
             {
@@ -849,6 +916,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 EnrichWideEvent("Update", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al actualizar la solicitud de personal.");
+            }
+            finally
+            {
+                if (bloqueo is not null)
+                    await bloqueo.DisposeAsync();
             }
         }
 
@@ -995,21 +1067,24 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private async Task<ErrorOr<Success>> ValidarLimitePorPeriodoAsync(
             int idUsuario, TipoSolicitud tipo, int? excluirIdSolicitud = null)
         {
+            if (tipo.Categoria == CategoriaSolicitud.Incidencia)
+                return Result.Success;
+
             if (!tipo.LimitePorPeriodo.HasValue)
                 return Result.Success;
 
             var (inicio, fin, _) = PeriodoHelper.ObtenerPeriodoActual(
                 DateTime.Now, tipo.PeriodoLimite ?? PeriodoHelper.Quincena);
 
-            var cerradas = await _tipoRepository.ContarSolicitudesCerradasEnPeriodoAsync(
+            var vigentes = await _tipoRepository.ContarSolicitudesVigentesEnPeriodoAsync(
                 idUsuario,
                 tipo.IdTipoSolicitud,
                 inicio,
                 fin,
-                WorkflowEstadoCodigo.CERRADA,
+                new[] { WorkflowEstadoCodigo.CANCELADA, WorkflowEstadoCodigo.RECHAZADA },
                 excluirIdSolicitud);
 
-            if (cerradas >= tipo.LimitePorPeriodo.Value)
+            if (vigentes >= tipo.LimitePorPeriodo.Value)
             {
                 return CommonErrors.Validation(
                     "LimitePorPeriodo",
@@ -1017,6 +1092,146 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
 
             return Result.Success;
+        }
+
+        private async Task<ErrorOr<Success>> ValidarDescuentosJustificadosAsync(
+            int idUsuario, IEnumerable<DateTime> fechas, int? excluirIdSolicitud, CancellationToken ct)
+        {
+            var fechasSolicitud = fechas.Select(f => f.Date).Distinct().ToList();
+            if (fechasSolicitud.Count == 0)
+                return Result.Success;
+
+            var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario, ct);
+            if (!nomina.HasValue)
+                return Result.Success;
+
+            var meses = fechasSolicitud
+                .Select(f => new DateTime(f.Year, f.Month, 1))
+                .Distinct()
+                .OrderBy(f => f)
+                .ToList();
+
+            var estadosRes = await ObtenerEstadosDescuentosAsync(
+                nomina.Value, idUsuario, meses, excluirIdSolicitud, ct);
+            if (estadosRes.IsError)
+                return estadosRes.FirstError;
+
+            foreach (var mes in meses)
+            {
+                var estado = estadosRes.Value[mes];
+                var etiquetaMes = EtiquetaMes(mes);
+
+                if (estado.YaCubiertos >= _limiteDescuentosJustificadosMes)
+                {
+                    return CommonErrors.Validation(
+                        "DescuentosJustificados",
+                        $"En {etiquetaMes} ya se cubrieron los {_limiteDescuentosJustificadosMes} descuentos permitidos. Ya no se pueden crear solicitudes de incidencia para ese mes; el descuento se aplicará en nómina.");
+                }
+
+                var fechasDelMes = fechasSolicitud
+                    .Where(f => f.Year == mes.Year && f.Month == mes.Month)
+                    .ToHashSet();
+
+                var descuentosDeEstaSolicitud = estado.Incidencias.Sum(i =>
+                    i.IncidenciasCalculadas.Count(c => c.GeneraDescuento) *
+                    (!i.Justificada && !estado.FechasOtras.Contains(i.Fecha.Date) && fechasDelMes.Contains(i.Fecha.Date) ? 1 : 0));
+
+                if (estado.YaCubiertos + descuentosDeEstaSolicitud > _limiteDescuentosJustificadosMes)
+                {
+                    return CommonErrors.Validation(
+                        "DescuentosJustificados",
+                        $"Esta solicitud cubriría {descuentosDeEstaSolicitud} descuento(s) en {etiquetaMes} y el máximo es {_limiteDescuentosJustificadosMes}; ya se cubrieron {estado.YaCubiertos}. Ajusta los días seleccionados: solo puedes cubrir {_limiteDescuentosJustificadosMes - estado.YaCubiertos} descuento(s) más de ese mes.");
+                }
+            }
+
+            return Result.Success;
+        }
+
+        private sealed record EstadoDescuentosMes(
+            List<IncidenciaChecadoResponse> Incidencias,
+            HashSet<DateTime> FechasOtras,
+            int YaCubiertos);
+
+        private async Task<ErrorOr<Dictionary<DateTime, EstadoDescuentosMes>>> ObtenerEstadosDescuentosAsync(
+            long nomina, int idUsuario, IReadOnlyCollection<DateTime> meses, int? excluirIdSolicitud, CancellationToken ct = default)
+        {
+            var mesesOrdenados = meses
+                .Select(m => new DateTime(m.Year, m.Month, 1))
+                .Distinct()
+                .OrderBy(m => m)
+                .ToList();
+
+            var inicio = mesesOrdenados.First();
+            var fin = mesesOrdenados.Last().AddMonths(1).AddDays(-1);
+
+            var incidenciasRes = await _incidenciasChecadoService.GetIncidenciasPorEmpleadoAsync(
+                nomina, inicio, fin, 1000, ct);
+            if (incidenciasRes.IsError)
+                return incidenciasRes.FirstError;
+
+            var fechasOtrasSolicitudes = await _context.SolicitudesPersonal
+                .AsNoTracking()
+                .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuario
+                    && s.TipoSolicitud != null && s.TipoSolicitud.Categoria == CategoriaSolicitud.Incidencia
+                    && s.Estado != null
+                    && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
+                    && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
+                    && (!excluirIdSolicitud.HasValue || s.IdSolicitud != excluirIdSolicitud.Value)
+                    && s.Detalle.Any(d => d.Fecha >= inicio && d.Fecha <= fin))
+                .SelectMany(s => s.Detalle.Select(d => d.Fecha))
+                .ToListAsync(ct);
+
+            var fechasOtras = fechasOtrasSolicitudes.Select(f => f.Date).ToHashSet();
+
+            var estados = new Dictionary<DateTime, EstadoDescuentosMes>();
+            foreach (var mes in mesesOrdenados)
+            {
+                var finMes = mes.AddMonths(1).AddDays(-1);
+                var incidenciasMes = incidenciasRes.Value
+                    .Where(i => i.Fecha.Date >= mes && i.Fecha.Date <= finMes)
+                    .ToList();
+
+                var yaCubiertos = incidenciasMes.Sum(i =>
+                    i.IncidenciasCalculadas.Count(c => c.GeneraDescuento) *
+                    (i.Justificada || fechasOtras.Contains(i.Fecha.Date) ? 1 : 0));
+
+                estados[mes] = new EstadoDescuentosMes(incidenciasMes, fechasOtras, yaCubiertos);
+            }
+
+            return estados;
+        }
+
+        private async Task<IDbContextTransaction?> IniciarBloqueoSolicitudesUsuarioAsync(int idUsuario, CancellationToken ct)
+        {
+            if (!_context.Database.IsSqlServer())
+                return null;
+
+            var transaction = await _context.Database.BeginTransactionAsync(ct);
+            try
+            {
+                // Serializa por usuario el tramo validación + inserción para que dos solicitudes
+                // simultáneas no pasen ambas las validaciones de límite y descuentos justificados.
+                await _context.Database.ExecuteSqlRawAsync(
+                    @"DECLARE @resultado int;
+                      EXEC @resultado = sp_getapplock @Resource = {0}, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
+                      IF @resultado < 0
+                          THROW 51000, 'No se pudo adquirir el bloqueo de validación de solicitudes.', 1;",
+                    ct,
+                    $"solicitud-personal:{idUsuario}");
+
+                return transaction;
+            }
+            catch
+            {
+                await transaction.DisposeAsync();
+                throw;
+            }
+        }
+
+        private static string EtiquetaMes(DateTime mes)
+        {
+            var nombre = new System.Globalization.CultureInfo("es-MX").DateTimeFormat.GetMonthName(mes.Month);
+            return $"{nombre} {mes.Year}";
         }
 
         private async Task<ErrorOr<Success>> ValidarSaldoVacacionesAsync(
@@ -1101,7 +1316,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var tipos = await _tipoRepository.GetTiposActivosAsync();
                 var ahora = DateTime.Now;
 
-                var tiposConLimite = tipos.Where(t => t.LimitePorPeriodo.HasValue).ToList();
+                var tiposConLimite = tipos
+                    .Where(t => t.LimitePorPeriodo.HasValue && t.Categoria != CategoriaSolicitud.Incidencia)
+                    .ToList();
                 var periodosPorTipo = tiposConLimite
                     .Select(t => (Tipo: t, Periodo: PeriodoHelper.ObtenerPeriodoActual(ahora, t.PeriodoLimite ?? PeriodoHelper.Quincena)))
                     .ToList();
@@ -1113,20 +1330,21 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     var fechaMin = periodosPorTipo.Min(p => p.Periodo.inicio);
                     var fechaMax = periodosPorTipo.Max(p => p.Periodo.fin);
 
-                    var solicitudesCerradas = await _context.SolicitudesPersonal
+                    var solicitudesVigentes = await _context.SolicitudesPersonal
                         .AsNoTracking()
                         .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuarioObjetivo
                             && tipoIds.Contains(s.IdTipoSolicitud)
                             && s.FechaCreacion >= fechaMin
                             && s.FechaCreacion <= fechaMax
                             && s.Estado != null
-                            && s.Estado.Codigo == WorkflowEstadoCodigo.CERRADA)
+                            && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
+                            && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA)
                         .Select(s => new { s.IdTipoSolicitud, s.FechaCreacion })
                         .ToListAsync();
 
                     foreach (var (tipo, periodo) in periodosPorTipo)
                     {
-                        var usado = solicitudesCerradas
+                        var usado = solicitudesVigentes
                             .Count(s => s.IdTipoSolicitud == tipo.IdTipoSolicitud
                                 && s.FechaCreacion >= periodo.inicio
                                 && s.FechaCreacion <= periodo.fin);
@@ -1142,6 +1360,39 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             PeriodoInicio = periodo.inicio,
                             PeriodoFin = periodo.fin
                         });
+                    }
+                }
+
+                if (tipos.Any(t => t.Categoria == CategoriaSolicitud.Incidencia))
+                {
+                    var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuarioObjetivo);
+                    if (nomina.HasValue)
+                    {
+                        var mesesDescuentos = new[]
+                        {
+                            new DateTime(ahora.Year, ahora.Month, 1),
+                            new DateTime(ahora.Year, ahora.Month, 1).AddMonths(-1)
+                        };
+                        var estadosRes = await ObtenerEstadosDescuentosAsync(
+                            nomina.Value, idUsuarioObjetivo, mesesDescuentos, null);
+                        if (estadosRes.IsError)
+                            return estadosRes.FirstError;
+
+                        foreach (var mes in mesesDescuentos)
+                        {
+                            var estado = estadosRes.Value[mes];
+                            limites.Add(new LimitePorTipoResponse
+                            {
+                                IdTipoSolicitud = 0,
+                                Tipo = "Descuentos justificados",
+                                Limite = _limiteDescuentosJustificadosMes,
+                                Usado = estado.YaCubiertos,
+                                Disponible = Math.Max(0, _limiteDescuentosJustificadosMes - estado.YaCubiertos),
+                                Periodo = EtiquetaMes(mes),
+                                PeriodoInicio = mes,
+                                PeriodoFin = mes.AddMonths(1).AddDays(-1)
+                            });
+                        }
                     }
                 }
 
@@ -1193,13 +1444,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         {
             try
             {
-                var estados = (request.Estados != null && request.Estados.Any())
-                    ? request.Estados
-                    : new List<string> { "CERRADA" };
-
                 var query = _repository.GetQueryableConDetalles()
-                    .Where(s => s.Estado != null && estados.Contains(s.Estado.Codigo))
                     .Where(s => s.IdUsuarioSolicitante == idUsuarioActual || (s.IdUsuarioSolicitante == null && s.IdUsuarioCreador == idUsuarioActual));
+
+                if (request.Estados != null && request.Estados.Any())
+                    query = query.Where(s => s.Estado != null && request.Estados.Contains(s.Estado.Codigo));
 
                 if (request.IdEmpresa.HasValue)
                     query = query.Where(s => s.IdEmpresa == request.IdEmpresa.Value);

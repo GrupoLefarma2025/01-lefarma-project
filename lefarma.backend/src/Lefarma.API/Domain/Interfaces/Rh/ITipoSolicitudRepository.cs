@@ -9,12 +9,12 @@ namespace Lefarma.API.Domain.Interfaces.Rh
         Task<IQueryable<TipoSolicitud>> GetQueryableAsync();
         Task<bool> ExistePorClaveAsync(string clave, int? excluirId = null);
         Task<bool> TieneSolicitudesAsociadasAsync(int idTipoSolicitud);
-        Task<int> ContarSolicitudesCerradasEnPeriodoAsync(
+        Task<int> ContarSolicitudesVigentesEnPeriodoAsync(
             int idUsuario,
             int idTipoSolicitud,
             DateTime fechaInicio,
             DateTime fechaFin,
-            string estadoCerrado,
+            IReadOnlyCollection<string> estadosExcluidos,
             int? excluirIdSolicitud = null);
         Task<TipoSolicitud> AddAsync(TipoSolicitud tipo);
         Task UpdateAsync(TipoSolicitud tipo);

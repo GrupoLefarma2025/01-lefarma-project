@@ -51,6 +51,14 @@ const fmtFecha = (dateStr?: string | null) => {
   }
 };
 
+const esDelMesActual = (fechaStr?: string | null) => {
+  if (!fechaStr) return false;
+  const fecha = new Date(fechaStr);
+  if (Number.isNaN(fecha.getTime())) return false;
+  const hoy = new Date();
+  return fecha.getFullYear() === hoy.getFullYear() && fecha.getMonth() === hoy.getMonth();
+};
+
 function ActionButton({
   label,
   icon: Icon,
@@ -123,10 +131,10 @@ export function SolicitudesTable({
       },
       {
         id: 'tipoSolicitudNombre',
-        header: 'Tipo de solicitud',
+        header: 'Justificación de incidencias',
         cell: ({ row }) => (
           <span className="text-xs">
-            {row.original.tipoSolicitudNombre || `Tipo #${row.original.idTipoSolicitud}`}
+            {row.original.tipoSolicitudNombre || `Justificación #${row.original.idTipoSolicitud}`}
           </span>
         ),
       },
@@ -194,7 +202,8 @@ export function SolicitudesTable({
         header: 'Acciones',
         cell: ({ row }) => {
           const s = row.original;
-          const puedeEditarFila = showEditar && puedeEditar && s.estadoNombre === 'CREADA';
+          const puedeEditarFila =
+            showEditar && puedeEditar && s.estadoNombre === 'CREADA' && esDelMesActual(s.fechaCreacion);
           return (
             <div className="flex items-center gap-1">
               {puedeEditarFila && (

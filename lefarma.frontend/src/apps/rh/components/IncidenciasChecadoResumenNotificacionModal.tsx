@@ -52,13 +52,15 @@ const VARIABLES = [
   'FechaFin',
   'TotalIncidencias',
   'TotalDescuentos',
+  'DescuentosJustificados',
+  'DescuentosPorJustificar',
   'TablaIncidencias',
 ];
 
 const ASUNTO_DEFAULT = 'Notificación de incidencias de checado';
 const MENSAJE_DEFAULT = `<p>Hola {{Nombre}},</p>\n<p>Se registraron <strong>{{TotalIncidencias}}</strong> incidencias de checado en el período del <strong>{{FechaInicio}}</strong> al <strong>{{FechaFin}}</strong>.</p>\n<p>Detalle de incidencias:</p>\n{{TablaIncidencias}}\n<p>Por favor, revisa el portal de RH para atender cada una.</p>`;
 
-const TABLA_EJEMPLO_HTML = `<table style="border-collapse: collapse; width: 100%; border: 1px solid #ccc;">\n  <thead>\n    <tr style="background-color: #f5f5f5;">\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Fecha</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Día</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entrada</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salida</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Descripción</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Justificada</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">01/01/2024</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Lunes</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">09:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Retardo</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">No</td>\n    </tr>\n  </tbody>\n</table>`;
+const TABLA_EJEMPLO_HTML = `<table style="border-collapse: collapse; width: 100%; border: 1px solid #ccc;">\n  <thead>\n    <tr style="background-color: #f5f5f5;">\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Fecha</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Día</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entrada</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salida</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Descripción</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Estatus</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">01/01/2024</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Lunes</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">09:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Retardo</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Pendiente</td>\n    </tr>\n  </tbody>\n</table>`;
 
 const VALORES_EJEMPLO: Record<string, string> = {
   '{{Nombre}}': 'jperez - Juan Pérez',
@@ -70,6 +72,8 @@ const VALORES_EJEMPLO: Record<string, string> = {
   '{{FechaFin}}': '15/01/2024',
   '{{TotalIncidencias}}': '3',
   '{{TotalDescuentos}}': '1',
+  '{{DescuentosJustificados}}': '1',
+  '{{DescuentosPorJustificar}}': '0',
   '{{TablaIncidencias}}': TABLA_EJEMPLO_HTML,
 };
 
@@ -472,8 +476,10 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
                 <li><strong>FechaInicio</strong>: fecha inicial del período seleccionado.</li>
                 <li><strong>FechaFin</strong>: fecha final del período seleccionado.</li>
                 <li><strong>TotalIncidencias</strong>: cantidad total de incidencias del período.</li>
-                <li><strong>TotalDescuentos</strong>: cantidad total de descuentos generados en el período.</li>
-                <li><strong>TablaIncidencias</strong>: tabla con el detalle de incidencias (fecha, día, entrada, salida, descripción y justificación).</li>
+                <li><strong>TotalDescuentos</strong>: cantidad total de descuentos en nómina generados en el período.</li>
+                <li><strong>DescuentosJustificados</strong>: descuentos que ya quedaron cubiertos por una solicitud cerrada.</li>
+                <li><strong>DescuentosPorJustificar</strong>: descuentos que aún no se cubren y se aplicarán en nómina.</li>
+                <li><strong>TablaIncidencias</strong>: tabla con el detalle de incidencias (fecha, día, entrada, salida, descripción y estatus).</li>
               </ul>
             </div>
           </div>

@@ -39,6 +39,7 @@ using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.SolicitudesPersonal;
+using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
@@ -197,6 +198,8 @@ builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJe
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
 
+builder.Services.Configure<SolicitudesPersonalSettings>(
+    builder.Configuration.GetSection("SolicitudesPersonalSettings"));
 builder.Services.AddScoped<ISolicitudPersonalService, SolicitudPersonalService>();
 builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFirmasService>();
 builder.Services.AddScoped<ITipoSolicitudService, TipoSolicitudService>();
