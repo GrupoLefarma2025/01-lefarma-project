@@ -21,9 +21,7 @@ using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Options;
 using System.Collections.Generic;
 
@@ -498,7 +496,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         public async Task<ErrorOr<SolicitudPersonalResponse>> CreateAsync(
             CreateSolicitudPersonalRequest request, int idUsuario, bool puedeCrearParaOtro, CancellationToken ct = default)
         {
-            IDbContextTransaction? bloqueo = null;
             try
             {
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -519,6 +516,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
 
+                var motivoValidado = ValidarMotivo(request.Motivo);
+                if (motivoValidado.IsError)
+                    return motivoValidado.FirstError;
+
                 if (tipo.PideDiasSolicitados)
                 {
                     if (!request.DiasSolicitados.HasValue || request.DiasSolicitados.Value < 1)
@@ -530,8 +531,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     request.FechaFin = fechaFinCalculada;
                     request.Detalle = ExpandirDiasSolicitados(request.FechaInicio.Value, request.DiasSolicitados.Value);
                 }
-
-                bloqueo = await IniciarBloqueoSolicitudesUsuarioAsync(idUsuarioSolicitante, ct);
 
                 var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo);
                 if (validacionLimite.IsError)
@@ -603,7 +602,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     IdEmpresa = solicitante.IdEmpresa,
                     IdSucursal = solicitante.IdSucursal,
                     IdArea = solicitante.IdArea,
-                    Motivo = request.Motivo,
+                    Motivo = motivoValidado.Value,
                     LugarComision = request.LugarComision,
                     FechaReposicion = request.FechaReposicion,
                     FechaRegreso = request.FechaRegreso,
@@ -646,13 +645,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 await _repository.AddAsync(solicitud);
 
-                if (bloqueo is not null)
-                {
-                    await bloqueo.CommitAsync(ct);
-                    await bloqueo.DisposeAsync();
-                    bloqueo = null;
-                }
-
                 var accionInicial = pasoInicial.AccionesOrigen?.OrderBy(a => a.IdAccion).FirstOrDefault();
 
                 if (accionInicial is not null)
@@ -693,7 +685,15 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .OrderBy(a => a.IdAccion)
                     .FirstOrDefault();
 
-                if (accionEnviar is not null && !tipo.RequiereDocumentacion)
+                var idsAccionesIniciales = pasoInicial.AccionesOrigen?
+                    .Select(a => a.IdAccion)
+                    .ToList() ?? new List<int>();
+                var requiereDocumentosParaEnviar = idsAccionesIniciales.Count > 0 && await _context.WorkflowAccionHandlers
+                    .AnyAsync(h => idsAccionesIniciales.Contains(h.IdAccion)
+                        && h.Activo && h.Requerido
+                        && (h.HandlerKey == "Archivo" || h.HandlerKey == "Document"));
+
+                if (accionEnviar is not null && !tipo.RequiereDocumentacion && !requiereDocumentosParaEnviar)
                 {
                     var firmaResult = await _firmasService.FirmarAsync(
                         solicitud.IdSolicitud,
@@ -742,11 +742,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
                 return solicitud.ToResponse(tipo, usuariosInfo, pasoFinal, estadoFinal?.Codigo);
             }
-            catch (SqlException ex) when (ex.Number == 51000)
-            {
-                EnrichWideEvent("Create", exception: ex);
-                return CommonErrors.Validation("SolicitudPersonal", "No se pudo validar la solicitud en este momento. Intenta guardar de nuevo.");
-            }
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent("Create", exception: ex);
@@ -757,17 +752,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 EnrichWideEvent("Create", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al crear la solicitud de personal.");
             }
-            finally
-            {
-                if (bloqueo is not null)
-                    await bloqueo.DisposeAsync();
-            }
         }
 
         public async Task<ErrorOr<SolicitudPersonalResponse>> UpdateAsync(
             int id, CreateSolicitudPersonalRequest request, int idUsuario, CancellationToken ct = default)
         {
-            IDbContextTransaction? bloqueo = null;
             try
             {
                 var firmaValidacion = await ValidarFirmaUsuarioAsync(idUsuario);
@@ -803,7 +792,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 if (tipo is null)
                     return CommonErrors.NotFound("TipoSolicitud", request.IdTipoSolicitud.ToString());
 
-                bloqueo = await IniciarBloqueoSolicitudesUsuarioAsync(idUsuarioSolicitante, ct);
+                var motivoValidado = ValidarMotivo(request.Motivo);
+                if (motivoValidado.IsError)
+                    return motivoValidado.FirstError;
 
                 var validacionLimite = await ValidarLimitePorPeriodoAsync(idUsuarioSolicitante, tipo, soli.IdSolicitud);
                 if (validacionLimite.IsError)
@@ -844,7 +835,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 soli.IdSucursal = solicitante.IdSucursal;
                 soli.IdArea = solicitante.IdArea;
                 soli.IdTipoSolicitud = request.IdTipoSolicitud;
-                soli.Motivo = request.Motivo;
+                soli.Motivo = motivoValidado.Value;
                 soli.LugarComision = request.LugarComision;
                 soli.FechaReposicion = request.FechaReposicion;
                 soli.FechaModificacion = DateTime.Now;
@@ -892,20 +883,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 await _repository.UpdateAsync(soli);
 
-                if (bloqueo is not null)
-                {
-                    await bloqueo.CommitAsync(ct);
-                    await bloqueo.DisposeAsync();
-                    bloqueo = null;
-                }
-
                 EnrichWideEvent("Update", entityId: soli.IdSolicitud, nombre: soli.Folio);
                 return soli.ToResponse(tipo, null, null, null);
-            }
-            catch (SqlException ex) when (ex.Number == 51000)
-            {
-                EnrichWideEvent("Update", exception: ex);
-                return CommonErrors.Validation("SolicitudPersonal", "No se pudo validar la solicitud en este momento. Intenta guardar de nuevo.");
             }
             catch (DbUpdateException ex)
             {
@@ -916,11 +895,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 EnrichWideEvent("Update", exception: ex);
                 return CommonErrors.InternalServerError("Error inesperado al actualizar la solicitud de personal.");
-            }
-            finally
-            {
-                if (bloqueo is not null)
-                    await bloqueo.DisposeAsync();
             }
         }
 
@@ -1064,6 +1038,19 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
         }
 
+        private static ErrorOr<string> ValidarMotivo(string? motivo)
+        {
+            var valor = motivo?.Trim();
+
+            if (string.IsNullOrWhiteSpace(valor) || valor.Length < 10)
+                return CommonErrors.Validation("Motivo", "El motivo es obligatorio y debe tener al menos 10 caracteres.");
+
+            if (valor.Length > 500)
+                return CommonErrors.Validation("Motivo", "El motivo no debe exceder 500 caracteres.");
+
+            return valor;
+        }
+
         private async Task<ErrorOr<Success>> ValidarLimitePorPeriodoAsync(
             int idUsuario, TipoSolicitud tipo, int? excluirIdSolicitud = null)
         {
@@ -1199,33 +1186,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             }
 
             return estados;
-        }
-
-        private async Task<IDbContextTransaction?> IniciarBloqueoSolicitudesUsuarioAsync(int idUsuario, CancellationToken ct)
-        {
-            if (!_context.Database.IsSqlServer())
-                return null;
-
-            var transaction = await _context.Database.BeginTransactionAsync(ct);
-            try
-            {
-                // Serializa por usuario el tramo validación + inserción para que dos solicitudes
-                // simultáneas no pasen ambas las validaciones de límite y descuentos justificados.
-                await _context.Database.ExecuteSqlRawAsync(
-                    @"DECLARE @resultado int;
-                      EXEC @resultado = sp_getapplock @Resource = {0}, @LockMode = 'Exclusive', @LockOwner = 'Transaction', @LockTimeout = 10000;
-                      IF @resultado < 0
-                          THROW 51000, 'No se pudo adquirir el bloqueo de validación de solicitudes.', 1;",
-                    ct,
-                    $"solicitud-personal:{idUsuario}");
-
-                return transaction;
-            }
-            catch
-            {
-                await transaction.DisposeAsync();
-                throw;
-            }
         }
 
         private static string EtiquetaMes(DateTime mes)

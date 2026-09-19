@@ -186,6 +186,7 @@ builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+builder.Services.AddScoped<Lefarma.API.Features.Config.Workflows.Handlers.HandlerConditionEvaluator>();
 builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
 builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 
@@ -242,6 +243,7 @@ builder.Services.AddScoped<WorkflowReminderService>();
 // Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, ArchivoWorkflowHandler>("Archivo");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, ProviderAuthorizationWorkflowHandler>("ProviderAuthorization");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, AlertaWorkflowHandler>("Alerta");
 

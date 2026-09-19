@@ -100,7 +100,11 @@ const solicitudSchema = z.object({
   categoria: z.string().min(1, 'Seleccione una categoría'),
   idTipoSolicitud: z.number().positive('Seleccione una justificación de incidencias'),
   idUsuarioSolicitante: z.number().optional(),
-  motivo: z.string().optional(),
+  motivo: z
+    .string()
+    .trim()
+    .min(10, 'El motivo debe tener al menos 10 caracteres')
+    .max(499, 'El motivo no debe exceder 499 caracteres'),
   lugarComision: z.string().optional(),
   fechaInicio: z.string().optional(),
   fechaFin: z.string().optional(),
@@ -487,7 +491,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
       const payload: CreateSolicitudPersonalRequest = {
         idSolicitud: isEditing ? Number(idSolicitud) : 0,
         idTipoSolicitud: values.idTipoSolicitud,
-        motivo: values.motivo || null,
+        motivo: values.motivo.trim(),
         lugarComision: values.lugarComision || null,
         fechaInicio: values.fechaInicio || null,
         fechaFin: values.fechaFin || null,
@@ -711,7 +715,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                   name="motivo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Motivo</FormLabel>
+                      <FormLabel>Motivo *</FormLabel>
                       <FormControl>
                         <Textarea
                           minLength={10}
@@ -722,6 +726,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                         />
                       </FormControl>
                       <FormMessage />
+                      <p className="text-xs text-muted-foreground">Mínimo 10 caracteres.</p>
                     </FormItem>
                   )}
                 />

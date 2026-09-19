@@ -122,6 +122,20 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 if (validacion.IsError)
                 return validacion.Errors;
 
+            // 4b. Validar adjunto obligatorio del paso (excepto acciones negativas)
+            var esAccionNegativa = codigoAccionSolicitada is "RECHAZAR" or "DEVOLVER" or "CANCELAR";
+            if (!esAccionNegativa && pasoActual.RequiereAdjunto)
+            {
+                var tieneAdjunto = await _context.Archivos
+                    .AsNoTracking()
+                    .AnyAsync(a => a.EntidadTipo == "SolicitudPersonal"
+                        && a.EntidadId == solicitud.IdSolicitud
+                        && a.Activo);
+
+                if (!tieneAdjunto)
+                    return CommonErrors.Validation("Adjunto", "Debes adjuntar al menos un documento de soporte para esta acción.");
+            }
+
             // 5. Ejecutar motor
             var ctx = new WorkflowContext(
                 IdWorkflow: solicitud.IdWorkflow,

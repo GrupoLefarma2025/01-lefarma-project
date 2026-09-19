@@ -254,7 +254,20 @@ interface WorkflowPasoFlowResponse {
   permiteAdjunto: boolean;
 }
 
-type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string; validacionExito?: boolean | null; validacionMensaje?: string | null };
+type CampoFormItem = { campo: WorkflowCampoConfig; requerido: boolean; inputKey: string; handlerKey: string; validacionExito?: boolean | null; validacionMensaje?: string | null };
+
+function parseMetadataTipo(metadata: unknown): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    if (parsed && typeof parsed === 'object' && 'tipo' in parsed) {
+      return String((parsed as Record<string, unknown>).tipo);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoFormItem[] {
   if (!accion) return [];
@@ -281,13 +294,14 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
               activo: true
             }, 
             requerido: handler.requerido, 
-            inputKey 
+            inputKey,
+            handlerKey: handler.handlerKey
           });
         }
       }
 
-      // Document: campo tipo Archivo (comprobante_pago, comprobante_gasto/factura)
-      if (handler.handlerKey === 'Document' && handler.campo) {
+      // Document/Archivo: campo tipo Archivo (comprobante_pago, comprobante_gasto/factura o documento genérico)
+      if ((handler.handlerKey === 'Document' || handler.handlerKey === 'Archivo') && handler.campo) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
@@ -301,7 +315,8 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
               activo: true
             }, 
             requerido: handler.requerido, 
-            inputKey 
+            inputKey,
+            handlerKey: handler.handlerKey
           });
         }
       }
@@ -322,6 +337,7 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
             },
             requerido: false,
             inputKey,
+            handlerKey: handler.handlerKey,
             validacionExito: handler.validacionExito,
             validacionMensaje: handler.validacionMensaje
           });
@@ -1011,12 +1027,15 @@ export default function AutorizacionesOC() {
       const datosAdicionales: Record<string, unknown> = {};
 
       // Validar campos requeridos y construir datosAdicionales dinámicamente
-      for (const { campo, requerido, inputKey } of camposParaAccion) {
+      for (const { campo, requerido, inputKey, handlerKey } of camposParaAccion) {
         if (campo.tipoControl === 'Archivo') {
           if (requerido) {
             const tieneArchivo = !!archivoSubidos[inputKey]?.length;
             const tieneComprobante = (comprobantesWorkflow[inputKey]?.length ?? 0) > 0;
-            if (!tieneArchivo && !tieneComprobante) {
+            const tieneExistente =
+              handlerKey === 'Archivo' &&
+              archivosOrden.some((a) => parseMetadataTipo(a.metadata) === inputKey);
+            if (!tieneArchivo && !tieneComprobante && !tieneExistente) {
               toast.error(`Debes adjuntar: ${campo.etiquetaUsuario}`);
               setIsSubmittingFirma(false);
               return;
@@ -1062,7 +1081,11 @@ export default function AutorizacionesOC() {
       }
 
       // Validar requiereAdjunto del config de la acción
-      if (accionSeleccionada?.requiereAdjunto && adjuntosLibres.length === 0) {
+      if (
+        accionSeleccionada?.requiereAdjunto &&
+        adjuntosLibres.length === 0 &&
+        archivosOrden.length === 0
+      ) {
         toast.error('Debes adjuntar al menos un documento para esta acción');
         setIsSubmittingFirma(false);
         return;
