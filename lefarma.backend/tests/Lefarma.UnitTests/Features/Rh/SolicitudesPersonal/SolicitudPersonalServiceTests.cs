@@ -1,11 +1,14 @@
 using System.Reflection;
 using ErrorOr;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Admin;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
+using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
@@ -44,24 +47,141 @@ public class SolicitudPersonalServiceTests
         ApplicationDbContext context,
         ITipoSolicitudRepository? tipoRepository = null,
         IEmpleadoRepository? empleadoRepository = null,
-        IIncidenciasChecadoService? incidenciasChecadoService = null)
+        IIncidenciasChecadoService? incidenciasChecadoService = null,
+        IWorkflowResolver? workflowResolver = null,
+        ISolicitudPersonalFirmasService? firmasService = null,
+        IAdminRepository? adminRepository = null,
+        IProfileService? profileService = null)
     {
         return new SolicitudPersonalService(
-            Mock.Of<IAdminRepository>(),
+            adminRepository ?? Mock.Of<IAdminRepository>(),
             Mock.Of<ISolicitudPersonalRepository>(),
             tipoRepository ?? Mock.Of<ITipoSolicitudRepository>(),
-            Mock.Of<IWorkflowResolver>(),
+            workflowResolver ?? Mock.Of<IWorkflowResolver>(),
             context,
             CreateAsokamInMemoryContext(),
             Mock.Of<IJefeInmediatoResolver>(),
-            Mock.Of<ISolicitudPersonalFirmasService>(),
+            firmasService ?? Mock.Of<ISolicitudPersonalFirmasService>(),
             empleadoRepository ?? Mock.Of<IEmpleadoRepository>(),
             Mock.Of<IIncidenciasChecadoRepository>(),
             incidenciasChecadoService ?? Mock.Of<IIncidenciasChecadoService>(),
-            Mock.Of<IProfileService>(),
+            profileService ?? Mock.Of<IProfileService>(),
+            new HandlerConditionEvaluator(context),
             Options.Create(new SolicitudesPersonalSettings()),
             Mock.Of<IWideEventAccessor>());
     }
+
+    private static (Mock<IWorkflowResolver> Resolver, Mock<ISolicitudPersonalFirmasService> Firmas, WorkflowAccion AccionEnviar)
+        PrepararWorkflowConEnviar(int idAccion)
+    {
+        var accion = new WorkflowAccion
+        {
+            IdAccion = idAccion,
+            IdPasoOrigen = 10,
+            IdTipoAccion = 1,
+            Activo = true,
+            TipoAccion = new WorkflowTipoAccion { IdTipoAccion = 1, Codigo = "ENVIAR", Activo = true }
+        };
+        var paso = new WorkflowPaso
+        {
+            IdPaso = 10,
+            IdWorkflow = 5,
+            Orden = 1,
+            NombrePaso = "Captura",
+            EsInicio = true,
+            Activo = true,
+            AccionesOrigen = new List<WorkflowAccion> { accion }
+        };
+        var workflow = new Workflow
+        {
+            IdWorkflow = 5,
+            Nombre = "Permisos",
+            CodigoProceso = "SOLICITUD_PERSONAL",
+            Activo = true,
+            Pasos = new List<WorkflowPaso> { paso }
+        };
+
+        var resolver = new Mock<IWorkflowResolver>();
+        resolver
+            .Setup(r => r.ResolveWorkflowIdAsync(It.IsAny<string>(), It.IsAny<Dictionary<string, int?>>()))
+            .ReturnsAsync(workflow);
+
+        var firmas = new Mock<ISolicitudPersonalFirmasService>();
+        firmas
+            .Setup(f => f.FirmarAsync(It.IsAny<int>(), It.IsAny<FirmarRequest>(), It.IsAny<int>()))
+            .ReturnsAsync(new FirmarResponse { Exitoso = true });
+
+        return (resolver, firmas, accion);
+    }
+
+    private static (SolicitudPersonalService Service, Mock<ISolicitudPersonalFirmasService> Firmas) PrepararCreateConHandlerDocumento(
+        ApplicationDbContext context,
+        string? configuracionJson)
+    {
+        const int idTipo = 7;
+        const int idAccion = 176;
+
+        var (resolver, firmas, _) = PrepararWorkflowConEnviar(idAccion);
+
+        context.WorkflowEstados.Add(new WorkflowEstados
+        {
+            IdEstado = 1,
+            Codigo = "CREADA",
+            Nombre = "Creada",
+            Activo = true
+        });
+        context.WorkflowAccionHandlers.Add(new WorkflowAccionHandler
+        {
+            IdHandler = 1,
+            IdAccion = idAccion,
+            HandlerKey = "Archivo",
+            Requerido = true,
+            Activo = true,
+            ConfiguracionJson = configuracionJson
+        });
+        context.SaveChanges();
+
+        var tipo = new TipoSolicitud
+        {
+            IdTipoSolicitud = idTipo,
+            Nombre = "Permiso sin goce",
+            Descripcion = "Permiso sin goce",
+            Clave = "permiso-sin-goce",
+            Categoria = CategoriaSolicitud.Permiso,
+            Activo = true,
+            PermiteFechasPasadas = true,
+            PermiteFechasFuturas = true
+        };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(idTipo)).ReturnsAsync(tipo);
+
+        var adminRepository = new Mock<IAdminRepository>();
+        adminRepository
+            .Setup(r => r.GetUsuarioDetalleAsync(It.IsAny<int>()))
+            .ReturnsAsync(new UsuarioDetalle { IdUsuario = 1, IdEmpresa = 1, IdSucursal = 1, IdArea = 1 });
+
+        var profileService = new Mock<IProfileService>();
+        profileService
+            .Setup(p => p.HasFirmaAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService(
+            context,
+            tipoRepository: tipoRepository.Object,
+            workflowResolver: resolver.Object,
+            firmasService: firmas.Object,
+            adminRepository: adminRepository.Object,
+            profileService: profileService.Object);
+
+        return (service, firmas);
+    }
+
+    private static CreateSolicitudPersonalRequest RequestPermiso(int idTipo = 7) => new()
+    {
+        IdTipoSolicitud = idTipo,
+        Motivo = "Motivo de prueba con mas de diez caracteres",
+        Detalle = new List<SolicitudPersonalDetalleDto> { new() { Fecha = DateTime.Today.AddDays(1) } }
+    };
 
     [Fact]
     public async Task ObtenerLimitesSolicitudesAsync_Debe_Incluir_Saldo_De_Vacaciones_Del_Anio_Actual()
@@ -532,5 +652,49 @@ public class SolicitudPersonalServiceTests
 
         var sinExclusion = await ValidarDescuentosAsync(service, idUsuario, new[] { mes.AddDays(10) });
         sinExclusion.IsError.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task CreateAsync_AutoEnvia_Cuando_HandlerDocumento_NoAplica_AlTipo()
+    {
+        var context = CreateInMemoryContext();
+        var (service, firmas) = PrepararCreateConHandlerDocumento(
+            context, """{"aplica":{"tipoSolicitud":[999]}}""");
+
+        var result = await service.CreateAsync(RequestPermiso(), idUsuario: 1, puedeCrearParaOtro: false);
+
+        result.IsError.Should().BeFalse();
+        firmas.Verify(
+            f => f.FirmarAsync(It.IsAny<int>(), It.IsAny<FirmarRequest>(), It.IsAny<int>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NoAutoEnvia_Cuando_HandlerDocumento_Aplica_AlTipo()
+    {
+        var context = CreateInMemoryContext();
+        var (service, firmas) = PrepararCreateConHandlerDocumento(
+            context, """{"aplica":{"tipoSolicitud":[7]}}""");
+
+        var result = await service.CreateAsync(RequestPermiso(), idUsuario: 1, puedeCrearParaOtro: false);
+
+        result.IsError.Should().BeFalse();
+        firmas.Verify(
+            f => f.FirmarAsync(It.IsAny<int>(), It.IsAny<FirmarRequest>(), It.IsAny<int>()),
+            Times.Never);
+    }
+
+    [Fact]
+    public async Task CreateAsync_NoAutoEnvia_Cuando_HandlerDocumento_SinCondiciones()
+    {
+        var context = CreateInMemoryContext();
+        var (service, firmas) = PrepararCreateConHandlerDocumento(context, configuracionJson: null);
+
+        var result = await service.CreateAsync(RequestPermiso(), idUsuario: 1, puedeCrearParaOtro: false);
+
+        result.IsError.Should().BeFalse();
+        firmas.Verify(
+            f => f.FirmarAsync(It.IsAny<int>(), It.IsAny<FirmarRequest>(), It.IsAny<int>()),
+            Times.Never);
     }
 }

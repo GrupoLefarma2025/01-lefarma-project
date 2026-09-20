@@ -7,6 +7,7 @@ using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Workflows.DTOs;
+using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
@@ -41,6 +42,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private readonly IIncidenciasChecadoRepository _incidenciasRepository;
         private readonly IIncidenciasChecadoService _incidenciasChecadoService;
         private readonly IProfileService _profileService;
+        private readonly HandlerConditionEvaluator _handlerConditionEvaluator;
         private readonly int _limiteDescuentosJustificadosMes;
         protected override string EntityName => "SolicitudPersonal";
 
@@ -57,6 +59,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             IIncidenciasChecadoRepository incidenciasRepository,
             IIncidenciasChecadoService incidenciasChecadoService,
             IProfileService profileService,
+            HandlerConditionEvaluator handlerConditionEvaluator,
             IOptions<SolicitudesPersonalSettings> solicitudesSettings,
             IWideEventAccessor wideEventAccessor)
             : base(wideEventAccessor)
@@ -72,6 +75,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _incidenciasRepository = incidenciasRepository;
             _incidenciasChecadoService = incidenciasChecadoService;
             _profileService = profileService;
+            _handlerConditionEvaluator = handlerConditionEvaluator;
             _adminRepository = adminRepository;
             _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
         }
@@ -688,10 +692,26 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var idsAccionesIniciales = pasoInicial.AccionesOrigen?
                     .Select(a => a.IdAccion)
                     .ToList() ?? new List<int>();
-                var requiereDocumentosParaEnviar = idsAccionesIniciales.Count > 0 && await _context.WorkflowAccionHandlers
-                    .AnyAsync(h => idsAccionesIniciales.Contains(h.IdAccion)
-                        && h.Activo && h.Requerido
-                        && (h.HandlerKey == "Archivo" || h.HandlerKey == "Document"));
+                var requiereDocumentosParaEnviar = false;
+                if (idsAccionesIniciales.Count > 0)
+                {
+                    var handlersDocumento = await _context.WorkflowAccionHandlers
+                        .AsNoTracking()
+                        .Where(h => idsAccionesIniciales.Contains(h.IdAccion)
+                            && h.Activo && h.Requerido
+                            && (h.HandlerKey == "Archivo" || h.HandlerKey == "Document"))
+                        .ToListAsync(ct);
+
+                    foreach (var handler in handlersDocumento)
+                    {
+                        if (await _handlerConditionEvaluator.AplicaAsync(
+                                handler.ConfiguracionJson, solicitud, CodigoProceso.SOLICITUD_PERSONAL, ct))
+                        {
+                            requiereDocumentosParaEnviar = true;
+                            break;
+                        }
+                    }
+                }
 
                 if (accionEnviar is not null && !tipo.RequiereDocumentacion && !requiereDocumentosParaEnviar)
                 {
