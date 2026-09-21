@@ -87,6 +87,7 @@ export default function SolicitudesPersonal() {
   const [dataMias, setDataMias] = useState<SolicitudPersonalResponse[]>([]);
   const [loadingPendientes, setLoadingPendientes] = useState(false);
   const [loadingMias, setLoadingMias] = useState(false);
+  const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
 
   const draftFilters = draftFiltersByTab[tab];
   const appliedFilters = appliedFiltersByTab[tab];
@@ -331,7 +332,11 @@ export default function SolicitudesPersonal() {
     <div className="w-full space-y-6">
       {hasFirma === false && <SignatureAlert />}
 
-      <LimitesSolicitudCard titulo="Mis límites y saldo de vacaciones" />
+      <LimitesSolicitudCard
+        titulo="Mis límites y saldo de vacaciones"
+        refreshKey={limitesRefreshKey}
+        storageKey="limites-solicitud-card:solicitudes"
+      />
 
       <Tabs
         value={tab}
@@ -523,6 +528,7 @@ export default function SolicitudesPersonal() {
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
             ]);
+            setLimitesRefreshKey((k) => k + 1);
           }
           return ok;
         }}
@@ -533,6 +539,7 @@ export default function SolicitudesPersonal() {
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
               fetchTabData('mias', appliedFiltersByTab.mias),
             ]);
+            setLimitesRefreshKey((k) => k + 1);
           }
           return ok;
         }}
@@ -624,6 +631,7 @@ export default function SolicitudesPersonal() {
           onSaved={() => {
             fetchTabData('pendientes', appliedFiltersByTab.pendientes);
             fetchTabData('mias', appliedFiltersByTab.mias);
+            setLimitesRefreshKey((k) => k + 1);
           }}
         />
       </Modal>

@@ -39,6 +39,7 @@ using Lefarma.API.Features.OrdenesCompra.Firmas;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.SolicitudesPersonal;
+using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
@@ -185,6 +186,7 @@ builder.Services.AddScoped<IComprobanteService, ComprobanteService>();
 
 // Motor de Workflows
 builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+builder.Services.AddScoped<Lefarma.API.Features.Config.Workflows.Handlers.HandlerConditionEvaluator>();
 builder.Services.AddScoped<IWorkflowResolver, WorkflowResolver>();
 builder.Services.AddScoped<IJefeInmediatoResolver, JefeInmediatoResolver>();
 
@@ -197,6 +199,8 @@ builder.Services.AddScoped<Lefarma.API.Features.Config.EmpleadoJefes.IEmpleadoJe
 builder.Services.AddScoped<IOrdenCompraService, OrdenCompraService>();
 builder.Services.AddScoped<IOrdenCompraFirmasService, OrdenCompraFirmasService>();
 
+builder.Services.Configure<SolicitudesPersonalSettings>(
+    builder.Configuration.GetSection("SolicitudesPersonalSettings"));
 builder.Services.AddScoped<ISolicitudPersonalService, SolicitudPersonalService>();
 builder.Services.AddScoped<ISolicitudPersonalFirmasService, SolicitudPersonalFirmasService>();
 builder.Services.AddScoped<ITipoSolicitudService, TipoSolicitudService>();
@@ -239,6 +243,7 @@ builder.Services.AddScoped<WorkflowReminderService>();
 // Dynamic Action Handlers (keyed por handler_key en config.workflow_accion_handlers)
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, DocumentWorkflowHandler>("Document");
+builder.Services.AddKeyedScoped<IWorkflowActionHandler, ArchivoWorkflowHandler>("Archivo");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, ProviderAuthorizationWorkflowHandler>("ProviderAuthorization");
 builder.Services.AddKeyedScoped<IWorkflowActionHandler, AlertaWorkflowHandler>("Alerta");
 

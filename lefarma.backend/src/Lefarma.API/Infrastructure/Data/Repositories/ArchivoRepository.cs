@@ -70,7 +70,10 @@ public class ArchivoRepository : IArchivoRepository
         }
     }
 
-    public async Task<int> GetCountAsync(string entidadTipo, int entidadId, string carpeta, CancellationToken cancellationToken = default)
+    public async Task<int> GetCountAsync(
+        string entidadTipo, int entidadId, string carpeta,
+        bool soloActivos = true, CancellationToken cancellationToken = default)
         => await _context.Archivos
-            .CountAsync(a => a.EntidadTipo == entidadTipo && a.EntidadId == entidadId && a.Carpeta == carpeta && a.Activo, cancellationToken);
+            .CountAsync(a => a.EntidadTipo == entidadTipo && a.EntidadId == entidadId
+                && a.Carpeta == carpeta && (!soloActivos || a.Activo), cancellationToken);
 }

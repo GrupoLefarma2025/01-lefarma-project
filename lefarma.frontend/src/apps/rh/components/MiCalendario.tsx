@@ -146,7 +146,7 @@ function useCalendario(anio: number, mes: number) {
     try {
       setLoading(true);
       const [calRes, jornadaRes, habilesRes, incRes] = await Promise.all([
-        calendarioApi.get({ anio, mes, estados: ['CERRADA'] }),
+        calendarioApi.get({ anio, mes }),
         misDiasJornadaApi.get({ anio, mes }).catch(() => null),
         diasHabilesApi.get({ anio, mes }).catch(() => null),
         misIncidenciasChecadoApi.get({ anio, mes }).catch(() => null),
@@ -273,17 +273,25 @@ function EventoBadge({
   onClick?: () => void;
 }) {
   const style = getCategoriaStyle(evento.categoria);
+  const esCanceladaORechazada = evento.estado === 'CANCELADA' || evento.estado === 'RECHAZADA';
 
   return (
     <button
       type="button"
       onClick={onClick}
+      title={`${evento.tipo} · ${evento.folio} · ${evento.estado}`}
+      style={
+        evento.estadoColor
+          ? { borderLeftWidth: '3px', borderLeftColor: evento.estadoColor }
+          : undefined
+      }
       className={cn(
         'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors hover:brightness-95',
         style.bg,
         style.border,
         style.text,
-        isPast && 'opacity-60'
+        isPast && 'opacity-60',
+        esCanceladaORechazada && 'opacity-50 line-through'
       )}
     >
       <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', style.dot)} />
@@ -364,6 +372,14 @@ function IncidenciaModal({
               <span className="text-muted-foreground">· {incidencia.tipoSolicitudNombre}</span>
             )}
           </div>
+        ) : incidencia.enTramite ? (
+          <div className="flex items-center gap-2 rounded bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+            <Clock className="h-4 w-4" />
+            <span className="font-semibold">En trámite</span>
+            {incidencia.tipoSolicitudNombre && (
+              <span className="text-muted-foreground">· {incidencia.tipoSolicitudNombre}</span>
+            )}
+          </div>
         ) : (
           <div className="flex items-center gap-2 rounded bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
             <XCircle className="h-4 w-4" />
@@ -374,7 +390,7 @@ function IncidenciaModal({
         {incidencia.descuento && (
           <div className="flex items-center gap-2 rounded bg-red-50 px-3 py-2 text-sm text-red-800 dark:bg-red-950/30 dark:text-red-300">
             <AlertTriangle className="h-4 w-4" />
-            <span className="font-semibold">Genera descuento</span>
+            <span className="font-semibold">Genera descuento en nómina</span>
           </div>
         )}
 
@@ -425,12 +441,14 @@ function IncidenciaModal({
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button size="sm" onClick={onAddSolicitud}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            Añadir solicitud
-          </Button>
-        </div>
+        {!incidencia.justificada && !incidencia.enTramite && (
+          <div className="flex justify-end gap-2 pt-2">
+            <Button size="sm" onClick={onAddSolicitud}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Añadir solicitud
+            </Button>
+          </div>
+        )}
       </div>
     </Modal>
   );
@@ -509,7 +527,7 @@ function DetalleModal({
   );
 }
 
-export function MiCalendario() {
+export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: () => void } = {}) {
   const hoy = new Date();
   const [anio, setAnio] = useState(hoy.getFullYear());
   const [mes, setMes] = useState(hoy.getMonth() + 1);
@@ -568,7 +586,7 @@ export function MiCalendario() {
               Mi calendario de solicitudes
             </CardTitle>
             <CardDescription className="text-xs">
-              Solicitudes cerradas por día. Haz clic en un evento para ver el detalle.
+              Solicitudes por día desde su creación (incluye canceladas y rechazadas). Haz clic en un evento para ver el detalle.
             </CardDescription>
           </div>
 
@@ -811,6 +829,7 @@ export function MiCalendario() {
             setSolicitudModalOpen(false);
             setIncidenciaParaSolicitud(null);
             refetch();
+            onSolicitudGuardada?.();
           }}
         />
       </Modal>

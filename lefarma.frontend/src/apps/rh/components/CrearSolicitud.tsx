@@ -98,9 +98,13 @@ const CATEGORIAS = [
 
 const solicitudSchema = z.object({
   categoria: z.string().min(1, 'Seleccione una categoría'),
-  idTipoSolicitud: z.number().positive('Seleccione un tipo de solicitud'),
+  idTipoSolicitud: z.number().positive('Seleccione una justificación de incidencias'),
   idUsuarioSolicitante: z.number().optional(),
-  motivo: z.string().optional(),
+  motivo: z
+    .string()
+    .trim()
+    .min(10, 'El motivo debe tener al menos 10 caracteres')
+    .max(499, 'El motivo no debe exceder 499 caracteres'),
   lugarComision: z.string().optional(),
   fechaInicio: z.string().optional(),
   fechaFin: z.string().optional(),
@@ -487,7 +491,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
       const payload: CreateSolicitudPersonalRequest = {
         idSolicitud: isEditing ? Number(idSolicitud) : 0,
         idTipoSolicitud: values.idTipoSolicitud,
-        motivo: values.motivo || null,
+        motivo: values.motivo.trim(),
         lugarComision: values.lugarComision || null,
         fechaInicio: values.fechaInicio || null,
         fechaFin: values.fechaFin || null,
@@ -572,11 +576,11 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <FileText className="h-5 w-5" />
-                Tipo de Solicitud
+                Justificación de incidencias
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <FormSection icon={FileText} title="Tipo de Solicitud">
+              <FormSection icon={FileText} title="Justificación de incidencias">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -608,7 +612,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                     render={({ field }) => {
                       return (
                         <FormItem>
-                          <FormLabel>Tipo *</FormLabel>
+                          <FormLabel>Justificación de incidencias *</FormLabel>
                           <Select
                             value={field.value ? String(field.value) : ''}
                             onValueChange={(v) => {
@@ -619,7 +623,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar tipo" />
+                                <SelectValue placeholder="Seleccionar justificación" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -711,7 +715,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                   name="motivo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Motivo</FormLabel>
+                      <FormLabel>Motivo *</FormLabel>
                       <FormControl>
                         <Textarea
                           minLength={10}
@@ -722,6 +726,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                         />
                       </FormControl>
                       <FormMessage />
+                      <p className="text-xs text-muted-foreground">Mínimo 10 caracteres.</p>
                     </FormItem>
                   )}
                 />
@@ -947,7 +952,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                 </div>
                 <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Tipo solicitud</span>
+                    <span className="text-muted-foreground">Justificación</span>
                     <span className="font-medium">{selectedTipoSolicitud?.nombre ?? '-'}</span>
                   </div>
                   <div className="flex justify-between gap-2">
@@ -1003,7 +1008,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                       idSucursal: 'Sucursal',
                       idArea: 'Área',
                       categoria: 'Categoría',
-                      idTipoSolicitud: 'Tipo de Solicitud',
+                      idTipoSolicitud: 'Justificación de incidencias',
                       fechaInicio: 'Fecha',
                       lugarComision: 'Lugar de Comisión',
                       detalle: 'Días del período',

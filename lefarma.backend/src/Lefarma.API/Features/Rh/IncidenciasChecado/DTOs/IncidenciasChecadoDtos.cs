@@ -22,6 +22,7 @@ public class IncidenciaChecadoResponse
     public string? IncidenciaSalida { get; set; }
     public List<IncidenciaCalculadaDto> IncidenciasCalculadas { get; set; } = new();
     public bool Justificada { get; set; }
+    public bool EnTramite { get; set; }
     public bool Descuento { get; set; }
     public int? IdSolicitud { get; set; }
     public string? TipoSolicitudNombre { get; set; }
@@ -97,7 +98,7 @@ public class IncidenciasChecadoResumenEmpleadoResponse
     public string? Departamento { get; set; }
     public string? Puesto { get; set; }
     public int TotalIncidencias { get; set; }
-    public int Tardanzas { get; set; }
+    public int Retardos { get; set; }
     public int SalidasAnticipadas { get; set; }
     public int Omisiones { get; set; }
     public int Justificadas { get; set; }

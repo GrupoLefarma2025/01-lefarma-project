@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { ACTION_COLORS, HANDLER_LABELS, HANDLER_DESCRIPTIONS, HANDLER_CONFIGS } from '@/components/workflows/constants';
 import { HandlerEditModal } from '@/components/workflows/HandlerEditModal';
+import { CamposManagerModal } from '@/components/workflows/CamposManagerModal';
 import { CondicionEditModal } from '@/components/workflows/CondicionEditModal';
 import { NotificacionEditModal } from '@/components/workflows/NotificacionEditModal';
 import { PlantillasEditModal } from '@/components/workflows/PlantillasEditModal';
@@ -93,6 +94,19 @@ const TIPOS_GERENCIA_MAPPING: { id: number; label: string }[] = [
   { id: 2, label: 'Descentralizado' },
   { id: 3, label: 'Privado' },
 ];
+
+/** Detecta si el JSON de un handler trae condiciones "aplica" con listas. */
+const tieneCondicionesHandler = (json?: string | null) => {
+  if (!json) return false;
+  try {
+    const parsed = JSON.parse(json) as { aplica?: Record<string, unknown> } | null;
+    const aplica = parsed?.aplica;
+    if (!aplica || typeof aplica !== 'object') return false;
+    return Object.values(aplica).some((v) => Array.isArray(v) && v.length > 0);
+  } catch {
+    return false;
+  }
+};
 
 export default function WorkflowDiagram() {
   const { id } = useParams<{ id: string }>();
@@ -533,6 +547,7 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
   const [editingRecordatorio, setEditingRecordatorio] = useState<any | null>(null);
   const [recordatorios, setRecordatorios] = useState<any[]>([]);
   const [ejecutandoRecordatorios, setEjecutandoRecordatorios] = useState(false);
+  const [camposModalOpen, setCamposModalOpen] = useState(false);
 
 
   const [modalStates, setModalStates] = useState({
@@ -1106,6 +1121,14 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                       <Plus className="h-4 w-4" />
                       Agregar Regla
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-2"
+                      onClick={() => setCamposModalOpen(true)}
+                    >
+                      Campos
+                    </Button>
                   </div>
 
                   {workflow.pasos.some(p => (p.acciones || []).some(a => (a.handlers?.length || 0) > 0)) ? (
@@ -1139,6 +1162,15 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
                                       <Icon className="mr-1 h-3 w-3" />
                                       {HANDLER_LABELS[handler.handlerKey] ?? handler.handlerKey}
                                     </Badge>
+                                    {tieneCondicionesHandler(handler.configuracionJson) && (
+                                      <Badge
+                                        variant="outline"
+                                        className="border-sky-500/30 bg-sky-500/10 text-xs text-sky-700"
+                                        title="Solo aplica a ciertos tipos/categorías de solicitud"
+                                      >
+                                        Condicional
+                                      </Badge>
+                                    )}
                                     <Badge variant="outline" className="text-xs text-muted-foreground">
                                       Orden: {handler.ordenEjecucion}
                                     </Badge>
@@ -1674,6 +1706,12 @@ function WorkflowEditorModal({ workflow, open = false, embedded = false, onClose
           toggleModal('handlerModal', false);
           setEditingAccionHandler(null);
         }}
+      />
+
+      <CamposManagerModal
+        open={camposModalOpen}
+        setOpen={setCamposModalOpen}
+        onChanged={onSave}
       />
       
       {/* Condicion Edit Modal */}

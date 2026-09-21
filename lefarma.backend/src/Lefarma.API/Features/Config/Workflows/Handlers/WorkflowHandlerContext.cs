@@ -12,6 +12,7 @@ namespace Lefarma.API.Features.Config.Workflows.Handlers
         int IdUsuario,
         string? Comentario,
         Dictionary<string, object>? DatosAdicionales,
-        WorkflowAccionHandler? Handler = null
+        WorkflowAccionHandler? Handler = null,
+        int? IdPaso = null
     );
 }

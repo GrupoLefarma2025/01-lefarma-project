@@ -55,7 +55,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             return result.ToActionResult(this, data => Ok(new ApiResponse<TipoSolicitudResponse>
             {
                 Success = true,
-                Message = "Tipo de solicitud obtenido exitosamente.",
+                Message = "Justificación de incidencias obtenida exitosamente.",
                 Data = data
             }));
         }
@@ -71,7 +71,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 new ApiResponse<TipoSolicitudResponse>
                 {
                     Success = true,
-                    Message = "Tipo de solicitud creado exitosamente.",
+                    Message = "Justificación de incidencias creada exitosamente.",
                     Data = data
                 }));
         }
@@ -84,7 +84,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             return result.ToActionResult(this, data => Ok(new ApiResponse<TipoSolicitudResponse>
             {
                 Success = true,
-                Message = "Tipo de solicitud actualizado exitosamente.",
+                Message = "Justificación de incidencias actualizada exitosamente.",
                 Data = data
             }));
         }
@@ -97,7 +97,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
             {
                 Success = true,
-                Message = "Tipo de solicitud eliminado exitosamente.",
+                Message = "Justificación de incidencias eliminada exitosamente.",
                 Data = null
             }));
         }

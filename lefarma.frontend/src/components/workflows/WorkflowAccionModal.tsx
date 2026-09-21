@@ -15,7 +15,7 @@ import {
 import { SignatureAlert } from '@/components/common/SignatureAlert';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { archivoService } from '@/services/archivoService';
-import type { Archivo } from '@/types/archivo.types';
+import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { AlertCircle, CheckCircle2, Loader2, Paperclip } from 'lucide-react';
@@ -26,14 +26,51 @@ interface CampoFormItem {
   campo: WorkflowCampoMetadata;
   requerido: boolean;
   inputKey: string;
+  handlerKey: string;
+  requiereRevision: boolean;
   validacionExito?: boolean | null;
   validacionMensaje?: string | null;
+}
+
+function parseRequiereRevision(configuracionJson?: string | null): boolean {
+  if (!configuracionJson) return false;
+  try {
+    const cfg = JSON.parse(configuracionJson) as { requiereRevision?: boolean } | null;
+    return cfg?.requiereRevision === true;
+  } catch {
+    return false;
+  }
+}
+
+function metadataTieneRevision(metadata: unknown, clavePaso: string): boolean {
+  if (!metadata || !clavePaso) return false;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    const revisiones = (parsed as { revisiones?: Record<string, { revisado?: boolean }> } | null)
+      ?.revisiones;
+    return revisiones?.[clavePaso]?.revisado === true;
+  } catch {
+    return false;
+  }
 }
 
 /**
  * Campos a capturar según los handlers Field/Document de la acción, más las
  * Alertas pre-evaluadas por el backend (mismo criterio que SolicitudFirmaModal de RH).
  */
+function parseMetadataTipo(metadata: unknown): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    if (parsed && typeof parsed === 'object' && 'tipo' in parsed) {
+      return String((parsed as Record<string, unknown>).tipo);
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 function getCamposParaAccion(accion: AccionWorkflow | null): CampoFormItem[] {
   if (!accion) return [];
   const result: CampoFormItem[] = [];
@@ -41,11 +78,23 @@ function getCamposParaAccion(accion: AccionWorkflow | null): CampoFormItem[] {
   const handlers = [...(accion.handlers ?? [])].sort((a, b) => a.ordenEjecucion - b.ordenEjecucion);
   for (const handler of handlers) {
     try {
-      if ((handler.handlerKey === 'Field' || handler.handlerKey === 'Document') && handler.campo) {
+      if (
+        (handler.handlerKey === 'Field' ||
+          handler.handlerKey === 'Document' ||
+          handler.handlerKey === 'Archivo') &&
+        handler.campo
+      ) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
-          result.push({ campo: handler.campo, requerido: handler.requerido, inputKey });
+          result.push({
+            campo: handler.campo,
+            requerido: handler.requerido,
+            inputKey,
+            handlerKey: handler.handlerKey,
+            requiereRevision:
+              handler.handlerKey === 'Archivo' && parseRequiereRevision(handler.configuracionJson),
+          });
         }
       }
       if (handler.campo?.tipoControl === 'Alerta') {
@@ -56,6 +105,8 @@ function getCamposParaAccion(accion: AccionWorkflow | null): CampoFormItem[] {
             campo: { ...handler.campo, tipoControl: 'Alerta' },
             requerido: false,
             inputKey,
+            handlerKey: handler.handlerKey,
+            requiereRevision: false,
             validacionExito: handler.validacionExito,
             validacionMensaje: handler.validacionMensaje,
           });
@@ -122,8 +173,43 @@ export function WorkflowAccionModal({
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
   const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
+  const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
+  const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
+
+  const existentesPorTipo = useMemo(() => {
+    const map: Record<string, ArchivoListItem[]> = {};
+    for (const a of archivosExistentes) {
+      const tipo = parseMetadataTipo(a.metadata);
+      if (!tipo) continue;
+      if (!map[tipo]) map[tipo] = [];
+      map[tipo].push(a);
+    }
+    return map;
+  }, [archivosExistentes]);
+
+  const clavePasoActual = String(idPasoActual ?? '');
+  const estaRevisado = (inputKey: string) =>
+    (existentesPorTipo[inputKey] ?? []).some((a) =>
+      metadataTieneRevision(a.metadata, clavePasoActual)
+    );
+
+  useEffect(() => {
+    if (!open || !entidadTipo || entidadId === undefined) return;
+    let cancelado = false;
+    archivoService
+      .getAll({ entidadTipo, entidadId, soloActivos: true })
+      .then((lista) => {
+        if (!cancelado) setArchivosExistentes(Array.isArray(lista) ? lista : []);
+      })
+      .catch(() => {
+        if (!cancelado) setArchivosExistentes([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [open, entidadTipo, entidadId]);
 
   const esDevolucion = accion?.tipoAccionCodigo === 'DEVOLVER';
   const esRechazo =
@@ -141,6 +227,8 @@ export function WorkflowAccionModal({
     setComentario('');
     setArchivoSubidos({});
     setAdjuntosLibres([]);
+    setArchivosExistentes([]);
+    setRevisiones({});
 
     const initial: Record<string, unknown> = {};
     const snakeToCamel = (s: string) => s.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
@@ -213,10 +301,23 @@ export function WorkflowAccionModal({
 
     const errores: string[] = [];
     const datosAdicionales: Record<string, unknown> = {};
-    for (const { campo, requerido, inputKey } of camposParaAccion) {
+    for (const { campo, requerido, inputKey, handlerKey, requiereRevision } of camposParaAccion) {
       if (campo.tipoControl === 'Archivo') {
-        if (requerido && !(archivoSubidos[inputKey]?.length)) {
-          errores.push(`Falta adjuntar: ${campo.etiquetaUsuario}`);
+        const revisadoAntes = estaRevisado(inputKey);
+        if (requerido) {
+          const tieneNuevos = !!archivoSubidos[inputKey]?.length;
+          const tieneExistentes =
+            handlerKey === 'Archivo' && (existentesPorTipo[inputKey]?.length ?? 0) > 0;
+          if (!tieneNuevos && !tieneExistentes) {
+            errores.push(`Falta adjuntar: ${campo.etiquetaUsuario}`);
+          }
+        }
+        if (requiereRevision && !revisadoAntes) {
+          if (!revisiones[inputKey]) {
+            errores.push(`Falta marcar como revisado: ${campo.etiquetaUsuario}`);
+          } else {
+            datosAdicionales[`revision_${inputKey}`] = true;
+          }
         }
         continue;
       }
@@ -237,7 +338,8 @@ export function WorkflowAccionModal({
       accion.requiereAdjunto === true &&
       !esRechazo &&
       !esDevolucion &&
-      adjuntosLibres.length === 0
+      adjuntosLibres.length === 0 &&
+      archivosExistentes.length === 0
     ) {
       errores.push('Debes adjuntar al menos un documento de soporte');
     }
@@ -331,7 +433,7 @@ export function WorkflowAccionModal({
 
             {camposParaAccion
               .filter((c) => c.campo.tipoControl !== 'Alerta')
-              .map(({ campo, requerido, inputKey }) => {
+              .map(({ campo, requerido, inputKey, handlerKey, requiereRevision }) => {
                 const fieldId = `campo-${inputKey}`;
                 const value = camposValues[inputKey];
                 if (campo.tipoControl === 'Booleano' || campo.tipoControl === 'Checkbox') {
@@ -460,6 +562,37 @@ export function WorkflowAccionModal({
                           El documento no admite adjuntos desde este modal.
                         </p>
                       )}
+                      {handlerKey === 'Archivo' &&
+                        (existentesPorTipo[inputKey]?.length ?? 0) > 0 && (
+                          <div className="space-y-1">
+                            {existentesPorTipo[inputKey].map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                                <span className="flex-1 truncate text-green-800">
+                                  Ya adjunto: {a.nombreOriginal}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      {requiereRevision && (
+                        <label className="flex items-center gap-2 text-xs">
+                          <Checkbox
+                            checked={estaRevisado(inputKey) || !!revisiones[inputKey]}
+                            disabled={estaRevisado(inputKey)}
+                            onCheckedChange={(v) =>
+                              setRevisiones((prev) => ({ ...prev, [inputKey]: Boolean(v) }))
+                            }
+                          />
+                          <span>
+                            Revisado
+                            {estaRevisado(inputKey) && ' (registrado)'}
+                          </span>
+                        </label>
+                      )}
                     </div>
                   );
                 }
@@ -523,6 +656,19 @@ export function WorkflowAccionModal({
                 <span className="text-xs text-muted-foreground">Opcional</span>
               )}
             </div>
+            {accion?.requiereAdjunto === true && archivosExistentes.length > 0 && (
+              <div className="space-y-1.5">
+                {archivosExistentes.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+                  >
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-muted-foreground">{a.nombreOriginal}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {adjuntosLibres.length > 0 && (
               <div className="space-y-1.5">
                 {adjuntosLibres.map((a) => (

@@ -232,6 +232,7 @@ export interface IncidenciaChecadoResponse {
   incidenciaSalida?: string | null;
   incidenciasCalculadas?: IncidenciaCalculada[];
   justificada?: boolean;
+  enTramite?: boolean;
   descuento?: boolean;
   idSolicitud?: number | null;
   tipoSolicitudNombre?: string | null;
@@ -305,7 +306,7 @@ export interface IncidenciasChecadoResumenEmpleadoResponse {
   departamento?: string | null;
   puesto?: string | null;
   totalIncidencias: number;
-  tardanzas: number;
+  retardos: number;
   salidasAnticipadas: number;
   omisiones: number;
   justificadas: number;

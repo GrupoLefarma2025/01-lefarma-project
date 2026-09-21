@@ -1,6 +1,7 @@
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Features.Config.Engine;
+using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories.Config;
 using Lefarma.API.Shared.Constants;
@@ -146,7 +147,8 @@ internal sealed class WorkflowTestHarness
         var jefeMock = new Mock<IJefeInmediatoResolver>();
         var provider = new ServiceCollection().BuildServiceProvider();
         var repo = new WorkflowRepository(context);
-        var engine = new WorkflowEngine(repo, context, asokam, provider, jefeMock.Object);
+        var engine = new WorkflowEngine(repo, context, asokam, provider, jefeMock.Object,
+            new HandlerConditionEvaluator(context));
 
         var harness = new WorkflowTestHarness
         {

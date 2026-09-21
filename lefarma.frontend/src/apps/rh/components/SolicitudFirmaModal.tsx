@@ -15,7 +15,7 @@ import {
 import { Loader2, CheckCircle2, AlertCircle, Paperclip } from 'lucide-react';
 import { toast } from 'sonner';
 import { FileUploader } from '@/components/archivos/FileUploader';
-import type { Archivo } from '@/types/archivo.types';
+import type { Archivo, ArchivoListItem } from '@/types/archivo.types';
 import { archivoService } from '@/services/archivoService';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
@@ -51,8 +51,45 @@ interface CampoFormItem {
   campo: WorkflowCampoMetadataResponse;
   requerido: boolean;
   inputKey: string;
+  handlerKey: string;
+  requiereRevision: boolean;
   validacionExito?: boolean | null;
   validacionMensaje?: string | null;
+}
+
+function parseRequiereRevision(configuracionJson?: string | null): boolean {
+  if (!configuracionJson) return false;
+  try {
+    const cfg = JSON.parse(configuracionJson) as { requiereRevision?: boolean } | null;
+    return cfg?.requiereRevision === true;
+  } catch {
+    return false;
+  }
+}
+
+function metadataTieneRevision(metadata: unknown, clavePaso: string): boolean {
+  if (!metadata || !clavePaso) return false;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    const revisiones = (parsed as { revisiones?: Record<string, { revisado?: boolean }> } | null)
+      ?.revisiones;
+    return revisiones?.[clavePaso]?.revisado === true;
+  } catch {
+    return false;
+  }
+}
+
+function parseMetadataTipo(metadata: unknown): string | null {
+  if (!metadata) return null;
+  try {
+    const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
+    if (parsed && typeof parsed === 'object' && 'tipo' in parsed) {
+      return String((parsed as Record<string, unknown>).tipo);
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoFormItem[] {
@@ -62,7 +99,12 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
   const handlers = [...(accion.handlers || [])].sort((a, b) => a.ordenEjecucion - b.ordenEjecucion);
   for (const handler of handlers) {
     try {
-      if ((handler.handlerKey === 'Field' || handler.handlerKey === 'Document') && handler.campo) {
+      if (
+        (handler.handlerKey === 'Field' ||
+          handler.handlerKey === 'Document' ||
+          handler.handlerKey === 'Archivo') &&
+        handler.campo
+      ) {
         const inputKey = handler.campo.nombreTecnico;
         if (!seen.has(inputKey)) {
           seen.add(inputKey);
@@ -70,6 +112,9 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
             campo: handler.campo,
             requerido: handler.requerido,
             inputKey,
+            handlerKey: handler.handlerKey,
+            requiereRevision:
+              handler.handlerKey === 'Archivo' && parseRequiereRevision(handler.configuracionJson),
           });
         }
       }
@@ -81,6 +126,8 @@ function getCamposParaAccion(accion: AccionDisponibleResponse | null): CampoForm
             campo: { ...handler.campo, tipoControl: 'Alerta' },
             requerido: false,
             inputKey,
+            handlerKey: handler.handlerKey,
+            requiereRevision: false,
             validacionExito: handler.validacionExito,
             validacionMensaje: handler.validacionMensaje,
           });
@@ -113,25 +160,83 @@ export function SolicitudFirmaModal({
   const [loadingCatalogos, setLoadingCatalogos] = useState(false);
   const [archivoSubidos, setArchivoSubidos] = useState<Record<string, Archivo[]>>({});
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
+  const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
+  const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
   const [generandoPdf, setGenerandoPdf] = useState(false);
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
+
+  const existentesPorTipo = useMemo(() => {
+    const map: Record<string, ArchivoListItem[]> = {};
+    for (const a of archivosExistentes) {
+      const tipo = parseMetadataTipo(a.metadata);
+      if (!tipo) continue;
+      if (!map[tipo]) map[tipo] = [];
+      map[tipo].push(a);
+    }
+    return map;
+  }, [archivosExistentes]);
+
+  const tiposDocumentoCampos = useMemo(
+    () =>
+      new Set(
+        camposParaAccion
+          .filter((c) => c.campo.tipoControl === 'Archivo')
+          .map((c) => c.inputKey)
+      ),
+    [camposParaAccion]
+  );
+
+  const existentesLibres = useMemo(
+    () =>
+      archivosExistentes.filter((a) => {
+        const tipo = parseMetadataTipo(a.metadata);
+        return !tipo || !tiposDocumentoCampos.has(tipo);
+      }),
+    [archivosExistentes, tiposDocumentoCampos]
+  );
+
+  const clavePasoActual = String(solicitud.idPasoActual ?? '');
+  const estaRevisado = useCallback(
+    (inputKey: string) =>
+      (existentesPorTipo[inputKey] ?? []).some((a) =>
+        metadataTieneRevision(a.metadata, clavePasoActual)
+      ),
+    [existentesPorTipo, clavePasoActual]
+  );
+
+  useEffect(() => {
+    if (!open || !solicitud?.idSolicitud) return;
+    let cancelado = false;
+    archivoService
+      .getAll({
+        entidadTipo: 'SolicitudPersonal',
+        entidadId: solicitud.idSolicitud,
+        soloActivos: true,
+      })
+      .then((lista) => {
+        if (!cancelado) setArchivosExistentes(Array.isArray(lista) ? lista : []);
+      })
+      .catch(() => {
+        if (!cancelado) setArchivosExistentes([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [open, solicitud?.idSolicitud]);
 
   const esRechazo =
     accion?.tipoAccionCodigo === 'RECHAZAR' || accion?.tipoAccionCodigo === 'CANCELAR';
   const esRetorno = accion?.tipoAccionCodigo === 'DEVOLVER';
 
   const cerrar = useCallback(() => {
-    const archivosParaBorrar = Object.values(archivoSubidos).flat();
-    archivosParaBorrar.forEach((a) => {
-      archivoService.delete(a.id).catch(() => undefined);
-    });
+    // Los archivos ya subidos quedan asociados a la solicitud (no se borran al cerrar).
     setComentario('');
     setCamposValues({});
     setArchivoSubidos({});
     setAdjuntosLibres([]);
     onClose();
-  }, [archivoSubidos, onClose]);
+  }, [onClose]);
 
   useEffect(() => {
     if (!open || !accion) return;
@@ -149,6 +254,7 @@ export function SolicitudFirmaModal({
     setCamposValues(initial);
     setArchivoSubidos({});
     setAdjuntosLibres([]);
+    setRevisiones({});
 
     const selectorCampos = camposParaAccion.filter(
       (c) => c.campo.tipoControl === 'Selector' && c.campo.sourceCatalog
@@ -189,12 +295,22 @@ export function SolicitudFirmaModal({
     if (!accion) return;
     const errores: string[] = [];
     const datosAdicionales: Record<string, unknown> = {};
-    for (const { campo, requerido, inputKey } of camposParaAccion) {
+    for (const { campo, requerido, inputKey, handlerKey, requiereRevision } of camposParaAccion) {
       if (campo.tipoControl === 'Archivo') {
+        const revisadoAntes = estaRevisado(inputKey);
         if (requerido) {
-          const tiene = !!archivoSubidos[inputKey]?.length;
-          if (!tiene) {
+          const tieneNuevos = !!archivoSubidos[inputKey]?.length;
+          const tieneExistentes =
+            handlerKey === 'Archivo' && (existentesPorTipo[inputKey]?.length ?? 0) > 0;
+          if (!tieneNuevos && !tieneExistentes) {
             errores.push(`Falta adjuntar: ${campo.etiquetaUsuario}`);
+          }
+        }
+        if (requiereRevision && !revisadoAntes) {
+          if (!revisiones[inputKey]) {
+            errores.push(`Falta marcar como revisado: ${campo.etiquetaUsuario}`);
+          } else {
+            datosAdicionales[`revision_${inputKey}`] = true;
           }
         }
         continue;
@@ -210,7 +326,13 @@ export function SolicitudFirmaModal({
     if ((esRechazo || esRetorno || accion.requiereComentario) && !comentario.trim()) {
       errores.push('El comentario es obligatorio para esta acción');
     }
-    if (accion.requiereAdjunto && adjuntosLibres.length === 0 && !esRechazo && !esRetorno) {
+    if (
+      accion.requiereAdjunto &&
+      adjuntosLibres.length === 0 &&
+      archivosExistentes.length === 0 &&
+      !esRechazo &&
+      !esRetorno
+    ) {
       errores.push('Debes adjuntar al menos un documento de soporte');
     }
     if (errores.length > 0) {
@@ -338,7 +460,7 @@ export function SolicitudFirmaModal({
 
             {camposParaAccion
               .filter((c) => c.campo.tipoControl !== 'Alerta')
-              .map(({ campo, requerido, inputKey }) => {
+              .map(({ campo, requerido, inputKey, handlerKey, requiereRevision }) => {
                 const fieldId = `campo-${inputKey}`;
                 const value = camposValues[inputKey];
                 if (campo.tipoControl === 'Booleano' || campo.tipoControl === 'Checkbox') {
@@ -461,6 +583,52 @@ export function SolicitudFirmaModal({
                         }}
                         onClose={() => undefined}
                       />
+                      {(() => {
+                        const archivosDelCampo = [
+                          ...(archivoSubidos[inputKey] ?? []).map((a) => ({
+                            id: a.id,
+                            nombre: a.nombreOriginal,
+                            nuevo: true,
+                          })),
+                          ...(handlerKey === 'Archivo' ? existentesPorTipo[inputKey] ?? [] : []).map(
+                            (a) => ({ id: a.id, nombre: a.nombreOriginal, nuevo: false })
+                          ),
+                        ].filter((v, i, arr) => arr.findIndex((x) => x.id === v.id) === i);
+
+                        if (archivosDelCampo.length === 0) return null;
+
+                        return (
+                          <div className="space-y-1">
+                            {archivosDelCampo.map((a) => (
+                              <div
+                                key={a.id}
+                                className="flex items-center gap-2 rounded-md border border-green-200 bg-green-50 px-2.5 py-1.5 text-xs"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-green-600" />
+                                <span className="flex-1 truncate text-green-800">
+                                  {a.nuevo ? 'Subido: ' : 'Ya adjunto: '}
+                                  {a.nombre}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      {requiereRevision && (
+                        <label className="flex items-center gap-2 text-xs">
+                          <Checkbox
+                            checked={estaRevisado(inputKey) || !!revisiones[inputKey]}
+                            disabled={estaRevisado(inputKey)}
+                            onCheckedChange={(v) =>
+                              setRevisiones((prev) => ({ ...prev, [inputKey]: Boolean(v) }))
+                            }
+                          />
+                          <span>
+                            Revisado
+                            {estaRevisado(inputKey) && ' (registrado)'}
+                          </span>
+                        </label>
+                      )}
                     </div>
                   );
                 }
@@ -526,6 +694,19 @@ export function SolicitudFirmaModal({
                 <span className="text-xs text-muted-foreground">Opcional</span>
               )}
             </div>
+            {accion?.requiereAdjunto && existentesLibres.length > 0 && (
+              <div className="space-y-1.5">
+                {existentesLibres.map((a) => (
+                  <div
+                    key={a.id}
+                    className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-sm"
+                  >
+                    <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    <span className="flex-1 truncate text-muted-foreground">{a.nombreOriginal}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {adjuntosLibres.length > 0 && (
               <div className="space-y-1.5">
                 {adjuntosLibres.map((a) => (

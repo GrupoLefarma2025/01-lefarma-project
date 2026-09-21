@@ -20,6 +20,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
     private readonly ApplicationDbContext _context;
     private readonly AsokamDbContext _asokamContext;
     private readonly IServiceProvider _serviceProvider;
+    private readonly HandlerConditionEvaluator _handlerConditionEvaluator;
     protected override string EntityName => "WorkflowQuery";
 
     public WorkflowQueryService(
@@ -28,6 +29,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
         ApplicationDbContext context,
         AsokamDbContext asokamContext,
         IServiceProvider serviceProvider,
+        HandlerConditionEvaluator handlerConditionEvaluator,
         IWideEventAccessor wideEventAccessor) : base(wideEventAccessor)
     {
         _engine = engine;
@@ -35,6 +37,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
         _context = context;
         _asokamContext = asokamContext;
         _serviceProvider = serviceProvider;
+        _handlerConditionEvaluator = handlerConditionEvaluator;
     }
 
     public async Task<ErrorOr<IEnumerable<AccionDisponibleResponse>>> GetAccionesDisponiblesAsync(
@@ -72,6 +75,17 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                 var esDevolucion = a.TipoAccion?.Codigo == "DEVOLVER";
 
                 var handlers = (await _workflowRepo.GetAccionHandlersAsync(a.IdAccion)).ToList();
+
+                // Condiciones por handler: no exponer los que no aplican a la entidad actual
+                var handlersAplicables = new List<WorkflowAccionHandler>();
+                foreach (var handler in handlers)
+                {
+                    if (await _handlerConditionEvaluator.AplicaAsync(
+                            handler.ConfiguracionJson, entidadParaHandlers, tipoEntidad, ct))
+                        handlersAplicables.Add(handler);
+                }
+                handlers = handlersAplicables;
+
                 var camposRequeridos = handlers
                     .Where(h => h.Requerido && h.Campo != null)
                     .Select(h => h.Campo!.NombreTecnico)
@@ -118,7 +132,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
             }
 
             //Pre-evaluar handlers que tengan "mensaje" en su configuracionJson
-            await PreEvaluarHandlersAsync(result, entidadParaHandlers, idEntidad, tipoEntidad, idUsuario, ct);
+            await PreEvaluarHandlersAsync(result, entidadParaHandlers, idEntidad, tipoEntidad, idUsuario, idPasoActual, ct);
 
             EnrichWideEvent("GetAccionesDisponibles", entityId: idEntidad, count: result.Count);
             return result;
@@ -136,6 +150,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
         int idEntidad,
         string tipoEntidad,
         int idUsuario,
+        int? idPasoActual,
         CancellationToken ct)
     {
         foreach (var response in acciones)
@@ -177,7 +192,8 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                         IdAccion: response.IdAccion,
                         IdUsuario: idUsuario,
                         Comentario: null,
-                        DatosAdicionales: null);
+                        DatosAdicionales: null,
+                        IdPaso: idPasoActual);
 
                     var vr = await actionHandler.ProcessAsync(ctx, handlerMeta.ConfiguracionJson);
                     handlerMeta.ValidacionExito = vr.Exitoso;
@@ -216,6 +232,20 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
 
             var handlers = (await _workflowRepo.GetAccionHandlersAsync(idAccion)).ToList();
             var campos = (await _workflowRepo.GetCamposAsync()).ToList();
+
+            // Condiciones por handler: no exponer los que no aplican a la entidad actual
+            var entidad = await _context.SolicitudesPersonal
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.IdSolicitud == idEntidad, ct);
+
+            var handlersAplicables = new List<WorkflowAccionHandler>();
+            foreach (var handler in handlers)
+            {
+                if (await _handlerConditionEvaluator.AplicaAsync(
+                        handler.ConfiguracionJson, entidad!, CodigoProceso.SOLICITUD_PERSONAL, ct))
+                    handlersAplicables.Add(handler);
+            }
+            handlers = handlersAplicables;
 
             var camposRequeridos = handlers
                 .Where(h => h.Requerido && h.Campo != null)

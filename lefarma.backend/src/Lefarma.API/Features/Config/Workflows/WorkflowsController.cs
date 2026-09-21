@@ -287,6 +287,15 @@ namespace Lefarma.API.Features.Config.Workflows
             { Success = true, Message = "Notificaci�n eliminada exitosamente.", Data = null }));
         }
 
+        [HttpGet("campos")]
+        [SwaggerOperation(Summary = "Obtener campos configurables de workflow (activos e inactivos)")]
+        public async Task<IActionResult> GetCampos()
+        {
+            var result = await _service.GetAllCamposAsync();
+            return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<WorkflowCampoResponse>>
+            { Success = true, Message = "Campos obtenidos exitosamente.", Data = data }));
+        }
+
         [HttpPost("campos")]
         [SwaggerOperation(Summary = "Crear campo configurable de workflow")]
         public async Task<IActionResult> CreateCampo([FromBody] CreateWorkflowCampoRequest request)

@@ -172,41 +172,43 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
       },
       {
         id: 'justificada',
-        header: 'Justificada',
+        header: 'Estatus',
         cell: ({ row }) => {
           const o = row.original;
-          if (o.justificada) {
-            return (
-              <div className="flex flex-col gap-1">
-                <span className="inline-flex w-fit items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
-                  Justificada
-                </span>
-                {o.tipoSolicitudNombre && (
-                  <span className="text-xs text-muted-foreground">{o.tipoSolicitudNombre}</span>
-                )}
-                {o.idSolicitud && (
-                  <Button
-                    variant="link"
-                    size="sm"
-                    className="h-auto justify-start p-0 text-xs"
-                    onClick={() => handleVerSolicitud(o.idSolicitud!)}
-                  >
-                    Ver solicitud
-                  </Button>
-                )}
-              </div>
-            );
-          }
+          const label = o.justificada ? 'Justificada' : o.enTramite ? 'En trámite' : 'Pendiente';
+          const badgeClass = o.justificada
+            ? 'bg-green-100 text-green-800'
+            : o.enTramite
+              ? 'bg-amber-100 text-amber-800'
+              : 'bg-red-100 text-red-800';
+
           return (
-            <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-              Pendiente
-            </span>
+            <div className="flex flex-col gap-1">
+              <span
+                className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeClass}`}
+              >
+                {label}
+              </span>
+              {(o.justificada || o.enTramite) && o.tipoSolicitudNombre && (
+                <span className="text-xs text-muted-foreground">{o.tipoSolicitudNombre}</span>
+              )}
+              {(o.justificada || o.enTramite) && o.idSolicitud && (
+                <Button
+                  variant="link"
+                  size="sm"
+                  className="h-auto justify-start p-0 text-xs"
+                  onClick={() => handleVerSolicitud(o.idSolicitud!)}
+                >
+                  Ver solicitud
+                </Button>
+              )}
+            </div>
           );
         },
       },
       {
         id: 'descuento',
-        header: 'Descuento',
+        header: '¿Genera descuento?',
         cell: ({ row }) => {
           const o = row.original;
           if (o.descuento) {
