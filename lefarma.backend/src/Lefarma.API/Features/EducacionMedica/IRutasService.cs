@@ -1,3 +1,6 @@
+using ErrorOr;
+using Lefarma.API.Features.Config.Workflows.DTOs;
+
 namespace Lefarma.API.Features.EducacionMedica;
 
 public interface IRutasService
@@ -25,7 +28,24 @@ public interface IRutasService
 
     Task QuitarVisitaAsync(int idRuta, int idRutaVisita, int idUsuario, CancellationToken ct = default);
 
-    Task<List<DTOs.RutaDto>> ConfirmarAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);
+    /// <summary>Estado de autorización de la versión de rutas (paso actual y acciones disponibles para el usuario).</summary>
+    Task<DTOs.RutaVersionDto?> GetVersionInfoAsync(
+        int idSeleccionMensual,
+        int? version,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>Ejecuta una acción del workflow sobre la versión (enviar, firmar GV/CA/DC, devolver, cancelar).</summary>
+    Task<DTOs.RutaVersionDto> FirmarVersionAsync(
+        int idRutaVersion,
+        DTOs.FirmarWorkflowRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>Historial (bitácora) del workflow de la versión.</summary>
+    Task<ErrorOr<IEnumerable<HistorialWorkflowItemResponse>>> GetHistorialVersionAsync(
+        int idRutaVersion,
+        CancellationToken ct = default);
 
     Task<List<DTOs.RutaDto>> CancelarAsync(
         int idSeleccionMensual,

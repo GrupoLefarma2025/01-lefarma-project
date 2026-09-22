@@ -64,6 +64,58 @@ public class RutaRepository : IRutaRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<RutaVersion?> GetVersionAsync(
+        int idSeleccionMensual,
+        int version,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.RutasVersiones
+            .FirstOrDefaultAsync(v => v.IdSeleccionMensual == idSeleccionMensual && v.Version == version, cancellationToken);
+    }
+
+    public async Task<RutaVersion?> GetVersionByIdAsync(
+        int idRutaVersion,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.RutasVersiones
+            .FirstOrDefaultAsync(v => v.IdRutaVersion == idRutaVersion, cancellationToken);
+    }
+
+    public async Task<RutaVersion?> GetVersionMaximaAsync(
+        int idSeleccionMensual,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.RutasVersiones
+            .Where(v => v.IdSeleccionMensual == idSeleccionMensual)
+            .OrderByDescending(v => v.Version)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<RutaVersion> CreateVersionAsync(
+        RutaVersion version,
+        CancellationToken cancellationToken = default)
+    {
+        version.FechaCreacion = DateTime.UtcNow;
+        version.FechaModificacion = DateTime.UtcNow;
+
+        _context.RutasVersiones.Add(version);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return version;
+    }
+
+    public async Task<RutaVersion> UpdateVersionAsync(
+        RutaVersion version,
+        CancellationToken cancellationToken = default)
+    {
+        version.FechaModificacion = DateTime.UtcNow;
+
+        _context.RutasVersiones.Update(version);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return version;
+    }
+
     public async Task<List<Ruta>> GetByEquipoAsync(
         int idEquipo,
         CancellationToken cancellationToken = default)

@@ -74,7 +74,7 @@ export function RutasAlerts({
               className="mt-1 border-amber-400 text-amber-900 hover:bg-amber-100"
               onClick={onIrASeleccion}
             >
-              Ir a Selección y reparto
+              Ir a Selección Mensual
               <ArrowRight className="ml-2 h-3.5 w-3.5" />
             </Button>
           </AlertDescription>

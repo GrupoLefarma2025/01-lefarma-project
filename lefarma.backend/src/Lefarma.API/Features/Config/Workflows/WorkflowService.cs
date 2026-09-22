@@ -10,6 +10,8 @@ using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
+using Lefarma.API.Shared.Constants;
 using static Lefarma.API.Shared.Constants.Permissions;
 
 namespace Lefarma.API.Features.Config.Workflows
@@ -253,6 +255,12 @@ public class WorkflowService : BaseService, IWorkflowService
                             "PROVEEDOR" => m.ScopeId.HasValue && proveedores.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
                             "CATEGORIA" => m.ScopeId.HasValue && Enum.IsDefined(typeof(CategoriaSolicitud), m.ScopeId.Value) ? ((CategoriaSolicitud)m.ScopeId.Value).ToString() : "N/A",
                             "TIPO_SOLICITUD" => m.ScopeId.HasValue && tiposSolicitud.TryGetValue(m.ScopeId.Value, out var n) ? n : "N/A",
+                            "TIPO_GERENCIA" => m.ScopeId switch
+                            {
+                                1 => "IMSS (Educación Médica)",
+                                2 => "Descentralizado (Educación Médica)",
+                                _ => "N/A"
+                            },
                             "GLOBAL" or "DEFAULT" => "Todo el Sistema",
                             _ => $"ID: {m.ScopeId}"
                         },
@@ -869,6 +877,222 @@ public class WorkflowService : BaseService, IWorkflowService
             }
         }
 
+        private static readonly HashSet<string> CamposComprobanteOc = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "comprobante_gasto",
+            "comprobante_pago"
+        };
+
+        /// <summary>
+        /// Valida la combinación handler + campo: el handler de comprobante OC solo admite
+        /// comprobante_gasto/comprobante_pago; el handler genérico Archivo no los admite.
+        /// </summary>
+        private async Task<ErrorOr<Success>> ValidarHandlerYCampoAsync(string handlerKey, int? idWorkflowCampo)
+        {
+            var key = handlerKey.Trim();
+            if (key != "Document" && key != "Archivo")
+                return Result.Success;
+
+            if (!idWorkflowCampo.HasValue)
+                return CommonErrors.Validation("handler", $"El handler '{key}' requiere un campo de tipo Archivo.");
+
+            var campo = await _context.WorkflowCampos
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.IdWorkflowCampo == idWorkflowCampo.Value);
+
+            if (campo is null)
+                return CommonErrors.NotFound("campo", idWorkflowCampo.Value.ToString());
+
+            if (!string.Equals(campo.TipoControl, "Archivo", StringComparison.OrdinalIgnoreCase))
+                return CommonErrors.Validation("handler", "El campo vinculado debe ser de tipo Archivo.");
+
+            var esComprobante = CamposComprobanteOc.Contains(campo.NombreTecnico);
+
+            if (key == "Document" && !esComprobante)
+                return CommonErrors.Validation("handler",
+                    "El handler de comprobante OC solo admite los campos comprobante_gasto o comprobante_pago.");
+
+            if (key == "Archivo" && esComprobante)
+                return CommonErrors.Validation("handler",
+                    "Los campos comprobante_gasto y comprobante_pago son exclusivos del handler de comprobante OC.");
+
+            return Result.Success;
+        }
+
+        private static readonly Dictionary<string, HashSet<string>> ClavesAplicaPorProceso = new(StringComparer.OrdinalIgnoreCase)
+        {
+            [CodigoProceso.SOLICITUD_PERSONAL] = new(StringComparer.OrdinalIgnoreCase)
+                { "tipoSolicitud", "categoria", "empresa", "sucursal", "area" },
+            [CodigoProceso.ORDEN_COMPRA] = new(StringComparer.OrdinalIgnoreCase)
+                { "empresa", "sucursal", "area", "tipoGasto", "proveedor" },
+            [CodigoProceso.EDUCACION_MEDICA_SELECCION] = new(StringComparer.OrdinalIgnoreCase)
+                { "tipoGerencia" },
+            [CodigoProceso.EDUCACION_MEDICA_RUTAS] = new(StringComparer.OrdinalIgnoreCase)
+                { "tipoGerencia" }
+        };
+
+        /// <summary>
+        /// Valida el JSON de configuración del handler: llaves permitidas en "aplica" según el
+        /// proceso, listas de ids positivos y que los ids existan en sus catálogos.
+        /// </summary>
+        private async Task<ErrorOr<Success>> ValidarConfiguracionHandlerAsync(
+            string? configuracionJson, string? codigoProceso)
+        {
+            if (string.IsNullOrWhiteSpace(configuracionJson))
+                return Result.Success;
+
+            JsonDocument doc;
+            try
+            {
+                doc = JsonDocument.Parse(configuracionJson);
+            }
+            catch
+            {
+                return CommonErrors.Validation("configuracionJson",
+                    "La configuración JSON del handler no es válida.");
+            }
+
+            using (doc)
+            {
+                var root = doc.RootElement;
+                if (root.ValueKind != JsonValueKind.Object)
+                    return CommonErrors.Validation("configuracionJson",
+                        "La configuración JSON del handler debe ser un objeto.");
+
+                if (root.TryGetProperty("requiereRevision", out var rev)
+                    && rev.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    return CommonErrors.Validation("configuracionJson", "'requiereRevision' debe ser booleano.");
+
+                if (!root.TryGetProperty("aplica", out var aplica))
+                    return Result.Success;
+
+                if (aplica.ValueKind != JsonValueKind.Object)
+                    return CommonErrors.Validation("aplica", "'aplica' debe ser un objeto con listas de ids.");
+
+                if (codigoProceso is null
+                    || !ClavesAplicaPorProceso.TryGetValue(codigoProceso, out var clavesPermitidas))
+                    return CommonErrors.Validation("aplica",
+                        "Las condiciones 'aplica' no están soportadas para este proceso.");
+
+                var idsPorClave = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var prop in aplica.EnumerateObject())
+                {
+                    if (!clavesPermitidas.Contains(prop.Name))
+                        return CommonErrors.Validation("aplica",
+                            $"Clave no permitida en 'aplica' para este proceso: '{prop.Name}'. Permitidas: {string.Join(", ", clavesPermitidas)}.");
+
+                    if (prop.Value.ValueKind != JsonValueKind.Array)
+                        return CommonErrors.Validation("aplica", $"'{prop.Name}' debe ser una lista de ids.");
+
+                    var ids = new List<int>();
+                    foreach (var item in prop.Value.EnumerateArray())
+                    {
+                        if (item.ValueKind != JsonValueKind.Number
+                            || !item.TryGetInt32(out var id)
+                            || id <= 0)
+                            return CommonErrors.Validation("aplica",
+                                $"'{prop.Name}' debe contener ids numéricos positivos.");
+                        ids.Add(id);
+                    }
+
+                    idsPorClave[prop.Name] = ids;
+                }
+
+                var errores = new List<string>();
+
+                if (idsPorClave.TryGetValue("tipoSolicitud", out var tipos) && tipos.Count > 0)
+                {
+                    var existentes = await _context.TiposSolicitud
+                        .Where(t => tipos.Contains(t.IdTipoSolicitud))
+                        .Select(t => t.IdTipoSolicitud)
+                        .ToListAsync();
+                    var faltantes = tipos.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"tipos de solicitud inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("categoria", out var categorias) && categorias.Count > 0)
+                {
+                    var invalidas = categorias
+                        .Where(c => !Enum.IsDefined(typeof(CategoriaSolicitud), c))
+                        .ToList();
+                    if (invalidas.Count > 0)
+                        errores.Add($"categorías inexistentes: {string.Join(", ", invalidas)}");
+                }
+
+                if (idsPorClave.TryGetValue("empresa", out var empresas) && empresas.Count > 0)
+                {
+                    var existentes = await _context.Empresas
+                        .Where(e => empresas.Contains(e.IdEmpresa))
+                        .Select(e => e.IdEmpresa)
+                        .ToListAsync();
+                    var faltantes = empresas.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"empresas inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("sucursal", out var sucursales) && sucursales.Count > 0)
+                {
+                    var existentes = await _context.Sucursales
+                        .Where(s => sucursales.Contains(s.IdSucursal))
+                        .Select(s => s.IdSucursal)
+                        .ToListAsync();
+                    var faltantes = sucursales.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"sucursales inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("area", out var areas) && areas.Count > 0)
+                {
+                    var existentes = await _context.Areas
+                        .Where(a => areas.Contains(a.IdArea))
+                        .Select(a => a.IdArea)
+                        .ToListAsync();
+                    var faltantes = areas.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"áreas inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("tipoGasto", out var tiposGasto) && tiposGasto.Count > 0)
+                {
+                    var existentes = await _context.TiposGasto
+                        .Where(t => tiposGasto.Contains(t.IdTipoGasto))
+                        .Select(t => t.IdTipoGasto)
+                        .ToListAsync();
+                    var faltantes = tiposGasto.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"tipos de gasto inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("proveedor", out var proveedores) && proveedores.Count > 0)
+                {
+                    var existentes = await _context.Proveedores
+                        .Where(p => proveedores.Contains(p.IdProveedor))
+                        .Select(p => p.IdProveedor)
+                        .ToListAsync();
+                    var faltantes = proveedores.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"proveedores inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (idsPorClave.TryGetValue("tipoGerencia", out var tiposGerencia) && tiposGerencia.Count > 0)
+                {
+                    var existentes = await _context.TiposGerencia
+                        .Where(t => tiposGerencia.Contains(t.IdTipoGerencia))
+                        .Select(t => t.IdTipoGerencia)
+                        .ToListAsync();
+                    var faltantes = tiposGerencia.Except(existentes).ToList();
+                    if (faltantes.Count > 0)
+                        errores.Add($"tipos de gerencia inexistentes: {string.Join(", ", faltantes)}");
+                }
+
+                if (errores.Count > 0)
+                    return CommonErrors.Validation("aplica", $"Revisa 'aplica': {string.Join("; ", errores)}.");
+
+                return Result.Success;
+            }
+        }
+
         public async Task<ErrorOr<WorkflowAccionHandlerResponse>> CreateAccionHandlerAsync(int idWorkflow, int idAccion, CreateAccionHandlerRequest request)
         {
             try
@@ -887,6 +1111,15 @@ public class WorkflowService : BaseService, IWorkflowService
                     return CommonErrors.NotFound("Acción", idAccion.ToString());
                 if (!accion.Activo)
                     return CommonErrors.Conflict("accion", "No se pueden configurar handlers en una acción inactiva.");
+
+                var validacionCombo = await ValidarHandlerYCampoAsync(request.HandlerKey, request.IdWorkflowCampo);
+                if (validacionCombo.IsError)
+                    return validacionCombo.FirstError;
+
+                var validacionConfig = await ValidarConfiguracionHandlerAsync(
+                    request.ConfiguracionJson, workflow.CodigoProceso);
+                if (validacionConfig.IsError)
+                    return validacionConfig.FirstError;
 
                 var handler = new WorkflowAccionHandler
                 {
@@ -939,6 +1172,15 @@ public class WorkflowService : BaseService, IWorkflowService
                 var handler = accion.AccionHandlers.FirstOrDefault(h => h.IdHandler == idHandler);
                 if (handler == null)
                     return CommonErrors.NotFound("Handler", idHandler.ToString());
+
+                var validacionCombo = await ValidarHandlerYCampoAsync(request.HandlerKey, request.IdWorkflowCampo);
+                if (validacionCombo.IsError)
+                    return validacionCombo.FirstError;
+
+                var validacionConfig = await ValidarConfiguracionHandlerAsync(
+                    request.ConfiguracionJson, workflow.CodigoProceso);
+                if (validacionConfig.IsError)
+                    return validacionConfig.FirstError;
 
                 handler.HandlerKey = request.HandlerKey.Trim();
                 handler.ConfiguracionJson = request.ConfiguracionJson;
@@ -1566,6 +1808,35 @@ public class WorkflowService : BaseService, IWorkflowService
             {
                 EnrichWideEvent("DeleteNotificacion", entityId: idWorkflow, exception: ex);
                 return CommonErrors.DatabaseError("eliminar notificaci�n");
+            }
+        }
+
+        public async Task<ErrorOr<IEnumerable<WorkflowCampoResponse>>> GetAllCamposAsync()
+        {
+            try
+            {
+                var campos = await _context.WorkflowCampos
+                    .AsNoTracking()
+                    .OrderBy(c => c.EtiquetaUsuario)
+                    .ToListAsync();
+
+                return campos.Select(c => new WorkflowCampoResponse
+                {
+                    IdWorkflowCampo = c.IdWorkflowCampo,
+                    NombreTecnico = c.NombreTecnico,
+                    EtiquetaUsuario = c.EtiquetaUsuario,
+                    TipoControl = c.TipoControl,
+                    SourceCatalog = c.SourceCatalog,
+                    PropiedadEntidad = c.PropiedadEntidad,
+                    ValidarFiscal = c.ValidarFiscal,
+                    UsarEnCondiciones = c.UsarEnCondiciones,
+                    Activo = c.Activo
+                }).ToList();
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("GetAllCampos", exception: ex);
+                return CommonErrors.DatabaseError("consultar campos de workflow");
             }
         }
 

@@ -16,19 +16,22 @@ namespace Lefarma.API.Features.Config.Engine
         private readonly AsokamDbContext _asokamContext;
         private readonly IServiceProvider _serviceProvider;
         private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
+        private readonly HandlerConditionEvaluator _handlerConditionEvaluator;
 
         public WorkflowEngine(
             IWorkflowRepository workflowRepo,
             ApplicationDbContext context,
             AsokamDbContext asokamcontext,
             IServiceProvider serviceProvider,
-            IJefeInmediatoResolver jefeInmediatoResolver)
+            IJefeInmediatoResolver jefeInmediatoResolver,
+            HandlerConditionEvaluator handlerConditionEvaluator)
         {
             _workflowRepo = workflowRepo;
             _context = context;
             _asokamContext = asokamcontext;
             _serviceProvider = serviceProvider;
             _jefeInmediatoResolver = jefeInmediatoResolver;
+            _handlerConditionEvaluator = handlerConditionEvaluator;
         }
 
         public async Task<WorkflowEjecucionResult> EjecutarAccionAsync(WorkflowContext ctx)
@@ -87,6 +90,16 @@ namespace Lefarma.API.Features.Config.Engine
                 .OrderBy(h => h.OrdenEjecucion)
                 .ToList();
 
+            // Condiciones por handler: solo se ejecutan los que aplican a la entidad actual
+            var handlersAplicables = new List<WorkflowAccionHandler>();
+            foreach (var handler in actionHandlers)
+            {
+                if (await _handlerConditionEvaluator.AplicaAsync(
+                        handler.ConfiguracionJson, ctx.Entidad, ctx.TipoEntidad))
+                    handlersAplicables.Add(handler);
+            }
+            actionHandlers = handlersAplicables;
+
             if (actionHandlers.Any())
             {
                 var handlerContext = new WorkflowHandlerContext(
@@ -96,7 +109,8 @@ namespace Lefarma.API.Features.Config.Engine
                     IdAccion: ctx.IdAccion,
                     IdUsuario: ctx.IdUsuario,
                     Comentario: ctx.Comentario,
-                    DatosAdicionales: ctx.DatosAdicionales);
+                    DatosAdicionales: ctx.DatosAdicionales,
+                    IdPaso: pasoActual.IdPaso);
 
                 foreach (var configured in actionHandlers)
                 {
@@ -372,6 +386,18 @@ namespace Lefarma.API.Features.Config.Engine
                     .Where(i => i.IdSolicitud == idEntidad)
                     .Select(i => new WorkflowEntityContext(
                         i.IdWorkflow, i.IdPasoActual, i.IdUsuarioCreador, i.IdUsuarioSolicitante))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
+
+                CodigoProceso.EDUCACION_MEDICA_SELECCION => await _context.SeleccionesMensuales
+                    .Where(s => s.IdSeleccionMensual == idEntidad)
+                    .Select(s => new WorkflowEntityContext(
+                        s.IdWorkflow ?? 0, s.IdPasoActual, s.IdUsuarioCreacion ?? 0, null))
+                    .FirstOrDefaultAsync() ?? new(0, null, 0, null),
+
+                CodigoProceso.EDUCACION_MEDICA_RUTAS => await _context.RutasVersiones
+                    .Where(v => v.IdRutaVersion == idEntidad)
+                    .Select(v => new WorkflowEntityContext(
+                        v.IdWorkflow ?? 0, v.IdPasoActual, v.IdUsuarioCreacion ?? 0, null))
                     .FirstOrDefaultAsync() ?? new(0, null, 0, null),
 
                 _ => throw new NotSupportedException(

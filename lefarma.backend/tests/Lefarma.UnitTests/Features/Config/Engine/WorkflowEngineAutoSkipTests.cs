@@ -1,10 +1,14 @@
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Config;
+using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
 using Lefarma.API.Domain.ValueObjects.Config;
 using Lefarma.API.Features.Config.Engine;
+using Lefarma.API.Features.Config.Workflows.Handlers;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Moq;
 
 namespace Lefarma.UnitTests.Features.Config.Engine;
@@ -58,7 +62,87 @@ public class WorkflowEngineAutoSkipTests
         var repoMock = new Mock<IWorkflowRepository>();
         repoMock.Setup(r => r.GetQueryable()).Returns(app.Workflows);
 
-        return new WorkflowEngine(repoMock.Object, app, asokam, Mock.Of<IServiceProvider>(), resolver);
+        var services = new ServiceCollection();
+        services.AddKeyedScoped<IWorkflowActionHandler, FieldWorkflowHandler>("Field");
+        var provider = services.BuildServiceProvider();
+
+        return new WorkflowEngine(repoMock.Object, app, asokam, provider, resolver,
+            new HandlerConditionEvaluator(app));
+    }
+
+    private static void SembrarHandlerRequerido(ApplicationDbContext ctx, string? configuracionJson)
+    {
+        ctx.WorkflowCampos.Add(new WorkflowCampo
+        {
+            IdWorkflowCampo = 1,
+            NombreTecnico = "motivo_prueba",
+            EtiquetaUsuario = "Motivo de prueba",
+            TipoControl = "Texto",
+            PropiedadEntidad = "Motivo",
+            Activo = true
+        });
+        ctx.WorkflowAccionHandlers.Add(new WorkflowAccionHandler
+        {
+            IdHandler = 1,
+            IdAccion = 100,
+            HandlerKey = "Field",
+            Requerido = true,
+            ConfiguracionJson = configuracionJson,
+            OrdenEjecucion = 1,
+            Activo = true,
+            IdWorkflowCampo = 1
+        });
+        ctx.SaveChanges();
+    }
+
+    private static WorkflowContext CrearCtxSolicitud(int idTipoSolicitud)
+    {
+        var solicitud = new SolicitudPersonal
+        {
+            IdSolicitud = 1,
+            Folio = "SOL-1",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdWorkflow = 1,
+            IdPasoActual = 10,
+            IdEstado = 1,
+            IdUsuarioCreador = 55,
+            IdUsuarioSolicitante = 55,
+            IdTipoSolicitud = idTipoSolicitud,
+            FechaCreacion = DateTime.Now
+        };
+
+        return new(IdWorkflow: 1, IdEntidad: 1, TipoEntidad: CodigoProceso.SOLICITUD_PERSONAL,
+                   Entidad: solicitud, IdAccion: 100, IdUsuario: 55,
+                   Orden: null!, Comentario: null);
+    }
+
+    [Fact]
+    public async Task Handler_Condicional_No_Aplicable_No_Se_Ejecuta()
+    {
+        var (app, asokam) = CrearContextos();
+        SembrarWorkflow(app);
+        SembrarHandlerRequerido(app, """{"aplica":{"tipoSolicitud":[999]}}""");
+        var engine = CrearEngine(app, asokam, ResolverMock(new JefeEfectivoResult(88, null)).Object);
+
+        var resultado = await engine.EjecutarAccionAsync(CrearCtxSolicitud(idTipoSolicitud: 5));
+
+        resultado.Exitoso.Should().BeTrue();
+        resultado.NuevoIdPaso.Should().Be(20);
+    }
+
+    [Fact]
+    public async Task Handler_Condicional_Aplicable_Se_Ejecuta_Y_Valida()
+    {
+        var (app, asokam) = CrearContextos();
+        SembrarWorkflow(app);
+        SembrarHandlerRequerido(app, """{"aplica":{"tipoSolicitud":[5]}}""");
+        var engine = CrearEngine(app, asokam, ResolverMock(new JefeEfectivoResult(88, null)).Object);
+
+        var resultado = await engine.EjecutarAccionAsync(CrearCtxSolicitud(idTipoSolicitud: 5));
+
+        resultado.Exitoso.Should().BeFalse();
+        resultado.Error.Should().Contain("Motivo de prueba");
     }
 
     private static WorkflowContext CrearCtx()

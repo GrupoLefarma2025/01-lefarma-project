@@ -69,7 +69,7 @@ public class ArchivosController : ControllerBase
             {
                 var folioLimpio = folio.Replace("-", "");
                 var fecha = DateTime.Now.ToString("ddMMyyyy");
-                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta);
+                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta, soloActivos: false);
                 var ext = Path.GetExtension(file.FileName);
                 fileName = $"{folioLimpio}-{fecha}-adjunto_{count + 1}{ext}";
             }
@@ -87,7 +87,7 @@ public class ArchivosController : ControllerBase
             {
                 var folioLimpio = folio.Replace("-", "");
                 var fecha = DateTime.Now.ToString("ddMMyyyy");
-                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta);
+                var count = await _service.GetArchivosCountAsync(request.EntidadTipo, request.EntidadId, request.Carpeta, soloActivos: false);
                 var ext = Path.GetExtension(file.FileName);
                 fileName = $"{folioLimpio}-{fecha}-adjunto_{count + 1}{ext}";
             }

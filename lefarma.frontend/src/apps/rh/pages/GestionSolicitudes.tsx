@@ -61,7 +61,7 @@ const VISTAS: Array<{ value: VistaKey; label: string }> = [
   { value: 'ninguna', label: 'Sin agrupación' },
   { value: 'empresa', label: 'Empresa' },
   { value: 'sucursal', label: 'Sucursal' },
-  { value: 'tipo', label: 'Tipo de solicitud' },
+  { value: 'tipo', label: 'Justificación de incidencias' },
   { value: 'solicitante', label: 'Solicitante' },
   { value: 'creador', label: 'Creado por' },
   { value: 'estado', label: 'Estado' },
@@ -369,7 +369,7 @@ export default function GestionSolicitudes() {
         case 'sucursal':
           return s.sucursalNombre ?? `Sucursal ${s.idSucursal}`;
         case 'tipo':
-          return s.tipoSolicitudNombre ?? `Tipo ${s.idTipoSolicitud}`;
+          return s.tipoSolicitudNombre ?? `Justificación ${s.idTipoSolicitud}`;
         case 'solicitante':
           return s.solicitanteNombre ?? `Solicitante ${s.idUsuarioSolicitante ?? s.idUsuarioCreador}`;
         case 'creador':
@@ -479,7 +479,7 @@ export default function GestionSolicitudes() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Tipo de solicitud</label>
+              <label className="text-xs font-medium text-muted-foreground">Justificación de incidencias</label>
               <Select
                 value={String(filters.idTipoSolicitud)}
                 onValueChange={(v) =>

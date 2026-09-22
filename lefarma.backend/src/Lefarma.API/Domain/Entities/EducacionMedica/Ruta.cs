@@ -14,8 +14,11 @@ public class Ruta
     public string? Nombre { get; set; }
     public string Estado { get; set; } = EstadoDraft;
     public DateTime? FechaConfirmacion { get; set; }
+    public int? IdRutaVersion { get; set; }
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }
     public int? IdUsuarioCreacion { get; set; }
     public int? IdUsuarioModificacion { get; set; }
+
+    public virtual RutaVersion? RutaVersion { get; set; }
 }

@@ -1,6 +1,6 @@
 export const TIPOS_INCIDENCIA = [
-  { value: 'TARDANZA_ENTRADA', label: 'Tardanza entrada' },
-  { value: 'TARDANZA_SALIDA', label: 'Tardanza salida' },
+  { value: 'TARDANZA_ENTRADA', label: 'Retardo entrada' },
+  { value: 'TARDANZA_SALIDA', label: 'Retardo salida' },
   { value: 'OMISION_ENTRADA', label: 'Omisión entrada' },
   { value: 'OMISION_SALIDA', label: 'Omisión salida' },
   { value: 'SALIDA_ANTICIPADA', label: 'Salida anticipada' },

@@ -206,6 +206,8 @@ export default function TiposSolicitudList() {
     },
   });
 
+  const esCategoriaIncidencia = form.watch('categoria') === '1';
+
   const fetchItems = async () => {
     try {
       setLoading(true);
@@ -290,6 +292,7 @@ export default function TiposSolicitudList() {
   const handleGuardar = async (values: FormValues) => {
     setIsSaving(true);
     try {
+      const esIncidencia = values.categoria === '1';
       const base = {
         nombre: values.nombre.trim(),
         clave: values.clave.trim(),
@@ -308,10 +311,10 @@ export default function TiposSolicitudList() {
         requiereIncidenciasExistentes: values.requiereIncidenciasExistentes,
         pideDiasSolicitados: values.pideDiasSolicitados,
         limitePorPeriodo:
-          values.limitePorPeriodo && values.limitePorPeriodo.length > 0
+          !esIncidencia && values.limitePorPeriodo && values.limitePorPeriodo.length > 0
             ? Number(values.limitePorPeriodo)
             : null,
-        periodoLimite: values.periodoLimite || null,
+        periodoLimite: esIncidencia ? null : values.periodoLimite || null,
         totalParaDescuento:
           values.totalParaDescuento && values.totalParaDescuento.length > 0
             ? Number(values.totalParaDescuento)
@@ -404,25 +407,15 @@ export default function TiposSolicitudList() {
       id: 'limite',
       header: 'Límite por periodo',
       cell: ({ row }) =>
-        row.original.limitePorPeriodo ? (
+        row.original.categoria === '1' ? (
+          <span className="text-xs text-muted-foreground">Comparte tope de descuentos</span>
+        ) : row.original.limitePorPeriodo ? (
           <span className="text-sm">
             {row.original.limitePorPeriodo} /{' '}
             {getPeriodoLabel(row.original.periodoLimite).toLowerCase()}
           </span>
         ) : (
           <span className="text-xs text-muted-foreground">Sin límite</span>
-        ),
-    },
-    {
-      id: 'descuento',
-      header: 'Descuento',
-      cell: ({ row }) =>
-        row.original.totalParaDescuento ? (
-          <span className="text-sm font-medium text-red-600 dark:text-red-400">
-            A partir de {row.original.totalParaDescuento}
-          </span>
-        ) : (
-          <span className="text-xs text-muted-foreground">Sin descuento</span>
         ),
     },
     {
@@ -456,16 +449,6 @@ export default function TiposSolicitudList() {
           <RuleItem label="Comisión" active={row.original.requiereLugarComision} />
           <RuleItem label="Reposición" active={row.original.requiereReposicionTiempo} />
           <RuleItem label="Documentación" active={row.original.requiereDocumentacion} />
-        </div>
-      ),
-    },
-    {
-      id: 'descuentos',
-      header: 'Descuentos',
-      cell: ({ row }) => (
-        <div className="grid grid-cols-1 gap-1 text-xs text-muted-foreground">
-          <RuleItem label="Nómina" active={row.original.descuentaNomina} />
-          <RuleItem label="Vacaciones" active={row.original.descuentaVacaciones} />
         </div>
       ),
     },
@@ -648,73 +631,59 @@ export default function TiposSolicitudList() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="limitePorPeriodo"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Límite por periodo</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="Opcional"
-                        value={field.value ?? ''}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
-                    </FormControl>
-                    <FormDescription>Vacío = sin límite.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="periodoLimite"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Periodo del límite</FormLabel>
-                    <Select value={field.value || 'quincena'} onValueChange={field.onChange}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Periodo" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {PERIODOS.map((p) => (
-                          <SelectItem key={p.value} value={p.value}>
-                            {p.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="totalParaDescuento"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total para descuento</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="Opcional"
-                        value={field.value ?? ''}
-                        onChange={(e) => field.onChange(e.target.value)}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Al alcanzar este total en el periodo se genera un descuento. Vacío = sin
-                      descuento.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {esCategoriaIncidencia ? (
+                <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground md:col-span-2">
+                  Los justificantes de incidencia comparten el tope de 2 descuentos justificados
+                  por mes; no se configura un límite por tipo.
+                </div>
+              ) : (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="limitePorPeriodo"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Límite por periodo</FormLabel>
+                        <FormControl>
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="Opcional"
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value)}
+                          />
+                        </FormControl>
+                        <FormDescription>Vacío = sin límite.</FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="periodoLimite"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Periodo del límite</FormLabel>
+                        <Select value={field.value || 'quincena'} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Periodo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {PERIODOS.map((p) => (
+                              <SelectItem key={p.value} value={p.value}>
+                                {p.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -790,26 +759,6 @@ export default function TiposSolicitudList() {
                     name="requiereDocumentacion"
                     label="Requiere documentación"
                     description="Permite adjuntar documentación a la solicitud."
-                  />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm">Descuentos</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1">
-                  <FlagCheckbox
-                    form={form}
-                    name="descuentaNomina"
-                    label="Descuenta nómina"
-                    description="Se aplicará un descuento en nómina si aplica."
-                  />
-                  <FlagCheckbox
-                    form={form}
-                    name="descuentaVacaciones"
-                    label="Descuenta vacaciones"
-                    description="Se descontarán días de vacaciones."
                   />
                 </CardContent>
               </Card>

@@ -23,11 +23,11 @@ public class RegionesController : ControllerBase
     [HttpGet]
     [SwaggerOperation(
         Summary = "Obtener regiones",
-        Description = "Retorna el catálogo de regiones (macro, estable) con la cantidad de hospitales asignados por región.")]
+        Description = "Retorna el catálogo de regiones (macro, estable) con la cantidad de hospitales asignados por región. Opcionalmente acotado a una gerencia (IMSS / Descentralizado).")]
     [SwaggerResponse(200, "Regiones obtenidas", typeof(ApiResponse<List<RegionDto>>))]
-    public async Task<IActionResult> GetAll(CancellationToken ct)
+    public async Task<IActionResult> GetAll([FromQuery] int? idTipoGerencia, CancellationToken ct)
     {
-        var regiones = await _service.GetRegionesAsync(ct);
+        var regiones = await _service.GetRegionesAsync(idTipoGerencia, ct);
         return Ok(new ApiResponse<List<RegionDto>>
         {
             Success = true,
@@ -89,11 +89,11 @@ public class RegionesController : ControllerBase
     [HttpGet("estados-catalogo")]
     [SwaggerOperation(
         Summary = "Obtener catálogo de estados",
-        Description = "Retorna los 32 estados (Asokam.genEstadosCat) con la región que los tiene asignada, para la edición por checkboxes.")]
+        Description = "Retorna los 32 estados (Asokam.genEstadosCat) con la región que los tiene asignada en la gerencia indicada, para la edición por checkboxes.")]
     [SwaggerResponse(200, "Catálogo obtenido", typeof(ApiResponse<List<EstadoCatalogoDto>>))]
-    public async Task<IActionResult> GetEstadosCatalogo(CancellationToken ct)
+    public async Task<IActionResult> GetEstadosCatalogo([FromQuery] int? idTipoGerencia, CancellationToken ct)
     {
-        var catalogo = await _service.GetEstadosCatalogoAsync(ct);
+        var catalogo = await _service.GetEstadosCatalogoAsync(idTipoGerencia, ct);
         return Ok(new ApiResponse<List<EstadoCatalogoDto>>
         {
             Success = true,
@@ -129,11 +129,11 @@ public class RegionesController : ControllerBase
     [HttpPost("aplicar-mapeo/preview")]
     [SwaggerOperation(
         Summary = "Preview de aplicar mapeo a hospitales",
-        Description = "Cuenta, por estado, cuántos hospitales se moverían a la región de su estado según el mapeo actual, y cuántos hospitales sin región y sin mapeo de estado se asignarían a la región con centroide más cercano (GPS). No cambia datos.")]
+        Description = "Cuenta, por estado, cuántos hospitales se moverían a la región de su estado EN SU GERENCIA según el mapeo actual, y cuántos hospitales sin región y sin mapeo se asignarían a la región con centroide más cercano (GPS). Opcionalmente acotado a una gerencia; sin parámetro evalúa ambas. No cambia datos.")]
     [SwaggerResponse(200, "Preview obtenido", typeof(ApiResponse<AplicarMapeoResponseDto>))]
-    public async Task<IActionResult> PreviewAplicarMapeo(CancellationToken ct)
+    public async Task<IActionResult> PreviewAplicarMapeo([FromQuery] int? idTipoGerencia, CancellationToken ct)
     {
-        var preview = await _service.PreviewAplicarMapeoAsync(ct);
+        var preview = await _service.PreviewAplicarMapeoAsync(idTipoGerencia, ct);
         return Ok(new ApiResponse<AplicarMapeoResponseDto>
         {
             Success = true,
@@ -145,12 +145,12 @@ public class RegionesController : ControllerBase
     [HttpPost("aplicar-mapeo")]
     [SwaggerOperation(
         Summary = "Aplicar mapeo a hospitales",
-        Description = "Pase 1: asigna a cada hospital la región de su estado donde difiere (sobrescribe según el mapeo). Pase 2: los hospitales que siguen sin región se asignan a la región activa con centroide más cercano (GPS); nunca toca los que ya tienen región. Revisa el preview antes.")]
+        Description = "Pase 1: asigna a cada hospital la región de su estado en su gerencia donde difiere (sobrescribe según el mapeo). Pase 2: los hospitales que siguen sin región se asignan a la región activa de SU gerencia con centroide más cercano (GPS); nunca toca los que ya tienen región y omita hospitales sin gerencia. Opcionalmente acotado a una gerencia. Revisa el preview antes.")]
     [SwaggerResponse(200, "Mapeo aplicado", typeof(ApiResponse<object>))]
-    public async Task<IActionResult> AplicarMapeo(CancellationToken ct)
+    public async Task<IActionResult> AplicarMapeo([FromQuery] int? idTipoGerencia, CancellationToken ct)
     {
         var idUsuario = int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
-        var resultado = await _service.AplicarMapeoAsync(idUsuario, ct);
+        var resultado = await _service.AplicarMapeoAsync(idUsuario, idTipoGerencia, ct);
         return Ok(new ApiResponse<object>
         {
             Success = true,
@@ -167,11 +167,11 @@ public class RegionesController : ControllerBase
     [HttpGet("estados")]
     [SwaggerOperation(
         Summary = "Obtener mapeo estado -> región",
-        Description = "Retorna el mapeo editable de cada estado (Asokam.genEstadosCat) a su región.")]
+        Description = "Retorna el mapeo editable de cada estado (Asokam.genEstadosCat) a su región, opcionalmente acotado a una gerencia.")]
     [SwaggerResponse(200, "Mapeo obtenido", typeof(ApiResponse<List<RegionEstadoDto>>))]
-    public async Task<IActionResult> GetMapeoEstados(CancellationToken ct)
+    public async Task<IActionResult> GetMapeoEstados([FromQuery] int? idTipoGerencia, CancellationToken ct)
     {
-        var mapeo = await _service.GetMapeoEstadosAsync(ct);
+        var mapeo = await _service.GetMapeoEstadosAsync(idTipoGerencia, ct);
         return Ok(new ApiResponse<List<RegionEstadoDto>>
         {
             Success = true,

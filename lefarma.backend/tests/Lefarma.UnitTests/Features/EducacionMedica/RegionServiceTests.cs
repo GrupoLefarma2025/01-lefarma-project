@@ -10,6 +10,9 @@ namespace Lefarma.UnitTests.Features.EducacionMedica;
 
 public class RegionServiceTests
 {
+    private const int GerenciaImss = 1;
+    private const int GerenciaDescentralizado = 2;
+
     private sealed class FakeRegionRepository : IRegionRepository
     {
         public List<RegionCatalogo> Regiones { get; } = [];
@@ -22,15 +25,16 @@ public class RegionServiceTests
         public int SinCoordenadas { get; set; }
         private int _siguienteRegion = 1;
 
-        public Task<List<RegionCatalogo>> GetAllAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(Regiones.ToList());
+        public Task<List<RegionCatalogo>> GetAllAsync(CancellationToken cancellationToken = default, int? idTipoGerencia = null)
+            => Task.FromResult(Regiones.Where(z => !idTipoGerencia.HasValue || z.IdTipoGerencia == idTipoGerencia.Value).ToList());
 
         public Task<RegionCatalogo?> GetByIdAsync(int idRegion, CancellationToken cancellationToken = default)
             => Task.FromResult(Regiones.FirstOrDefault(z => z.IdRegion == idRegion));
 
-        public Task<RegionCatalogo?> GetByNombreAsync(string nombre, CancellationToken cancellationToken = default)
+        public Task<RegionCatalogo?> GetByNombreAsync(string nombre, CancellationToken cancellationToken = default, int? idTipoGerencia = null)
             => Task.FromResult(Regiones.FirstOrDefault(z =>
-                string.Equals(z.Nombre, nombre, StringComparison.OrdinalIgnoreCase)));
+                string.Equals(z.Nombre, nombre, StringComparison.OrdinalIgnoreCase)
+                && (!idTipoGerencia.HasValue || z.IdTipoGerencia == idTipoGerencia.Value)));
 
         public Task<RegionCatalogo> CreateAsync(RegionCatalogo region, CancellationToken cancellationToken = default)
         {
@@ -47,11 +51,12 @@ public class RegionServiceTests
                 .GroupBy(e => e.IdRegion!.Value)
                 .ToDictionary(g => g.Key, g => g.Count()));
 
-        public Task<List<RegionEstado>> GetMapeosAsync(CancellationToken cancellationToken = default)
-            => Task.FromResult(Mapeos.ToList());
+        public Task<List<RegionEstado>> GetMapeosAsync(CancellationToken cancellationToken = default, int? idTipoGerencia = null)
+            => Task.FromResult(Mapeos.Where(m => !idTipoGerencia.HasValue || m.IdTipoGerencia == idTipoGerencia.Value).ToList());
 
-        public Task<RegionEstado?> GetMapeoByEstadoAsync(int codigoEstado, CancellationToken cancellationToken = default)
-            => Task.FromResult(Mapeos.FirstOrDefault(m => m.CodigoEstado == codigoEstado));
+        public Task<RegionEstado?> GetMapeoByEstadoAsync(int codigoEstado, CancellationToken cancellationToken = default, int? idTipoGerencia = null)
+            => Task.FromResult(Mapeos.FirstOrDefault(m => m.CodigoEstado == codigoEstado
+                && (!idTipoGerencia.HasValue || m.IdTipoGerencia == idTipoGerencia.Value)));
 
         public Task<RegionEstado> CreateMapeoAsync(RegionEstado mapeo, CancellationToken cancellationToken = default)
         {
@@ -69,9 +74,13 @@ public class RegionServiceTests
             int idUsuario,
             CancellationToken cancellationToken = default)
         {
+            var idTipoGerencia = Regiones.First(z => z.IdRegion == idRegion).IdTipoGerencia;
             var deseados = codigoEstados.Distinct().ToList();
             Mapeos.RemoveAll(m => m.IdRegion == idRegion && !deseados.Contains(m.CodigoEstado));
-            Mapeos.RemoveAll(m => m.IdRegion != idRegion && deseados.Contains(m.CodigoEstado));
+            // 1 estado = 1 region DENTRO DE LA MISMA gerencia.
+            Mapeos.RemoveAll(m => m.IdRegion != idRegion
+                && m.IdTipoGerencia == idTipoGerencia
+                && deseados.Contains(m.CodigoEstado));
             var existentes = Mapeos.Where(m => m.IdRegion == idRegion).Select(m => m.CodigoEstado).ToHashSet();
             foreach (var codigo in deseados.Where(c => !existentes.Contains(c)))
             {
@@ -79,27 +88,30 @@ public class RegionServiceTests
                 {
                     IdRegionEstado = Mapeos.Any() ? Mapeos.Max(m => m.IdRegionEstado) + 1 : 1,
                     CodigoEstado = codigo,
-                    IdRegion = idRegion
+                    IdRegion = idRegion,
+                    IdTipoGerencia = idTipoGerencia
                 });
             }
             return Task.CompletedTask;
         }
 
         public Task<List<MapeoPendienteAplicar>> PreviewAplicarMapeoAsync(
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            int? idTipoGerencia = null)
             => Task.FromResult(Pendientes.ToList());
 
-        public Task<int> AplicarMapeoAsync(int idUsuario, CancellationToken cancellationToken = default)
+        public Task<int> AplicarMapeoAsync(int idUsuario, CancellationToken cancellationToken = default, int? idTipoGerencia = null)
             => Task.FromResult(PendientesAplicados);
 
         public Task<List<MapeoGpsPendienteAplicar>> PreviewAplicarMapeoGpsAsync(
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            int? idTipoGerencia = null)
             => Task.FromResult(PendientesGps.ToList());
 
-        public Task<int> AplicarMapeoGpsAsync(int idUsuario, CancellationToken cancellationToken = default)
+        public Task<int> AplicarMapeoGpsAsync(int idUsuario, CancellationToken cancellationToken = default, int? idTipoGerencia = null)
             => Task.FromResult(GpsAplicados);
 
-        public Task<int> ContarSinRegionSinCoordenadasAsync(CancellationToken cancellationToken = default)
+        public Task<int> ContarSinRegionSinCoordenadasAsync(CancellationToken cancellationToken = default, int? idTipoGerencia = null)
             => Task.FromResult(SinCoordenadas);
     }
 
@@ -149,6 +161,21 @@ public class RegionServiceTests
             => Task.CompletedTask;
     }
 
+    private sealed class FakeTipoGerenciaRepository : ITipoGerenciaRepository
+    {
+        public List<TipoGerencia> Tipos { get; } =
+        [
+            new() { IdTipoGerencia = GerenciaImss, Descripcion = "IMSS", Activo = true },
+            new() { IdTipoGerencia = GerenciaDescentralizado, Descripcion = "Descentralizado", Activo = true },
+        ];
+
+        public Task<List<TipoGerencia>> GetAllAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(Tipos.ToList());
+
+        public Task<TipoGerencia?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+            => Task.FromResult(Tipos.FirstOrDefault(t => t.IdTipoGerencia == id && t.Activo));
+    }
+
     private static AsokamDbContext CreateAsokamInMemoryContext()
     {
         var options = new DbContextOptionsBuilder<AsokamDbContext>()
@@ -162,7 +189,12 @@ public class RegionServiceTests
         FakeHospitalRepository hospitales,
         FakeHospitalExtensionRepository extensiones)
     {
-        return new RegionService(regiones, hospitales, extensiones, CreateAsokamInMemoryContext());
+        return new RegionService(
+            regiones,
+            hospitales,
+            extensiones,
+            new FakeTipoGerenciaRepository(),
+            CreateAsokamInMemoryContext());
     }
 
     [Fact]
@@ -172,8 +204,8 @@ public class RegionServiceTests
         {
             Regiones =
             {
-                new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true },
-                new RegionCatalogo { IdRegion = 2, Nombre = "SURESTE", Activo = true }
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaImss, Nombre = "SURESTE", Activo = true }
             },
             Extensiones =
             {
@@ -189,21 +221,72 @@ public class RegionServiceTests
         resultado.Should().HaveCount(2);
         resultado.Single(z => z.IdRegion == 2).CantidadHospitales.Should().Be(2);
         resultado.Single(z => z.IdRegion == 1).CantidadHospitales.Should().Be(0);
+        resultado.Should().OnlyContain(z => z.NombreGerencia == "IMSS");
     }
 
     [Fact]
-    public async Task CreateRegionAsync_ConNombreDuplicado_DebeRechazar()
+    public async Task GetRegionesAsync_ConGerencia_DebeFiltrarPorGerencia()
     {
         var regiones = new FakeRegionRepository
         {
-            Regiones = { new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true } }
+            Regiones =
+            {
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaDescentralizado, Nombre = "NORESTE", Activo = true }
+            }
         };
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        var act = () => servicio.CreateRegionAsync(new UpsertRegionRequest { Nombre = " noreste " }, 1);
+        var resultado = await servicio.GetRegionesAsync(GerenciaDescentralizado);
+
+        resultado.Should().ContainSingle();
+        resultado.Single().IdRegion.Should().Be(2);
+        resultado.Single().NombreGerencia.Should().Be("Descentralizado");
+    }
+
+    [Fact]
+    public async Task CreateRegionAsync_ConNombreDuplicadoEnLaMismaGerencia_DebeRechazar()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
+        };
+        var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
+
+        var act = () => servicio.CreateRegionAsync(
+            new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = " noreste " }, 1);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*Ya existe una región*");
+    }
+
+    [Fact]
+    public async Task CreateRegionAsync_MismoNombreOtraGerencia_DebePermitir()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
+        };
+        var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
+
+        var resultado = await servicio.CreateRegionAsync(
+            new UpsertRegionRequest { IdTipoGerencia = GerenciaDescentralizado, Nombre = "NORESTE" }, 1);
+
+        resultado.Nombre.Should().Be("NORESTE");
+        resultado.IdTipoGerencia.Should().Be(GerenciaDescentralizado);
+        regiones.Regiones.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public async Task CreateRegionAsync_ConGerenciaInexistente_DebeRechazar()
+    {
+        var servicio = CrearServicio(new FakeRegionRepository(), new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
+
+        var act = () => servicio.CreateRegionAsync(
+            new UpsertRegionRequest { IdTipoGerencia = 99, Nombre = "NUEVA" }, 1);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*No existe la gerencia 99*");
     }
 
     [Fact]
@@ -211,7 +294,8 @@ public class RegionServiceTests
     {
         var servicio = CrearServicio(new FakeRegionRepository(), new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        var act = () => servicio.CreateRegionAsync(new UpsertRegionRequest { Nombre = "  " }, 1);
+        var act = () => servicio.CreateRegionAsync(
+            new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "  " }, 1);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*obligatorio*");
@@ -222,10 +306,27 @@ public class RegionServiceTests
     {
         var servicio = CrearServicio(new FakeRegionRepository(), new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        var act = () => servicio.UpdateRegionAsync(999, new UpsertRegionRequest { Nombre = "NUEVA" }, 1);
+        var act = () => servicio.UpdateRegionAsync(
+            999, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "NUEVA" }, 1);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*No existe la región 999*");
+    }
+
+    [Fact]
+    public async Task UpdateRegionAsync_CambiandoGerencia_DebeRechazar()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
+        };
+        var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
+
+        var act = () => servicio.UpdateRegionAsync(
+            1, new UpsertRegionRequest { IdTipoGerencia = GerenciaDescentralizado, Nombre = "NORESTE" }, 1);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*no se puede cambiar*");
     }
 
     [Fact]
@@ -259,7 +360,7 @@ public class RegionServiceTests
     {
         var regiones = new FakeRegionRepository
         {
-            Regiones = { new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true } }
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
         };
         var hospitales = new FakeHospitalRepository
         {
@@ -269,7 +370,7 @@ public class RegionServiceTests
         {
             Extensiones =
             {
-                new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdRegion = null, Activo = true }
+                new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdTipoGerencia = GerenciaImss, IdRegion = null, Activo = true }
             }
         };
         regiones.Extensiones = extensiones.Extensiones;
@@ -282,33 +383,11 @@ public class RegionServiceTests
     }
 
     [Fact]
-    public async Task AsignarRegionHospitalAsync_SinExtension_DebeCrearlaConLaRegion()
+    public async Task AsignarRegionHospitalAsync_RegionDeOtraGerencia_DebeRechazar()
     {
         var regiones = new FakeRegionRepository
         {
-            Regiones = { new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true } }
-        };
-        var hospitales = new FakeHospitalRepository
-        {
-            Hospitales = { new Hospital { CodigoContacto = 10 } }
-        };
-        var extensiones = new FakeHospitalExtensionRepository();
-        regiones.Extensiones = extensiones.Extensiones;
-        var servicio = CrearServicio(regiones, hospitales, extensiones);
-
-        var resultado = await servicio.AsignarRegionHospitalAsync(10, new AsignarRegionHospitalRequest { IdRegion = 1 }, 7);
-
-        resultado.IdRegion.Should().Be(1);
-        resultado.IdHospital.Should().Be(10);
-        extensiones.Extensiones.Should().ContainSingle(e => e.IdHospital == 10 && e.IdRegion == 1);
-    }
-
-    [Fact]
-    public async Task AsignarRegionHospitalAsync_ConIdRegionNull_DebeQuitarLaRegion()
-    {
-        var regiones = new FakeRegionRepository
-        {
-            Regiones = { new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true } }
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaDescentralizado, Nombre = "NORESTE", Activo = true } }
         };
         var hospitales = new FakeHospitalRepository
         {
@@ -318,7 +397,55 @@ public class RegionServiceTests
         {
             Extensiones =
             {
-                new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdRegion = 1, Activo = true }
+                new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdTipoGerencia = GerenciaImss, Activo = true }
+            }
+        };
+        regiones.Extensiones = extensiones.Extensiones;
+        var servicio = CrearServicio(regiones, hospitales, extensiones);
+
+        var act = () => servicio.AsignarRegionHospitalAsync(10, new AsignarRegionHospitalRequest { IdRegion = 1 }, 7);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*otra gerencia*");
+    }
+
+    [Fact]
+    public async Task AsignarRegionHospitalAsync_SinGerencia_DebeRechazar()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
+        };
+        var hospitales = new FakeHospitalRepository
+        {
+            Hospitales = { new Hospital { CodigoContacto = 10 } }
+        };
+        var extensiones = new FakeHospitalExtensionRepository();
+        regiones.Extensiones = extensiones.Extensiones;
+        var servicio = CrearServicio(regiones, hospitales, extensiones);
+
+        var act = () => servicio.AsignarRegionHospitalAsync(10, new AsignarRegionHospitalRequest { IdRegion = 1 }, 7);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*no tiene gerencia*");
+    }
+
+    [Fact]
+    public async Task AsignarRegionHospitalAsync_ConIdRegionNull_DebeQuitarLaRegion()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } }
+        };
+        var hospitales = new FakeHospitalRepository
+        {
+            Hospitales = { new Hospital { CodigoContacto = 10 } }
+        };
+        var extensiones = new FakeHospitalExtensionRepository
+        {
+            Extensiones =
+            {
+                new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdTipoGerencia = GerenciaImss, IdRegion = 1, Activo = true }
             }
         };
         regiones.Extensiones = extensiones.Extensiones;
@@ -337,33 +464,34 @@ public class RegionServiceTests
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
         var resultado = await servicio.CreateRegionAsync(
-            new UpsertRegionRequest { Nombre = "NORESTE", CodigoEstados = [491, 503, 513] }, 1);
+            new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", CodigoEstados = [491, 503, 513] }, 1);
 
         resultado.Estados.Should().HaveCount(3);
         regiones.Mapeos.Should().HaveCount(3);
-        regiones.Mapeos.Should().OnlyContain(m => m.IdRegion == resultado.IdRegion);
+        regiones.Mapeos.Should().OnlyContain(m => m.IdRegion == resultado.IdRegion && m.IdTipoGerencia == GerenciaImss);
     }
 
     [Fact]
-    public async Task UpdateRegionAsync_EstadoOcupadoEnOtraRegion_DebeMoverlo()
+    public async Task UpdateRegionAsync_EstadoOcupadoEnOtraRegionMismaGerencia_DebeMoverlo()
     {
         var regiones = new FakeRegionRepository
         {
             Regiones =
             {
-                new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true },
-                new RegionCatalogo { IdRegion = 2, Nombre = "OCCIDENTE", Activo = true }
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaImss, Nombre = "OCCIDENTE", Activo = true }
             },
             Mapeos =
             {
-                new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1 },
-                new RegionEstado { IdRegionEstado = 2, CodigoEstado = 498, IdRegion = 2 }
+                new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1, IdTipoGerencia = GerenciaImss },
+                new RegionEstado { IdRegionEstado = 2, CodigoEstado = 498, IdRegion = 2, IdTipoGerencia = GerenciaImss }
             }
         };
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
         // Coahuila (491) pasa de NORESTE a OCCIDENTE.
-        await servicio.UpdateRegionAsync(2, new UpsertRegionRequest { Nombre = "OCCIDENTE", CodigoEstados = [498, 491] }, 1);
+        await servicio.UpdateRegionAsync(
+            2, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "OCCIDENTE", CodigoEstados = [498, 491] }, 1);
 
         regiones.Mapeos.Single(m => m.CodigoEstado == 491).IdRegion.Should().Be(2);
         regiones.Mapeos.Single(m => m.CodigoEstado == 498).IdRegion.Should().Be(2);
@@ -371,16 +499,43 @@ public class RegionServiceTests
     }
 
     [Fact]
+    public async Task UpdateRegionAsync_EstadoEnOtraGerencia_NoSeMueve()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones =
+            {
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaDescentralizado, Nombre = "NORESTE", Activo = true }
+            },
+            Mapeos =
+            {
+                new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1, IdTipoGerencia = GerenciaImss },
+                new RegionEstado { IdRegionEstado = 2, CodigoEstado = 491, IdRegion = 2, IdTipoGerencia = GerenciaDescentralizado }
+            }
+        };
+        var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
+
+        // La región IMSS conserva los mismos estados: el mapeo de Descentralizado no se toca.
+        await servicio.UpdateRegionAsync(
+            1, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", CodigoEstados = [491] }, 1);
+
+        regiones.Mapeos.Where(m => m.CodigoEstado == 491).Should().HaveCount(2);
+        regiones.Mapeos.Single(m => m.IdTipoGerencia == GerenciaDescentralizado).IdRegion.Should().Be(2);
+    }
+
+    [Fact]
     public async Task UpdateRegionAsync_QuitandoEstado_DebeEliminarSuMapeo()
     {
         var regiones = new FakeRegionRepository
         {
-            Regiones = { new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true } },
-            Mapeos = { new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1 } }
+            Regiones = { new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true } },
+            Mapeos = { new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1, IdTipoGerencia = GerenciaImss } }
         };
         var servicio = CrearServicio(regiones, new FakeHospitalRepository(), new FakeHospitalExtensionRepository());
 
-        await servicio.UpdateRegionAsync(1, new UpsertRegionRequest { Nombre = "NORESTE", CodigoEstados = [] }, 1);
+        await servicio.UpdateRegionAsync(
+            1, new UpsertRegionRequest { IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", CodigoEstados = [] }, 1);
 
         regiones.Mapeos.Should().BeEmpty();
     }
@@ -392,17 +547,21 @@ public class RegionServiceTests
         {
             Regiones =
             {
-                new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true, CentroLatitud = 25.7m, CentroLongitud = -100.3m },
-                new RegionCatalogo { IdRegion = 2, Nombre = "SURESTE", Activo = true, CentroLatitud = 19.0m, CentroLongitud = -96.0m }
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true, CentroLatitud = 25.7m, CentroLongitud = -100.3m },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaImss, Nombre = "SURESTE", Activo = true, CentroLatitud = 19.0m, CentroLongitud = -96.0m }
             },
-            Mapeos = { new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1 } }
+            Mapeos = { new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1, IdTipoGerencia = GerenciaImss } }
         };
         var hospitales = new FakeHospitalRepository
         {
             // Hospital en Coahuila con coordenadas de Saltillo.
             Hospitales = { new Hospital { CodigoContacto = 10, CodigoEstado = "491", Latitud = 25.42m, Longitud = -100.99m } }
         };
-        var servicio = CrearServicio(regiones, hospitales, new FakeHospitalExtensionRepository());
+        var extensiones = new FakeHospitalExtensionRepository
+        {
+            Extensiones = { new HospitalExtension { IdHospitalExtension = 5, IdHospital = 10, IdTipoGerencia = GerenciaImss, Activo = true } }
+        };
+        var servicio = CrearServicio(regiones, hospitales, extensiones);
 
         var sugerencia = await servicio.GetSugerenciaAsync(10);
 
@@ -420,7 +579,7 @@ public class RegionServiceTests
         {
             Regiones =
             {
-                new RegionCatalogo { IdRegion = 1, Nombre = "CDMX NORTE", Activo = true, CentroLatitud = 19.49m, CentroLongitud = -99.13m }
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "CDMX NORTE", Activo = true, CentroLatitud = 19.49m, CentroLongitud = -99.13m }
             }
         };
         var hospitales = new FakeHospitalRepository
@@ -428,13 +587,40 @@ public class RegionServiceTests
             // CDMX (493) no tiene mapeo; hospital con coordenadas.
             Hospitales = { new Hospital { CodigoContacto = 20, CodigoEstado = "493", Latitud = 19.49m, Longitud = -99.20m } }
         };
-        var servicio = CrearServicio(regiones, hospitales, new FakeHospitalExtensionRepository());
+        var extensiones = new FakeHospitalExtensionRepository
+        {
+            Extensiones = { new HospitalExtension { IdHospitalExtension = 6, IdHospital = 20, IdTipoGerencia = GerenciaImss, Activo = true } }
+        };
+        var servicio = CrearServicio(regiones, hospitales, extensiones);
 
         var sugerencia = await servicio.GetSugerenciaAsync(20);
 
         sugerencia.PorEstado.Should().BeNull();
         sugerencia.PorGps.Should().NotBeNull();
         sugerencia.PorGps!.IdRegion.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task GetSugerenciaAsync_SinGerencia_NoDevuelveOpciones()
+    {
+        var regiones = new FakeRegionRepository
+        {
+            Regiones =
+            {
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true, CentroLatitud = 25.7m, CentroLongitud = -100.3m }
+            },
+            Mapeos = { new RegionEstado { IdRegionEstado = 1, CodigoEstado = 491, IdRegion = 1, IdTipoGerencia = GerenciaImss } }
+        };
+        var hospitales = new FakeHospitalRepository
+        {
+            Hospitales = { new Hospital { CodigoContacto = 30, CodigoEstado = "491", Latitud = 25.42m, Longitud = -100.99m } }
+        };
+        var servicio = CrearServicio(regiones, hospitales, new FakeHospitalExtensionRepository());
+
+        var sugerencia = await servicio.GetSugerenciaAsync(30);
+
+        sugerencia.PorEstado.Should().BeNull();
+        sugerencia.PorGps.Should().BeNull();
     }
 
     [Fact]
@@ -455,9 +641,9 @@ public class RegionServiceTests
         {
             Regiones =
             {
-                new RegionCatalogo { IdRegion = 1, Nombre = "NORESTE", Activo = true },
-                new RegionCatalogo { IdRegion = 2, Nombre = "OCCIDENTE", Activo = true },
-                new RegionCatalogo { IdRegion = 3, Nombre = "CDMX SUR", Activo = true }
+                new RegionCatalogo { IdRegion = 1, IdTipoGerencia = GerenciaImss, Nombre = "NORESTE", Activo = true },
+                new RegionCatalogo { IdRegion = 2, IdTipoGerencia = GerenciaImss, Nombre = "OCCIDENTE", Activo = true },
+                new RegionCatalogo { IdRegion = 3, IdTipoGerencia = GerenciaImss, Nombre = "CDMX SUR", Activo = true }
             },
             Pendientes =
             {

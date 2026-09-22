@@ -18,6 +18,7 @@ public class RutaConfiguration : IEntityTypeConfiguration<Ruta>
         builder.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(80);
         builder.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(15).IsRequired();
         builder.Property(e => e.FechaConfirmacion).HasColumnName("fecha_confirmacion");
+        builder.Property(e => e.IdRutaVersion).HasColumnName("id_ruta_version");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
@@ -25,6 +26,14 @@ public class RutaConfiguration : IEntityTypeConfiguration<Ruta>
 
         builder.HasIndex(e => new { e.IdSeleccionMensual, e.Version })
             .HasDatabaseName("IX_rutas_seleccion_version");
+
+        builder.HasIndex(e => e.IdRutaVersion)
+            .HasDatabaseName("IX_rutas_id_ruta_version");
+
+        builder.HasOne(e => e.RutaVersion)
+            .WithMany(v => v.Rutas)
+            .HasForeignKey(e => e.IdRutaVersion)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<SeleccionMensual>()
             .WithMany()

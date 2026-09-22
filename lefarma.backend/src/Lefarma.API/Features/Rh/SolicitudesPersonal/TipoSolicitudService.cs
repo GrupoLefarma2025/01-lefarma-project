@@ -232,7 +232,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 }
 
                 if (await _repository.TieneSolicitudesAsociadasAsync(id))
-                    return CommonErrors.HasDependencies("Tipo de solicitud");
+                    return CommonErrors.HasDependencies("Justificación de incidencias");
 
                 await _repository.DeleteAsync(tipo);
 
@@ -242,7 +242,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             catch (DbUpdateException ex)
             {
                 EnrichWideEvent("Delete", entityId: id, exception: ex);
-                return CommonErrors.HasDependencies("Tipo de solicitud");
+                return CommonErrors.HasDependencies("Justificación de incidencias");
             }
             catch (Exception ex)
             {

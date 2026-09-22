@@ -47,12 +47,12 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Rh
                 .AnyAsync(s => s.IdTipoSolicitud == idTipoSolicitud);
         }
 
-        public async Task<int> ContarSolicitudesCerradasEnPeriodoAsync(
+        public async Task<int> ContarSolicitudesVigentesEnPeriodoAsync(
             int idUsuario,
             int idTipoSolicitud,
             DateTime fechaInicio,
             DateTime fechaFin,
-            string estadoCerrado,
+            IReadOnlyCollection<string> estadosExcluidos,
             int? excluirIdSolicitud = null)
         {
             var query = _context.SolicitudesPersonal
@@ -61,7 +61,7 @@ namespace Lefarma.API.Infrastructure.Data.Repositories.Rh
                     && s.FechaCreacion >= fechaInicio
                     && s.FechaCreacion <= fechaFin
                     && s.Estado != null
-                    && s.Estado.Codigo == estadoCerrado);
+                    && !estadosExcluidos.Contains(s.Estado.Codigo));
 
             if (excluirIdSolicitud.HasValue)
                 query = query.Where(s => s.IdSolicitud != excluirIdSolicitud.Value);

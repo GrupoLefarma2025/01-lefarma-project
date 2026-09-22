@@ -13,5 +13,7 @@ public interface IArchivoRepository
     Task<Archivo?> GetByNombreFisicoAsync(string nombreFisico, CancellationToken cancellationToken = default);
     Task UpdateAsync(Archivo archivo, CancellationToken cancellationToken = default);
     Task DeleteAsync(int id, CancellationToken cancellationToken = default);
-    Task<int> GetCountAsync(string entidadTipo, int entidadId, string carpeta, CancellationToken cancellationToken = default);
+    Task<int> GetCountAsync(
+        string entidadTipo, int entidadId, string carpeta,
+        bool soloActivos = true, CancellationToken cancellationToken = default);
 }

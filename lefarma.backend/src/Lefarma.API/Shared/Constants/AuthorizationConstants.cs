@@ -74,6 +74,11 @@ public static class Permissions
         public const string VerTodas = "incidencias_checado.ver_todas";
     }
 
+    public static class EducacionMedica
+    {
+        public const string BandejaVerTodos = "educacion_medica.aprobaciones.puede_ver_todos";
+    }
+
     public static class Vacaciones
     {
         public const string Ver = "rh.vacaciones.ver";
