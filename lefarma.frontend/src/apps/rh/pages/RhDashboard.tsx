@@ -29,7 +29,6 @@ export function RhDashboard() {
             titulo="Mis límites y saldo"
             refreshKey={limitesRefreshKey}
             defaultCollapsed={false}
-            storageKey="limites-solicitud-card:dashboard"
           />
         </div>
       </div>

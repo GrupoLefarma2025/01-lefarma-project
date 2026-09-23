@@ -335,7 +335,7 @@ export default function SolicitudesPersonal() {
       <LimitesSolicitudCard
         titulo="Mis límites y saldo de vacaciones"
         refreshKey={limitesRefreshKey}
-        storageKey="limites-solicitud-card:solicitudes"
+        defaultCollapsed
       />
 
       <Tabs

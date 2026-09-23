@@ -36,6 +36,7 @@ export interface AccionDisponibleResponse {
   idTipoAccion: number;
   tipoAccionCodigo?: string | null;
   tipoAccionNombre?: string | null;
+  tipoAccionDescripcion?: string | null;
   tipoAccionCambiaEstado?: boolean | null;
   enviaConcentrado?: boolean;
   handlers: AccionHandlerMetadataResponse[];
@@ -52,6 +53,7 @@ export interface AccionMetadataResponse {
   idTipoAccion: number;
   tipoAccionCodigo?: string | null;
   tipoAccionNombre?: string | null;
+  tipoAccionDescripcion?: string | null;
   tipoAccionCambiaEstado?: boolean | null;
   requiereComentario: boolean;
   requiereAdjunto: boolean;

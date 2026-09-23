@@ -243,45 +243,22 @@ function SkeletonRows() {
   );
 }
 
-const COLLAPSE_KEY = 'limites-solicitud-card:collapsed';
-
-function leerColapsado(storageKey: string, defaultCollapsed: boolean): boolean {
-  try {
-    const valor = localStorage.getItem(storageKey);
-    return valor === null ? defaultCollapsed : valor === 'true';
-  } catch {
-    return defaultCollapsed;
-  }
-}
-
 export function LimitesSolicitudCard({
   idUsuario,
   titulo,
   refreshKey,
   defaultCollapsed = true,
-  storageKey = COLLAPSE_KEY,
 }: {
   idUsuario?: number;
   titulo?: string;
   refreshKey?: number;
   defaultCollapsed?: boolean;
-  storageKey?: string;
 } = {}) {
   const [data, setData] = useState<MisLimitesResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [collapsed, setCollapsed] = useState(() => leerColapsado(storageKey, defaultCollapsed));
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
-  const toggleCollapsed = () => {
-    setCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(storageKey, String(next));
-      } catch {
-        // localStorage no disponible
-      }
-      return next;
-    });
-  };
+  const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
   const cargarDatos = useCallback(async (): Promise<MisLimitesResponse | null> => {
     try {
@@ -490,6 +467,17 @@ export function LimitesSolicitudCard({
                 </div>
               )}
 
+              {data?.reglasDescuento && (
+                <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Cómo se generan los descuentos
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                    {data.reglasDescuento}
+                  </p>
+                </div>
+              )}
+
               {data !== null && limites.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-6 text-center">
                   <p className="text-sm font-medium text-foreground">Sin límites configurados</p>
@@ -504,7 +492,8 @@ export function LimitesSolicitudCard({
                 <p className="text-muted-foreground/70 text-[10px]">
                   Los límites cuentan las solicitudes desde que se crean; canceladas y rechazadas no
                   cuentan. Los descuentos justificados se cubren al cerrarse la solicitud (o quedan
-                  apartados si está en trámite), máximo 2 por mes.
+                  apartados si está en trámite) y se cuentan por día, máximo 2 días con descuento por
+                  mes.
                 </p>
               )}
             </>

@@ -1,13 +1,17 @@
 using ErrorOr;
+using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
+using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
+using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Rh.IncidenciasChecado;
 
@@ -17,6 +21,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
     private readonly IEmpleadoRepository _empleadoRepository;
     private readonly IIncidenciaChecadoConfigService _descuentoService;
     private readonly ApplicationDbContext _applicationDbContext;
+    private readonly int _limiteDescuentosJustificadosMes;
 
     protected override string EntityName => "IncidenciasChecado";
 
@@ -32,6 +37,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         IEmpleadoRepository empleadoRepository,
         IIncidenciaChecadoConfigService descuentoService,
         ApplicationDbContext applicationDbContext,
+        IOptions<SolicitudesPersonalSettings> solicitudesSettings,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -39,6 +45,7 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         _empleadoRepository = empleadoRepository;
         _descuentoService = descuentoService;
         _applicationDbContext = applicationDbContext;
+        _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
     }
 
     public async Task<ErrorOr<List<IncidenciaChecadoResponse>>> GetMisIncidenciasAsync(
@@ -505,6 +512,41 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         }
     }
 
+    public async Task<ErrorOr<ReglasDescuentoResponse>> GetReglasDescuentoAsync(
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var reglas = await _applicationDbContext.IncidenciasChecadoConfig
+                .AsNoTracking()
+                .Where(r => r.Activo)
+                .OrderByDescending(r => r.Prioridad)
+                .Select(r => new ReglaDescuentoResponse
+                {
+                    Nombre = r.Nombre,
+                    TipoIncidencia = r.TipoIncidencia,
+                    CantidadAcumulada = r.CantidadAcumulada,
+                    Periodo = r.Periodo,
+                    MinutosMin = r.MinutosMin,
+                    MinutosMax = r.MinutosMax
+                })
+                .ToListAsync(cancellationToken);
+
+            EnrichWideEvent("GetReglasDescuento", count: reglas.Count);
+
+            return new ReglasDescuentoResponse
+            {
+                Reglas = reglas,
+                LimiteDescuentosJustificadosMes = _limiteDescuentosJustificadosMes
+            };
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("GetReglasDescuento", exception: ex);
+            return CommonErrors.DatabaseError("consultar las reglas de descuento de incidencias");
+        }
+    }
+
     private async Task EnriquecerJustificacionesAsync(
         List<IncidenciaChecadoResponse> items,
         CancellationToken cancellationToken)
@@ -537,6 +579,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 && s.Estado != null
                 && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
                 && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
+                && s.TipoSolicitud != null
+                && s.TipoSolicitud.Categoria == CategoriaSolicitud.Incidencia
                 && s.FechaInicio.Value.Date <= fechaMax.Date
                 && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
@@ -550,6 +594,9 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
+
+        var fechasDetalle = await JustificacionSolicitudHelper.ObtenerFechasDetalleAsync(
+            _applicationDbContext, solicitudes.Select(s => s.IdSolicitud), cancellationToken);
 
         var usuarioSolicitudes = solicitudes
             .Join(
@@ -570,8 +617,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 
             var itemDate = item.Fecha.Date;
             var coincidencias = solicitudesEmpleado
-                .Where(s => s.FechaInicio.Date <= itemDate &&
-                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate))
+                .Where(s => JustificacionSolicitudHelper.SolicitudCubreFecha(
+                    s.IdSolicitud, s.FechaInicio, s.FechaFin, itemDate, fechasDetalle))
                 .ToList();
 
             if (coincidencias.Count == 0)

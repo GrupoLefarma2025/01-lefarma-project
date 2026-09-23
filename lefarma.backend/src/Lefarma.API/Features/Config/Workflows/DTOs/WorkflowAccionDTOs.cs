@@ -22,6 +22,7 @@ public class AccionDisponibleResponse
     public int IdTipoAccion { get; set; }
     public string? TipoAccionCodigo { get; set; }
     public string? TipoAccionNombre { get; set; }
+    public string? TipoAccionDescripcion { get; set; }
     public bool? TipoAccionCambiaEstado { get; set; }
     public bool EnviaConcentrado { get; set; }
 
@@ -63,6 +64,7 @@ public class AccionMetadataResponse
     public int IdTipoAccion { get; set; }
     public string? TipoAccionCodigo { get; set; }
     public string? TipoAccionNombre { get; set; }
+    public string? TipoAccionDescripcion { get; set; }
     public bool? TipoAccionCambiaEstado { get; set; }
     public bool RequiereComentario { get; set; }
     public bool RequiereAdjunto { get; set; }

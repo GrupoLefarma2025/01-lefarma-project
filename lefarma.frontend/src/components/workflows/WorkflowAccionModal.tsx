@@ -367,6 +367,7 @@ export function WorkflowAccionModal({
           ? `${accion?.tipoAccionNombre ?? 'Devolver documento'}`
           : (accion?.tipoAccionNombre ?? 'Ejecutar acción')
       }
+      subtitle={accion?.tipoAccionDescripcion || undefined}
       size="lg"
       footer={
         <div className="flex justify-end gap-2 pt-2">

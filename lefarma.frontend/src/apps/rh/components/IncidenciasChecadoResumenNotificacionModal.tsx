@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Info, Loader2, Mail, Send } from 'lucide-react';
+import { ChevronDown, Info, Loader2, Mail, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
@@ -50,17 +55,27 @@ const VARIABLES = [
   'Puesto',
   'FechaInicio',
   'FechaFin',
+  'Periodo',
   'TotalIncidencias',
   'TotalDescuentos',
-  'DescuentosJustificados',
   'DescuentosPorJustificar',
+  'DescuentosJustificados',
+  'DescuentosEnTramite',
+  'LimiteDescuentosJustificados',
+  'DescuentosRestantes',
+  'DiasConDescuento',
+  'FechasConDescuento',
+  'Retardos',
+  'Omisiones',
+  'SalidasAnticipadas',
+  'ReglasDescuento',
   'TablaIncidencias',
 ];
 
 const ASUNTO_DEFAULT = 'Notificación de incidencias de checado';
-const MENSAJE_DEFAULT = `<p>Hola {{Nombre}},</p>\n<p>Se registraron <strong>{{TotalIncidencias}}</strong> incidencias de checado en el período del <strong>{{FechaInicio}}</strong> al <strong>{{FechaFin}}</strong>.</p>\n<p>Detalle de incidencias:</p>\n{{TablaIncidencias}}\n<p>Por favor, revisa el portal de RH para atender cada una.</p>`;
+const MENSAJE_DEFAULT = `<p>Hola,</p>\n<p>El empleado <strong>{{Nombre}}</strong> (nómina {{Nomina}}, {{Departamento}}) tiene <strong>{{TotalIncidencias}}</strong> incidencias de checado en el período del <strong>{{FechaInicio}}</strong> al <strong>{{FechaFin}}</strong>.</p>\n<p>Descuentos en nómina: <strong>{{DescuentosPorJustificar}}</strong> por justificar · <strong>{{DescuentosJustificados}}</strong> de {{LimiteDescuentosJustificados}} ya justificados (quedan {{DescuentosRestantes}}).</p>\n<p>Días con descuento: <strong>{{FechasConDescuento}}</strong></p>\n<p>Detalle de incidencias:</p>\n{{TablaIncidencias}}\n<p><strong>Cómo se generan:</strong> {{ReglasDescuento}} Los días justificados no cuentan para la acumulación; solo se pueden justificar hasta {{LimiteDescuentosJustificados}} descuentos por mes.</p>\n<p>Por favor, avisa a la persona para que pueda justificar estas incidencias.</p>`;
 
-const TABLA_EJEMPLO_HTML = `<table style="border-collapse: collapse; width: 100%; border: 1px solid #ccc;">\n  <thead>\n    <tr style="background-color: #f5f5f5;">\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Fecha</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Día</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entrada</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salida</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Descripción</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Estatus</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">01/01/2024</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Lunes</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">09:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Retardo</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Pendiente</td>\n    </tr>\n  </tbody>\n</table>`;
+const TABLA_EJEMPLO_HTML = `<table style="border-collapse: collapse; width: 100%; border: 1px solid #ccc;">\n  <thead>\n    <tr style="background-color: #f5f5f5;">\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Fecha</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Día</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entrada</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Entró</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salida</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Salió</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Incidencia</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Acumulado</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Motivo</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">Estatus</th>\n      <th style="padding: 4px 8px; border: 1px solid #ccc; text-align: left;">¿Genera descuento?</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">01/09/2026</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Martes</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">08:00</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">08:16</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:30</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">18:31</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Retardo de entrada menor a 20 min</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">2/3</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">2.º de 3 · septiembre de 2026</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">Pendiente</td>\n      <td style="padding: 4px 8px; border: 1px solid #ccc;">No</td>\n    </tr>\n  </tbody>\n</table>`;
 
 const VALORES_EJEMPLO: Record<string, string> = {
   '{{Nombre}}': 'jperez - Juan Pérez',
@@ -68,12 +83,23 @@ const VALORES_EJEMPLO: Record<string, string> = {
   '{{Empresa}}': 'Lefarma',
   '{{Departamento}}': 'Operaciones',
   '{{Puesto}}': 'Auxiliar',
-  '{{FechaInicio}}': '01/01/2024',
-  '{{FechaFin}}': '15/01/2024',
-  '{{TotalIncidencias}}': '3',
-  '{{TotalDescuentos}}': '1',
+  '{{FechaInicio}}': '01/09/2026',
+  '{{FechaFin}}': '30/09/2026',
+  '{{Periodo}}': 'Septiembre 2026',
+  '{{TotalIncidencias}}': '5',
+  '{{TotalDescuentos}}': '2',
+  '{{DescuentosPorJustificar}}': '2',
   '{{DescuentosJustificados}}': '1',
-  '{{DescuentosPorJustificar}}': '0',
+  '{{DescuentosEnTramite}}': '0',
+  '{{LimiteDescuentosJustificados}}': '2',
+  '{{DescuentosRestantes}}': '1',
+  '{{DiasConDescuento}}': '2',
+  '{{FechasConDescuento}}': '1, 12 y 16 de septiembre de 2026',
+  '{{Retardos}}': '2',
+  '{{Omisiones}}': '1',
+  '{{SalidasAnticipadas}}': '0',
+  '{{ReglasDescuento}}':
+    'Cada "Omisión de salida" genera 1 descuento; cada 3 "Retardo de entrada menor a 20 min" en el mes generan 1 descuento.',
   '{{TablaIncidencias}}': TABLA_EJEMPLO_HTML,
 };
 
@@ -127,6 +153,7 @@ export function IncidenciasChecadoResumenNotificacionModal({
   const [enviando, setEnviando] = useState(false);
 const [empleadosDestinatarios, setEmpleadosDestinatarios] = useState<Map<number, EmpleadoDestinatarioState>>(new Map());
 const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
+  const [ayudaVariablesAbierta, setAyudaVariablesAbierta] = useState(false);
 
   const gruposPorCodigo = useMemo(() => agruparPlantillasPorCodigo(plantillas), [plantillas]);
 
@@ -462,12 +489,30 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
               />
             </div>
 
-            <div className="space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
-              <div className="flex items-center gap-2 text-xs font-medium text-blue-800 dark:text-blue-300">
-                <Info className="h-4 w-4" />
-                <span>¿Qué significa cada variable?</span>
-              </div>
-              <ul className="space-y-0.5 text-xs text-blue-700 dark:text-blue-300">
+            <Collapsible
+              open={ayudaVariablesAbierta}
+              onOpenChange={setAyudaVariablesAbierta}
+              className="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/20"
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 text-left text-xs font-medium text-blue-800 dark:text-blue-300"
+                  aria-expanded={ayudaVariablesAbierta}
+                >
+                  <span className="flex items-center gap-2">
+                    <Info className="h-4 w-4" />
+                    ¿Qué significa cada variable? ({VARIABLES.length})
+                  </span>
+                  <ChevronDown
+                    className={`h-4 w-4 shrink-0 transition-transform ${
+                      ayudaVariablesAbierta ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <ul className="mt-2 space-y-0.5 text-xs text-blue-700 dark:text-blue-300">
                 <li><strong>Nombre</strong>: usuario (samAccountName) seguido del nombre completo del empleado.</li>
                 <li><strong>Nomina</strong>: número de nómina del empleado.</li>
                 <li><strong>Empresa</strong>: empresa a la que pertenece.</li>
@@ -475,13 +520,24 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
                 <li><strong>Puesto</strong>: puesto del empleado.</li>
                 <li><strong>FechaInicio</strong>: fecha inicial del período seleccionado.</li>
                 <li><strong>FechaFin</strong>: fecha final del período seleccionado.</li>
+                <li><strong>Periodo</strong>: etiqueta del período seleccionado (ej. "mes anterior").</li>
                 <li><strong>TotalIncidencias</strong>: cantidad total de incidencias del período.</li>
-                <li><strong>TotalDescuentos</strong>: cantidad total de descuentos en nómina generados en el período.</li>
-                <li><strong>DescuentosJustificados</strong>: descuentos que ya quedaron cubiertos por una solicitud cerrada.</li>
-                <li><strong>DescuentosPorJustificar</strong>: descuentos que aún no se cubren y se aplicarán en nómina.</li>
-                <li><strong>TablaIncidencias</strong>: tabla con el detalle de incidencias (fecha, día, entrada, salida, descripción y estatus).</li>
-              </ul>
-            </div>
+                <li><strong>TotalDescuentos</strong>: días con descuento que se aplicarán en nómina si no se justifican.</li>
+                <li><strong>DescuentosPorJustificar</strong>: igual que TotalDescuentos; días que siguen sin justificante.</li>
+                <li><strong>DescuentosJustificados</strong>: días con descuento ya cubiertos por un justificante cerrado.</li>
+                <li><strong>DescuentosEnTramite</strong>: días con descuento con justificante pendiente de cierre.</li>
+                <li><strong>LimiteDescuentosJustificados</strong>: máximo de días con descuento justificables por mes (configuración).</li>
+                <li><strong>DescuentosRestantes</strong>: cuántos días con descuento se pueden justificar todavía este mes.</li>
+                <li><strong>DiasConDescuento</strong>: cantidad de días distintos que generan descuento.</li>
+                <li><strong>FechasConDescuento</strong>: lista de días con descuento (ej. "1, 12 y 16 de septiembre de 2026").</li>
+                <li><strong>Retardos</strong>: cantidad de retardos de entrada (mayores y menores a 20 min).</li>
+                <li><strong>Omisiones</strong>: cantidad de omisiones de entrada y salida.</li>
+                <li><strong>SalidasAnticipadas</strong>: cantidad de salidas anticipadas.</li>
+                <li><strong>ReglasDescuento</strong>: explicación de las reglas activas (acumulación y periodicidad).</li>
+                <li><strong>TablaIncidencias</strong>: tabla con el detalle (fecha, día, horas, incidencia, acumulado, motivo, estatus y descuento).</li>
+                </ul>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
 
           <div className="space-y-3">

@@ -80,7 +80,7 @@ public class SolicitudPersonalServiceTests
             IdPasoOrigen = 10,
             IdTipoAccion = 1,
             Activo = true,
-            TipoAccion = new WorkflowTipoAccion { IdTipoAccion = 1, Codigo = "ENVIAR", Activo = true }
+            TipoAccion = new WorkflowTipoAccion { IdTipoAccion = 1, Codigo = "ENVIAR", Activo = true, CodigoProceso = "SOLICITUD_PERSONAL" }
         };
         var paso = new WorkflowPaso
         {
@@ -256,10 +256,23 @@ public class SolicitudPersonalServiceTests
                     Justificada = true,
                     IncidenciasCalculadas = new List<IncidenciaCalculadaDto>
                     {
-                        new() { GeneraDescuento = true }
+                        new() { GeneraDescuento = true, GeneraDescuentoTeorico = true }
                     }
                 }
             });
+
+        context.IncidenciasChecadoConfig.Add(new IncidenciaChecadoConfig
+        {
+            IdConfig = 1,
+            Nombre = "Retardo de entrada menor a 20 min",
+            Descripcion = "Retardo de entrada menor a 20 min",
+            TipoIncidencia = "TARDANZA_ENTRADA",
+            CantidadAcumulada = 3,
+            Periodo = "mes",
+            Prioridad = 10,
+            Activo = true
+        });
+        await context.SaveChangesAsync();
 
         var service = CreateService(
             context, tipoRepoMock.Object, empleadoRepoMock.Object, incidenciasServiceMock.Object);
@@ -272,6 +285,8 @@ public class SolicitudPersonalServiceTests
             .ToList();
         descuentos.Should().HaveCount(2);
         descuentos.Should().OnlyContain(l => l.Limite == 2);
+        result.Value.ReglasDescuento.Should().Be(
+            "Cada 3 \"Retardo de entrada menor a 20 min\" en el mes generan 1 descuento.");
 
         var mesActual = descuentos.Single(l =>
             l.PeriodoInicio.Year == ahora.Year && l.PeriodoInicio.Month == ahora.Month);
@@ -320,7 +335,20 @@ public class SolicitudPersonalServiceTests
             Justificada = justificada,
             IncidenciasCalculadas = new List<IncidenciaCalculadaDto>
             {
-                new() { GeneraDescuento = generaDescuento }
+                new() { GeneraDescuento = generaDescuento, GeneraDescuentoTeorico = generaDescuento }
+            }
+        };
+
+    private static IncidenciaChecadoResponse IncidenciaDoble(DateTime fecha, bool justificada = false)
+        => new()
+        {
+            Fecha = fecha,
+            Nomina = 999,
+            Justificada = justificada,
+            IncidenciasCalculadas = new List<IncidenciaCalculadaDto>
+            {
+                new() { GeneraDescuentoTeorico = true },
+                new() { GeneraDescuentoTeorico = true }
             }
         };
 
@@ -539,6 +567,49 @@ public class SolicitudPersonalServiceTests
                 Incidencia(mes.AddDays(3), generaDescuento: true)));
 
         var result = await ValidarDescuentosAsync(service, idUsuario, new[] { mes.AddDays(2), mes.AddDays(3) });
+
+        result.IsError.Should().BeTrue();
+        result.FirstError.Code.Should().Contain("DescuentosJustificados");
+    }
+
+    [Fact]
+    public async Task ValidarDescuentos_Un_Dia_Con_Dos_Incidencias_Cuenta_Como_Un_Solo_Justificante()
+    {
+        var context = CreateInMemoryContext();
+        var idUsuario = 123;
+        var mes = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+
+        // Día 1 justificado con omisión de entrada + salida (2 incidencias) y día 2 igual:
+        // al contar por día son 2 justificantes, dentro del tope de 2.
+        var service = CreateService(
+            context,
+            empleadoRepository: MockEmpleado(),
+            incidenciasChecadoService: MockIncidencias(
+                IncidenciaDoble(mes.AddDays(1), justificada: true),
+                IncidenciaDoble(mes.AddDays(2))));
+
+        var result = await ValidarDescuentosAsync(service, idUsuario, new[] { mes.AddDays(2) });
+
+        result.IsError.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ValidarDescuentos_Tres_Dias_Con_Descuento_Exceden_El_Tope()
+    {
+        var context = CreateInMemoryContext();
+        var idUsuario = 123;
+        var mes = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+
+        var service = CreateService(
+            context,
+            empleadoRepository: MockEmpleado(),
+            incidenciasChecadoService: MockIncidencias(
+                IncidenciaDoble(mes.AddDays(1), justificada: true),
+                IncidenciaDoble(mes.AddDays(2)),
+                IncidenciaDoble(mes.AddDays(3))));
+
+        var result = await ValidarDescuentosAsync(
+            service, idUsuario, new[] { mes.AddDays(2), mes.AddDays(3) });
 
         result.IsError.Should().BeTrue();
         result.FirstError.Code.Should().Contain("DescuentosJustificados");

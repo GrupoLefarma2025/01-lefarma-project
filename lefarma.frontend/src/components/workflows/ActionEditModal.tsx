@@ -27,7 +27,7 @@ interface ActionEditModalProps {
 export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: ActionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
-    idTipoAccion: 1,
+    idTipoAccion: 0,
     idPasoOrigen: 0,
     idPasoDestino: 0,
     enviaConcentrado: false,
@@ -51,19 +51,21 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
       });
     } else {
       setFormData({
-        idTipoAccion: 1,
+        idTipoAccion: tiposAccionList[0]?.idTipoAccion ?? 0,
         idPasoOrigen: workflow.pasos[0]?.idPaso || 0,
         idPasoDestino: 0,
         enviaConcentrado: false,
         activo: true
       });
     }
-  }, [accion, workflow.pasos, open]);
+  }, [accion, workflow.pasos, open, tiposAccionList]);
 
   useEffect(() => {
     const loadTipos = async () => {
       try {
-        const res = await API.get<ApiResponse<WorkflowTipoAccion[]>>('/config/workflows/tipos-accion');
+        const res = await API.get<ApiResponse<WorkflowTipoAccion[]>>(
+          `/config/workflows/tipos-accion?codigoProceso=${encodeURIComponent(workflow.codigoProceso)}`
+        );
         if (res.data?.success) {
           setTiposAccionList(res.data.data || []);
         }
@@ -72,7 +74,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
       }
     };
     loadTipos();
-  }, []);
+  }, [workflow.codigoProceso]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

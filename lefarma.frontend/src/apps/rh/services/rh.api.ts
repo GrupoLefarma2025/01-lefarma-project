@@ -19,6 +19,7 @@ import type {
   NotificarIncidenciasResumenResponse,
   PagedResult,
   PlantillaIncidenciaChecado,
+  ReglasDescuentoResponse,
   SolicitudPersonalFilterParams,
   SolicitudPersonalResponse,
   TipoSolicitudRequest,
@@ -114,6 +115,8 @@ export const incidenciasChecadoApi = {
         signal,
       }
     ),
+  getReglas: () =>
+    API.get<ApiResponse<ReglasDescuentoResponse>>('/rh/incidencias-checado/reglas-descuento'),
 };
 
 export const solicitudesPersonalApi = {

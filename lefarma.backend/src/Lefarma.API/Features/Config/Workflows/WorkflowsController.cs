@@ -492,11 +492,15 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpGet("tipos-accion")]
-        [SwaggerOperation(Summary = "Obtener tipos de acción de workflow", Description = "Retorna la lista de tipos de acción configurables para workflow")]
-        public async Task<IActionResult> GetTiposAccion()
+        [SwaggerOperation(Summary = "Obtener tipos de acción de workflow", Description = "Retorna la lista de tipos de acción configurables para workflow; se puede filtrar por proceso")]
+        public async Task<IActionResult> GetTiposAccion([FromQuery] string? codigoProceso)
         {
-            var tipos = await _context.WorkflowTiposAccion
-                .Where(t => t.Activo)
+            var query = _context.WorkflowTiposAccion.Where(t => t.Activo);
+
+            if (!string.IsNullOrWhiteSpace(codigoProceso))
+                query = query.Where(t => t.CodigoProceso == codigoProceso);
+
+            var tipos = await query
                 .OrderBy(t => t.Codigo)
                 .Select(t => new WorkflowTipoAccionResponse
                 {

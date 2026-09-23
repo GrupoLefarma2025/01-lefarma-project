@@ -8,6 +8,7 @@ interface ModalProps {
     open: boolean;
     setOpen: (open: boolean) => void;
     title?: React.ReactNode | string;
+    subtitle?: React.ReactNode | string;
     children: React.ReactNode;
     footer?: React.ReactNode;
     size?: ModalSize;
@@ -19,6 +20,7 @@ export const Modal: React.FC<ModalProps> = ({
     open,
     setOpen,
     title = 'Modal',
+    subtitle,
     children,
     footer,
     size = 'md',
@@ -61,8 +63,8 @@ export const Modal: React.FC<ModalProps> = ({
                             {title}
                         </DialogTitle>
                     )}
-                    <DialogDescription className="sr-only">
-                        {typeof title === 'string' ? title : 'Modal'}
+                    <DialogDescription className={subtitle ? 'text-sm text-muted-foreground' : 'sr-only'}>
+                        {subtitle || (typeof title === 'string' ? title : 'Modal')}
                     </DialogDescription>
                 </DialogHeader>
                 <hr className="border-border" />

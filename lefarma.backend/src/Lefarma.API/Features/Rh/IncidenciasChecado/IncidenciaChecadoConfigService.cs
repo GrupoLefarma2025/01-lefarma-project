@@ -1,3 +1,4 @@
+using System.Globalization;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
@@ -31,6 +32,7 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                     Fecha = i.Fecha,
                     Nomina = i.Nomina ?? 0,
                     OrdenOriginal = idx,
+                    Justificada = i.Justificada,
                     Entrada = i.Entrada,
                     Salida = i.Salida,
                     Entro = entro,
@@ -66,6 +68,7 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                     Fecha = i.Fecha,
                     Nomina = i.Nomina,
                     OrdenOriginal = idx,
+                    Justificada = i.Justificada,
                     Entrada = entrada,
                     Salida = salida,
                     Entro = entroReal,
@@ -155,16 +158,34 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                 .ToList();
 
             var cantidadParaDescuento = Math.Max(1, regla.CantidadAcumulada);
+            var etiquetaPeriodo = FormatearEtiquetaPeriodo(
+                regla.Periodo, grupo.Key.Periodo.inicio, grupo.Key.Periodo.fin);
+            var vigentes = 0;
 
             for (var i = 0; i < ordenados.Count; i++)
             {
-                var generaDescuento = ((i + 1) % cantidadParaDescuento) == 0;
+                // El descuento real se acumula solo con días no justificados; el teórico
+                // cuenta todos los días y sirve para el tope de descuentos justificados.
+                var generaDescuentoTeorico = ((i + 1) % cantidadParaDescuento) == 0;
+                var generaDescuento = false;
+                int? posicionAcumulacion = null;
+
+                if (!ordenados[i].Item.Justificada)
+                {
+                    vigentes++;
+                    posicionAcumulacion = vigentes;
+                    generaDescuento = (vigentes % cantidadParaDescuento) == 0;
+                }
 
                 ordenados[i].Item.AgregarTipoIncidencia(new IncidenciaCalculadaDto
                 {
                     TipoIncidencia = regla.TipoIncidencia,
                     Nombre = regla.Nombre,
-                    GeneraDescuento = generaDescuento
+                    GeneraDescuento = generaDescuento,
+                    GeneraDescuentoTeorico = generaDescuentoTeorico,
+                    CantidadAcumulada = cantidadParaDescuento,
+                    PosicionAcumulacion = posicionAcumulacion,
+                    EtiquetaPeriodo = etiquetaPeriodo
                 });
 
                 if (generaDescuento)
@@ -173,6 +194,18 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
                 }
             }
         }
+    }
+
+    private static string FormatearEtiquetaPeriodo(string tipoPeriodo, DateTime inicio, DateTime fin)
+    {
+        var cultura = new CultureInfo("es-MX");
+
+        return tipoPeriodo?.ToLowerInvariant() switch
+        {
+            PeriodoHelper.Quincena => $"{(inicio.Day <= 15 ? "1.ª" : "2.ª")} quincena de {inicio.ToString("MMMM 'de' yyyy", cultura)}",
+            PeriodoHelper.Semana => $"semana del {inicio:dd/MM} al {fin:dd/MM}",
+            _ => inicio.ToString("MMMM 'de' yyyy", cultura)
+        };
     }
 
     private async Task<HashSet<(long Nomina, DateTime Fecha)>> ObtenerDiasQueConsumenSaldoAsync(
@@ -316,6 +349,7 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
         public DateTime Fecha { get; set; }
         public long Nomina { get; set; }
         public int OrdenOriginal { get; set; }
+        public bool Justificada { get; set; }
         public TimeSpan? Entrada { get; set; }
         public TimeSpan? Salida { get; set; }
         public TimeSpan? Entro { get; set; }

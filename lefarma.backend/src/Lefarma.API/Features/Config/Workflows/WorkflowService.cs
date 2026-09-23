@@ -723,6 +723,15 @@ public class WorkflowService : BaseService, IWorkflowService
                 if (!paso.Activo)
                     return CommonErrors.Conflict("paso", "No se pueden crear acciones en un paso inactivo.");
 
+                var tipoAccion = await _context.WorkflowTiposAccion
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.IdTipoAccion == request.IdTipoAccion);
+                if (tipoAccion is null)
+                    return CommonErrors.Validation("idTipoAccion", "El tipo de acción no existe.");
+                if (!string.IsNullOrWhiteSpace(tipoAccion.CodigoProceso) &&
+                    !string.Equals(tipoAccion.CodigoProceso, workflow.CodigoProceso, StringComparison.OrdinalIgnoreCase))
+                    return CommonErrors.Validation("idTipoAccion", $"El tipo de acción no pertenece al proceso {workflow.CodigoProceso}.");
+
                 var accion = new WorkflowAccion
                 {
                     IdPasoOrigen = idPaso,
@@ -784,6 +793,15 @@ public class WorkflowService : BaseService, IWorkflowService
                 }
                 if (!request.Activo && accion.Bitacora.Any())
                     return CommonErrors.Conflict("accion", "No se puede inactivar una acci�n con eventos en bit�cora.");
+
+                var tipoAccion = await _context.WorkflowTiposAccion
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(t => t.IdTipoAccion == request.IdTipoAccion);
+                if (tipoAccion is null)
+                    return CommonErrors.Validation("idTipoAccion", "El tipo de acción no existe.");
+                if (!string.IsNullOrWhiteSpace(tipoAccion.CodigoProceso) &&
+                    !string.Equals(tipoAccion.CodigoProceso, workflow.CodigoProceso, StringComparison.OrdinalIgnoreCase))
+                    return CommonErrors.Validation("idTipoAccion", $"El tipo de acción no pertenece al proceso {workflow.CodigoProceso}.");
 
                 accion.IdTipoAccion = request.IdTipoAccion;
                 accion.IdPasoDestino = request.IdPasoDestino;

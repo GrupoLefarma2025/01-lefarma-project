@@ -25,4 +25,7 @@ public interface IIncidenciasChecadoService
     Task<ErrorOr<PagedResult<IncidenciasChecadoResumenEmpleadoResponse>>> GetResumenPorEmpleadoAsync(
         IncidenciasChecadoResumenEmpleadoRequest request,
         CancellationToken cancellationToken = default);
+
+    Task<ErrorOr<ReglasDescuentoResponse>> GetReglasDescuentoAsync(
+        CancellationToken cancellationToken = default);
 }

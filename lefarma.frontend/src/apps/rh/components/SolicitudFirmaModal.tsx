@@ -389,6 +389,7 @@ export function SolicitudFirmaModal({
         if (!o) cerrar();
       }}
       title={accion ? `${accion.tipoAccionNombre} solicitud` : 'Procesar acción'}
+      subtitle={accion?.tipoAccionDescripcion || undefined}
       size="lg"
       footer={
         <div className="flex w-full justify-end gap-2">

@@ -1132,22 +1132,26 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 {
                     return CommonErrors.Validation(
                         "DescuentosJustificados",
-                        $"En {etiquetaMes} ya se cubrieron los {_limiteDescuentosJustificadosMes} descuentos permitidos. Ya no se pueden crear solicitudes de incidencia para ese mes; el descuento se aplicará en nómina.");
+                        $"En {etiquetaMes} ya se justificaron los {_limiteDescuentosJustificadosMes} días con descuento permitidos. Ya no se pueden crear solicitudes de incidencia para ese mes; el descuento se aplicará en nómina.");
                 }
 
                 var fechasDelMes = fechasSolicitud
                     .Where(f => f.Year == mes.Year && f.Month == mes.Month)
                     .ToHashSet();
 
-                var descuentosDeEstaSolicitud = estado.Incidencias.Sum(i =>
-                    i.IncidenciasCalculadas.Count(c => c.GeneraDescuento) *
-                    (!i.Justificada && !estado.FechasOtras.Contains(i.Fecha.Date) && fechasDelMes.Contains(i.Fecha.Date) ? 1 : 0));
+                // El tope cuenta días con descuento, no incidencias: un día sin checadas
+                // (omisión de entrada y salida) es un solo justificante.
+                var descuentosDeEstaSolicitud = estado.Incidencias
+                    .Where(i => !i.Justificada
+                        && !estado.FechasOtras.Contains(i.Fecha.Date)
+                        && fechasDelMes.Contains(i.Fecha.Date))
+                    .Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
 
                 if (estado.YaCubiertos + descuentosDeEstaSolicitud > _limiteDescuentosJustificadosMes)
                 {
                     return CommonErrors.Validation(
                         "DescuentosJustificados",
-                        $"Esta solicitud cubriría {descuentosDeEstaSolicitud} descuento(s) en {etiquetaMes} y el máximo es {_limiteDescuentosJustificadosMes}; ya se cubrieron {estado.YaCubiertos}. Ajusta los días seleccionados: solo puedes cubrir {_limiteDescuentosJustificadosMes - estado.YaCubiertos} descuento(s) más de ese mes.");
+                        $"Esta solicitud justificaría {descuentosDeEstaSolicitud} día(s) con descuento en {etiquetaMes} y el máximo es {_limiteDescuentosJustificadosMes}; ya se justificaron {estado.YaCubiertos}. Ajusta los días seleccionados: solo puedes justificar {_limiteDescuentosJustificadosMes - estado.YaCubiertos} día(s) más de ese mes.");
                 }
             }
 
@@ -1198,9 +1202,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(i => i.Fecha.Date >= mes && i.Fecha.Date <= finMes)
                     .ToList();
 
-                var yaCubiertos = incidenciasMes.Sum(i =>
-                    i.IncidenciasCalculadas.Count(c => c.GeneraDescuento) *
-                    (i.Justificada || fechasOtras.Contains(i.Fecha.Date) ? 1 : 0));
+                // Días con descuento ya cubiertos por un justificante (cerrado o en trámite):
+                // se cuentan por día, aunque el día tenga varias incidencias con descuento.
+                var yaCubiertos = incidenciasMes
+                    .Where(i => i.Justificada || fechasOtras.Contains(i.Fecha.Date))
+                    .Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
 
                 estados[mes] = new EstadoDescuentosMes(incidenciasMes, fechasOtras, yaCubiertos);
             }
@@ -1343,6 +1349,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     }
                 }
 
+                string? reglasDescuentoTexto = null;
                 if (tipos.Any(t => t.Categoria == CategoriaSolicitud.Incidencia))
                 {
                     var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuarioObjetivo);
@@ -1357,6 +1364,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             nomina.Value, idUsuarioObjetivo, mesesDescuentos, null);
                         if (estadosRes.IsError)
                             return estadosRes.FirstError;
+
+                        var reglasDescuento = await _context.IncidenciasChecadoConfig
+                            .AsNoTracking()
+                            .Where(r => r.Activo)
+                            .ToListAsync();
+                        var textoReglas = ReglasDescuentoHelper.FormatearTexto(reglasDescuento);
+                        reglasDescuentoTexto = string.IsNullOrWhiteSpace(textoReglas) ? null : textoReglas;
 
                         foreach (var mes in mesesDescuentos)
                         {
@@ -1410,7 +1424,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     PeriodoInicio = periodoInicio,
                     PeriodoFin = periodoFin,
                     LimitesPorTipo = limites,
-                    SaldosVacaciones = saldos
+                    SaldosVacaciones = saldos,
+                    ReglasDescuento = reglasDescuentoTexto
                 };
             }
             catch (Exception ex)

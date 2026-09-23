@@ -409,6 +409,7 @@ export interface AccionDisponible {
   idTipoAccion: number;
   tipoAccionCodigo?: string | null;
   tipoAccionNombre?: string | null;
+  tipoAccionDescripcion?: string | null;
   tipoAccionCambiaEstado?: boolean | null;
   requiereComentario: boolean;
   requiereAdjunto: boolean;

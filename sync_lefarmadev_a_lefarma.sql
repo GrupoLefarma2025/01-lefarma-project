@@ -435,8 +435,8 @@ GO
 
     /* ---- config.workflow_tipos_accion ---- */
     SET IDENTITY_INSERT Lefarma.config.workflow_tipos_accion ON;
-    INSERT INTO Lefarma.config.workflow_tipos_accion (id_tipo_accion, codigo, nombre, descripcion, cambia_estado, activo)
-    SELECT d.id_tipo_accion, d.codigo, d.nombre, d.descripcion, d.cambia_estado, d.activo
+    INSERT INTO Lefarma.config.workflow_tipos_accion (id_tipo_accion, codigo, nombre, descripcion, cambia_estado, activo, codigo_proceso)
+    SELECT d.id_tipo_accion, d.codigo, d.nombre, d.descripcion, d.cambia_estado, d.activo, d.codigo_proceso
     FROM LefarmaDev.config.workflow_tipos_accion d
     WHERE NOT EXISTS (SELECT 1 FROM Lefarma.config.workflow_tipos_accion p WHERE p.id_tipo_accion = d.id_tipo_accion);
     SET IDENTITY_INSERT Lefarma.config.workflow_tipos_accion OFF;
