@@ -103,13 +103,13 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <p className="truncate text-sm font-medium text-foreground">{limite.tipo}</p>
           {sinLimite ? (
-            <span className="rounded-full border border-border bg-muted px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            <span className="rounded-full border border-border bg-muted px-1.5 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Sin límite
             </span>
           ) : (
             <span
               className={cn(
-                'rounded-full border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide',
+                'rounded-full border px-1.5 py-px text-xs font-medium uppercase tracking-wide',
                 estado.badgeClass
               )}
             >
@@ -117,7 +117,7 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
             </span>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground">{limite.periodo}</p>
+        <p className="text-xs text-muted-foreground">{limite.periodo}</p>
       </div>
 
       {!sinLimite && (
@@ -162,7 +162,7 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
         </div>
         <div>
           <p className="text-sm font-semibold text-foreground">Vacaciones {saldo.anio}</p>
-          <p className="text-[11px] text-muted-foreground">Saldo anual</p>
+          <p className="text-xs text-muted-foreground">Saldo anual</p>
         </div>
       </div>
 
@@ -180,7 +180,7 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
             de {saldo.diasGenerados} días disponibles
           </span>
           {agotado && (
-            <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               Agotado
             </span>
           )}
@@ -203,7 +203,7 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-4 text-[11px] text-muted-foreground sm:flex-col sm:items-end sm:gap-1 sm:text-right">
+      <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground sm:flex-col sm:items-end sm:gap-1 sm:text-right">
         <span className="whitespace-nowrap">
           lleva <span className="font-semibold tabular-nums text-foreground">{saldo.diasTomados}</span>{' '}
           tomados
@@ -346,7 +346,7 @@ export function LimitesSolicitudCard({
               {saldoPrincipal && (
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                    'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',
                     vacacionesAgotadas
                       ? 'border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
                       : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300'
@@ -367,7 +367,7 @@ export function LimitesSolicitudCard({
                   <span
                     key={`${l.idTipoSolicitud}-${l.periodoInicio}`}
                     className={cn(
-                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium',
+                      'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',
                       sinLimite
                         ? 'border-border bg-muted text-muted-foreground'
                         : estado.badgeClass
@@ -458,7 +458,7 @@ export function LimitesSolicitudCard({
 
               {limites.length > 0 && (
                 <div className="space-y-1.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Límites del periodo
                   </p>
                   {limites.map((l) => (
@@ -469,10 +469,10 @@ export function LimitesSolicitudCard({
 
               {data?.reglasDescuento && (
                 <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Cómo se generan los descuentos
                   </p>
-                  <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                     {data.reglasDescuento}
                   </p>
                 </div>
@@ -489,7 +489,7 @@ export function LimitesSolicitudCard({
               )}
 
               {limites.length > 0 && (
-                <p className="text-muted-foreground/70 text-[10px]">
+                <p className="text-muted-foreground/70 text-xs">
                   Los límites cuentan las solicitudes desde que se crean; canceladas y rechazadas no
                   cuentan. Los descuentos justificados se cubren al cerrarse la solicitud (o quedan
                   apartados si está en trámite) y se cuentan por día, máximo 2 días con descuento por

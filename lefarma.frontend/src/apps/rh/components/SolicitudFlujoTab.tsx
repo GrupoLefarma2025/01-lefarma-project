@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import {
   Collapsible,
   CollapsibleContent,
@@ -375,12 +376,12 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Línea de tiempo del workflow</p>
-            <p className="text-xs text-muted-foreground">Trazabilidad paso a paso</p>
+            <p className="text-sm font-medium">Seguimiento de la solicitud</p>
+            <p className="text-xs text-muted-foreground">Avance paso a paso</p>
           </div>
         </div>
         <p className="rounded border bg-background p-3 text-xs text-muted-foreground">
-          Esta solicitud no tiene un workflow configurado.
+          Esta solicitud aún no tiene seguimiento registrado.
         </p>
       </div>
     );
@@ -391,11 +392,11 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
       {/* Header resumen */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">Línea de tiempo del flujo</p>
+          <p className="text-sm font-medium">Seguimiento de la solicitud</p>
           <p className="text-xs text-muted-foreground">Paso a paso de la solicitud</p>
         </div>
         <Badge variant="outline" className="text-xs">
-          {pasosOrdenados.length} paso(s)
+          {pasosOrdenados.length} {pasosOrdenados.length === 1 ? 'paso' : 'pasos'}
         </Badge>
       </div>
 
@@ -533,7 +534,7 @@ function PasoItem({
       >
         {isActual ? (
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75 motion-reduce:animate-none" />
             <span className="relative inline-flex h-full w-full rounded-full bg-white" />
           </span>
         ) : DotIcon ? (
@@ -545,45 +546,52 @@ function PasoItem({
       <div className={`rounded-lg border border-l-4 p-3 text-xs ${cardClass}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
-              {paso.orden}
-            </span>
             <span className="font-medium text-foreground">{paso.nombrePaso}</span>
           </div>
-          <Badge variant={badge.variant} className={`text-[10px] ${badge.className}`}>
+          <Badge variant={badge.variant} className={`text-xs ${badge.className}`}>
             {badge.label}
           </Badge>
         </div>
 
         {paso.descripcionAyuda && (
-          <p className="mt-1 text-[11px] text-muted-foreground">{paso.descripcionAyuda}</p>
+          <p className="mt-1 text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
         )}
 
         {/* Resumen último evento */}
         {ultimoEvento ? (
           <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Clock className="h-3 w-3" />
               <span>{fmtFecha(ultimoEvento.fechaEvento)}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <UserRound className="h-3 w-3" />
-              <span>{ultimoEvento.nombreUsuario || `Usuario ${ultimoEvento.idUsuario}`}</span>
+              <span>{ultimoEvento.nombreUsuario || 'No disponible'}</span>
             </div>
             {isDevuelto && pasoOrigenRetorno && (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
                 <Undo2 className="h-3 w-3" />
                 <span>Devuelto desde: {pasoOrigenRetorno}</span>
               </div>
             )}
             {comentarioPaso && (
-              <div className="mt-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-2 text-[11px] italic leading-relaxed text-foreground/90">
+              <div
+                className={cn(
+                  'mt-1.5 rounded-md border px-2.5 py-2 text-xs italic leading-relaxed',
+                  isRechazado
+                    ? 'border-red-200 bg-red-50/70 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'
+                    : isDevuelto
+                      ? 'border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
+                      : 'border-border/60 bg-background/80 text-foreground/90'
+                )}
+              >
+                {isRechazado ? 'Motivo del rechazo: ' : isDevuelto ? 'Motivo de la devolución: ' : ''}
                 "{comentarioPaso}"
               </div>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-[11px] text-muted-foreground">Sin actividad registrada</p>
+          <p className="mt-2 text-xs text-muted-foreground">Sin actividad registrada</p>
         )}
 
         {/* Historial completo */}
@@ -593,7 +601,7 @@ function PasoItem({
               variant="ghost"
               size="sm"
               onClick={onToggle}
-              className="h-6 gap-1 px-1 text-[11px] text-muted-foreground hover:text-foreground"
+              className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
             >
               {isExpanded ? (
                 <ChevronDown className="h-3 w-3" />
@@ -643,7 +651,7 @@ function OmitidosItem({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                <Badge variant="outline" className="text-xs text-muted-foreground">
                   Omitido
                 </Badge>
                 <span className="text-xs font-medium text-muted-foreground">
@@ -673,12 +681,12 @@ function OmitidosItem({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-muted-foreground">{paso.nombrePaso}</span>
-                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
                       Omitido
                     </Badge>
                   </div>
                   {evt && (
-                    <div className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
+                    <div className="mt-1.5 space-y-1 text-xs text-muted-foreground">
                       <div className="flex items-center gap-1.5">
                         <Clock className="h-3 w-3" />
                         <span>{fmtFecha(evt.fechaEvento)}</span>
@@ -724,7 +732,7 @@ function NoAplicaItem({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                <Badge variant="outline" className="text-xs text-muted-foreground">
                   No aplica
                 </Badge>
                 <span className="text-xs font-medium text-muted-foreground">
@@ -749,7 +757,7 @@ function NoAplicaItem({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-muted-foreground">{paso.nombrePaso}</span>
-                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                  <Badge variant="outline" className="text-xs text-muted-foreground">
                     No aplica
                   </Badge>
                 </div>
@@ -778,25 +786,25 @@ function EventoCard({
     <div className="rounded-md border bg-background/80 p-2.5 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-foreground">
-          {evento.nombreAccion || `Acción ${evento.idAccion}`}
+          {evento.nombreAccion || 'Acción registrada'}
         </span>
-        <span className="text-[10px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {fmtFecha(evento.fechaEvento)}
         </span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
         <UserRound className="h-3 w-3" />
-        <span>{evento.nombreUsuario || `Usuario ${evento.idUsuario}`}</span>
+        <span>{evento.nombreUsuario || 'No disponible'}</span>
       </div>
       {showTrans && (
-        <div className="mt-1 text-[11px] text-muted-foreground">
+        <div className="mt-1 text-xs text-muted-foreground">
           <span className="text-foreground/60">{pasoOrigen?.nombrePaso}</span>
           <span className="mx-1">→</span>
           <span className="font-medium text-foreground">{pasoDestino?.nombrePaso}</span>
         </div>
       )}
       {evento.comentario && (
-        <p className="mt-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-[11px] italic leading-relaxed text-foreground/90">
+        <p className="mt-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-xs italic leading-relaxed text-foreground/90">
           “{evento.comentario}”
         </p>
       )}

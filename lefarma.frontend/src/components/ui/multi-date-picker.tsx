@@ -65,7 +65,7 @@ export function MultiDatePicker({
           >
             <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
             {selectedDates.length > 0
-              ? `${selectedDates.length} día(s) seleccionado(s)`
+              ? `${selectedDates.length} ${selectedDates.length === 1 ? 'día seleccionado' : 'días seleccionados'}`
               : placeholder}
             {selectedDates.length > 0 && (
               <X
@@ -101,7 +101,8 @@ export function MultiDatePicker({
 
       {selectedDates.length > 0 && (
         <p className="text-xs text-muted-foreground">
-          {selectedDates.length} día(s) &middot; {diasCount} día(s) corrido(s) entre primera y última fecha
+          {selectedDates.length} {selectedDates.length === 1 ? 'día' : 'días'} &middot; {diasCount}{' '}
+          {diasCount === 1 ? 'día corrido' : 'días corridos'} entre primera y última fecha
         </p>
       )}
     </div>

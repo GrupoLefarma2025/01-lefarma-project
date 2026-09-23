@@ -66,7 +66,7 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
       ],
     },
   {
-    title: 'Biometrico',
+    title: 'Biométrico',
     icon: TimerIcon,
     isCollapsible: true,
     items: [

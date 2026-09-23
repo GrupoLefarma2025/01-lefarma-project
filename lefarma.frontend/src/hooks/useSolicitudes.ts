@@ -325,9 +325,9 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
         | null
         | undefined
     ) => {
-      if (!solicitud) return { nombre: 'Desconocido', color: '#94a3b8' };
+      if (!solicitud) return { nombre: 'Sin estado', color: '#94a3b8' };
       return {
-        nombre: solicitud.estadoNombre ?? `Estado ${solicitud.idEstado ?? '?' }`,
+        nombre: solicitud.estadoNombre ?? 'Sin estado',
         color: solicitud.estadoColor ?? '#94a3b8',
       };
     },

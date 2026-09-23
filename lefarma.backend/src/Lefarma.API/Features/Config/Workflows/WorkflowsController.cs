@@ -467,11 +467,18 @@ namespace Lefarma.API.Features.Config.Workflows
         }
 
         [HttpGet("estados")]
-        [SwaggerOperation(Summary = "Obtener estados de workflow", Description = "Retorna la lista de estados configurables para pasos de workflow")]
-        public async Task<IActionResult> GetEstados()
+        [SwaggerOperation(Summary = "Obtener estados de workflow", Description = "Retorna la lista de estados configurables para pasos de workflow; se puede filtrar por proceso")]
+        public async Task<IActionResult> GetEstados([FromQuery] string? codigoProceso)
         {
-            var estados = await _context.WorkflowEstados
-                .Where(e => e.Activo)
+            var query = _context.WorkflowEstados.Where(e => e.Activo);
+
+            if (!string.IsNullOrWhiteSpace(codigoProceso))
+                query = query.Where(e => _context.WorkflowPasos
+                    .Any(p => p.IdEstado == e.IdEstado && p.Activo
+                        && _context.Workflows.Any(w => w.IdWorkflow == p.IdWorkflow
+                            && w.Activo && w.CodigoProceso == codigoProceso)));
+
+            var estados = await query
                 .OrderBy(e => e.Codigo)
                 .Select(e => new WorkflowEstadoResponse
                 {

@@ -14,6 +14,8 @@ interface ModalProps {
     size?: ModalSize;
     canClose?: boolean;
     closeOnOutsideClick?: boolean;
+    /** Si retorna false, el cierre (X, Esc, clic fuera) se cancela. */
+    beforeClose?: () => boolean;
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -26,6 +28,7 @@ export const Modal: React.FC<ModalProps> = ({
     size = 'md',
     canClose = true,
     closeOnOutsideClick = false,
+    beforeClose,
 }) => {
     // Estilos basados en el tamaño estándar
     const getSizeStyles = () => {
@@ -52,7 +55,13 @@ export const Modal: React.FC<ModalProps> = ({
     const sizeStyles = getSizeStyles();
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog
+            open={open}
+            onOpenChange={(o) => {
+                if (!o && beforeClose && !beforeClose()) return;
+                setOpen(o);
+            }}
+        >
             <DialogContent showCloseButton={canClose}
                 className={`bg-card text-card-foreground border border-border shadow-lg rounded-lg ${sizeStyles}`}
                 onInteractOutside={(e) => { if (!closeOnOutsideClick) e.preventDefault(); }}

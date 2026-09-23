@@ -15,6 +15,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -172,6 +182,7 @@ export default function TiposSolicitudList() {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [tipoAEliminar, setTipoAEliminar] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editingId, setEditingId] = useState(0);
 
@@ -354,7 +365,6 @@ export default function TiposSolicitudList() {
   };
 
   const handleEliminar = async (id: number) => {
-    if (!confirm('¿Estás seguro de eliminar este tipo de solicitud?')) return;
     try {
       const response = await tipoSolicitudApi.remove(id);
       if (response.data.success) {
@@ -364,6 +374,8 @@ export default function TiposSolicitudList() {
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al eliminar el tipo de solicitud');
+    } finally {
+      setTipoAEliminar(null);
     }
   };
 
@@ -482,7 +494,7 @@ export default function TiposSolicitudList() {
               size="sm"
               variant="destructive"
               className="h-8 gap-1.5"
-              onClick={() => handleEliminar(row.original.idTipoSolicitud)}
+                  onClick={() => setTipoAEliminar(row.original.idTipoSolicitud)}
             >
               <Trash2 className="h-3.5 w-3.5" />
               Eliminar
@@ -780,6 +792,30 @@ export default function TiposSolicitudList() {
           </form>
         </Form>
       </Modal>
+
+      <AlertDialog
+        open={tipoAEliminar !== null}
+        onOpenChange={(open) => !open && setTipoAEliminar(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este tipo de solicitud?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El tipo de solicitud dejará de estar disponible para nuevas solicitudes. Esta acción
+              no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => tipoAEliminar !== null && handleEliminar(tipoAEliminar)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

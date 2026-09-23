@@ -34,12 +34,12 @@ export function SolicitudFirmaTab({
       <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 dark:border-blue-800 dark:bg-blue-950/20">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               Acciones disponibles
             </span>
             <Badge
               variant="outline"
-              className="border-blue-200 text-[10px] text-blue-700 dark:border-blue-800 dark:text-blue-300"
+              className="border-blue-200 text-xs text-blue-700 dark:border-blue-800 dark:text-blue-300"
             >
               Paso actual
             </Badge>
@@ -47,7 +47,7 @@ export function SolicitudFirmaTab({
           <div className="flex flex-wrap gap-2">
             {acciones.length === 0 ? (
               <span className="text-xs text-muted-foreground">
-                No hay acciones disponibles para tu usuario en este paso
+                No hay acciones disponibles por ahora
               </span>
             ) : (
               acciones.map((a) => (

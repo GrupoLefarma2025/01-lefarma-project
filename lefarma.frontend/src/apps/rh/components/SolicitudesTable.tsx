@@ -3,9 +3,22 @@ import type { PaginationState } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import { Eye, FileSignature, Paperclip, History, Pencil, Printer } from 'lucide-react';
+import {
+  Eye,
+  FileSignature,
+  Paperclip,
+  History,
+  Pencil,
+  Printer,
+  MoreHorizontal,
+} from 'lucide-react';
 import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
 
 interface SolicitudesTableProps {
@@ -59,7 +72,7 @@ const esDelMesActual = (fechaStr?: string | null) => {
   return fecha.getFullYear() === hoy.getFullYear() && fecha.getMonth() === hoy.getMonth();
 };
 
-function ActionButton({
+function ActionMenuItem({
   label,
   icon: Icon,
   onClick,
@@ -69,26 +82,16 @@ function ActionButton({
   onClick: () => void;
 }) {
   return (
-    <TooltipProvider delayDuration={200}>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation();
-              onClick();
-            }}
-          >
-            <Icon className="h-3.5 w-3.5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">
-          {label}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <DropdownMenuItem
+      className="gap-2 text-sm"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </DropdownMenuItem>
   );
 }
 
@@ -134,7 +137,7 @@ export function SolicitudesTable({
         header: 'Justificación de incidencias',
         cell: ({ row }) => (
           <span className="text-xs">
-            {row.original.tipoSolicitudNombre || `Justificación #${row.original.idTipoSolicitud}`}
+            {row.original.tipoSolicitudNombre ?? '—'}
           </span>
         ),
       },
@@ -153,7 +156,9 @@ export function SolicitudesTable({
               <p>Inicio: {fmtFecha(s.fechaInicio)}</p>
               {s.fechaFin && <p>Fin: {fmtFecha(s.fechaFin)}</p>}
               {s.diasSolicitados != null && (
-                <p className="text-muted-foreground">{s.diasSolicitados} día(s)</p>
+                <p className="text-muted-foreground">
+                  {s.diasSolicitados} {s.diasSolicitados === 1 ? 'día' : 'días'}
+                </p>
               )}
             </div>
           );
@@ -167,7 +172,7 @@ export function SolicitudesTable({
       {
         id: 'creadorNombre',
         header: 'Creado por',
-        cell: ({ row }) => <span className="text-xs">{row.original.creadorNombre ?? `Usuario ${row.original.idUsuarioCreador}`}</span>,
+        cell: ({ row }) => <span className="text-xs">{row.original.creadorNombre ?? '—'}</span>,
       },
       /* {
         id: 'motivo',
@@ -206,18 +211,51 @@ export function SolicitudesTable({
             showEditar && puedeEditar && s.estadoNombre === 'CREADA' && esDelMesActual(s.fechaCreacion);
           return (
             <div className="flex items-center gap-1">
-              {puedeEditarFila && (
-                <ActionButton label="Editar" icon={Pencil} onClick={() => onEditar?.(s)} />
-              )}
-              <ActionButton label="Detalle" icon={Eye} onClick={() => onDetalle(s)} />
-              {showFirma && (
-                <ActionButton label="Firma" icon={FileSignature} onClick={() => onFirma(s)} />
-              )}
-              <ActionButton label="Archivos" icon={Paperclip} onClick={() => onArchivos(s)} />
-              <ActionButton label="Historial" icon={History} onClick={() => onHistorial(s)} />
-              {onImprimir && showImprimir && (
-                <ActionButton label="Imprimir" icon={Printer} onClick={() => onImprimir(s)} />
-              )}
+              <Button size="sm" variant="outline" onClick={() => onDetalle(s)}>
+                <Eye className="mr-1.5 h-4 w-4" />
+                Ver
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-9 w-9"
+                    aria-label="Más acciones"
+                  >
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {puedeEditarFila && (
+                    <ActionMenuItem label="Editar" icon={Pencil} onClick={() => onEditar?.(s)} />
+                  )}
+                  {showFirma && (
+                    <ActionMenuItem
+                      label="Acciones"
+                      icon={FileSignature}
+                      onClick={() => onFirma(s)}
+                    />
+                  )}
+                  <ActionMenuItem
+                    label="Archivos"
+                    icon={Paperclip}
+                    onClick={() => onArchivos(s)}
+                  />
+                  <ActionMenuItem
+                    label="Historial"
+                    icon={History}
+                    onClick={() => onHistorial(s)}
+                  />
+                  {onImprimir && showImprimir && (
+                    <ActionMenuItem
+                      label="Imprimir"
+                      icon={Printer}
+                      onClick={() => onImprimir(s)}
+                    />
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           );
         },

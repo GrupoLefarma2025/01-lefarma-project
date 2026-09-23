@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
@@ -289,7 +299,7 @@ function EventoBadge({
           : undefined
       }
       className={cn(
-        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors hover:brightness-95',
+        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
         style.bg,
         style.border,
         style.text,
@@ -305,24 +315,33 @@ function EventoBadge({
   );
 }
 
-function IncidenciaBadge({ isPast, onClick }: { isPast: boolean; onClick?: () => void }) {
+function IncidenciaBadge({
+  isPast,
+  onClick,
+  label,
+}: {
+  isPast: boolean;
+  onClick?: () => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={label ?? 'Incidencia de checado'}
       className={cn(
-        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors hover:brightness-95',
+        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
         isPast && 'opacity-60'
       )}
     >
       <AlertTriangle className="h-3 w-3 shrink-0" />
-      <span className="truncate">Incidencia</span>
+      <span className="truncate">{label ?? 'Incidencia'}</span>
     </button>
   );
 }
 
-function IncidenciaModal({
+export function IncidenciaModal({
   incidencia,
   open,
   onClose,
@@ -448,7 +467,7 @@ function IncidenciaModal({
           <div className="flex justify-end gap-2 pt-2">
             <Button size="sm" onClick={onAddSolicitud}>
               <Plus className="mr-1.5 h-4 w-4" />
-              Añadir solicitud
+              Justificar incidencia
             </Button>
           </div>
         )}
@@ -540,11 +559,14 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
   const [incidenciaParaSolicitud, setIncidenciaParaSolicitud] =
     useState<IncidenciaChecadoResponse | null>(null);
   const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
+  const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
+  const crearDirtyRef = useRef(false);
   const { dias, loading, refetch } = useCalendario(anio, mes);
 
   const handleAddSolicitud = () => {
     setIncidenciaParaSolicitud(incidenciaSeleccionada);
     setIncidenciaSeleccionada(null);
+    crearDirtyRef.current = false;
     setSolicitudModalOpen(true);
   };
 
@@ -598,10 +620,22 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
               Hoy
             </Button>
             <div className="flex items-center">
-              <Button variant="ghost" size="icon" onClick={handlePrev} className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handlePrev}
+                className="h-8 w-8"
+                aria-label="Mes anterior"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleNext} className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleNext}
+                className="h-8 w-8"
+                aria-label="Mes siguiente"
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -681,6 +715,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     <IncidenciaBadge
                       key={`incidencia-${dia.fecha.toISOString()}`}
                       isPast={isPast}
+                      label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
                       onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
                     />
                   );
@@ -735,11 +770,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     </div>
 
                     {dia.esDiaNoLaborable ? (
-                      <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                      <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
                         {dia.noHabilDescripcion ?? 'No laborable'}
                       </div>
                     ) : dia.esDescanso ? (
-                      <div className="mb-1 rounded bg-slate-200 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                      <div className="mb-1 rounded bg-slate-200 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
                         Descanso
                       </div>
                     ) : null}
@@ -752,7 +787,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-[10px] font-medium text-muted-foreground transition-colors"
+                              className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-xs font-medium text-muted-foreground transition-colors"
                             >
                               +{ocultos.length} más
                             </button>
@@ -847,6 +882,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         setOpen={(o) => {
           if (!o) setSolicitudModalOpen(false);
         }}
+        beforeClose={() => {
+          if (!crearDirtyRef.current) return true;
+          setConfirmCloseCrear(true);
+          return false;
+        }}
         title={
           <div className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
@@ -858,6 +898,9 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         <CrearSolicitud
           incidencia={incidenciaParaSolicitud}
           fechaInicial={incidenciaParaSolicitud?.fecha}
+          onDirtyChange={(dirty) => {
+            crearDirtyRef.current = dirty;
+          }}
           onClose={() => setSolicitudModalOpen(false)}
           onSaved={() => {
             setSolicitudModalOpen(false);
@@ -867,6 +910,29 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
           }}
         />
       </Modal>
+
+      <AlertDialog open={confirmCloseCrear} onOpenChange={setConfirmCloseCrear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sin guardar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes datos capturados en la solicitud. Si cierras ahora, se perderán.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                crearDirtyRef.current = false;
+                setConfirmCloseCrear(false);
+                setSolicitudModalOpen(false);
+              }}
+            >
+              Cerrar sin guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

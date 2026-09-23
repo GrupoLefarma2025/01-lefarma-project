@@ -173,7 +173,7 @@ export function SaldosVacacionesPage() {
             setDiasUsuario([]);
           }
         }}
-        title={`Días hábiles — ${selectedUsuario?.usuarioNombre ?? 'Usuario'} | Empresa: ${selectedUsuario?.idEmpresa ?? '—'} | Año: ${selectedUsuario?.anio ?? '—'}`}
+        title={`Días hábiles — ${selectedUsuario?.usuarioNombre ?? 'Usuario'} · Año ${selectedUsuario?.anio ?? '—'}`}
         size="wide"
       >
         <div className="py-4">

@@ -96,9 +96,16 @@ const CATEGORIAS = [
   { value: '5', label: 'Incapacidad' },
 ];
 
+const fmtFechaResumen = (value?: string | null) => {
+  if (!value) return '-';
+  const d = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' });
+};
+
 const solicitudSchema = z.object({
-  categoria: z.string().min(1, 'Seleccione una categoría'),
-  idTipoSolicitud: z.number().positive('Seleccione una justificación de incidencias'),
+  categoria: z.string().min(1, 'Selecciona una categoría'),
+  idTipoSolicitud: z.number().positive('Selecciona un tipo de solicitud'),
   idUsuarioSolicitante: z.number().optional(),
   motivo: z
     .string()
@@ -126,6 +133,7 @@ interface CrearSolicitudProps {
   onSaved?: () => void;
   incidencia?: IncidenciaChecadoResponse | null;
   fechaInicial?: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function buscarTipoIncidencia(
@@ -171,7 +179,14 @@ function buscarTipoIncidencia(
   return null;
 }
 
-export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fechaInicial }: CrearSolicitudProps) {
+export function CrearSolicitud({
+  idSolicitud,
+  onClose,
+  onSaved,
+  incidencia,
+  fechaInicial,
+  onDirtyChange,
+}: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
   const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma } = useAuthStore();
 
@@ -213,6 +228,13 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
   const watchedDetalle = form.watch('detalle');
   const watchedDiasSolicitados = form.watch('diasSolicitados');
 
+  const formRef = useRef<HTMLFormElement>(null);
+  const isDirty = form.formState.isDirty;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
   const selectedTipoSolicitud = useMemo(
     () => tiposSolicitud.find((t) => t.idTipoSolicitud === selectedTipoSolicitudId),
     [tiposSolicitud, selectedTipoSolicitudId]
@@ -240,6 +262,12 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
 
   const pideDiasSolicitados = selectedTipoSolicitud?.pideDiasSolicitados ?? false;
   const esMultiDia = (selectedTipoSolicitud?.requiereFechaFin ?? false) && !pideDiasSolicitados;
+
+  const disabledDaysFin = useMemo<Matcher | Matcher[]>(() => {
+    if (!watchedFechaInicio) return disabledDays;
+    const base = Array.isArray(disabledDays) ? disabledDays : [disabledDays];
+    return [...base, { before: new Date(`${watchedFechaInicio}T00:00:00`) }];
+  }, [disabledDays, watchedFechaInicio]);
 
   const diasCalculados = useMemo(() => {
     const det = watchedDetalle ?? [];
@@ -442,21 +470,24 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
 
     const tipo = buscarTipoIncidencia(tiposSolicitud, incidencia);
     if (tipo) {
-      form.setValue('categoria', tipo.categoria, { shouldValidate: true });
-      form.setValue('idTipoSolicitud', tipo.idTipoSolicitud, { shouldValidate: true });
+      form.setValue('categoria', tipo.categoria, { shouldValidate: true, shouldDirty: false });
+      form.setValue('idTipoSolicitud', tipo.idTipoSolicitud, {
+        shouldValidate: true,
+        shouldDirty: false,
+      });
     }
 
     if (fechaInicial) {
       const fechaStr = fechaInicial.split('T')[0];
-      form.setValue('fechaInicio', fechaStr, { shouldValidate: true });
-      form.setValue('detalle', [fechaStr], { shouldValidate: false });
+      form.setValue('fechaInicio', fechaStr, { shouldValidate: true, shouldDirty: false });
+      form.setValue('detalle', [fechaStr], { shouldValidate: false, shouldDirty: false });
     }
   }, [incidencia, fechaInicial, isEditing, tiposSolicitud, form]);
 
   const handleSave = async (values: FormValues) => {
     if (pideDiasSolicitados) {
       if (!values.diasSolicitados || Number(values.diasSolicitados) < 1) {
-        toast.error('Ingrese los días solicitados');
+        toast.error('Ingresa los días solicitados');
         return;
       }
       if (!values.fechaInicio) {
@@ -464,10 +495,21 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
         return;
       }
     } else if (esMultiDia && (!values.detalle || values.detalle.length === 0)) {
-      toast.error('Seleccione al menos un día');
+      toast.error('Selecciona al menos un día');
       return;
     } else if (!esMultiDia && !values.fechaInicio) {
       toast.error('La fecha es requerida');
+      return;
+    }
+
+    if (
+      !esMultiDia &&
+      !pideDiasSolicitados &&
+      values.fechaInicio &&
+      values.fechaFin &&
+      values.fechaFin < values.fechaInicio
+    ) {
+      toast.error('La fecha fin no puede ser anterior a la fecha inicio');
       return;
     }
 
@@ -513,7 +555,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
         if (selectedTipoSolicitud?.requiereDocumentacion && !isEditing) {
           toast.success('Solicitud creada, pendiente de documentación', {
             description:
-              'Adjunte la documentación requerida desde el detalle de la solicitud para enviarla.',
+              'Adjunta la documentación requerida desde el detalle de la solicitud para enviarla.',
             duration: 6000,
           });
         } else {
@@ -570,17 +612,17 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
   return (
     <div className="space-y-6">
       <Form {...form}>
-        <form className="space-y-6">
+        <form ref={formRef} className="space-y-6">
 
           <Card>
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-2 text-lg font-semibold">
                 <FileText className="h-5 w-5" />
-                Justificación de incidencias
+                Tipo de solicitud
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <FormSection icon={FileText} title="Justificación de incidencias">
+              <FormSection icon={FileText} title="Tipo de solicitud">
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <FormField
                     control={form.control}
@@ -612,7 +654,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                     render={({ field }) => {
                       return (
                         <FormItem>
-                          <FormLabel>Justificación de incidencias *</FormLabel>
+                          <FormLabel>Tipo de solicitud *</FormLabel>
                           <Select
                             value={field.value ? String(field.value) : ''}
                             onValueChange={(v) => {
@@ -623,7 +665,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                           >
                             <FormControl>
                               <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar justificación" />
+                                <SelectValue placeholder="Selecciona el tipo de solicitud" />
                               </SelectTrigger>
                             </FormControl>
                             <SelectContent>
@@ -704,7 +746,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                   <AlertTitle>Documentación requerida</AlertTitle>
                   <AlertDescription>
                     Este tipo de solicitud requiere documentación de soporte. La solicitud se creará
-                    pero no se enviará hasta que adjunte los archivos necesarios desde el detalle.
+                    pero no se enviará hasta que adjuntes los archivos necesarios desde el detalle.
                   </AlertDescription>
                 </Alert>
               )}
@@ -720,7 +762,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                         <Textarea
                           minLength={10}
                           maxLength={499}
-                          placeholder="Describa el motivo de la solicitud..."
+                          placeholder="Describe el motivo de la solicitud..."
                           rows={3}
                           {...field}
                         />
@@ -829,7 +871,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                     name="detalle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Seleccione los días *</FormLabel>
+                        <FormLabel>Selecciona los días *</FormLabel>
                         <FormControl>
                           <MultiDatePicker
                             value={field.value ?? []}
@@ -878,6 +920,7 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                               <DatePicker
                                 value={field.value}
                                 onChange={field.onChange}
+                                disabledDays={disabledDaysFin}
                                 placeholder="Seleccionar fecha fin..."
                               />
                             </FormControl>
@@ -952,36 +995,38 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                 </div>
                 <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
                   <div className="flex justify-between gap-2">
-                    <span className="text-muted-foreground">Justificación</span>
+                    <span className="text-muted-foreground">Tipo de solicitud</span>
                     <span className="font-medium">{selectedTipoSolicitud?.nombre ?? '-'}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fecha inicio</span>
-                    <span className="font-medium">{watchedFechaInicio || '-'}</span>
+                    <span className="font-medium">{fmtFechaResumen(watchedFechaInicio)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fecha fin</span>
-                    <span className="font-medium">{watchedFechaFin || '-'}</span>
+                    <span className="font-medium">{fmtFechaResumen(watchedFechaFin)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fecha regreso</span>
-                    <span className="font-medium">{watchedFechaRegreso || '-'}</span>
+                    <span className="font-medium">{fmtFechaResumen(watchedFechaRegreso)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fecha reposición</span>
-                    <span className="font-medium">{watchedFechaReposicion || '-'}</span>
+                    <span className="font-medium">{fmtFechaResumen(watchedFechaReposicion)}</span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Días solicitados</span>
                     <span className="font-bold text-primary">
-                      {diasCalculados > 0 ? `${diasCalculados} día(s)` : '-'}
+                      {diasCalculados > 0
+                        ? `${diasCalculados} ${diasCalculados === 1 ? 'día' : 'días'}`
+                        : '-'}
                     </span>
                   </div>
                   <div className="flex justify-between gap-2">
                     <span className="text-muted-foreground">Fechas seleccionadas</span>
                     <span className="font-medium">
                       {(watchedDetalle ?? []).length > 0
-                        ? `${(watchedDetalle ?? []).length} día(s)`
+                        ? `${(watchedDetalle ?? []).length} ${(watchedDetalle ?? []).length === 1 ? 'día' : 'días'}`
                         : '-'}
                     </span>
                   </div>
@@ -1008,8 +1053,11 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                       idSucursal: 'Sucursal',
                       idArea: 'Área',
                       categoria: 'Categoría',
-                      idTipoSolicitud: 'Justificación de incidencias',
+                      idTipoSolicitud: 'Tipo de solicitud',
                       fechaInicio: 'Fecha',
+                      fechaFin: 'Fecha fin',
+                      motivo: 'Motivo',
+                      diasSolicitados: 'Días solicitados',
                       lugarComision: 'Lugar de Comisión',
                       detalle: 'Días del período',
                     };
@@ -1027,6 +1075,13 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
                         duration: 8000,
                       });
                     }
+
+                    requestAnimationFrame(() => {
+                      const firstInvalid = formRef.current?.querySelector<HTMLElement>(
+                        '[aria-invalid="true"]'
+                      );
+                      firstInvalid?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    });
                   }
                 )();
               }}

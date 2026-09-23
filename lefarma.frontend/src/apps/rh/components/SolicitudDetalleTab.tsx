@@ -21,24 +21,24 @@ interface SolicitudDetalleTabProps {
 export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Categoría</p>
           <p className="font-medium">{getCategoriaNombre(solicitud.categoria)}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
-          <p className="text-muted-foreground">Justificación de incidencias</p>
+          <p className="text-muted-foreground">Tipo de solicitud</p>
           <p className="font-medium">
-            {solicitud.tipoSolicitudNombre || `Justificación #${solicitud.idTipoSolicitud}`}
+            {solicitud.tipoSolicitudNombre || '—'}
           </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Empresa</p>
-          <p className="font-medium">{solicitud.empresaNombre || `ID ${solicitud.idEmpresa}`}</p>
+          <p className="font-medium">{solicitud.empresaNombre || '—'}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Sucursal</p>
-          <p className="font-medium">{solicitud.sucursalNombre || `ID ${solicitud.idSucursal}`}</p>
+          <p className="font-medium">{solicitud.sucursalNombre || '—'}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Área</p>
@@ -47,13 +47,13 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Solicitante</p>
           <p className="font-medium">
-            {solicitud.solicitanteNombre || `ID ${solicitud.idUsuarioSolicitante ?? solicitud.idUsuarioCreador}`}
+            {solicitud.solicitanteNombre || '—'}
           </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
           <p className="text-muted-foreground">Creado por</p>
           <p className="font-medium">
-            {solicitud.creadorNombre || `ID ${solicitud.idUsuarioCreador}`}
+            {solicitud.creadorNombre || '—'}
           </p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">

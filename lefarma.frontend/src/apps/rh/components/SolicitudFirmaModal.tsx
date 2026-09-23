@@ -1,10 +1,20 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Modal } from '@/components/ui/modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   Select,
   SelectContent,
@@ -163,8 +173,18 @@ export function SolicitudFirmaModal({
   const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
   const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
   const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const initialCamposRef = useRef<Record<string, unknown>>({});
 
   const camposParaAccion = useMemo(() => getCamposParaAccion(accion), [accion]);
+
+  const isDirty = useMemo(() => {
+    if (comentario.trim()) return true;
+    if (adjuntosLibres.length > 0) return true;
+    if (Object.values(archivoSubidos).some((a) => a.length > 0)) return true;
+    if (Object.values(revisiones).some(Boolean)) return true;
+    return JSON.stringify(camposValues) !== JSON.stringify(initialCamposRef.current);
+  }, [comentario, adjuntosLibres, archivoSubidos, revisiones, camposValues]);
 
   const existentesPorTipo = useMemo(() => {
     const map: Record<string, ArchivoListItem[]> = {};
@@ -235,6 +255,7 @@ export function SolicitudFirmaModal({
     setCamposValues({});
     setArchivoSubidos({});
     setAdjuntosLibres([]);
+    setConfirmDiscard(false);
     onClose();
   }, [onClose]);
 
@@ -252,6 +273,7 @@ export function SolicitudFirmaModal({
       }
     }
     setCamposValues(initial);
+    initialCamposRef.current = initial;
     setArchivoSubidos({});
     setAdjuntosLibres([]);
     setRevisiones({});
@@ -294,6 +316,7 @@ export function SolicitudFirmaModal({
   const enviar = async () => {
     if (!accion) return;
     const errores: string[] = [];
+    let firstErrorId: string | null = null;
     const datosAdicionales: Record<string, unknown> = {};
     for (const { campo, requerido, inputKey, handlerKey, requiereRevision } of camposParaAccion) {
       if (campo.tipoControl === 'Archivo') {
@@ -320,11 +343,13 @@ export function SolicitudFirmaModal({
       const isEmpty = val === undefined || val === null || val === '';
       if (requerido && isEmpty) {
         errores.push(`Falta completar: ${campo.etiquetaUsuario}`);
+        firstErrorId ??= `campo-${inputKey}`;
       }
       if (!isEmpty) datosAdicionales[inputKey] = val;
     }
     if ((esRechazo || esRetorno || accion.requiereComentario) && !comentario.trim()) {
       errores.push('El comentario es obligatorio para esta acción');
+      firstErrorId ??= 'comentario-firma';
     }
     if (
       accion.requiereAdjunto &&
@@ -340,6 +365,14 @@ export function SolicitudFirmaModal({
         description: errores.join(' · '),
         duration: 8000,
       });
+      if (firstErrorId) {
+        const targetId = firstErrorId;
+        requestAnimationFrame(() => {
+          document
+            .getElementById(targetId)
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
       return;
     }
 
@@ -382,13 +415,19 @@ export function SolicitudFirmaModal({
   const estadoInfo = getEstadoInfo(solicitud);
 
   return (
+    <>
     <Modal
       id="modal-firma-solicitud"
       open={open}
       setOpen={(o) => {
         if (!o) cerrar();
       }}
-      title={accion ? `${accion.tipoAccionNombre} solicitud` : 'Procesar acción'}
+      beforeClose={() => {
+        if (!isDirty) return true;
+        setConfirmDiscard(true);
+        return false;
+      }}
+      title={accion ? `${accion.tipoAccionNombre} solicitud` : 'Acción de la solicitud'}
       subtitle={accion?.tipoAccionDescripcion || undefined}
       size="lg"
       footer={
@@ -420,7 +459,7 @@ export function SolicitudFirmaModal({
           </p>
           {(esRechazo || esRetorno) && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Esta acción impacta el flujo y requiere justificación.
+              Esta acción requiere que escribas el motivo en el comentario.
             </p>
           )}
         </div>
@@ -496,7 +535,7 @@ export function SolicitudFirmaModal({
                         }
                         disabled={loadingCatalogos}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id={fieldId}>
                           <SelectValue
                             placeholder={loadingCatalogos ? 'Cargando...' : 'Seleccionar'}
                           />
@@ -760,12 +799,28 @@ export function SolicitudFirmaModal({
             {adjuntosLibres.length >= 5 && (
               <p className="text-xs text-amber-600">Límite de 5 documentos alcanzado.</p>
             )}
-            <p className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <Paperclip className="h-3 w-3" /> Los archivos quedan asociados a la solicitud
             </p>
           </div>
         )}
       </div>
     </Modal>
+
+    <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Descartar esta acción?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Tienes información capturada. Si cierras ahora, se perderá.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+          <AlertDialogAction onClick={cerrar}>Descartar y cerrar</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

@@ -231,26 +231,35 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
                     : null;
                 const noCuenta = o.justificada || o.enTramite;
                 return (
-                  <Tooltip key={index}>
-                    <TooltipTrigger asChild>
-                      <Badge
-                        variant="outline"
-                        className={
-                          inc.generaDescuento
-                            ? 'w-fit border-red-300 bg-red-50 text-red-700'
-                            : noCuenta
-                              ? 'w-fit border-slate-200 bg-slate-50 text-slate-500'
-                              : 'w-fit'
-                        }
-                      >
-                        {inc.nombre}
-                        {contador && <span className="ml-1 font-semibold">· {contador}</span>}
-                      </Badge>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      {tooltipIncidencia(inc, o.justificada, o.enTramite)}
-                    </TooltipContent>
-                  </Tooltip>
+                  <div key={index} className="flex flex-col gap-0.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={
+                            inc.generaDescuento
+                              ? 'w-fit border-red-300 bg-red-50 text-red-700'
+                              : noCuenta
+                                ? 'w-fit border-slate-200 bg-slate-50 text-slate-500'
+                                : 'w-fit'
+                          }
+                        >
+                          {inc.nombre}
+                          {contador && <span className="ml-1 font-semibold">· {contador}</span>}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        {tooltipIncidencia(inc, o.justificada, o.enTramite)}
+                      </TooltipContent>
+                    </Tooltip>
+                    {!noCuenta && cantidad > 1 && inc.posicionAcumulacion && (
+                      <span className="text-xs text-muted-foreground">
+                        {inc.generaDescuento
+                          ? `Completa los ${cantidad}: genera 1 descuento`
+                          : `Al llegar a ${cantidad} se genera 1 descuento`}
+                      </span>
+                    )}
+                  </div>
                 );
               })}
             </div>
