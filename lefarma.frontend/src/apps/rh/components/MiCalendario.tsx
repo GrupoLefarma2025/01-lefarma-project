@@ -607,6 +607,13 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
     return Array.from({ length: 11 }, (_, i) => String(anioActual - 5 + i));
   }, [anioActual]);
 
+  // Vista móvil: días con contenido (solicitudes, incidencia u hoy) en orden cronológico.
+  const diasAgenda = useMemo(
+    () => dias.filter((d) => d.eventos.length > 0 || d.incidencia || d.esHoy),
+    [dias]
+  );
+  const hoyLocal = useMemo(() => toLocalMidnight(new Date()), []);
+
   return (
     <>
       <Card className="border-0 shadow-sm">
@@ -687,11 +694,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         </CardHeader>
 
         <CardContent className="pt-0">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 hidden sm:flex sm:items-center sm:justify-between">
             <h3 className="text-base font-semibold capitalize">{formatMesAnio(anio, mes)}</h3>
           </div>
 
-          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-xs font-medium text-muted-foreground">
+          <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-xs font-medium text-muted-foreground sm:grid">
             {DIAS_SEMANA.map((dia) => (
               <div key={dia} className="bg-muted px-2 py-2 text-center uppercase tracking-wide">
                 {dia}
@@ -700,17 +707,28 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
           </div>
 
           {loading && dias.length === 0 ? (
-            <div className="mt-2 grid grid-cols-7 gap-px rounded-lg border bg-border">
-              {Array.from({ length: 35 }).map((_, i) => (
-                <div key={i} className="min-h-[100px] bg-card p-2 sm:min-h-[120px]">
-                  <Skeleton className="mb-2 h-4 w-6" />
-                  <Skeleton className="mb-1 h-5 w-full" />
-                  <Skeleton className="mb-1 h-5 w-full" />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="min-h-[100px] bg-card p-2 sm:min-h-[120px]">
+                    <Skeleton className="mb-2 h-4 w-6" />
+                    <Skeleton className="mb-1 h-5 w-full" />
+                    <Skeleton className="mb-1 h-5 w-full" />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 space-y-2 sm:hidden">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-lg border bg-card p-3">
+                    <Skeleton className="mb-2 h-4 w-40" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
-            <div className="mt-2 grid grid-cols-7 gap-px rounded-lg border bg-border">
+            <>
+              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
               {dias.map((dia, idx) => {
                 const hoyLocal = toLocalMidnight(new Date());
                 const isPast = dia.fecha < hoyLocal;
@@ -818,7 +836,65 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                   </div>
                 );
               })}
-            </div>
+              </div>
+
+              {/* Vista móvil: agenda del mes */}
+              <div className="mt-2 space-y-2 sm:hidden">
+                {diasAgenda.length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                    Sin solicitudes ni incidencias este mes.
+                  </div>
+                ) : (
+                  diasAgenda.map((dia) => {
+                    const isPast = dia.fecha < hoyLocal;
+                    return (
+                      <div
+                        key={dia.fecha.toISOString()}
+                        className={cn(
+                          'rounded-lg border bg-card p-3',
+                          dia.esHoy && 'border-primary'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium capitalize">
+                            {dia.fecha.toLocaleDateString('es-MX', {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long',
+                            })}
+                          </p>
+                          {dia.esHoy && <Badge variant="secondary">Hoy</Badge>}
+                        </div>
+                        {(dia.esDiaNoLaborable || dia.esDescanso) && (
+                          <p className="text-xs text-muted-foreground">
+                            {dia.esDiaNoLaborable
+                              ? (dia.noHabilDescripcion ?? 'Día no laborable')
+                              : 'Día de descanso'}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-col gap-1">
+                          {dia.incidencia && (
+                            <IncidenciaBadge
+                              isPast={isPast}
+                              label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
+                              onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
+                            />
+                          )}
+                          {dia.eventos.map((e) => (
+                            <EventoBadge
+                              key={`${e.idSolicitud}-${e.fecha}`}
+                              evento={e}
+                              isPast={isPast}
+                              onClick={() => setDetalleId(e.idSolicitud)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
