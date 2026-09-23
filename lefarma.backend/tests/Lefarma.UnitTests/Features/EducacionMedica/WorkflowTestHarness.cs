@@ -56,10 +56,10 @@ internal sealed class WorkflowTestHarness
             .Options;
         var asokam = new AsokamDbContext(asokamOptions);
 
-        var tipoEnviar = new WorkflowTipoAccion { Codigo = "ENVIAR", Nombre = "Envío", CambiaEstado = true, Activo = true };
-        var tipoAutorizar = new WorkflowTipoAccion { Codigo = "AUTORIZAR", Nombre = "Autorización", CambiaEstado = true, Activo = true };
-        var tipoDevolver = new WorkflowTipoAccion { Codigo = "DEVOLVER", Nombre = "Devolución", CambiaEstado = true, Activo = true };
-        var tipoCancelar = new WorkflowTipoAccion { Codigo = "CANCELAR", Nombre = "Cancelación", CambiaEstado = true, Activo = true };
+        var tipoEnviar = new WorkflowTipoAccion { Codigo = "ENVIAR", Nombre = "Envío", CambiaEstado = true, Activo = true, CodigoProceso = CodigoProceso.EDUCACION_MEDICA_SELECCION };
+        var tipoAutorizar = new WorkflowTipoAccion { Codigo = "AUTORIZAR", Nombre = "Autorización", CambiaEstado = true, Activo = true, CodigoProceso = CodigoProceso.EDUCACION_MEDICA_SELECCION };
+        var tipoDevolver = new WorkflowTipoAccion { Codigo = "DEVOLVER", Nombre = "Devolución", CambiaEstado = true, Activo = true, CodigoProceso = CodigoProceso.EDUCACION_MEDICA_SELECCION };
+        var tipoCancelar = new WorkflowTipoAccion { Codigo = "CANCELAR", Nombre = "Cancelación", CambiaEstado = true, Activo = true, CodigoProceso = CodigoProceso.EDUCACION_MEDICA_SELECCION };
         context.WorkflowTiposAccion.AddRange(tipoEnviar, tipoAutorizar, tipoDevolver, tipoCancelar);
 
         var estadoBorrador = new WorkflowEstados { Codigo = "CREADA", Nombre = "Creada", Activo = true };

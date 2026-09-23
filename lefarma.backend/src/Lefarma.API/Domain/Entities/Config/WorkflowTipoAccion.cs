@@ -8,5 +8,6 @@ namespace Lefarma.API.Domain.Entities.Config
         public string? Descripcion { get; set; }
         public bool CambiaEstado { get; set; }
         public bool Activo { get; set; }
+        public string? CodigoProceso { get; set; }
     }
 }

@@ -116,6 +116,23 @@ public class IncidenciasChecadoController : ControllerBase
         }));
     }
 
+    [HttpGet("incidencias-checado/reglas-descuento")]
+    [SwaggerOperation(
+        Summary = "Consultar reglas activas de descuento por incidencias de checado",
+        Description = "Retorna las reglas activas que determinan cuándo una incidencia genera descuento, junto con el tope mensual de descuentos justificados")]
+    [SwaggerResponse(200, "Reglas obtenidas exitosamente", typeof(ApiResponse<ReglasDescuentoResponse>))]
+    public async Task<IActionResult> GetReglasDescuento(CancellationToken cancellationToken)
+    {
+        var result = await _service.GetReglasDescuentoAsync(cancellationToken);
+
+        return result.ToActionResult(this, data => Ok(new ApiResponse<ReglasDescuentoResponse>
+        {
+            Success = true,
+            Message = "Reglas de descuento obtenidas exitosamente.",
+            Data = data
+        }));
+    }
+
     [HttpGet("incidencias-checado/plantillas")]
     [SwaggerOperation(
         Summary = "Consultar plantillas de notificación de incidencias de checado",

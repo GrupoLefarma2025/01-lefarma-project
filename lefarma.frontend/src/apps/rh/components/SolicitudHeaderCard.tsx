@@ -27,7 +27,7 @@ export function SolicitudHeaderCard({ solicitud, getEstadoInfo }: SolicitudHeade
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {solicitud.tipoSolicitudNombre || `Justificación #${solicitud.idTipoSolicitud}`}
+            {solicitud.tipoSolicitudNombre || '—'}
             {solicitud.solicitanteNombre && (
               <span className="ml-2">· Solicitante: {solicitud.solicitanteNombre}</span>
             )}

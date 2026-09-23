@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces;
@@ -5,12 +6,15 @@ using Lefarma.API.Domain.Interfaces.Catalogos;
 using Lefarma.API.Domain.Interfaces.Rh;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Rh.IncidenciasChecado.DTOs;
+using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
+using Lefarma.API.Shared.Helpers;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Models;
 using Lefarma.API.Shared.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace Lefarma.API.Features.Rh.IncidenciasChecado;
 
@@ -24,6 +28,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
     private readonly IIncidenciaChecadoConfigService _descuentoService;
     private readonly ApplicationDbContext _applicationDbContext;
     private readonly AsokamDbContext _asokamContext;
+    private readonly int _limiteDescuentosJustificadosMes;
 
     protected override string EntityName => "IncidenciasChecadoNotificacion";
 
@@ -42,6 +47,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         IIncidenciaChecadoConfigService descuentoService,
         ApplicationDbContext applicationDbContext,
         AsokamDbContext asokamContext,
+        IOptions<SolicitudesPersonalSettings> solicitudesSettings,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -53,6 +59,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         _descuentoService = descuentoService;
         _applicationDbContext = applicationDbContext;
         _asokamContext = asokamContext;
+        _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
     }
 
     public async Task<Result<List<PlantillaIncidenciaChecadoResponse>>> GetPlantillasAsync(
@@ -112,6 +119,13 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             var fechaInicio = request.FechaInicio.Value.Date;
             var fechaFin = request.FechaFin.Value.Date;
             var resultados = new List<NotificacionPersonaResult>();
+
+            var reglasDescuento = await _applicationDbContext.IncidenciasChecadoConfig
+                .AsNoTracking()
+                .Where(r => r.Activo)
+                .OrderByDescending(r => r.Prioridad)
+                .ToListAsync(cancellationToken);
+            var reglasDescuentoTexto = ReglasDescuentoHelper.FormatearTexto(reglasDescuento);
 
             foreach (var nomina in request.Nominas.Distinct())
             {
@@ -190,8 +204,17 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 }
 
                 var tablaHtml = BuildTablaIncidenciasHtml(items);
-                var asunto = AplicarVariablesResumen(request.Asunto, items, nombreEmpleado, fechaInicio, fechaFin, tablaHtml);
-                var mensaje = AplicarVariablesResumen(request.Mensaje, items, nombreEmpleado, fechaInicio, fechaFin, tablaHtml);
+                var variables = ConstruirVariables(
+                    items,
+                    nombreEmpleado,
+                    fechaInicio,
+                    fechaFin,
+                    request.Periodo,
+                    _limiteDescuentosJustificadosMes,
+                    reglasDescuentoTexto,
+                    tablaHtml);
+                var asunto = AplicarVariablesResumen(request.Asunto, variables);
+                var mensaje = AplicarVariablesResumen(request.Mensaje, variables);
 
                 if (!mensaje.Contains("{{TablaIncidencias}}", StringComparison.OrdinalIgnoreCase) &&
                     !mensaje.Contains("<table", StringComparison.OrdinalIgnoreCase))
@@ -208,19 +231,7 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                     Type = "warning",
                     Category = "rh-incidencias-checado-resumen",
                     Priority = "normal",
-                    TemplateData = new Dictionary<string, object>
-                    {
-                        ["Nomina"] = nomina,
-                        ["Nombre"] = nombreEmpleado,
-                        ["FechaInicio"] = fechaInicio.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-                        ["FechaFin"] = fechaFin.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
-                        ["Periodo"] = request.Periodo ?? string.Empty,
-                        ["TotalIncidencias"] = items.Sum(i => i.IncidenciasCalculadas.Count),
-                        ["TotalDescuentos"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)),
-                        ["DescuentosJustificados"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && i.Justificada)),
-                        ["DescuentosPorJustificar"] = items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && !i.Justificada)),
-                        ["Origen"] = "resumen-empleados"
-                    },
+                    TemplateData = ConstruirTemplateData(variables),
                     Channels = new List<NotificationChannelRequest>
                     {
                         new()
@@ -418,6 +429,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 && s.Estado != null
                 && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
                 && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
+                && s.TipoSolicitud != null
+                && s.TipoSolicitud.Categoria == CategoriaSolicitud.Incidencia
                 && s.FechaInicio.Value.Date <= fechaMax.Date
                 && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
@@ -431,6 +444,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
             })
             .ToListAsync(cancellationToken);
+
+        var fechasDetalle = await JustificacionSolicitudHelper.ObtenerFechasDetalleAsync(
+            _applicationDbContext, solicitudes.Select(s => s.IdSolicitud), cancellationToken);
 
         var usuarioSolicitudes = solicitudes
             .Join(
@@ -448,8 +464,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             var itemDate = item.Fecha.Date;
             var coincidencias = solicitudesEmpleado
-                .Where(s => s.FechaInicio.Date <= itemDate &&
-                    (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= itemDate))
+                .Where(s => JustificacionSolicitudHelper.SolicitudCubreFecha(
+                    s.IdSolicitud, s.FechaInicio, s.FechaFin, itemDate, fechasDetalle))
                 .ToList();
 
             if (coincidencias.Count == 0)
@@ -510,41 +526,138 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         return layout;
     }
 
-    private static string AplicarVariablesResumen(
-        string? plantilla,
+    internal static Dictionary<string, string> ConstruirVariables(
         IReadOnlyList<NotificarIncidenciaItemRequest> items,
         string nombreEmpleado,
         DateTime fechaInicio,
         DateTime fechaFin,
-        string? tablaHtml = null)
+        string? periodo,
+        int limiteDescuentosJustificados,
+        string reglasDescuento,
+        string tablaHtml)
+    {
+        // Los descuentos se cuentan por día (igual que el tope): un día sin checadas
+        // (omisión de entrada y salida) es un solo descuento/justificante.
+        var diasConDescuento = items.Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuento));
+        var diasJustificados = items.Count(i => i.Justificada && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
+        var diasEnTramite = items.Count(i => !i.Justificada && i.EnTramite && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
+
+        return new Dictionary<string, string>
+        {
+            ["Nombre"] = nombreEmpleado,
+            ["Nomina"] = items.Count > 0 ? items[0].Nomina.ToString() : string.Empty,
+            ["Empresa"] = (items.Count > 0 ? items[0].Empresa : null) ?? string.Empty,
+            ["Departamento"] = (items.Count > 0 ? items[0].Departamento : null) ?? string.Empty,
+            ["Puesto"] = (items.Count > 0 ? items[0].Puesto : null) ?? string.Empty,
+            ["FechaInicio"] = fechaInicio.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            ["FechaFin"] = fechaFin.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture),
+            ["Periodo"] = periodo ?? string.Empty,
+            ["TotalIncidencias"] = items.Sum(i => i.IncidenciasCalculadas.Count).ToString(),
+            ["TotalDescuentos"] = diasConDescuento.ToString(),
+            ["DescuentosPorJustificar"] = diasConDescuento.ToString(),
+            ["DescuentosJustificados"] = diasJustificados.ToString(),
+            ["DescuentosEnTramite"] = diasEnTramite.ToString(),
+            ["LimiteDescuentosJustificados"] = limiteDescuentosJustificados.ToString(),
+            ["DescuentosRestantes"] = Math.Max(0, limiteDescuentosJustificados - diasJustificados - diasEnTramite).ToString(),
+            ["DiasConDescuento"] = diasConDescuento.ToString(),
+            ["FechasConDescuento"] = BuildFechasConDescuento(items),
+            ["Retardos"] = items.Sum(i => i.IncidenciasCalculadas.Count(c => c.TipoIncidencia == TardanzaEntrada || c.TipoIncidencia == TardanzaSalida)).ToString(),
+            ["Omisiones"] = items.Sum(i => i.IncidenciasCalculadas.Count(c => c.TipoIncidencia == OmisionEntrada || c.TipoIncidencia == OmisionSalida)).ToString(),
+            ["SalidasAnticipadas"] = items.Sum(i => i.IncidenciasCalculadas.Count(c => c.TipoIncidencia == SalidaAnticipada)).ToString(),
+            ["ReglasDescuento"] = reglasDescuento,
+            ["TablaIncidencias"] = tablaHtml
+        };
+    }
+
+    internal static string AplicarVariablesResumen(
+        string? plantilla,
+        IReadOnlyDictionary<string, string> variables)
     {
         if (string.IsNullOrEmpty(plantilla))
         {
             return string.Empty;
         }
 
-        if (items.Count == 0)
+        var sb = new StringBuilder(plantilla);
+        foreach (var variable in variables)
         {
-            return plantilla;
+            sb.Replace($"{{{{{variable.Key}}}}}", variable.Value);
         }
 
-        var sb = new StringBuilder(plantilla);
-        sb.Replace("{{Nombre}}", nombreEmpleado);
-        sb.Replace("{{Nomina}}", items[0].Nomina.ToString());
-        sb.Replace("{{Empresa}}", items[0].Empresa ?? string.Empty);
-        sb.Replace("{{Departamento}}", items[0].Departamento ?? string.Empty);
-        sb.Replace("{{Puesto}}", items[0].Puesto ?? string.Empty);
-        sb.Replace("{{FechaInicio}}", fechaInicio.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
-        sb.Replace("{{FechaFin}}", fechaFin.ToString("dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture));
-        sb.Replace("{{TotalIncidencias}}", items.Sum(i => i.IncidenciasCalculadas.Count).ToString());
-        sb.Replace("{{TotalDescuentos}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento)).ToString());
-        sb.Replace("{{DescuentosJustificados}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && i.Justificada)).ToString());
-        sb.Replace("{{DescuentosPorJustificar}}", items.Sum(i => i.IncidenciasCalculadas.Count(ic => ic.GeneraDescuento && !i.Justificada)).ToString());
-        sb.Replace("{{TablaIncidencias}}", tablaHtml ?? BuildTablaIncidenciasHtml(items));
         return sb.ToString();
     }
 
-    private static string BuildTablaIncidenciasHtml(IReadOnlyList<NotificarIncidenciaItemRequest> items)
+    private static Dictionary<string, object> ConstruirTemplateData(IReadOnlyDictionary<string, string> variables)
+    {
+        var data = variables.ToDictionary(v => v.Key, v => (object)v.Value);
+        data["Origen"] = "resumen-empleados";
+        return data;
+    }
+
+    internal static string BuildFechasConDescuento(IReadOnlyList<NotificarIncidenciaItemRequest> items)
+    {
+        var cultura = new CultureInfo("es-MX");
+
+        var fechas = items
+            .Where(i => i.Descuento || i.IncidenciasCalculadas.Any(c => c.GeneraDescuento))
+            .Select(i => i.Fecha.Date)
+            .Distinct()
+            .OrderBy(f => f)
+            .ToList();
+
+        if (fechas.Count == 0)
+            return "ninguno";
+
+        return string.Join("; ", fechas
+            .GroupBy(f => new { f.Year, f.Month })
+            .Select(g =>
+            {
+                var dias = UnirConY(g.Select(f => f.Day.ToString()));
+                var mes = new DateTime(g.Key.Year, g.Key.Month, 1).ToString("MMMM 'de' yyyy", cultura);
+                return $"{dias} de {mes}";
+            }));
+    }
+
+    private static string UnirConY(IEnumerable<string> valores)
+    {
+        var lista = valores.ToList();
+        return lista.Count switch
+        {
+            0 => string.Empty,
+            1 => lista[0],
+            _ => string.Join(", ", lista.Take(lista.Count - 1)) + " y " + lista[^1]
+        };
+    }
+
+    internal static string ConstruirMotivoIncidencia(
+        NotificarIncidenciaItemRequest item,
+        IncidenciaCalculadaDto incidencia)
+    {
+        var periodo = string.IsNullOrWhiteSpace(incidencia.EtiquetaPeriodo)
+            ? string.Empty
+            : $" · {incidencia.EtiquetaPeriodo}";
+        var cantidad = incidencia.CantidadAcumulada;
+        var posicion = incidencia.PosicionAcumulacion;
+
+        if (item.Justificada)
+            return "Justificado, no cuenta";
+        if (item.EnTramite)
+            return "En trámite, no cuenta";
+
+        if (incidencia.GeneraDescuento)
+        {
+            return cantidad > 1 && posicion.HasValue
+                ? $"{posicion}.º acumulado{periodo}"
+                : $"Genera descuento{periodo}";
+        }
+
+        if (cantidad > 1 && posicion.HasValue)
+            return $"{posicion}.º de {cantidad}{periodo}";
+
+        return "-";
+    }
+
+    internal static string BuildTablaIncidenciasHtml(IReadOnlyList<NotificarIncidenciaItemRequest> items)
     {
         var cultura = new System.Globalization.CultureInfo("es-ES");
         var sb = new StringBuilder();
@@ -558,6 +671,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salida</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Salió</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Incidencia</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Acumulado</th>");
+        sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Motivo</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">Estatus</th>");
         sb.AppendLine("      <th style=\"padding: 4px 8px; border: 1px solid #ccc; text-align: left;\">¿Genera descuento?</th>");
         sb.AppendLine("    </tr>");
@@ -580,6 +695,10 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
             foreach (var incidencia in item.IncidenciasCalculadas)
             {
                 var descuento = incidencia.GeneraDescuento ? "Sí" : "No";
+                var acumulado = incidencia.CantidadAcumulada > 1 && incidencia.PosicionAcumulacion.HasValue
+                    ? $"{incidencia.PosicionAcumulacion}/{incidencia.CantidadAcumulada}"
+                    : "-";
+                var motivo = ConstruirMotivoIncidencia(item, incidencia);
 
                 sb.AppendLine("    <tr>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{fecha}</td>");
@@ -589,6 +708,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salida}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{salio}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{incidencia.Nombre}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{acumulado}</td>");
+                sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{motivo}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{estatus}</td>");
                 sb.AppendLine($"      <td style=\"padding: 4px 8px; border: 1px solid #ccc;\">{descuento}</td>");
                 sb.AppendLine("    </tr>");

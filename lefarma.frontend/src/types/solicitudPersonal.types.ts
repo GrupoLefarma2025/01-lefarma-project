@@ -163,6 +163,7 @@ export interface MisLimitesResponse {
   periodoFin: string;
   limitesPorTipo: LimitePorTipoResponse[];
   saldosVacaciones: SaldoVacacionesResponse[];
+  reglasDescuento?: string | null;
 }
 
 export interface CalendarioGlobalRequest {
@@ -209,6 +210,24 @@ export interface IncidenciaCalculada {
   tipoIncidencia: string;
   nombre: string;
   generaDescuento: boolean;
+  generaDescuentoTeorico?: boolean;
+  cantidadAcumulada?: number;
+  posicionAcumulacion?: number | null;
+  etiquetaPeriodo?: string | null;
+}
+
+export interface ReglaDescuentoResponse {
+  nombre: string;
+  tipoIncidencia: string;
+  cantidadAcumulada: number;
+  periodo: string;
+  minutosMin?: number | null;
+  minutosMax?: number | null;
+}
+
+export interface ReglasDescuentoResponse {
+  reglas: ReglaDescuentoResponse[];
+  limiteDescuentosJustificadosMes: number;
 }
 
 export interface IncidenciaChecadoResponse {

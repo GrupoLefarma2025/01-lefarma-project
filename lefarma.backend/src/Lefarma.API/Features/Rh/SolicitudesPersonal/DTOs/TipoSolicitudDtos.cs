@@ -115,6 +115,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public DateTime PeriodoFin { get; set; }
         public List<LimitePorTipoResponse> LimitesPorTipo { get; set; } = new();
         public List<SaldoVacacionesResponse> SaldosVacaciones { get; set; } = new();
+        public string? ReglasDescuento { get; set; }
     }
 
     public class CalendarioGlobalRequest

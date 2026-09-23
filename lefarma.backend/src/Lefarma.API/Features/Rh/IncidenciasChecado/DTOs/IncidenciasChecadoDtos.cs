@@ -33,6 +33,36 @@ public class IncidenciaCalculadaDto
     public string TipoIncidencia { get; set; } = string.Empty;
     public string Nombre { get; set; } = string.Empty;
     public bool GeneraDescuento { get; set; }
+
+    // Marca que tendría la incidencia si el día no estuviera justificado; se usa para
+    // contabilizar el tope de descuentos justificados por mes.
+    public bool GeneraDescuentoTeorico { get; set; }
+
+    // Cuántas incidencias del mismo tipo/periodo generan un descuento (N de la regla).
+    public int CantidadAcumulada { get; set; }
+
+    // Posición del día entre los no justificados del periodo (1, 2, 3...). Null si el
+    // día está justificado y por lo tanto no cuenta para la acumulación.
+    public int? PosicionAcumulacion { get; set; }
+
+    // Periodo de la acumulación, ej. "septiembre 2026" o "1.ª quincena de septiembre 2026".
+    public string? EtiquetaPeriodo { get; set; }
+}
+
+public class ReglaDescuentoResponse
+{
+    public string Nombre { get; set; } = string.Empty;
+    public string TipoIncidencia { get; set; } = string.Empty;
+    public int CantidadAcumulada { get; set; }
+    public string Periodo { get; set; } = string.Empty;
+    public int? MinutosMin { get; set; }
+    public int? MinutosMax { get; set; }
+}
+
+public class ReglasDescuentoResponse
+{
+    public List<ReglaDescuentoResponse> Reglas { get; set; } = new();
+    public int LimiteDescuentosJustificadosMes { get; set; }
 }
 
 public class IncidenciasChecadoRequest

@@ -97,6 +97,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                     IdTipoAccion = a.IdTipoAccion,
                     TipoAccionCodigo = a.TipoAccion?.Codigo,
                     TipoAccionNombre = a.TipoAccion?.Nombre,
+                    TipoAccionDescripcion = a.TipoAccion?.Descripcion,
                     TipoAccionCambiaEstado = a.TipoAccion?.CambiaEstado,
                     EnviaConcentrado = a.EnviaConcentrado,
                     Handlers = handlers.Select(h => new AccionHandlerMetadataResponse
@@ -259,6 +260,7 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
                 IdTipoAccion = accion.IdTipoAccion,
                 TipoAccionCodigo = accion.TipoAccion?.Codigo,
                 TipoAccionNombre = accion.TipoAccion?.Nombre,
+                TipoAccionDescripcion = accion.TipoAccion?.Descripcion,
                 TipoAccionCambiaEstado = accion.TipoAccion?.CambiaEstado,
                 RequiereComentario = pasoActual.RequiereComentario,
                 RequiereAdjunto = pasoActual.RequiereAdjunto,

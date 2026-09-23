@@ -351,7 +351,7 @@ function LegacyFormattedPDF({
             <td style={s.tdValue}>{getCategoriaNombre(solicitud.categoria)}</td>
             <td style={s.thBlue}>Justificación de incidencias</td>
             <td style={s.tdValue} colSpan={3}>
-              {solicitud.tipoSolicitudNombre || `Justificación #${solicitud.idTipoSolicitud}`}
+              {solicitud.tipoSolicitudNombre || '—'}
             </td>
           </tr>
           <tr>

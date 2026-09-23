@@ -12,6 +12,7 @@ import GestionSolicitudes from './pages/GestionSolicitudes';
 import TiposSolicitudList from './pages/TiposSolicitudList';
 import IncidenciasChecadoConfigList from './pages/IncidenciasChecadoConfigList';
 import IncidenciasChecadoList from './pages/IncidenciasChecadoList';
+import MisIncidenciasPage from './pages/MisIncidenciasPage';
 import { DiasHabilesPage } from './pages/Vacaciones/DiasHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
 import JefesNivelesList from './pages/JefesNivelesList';
@@ -76,6 +77,15 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
           element={
             <PermissionGuard blockedPath={resolvedBlockedPath} require="incidencias_checado.crear">
               <IncidenciasChecadoConfigList />
+            </PermissionGuard>
+          }
+        />
+
+        <Route
+          path="mis-incidencias"
+          element={
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="incidencias_checado.ver_mias">
+              <MisIncidenciasPage />
             </PermissionGuard>
           }
         />

@@ -3,13 +3,29 @@ import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { incidenciasChecadoApi, solicitudesPersonalApi } from '../services/rh.api';
-import type { IncidenciaChecadoResponse, SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import { Loader2 } from 'lucide-react';
+import type {
+  IncidenciaChecadoResponse,
+  ReglasDescuentoResponse,
+  SolicitudPersonalResponse,
+} from '@/types/solicitudPersonal.types';
+import { Info, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudDetalleTab } from './SolicitudDetalleTab';
+import { ReglasDescuentoContenido } from './ReglasDescuentoContenido';
+import {
+  textoAcumulacion,
+  textoAcumulacionDetalle,
+  tooltipIncidencia,
+} from '../utils/incidencias';
 
 interface Props {
   open: boolean;
@@ -44,6 +60,7 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
   const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
   const [solicitudLoading, setSolicitudLoading] = useState(false);
   const [solicitud, setSolicitud] = useState<SolicitudPersonalResponse | null>(null);
+  const [reglas, setReglas] = useState<ReglasDescuentoResponse | null>(null);
 
   const getEstadoInfo = useCallback(
     (
@@ -107,6 +124,19 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
     return () => controller.abort();
   }, [open, nomina, fechaInicio, fechaFin]);
 
+  useEffect(() => {
+    if (!open) return;
+    const fetchReglas = async () => {
+      try {
+        const res = await incidenciasChecadoApi.getReglas();
+        if (res.data.success) setReglas(res.data.data ?? null);
+      } catch {
+        setReglas(null);
+      }
+    };
+    fetchReglas();
+  }, [open]);
+
   const columns: ColumnDef<IncidenciaChecadoResponse>[] = useMemo(
     () => [
       {
@@ -141,11 +171,43 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
           }
           return (
             <div className="flex flex-col gap-1">
-              {incidencias.map((inc, index) => (
-                <Badge key={index} variant="outline" className="w-fit">
-                  {inc.nombre}
-                </Badge>
-              ))}
+              {incidencias.map((inc, index) => {
+                const cantidad = inc.cantidadAcumulada ?? 1;
+                const contador =
+                  cantidad > 1 && inc.posicionAcumulacion
+                    ? `${inc.posicionAcumulacion}/${cantidad}`
+                    : null;
+                const noCuenta = o.justificada || o.enTramite;
+                return (
+                  <div key={index} className="flex flex-col gap-0.5">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge
+                          variant="outline"
+                          className={
+                            inc.generaDescuento
+                              ? 'w-fit border-red-300 bg-red-50 text-red-700'
+                              : noCuenta
+                                ? 'w-fit border-slate-200 bg-slate-50 text-slate-500'
+                                : 'w-fit'
+                          }
+                        >
+                          {inc.nombre}
+                          {contador && <span className="ml-1 font-semibold">· {contador}</span>}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        {tooltipIncidencia(inc, o.justificada, o.enTramite)}
+                      </TooltipContent>
+                    </Tooltip>
+                    {!noCuenta && textoAcumulacionDetalle(inc) && (
+                      <span className="text-xs text-muted-foreground">
+                        {textoAcumulacionDetalle(inc)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           );
         },
@@ -211,17 +273,41 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
         header: '¿Genera descuento?',
         cell: ({ row }) => {
           const o = row.original;
-          if (o.descuento) {
+          const incidencias = o.incidenciasCalculadas ?? [];
+          const conDescuento = incidencias.find((i) => i.generaDescuento);
+
+          if (o.descuento && conDescuento) {
             return (
-              <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-                Sí
-              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
+                  Sí
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {textoAcumulacion(conDescuento)}
+                </span>
+              </div>
             );
           }
+
+          const informativa =
+            incidencias.find((i) => i.generaDescuentoTeorico && !i.generaDescuento) ??
+            incidencias.find((i) => i.posicionAcumulacion);
+
           return (
-            <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
-              No
-            </span>
+            <div className="flex flex-col gap-0.5">
+              <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                No
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {o.justificada
+                  ? 'Justificado, no cuenta'
+                  : o.enTramite
+                    ? 'En trámite, no cuenta'
+                    : informativa
+                      ? textoAcumulacion(informativa)
+                      : '—'}
+              </span>
+            </div>
           );
         },
       },
@@ -238,6 +324,24 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
     [data]
   );
 
+  const resumenDescuentos = useMemo(() => {
+    let generados = 0;
+    let justificados = 0;
+
+    for (const item of data) {
+      for (const inc of item.incidenciasCalculadas ?? []) {
+        if (inc.generaDescuento) generados += 1;
+        if (inc.generaDescuentoTeorico && (item.justificada || item.enTramite)) justificados += 1;
+      }
+    }
+
+    return {
+      generados,
+      justificados,
+      limite: reglas?.limiteDescuentosJustificadosMes ?? 2,
+    };
+  }, [data, reglas]);
+
   return (
     <>
       <Modal
@@ -247,23 +351,43 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
         title={`Incidencias de ${nombre}`}
         size="wide"
       >
-        <div className="space-y-4">
-          <p className="text-xs text-muted-foreground">{periodoLabel}</p>
-          {loading ? (
-            <div className="flex flex-col items-center justify-center gap-3 py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Cargando incidencias...</p>
-            </div>
-          ) : (
-            <DataTable
-              columns={columns}
-              data={sortedData}
-              loading={loading}
-              pagination={false}
-              showRefreshButton={false}
-            />
-          )}
-        </div>
+        <TooltipProvider delayDuration={200}>
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">{periodoLabel}</p>
+            {!loading && (
+              <div className="space-y-3 rounded-lg border bg-muted/40 p-3">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Info className="h-4 w-4" />
+                  ¿Cómo se generan los descuentos?
+                </div>
+                <ReglasDescuentoContenido reglas={reglas} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                    Descuentos por justificar: {resumenDescuentos.generados}
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                    Descuentos justificados: {resumenDescuentos.justificados} de{' '}
+                    {resumenDescuentos.limite}
+                  </span>
+                </div>
+              </div>
+            )}
+            {loading ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Cargando incidencias...</p>
+              </div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={sortedData}
+                loading={loading}
+                pagination={false}
+                showRefreshButton={false}
+              />
+            )}
+          </div>
+        </TooltipProvider>
       </Modal>
 
       <Modal

@@ -16,6 +16,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { incidenciasChecadoApi } from '../services/rh.api';
 import { IncidenciasChecadoEmpleadoDetalleModal } from '../components/IncidenciasChecadoEmpleadoDetalleModal';
 import { IncidenciasChecadoResumenNotificacionModal } from '../components/IncidenciasChecadoResumenNotificacionModal';
+import { ReglasDescuentoModal } from '../components/ReglasDescuentoModal';
 import type {
   IncidenciasChecadoResumenEmpleadoRequest,
   IncidenciasChecadoResumenEmpleadoResponse,
@@ -295,7 +296,7 @@ export default function IncidenciasChecadoList() {
         cell: ({ row }) =>
           row.original.descuento > 0 ? (
             <span className="inline-flex w-fit items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800">
-              {row.original.descuento}
+              Sí ({row.original.descuento})
             </span>
           ) : (
             <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
@@ -499,6 +500,7 @@ export default function IncidenciasChecadoList() {
           </div>
 
           <div className="flex items-center justify-end gap-2">
+            <ReglasDescuentoModal />
             <Button
               variant="secondary"
               size="sm"

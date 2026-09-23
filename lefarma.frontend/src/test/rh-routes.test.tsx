@@ -53,6 +53,11 @@ vi.mock('@/apps/rh/pages/RhDashboard', () => ({
   RhDashboard: () => <div>RH_DASHBOARD_MARK</div>,
 }));
 
+// Mis incidencias (employee self-service) — routing marker only.
+vi.mock('@/apps/rh/pages/MisIncidenciasPage', () => ({
+  default: () => <div>RH_MIS_INCIDENCIAS_MARK</div>,
+}));
+
 // MultiStepLogin probe — captures invocation props + router location. NOT a
 // static div. The factory now renders <MultiStepLogin> (not <Login>), so the
 // probe targets the new shell component.
@@ -192,6 +197,15 @@ describe('BaseAppRoutes — RH (Recursos Humanos) subtree scaffold', () => {
       expect(probe.getAttribute('data-url')).toBe(
         `/rh/login?return=${encodeURIComponent('/rh/dashboard')}`
       );
+    });
+  });
+
+  describe('RH mis incidencias route (self-service, no permission guard)', () => {
+    it('authenticated /rh/mis-incidencias resolves within the subtree', () => {
+      useAuthStore.setState({ isInitialized: true, isAuthenticated: true });
+      renderAt('/rh/mis-incidencias');
+      expect(screen.getByText('RH_MIS_INCIDENCIAS_MARK')).toBeInTheDocument();
+      expect(screen.queryByTestId('login-probe')).not.toBeInTheDocument();
     });
   });
 

@@ -41,6 +41,7 @@ export interface WorkflowTipoAccion {
   descripcion?: string;
   cambiaEstado: boolean;
   activo: boolean;
+  codigoProceso?: string;
 }
 
 export interface WorkflowAccion {

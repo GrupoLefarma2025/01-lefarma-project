@@ -66,7 +66,7 @@ interface StagedItem extends DiaHabilFechaRequest {
 }
 
 export function DiasHabilesPage() {
-  usePageTitle('Días Habiles y Calendario Laboral', 'Gestión de días de asueto oficiales y los días especiales');
+  usePageTitle('Días hábiles y calendario laboral', 'Gestión de días de asueto oficiales y los días especiales');
 
   const [items, setItems] = useState<DiaHabilResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +88,7 @@ export function DiasHabilesPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [confirmCloseQueue, setConfirmCloseQueue] = useState(false);
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   // Usuarios afectados
@@ -283,6 +284,7 @@ export function DiasHabilesPage() {
           size="icon"
           onClick={() => quitarStaged(row.original)}
           title="Quitar de la cola"
+          aria-label="Quitar de la cola"
         >
           <Trash2 className="h-4 w-4 text-red-500" />
         </Button>
@@ -293,13 +295,13 @@ export function DiasHabilesPage() {
   const usuariosColumns: ColumnDef<UsuarioAfectadoResponse>[] = [
   {
     accessorKey: 'numeroEmpleado',
-    header: 'Nomina',
+    header: 'Nómina',
     cell: ({ row }) => row.original.numeroEmpleado ?? '—',
   },
   {
     accessorKey: 'nombreCompleto',
     header: 'Nombre',
-    cell: ({ row }) => row.original.nombreCompleto ?? `Usuario ${row.original.idUsuario}`,
+    cell: ({ row }) => row.original.nombreCompleto ?? '—',
   },
   /* {
     accessorKey: 'puesto',
@@ -439,14 +441,14 @@ export function DiasHabilesPage() {
     }
 
     if (errores.length > 0) {
-      setCsvError(`${errores.length} fila(s) con error`);
-      toast.warning(`${errores.length} fila(s) del CSV se omitieron por errores`);
+      setCsvError(`${errores.length} ${errores.length === 1 ? 'fila' : 'filas'} con error`);
+      toast.warning(`${errores.length} ${errores.length === 1 ? 'fila' : 'filas'} del CSV se omitieron por errores`);
     }
 
     if (nuevos.length > 0) {
       setStagedItems((prev) => [...prev, ...nuevos].sort((a, b) => fechaKey(a).localeCompare(fechaKey(b))),
       );
-      toast.success(`${nuevos.length} día(s) del CSV agregado(s) a la cola`);
+      toast.success(`${nuevos.length} ${nuevos.length === 1 ? 'día agregado' : 'días agregados'} del CSV a la cola`);
     }
   };
 
@@ -507,16 +509,16 @@ export function DiasHabilesPage() {
         }
       }
 
-      toast.success(`${totalGuardados} día(s) hábile(s) guardado(s)`);
+      toast.success(`${totalGuardados} ${totalGuardados === 1 ? 'día hábil guardado' : 'días hábiles guardados'}`);
       if (totalErrores > 0) {
-        toast.error(`${totalErrores} día(s) no se pudieron guardar por duplicados u otros errores`);
+        toast.error(`${totalErrores} ${totalErrores === 1 ? 'día no se pudo' : 'días no se pudieron'} guardar por duplicados u otros errores`);
       }
       setStagedItems([]);
       resetCsv();
       loadDias();
       setIsModalOpen(false);
     } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al guardar días habiles');
+      toast.error(toApiError(error).message ?? 'Error al guardar días hábiles');
     } finally {
       setIsSaving(false);
     }
@@ -534,9 +536,13 @@ export function DiasHabilesPage() {
 
   const handleCloseModal = () => {
     if (stagedItems.length > 0) {
-      const confirmar = confirm('Tienes días en cola sin guardar. ¿Seguro que quieres cerrar?');
-      if (!confirmar) return;
+      setConfirmCloseQueue(true);
+      return;
     }
+    cerrarModal();
+  };
+
+  const cerrarModal = () => {
     setIsModalOpen(false);
     setStagedItems([]);
     resetCsv();
@@ -575,7 +581,7 @@ export function DiasHabilesPage() {
       <div className="flex justify-end">
         <Button onClick={() => setIsModalOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
-          Añadir día(s) hábil
+          Añadir días hábiles
         </Button>
       </div>
 
@@ -790,7 +796,7 @@ export function DiasHabilesPage() {
           {stagedItems.length > 0 && (
             <div className="flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4 text-sm">
-                <span className="font-semibold">{stagedItems.length} día(s) en cola</span>
+                <span className="font-semibold">{stagedItems.length} {stagedItems.length === 1 ? 'día' : 'días'} en cola</span>
                 <span className="text-muted-foreground">
                   {stagedItems.filter((s) => s.source === 'manual').length} manual ·{' '}
                   {stagedItems.filter((s) => s.source === 'csv').length} CSV
@@ -875,6 +881,29 @@ export function DiasHabilesPage() {
             >
               {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Desactivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmCloseQueue} onOpenChange={setConfirmCloseQueue}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sin guardar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes {stagedItems.length} {stagedItems.length === 1 ? 'día' : 'días'} en cola sin
+              guardar. Si cierras ahora, se perderán.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Seguir aquí</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmCloseQueue(false);
+                cerrarModal();
+              }}
+            >
+              Cerrar sin guardar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

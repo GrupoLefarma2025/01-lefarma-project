@@ -2,6 +2,16 @@ import { useEffect, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Paperclip, Eye, Download, Trash2, Loader2 } from 'lucide-react';
 import { FileUploader } from '@/components/archivos/FileUploader';
 import { FileViewer } from '@/components/archivos/FileViewer';
@@ -61,6 +71,7 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
   const [uploaderOpen, setUploaderOpen] = useState(false);
   const [observaciones, setObservaciones] = useState('');
   const [viewerId, setViewerId] = useState<number | null>(null);
+  const [archivoAEliminar, setArchivoAEliminar] = useState<number | null>(null);
 
   const fetchArchivos = useCallback(async () => {
     setLoading(true);
@@ -83,13 +94,14 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
   }, [fetchArchivos]);
 
   const handleEliminar = async (idArchivo: number) => {
-    if (!window.confirm('¿Deseas borrar este archivo?')) return;
     try {
       await archivoService.delete(idArchivo);
       toast.success('Archivo borrado');
       fetchArchivos();
     } catch {
       toast.error('Error al borrar el archivo');
+    } finally {
+      setArchivoAEliminar(null);
     }
   };
 
@@ -99,13 +111,13 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Documentos adjuntos
           {archivosList.length > 0 && (
-            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium normal-case">
+            <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium normal-case">
               {archivosList.length}
             </span>
           )}
         </p>
         <Button size="sm" variant="outline" onClick={() => setUploaderOpen((v) => !v)}>
-          <Paperclip className="mr-1 h-3.5 w-3.5" />
+          <Paperclip className="mr-1 h-4 w-4" />
           Subir
         </Button>
       </div>
@@ -187,24 +199,25 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
                   )}
                   <div className="flex flex-wrap items-center gap-1.5">
                     {archivo.usuarioSubioNombre && (
-                      <span className="text-muted-foreground/60 text-[10px]">
+                      <span className="text-muted-foreground/60 text-xs">
                         {archivo.usuarioSubioNombre}
                       </span>
                     )}
-                    <span className="text-muted-foreground/40 text-[10px]">
+                    <span className="text-muted-foreground/60 text-xs">
                       {fmtFecha(archivo.fechaCreacion)}
                     </span>
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-0.5">
+                <div className="flex shrink-0 items-center gap-1">
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6"
+                    className="h-8 w-8"
                     title="Ver"
+                    aria-label="Ver archivo"
                     onClick={() => setViewerId(archivo.id)}
                   >
-                    <Eye className="h-3.5 w-3.5" />
+                    <Eye className="h-4 w-4" />
                   </Button>
                   <a
                     href={archivoService.getDownloadUrl(archivo.id)}
@@ -212,18 +225,24 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
                     rel="noopener noreferrer"
                     title="Descargar"
                   >
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <Download className="h-3.5 w-3.5" />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8"
+                      aria-label="Descargar archivo"
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
                   </a>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 hover:text-destructive"
+                    className="h-8 w-8 hover:text-destructive"
                     title="Borrar"
-                    onClick={() => handleEliminar(archivo.id)}
+                    aria-label="Borrar archivo"
+                    onClick={() => setArchivoAEliminar(archivo.id)}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
@@ -239,6 +258,29 @@ export function SolicitudArchivosTab({ idSolicitud }: SolicitudArchivosTabProps)
           onClose={() => setViewerId(null)}
         />
       )}
+
+      <AlertDialog
+        open={archivoAEliminar !== null}
+        onOpenChange={(open) => !open && setArchivoAEliminar(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Borrar este archivo?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El archivo se eliminará de la solicitud. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => archivoAEliminar !== null && handleEliminar(archivoAEliminar)}
+            >
+              Borrar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

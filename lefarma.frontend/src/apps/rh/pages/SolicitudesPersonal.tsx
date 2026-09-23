@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,25 @@ import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { useSolicitudesAutorizaciones, isEstadoTerminal } from '@/hooks/useSolicitudes';
+import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import { Modal } from '@/components/ui/modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { SignatureAlert } from '@/components/common/SignatureAlert';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -88,6 +106,8 @@ export default function SolicitudesPersonal() {
   const [loadingPendientes, setLoadingPendientes] = useState(false);
   const [loadingMias, setLoadingMias] = useState(false);
   const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
+  const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
+  const crearDirtyRef = useRef(false);
 
   const draftFilters = draftFiltersByTab[tab];
   const appliedFilters = appliedFiltersByTab[tab];
@@ -135,10 +155,8 @@ export default function SolicitudesPersonal() {
   }, [tab, appliedFilters, fetchTabData, fetchProfileSignature]);
 
   useEffect(() => {
-    API.get<ApiResponse<WorkflowEstado[]>>('/config/workflows/estados')
-      .then((estadosRes) => {
-        if (estadosRes.data.success) setWorkflowEstados(estadosRes.data.data || []);
-      })
+    fetchWorkflowEstados('SOLICITUD_PERSONAL')
+      .then((data) => setWorkflowEstados(data))
       .catch(() => {
         setWorkflowEstados([]);
       });
@@ -216,6 +234,7 @@ export default function SolicitudesPersonal() {
       return;
     }
     setSolicitudEnEdicion(null);
+    crearDirtyRef.current = false;
     toggleModal('crear', true);
   };
 
@@ -228,6 +247,7 @@ export default function SolicitudesPersonal() {
       return;
     }
     setSolicitudEnEdicion(s.idSolicitud);
+    crearDirtyRef.current = false;
     toggleModal('crear', true);
   };
 
@@ -266,7 +286,7 @@ export default function SolicitudesPersonal() {
   const getEstadoInfoById = (idEstado: number | null | undefined) => {
     if (idEstado == null) return { nombre: 'Desconocido', color: '#94a3b8' };
     const e = workflowEstados.find((est) => est.idEstado === idEstado);
-    return { nombre: e?.nombre ?? `Estado ${idEstado}`, color: e?.colorHex ?? '#94a3b8' };
+    return { nombre: e?.nombre ?? 'Sin estado', color: e?.colorHex ?? '#94a3b8' };
   };
 
   const solicitudesPendientes = useMemo(
@@ -285,7 +305,6 @@ export default function SolicitudesPersonal() {
   };
 
   const handleOpenFirma = async (s: SolicitudPersonalResponse) => {
-    console.log('solicitud', s);
     if (hasFirma === false) {
       toast.warning('No has cargado tu firma digital', {
         description: 'Ve a Configuración {'>'} Perfil para subir tu firma y poder firmar solicitudes.',
@@ -335,7 +354,7 @@ export default function SolicitudesPersonal() {
       <LimitesSolicitudCard
         titulo="Mis límites y saldo de vacaciones"
         refreshKey={limitesRefreshKey}
-        storageKey="limites-solicitud-card:solicitudes"
+        defaultCollapsed
       />
 
       <Tabs
@@ -350,7 +369,7 @@ export default function SolicitudesPersonal() {
             value="pendientes"
             className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
-            Pendientes
+            En trámite
             <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
               {solicitudesPendientes.length}
             </span>
@@ -359,7 +378,7 @@ export default function SolicitudesPersonal() {
             value="mias"
             className="border border-transparent text-sm font-semibold data-[state=active]:border-primary data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
           >
-            Mis solicitudes
+            Terminadas
             <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
               {solicitudesMias.length}
             </span>
@@ -369,25 +388,30 @@ export default function SolicitudesPersonal() {
         <div className="mt-3 space-y-3 rounded-lg border border-border bg-card p-4 shadow-sm">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Período</label>
-              <select
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              <label htmlFor="filtro-periodo" className="text-xs font-medium text-muted-foreground">Período</label>
+              <Select
                 value={draftFilters.periodo}
-                onChange={(e) => updateDraft('periodo', e.target.value)}
+                onValueChange={(v) => updateDraft('periodo', v)}
               >
-                {PERIODOS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="filtro-periodo" className="h-10">
+                  <SelectValue placeholder="Selecciona un período" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PERIODOS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {draftFilters.periodo === 'personalizado' && (
               <>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Fecha inicio</label>
+                  <label htmlFor="filtro-fecha-inicio" className="text-xs font-medium text-muted-foreground">Fecha inicio</label>
                   <Input
+                    id="filtro-fecha-inicio"
                     type="date"
                     value={draftFilters.fechaInicio}
                     onChange={(e) => updateDraft('fechaInicio', e.target.value)}
@@ -395,8 +419,9 @@ export default function SolicitudesPersonal() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Fecha fin</label>
+                  <label htmlFor="filtro-fecha-fin" className="text-xs font-medium text-muted-foreground">Fecha fin</label>
                   <Input
+                    id="filtro-fecha-fin"
                     type="date"
                     value={draftFilters.fechaFin}
                     onChange={(e) => updateDraft('fechaFin', e.target.value)}
@@ -408,18 +433,22 @@ export default function SolicitudesPersonal() {
 
             {tab === 'mias' && (
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Estado</label>
-                <select
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                <label htmlFor="filtro-estado" className="text-xs font-medium text-muted-foreground">Estado</label>
+                <Select
                   value={draftFilters.estado}
-                  onChange={(e) => updateDraft('estado', e.target.value)}
+                  onValueChange={(v) => updateDraft('estado', v)}
                 >
-                  {estados.map((e) => (
-                    <option key={e} value={e}>
-                      {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="filtro-estado" className="h-10">
+                    <SelectValue placeholder="Todos los estados" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {estados.map((e) => (
+                      <SelectItem key={e} value={e}>
+                        {e === 'all' ? 'Todos los estados' : getEstadoInfoById(Number(e)).nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
@@ -616,6 +645,11 @@ export default function SolicitudesPersonal() {
         setOpen={(o) => {
           if (!o) closeModal('crear');
         }}
+        beforeClose={() => {
+          if (!crearDirtyRef.current) return true;
+          setConfirmCloseCrear(true);
+          return false;
+        }}
         title={
           <div className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
@@ -627,6 +661,9 @@ export default function SolicitudesPersonal() {
         <CrearSolicitud
           key={solicitudEnEdicion ?? 'new'}
           idSolicitud={solicitudEnEdicion ?? undefined}
+          onDirtyChange={(dirty) => {
+            crearDirtyRef.current = dirty;
+          }}
           onClose={() => closeModal('crear')}
           onSaved={() => {
             fetchTabData('pendientes', appliedFiltersByTab.pendientes);
@@ -635,6 +672,29 @@ export default function SolicitudesPersonal() {
           }}
         />
       </Modal>
+
+      <AlertDialog open={confirmCloseCrear} onOpenChange={setConfirmCloseCrear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sin guardar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes datos capturados en la solicitud. Si cierras ahora, se perderán.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                crearDirtyRef.current = false;
+                setConfirmCloseCrear(false);
+                closeModal('crear');
+              }}
+            >
+              Cerrar sin guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── PDF Print Document — Solicitud de Personal ── */}
       {selectedSolicitud &&

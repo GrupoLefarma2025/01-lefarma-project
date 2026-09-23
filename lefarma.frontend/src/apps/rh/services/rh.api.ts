@@ -19,6 +19,7 @@ import type {
   NotificarIncidenciasResumenResponse,
   PagedResult,
   PlantillaIncidenciaChecado,
+  ReglasDescuentoResponse,
   SolicitudPersonalFilterParams,
   SolicitudPersonalResponse,
   TipoSolicitudRequest,
@@ -86,7 +87,7 @@ export const diasHabilesApi = {
 };
 
 export const misIncidenciasChecadoApi = {
-  get: (request: { anio: number; mes: number }) =>
+  get: (request: { anio: number; mes: number } | { fechaDesde: string; fechaHasta: string }) =>
     API.get<ApiResponse<IncidenciaChecadoResponse[]>>('/rh/mis-incidencias-checado', {
       params: request,
     }),
@@ -114,6 +115,8 @@ export const incidenciasChecadoApi = {
         signal,
       }
     ),
+  getReglas: () =>
+    API.get<ApiResponse<ReglasDescuentoResponse>>('/rh/incidencias-checado/reglas-descuento'),
 };
 
 export const solicitudesPersonalApi = {

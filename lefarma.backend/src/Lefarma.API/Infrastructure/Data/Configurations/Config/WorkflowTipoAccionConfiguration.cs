@@ -16,8 +16,9 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(e => e.Descripcion).HasColumnName("descripcion").HasMaxLength(255);
             builder.Property(e => e.CambiaEstado).HasColumnName("cambia_estado").HasDefaultValue(true);
             builder.Property(e => e.Activo).HasColumnName("activo").HasDefaultValue(true);
+            builder.Property(e => e.CodigoProceso).HasColumnName("codigo_proceso").HasMaxLength(50).IsRequired();
 
-            builder.HasIndex(e => e.Codigo).IsUnique();
+            builder.HasIndex(e => new { e.Codigo, e.CodigoProceso }).IsUnique();
         }
     }
 }

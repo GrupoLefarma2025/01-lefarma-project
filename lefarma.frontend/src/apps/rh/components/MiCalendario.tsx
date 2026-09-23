@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -23,6 +23,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { InlineLoader } from '@/components/ui/inline-loader';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
@@ -53,10 +63,10 @@ const CATEGORIA_STYLES: Record<string, { dot: string; bg: string; border: string
       text: 'text-emerald-800 dark:text-emerald-300',
     },
     '2': {
-      dot: 'bg-amber-500',
-      bg: 'bg-amber-50 dark:bg-amber-950/30',
-      border: 'border-amber-200 dark:border-amber-900/50',
-      text: 'text-amber-800 dark:text-amber-300',
+      dot: 'bg-cyan-500',
+      bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+      border: 'border-cyan-200 dark:border-cyan-900/50',
+      text: 'text-cyan-800 dark:text-cyan-300',
     },
     '3': {
       dot: 'bg-blue-500',
@@ -69,6 +79,12 @@ const CATEGORIA_STYLES: Record<string, { dot: string; bg: string; border: string
       bg: 'bg-violet-50 dark:bg-violet-950/30',
       border: 'border-violet-200 dark:border-violet-900/50',
       text: 'text-violet-800 dark:text-violet-300',
+    },
+    '5': {
+      dot: 'bg-rose-500',
+      bg: 'bg-rose-50 dark:bg-rose-950/30',
+      border: 'border-rose-200 dark:border-rose-900/50',
+      text: 'text-rose-800 dark:text-rose-300',
     },
   };
 
@@ -126,7 +142,8 @@ interface DiaCelda {
   eventos: CalendarioGlobalEvento[];
   esActual: boolean;
   esHoy: boolean;
-  esNoLaborable: boolean;
+  esDescanso: boolean;
+  esDiaNoLaborable: boolean;
   noHabilDescripcion?: string;
   incidencia?: IncidenciaChecadoResponse;
 }
@@ -203,6 +220,7 @@ function useCalendario(anio: number, mes: number) {
     const eventosPorFecha = new Map<string, CalendarioGlobalEvento[]>();
     const incidenciasPorFecha = new Map<string, IncidenciaChecadoResponse>();
     const noLaborablesSet = new Set<string>();
+    const descansosSet = new Set<string>();
     const noHabilesPorFecha = new Map<string, string>();
 
     const jornadaPorDia: Record<number, boolean> = {
@@ -243,7 +261,7 @@ function useCalendario(anio: number, mes: number) {
       const key = fecha.toISOString().split('T')[0];
       const trabaja = jornadaPorDia[fecha.getDay()];
       if (!trabaja) {
-        noLaborablesSet.add(key);
+        descansosSet.add(key);
       }
 
       resultado.push({
@@ -251,7 +269,8 @@ function useCalendario(anio: number, mes: number) {
         eventos: eventosPorFecha.get(key) ?? [],
         esActual: fecha.getMonth() === inicioMes.getMonth(),
         esHoy: isSameDay(fecha, hoy),
-        esNoLaborable: noLaborablesSet.has(key),
+        esDescanso: descansosSet.has(key),
+        esDiaNoLaborable: noLaborablesSet.has(key),
         noHabilDescripcion: noHabilesPorFecha.get(key),
         incidencia: incidenciasPorFecha.get(key),
       });
@@ -286,7 +305,7 @@ function EventoBadge({
           : undefined
       }
       className={cn(
-        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors hover:brightness-95',
+        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
         style.bg,
         style.border,
         style.text,
@@ -302,24 +321,33 @@ function EventoBadge({
   );
 }
 
-function IncidenciaBadge({ isPast, onClick }: { isPast: boolean; onClick?: () => void }) {
+function IncidenciaBadge({
+  isPast,
+  onClick,
+  label,
+}: {
+  isPast: boolean;
+  onClick?: () => void;
+  label?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onClick}
+      title={label ?? 'Incidencia de checado'}
       className={cn(
-        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-[10px] leading-tight transition-colors hover:brightness-95',
+        'mb-1 flex w-full items-center gap-1.5 rounded border px-1.5 py-0.5 text-left text-xs leading-tight transition-colors hover:brightness-95',
         'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300',
         isPast && 'opacity-60'
       )}
     >
       <AlertTriangle className="h-3 w-3 shrink-0" />
-      <span className="truncate">Incidencia</span>
+      <span className="truncate">{label ?? 'Incidencia'}</span>
     </button>
   );
 }
 
-function IncidenciaModal({
+export function IncidenciaModal({
   incidencia,
   open,
   onClose,
@@ -445,7 +473,7 @@ function IncidenciaModal({
           <div className="flex justify-end gap-2 pt-2">
             <Button size="sm" onClick={onAddSolicitud}>
               <Plus className="mr-1.5 h-4 w-4" />
-              Añadir solicitud
+              Justificar incidencia
             </Button>
           </div>
         )}
@@ -537,11 +565,14 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
   const [incidenciaParaSolicitud, setIncidenciaParaSolicitud] =
     useState<IncidenciaChecadoResponse | null>(null);
   const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
+  const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
+  const crearDirtyRef = useRef(false);
   const { dias, loading, refetch } = useCalendario(anio, mes);
 
   const handleAddSolicitud = () => {
     setIncidenciaParaSolicitud(incidenciaSeleccionada);
     setIncidenciaSeleccionada(null);
+    crearDirtyRef.current = false;
     setSolicitudModalOpen(true);
   };
 
@@ -576,6 +607,13 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
     return Array.from({ length: 11 }, (_, i) => String(anioActual - 5 + i));
   }, [anioActual]);
 
+  // Vista móvil: días con contenido (solicitudes, incidencia u hoy) en orden cronológico.
+  const diasAgenda = useMemo(
+    () => dias.filter((d) => d.eventos.length > 0 || d.incidencia || d.esHoy),
+    [dias]
+  );
+  const hoyLocal = useMemo(() => toLocalMidnight(new Date()), []);
+
   return (
     <>
       <Card className="border-0 shadow-sm">
@@ -595,10 +633,22 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
               Hoy
             </Button>
             <div className="flex items-center">
-              <Button variant="ghost" size="icon" onClick={handlePrev} className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handlePrev}
+                className="h-8 w-8"
+                aria-label="Mes anterior"
+              >
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleNext} className="h-8 w-8">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleNext}
+                className="h-8 w-8"
+                aria-label="Mes siguiente"
+              >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
@@ -644,11 +694,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         </CardHeader>
 
         <CardContent className="pt-0">
-          <div className="mb-2 flex items-center justify-between">
+          <div className="mb-2 hidden sm:flex sm:items-center sm:justify-between">
             <h3 className="text-base font-semibold capitalize">{formatMesAnio(anio, mes)}</h3>
           </div>
 
-          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-xs font-medium text-muted-foreground">
+          <div className="hidden grid-cols-7 gap-px overflow-hidden rounded-lg border bg-border text-xs font-medium text-muted-foreground sm:grid">
             {DIAS_SEMANA.map((dia) => (
               <div key={dia} className="bg-muted px-2 py-2 text-center uppercase tracking-wide">
                 {dia}
@@ -657,17 +707,28 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
           </div>
 
           {loading && dias.length === 0 ? (
-            <div className="mt-2 grid grid-cols-7 gap-px rounded-lg border bg-border">
-              {Array.from({ length: 35 }).map((_, i) => (
-                <div key={i} className="min-h-[100px] bg-card p-2 sm:min-h-[120px]">
-                  <Skeleton className="mb-2 h-4 w-6" />
-                  <Skeleton className="mb-1 h-5 w-full" />
-                  <Skeleton className="mb-1 h-5 w-full" />
-                </div>
-              ))}
-            </div>
+            <>
+              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
+                {Array.from({ length: 35 }).map((_, i) => (
+                  <div key={i} className="min-h-[100px] bg-card p-2 sm:min-h-[120px]">
+                    <Skeleton className="mb-2 h-4 w-6" />
+                    <Skeleton className="mb-1 h-5 w-full" />
+                    <Skeleton className="mb-1 h-5 w-full" />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-2 space-y-2 sm:hidden">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-lg border bg-card p-3">
+                    <Skeleton className="mb-2 h-4 w-40" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
-            <div className="mt-2 grid grid-cols-7 gap-px rounded-lg border bg-border">
+            <>
+              <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
               {dias.map((dia, idx) => {
                 const hoyLocal = toLocalMidnight(new Date());
                 const isPast = dia.fecha < hoyLocal;
@@ -678,6 +739,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     <IncidenciaBadge
                       key={`incidencia-${dia.fecha.toISOString()}`}
                       isPast={isPast}
+                      label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
                       onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
                     />
                   );
@@ -702,7 +764,8 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     className={cn(
                       'relative min-h-[100px] bg-card p-1.5 transition-colors sm:min-h-[120px] sm:p-2',
                       dia.esHoy && 'bg-primary/5',
-                      dia.esNoLaborable && 'bg-red-50/40 dark:bg-red-950/20'
+                      dia.esDiaNoLaborable && 'bg-red-50/40 dark:bg-red-950/20',
+                      !dia.esDiaNoLaborable && dia.esDescanso && 'bg-slate-100/70 dark:bg-slate-900/40'
                     )}
                   >
                     <div className="mb-1 flex items-center justify-between">
@@ -710,25 +773,35 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                         className={cn(
                           'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                           dia.esHoy && 'ring-primary/20 bg-primary text-primary-foreground ring-2',
-                          dia.esNoLaborable &&
+                          dia.esDiaNoLaborable &&
                             !dia.esHoy &&
-                            'font-semibold text-red-600 dark:text-red-400'
+                            'font-semibold text-red-600 dark:text-red-400',
+                          !dia.esDiaNoLaborable &&
+                            dia.esDescanso &&
+                            !dia.esHoy &&
+                            'font-semibold text-slate-600 dark:text-slate-400'
                         )}
                         title={
-                          dia.esNoLaborable
-                            ? (dia.noHabilDescripcion ?? 'Día de descanso')
-                            : undefined
+                          dia.esDiaNoLaborable
+                            ? (dia.noHabilDescripcion ?? 'Día no laborable')
+                            : dia.esDescanso
+                              ? 'Día de descanso según tu jornada'
+                              : undefined
                         }
                       >
                         {dia.fecha.getDate()}
                       </span>
                     </div>
 
-                    {dia.esNoLaborable && (
-                      <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
-                        {dia.noHabilDescripcion ?? 'Descanso'}
+                    {dia.esDiaNoLaborable ? (
+                      <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                        {dia.noHabilDescripcion ?? 'No laborable'}
                       </div>
-                    )}
+                    ) : dia.esDescanso ? (
+                      <div className="mb-1 rounded bg-slate-200 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                        Descanso
+                      </div>
+                    ) : null}
 
                     <div className="flex flex-col">
                       {visibles}
@@ -738,7 +811,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                           <PopoverTrigger asChild>
                             <button
                               type="button"
-                              className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-[10px] font-medium text-muted-foreground transition-colors"
+                              className="hover:bg-muted/80 mt-0.5 w-full rounded bg-muted px-1.5 py-0.5 text-left text-xs font-medium text-muted-foreground transition-colors"
                             >
                               +{ocultos.length} más
                             </button>
@@ -763,33 +836,112 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                   </div>
                 );
               })}
-            </div>
+              </div>
+
+              {/* Vista móvil: agenda del mes */}
+              <div className="mt-2 space-y-2 sm:hidden">
+                {diasAgenda.length === 0 ? (
+                  <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
+                    Sin solicitudes ni incidencias este mes.
+                  </div>
+                ) : (
+                  diasAgenda.map((dia) => {
+                    const isPast = dia.fecha < hoyLocal;
+                    return (
+                      <div
+                        key={dia.fecha.toISOString()}
+                        className={cn(
+                          'rounded-lg border bg-card p-3',
+                          dia.esHoy && 'border-primary'
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium capitalize">
+                            {dia.fecha.toLocaleDateString('es-MX', {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long',
+                            })}
+                          </p>
+                          {dia.esHoy && <Badge variant="secondary">Hoy</Badge>}
+                        </div>
+                        {(dia.esDiaNoLaborable || dia.esDescanso) && (
+                          <p className="text-xs text-muted-foreground">
+                            {dia.esDiaNoLaborable
+                              ? (dia.noHabilDescripcion ?? 'Día no laborable')
+                              : 'Día de descanso'}
+                          </p>
+                        )}
+                        <div className="mt-2 flex flex-col gap-1">
+                          {dia.incidencia && (
+                            <IncidenciaBadge
+                              isPast={isPast}
+                              label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
+                              onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
+                            />
+                          )}
+                          {dia.eventos.map((e) => (
+                            <EventoBadge
+                              key={`${e.idSolicitud}-${e.fecha}`}
+                              evento={e}
+                              isPast={isPast}
+                              onClick={() => setDetalleId(e.idSolicitud)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="font-medium">Categorías:</span>
-            {Object.entries({
-              '1': 'Incidencia',
-              '2': 'Permiso',
-              '3': 'Vacaciones',
-              '4': 'Goce de Sueldo',
-            }).map(([key, label]) => {
-              const style = getCategoriaStyle(key);
-              return (
-                <span key={key} className="flex items-center gap-1">
-                  <span className={cn('h-2 w-2 rounded-full', style.dot)} />
-                  {label}
-                </span>
-              );
-            })}
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              Día no laborable
-            </span>
-            <span className="flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3 text-amber-500" />
-              Incidencia de checado
-            </span>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Tipos de solicitud:</span>
+              {Object.entries({
+                '1': 'Incidencia',
+                '2': 'Permiso',
+                '3': 'Vacaciones',
+                '4': 'Goce de Sueldo',
+                '5': 'Incapacidad',
+              }).map(([key, label]) => {
+                const style = getCategoriaStyle(key);
+                return (
+                  <span key={key} className="flex items-center gap-1">
+                    <span className={cn('h-2 w-2 rounded-full', style.dot)} />
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Días:</span>
+              <span
+                className="flex items-center gap-1"
+                title="Día de descanso según tu jornada laboral"
+              >
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                Descanso (tu jornada)
+              </span>
+              <span
+                className="flex items-center gap-1"
+                title="Día no laborable (festivo o inhábil)"
+              >
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Día no laborable
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Incidencias:</span>
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                Incidencia de checado
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -813,6 +965,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         setOpen={(o) => {
           if (!o) setSolicitudModalOpen(false);
         }}
+        beforeClose={() => {
+          if (!crearDirtyRef.current) return true;
+          setConfirmCloseCrear(true);
+          return false;
+        }}
         title={
           <div className="flex items-center gap-2">
             <Plus className="h-5 w-5" />
@@ -824,6 +981,9 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
         <CrearSolicitud
           incidencia={incidenciaParaSolicitud}
           fechaInicial={incidenciaParaSolicitud?.fecha}
+          onDirtyChange={(dirty) => {
+            crearDirtyRef.current = dirty;
+          }}
           onClose={() => setSolicitudModalOpen(false)}
           onSaved={() => {
             setSolicitudModalOpen(false);
@@ -833,6 +993,29 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
           }}
         />
       </Modal>
+
+      <AlertDialog open={confirmCloseCrear} onOpenChange={setConfirmCloseCrear}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Cerrar sin guardar?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tienes datos capturados en la solicitud. Si cierras ahora, se perderán.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                crearDirtyRef.current = false;
+                setConfirmCloseCrear(false);
+                setSolicitudModalOpen(false);
+              }}
+            >
+              Cerrar sin guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

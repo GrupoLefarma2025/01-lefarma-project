@@ -69,7 +69,7 @@ export function SolicitudAccionesModal({
         title={
           <div className="flex items-center gap-2">
             <FileSignature className="h-5 w-5" />
-            <span>Firma de solicitud</span>
+            <span>Acciones de la solicitud</span>
           </div>
         }
         size="lg"

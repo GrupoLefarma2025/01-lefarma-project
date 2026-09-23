@@ -14,6 +14,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -97,6 +107,7 @@ export default function JefesNivelesList() {
   const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
   const [loadingUsuarios, setLoadingUsuarios] = useState(false);
   const [cadenaModal, setCadenaModal] = useState<JefeCadenaNivel[]>([]);
+  const [usuarioAEliminar, setUsuarioAEliminar] = useState<number | null>(null);
   const [loadingCadena, setLoadingCadena] = useState(false);
 
   const [modalStates, setModalStates] = useState({ edit: false });
@@ -191,7 +202,6 @@ export default function JefesNivelesList() {
   };
 
   const handleEliminar = async (idUsuario: number) => {
-    if (!confirm(`¿Eliminar la configuración del usuario ${idUsuario}? Volverá al default legacy (solo nivel 1).`)) return;
     try {
       const response = await empleadoJefesConfigApi.update(idUsuario, { niveles: [] });
       if (response.data.success) {
@@ -201,6 +211,8 @@ export default function JefesNivelesList() {
     } catch (error: unknown) {
       const err = toApiError(error);
       toast.error(err.message ?? 'Error al eliminar la configuración');
+    } finally {
+      setUsuarioAEliminar(null);
     }
   };
 
@@ -317,7 +329,7 @@ export default function JefesNivelesList() {
                 return (
                   <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700"
                     title={`No hay jefe asignado para el nivel ${n.nivel}. El paso de nivel ${n.nivel} no aplicará.`}>
-                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    <span className="font-mono text-xs">Nivel {n.nivel}</span>
                     Sin jefe - se omitirá
                   </Badge>
                 );
@@ -326,7 +338,7 @@ export default function JefesNivelesList() {
                 return (
                   <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700"
                     title={`El jefe ${jefe.texto} no tiene usuario en el sistema. El paso de nivel ${n.nivel} no aplicará.`}>
-                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    <span className="font-mono text-xs">Nivel {n.nivel}</span>
                     {jefe.texto}
                   </Badge>
                 );
@@ -335,7 +347,7 @@ export default function JefesNivelesList() {
                 return (
                   <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-blue-500/40 bg-blue-500/10 text-blue-700"
                     title={`Override: el paso de nivel ${n.nivel} irá a ${jefe.texto}`}>
-                    <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                    <span className="font-mono text-xs">Nivel {n.nivel}</span>
                     <span className="truncate">{jefe.texto}</span>
                   </Badge>
                 );
@@ -343,7 +355,7 @@ export default function JefesNivelesList() {
               return (
                 <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-green-500/40 bg-green-500/10 text-green-700"
                   title={`El jefe ${jefe.texto} tiene usuario en el sistema. El paso de nivel ${n.nivel} aplicará.`}>
-                  <span className="font-mono text-[10px]">Nivel {n.nivel}</span>
+                  <span className="font-mono text-xs">Nivel {n.nivel}</span>
                   <span className="truncate">{jefe.texto}</span>
                 </Badge>
               );
@@ -370,7 +382,7 @@ export default function JefesNivelesList() {
             size="sm"
             variant="destructive"
             className="h-8 gap-1.5"
-            onClick={() => handleEliminar(row.original.idUsuario)}
+            onClick={() => setUsuarioAEliminar(row.original.idUsuario)}
           >
             <Trash2 className="h-3.5 w-3.5" />
             Eliminar
@@ -636,6 +648,30 @@ export default function JefesNivelesList() {
           </form>
         </Form>
       </Modal>
+
+      <AlertDialog
+        open={usuarioAEliminar !== null}
+        onOpenChange={(open) => !open && setUsuarioAEliminar(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar la configuración de jefes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Este empleado volverá a la asignación automática de jefes (solo nivel 1). Podrás
+              configurarla de nuevo más adelante.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => usuarioAEliminar !== null && handleEliminar(usuarioAEliminar)}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

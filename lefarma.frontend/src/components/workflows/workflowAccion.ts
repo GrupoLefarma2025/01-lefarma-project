@@ -38,6 +38,7 @@ export interface AccionWorkflow {
   idAccion: number;
   tipoAccionCodigo?: string | null;
   tipoAccionNombre?: string | null;
+  tipoAccionDescripcion?: string | null;
   requiereComentario?: boolean;
   requiereAdjunto?: boolean;
   permiteAdjunto?: boolean;

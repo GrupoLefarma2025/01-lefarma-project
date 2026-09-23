@@ -251,7 +251,6 @@ export default function CrearSolicitudPersonal() {
     API.get<ApiResponse<TipoSolicitudResponse[]>>('/solicitudes-personal/tipos-solicitud')
       .then((res) => {
         if (res.data.success) setTiposSolicitud(res.data.data || []);
-        console.log('Tipos de Solicitud cargados:', res.data.data);
       })
       .catch((err) => {
         console.warn('[fetchCatalogs] Error al cargar TiposSolicitud:', err);

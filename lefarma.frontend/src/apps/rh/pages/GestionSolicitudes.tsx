@@ -201,7 +201,7 @@ export default function GestionSolicitudes() {
           API.get<ApiResponse<Empresa[]>>('/catalogos/Empresas'),
           API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales'),
           tipoSolicitudApi.getActivos(),
-          fetchWorkflowEstados(),
+          fetchWorkflowEstados('SOLICITUD_PERSONAL'),
           usuariosCatalogoApi.getAll().then((u) => setUsuarios(u)),
         ]);
 
@@ -365,17 +365,17 @@ export default function GestionSolicitudes() {
     const getLabel = (s: SolicitudPersonalResponse): string => {
       switch (vista) {
         case 'empresa':
-          return s.empresaNombre ?? `Empresa ${s.idEmpresa}`;
+          return s.empresaNombre ?? 'Sin empresa';
         case 'sucursal':
-          return s.sucursalNombre ?? `Sucursal ${s.idSucursal}`;
+          return s.sucursalNombre ?? 'Sin sucursal';
         case 'tipo':
-          return s.tipoSolicitudNombre ?? `Justificación ${s.idTipoSolicitud}`;
+          return s.tipoSolicitudNombre ?? 'Sin tipo de solicitud';
         case 'solicitante':
-          return s.solicitanteNombre ?? `Solicitante ${s.idUsuarioSolicitante ?? s.idUsuarioCreador}`;
+          return s.solicitanteNombre ?? 'Sin solicitante';
         case 'creador':
-          return s.creadorNombre ?? `Creador ${s.idUsuarioCreador}`;
+          return s.creadorNombre ?? 'Sin creador';
         case 'estado':
-          return s.estadoNombre ?? `Estado ${s.idEstado}`;
+          return s.estadoNombre ?? 'Sin estado';
         default:
           return '';
       }
