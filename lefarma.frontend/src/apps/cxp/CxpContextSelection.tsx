@@ -76,12 +76,16 @@ export function CxpContextSelection() {
   const autoSelectedArea = useMemo(() => {
     if (puedeSeleccionarEmpresas || !usuarioDetalle) return null;
     const { idArea } = usuarioDetalle;
+    const empresaId = autoSelectedEmpresa;
+    if (!empresaId) return null;
     if (idArea && idArea > 0) {
-      const existe = areas.some((a) => String(a.idArea) === String(idArea));
+      const existe = areas.some(
+        (a) => String(a.idArea) === String(idArea) && String(a.idEmpresa) === empresaId
+      );
       if (existe) return String(idArea);
     }
     return null;
-  }, [puedeSeleccionarEmpresas, usuarioDetalle, areas]);
+  }, [puedeSeleccionarEmpresas, usuarioDetalle, autoSelectedEmpresa, areas]);
 
   // Valores efectivos: auto-selección o los del usuario.
   const effectiveEmpresa = autoSelectedEmpresa ?? selectedEmpresa;

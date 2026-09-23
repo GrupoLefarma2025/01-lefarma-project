@@ -52,12 +52,7 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
       <>
         <Route path="dashboard" element={<RhDashboard />} />
 
-        <Route path="solicitudes" element={
-        <PermissionGuard blockedPath={resolvedBlockedPath} require="solicitud_personal.ver_listado">
-              <SolicitudesPersonal />
-            </PermissionGuard>
-            } 
-        />
+        <Route path="solicitudes" element={<SolicitudesPersonal />} />
 
         <Route
           path="solicitudes/gestion"

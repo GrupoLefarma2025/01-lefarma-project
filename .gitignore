@@ -116,6 +116,7 @@ tmp/
 /playwright/.auth/
 .playwright/
 .playwright-cli/
+.playwright-mcp/
 
 # Release zip output (multiappcli.ps1 build:qa)
 /publish/
