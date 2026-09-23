@@ -63,10 +63,10 @@ const CATEGORIA_STYLES: Record<string, { dot: string; bg: string; border: string
       text: 'text-emerald-800 dark:text-emerald-300',
     },
     '2': {
-      dot: 'bg-amber-500',
-      bg: 'bg-amber-50 dark:bg-amber-950/30',
-      border: 'border-amber-200 dark:border-amber-900/50',
-      text: 'text-amber-800 dark:text-amber-300',
+      dot: 'bg-cyan-500',
+      bg: 'bg-cyan-50 dark:bg-cyan-950/30',
+      border: 'border-cyan-200 dark:border-cyan-900/50',
+      text: 'text-cyan-800 dark:text-cyan-300',
     },
     '3': {
       dot: 'bg-blue-500',
@@ -79,6 +79,12 @@ const CATEGORIA_STYLES: Record<string, { dot: string; bg: string; border: string
       bg: 'bg-violet-50 dark:bg-violet-950/30',
       border: 'border-violet-200 dark:border-violet-900/50',
       text: 'text-violet-800 dark:text-violet-300',
+    },
+    '5': {
+      dot: 'bg-rose-500',
+      bg: 'bg-rose-50 dark:bg-rose-950/30',
+      border: 'border-rose-200 dark:border-rose-900/50',
+      text: 'text-rose-800 dark:text-rose-300',
     },
   };
 
@@ -823,6 +829,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                 '2': 'Permiso',
                 '3': 'Vacaciones',
                 '4': 'Goce de Sueldo',
+                '5': 'Incapacidad',
               }).map(([key, label]) => {
                 const style = getCategoriaStyle(key);
                 return (

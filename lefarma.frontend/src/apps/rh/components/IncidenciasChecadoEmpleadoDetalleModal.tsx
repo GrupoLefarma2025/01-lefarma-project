@@ -4,9 +4,7 @@ import { Button } from '@/components/ui/button';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { incidenciasChecadoApi, solicitudesPersonalApi } from '../services/rh.api';
 import type {
-  IncidenciaCalculada,
   IncidenciaChecadoResponse,
-  ReglaDescuentoResponse,
   ReglasDescuentoResponse,
   SolicitudPersonalResponse,
 } from '@/types/solicitudPersonal.types';
@@ -22,6 +20,12 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudDetalleTab } from './SolicitudDetalleTab';
+import { ReglasDescuentoContenido } from './ReglasDescuentoContenido';
+import {
+  textoAcumulacion,
+  textoAcumulacionDetalle,
+  tooltipIncidencia,
+} from '../utils/incidencias';
 
 interface Props {
   open: boolean;
@@ -41,62 +45,6 @@ function formatHora(valor?: string | null) {
 function parseLocalDate(value: string): Date {
   const [year, month, day] = value.split('T')[0].split('-').map(Number);
   return new Date(year, month - 1, day);
-}
-
-function periodoTexto(periodo?: string | null) {
-  switch (periodo?.toLowerCase()) {
-    case 'quincena':
-      return 'la quincena';
-    case 'semana':
-      return 'la semana';
-    default:
-      return 'el mes';
-  }
-}
-
-function textoRegla(regla: ReglaDescuentoResponse) {
-  if (regla.cantidadAcumulada > 1) {
-    return `Cada ${regla.cantidadAcumulada} "${regla.nombre}" en ${periodoTexto(regla.periodo)} generan 1 descuento (se marca en el ${regla.cantidadAcumulada}.º).`;
-  }
-  return `"${regla.nombre}": cada día genera 1 descuento.`;
-}
-
-function textoAcumulacion(inc: IncidenciaCalculada) {
-  const cantidad = inc.cantidadAcumulada ?? 1;
-  const posicion = inc.posicionAcumulacion ?? null;
-  const periodo = inc.etiquetaPeriodo ? ` · ${inc.etiquetaPeriodo}` : '';
-
-  if (inc.generaDescuento) {
-    if (cantidad > 1 && posicion) {
-      return `${posicion}.º acumulado${periodo}`;
-    }
-    return `Genera descuento${periodo}`;
-  }
-  if (cantidad > 1 && posicion) {
-    return `${posicion}.º de ${cantidad}${periodo}`;
-  }
-  return '—';
-}
-
-function tooltipIncidencia(
-  inc: IncidenciaCalculada,
-  justificada?: boolean,
-  enTramite?: boolean
-) {
-  const cantidad = inc.cantidadAcumulada ?? 1;
-  const posicion = inc.posicionAcumulacion ?? null;
-  const periodo = inc.etiquetaPeriodo ? ` (${inc.etiquetaPeriodo})` : '';
-
-  if (justificada || enTramite) {
-    return `${inc.nombre}${periodo}: día ${justificada ? 'justificado' : 'en trámite'}, no cuenta para la acumulación de descuentos.`;
-  }
-  if (cantidad > 1 && posicion) {
-    const detalle = inc.generaDescuento
-      ? `Este día completa los ${cantidad} y genera 1 descuento.`
-      : `Al llegar a ${cantidad} se genera 1 descuento.`;
-    return `${inc.nombre}${periodo}: este es el ${posicion}.º de ${cantidad}. ${detalle}`;
-  }
-  return `${inc.nombre}${periodo}: cada día genera 1 descuento.`;
 }
 
 export function IncidenciasChecadoEmpleadoDetalleModal({
@@ -252,11 +200,9 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
                         {tooltipIncidencia(inc, o.justificada, o.enTramite)}
                       </TooltipContent>
                     </Tooltip>
-                    {!noCuenta && cantidad > 1 && inc.posicionAcumulacion && (
+                    {!noCuenta && textoAcumulacionDetalle(inc) && (
                       <span className="text-xs text-muted-foreground">
-                        {inc.generaDescuento
-                          ? `Completa los ${cantidad}: genera 1 descuento`
-                          : `Al llegar a ${cantidad} se genera 1 descuento`}
+                        {textoAcumulacionDetalle(inc)}
                       </span>
                     )}
                   </div>
@@ -409,26 +355,12 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground">{periodoLabel}</p>
             {!loading && (
-              <div className="space-y-2 rounded-lg border bg-muted/40 p-3">
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                  <Info className="h-3.5 w-3.5" />
+              <div className="space-y-3 rounded-lg border bg-muted/40 p-3">
+                <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Info className="h-4 w-4" />
                   ¿Cómo se generan los descuentos?
                 </div>
-                {reglas && reglas.reglas.length > 0 ? (
-                  <ul className="list-disc space-y-0.5 pl-4 text-xs text-muted-foreground">
-                    {reglas.reglas.map((regla, index) => (
-                      <li key={index}>{textoRegla(regla)}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="text-xs text-muted-foreground">
-                    Cada regla configurada genera descuentos por acumulación de incidencias.
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  Los días justificados no cuentan para la acumulación. Se pueden justificar hasta{' '}
-                  {resumenDescuentos.limite} descuentos por mes.
-                </p>
+                <ReglasDescuentoContenido reglas={reglas} />
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
                     Descuentos por justificar: {resumenDescuentos.generados}

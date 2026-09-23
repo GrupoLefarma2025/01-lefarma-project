@@ -87,7 +87,7 @@ export const diasHabilesApi = {
 };
 
 export const misIncidenciasChecadoApi = {
-  get: (request: { anio: number; mes: number }) =>
+  get: (request: { anio: number; mes: number } | { fechaDesde: string; fechaHasta: string }) =>
     API.get<ApiResponse<IncidenciaChecadoResponse[]>>('/rh/mis-incidencias-checado', {
       params: request,
     }),

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { LimitesSolicitudCard } from '../components/LimitesSolicitudCard';
 import { MiCalendario } from '../components/MiCalendario';
 import { MisPendientesCard } from '../components/MisPendientesCard';
+import { usePageTitle } from '@/hooks/usePageTitle';
+import { useAuthStore } from '@/shared/auth/authStore';
 
 /**
  * RH app landing page.
@@ -10,17 +12,17 @@ import { MisPendientesCard } from '../components/MisPendientesCard';
  * Employee Self-Service: pendientes accionables + calendario mensual de solicitudes.
  */
 export function RhDashboard() {
+  usePageTitle('Inicio', 'Tu resumen de Recursos Humanos');
+
+  const { user } = useAuthStore();
   const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
   const [pendientesRefreshKey, setPendientesRefreshKey] = useState(0);
 
   return (
     <div className="mx-auto flex w-full flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Bienvenido</h1>
-        <p className="text-sm text-muted-foreground">
-          Aquí tienes un resumen rápido de tus solicitudes.
-        </p>
-      </div>
+      <h1 className="text-xl font-semibold tracking-tight text-foreground">
+        Hola{user?.nombre ? `, ${user.nombre}` : ''}
+      </h1>
 
       <MisPendientesCard refreshKey={pendientesRefreshKey} />
 

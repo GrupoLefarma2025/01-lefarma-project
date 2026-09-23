@@ -16,6 +16,7 @@ import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { incidenciasChecadoApi } from '../services/rh.api';
 import { IncidenciasChecadoEmpleadoDetalleModal } from '../components/IncidenciasChecadoEmpleadoDetalleModal';
 import { IncidenciasChecadoResumenNotificacionModal } from '../components/IncidenciasChecadoResumenNotificacionModal';
+import { ReglasDescuentoModal } from '../components/ReglasDescuentoModal';
 import type {
   IncidenciasChecadoResumenEmpleadoRequest,
   IncidenciasChecadoResumenEmpleadoResponse,
@@ -499,6 +500,7 @@ export default function IncidenciasChecadoList() {
           </div>
 
           <div className="flex items-center justify-end gap-2">
+            <ReglasDescuentoModal />
             <Button
               variant="secondary"
               size="sm"

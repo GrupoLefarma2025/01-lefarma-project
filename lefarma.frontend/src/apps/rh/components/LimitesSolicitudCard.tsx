@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { misLimitesApi } from '../services/rh.api';
+import { ReglasDescuentoModal } from './ReglasDescuentoModal';
 import type { LimitePorTipoResponse, MisLimitesResponse } from '@/types/solicitudPersonal.types';
 import type { SaldoVacacionesResponse } from '@/types/vacaciones.types';
 
@@ -467,16 +468,12 @@ export function LimitesSolicitudCard({
                 </div>
               )}
 
-              {data?.reglasDescuento && (
-                <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Cómo se generan los descuentos
-                  </p>
-                  <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
-                    {data.reglasDescuento}
-                  </p>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2">
+                <p className="text-xs text-muted-foreground">
+                  Los descuentos se generan por acumulación de incidencias en el período.
+                </p>
+                <ReglasDescuentoModal />
+              </div>
 
               {data !== null && limites.length === 0 && (
                 <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-6 text-center">
