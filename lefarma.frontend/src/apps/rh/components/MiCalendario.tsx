@@ -126,7 +126,8 @@ interface DiaCelda {
   eventos: CalendarioGlobalEvento[];
   esActual: boolean;
   esHoy: boolean;
-  esNoLaborable: boolean;
+  esDescanso: boolean;
+  esDiaNoLaborable: boolean;
   noHabilDescripcion?: string;
   incidencia?: IncidenciaChecadoResponse;
 }
@@ -203,6 +204,7 @@ function useCalendario(anio: number, mes: number) {
     const eventosPorFecha = new Map<string, CalendarioGlobalEvento[]>();
     const incidenciasPorFecha = new Map<string, IncidenciaChecadoResponse>();
     const noLaborablesSet = new Set<string>();
+    const descansosSet = new Set<string>();
     const noHabilesPorFecha = new Map<string, string>();
 
     const jornadaPorDia: Record<number, boolean> = {
@@ -243,7 +245,7 @@ function useCalendario(anio: number, mes: number) {
       const key = fecha.toISOString().split('T')[0];
       const trabaja = jornadaPorDia[fecha.getDay()];
       if (!trabaja) {
-        noLaborablesSet.add(key);
+        descansosSet.add(key);
       }
 
       resultado.push({
@@ -251,7 +253,8 @@ function useCalendario(anio: number, mes: number) {
         eventos: eventosPorFecha.get(key) ?? [],
         esActual: fecha.getMonth() === inicioMes.getMonth(),
         esHoy: isSameDay(fecha, hoy),
-        esNoLaborable: noLaborablesSet.has(key),
+        esDescanso: descansosSet.has(key),
+        esDiaNoLaborable: noLaborablesSet.has(key),
         noHabilDescripcion: noHabilesPorFecha.get(key),
         incidencia: incidenciasPorFecha.get(key),
       });
@@ -702,7 +705,8 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     className={cn(
                       'relative min-h-[100px] bg-card p-1.5 transition-colors sm:min-h-[120px] sm:p-2',
                       dia.esHoy && 'bg-primary/5',
-                      dia.esNoLaborable && 'bg-red-50/40 dark:bg-red-950/20'
+                      dia.esDiaNoLaborable && 'bg-red-50/40 dark:bg-red-950/20',
+                      !dia.esDiaNoLaborable && dia.esDescanso && 'bg-slate-100/70 dark:bg-slate-900/40'
                     )}
                   >
                     <div className="mb-1 flex items-center justify-between">
@@ -710,25 +714,35 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                         className={cn(
                           'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
                           dia.esHoy && 'ring-primary/20 bg-primary text-primary-foreground ring-2',
-                          dia.esNoLaborable &&
+                          dia.esDiaNoLaborable &&
                             !dia.esHoy &&
-                            'font-semibold text-red-600 dark:text-red-400'
+                            'font-semibold text-red-600 dark:text-red-400',
+                          !dia.esDiaNoLaborable &&
+                            dia.esDescanso &&
+                            !dia.esHoy &&
+                            'font-semibold text-slate-600 dark:text-slate-400'
                         )}
                         title={
-                          dia.esNoLaborable
-                            ? (dia.noHabilDescripcion ?? 'Día de descanso')
-                            : undefined
+                          dia.esDiaNoLaborable
+                            ? (dia.noHabilDescripcion ?? 'Día no laborable')
+                            : dia.esDescanso
+                              ? 'Día de descanso según tu jornada'
+                              : undefined
                         }
                       >
                         {dia.fecha.getDate()}
                       </span>
                     </div>
 
-                    {dia.esNoLaborable && (
+                    {dia.esDiaNoLaborable ? (
                       <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
-                        {dia.noHabilDescripcion ?? 'Descanso'}
+                        {dia.noHabilDescripcion ?? 'No laborable'}
                       </div>
-                    )}
+                    ) : dia.esDescanso ? (
+                      <div className="mb-1 rounded bg-slate-200 px-1.5 py-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                        Descanso
+                      </div>
+                    ) : null}
 
                     <div className="flex flex-col">
                       {visibles}
@@ -766,30 +780,50 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="font-medium">Categorías:</span>
-            {Object.entries({
-              '1': 'Incidencia',
-              '2': 'Permiso',
-              '3': 'Vacaciones',
-              '4': 'Goce de Sueldo',
-            }).map(([key, label]) => {
-              const style = getCategoriaStyle(key);
-              return (
-                <span key={key} className="flex items-center gap-1">
-                  <span className={cn('h-2 w-2 rounded-full', style.dot)} />
-                  {label}
-                </span>
-              );
-            })}
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-red-500" />
-              Día no laborable
-            </span>
-            <span className="flex items-center gap-1">
-              <AlertTriangle className="h-3 w-3 text-amber-500" />
-              Incidencia de checado
-            </span>
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Tipos de solicitud:</span>
+              {Object.entries({
+                '1': 'Incidencia',
+                '2': 'Permiso',
+                '3': 'Vacaciones',
+                '4': 'Goce de Sueldo',
+              }).map(([key, label]) => {
+                const style = getCategoriaStyle(key);
+                return (
+                  <span key={key} className="flex items-center gap-1">
+                    <span className={cn('h-2 w-2 rounded-full', style.dot)} />
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Días:</span>
+              <span
+                className="flex items-center gap-1"
+                title="Día de descanso según tu jornada laboral"
+              >
+                <span className="h-2 w-2 rounded-full bg-slate-400" />
+                Descanso (tu jornada)
+              </span>
+              <span
+                className="flex items-center gap-1"
+                title="Día no laborable (festivo o inhábil)"
+              >
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Día no laborable
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-medium">Incidencias:</span>
+              <span className="flex items-center gap-1">
+                <AlertTriangle className="h-3 w-3 text-amber-500" />
+                Incidencia de checado
+              </span>
+            </div>
           </div>
         </CardContent>
       </Card>
