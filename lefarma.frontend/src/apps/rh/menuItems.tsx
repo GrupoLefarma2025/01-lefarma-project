@@ -29,22 +29,10 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     path: '/rh/dashboard',
   },
   {
-    title: 'Solicitudes de personal',
-    icon: Users,
-    isCollapsible: true,
-    items: [
-      {
-        title: 'Solicitudes',
-        icon: FileCheck2,
-        path: '/rh/solicitudes',
-      },
-      {
-        title: 'Gestión',
-        icon: Settings,
-        path: '/rh/solicitudes/gestion',
-        permission: { require: 'solicitud_personal.puede_ver_todas' },
-      },
-    ],
+    title: 'Mis solicitudes',
+    icon: FileCheck2,
+    path: '/rh/solicitudes',
+    permission: { require: 'solicitud_personal.ver_listado' },
   },
   {
     title: 'Mis incidencias',

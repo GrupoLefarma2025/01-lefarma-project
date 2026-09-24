@@ -186,7 +186,7 @@ function mismasFechas(a: string[], b: string[]) {
   return sortedA.every((v, i) => v === sortedB[i]);
 }
 
-export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fechaInicial }: CrearSolicitudProps) {
+export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fechaInicial, onDirtyChange }: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
   const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma } = useAuthStore();
 
