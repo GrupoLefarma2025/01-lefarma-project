@@ -160,6 +160,31 @@ public class ProfileController : ControllerBase
         }));
     }
 
+    [HttpPost("firma/solicitud-cambio")]
+    [SwaggerOperation(Summary = "Solicitar a RH un cambio de firma")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SolicitarCambioFirma(CancellationToken cancellationToken = default)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuario no autenticado"
+            });
+
+        var result = await _profileService.SolicitarCambioFirmaAsync(userId.Value, cancellationToken);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<bool>
+        {
+            Success = true,
+            Data = data,
+            Message = "Solicitud enviada a Recursos Humanos"
+        }));
+    }
+
     /// <summary>
     /// Extrae el ID del usuario autenticado desde los claims del JWT
     /// </summary>

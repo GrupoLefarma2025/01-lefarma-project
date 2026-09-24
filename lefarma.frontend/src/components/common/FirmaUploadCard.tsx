@@ -5,7 +5,7 @@ import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon } from 'lucide-react';
+import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon, Lock, Info, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -30,15 +30,25 @@ export function FirmaUploadCard() {
   const [choiceDialogOpen, setChoiceDialogOpen] = useState(false);
   const [padDialogOpen, setPadDialogOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [firmaSubidas, setFirmaSubidas] = useState(0);
+  const [firmaCambioHabilitado, setFirmaCambioHabilitado] = useState(false);
+  const [firmaCambioSolicitado, setFirmaCambioSolicitado] = useState(false);
+  const [fechaSolicitudCambio, setFechaSolicitudCambio] = useState<string | null>(null);
+  const [isSolicitando, setIsSolicitando] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFirmaPreview = async () => {
     try {
       const response = await API.get<ApiResponse<Usuario>>('/profile');
       if (response.data.success && response.data.data) {
-        const firmaPath = response.data.data.detalle?.firmaPath ?? null;
+        const detalle = response.data.data.detalle;
+        const firmaPath = detalle?.firmaPath ?? null;
         const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
         setFirmaPreviewUrl(firmaPath ? `${apiUrl}/media/archivos/${firmaPath}` : null);
+        setFirmaSubidas(detalle?.firmaSubidas ?? 0);
+        setFirmaCambioHabilitado(detalle?.firmaCambioHabilitado ?? false);
+        setFirmaCambioSolicitado(detalle?.firmaCambioSolicitado ?? false);
+        setFechaSolicitudCambio(detalle?.fechaSolicitudCambioFirma ?? null);
       }
     } catch {
       // Silent: the page must render even if the profile fetch fails
@@ -117,6 +127,28 @@ export function FirmaUploadCard() {
     }
   };
 
+  // Regla: solo la subida inicial es libre. Una vez registrada (firmaSubidas >= 1),
+  // cualquier reemplazo requiere que RH haya habilitado el cambio (un solo uso).
+  const firmaBloqueada = hasFirma && firmaSubidas >= 1 && !firmaCambioHabilitado;
+  const firmaHabilitadaRh = hasFirma && firmaCambioHabilitado;
+
+  const handleSolicitarCambio = async () => {
+    setIsSolicitando(true);
+    try {
+      const response = await API.post<ApiResponse<boolean>>('/profile/firma/solicitud-cambio');
+      if (response.data.success) {
+        toast.success('Solicitud enviada a Recursos Humanos');
+        await fetchFirmaPreview();
+      } else {
+        toast.error(response.data.message ?? 'No se pudo enviar la solicitud');
+      }
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'Error al enviar la solicitud');
+    } finally {
+      setIsSolicitando(false);
+    }
+  };
+
   return (
     <>
       {/* Firma Digital */}
@@ -153,17 +185,70 @@ export function FirmaUploadCard() {
                   />
                 </div>
               )}
-              <div className="flex justify-center">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setChoiceDialogOpen(true)}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  Reemplazar firma
-                </Button>
-              </div>
+
+              {firmaBloqueada ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    <Lock className="mt-0.5 h-4 w-4 shrink-0" />
+                    <p>
+                      Tu firma ya fue registrada. Para cambiarla, un usuario de
+                      Recursos Humanos debe habilitar la opción.
+                    </p>
+                  </div>
+                  {firmaCambioSolicitado ? (
+                    <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p>
+                        Ya enviaste una solicitud a Recursos Humanos
+                        {fechaSolicitudCambio
+                          ? ` el ${new Date(fechaSolicitudCambio).toLocaleString()}`
+                          : ''}
+                        . Te avisaremos cuando habiliten el cambio.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isSolicitando}
+                        onClick={handleSolicitarCambio}
+                      >
+                        {isSolicitando ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Send className="mr-2 h-4 w-4" />
+                        )}
+                        Solicitar cambio a RH
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {firmaHabilitadaRh && (
+                    <div className="flex items-start gap-2 rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p>
+                        Recursos Humanos habilitó un cambio de firma. Es de un
+                        solo uso y se consumirá al guardar.
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex justify-center">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setChoiceDialogOpen(true)}
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Reemplazar firma
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <button

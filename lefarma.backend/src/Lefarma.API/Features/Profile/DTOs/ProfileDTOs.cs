@@ -36,6 +36,10 @@ public record UsuarioDetalleData
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
     public string? FirmaPath { get; init; }
+    public int FirmaSubidas { get; init; }
+    public bool FirmaCambioHabilitado { get; init; }
+    public bool FirmaCambioSolicitado { get; init; }
+    public DateTime? FechaSolicitudCambioFirma { get; init; }
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }
     public string? Celular { get; init; }
@@ -69,7 +73,7 @@ public record UpdateProfileRequest
     public int? IdCentroCosto { get; init; }
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
-    public string? FirmaPath { get; init; }
+    // FirmaPath fue removido: la firma solo cambia vía POST /profile/firma.
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }
     public string? Celular { get; init; }

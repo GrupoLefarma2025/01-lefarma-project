@@ -28,6 +28,7 @@ public static class Permissions
         public const string View = "usuarios.view";
         public const string Manage = "usuarios.manage";
         public const string AssignRoles = "usuarios.assignroles";
+        public const string HabilitarCambioFirma = "usuarios.firma.habilitar_cambio";
     }
 
     public static class Reportes
