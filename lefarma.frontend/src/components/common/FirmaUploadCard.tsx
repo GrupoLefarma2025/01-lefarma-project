@@ -5,7 +5,7 @@ import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon, Lock, Info, Send } from 'lucide-react';
+import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon, Lock, Info, Send, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -35,6 +35,9 @@ export function FirmaUploadCard() {
   const [firmaCambioSolicitado, setFirmaCambioSolicitado] = useState(false);
   const [fechaSolicitudCambio, setFechaSolicitudCambio] = useState<string | null>(null);
   const [isSolicitando, setIsSolicitando] = useState(false);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [pendingFirmaFile, setPendingFirmaFile] = useState<File | null>(null);
+  const [pendingFirmaUrl, setPendingFirmaUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFirmaPreview = async () => {
@@ -59,6 +62,13 @@ export function FirmaUploadCard() {
     fetchFirmaPreview();
   }, []);
 
+  // Liberar el object URL de la firma pendiente al desmontar (evitar fugas).
+  useEffect(() => {
+    return () => {
+      if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
+    };
+  }, [pendingFirmaUrl]);
+
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -79,7 +89,7 @@ export function FirmaUploadCard() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const uploadFirma = async (file: File) => {
+  const uploadFirma = async (file: File): Promise<boolean> => {
     setIsUploadingFirma(true);
 
     try {
@@ -94,37 +104,69 @@ export function FirmaUploadCard() {
         toast.success('Firma subida exitosamente');
         await fetchFirmaPreview();
         await fetchProfileSignature();
-      } else {
-        toast.error(apiResponse.data.message ?? 'Error al guardar la firma');
+        return true;
       }
+
+      toast.error(apiResponse.data.message ?? 'Error al guardar la firma');
+      return false;
     } catch (error: unknown) {
       const err = toApiError(error);
       const errorMessage = err.message || 'Error al subir firma';
       toast.error('Error al subir firma', {
         description: errorMessage
       });
+      return false;
     } finally {
       setIsUploadingFirma(false);
     }
   };
 
+  // Paso de doble validación: tras el recorte o el dibujo, la firma queda pendiente
+  // y se muestra en el dialog de confirmación antes de guardarla.
+  const prepararConfirmacion = (file: File) => {
+    if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
+    setPendingFirmaFile(file);
+    setPendingFirmaUrl(URL.createObjectURL(file));
+    setConfirmDialogOpen(true);
+  };
+
+  const descartarPendiente = () => {
+    if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
+    setPendingFirmaFile(null);
+    setPendingFirmaUrl(null);
+  };
+
+  // Volver (o X/Esc): cierra solo el confirm; el recorte/pad queda abierto con lo editado.
+  const handleConfirmOpenChange = (open: boolean) => {
+    setConfirmDialogOpen(open);
+    if (!open) descartarPendiente();
+  };
+
+  const handleConfirmarEnvio = async () => {
+    if (!pendingFirmaFile) return;
+
+    const ok = await uploadFirma(pendingFirmaFile);
+    if (!ok) return; // El dialog queda abierto para reintentar.
+
+    setConfirmDialogOpen(false);
+    setCropDialogOpen(false);
+    setPadDialogOpen(false);
+    setSelectedFile(null);
+    descartarPendiente();
+  };
+
   const handleCropComplete = async (croppedImageUrl: string) => {
     if (!selectedFile) return;
 
-    setCropDialogOpen(false);
+    // No cerrar el recorte: al "Volver" del confirm el usuario sigue editándolo.
+    const response = await fetch(croppedImageUrl);
+    const blob = await response.blob();
+    const croppedFile = new File([blob], selectedFile.name, {
+      type: 'image/png',
+      lastModified: Date.now(),
+    });
 
-    try {
-      const response = await fetch(croppedImageUrl);
-      const blob = await response.blob();
-      const croppedFile = new File([blob], selectedFile.name, {
-        type: 'image/png',
-        lastModified: Date.now(),
-      });
-
-      await uploadFirma(croppedFile);
-    } finally {
-      setSelectedFile(null);
-    }
+    prepararConfirmacion(croppedFile);
   };
 
   // Regla: solo la subida inicial es libre. Una vez registrada (firmaSubidas >= 1),
@@ -318,11 +360,63 @@ export function FirmaUploadCard() {
         open={padDialogOpen}
         onOpenChange={setPadDialogOpen}
         isSaving={isUploadingFirma}
-        onSave={async (file) => {
-          setPadDialogOpen(false);
-          await uploadFirma(file);
-        }}
+        onSave={(file) => prepararConfirmacion(file)}
       />
+
+      {/* Dialog de confirmación final: doble validación con vista previa antes de guardar */}
+      <Dialog open={confirmDialogOpen} onOpenChange={handleConfirmOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Confirma tu firma
+            </DialogTitle>
+            <DialogDescription>¿Estás seguro de tu firma? Así quedará registrada.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {pendingFirmaUrl && (
+              <div className="flex justify-center rounded-lg border bg-white p-4">
+                <img
+                  src={pendingFirmaUrl}
+                  alt="Vista previa de la firma"
+                  className="max-h-40 max-w-full object-contain"
+                />
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {firmaSubidas === 0
+                ? 'Solo puedes registrar tu firma libremente una vez. Cambios posteriores requieren autorización de Recursos Humanos.'
+                : firmaCambioHabilitado
+                  ? 'Este cambio fue habilitado por Recursos Humanos, es de un solo uso y se consumirá al guardar.'
+                  : 'Verifica que tu firma sea legible y correcta antes de guardar.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploadingFirma}
+                onClick={() => handleConfirmOpenChange(false)}
+              >
+                Volver
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isUploadingFirma || !pendingFirmaFile}
+                onClick={handleConfirmarEnvio}
+              >
+                {isUploadingFirma ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-2 h-4 w-4" />
+                )}
+                Sí, guardar firma
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Cropper para Firma */}
       <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
@@ -357,7 +451,7 @@ export function FirmaUploadCard() {
                     <ImageCropApply asChild>
                       <Button variant="default" size="sm">
                         <Crop className="mr-2 h-4 w-4" />
-                        Aplicar y Guardar
+                        Aplicar y continuar
                       </Button>
                     </ImageCropApply>
                   </div>

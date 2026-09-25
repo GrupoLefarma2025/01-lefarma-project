@@ -1,11 +1,8 @@
 -- ============================================================================
--- LEFARMA - Consolida el control de cambios de firma en una columna JSON
+-- LEFARMA - Control de cambios de firma en config.usuario_detalle
 -- ============================================================================
 -- Fecha: 2026-09-24
--- Descripcion: Reemplaza las 4 columnas tipadas del script 032
---              (firma_subidas, firma_cambio_habilitado,
---               id_usuario_habilito_firma, fecha_habilito_firma)
---              por una sola columna JSON con el HISTORIAL DE EVENTOS:
+-- Descripcion: Agrega la columna JSON con el HISTORIAL DE EVENTOS de la firma:
 --
 --                firma_control NVARCHAR(MAX) NULL
 --
@@ -21,17 +18,14 @@
 --              El estado (subidas, cambio habilitado, solicitud pendiente)
 --              se DERIVA del historial en la app (Domain/Firmas/FirmaControl).
 --
---              Migracion desde las columnas del 032:
---                - firma_subidas = N   -> N eventos "subida"
---                  (o 1 si hay firma_path y el contador quedo en 0).
---                  Fecha aproximada: fecha_modificacion.
---                - firma_cambio_habilitado = 1 (pendiente):
---                  evento "habilitacion" AL FINAL (ultimo evento => habilitado).
---                - firma_cambio_habilitado = 0 con auditoria (ya consumida):
---                  evento "habilitacion" PRIMERO (una subida posterior la consumio).
+--              Regla de negocio: solo la subida inicial es libre; cualquier
+--              reemplazo o eliminacion requiere que RH habilite el cambio
+--              (habilitacion de un solo uso).
 --
--- NOTA: este script NO elimina las columnas viejas. Eso lo hace el 035, que
---       debe ejecutarse DESPUES de desplegar el backend que ya no las usa.
+--              Backfill: los usuarios que ya tienen firma (firma_path no vacio)
+--              y no tienen historial reciben un evento "subida" con fecha
+--              aproximada (fecha_modificacion). No depende de columnas previas:
+--              funciona igual en una base nueva donde nunca existieron.
 -- ============================================================================
 
 USE Lefarma;
@@ -57,77 +51,24 @@ END
 GO
 
 -- ----------------------------------------------------------------------------
--- PASO 2: migracion de las columnas del 032 al historial de eventos.
+-- PASO 2: backfill de usuarios con firma registrada.
 -- Idempotente: solo filas con firma_control IS NULL.
 -- ----------------------------------------------------------------------------
-;WITH Nums AS (
-    SELECT TOP (ISNULL((
-        SELECT MAX(CASE
-                       WHEN ud.firma_subidas > 0 THEN ud.firma_subidas
-                       WHEN ud.firma_path IS NOT NULL AND LTRIM(RTRIM(ud.firma_path)) <> '' THEN 1
-                       ELSE 0
-                   END)
-        FROM [config].[usuario_detalle] ud), 1))
-        ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS n
-    FROM sys.all_objects
-),
-Eventos AS (
-    -- Habilitacion YA CONSUMIDA (flag=0 con auditoria): va PRIMERO.
-    SELECT
-        ud.id_usuario AS id_usuario,
-        0 AS orden,
-        'habilitacion' AS accion,
-        ISNULL(ud.fecha_habilito_firma, GETUTCDATE()) AS fecha,
-        ISNULL(ud.id_usuario_habilito_firma, 0) AS idUsuario
-    FROM [config].[usuario_detalle] ud
-    WHERE ud.firma_cambio_habilitado = 0
-      AND ud.id_usuario_habilito_firma IS NOT NULL
-
-    UNION ALL
-
-    -- Subidas: N eventos (o 1 si hay firma y el contador quedo en 0).
-    SELECT
-        ud.id_usuario,
-        1,
-        'subida',
-        ISNULL(ud.fecha_modificacion, GETUTCDATE()),
-        ud.id_usuario
-    FROM [config].[usuario_detalle] ud
-    JOIN Nums ON Nums.n <= CASE
-        WHEN ud.firma_subidas > 0 THEN ud.firma_subidas
-        WHEN ud.firma_path IS NOT NULL AND LTRIM(RTRIM(ud.firma_path)) <> '' THEN 1
-        ELSE 0
-    END
-
-    UNION ALL
-
-    -- Habilitacion PENDIENTE (flag=1): va AL FINAL para que el estado
-    -- derivado quede habilitado.
-    SELECT
-        ud.id_usuario,
-        2,
-        'habilitacion',
-        ISNULL(ud.fecha_habilito_firma, GETUTCDATE()),
-        ISNULL(ud.id_usuario_habilito_firma, 0)
-    FROM [config].[usuario_detalle] ud
-    WHERE ud.firma_cambio_habilitado = 1
-)
 UPDATE ud
 SET firma_control = (
-    SELECT e.accion AS accion,
-           e.fecha AS fecha,
-           e.idUsuario AS idUsuario
-    FROM Eventos e
-    WHERE e.id_usuario = ud.id_usuario
-    ORDER BY e.orden
+    SELECT
+        'subida' AS accion,
+        ISNULL(ud.fecha_modificacion, GETUTCDATE()) AS fecha,
+        ud.id_usuario AS idUsuario
     FOR JSON PATH
 )
 FROM [config].[usuario_detalle] ud
 WHERE ud.firma_control IS NULL
-  AND EXISTS (SELECT 1 FROM Eventos e WHERE e.id_usuario = ud.id_usuario);
+  AND ud.firma_path IS NOT NULL
+  AND LTRIM(RTRIM(ud.firma_path)) <> '';
 
-PRINT CONCAT('Migradas ', @@ROWCOUNT, ' filas a [firma_control]');
+PRINT CONCAT('Backfill: ', @@ROWCOUNT, ' filas con evento inicial en [firma_control]');
 GO
 
-PRINT 'Script 034 ejecutado correctamente';
+PRINT 'Script 027 ejecutado correctamente.';
 GO

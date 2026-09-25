@@ -292,7 +292,7 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
             className="shrink-0"
           >
             {isSaving ? <Loader2 className="animate-spin" /> : <Check />}
-            <span>Guardar firma</span>
+            <span>Continuar</span>
           </Button>
         </div>
       </DialogContent>
