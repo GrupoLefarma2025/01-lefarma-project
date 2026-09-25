@@ -180,14 +180,14 @@ function buscarTipoIncidencia(
   return null;
 }
 
-export function CrearSolicitud({
-  idSolicitud,
-  onClose,
-  onSaved,
-  incidencia,
-  fechaInicial,
-  onDirtyChange,
-}: CrearSolicitudProps) {
+function mismasFechas(a: string[], b: string[]) {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((v, i) => v === sortedB[i]);
+}
+
+export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fechaInicial, onDirtyChange }: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
   const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma, user } = useAuthStore();
 
@@ -351,8 +351,12 @@ export function CrearSolicitud({
       const sorted = [...det].sort();
       const inicio = sorted[0];
       const fin = sorted[sorted.length - 1];
-      form.setValue('fechaInicio', inicio, { shouldValidate: false });
-      form.setValue('fechaFin', fin, { shouldValidate: false });
+      if (watchedFechaInicio !== inicio) {
+        form.setValue('fechaInicio', inicio, { shouldValidate: false });
+      }
+      if (watchedFechaFin !== fin) {
+        form.setValue('fechaFin', fin, { shouldValidate: false });
+      }
     } else if (!esMultiDia && watchedFechaInicio) {
       if (watchedFechaFin) {
         const inicio = new Date(watchedFechaInicio);
@@ -363,8 +367,10 @@ export function CrearSolicitud({
           allDates.push(current.toISOString().split('T')[0]);
           current.setDate(current.getDate() + 1);
         }
-        form.setValue('detalle', allDates, { shouldValidate: false });
-      } else {
+        if (!mismasFechas(det, allDates)) {
+          form.setValue('detalle', allDates, { shouldValidate: false });
+        }
+      } else if (det.length !== 1 || det[0] !== watchedFechaInicio) {
         form.setValue('detalle', [watchedFechaInicio], { shouldValidate: false });
       }
     }
