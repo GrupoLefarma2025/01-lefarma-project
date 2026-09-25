@@ -11,7 +11,9 @@ namespace Lefarma.API.Domain.Entities.Rh
         public DateTime Fecha { get; set; }
         public string? Descripcion { get; set; }
         public bool ConsumeSaldo { get; set; } = false;
-        public bool PermiteSaldoNegativo { get; set; } = false;
+        // Deprecada en la lógica: el saldo negativo siempre se permite. Se conserva mapeada
+        // por si en el futuro se reincorporan días que no permitan saldo negativo. Siempre se guarda true.
+        public bool PermiteSaldoNegativo { get; set; } = true;
         public bool Activo { get; set; } = true;
         public DateTime FechaCreacion { get; set; }
     }

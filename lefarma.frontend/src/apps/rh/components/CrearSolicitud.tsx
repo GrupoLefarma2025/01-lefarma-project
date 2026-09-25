@@ -3,9 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { API } from '@/shared/api/apiClient';
-import { empleadoApi } from '@/apps/rh/services/rh.api';
+import { empleadoApi, misLimitesApi } from '@/apps/rh/services/rh.api';
 import { usuariosCatalogoApi, type UsuarioCatalogo } from '@/apps/rh/services/rh.api';
 import { ApiResponse } from '@/types/api.types';
+import type { SaldoVacacionesResponse } from '@/types/vacaciones.types';
 import { usePermission } from '@/hooks/usePermission';
 import type {
   SolicitudPersonalResponse,
@@ -188,7 +189,7 @@ export function CrearSolicitud({
   onDirtyChange,
 }: CrearSolicitudProps) {
   const isEditing = Boolean(idSolicitud);
-  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma } = useAuthStore();
+  const { empresa: empresaSession, sucursal: sucursalSession, area: areaSession, hasFirma, user } = useAuthStore();
 
   const [isSaving, setIsSaving] = useState(false);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -198,6 +199,7 @@ export function CrearSolicitud({
   const [checaEmpleado, setChecaEmpleado] = useState<boolean | null>(null);
   const [loadingCatalogs, setLoadingCatalogs] = useState(true);
   const [usuarios, setUsuarios] = useState<UsuarioCatalogo[]>([]);
+  const [saldosVacaciones, setSaldosVacaciones] = useState<SaldoVacacionesResponse[] | null>(null);
   const catalogFetched = useRef(false);
 
   const puedeCrearParaOtro = usePermission({ require: 'solicitud_personal.crear_para_otro' });
@@ -227,6 +229,7 @@ export function CrearSolicitud({
   const watchedFechaReposicion = form.watch('fechaReposicion');
   const watchedDetalle = form.watch('detalle');
   const watchedDiasSolicitados = form.watch('diasSolicitados');
+  const watchedIdUsuarioSolicitante = form.watch('idUsuarioSolicitante');
 
   const formRef = useRef<HTMLFormElement>(null);
   const isDirty = form.formState.isDirty;
@@ -281,6 +284,40 @@ export function CrearSolicitud({
     if (!esMultiDia && watchedFechaInicio) return 1;
     return 0;
   }, [esMultiDia, watchedDetalle, watchedFechaInicio, watchedFechaFin]);
+
+  useEffect(() => {
+    if (selectedCategoria !== '3') {
+      setSaldosVacaciones(null);
+      return;
+    }
+    const idUsuario = watchedIdUsuarioSolicitante ?? user?.id;
+    if (!idUsuario) return;
+    let cancelado = false;
+    misLimitesApi.get(idUsuario)
+      .then((res) => {
+        if (!cancelado) setSaldosVacaciones(res.data.data?.saldosVacaciones ?? []);
+      })
+      .catch(() => {
+        if (!cancelado) setSaldosVacaciones(null);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [selectedCategoria, watchedIdUsuarioSolicitante, user?.id]);
+
+  const saldoDisponibleVacaciones = useMemo(() => {
+    if (saldosVacaciones === null) return null;
+    const anio = watchedFechaInicio
+      ? new Date(`${watchedFechaInicio}T00:00:00`).getFullYear()
+      : new Date().getFullYear();
+    return saldosVacaciones.find((s) => s.anio === anio)?.diasPendientes ?? 0;
+  }, [saldosVacaciones, watchedFechaInicio]);
+
+  const mostrarAvisoSaldoNegativo =
+    selectedCategoria === '3' &&
+    saldoDisponibleVacaciones !== null &&
+    diasCalculados > 0 &&
+    diasCalculados > saldoDisponibleVacaciones;
 
   const tiposPorCategoria = useMemo(() => {
     if (!selectedCategoria) return [];
@@ -931,6 +968,17 @@ export function CrearSolicitud({
                     )}
                   </div>
                 </FormSection>
+              )}
+
+              {mostrarAvisoSaldoNegativo && (
+                <Alert variant="default" className="border-amber-500 bg-amber-50 text-amber-900 dark:bg-amber-950/20">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Saldo insuficiente de vacaciones</AlertTitle>
+                  <AlertDescription>
+                    Dispones de {saldoDisponibleVacaciones} día(s) y la solicitud es de {diasCalculados} día(s).
+                    Se permitirá enviarla y el saldo quedará en negativo; Recursos Humanos decidirá si se aprueba en el flujo.
+                  </AlertDescription>
+                </Alert>
               )}
 
               {selectedTipoSolicitud?.requiereFechaRegreso && (

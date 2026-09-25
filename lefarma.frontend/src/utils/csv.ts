@@ -323,12 +323,6 @@ export const DIAS_HABILES_CSV_COLUMNS: DiaHabilCsvColumn[] = [
     required: false,
     exampleValues: ['Año Nuevo', 'Día de la Constitución', ''],
   },
-  {
-    key: 'permite_saldo_negativo',
-    label: 'permite_saldo_negativo',
-    required: false,
-    exampleValues: ['false', 'true', 'false'],
-  },
 ];
 
 export function buildTemplateDiasHabilesCsv(): Blob {
@@ -351,15 +345,6 @@ export interface DiaHabilCsvRow {
   mes?: string;
   anio?: string;
   descripcion?: string;
-  permite_saldo_negativo?: string;
-}
-
-export function parseConsumeSaldo(value: string | undefined): boolean {
-  if (!value) return false;
-  const normalized = value.trim().toLowerCase();
-  if (['1', 'true', 'verdadero', 'si', 'sí', 'yes'].includes(normalized)) return true;
-  if (['0', 'false', 'falso', 'no'].includes(normalized)) return false;
-  return false;
 }
 
 export function parseDiasHabilesCsv(file: File): Promise<{

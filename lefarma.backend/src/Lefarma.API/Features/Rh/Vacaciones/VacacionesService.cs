@@ -58,7 +58,6 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                                   Fecha = d.Fecha,
                                   Descripcion = d.Descripcion,
                                   ConsumeSaldo = d.ConsumeSaldo,
-                                  PermiteSaldoNegativo = d.PermiteSaldoNegativo,
                                   Activo = d.Activo
                               };
 
@@ -94,8 +93,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 var fechas = request.Fechas.Select(f => (
                     Fecha: new DateTime(f.Anio, f.Mes, f.Dia),
                     Descripcion: f.Descripcion ?? request.DescripcionGeneral,
-                    ConsumeSaldo: f.ConsumeSaldo,
-                    PermiteSaldoNegativo: f.PermiteSaldoNegativo
+                    ConsumeSaldo: f.ConsumeSaldo
                 )).ToList();
                 return await CargarDiasHabilesInternoAsync(request.IdEmpresa, request.IdSucursal, fechas, idUsuario);
             }
@@ -132,8 +130,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 var fechas = rows.Select(r => (
                     Fecha: new DateTime(r.Anio, r.Mes, r.Dia),
                     Descripcion: (string?)r.Descripcion,
-                    ConsumeSaldo: r.ConsumeSaldo,
-                    PermiteSaldoNegativo: r.PermiteSaldoNegativo
+                    ConsumeSaldo: r.ConsumeSaldo
                 )).ToList();
 
                 return await CargarDiasHabilesInternoAsync(idEmpresa, idSucursal, fechas, idUsuario);
@@ -146,7 +143,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         }
 
         private async Task<ErrorOr<CargaDiasHabilesResultResponse>> CargarDiasHabilesInternoAsync(
-            int idEmpresa, int? idSucursal, List<(DateTime Fecha, string? Descripcion, bool ConsumeSaldo, bool PermiteSaldoNegativo)> fechas, int idUsuario)
+            int idEmpresa, int? idSucursal, List<(DateTime Fecha, string? Descripcion, bool ConsumeSaldo)> fechas, int idUsuario)
         {
             var result = new CargaDiasHabilesResultResponse
             {
@@ -174,7 +171,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                 var diasHabiles = new List<DiaHabil>();
                 var rowNumber = 1;
 
-                foreach (var (fecha, descripcion, consumeSaldo, permiteSaldoNegativo) in fechas)
+                foreach (var (fecha, descripcion, consumeSaldo) in fechas)
                 {
                     var exists = await _context.DiasHabiles
                         .AsNoTracking()
@@ -204,8 +201,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         Dia = fecha.Day,
                         Fecha = fecha,
                         Descripcion = descripcion,
-                        ConsumeSaldo = consumeSaldo,
-                        PermiteSaldoNegativo = permiteSaldoNegativo
+                        ConsumeSaldo = consumeSaldo
                     };
 
                     diasHabiles.Add(diaHabil);

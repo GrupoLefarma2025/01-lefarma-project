@@ -103,16 +103,6 @@ export function SaldosVacacionesPage() {
           <Badge variant="secondary">No</Badge>
         ),
     },
-    {
-      accessorKey: 'permiteSaldoNegativo',
-      header: 'Permite saldo negativo',
-      cell: ({ row }) =>
-        row.original.permiteSaldoNegativo ? (
-          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
-        ) : (
-          <Badge variant="secondary">No</Badge>
-        ),
-    },
   ];
 
   return (
