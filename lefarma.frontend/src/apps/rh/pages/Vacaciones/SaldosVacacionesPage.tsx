@@ -1,43 +1,68 @@
-import { useEffect, useState } from 'react';
-import { Loader2, RefreshCw, Eye } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Eye, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-// import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Modal } from '@/components/ui/modal';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { authService } from '@/shared/auth/authService';
 import { vacacionesApi } from '../../services/vacaciones.api';
-import type { SaldoVacacionesResponse, DiaHabilResponse } from '@/types/vacaciones.types';
+import { SaldoDetalleModal } from '../../components/SaldoDetalleModal';
+import type { SaldoVacacionesResponse } from '@/types/vacaciones.types';
+import type { Empresa } from '@/types/auth.types';
+
+const formatearNumero = (value: number) =>
+  Number.isInteger(value) ? String(value) : value.toFixed(2);
 
 export function SaldosVacacionesPage() {
-  usePageTitle('Saldos de vacaciones', 'Lista de saldos de vacaciones');
+  usePageTitle('Saldos de vacaciones', 'Consulta y ajuste de saldos de vacaciones');
 
   const [items, setItems] = useState<SaldoVacacionesResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [diasUsuario, setDiasUsuario] = useState<DiaHabilResponse[]>([]);
-  const [loadingDias, setLoadingDias] = useState(false);
-  const [selectedUsuario, setSelectedUsuario] = useState<SaldoVacacionesResponse | null>(null);
+  const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [filtroEmpresa, setFiltroEmpresa] = useState<string>('__all__');
+  const [filtroAnio, setFiltroAnio] = useState<string>('__all__');
+  const [selectedSaldo, setSelectedSaldo] = useState<SaldoVacacionesResponse | null>(null);
 
-  const loadSaldos = async () => {
+  const anios = useMemo(() => {
+    const actual = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, index) => actual - index);
+  }, []);
+
+  const loadSaldos = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await vacacionesApi.getSaldos({});
+      const response = await vacacionesApi.getSaldos({
+        idEmpresa: filtroEmpresa === '__all__' ? undefined : Number(filtroEmpresa),
+        anio: filtroAnio === '__all__' ? undefined : Number(filtroAnio),
+      });
       setItems(response.data.data ?? []);
     } catch (error) {
       toast.error(toApiError(error).message ?? 'Error al obtener saldos');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filtroEmpresa, filtroAnio]);
+
+  useEffect(() => {
+    authService
+      .getEmpresas()
+      .then(setEmpresas)
+      .catch(() => setEmpresas([]));
+  }, []);
 
   useEffect(() => {
     loadSaldos();
-  }, []);
+  }, [loadSaldos]);
 
   const handleSincronizar = async () => {
     try {
@@ -55,59 +80,101 @@ export function SaldosVacacionesPage() {
     }
   };
 
-  const handleVerDias = async (row: SaldoVacacionesResponse) => {
-    try {
-      setSelectedUsuario(row);
-      setLoadingDias(true);
-      const response = await vacacionesApi.getDiasHabiles({ idEmpresa: row.idEmpresa, anio: row.anio });
-      setDiasUsuario(response.data.data ?? []);
-    } catch (error) {
-      toast.error(toApiError(error).message ?? 'Error al obtener días hábiles de la empresa');
-    } finally {
-      setLoadingDias(false);
-    }
-  };
-
   const columns: ColumnDef<SaldoVacacionesResponse>[] = [
-    { accessorKey: 'usuarioNombre', header: 'Nombre' },
-    { accessorKey: 'nomina', header: 'Nómina' },
+    {
+      accessorKey: 'usuarioNombre',
+      header: 'Nombre',
+      cell: ({ row }) => row.original.usuarioNombre ?? '—',
+    },
+    {
+      accessorKey: 'nomina',
+      header: 'Nómina',
+      cell: ({ row }) => row.original.nomina ?? '—',
+    },
     { accessorKey: 'anio', header: 'Año' },
-    { accessorKey: 'diasGenerados', header: 'Generados' },
-    { accessorKey: 'diasVencidos', header: 'Vencidos' },
-    { accessorKey: 'diasCompensados', header: 'Compensados' },
-    { accessorKey: 'diasAjustados', header: 'Ajustados' },
-    { accessorKey: 'diasTomados', header: 'Tomados' },
-    { accessorKey: 'diasPendientes', header: 'Pendientes' },
+    {
+      accessorKey: 'diasGenerados',
+      header: 'Generados',
+      cell: ({ row }) => formatearNumero(row.original.diasGenerados),
+    },
+    {
+      accessorKey: 'diasVencidos',
+      header: 'Vencidos',
+      cell: ({ row }) => formatearNumero(row.original.diasVencidos),
+    },
+    {
+      accessorKey: 'diasCompensados',
+      header: 'Compensados',
+      cell: ({ row }) => formatearNumero(row.original.diasCompensados),
+    },
+    {
+      accessorKey: 'diasAjustados',
+      header: 'Ajustados',
+      cell: ({ row }) => formatearNumero(row.original.diasAjustados),
+    },
+    {
+      accessorKey: 'diasTomados',
+      header: 'Tomados',
+      cell: ({ row }) => formatearNumero(row.original.diasTomados),
+    },
+    {
+      accessorKey: 'diasPendientes',
+      header: 'Pendientes',
+      cell: ({ row }) => (
+        <span
+          className={
+            row.original.diasPendientes < 0 ? 'font-semibold text-destructive' : 'font-semibold'
+          }
+        >
+          {formatearNumero(row.original.diasPendientes)}
+        </span>
+      ),
+    },
     {
       id: 'acciones',
       header: 'Acciones',
       cell: ({ row }) => (
-        <Button variant="ghost" size="sm" onClick={() => handleVerDias(row.original)}>
+        <Button variant="ghost" size="sm" onClick={() => setSelectedSaldo(row.original)}>
           <Eye className="mr-1 h-4 w-4" />
-          Ver días
+          Ver detalle
         </Button>
       ),
     },
   ];
 
-  const diasColumns: ColumnDef<DiaHabilResponse>[] = [
-    { accessorKey: 'fecha', header: 'Fecha' },
-    { accessorKey: 'descripcion', header: 'Descripción' },
-    {
-      accessorKey: 'consumeSaldo',
-      header: 'Consume saldo',
-      cell: ({ row }) =>
-        row.original.consumeSaldo ? (
-          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
-        ) : (
-          <Badge variant="secondary">No</Badge>
-        ),
-    },
-  ];
-
   return (
     <div className="space-y-6 p-6">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <Select value={filtroEmpresa} onValueChange={setFiltroEmpresa}>
+            <SelectTrigger className="w-56">
+              <SelectValue placeholder="Empresa" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todas las empresas</SelectItem>
+              {empresas.map((empresa) => (
+                <SelectItem key={empresa.idEmpresa} value={String(empresa.idEmpresa)}>
+                  {empresa.nombre}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select value={filtroAnio} onValueChange={setFiltroAnio}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Año" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Todos los años</SelectItem>
+              {anios.map((anio) => (
+                <SelectItem key={anio} value={String(anio)}>
+                  {anio}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <Button onClick={handleSincronizar} disabled={isSyncing}>
           {isSyncing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -115,67 +182,49 @@ export function SaldosVacacionesPage() {
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de saldos de vacaciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DataTable
-            columns={columns}
-            data={items}
-            loading={loading}
-            globalFilter
-            pagination
-            pageSize={10}
-          />
-          <div className="mt-6 rounded-md border bg-muted/50 p-4">
-            <h4 className="mb-2 text-sm font-semibold">Descripción de columnas</h4>
-            <ul className="space-y-1 text-sm text-muted-foreground">
-              <li>
-                <strong>Generados:</strong> Días que el empleado ganó por ley, contrato o antigüedad.
-              </li>
-              <li>
-                <strong>Ajustados:</strong> Cambios administrativos hechos por RH.
-              </li>
-              <li>
-                <strong>Tomados:</strong> Días que el empleado realmente utilizó.
-              </li>
-              <li>
-                <strong>Vencidos:</strong> Días que caducaron según las políticas de la empresa.
-              </li>
-              <li>
-                <strong>Compensados:</strong> Días pagados por la empresa en lugar de ser disfrutados, según legislación y políticas internas.
-              </li>
-              <li>
-                <strong>Pendientes:</strong> Días disponibles que aún puede solicitar el empleado. Se calcula como: generados + compensados + ajustados - vencidos - tomados.
-              </li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      <DataTable
+        columns={columns}
+        data={items}
+        loading={loading}
+        title="Lista de saldos de vacaciones"
+        subtitle="Consulta el saldo anual de cada empleado y ajusta días cuando sea necesario"
+        showRefreshButton
+        onRefresh={loadSaldos}
+        showColumnToggle
+        globalFilter
+        pagination
+        pageSize={10}
+      />
 
-      <Modal
-        id="dias-usuario-modal"
-        open={selectedUsuario != null}
-        setOpen={(open: boolean) => {
-          if (!open) {
-            setSelectedUsuario(null);
-            setDiasUsuario([]);
-          }
-        }}
-        title={`Días hábiles — ${selectedUsuario?.usuarioNombre ?? 'Usuario'} · Año ${selectedUsuario?.anio ?? '—'}`}
-        size="wide"
-      >
-        <div className="py-4">
-          <DataTable
-            columns={diasColumns}
-            data={diasUsuario}
-            loading={loadingDias}
-            pagination
-            pageSize={5}
-          />
-        </div>
-      </Modal>
+      <div className="rounded-md border bg-muted/50 p-4">
+        <h4 className="mb-2 text-sm font-semibold">Descripción de columnas</h4>
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          <li>
+            <strong>Generados:</strong> Días que el empleado ganó por ley, contrato o antigüedad.
+          </li>
+          <li>
+            <strong>Ajustados:</strong> Cambios administrativos hechos por RH.
+          </li>
+          <li>
+            <strong>Tomados:</strong> Días que el empleado realmente utilizó.
+          </li>
+          <li>
+            <strong>Vencidos:</strong> Días que caducaron según las políticas de la empresa.
+          </li>
+          <li>
+            <strong>Compensados:</strong> Días pagados por la empresa en lugar de ser disfrutados, según legislación y políticas internas.
+          </li>
+          <li>
+            <strong>Pendientes:</strong> Días disponibles que aún puede solicitar el empleado. Se calcula como: generados + compensados + ajustados - vencidos - tomados.
+          </li>
+        </ul>
+      </div>
+
+      <SaldoDetalleModal
+        saldo={selectedSaldo}
+        onClose={() => setSelectedSaldo(null)}
+        onUpdated={loadSaldos}
+      />
     </div>
   );
 }

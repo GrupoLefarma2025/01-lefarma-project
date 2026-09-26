@@ -10,6 +10,8 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         Task<ErrorOr<CargaDiasHabilesResultResponse>> CargarDiasHabilesDesdeCsvAsync(IFormFile file, int idEmpresa, int? idSucursal, int idUsuario);
         Task<ErrorOr<Deleted>> EliminarDiaHabilAsync(int idDiaHabil, int idUsuario);
         Task<ErrorOr<List<SaldoVacacionesResponse>>> ObtenerSaldosAsync(SaldoVacacionesRequest request);
+        Task<ErrorOr<SaldoVacacionesDetalleResponse>> ObtenerDetalleSaldoAsync(int idSaldo);
+        Task<ErrorOr<SaldoVacacionesResponse>> AjustarSaldoAsync(int idSaldo, SaldoVacacionesAjusteRequest request, int idUsuario);
         Task<ErrorOr<SaldoVacacionesResponse>> CargarSaldoAsync(SaldoVacacionesCreateRequest request, int idUsuario);
         Task<ErrorOr<SincronizarSaldosResponse>> SincronizarSaldosAsync(SincronizarSaldosRequest request, int idUsuario);
 

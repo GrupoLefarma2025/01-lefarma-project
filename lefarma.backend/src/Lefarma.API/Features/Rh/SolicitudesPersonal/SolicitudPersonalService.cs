@@ -1243,6 +1243,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         internal static async Task<int> ContarDiasQueConsumenSaldoAsync(
             ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
         {
+            var fechas = await ObtenerFechasQueConsumenSaldoAsync(context, idEmpresa, fechaInicio, fechaFin);
+            return fechas.Count;
+        }
+
+        internal static async Task<List<DateTime>> ObtenerFechasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
+        {
             var totalDias = (fechaFin - fechaInicio).Days + 1;
 
             // Fechas en el rango
@@ -1257,7 +1264,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 .Select(d => d.Fecha.Date)
                 .ToHashSetAsync();
 
-            return totalDias - diasNoConsumen.Count;
+            return fechas.Where(f => !diasNoConsumen.Contains(f)).ToList();
         }
 
         public async Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas)

@@ -9,6 +9,8 @@ import type {
   SaldoVacacionesResponse,
   SaldoVacacionesRequest,
   SaldoVacacionesCreateRequest,
+  SaldoVacacionesDetalle,
+  SaldoVacacionesAjusteRequest,
   SincronizarSaldosRequest,
   SincronizarSaldosResponse,
 } from '@/types/vacaciones.types';
@@ -33,6 +35,12 @@ export const vacacionesApi = {
 
   getSaldos: (filters: SaldoVacacionesRequest) =>
     API.get<ApiResponse<SaldoVacacionesResponse[]>>(`${BASE}/saldos`, { params: filters }),
+
+  getSaldoDetalle: (id: number) =>
+    API.get<ApiResponse<SaldoVacacionesDetalle>>(`${BASE}/saldos/${id}/detalle`),
+
+  ajustarSaldo: (id: number, data: SaldoVacacionesAjusteRequest) =>
+    API.patch<ApiResponse<SaldoVacacionesResponse>>(`${BASE}/saldos/${id}/ajuste`, data),
 
   createSaldo: (data: SaldoVacacionesCreateRequest) =>
     API.post<ApiResponse<SaldoVacacionesResponse>>(`${BASE}/saldos`, data),

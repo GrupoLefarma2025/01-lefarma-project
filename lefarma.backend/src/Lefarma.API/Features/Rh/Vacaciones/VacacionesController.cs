@@ -94,6 +94,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         }
 
         [HttpGet("saldos")]
+        [HasPermission(Permissions.Vacaciones.SaldosVer)]
         [SwaggerOperation(Summary = "Obtener saldos anuales de vacaciones")]
         public async Task<IActionResult> ObtenerSaldos([FromQuery] SaldoVacacionesRequest request)
         {
@@ -106,7 +107,37 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             }));
         }
 
+        [HttpGet("saldos/{id}/detalle")]
+        [HasPermission(Permissions.Vacaciones.SaldosVer)]
+        [SwaggerOperation(Summary = "Obtener detalle de un saldo anual de vacaciones")]
+        public async Task<IActionResult> ObtenerDetalleSaldo(int id)
+        {
+            var result = await _service.ObtenerDetalleSaldoAsync(id);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<SaldoVacacionesDetalleResponse>
+            {
+                Success = true,
+                Message = "Detalle de saldo obtenido exitosamente.",
+                Data = data
+            }));
+        }
+
+        [HttpPatch("saldos/{id}/ajuste")]
+        [HasPermission(Permissions.Vacaciones.SaldosCargar)]
+        [SwaggerOperation(Summary = "Ajustar manualmente los días de un saldo anual de vacaciones")]
+        public async Task<IActionResult> AjustarSaldo(int id, [FromBody] SaldoVacacionesAjusteRequest request)
+        {
+            var idUsuario = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            var result = await _service.AjustarSaldoAsync(id, request, idUsuario);
+            return result.ToActionResult(this, data => Ok(new ApiResponse<SaldoVacacionesResponse>
+            {
+                Success = true,
+                Message = "Saldo ajustado exitosamente.",
+                Data = data
+            }));
+        }
+
         [HttpPost("saldos")]
+        [HasPermission(Permissions.Vacaciones.SaldosCargar)]
         [SwaggerOperation(Summary = "Cargar saldo anual de vacaciones")]
         public async Task<IActionResult> CargarSaldo([FromBody] SaldoVacacionesCreateRequest request)
         {
@@ -121,6 +152,7 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         }
 
         [HttpPost("saldos/sincronizar")]
+        [HasPermission(Permissions.Vacaciones.SaldosCargar)]
         [SwaggerOperation(Summary = "Sincronizar saldos de vacaciones desde vwEmpleados")]
         public async Task<IActionResult> SincronizarSaldos([FromBody] SincronizarSaldosRequest request)
         {

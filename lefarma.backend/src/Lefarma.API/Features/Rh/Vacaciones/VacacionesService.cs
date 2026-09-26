@@ -5,8 +5,10 @@ using ErrorOr;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Admin;
+using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.Vacaciones.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
@@ -358,6 +360,236 @@ namespace Lefarma.API.Features.Rh.Vacaciones
             {
                 EnrichWideEvent("ObtenerSaldos", exception: ex);
                 return CommonErrors.InternalServerError("Error al obtener saldos de vacaciones");
+            }
+        }
+
+        public async Task<ErrorOr<SaldoVacacionesDetalleResponse>> ObtenerDetalleSaldoAsync(int idSaldo)
+        {
+            try
+            {
+                var saldo = await _context.SaldosVacacionesAnuales
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(s => s.IdSaldo == idSaldo && s.Activo);
+
+                if (saldo is null)
+                    return CommonErrors.NotFound("SaldoVacacionesAnual", idSaldo.ToString());
+
+                var usuario = await _asokamContext.Usuarios
+                    .AsNoTracking()
+                    .Where(u => u.IdUsuario == saldo.IdUsuario)
+                    .Select(u => new { u.Correo, u.NombreCompleto })
+                    .FirstOrDefaultAsync();
+
+                var empleado = string.IsNullOrWhiteSpace(usuario?.Correo)
+                    ? null
+                    : await _asistenciasContext.VwEmpleados
+                        .AsNoTracking()
+                        .Where(e => e.Correo == usuario!.Correo)
+                        .Select(e => new
+                        {
+                            e.Nomina,
+                            e.Puesto,
+                            e.Departamento,
+                            e.Empresa,
+                            e.Fechaingreso,
+                            e.Antiguedad,
+                            e.Vacacionesxantiguedad
+                        })
+                        .FirstOrDefaultAsync();
+
+                string? ajustadoPor = null;
+                if (saldo.IdUsuarioModificacion.HasValue)
+                {
+                    ajustadoPor = await _asokamContext.Usuarios
+                        .AsNoTracking()
+                        .Where(u => u.IdUsuario == saldo.IdUsuarioModificacion.Value)
+                        .Select(u => u.NombreCompleto)
+                        .FirstOrDefaultAsync();
+                }
+
+                var estados = await _context.WorkflowEstados
+                    .AsNoTracking()
+                    .Select(e => new { e.IdEstado, e.Codigo, e.Nombre })
+                    .ToListAsync();
+
+                var estadoPorId = estados.ToDictionary(e => e.IdEstado);
+
+                var idsTipoVacaciones = await _context.TiposSolicitud
+                    .AsNoTracking()
+                    .Where(t => t.Clave == "vacaciones")
+                    .Select(t => t.IdTipoSolicitud)
+                    .ToListAsync();
+
+                var solicitudes = await _context.SolicitudesPersonal
+                    .AsNoTracking()
+                    .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == saldo.IdUsuario
+                        && s.FechaInicio.HasValue && s.FechaFin.HasValue
+                        && s.FechaInicio.Value.Year == saldo.Anio
+                        && idsTipoVacaciones.Contains(s.IdTipoSolicitud))
+                    .OrderByDescending(s => s.FechaInicio)
+                    .Select(s => new { s.IdSolicitud, s.Folio, s.FechaInicio, s.FechaFin, s.IdEmpresa, s.IdEstado })
+                    .ToListAsync();
+
+                var solicitudesDetalle = new List<SolicitudVacacionesDetalleDto>();
+                var diasEnTramite = 0;
+
+                foreach (var solicitud in solicitudes)
+                {
+                    estadoPorId.TryGetValue(solicitud.IdEstado, out var estado);
+                    var codigo = estado?.Codigo;
+                    var esCerrada = codigo == WorkflowEstadoCodigo.CERRADA;
+
+                    if (!esCerrada
+                        && (codigo == WorkflowEstadoCodigo.CANCELADA || codigo == WorkflowEstadoCodigo.RECHAZADA))
+                        continue;
+
+                    var fechas = await SolicitudPersonalService.ObtenerFechasQueConsumenSaldoAsync(
+                        _context, solicitud.IdEmpresa, solicitud.FechaInicio!.Value, solicitud.FechaFin!.Value);
+
+                    if (!esCerrada)
+                        diasEnTramite += fechas.Count;
+
+                    solicitudesDetalle.Add(new SolicitudVacacionesDetalleDto
+                    {
+                        IdSolicitud = solicitud.IdSolicitud,
+                        Folio = solicitud.Folio,
+                        EstadoCodigo = codigo,
+                        EstadoNombre = estado?.Nombre,
+                        EnTramite = !esCerrada,
+                        FechaInicio = solicitud.FechaInicio!.Value,
+                        FechaFin = solicitud.FechaFin!.Value,
+                        Dias = fechas.Count,
+                        Fechas = fechas
+                    });
+                }
+
+                var historial = await _context.SaldosVacacionesAnuales
+                    .AsNoTracking()
+                    .Where(s => s.IdUsuario == saldo.IdUsuario && s.Activo)
+                    .OrderByDescending(s => s.Anio)
+                    .Select(s => new SaldoVacacionesHistorialDto
+                    {
+                        IdSaldo = s.IdSaldo,
+                        Anio = s.Anio,
+                        DiasGenerados = s.DiasGenerados,
+                        DiasVencidos = s.DiasVencidos,
+                        DiasCompensados = s.DiasCompensados,
+                        DiasAjustados = s.DiasAjustados,
+                        DiasTomados = s.DiasTomados,
+                        DiasPendientes = s.DiasPendientes
+                    })
+                    .ToListAsync();
+
+                return new SaldoVacacionesDetalleResponse
+                {
+                    IdSaldo = saldo.IdSaldo,
+                    IdUsuario = saldo.IdUsuario,
+                    UsuarioNombre = usuario?.NombreCompleto,
+                    Correo = usuario?.Correo,
+                    Nomina = empleado?.Nomina,
+                    IdEmpresa = saldo.IdEmpresa,
+                    Anio = saldo.Anio,
+                    Puesto = empleado?.Puesto,
+                    Departamento = empleado?.Departamento,
+                    EmpleadoEmpresa = empleado?.Empresa,
+                    FechaIngreso = empleado?.Fechaingreso,
+                    Antiguedad = empleado?.Antiguedad,
+                    VacacionesPorAntiguedad = empleado?.Vacacionesxantiguedad,
+                    DiasGenerados = saldo.DiasGenerados,
+                    DiasVencidos = saldo.DiasVencidos,
+                    DiasCompensados = saldo.DiasCompensados,
+                    DiasAjustados = saldo.DiasAjustados,
+                    DiasTomados = saldo.DiasTomados,
+                    DiasPendientes = saldo.DiasPendientes,
+                    FechaModificacion = saldo.FechaModificacion,
+                    AjustadoPor = ajustadoPor,
+                    MotivoAjuste = saldo.MotivoAjuste,
+                    DiasEnTramite = diasEnTramite,
+                    DiasPendientesProyectado = saldo.DiasPendientes - diasEnTramite,
+                    Solicitudes = solicitudesDetalle,
+                    Historial = historial
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("ObtenerDetalleSaldo", entityId: idSaldo, exception: ex);
+                return CommonErrors.InternalServerError("Error al obtener el detalle del saldo de vacaciones");
+            }
+        }
+
+        public async Task<ErrorOr<SaldoVacacionesResponse>> AjustarSaldoAsync(int idSaldo, SaldoVacacionesAjusteRequest request, int idUsuario)
+        {
+            try
+            {
+                var saldo = await _context.SaldosVacacionesAnuales
+                    .FirstOrDefaultAsync(s => s.IdSaldo == idSaldo && s.Activo);
+
+                if (saldo is null)
+                    return CommonErrors.NotFound("SaldoVacacionesAnual", idSaldo.ToString());
+
+                var motivo = request.Motivo?.Trim();
+                if (string.IsNullOrWhiteSpace(motivo))
+                    return CommonErrors.Validation("motivo", "El motivo del ajuste es obligatorio.");
+                if (motivo.Length > 300)
+                    return CommonErrors.Validation("motivo", "El motivo del ajuste no puede exceder 300 caracteres.");
+
+                if (request.DiasAjustados is null && request.DiasVencidos is null && request.DiasCompensados is null)
+                    return CommonErrors.Validation("ajuste", "Debe indicar al menos un valor a ajustar.");
+
+                if (request.DiasVencidos.HasValue && request.DiasVencidos.Value < 0)
+                    return CommonErrors.Validation("diasVencidos", "Los días vencidos no pueden ser negativos.");
+                if (request.DiasCompensados.HasValue && request.DiasCompensados.Value < 0)
+                    return CommonErrors.Validation("diasCompensados", "Los días compensados no pueden ser negativos.");
+
+                if (new[] { request.DiasAjustados, request.DiasVencidos, request.DiasCompensados }
+                    .Any(v => v.HasValue && v.Value != Math.Truncate(v.Value)))
+                    return CommonErrors.Validation("ajuste", "Los días deben ser números enteros.");
+
+                if (new[] { request.DiasAjustados, request.DiasVencidos, request.DiasCompensados }
+                    .Any(v => v.HasValue && Math.Abs(v.Value) > 999m))
+                    return CommonErrors.Validation("ajuste", "Los valores deben estar entre -999 y 999 días.");
+
+                if (request.DiasAjustados.HasValue)
+                    saldo.DiasAjustados = request.DiasAjustados.Value;
+                if (request.DiasVencidos.HasValue)
+                    saldo.DiasVencidos = request.DiasVencidos.Value;
+                if (request.DiasCompensados.HasValue)
+                    saldo.DiasCompensados = request.DiasCompensados.Value;
+
+                saldo.IdUsuarioModificacion = idUsuario;
+                saldo.FechaModificacion = DateTime.Now;
+                saldo.MotivoAjuste = motivo;
+
+                await _context.SaveChangesAsync();
+
+                EnrichWideEvent("AjustarSaldo", entityId: idSaldo, additionalContext: new Dictionary<string, object>
+                {
+                    ["diasAjustados"] = saldo.DiasAjustados,
+                    ["diasVencidos"] = saldo.DiasVencidos,
+                    ["diasCompensados"] = saldo.DiasCompensados,
+                    ["diasPendientes"] = saldo.DiasPendientes,
+                    ["idUsuarioModificacion"] = idUsuario
+                });
+
+                return new SaldoVacacionesResponse
+                {
+                    IdSaldo = saldo.IdSaldo,
+                    IdUsuario = saldo.IdUsuario,
+                    IdEmpresa = saldo.IdEmpresa,
+                    Anio = saldo.Anio,
+                    DiasGenerados = saldo.DiasGenerados,
+                    DiasVencidos = saldo.DiasVencidos,
+                    DiasCompensados = saldo.DiasCompensados,
+                    DiasAjustados = saldo.DiasAjustados,
+                    DiasTomados = saldo.DiasTomados,
+                    DiasPendientes = saldo.DiasPendientes,
+                    Activo = saldo.Activo
+                };
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("AjustarSaldo", entityId: idSaldo, exception: ex);
+                return CommonErrors.InternalServerError("Error al ajustar el saldo de vacaciones");
             }
         }
 

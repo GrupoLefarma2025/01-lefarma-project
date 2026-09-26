@@ -14,5 +14,8 @@ namespace Lefarma.API.Domain.Entities.Rh
         public decimal DiasPendientes { get; set; }
         public bool Activo { get; set; } = true;
         public DateTime FechaCreacion { get; set; }
+        public int? IdUsuarioModificacion { get; set; }
+        public DateTime? FechaModificacion { get; set; }
+        public string? MotivoAjuste { get; set; }
     }
 }

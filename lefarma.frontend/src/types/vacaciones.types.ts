@@ -78,6 +78,66 @@ export interface SaldoVacacionesRequest {
   anio?: number;
 }
 
+export interface SolicitudVacacionesDetalle {
+  idSolicitud: number;
+  folio: string;
+  estadoCodigo?: string;
+  estadoNombre?: string;
+  enTramite: boolean;
+  fechaInicio: string;
+  fechaFin: string;
+  dias: number;
+  fechas: string[];
+}
+
+export interface SaldoVacacionesHistorial {
+  idSaldo: number;
+  anio: number;
+  diasGenerados: number;
+  diasVencidos: number;
+  diasCompensados: number;
+  diasAjustados: number;
+  diasTomados: number;
+  diasPendientes: number;
+}
+
+export interface SaldoVacacionesDetalle {
+  idSaldo: number;
+  idUsuario: number;
+  usuarioNombre?: string;
+  correo?: string;
+  nomina?: number;
+  idEmpresa: number;
+  empresaNombre?: string;
+  anio: number;
+  puesto?: string;
+  departamento?: string;
+  empleadoEmpresa?: string;
+  fechaIngreso?: string;
+  antiguedad?: number;
+  vacacionesPorAntiguedad?: number;
+  diasGenerados: number;
+  diasVencidos: number;
+  diasCompensados: number;
+  diasAjustados: number;
+  diasTomados: number;
+  diasPendientes: number;
+  fechaModificacion?: string;
+  ajustadoPor?: string;
+  motivoAjuste?: string;
+  diasEnTramite: number;
+  diasPendientesProyectado: number;
+  solicitudes: SolicitudVacacionesDetalle[];
+  historial: SaldoVacacionesHistorial[];
+}
+
+export interface SaldoVacacionesAjusteRequest {
+  diasAjustados?: number | null;
+  diasVencidos?: number | null;
+  diasCompensados?: number | null;
+  motivo: string;
+}
+
 export interface SaldoVacacionesCreateRequest {
   idUsuario: number;
   idEmpresa: number;
