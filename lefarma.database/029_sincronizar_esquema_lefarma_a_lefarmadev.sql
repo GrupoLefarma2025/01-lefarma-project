@@ -357,7 +357,6 @@ BEGIN
 	       AND ud.numero_empleado <> ''''
 	    WHERE   dh.activo = 1
 	      AND   dh.consume_saldo = 0
-	      AND   dh.permite_saldo_negativo = 0
 	      AND   dh.fecha BETWEEN @FechaInicio AND @FechaFin
 	),
 	coincidencias AS (

@@ -16,6 +16,7 @@ import MisIncidenciasPage from './pages/MisIncidenciasPage';
 import { DiasHabilesPage } from './pages/Vacaciones/DiasHabilesPage';
 import { SaldosVacacionesPage } from './pages/Vacaciones/SaldosVacacionesPage';
 import JefesNivelesList from './pages/JefesNivelesList';
+import FirmasUsuariosPage from './pages/FirmasUsuariosPage';
 import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import Perfil from '@/pages/Perfil';
 
@@ -122,6 +123,15 @@ export function RhRoutes({ variant, loginPath }: SubtreeRoutesProps) {
           element={
             <PermissionGuard blockedPath={resolvedBlockedPath} require="solicitud_personal.jefes_niveles.ver">
               <JefesNivelesList />
+            </PermissionGuard>
+          }
+        />
+
+        <Route
+          path="firmas"
+          element={
+            <PermissionGuard blockedPath={resolvedBlockedPath} require="usuarios.firma.habilitar_cambio">
+              <FirmasUsuariosPage />
             </PermissionGuard>
           }
         />

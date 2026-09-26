@@ -132,9 +132,8 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
 
         var diasQueConsumenSaldo = await ObtenerDiasQueConsumenSaldoAsync(items, cancellationToken);
 
-        // Si un día no consume saldo y no permite saldo negativo (día de asueto oficial),
-        // entonces no se aplicará la regla a ese día, o sea no se generará incidencia ni
-        // descuento, aunque la regla coincida
+        // Si un día no consume saldo (día de asueto oficial), entonces no se aplicará la regla
+        // a ese día, o sea no se generará incidencia ni descuento, aunque la regla coincida
         var conRegla = items
             .SelectMany(i => ClasificarReglas(i, reglas).Select(r => new { Item = i, Regla = r }))
             .Where(x => !(x.Regla.ExcluirDiasHabilesConsumenSaldo
@@ -247,11 +246,11 @@ public class IncidenciaChecadoConfigService : IIncidenciaChecadoConfigService
 
         var idEmpresas = empresaPorNomina.Values.Distinct().ToList();
 
-        // Obtener los días hábiles que no consumen saldo y no permiten saldo negativo (días de asueto
-        // oficial) para las empresas y fechas relevantes: en esos días no se generan incidencias
+        // Obtener los días hábiles que no consumen saldo (días de asueto oficial) para las
+        // empresas y fechas relevantes: en esos días no se generan incidencias
         var diasHabiles = await _context.DiasHabiles
             .AsNoTracking()
-            .Where(d => d.Activo && !d.ConsumeSaldo && !d.PermiteSaldoNegativo && idEmpresas.Contains(d.IdEmpresa) && fechas.Contains(d.Fecha.Date))
+            .Where(d => d.Activo && !d.ConsumeSaldo && idEmpresas.Contains(d.IdEmpresa) && fechas.Contains(d.Fecha.Date))
             .Select(d => new { d.IdEmpresa, d.Fecha })
             .ToListAsync(cancellationToken);
 

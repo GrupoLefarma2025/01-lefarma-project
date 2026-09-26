@@ -133,6 +133,32 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
           </div>
         </div>
       )}
+      {solicitud.saldoVacaciones && (
+        <div className="rounded-lg border">
+          <div className="border-b px-3 py-2">
+            <p className="text-sm font-medium">Saldo de vacaciones {solicitud.saldoVacaciones.anio}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 p-3 text-xs sm:grid-cols-3">
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <p className="text-muted-foreground">Días que se descontarán</p>
+              <p className="font-medium">{solicitud.saldoVacaciones.diasQueDescuentan}</p>
+            </div>
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <p className="text-muted-foreground">Saldo disponible</p>
+              <p className="font-medium">{solicitud.saldoVacaciones.diasPendientes}</p>
+            </div>
+            <div className="rounded-md border bg-background px-2 py-1.5">
+              <p className="text-muted-foreground">Saldo resultante</p>
+              <p className="font-medium">{solicitud.saldoVacaciones.saldoResultante}</p>
+            </div>
+          </div>
+          {solicitud.saldoVacaciones.quedaNegativo && (
+            <div className="border-t bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+              Si se aprueba, el saldo quedará en negativo. Recursos Humanos decide su aceptación en el flujo.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

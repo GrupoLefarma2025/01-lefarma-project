@@ -95,7 +95,8 @@ export function CamposManagerModal({ open, setOpen, onChanged }: CamposManagerMo
       >
         <div className="space-y-3">
           <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-            Los campos son globales: se reutilizan en todos los workflows. Los de tipo{' '}
+            Los campos pueden ser globales o limitarse a un proceso (columna{' '}
+            <span className="font-semibold">Proceso</span>). Los de tipo{' '}
             <span className="font-semibold">Archivo</span> se usan como documentos requeridos; los
             campos <span className="font-mono">comprobante_gasto</span> y{' '}
             <span className="font-mono">comprobante_pago</span> son exclusivos del comprobante de OC.
@@ -144,6 +145,11 @@ export function CamposManagerModal({ open, setOpen, onChanged }: CamposManagerMo
                             >
                               {campo.activo ? 'Activo' : 'Inactivo'}
                             </Badge>
+                            {campo.codigoProceso && (
+                              <Badge variant="outline" className="text-[10px]">
+                                {campo.codigoProceso}
+                              </Badge>
+                            )}
                           </div>
                           <p className="truncate font-mono text-xs text-muted-foreground">
                             {campo.nombreTecnico}

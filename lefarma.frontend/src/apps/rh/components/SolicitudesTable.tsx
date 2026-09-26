@@ -215,6 +215,12 @@ export function SolicitudesTable({
                 <Eye className="mr-1.5 h-4 w-4" />
                 Ver
               </Button>
+              {showFirma && (
+                <Button size="sm" onClick={() => onFirma(s)}>
+                  <FileSignature className="mr-1.5 h-4 w-4" />
+                  Acciones
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -229,13 +235,6 @@ export function SolicitudesTable({
                 <DropdownMenuContent align="end" className="w-44">
                   {puedeEditarFila && (
                     <ActionMenuItem label="Editar" icon={Pencil} onClick={() => onEditar?.(s)} />
-                  )}
-                  {showFirma && (
-                    <ActionMenuItem
-                      label="Acciones"
-                      icon={FileSignature}
-                      onClick={() => onFirma(s)}
-                    />
                   )}
                   <ActionMenuItem
                     label="Archivos"

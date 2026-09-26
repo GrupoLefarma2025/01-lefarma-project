@@ -416,8 +416,36 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 var tipo = await _tipoRepository.GetByIdAsync(soli.IdTipoSolicitud);
 
+                var response = soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo);
+
+                if (tipo is not null
+                    && string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase)
+                    && soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
+                {
+                    var diasQueDescuentan = await ContarDiasQueConsumenSaldoAsync(
+                        _context, soli.IdEmpresa, soli.FechaInicio.Value, soli.FechaFin.Value);
+
+                    var anioSaldo = soli.FechaInicio.Value.Year;
+                    var idUsuarioSaldo = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
+                    var diasPendientes = await _context.SaldosVacacionesAnuales
+                        .AsNoTracking()
+                        .Where(s => s.IdUsuario == idUsuarioSaldo && s.Anio == anioSaldo && s.Activo)
+                        .Select(s => (decimal?)s.DiasPendientes)
+                        .FirstOrDefaultAsync() ?? 0m;
+
+                    var resultante = diasPendientes - diasQueDescuentan;
+                    response.SaldoVacaciones = new SaldoVacacionesSolicitudDto
+                    {
+                        Anio = anioSaldo,
+                        DiasPendientes = diasPendientes,
+                        DiasQueDescuentan = diasQueDescuentan,
+                        SaldoResultante = resultante,
+                        QuedaNegativo = resultante < 0
+                    };
+                }
+
                 EnrichWideEvent("GetById", entityId: id);
-                return soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo);
+                return response;
             }
             catch (Exception ex)
             {
@@ -642,10 +670,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         solicitud.DiasSolicitados = 1;
                     }
                 }
-
-                var validacionSaldo = await ValidarSaldoVacacionesAsync(idUsuarioSolicitante, solicitud, tipo);
-                if (validacionSaldo.IsError)
-                    return validacionSaldo.FirstError;
 
                 await _repository.AddAsync(solicitud);
 
@@ -896,10 +920,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         soli.DiasSolicitados = null;
                     }
                 }
-
-                var validacionSaldoUpdate = await ValidarSaldoVacacionesAsync(idUsuarioSolicitante, soli, tipo, soli.IdSolicitud);
-                if (validacionSaldoUpdate.IsError)
-                    return validacionSaldoUpdate.FirstError;
 
                 await _repository.UpdateAsync(soli);
 
@@ -1220,58 +1240,15 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             return $"{nombre} {mes.Year}";
         }
 
-        private async Task<ErrorOr<Success>> ValidarSaldoVacacionesAsync(
-            int idUsuario, SolicitudPersonal solicitud, TipoSolicitud tipo, int? excluirIdSolicitud = null)
+        internal static async Task<int> ContarDiasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
         {
-            //test
-            if (tipo is null || !string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase))
-                return Result.Success;
-
-            if (!solicitud.FechaInicio.HasValue || !solicitud.FechaFin.HasValue)
-                return Result.Success;
-
-            var anio = solicitud.FechaInicio.Value.Year;
-            var saldo = await _context.SaldosVacacionesAnuales
-                .FirstOrDefaultAsync(s => s.IdUsuario == idUsuario && s.Anio == anio && s.Activo);
-
-            if (saldo is null)
-                return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {idUsuario} / año {anio}");
-
-            // Contar los días que consumen saldo, considerando días no hábiles
-            var diasQueConsumen = await ContarDiasQueConsumenSaldoAsync(
-                idUsuario, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
-
-            if (saldo.DiasPendientes >= diasQueConsumen)
-                return Result.Success;
-
-            // Saldo insuficiente: solo se permite saldo negativo si TODOS los días del rango
-            // están registrados en dias_habiles con PermiteSaldoNegativo = true.
-            var fechas = Enumerable.Range(0, (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1)
-                .Select(d => solicitud.FechaInicio.Value.Date.AddDays(d))
-                .ToList();
-
-            var diasHabiles = await _context.DiasHabiles
-                .AsNoTracking()
-                .Where(d => d.Activo && d.IdEmpresa == solicitud.IdEmpresa && fechas.Contains(d.Fecha))
-                .Select(d => new { d.Fecha, d.PermiteSaldoNegativo })
-                .ToListAsync();
-
-            var permiteNegativo = fechas.All(f =>
-            {
-                var dia = diasHabiles.FirstOrDefault(x => x.Fecha.Date == f);
-                return dia != null && dia.PermiteSaldoNegativo;
-            });
-
-            if (!permiteNegativo)
-            {
-                return CommonErrors.Validation("saldo",
-                    $"Saldo insuficiente de vacaciones. Disponible: {(int)saldo.DiasPendientes}, Días solicitados: {diasQueConsumen}.");
-            }
-
-            return Result.Success;
+            var fechas = await ObtenerFechasQueConsumenSaldoAsync(context, idEmpresa, fechaInicio, fechaFin);
+            return fechas.Count;
         }
 
-        private async Task<int> ContarDiasQueConsumenSaldoAsync(int idUsuario, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
+        internal static async Task<List<DateTime>> ObtenerFechasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
         {
             var totalDias = (fechaFin - fechaInicio).Days + 1;
 
@@ -1281,13 +1258,13 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 .ToList();
 
             // Días hábiles con ConsumeSaldo = false para esta empresa
-            var diasNoConsumen = await _context.DiasHabiles
+            var diasNoConsumen = await context.DiasHabiles
                 .AsNoTracking()
                 .Where(d => d.Activo && !d.ConsumeSaldo && d.IdEmpresa == idEmpresa && fechas.Contains(d.Fecha))
                 .Select(d => d.Fecha.Date)
                 .ToHashSetAsync();
 
-            return totalDias - diasNoConsumen.Count;
+            return fechas.Where(f => !diasNoConsumen.Contains(f)).ToList();
         }
 
         public async Task<ErrorOr<MisLimitesResponse>> ObtenerLimitesSolicitudesAsync(int idUsuario, int idUsuarioObjetivo, bool puedeVerTodas)

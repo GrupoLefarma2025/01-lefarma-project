@@ -206,7 +206,10 @@ public class AdminService : BaseService, IAdminService
                     detalle.IdCentroCosto = request.Detalle.IdCentroCosto;
                     detalle.Puesto = request.Detalle.Puesto;
                     detalle.NumeroEmpleado = request.Detalle.NumeroEmpleado;
-                    detalle.FirmaPath = request.Detalle.FirmaPath;
+                    // No sobreescribir FirmaPath cuando el request no lo trae: la firma
+                    // cambia solo vía POST /profile/firma (regla de un solo cambio RH).
+                    if (!string.IsNullOrWhiteSpace(request.Detalle.FirmaPath))
+                        detalle.FirmaPath = request.Detalle.FirmaPath;
                     detalle.TelefonoOficina = request.Detalle.TelefonoOficina;
                     detalle.Extension = request.Detalle.Extension;
                     detalle.Celular = request.Detalle.Celular;

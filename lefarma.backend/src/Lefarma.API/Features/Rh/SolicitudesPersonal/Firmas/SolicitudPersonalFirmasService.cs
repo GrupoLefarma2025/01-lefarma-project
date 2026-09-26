@@ -312,34 +312,37 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (solicitud.FechaInicio.Value > solicitud.FechaFin.Value)
                 return CommonErrors.Validation("fecha", "La fecha de inicio no puede ser mayor que la fecha de fin.");
 
-            var tipoVacacion = await _context.TiposDia
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Activo && t.Clave == "VACACION");
-
-            if (tipoVacacion is null)
-                return CommonErrors.NotFound("TipoDia", "VACACION");
-
             var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
+
+            var diasQueDescuentan = await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
+                _context, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
+
+            if (diasQueDescuentan == 0)
+                return true;
 
             var anio = solicitud.FechaInicio.Value.Year;
             var saldo = await _context.SaldosVacacionesAnuales
                 .FirstOrDefaultAsync(s => s.IdUsuario == idUsuarioSolicitante && s.Anio == anio && s.Activo);
 
             if (saldo is null)
-                return CommonErrors.NotFound("SaldoVacacionesAnual", $"usuario {idUsuarioSolicitante} / año {anio}");
+            {
+                saldo = new SaldoVacacionesAnual
+                {
+                    IdUsuario = idUsuarioSolicitante,
+                    IdEmpresa = solicitud.IdEmpresa,
+                    Anio = anio,
+                    DiasGenerados = 0,
+                    DiasVencidos = 0,
+                    DiasCompensados = 0,
+                    DiasAjustados = 0,
+                    DiasTomados = 0,
+                    Activo = true,
+                    FechaCreacion = DateTime.Now
+                };
+                _context.SaldosVacacionesAnuales.Add(saldo);
+            }
 
-            var fechas = Enumerable
-                .Range(0, (solicitud.FechaFin.Value - solicitud.FechaInicio.Value).Days + 1)
-                .Select(d => solicitud.FechaInicio.Value.AddDays(d))
-                .ToList();
-
-            var diasSolicitados = fechas.Count;
-
-            if (saldo.DiasPendientes < diasSolicitados)
-                return CommonErrors.Validation("saldo", $"Saldo insuficiente. Disponible: {saldo.DiasPendientes}, Solicitado: {diasSolicitados}");
-
-
-            saldo.DiasTomados += diasSolicitados;
+            saldo.DiasTomados += diasQueDescuentan;
 
             await _context.SaveChangesAsync();
             return true;
@@ -500,8 +503,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 PDFBinarioAdicional = null
             };
 
-            // QUITAR COMENTARIO PARA INSERTAR DOCUMENTO EN ASOKAM
-            //_asokamContext.Documentos.Add(documento);
+            _asokamContext.Documentos.Add(documento);
 
             //Guardar el registro en Asokam.app.DocumentosInterfaseSolicitud
             var interfase = new Domain.Entities.Asokam.DocumentoInterfaseSolicitud
@@ -519,7 +521,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 additionalContext: new Dictionary<string, object>
                 {
                     ["idEnvio"] = envio.IdEnvio,
-                    ["idDocumento"] = Guid.NewGuid(),// documento.Id,
+                    ["idDocumento"] = documento.Id,
                 });
 
             return new EnviarDirectorResponse
@@ -578,7 +580,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (acciones.IsError)
                 return acciones.Errors;
 
-            var codigoAccionInterna = esAutorizar ? "CERRAR" : "DEVOLVER";
+            var codigoAccionInterna = esAutorizar ? "AUTORIZAR" : "DEVOLVER";
             var accionInterna = acciones.Value
                 .FirstOrDefault(a => a.TipoAccionCodigo == codigoAccionInterna);
 

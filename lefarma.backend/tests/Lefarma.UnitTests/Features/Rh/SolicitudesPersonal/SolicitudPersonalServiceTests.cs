@@ -51,11 +51,12 @@ public class SolicitudPersonalServiceTests
         IWorkflowResolver? workflowResolver = null,
         ISolicitudPersonalFirmasService? firmasService = null,
         IAdminRepository? adminRepository = null,
-        IProfileService? profileService = null)
+        IProfileService? profileService = null,
+        ISolicitudPersonalRepository? repository = null)
     {
         return new SolicitudPersonalService(
             adminRepository ?? Mock.Of<IAdminRepository>(),
-            Mock.Of<ISolicitudPersonalRepository>(),
+            repository ?? Mock.Of<ISolicitudPersonalRepository>(),
             tipoRepository ?? Mock.Of<ITipoSolicitudRepository>(),
             workflowResolver ?? Mock.Of<IWorkflowResolver>(),
             context,
@@ -402,114 +403,175 @@ public class SolicitudPersonalServiceTests
         });
     }
 
-    [Fact]
-    public async Task ValidarSaldoVacacionesAsync_Saldo_Suficiente_Retorna_Exito()
+    private static (SolicitudPersonalService Service, Mock<ISolicitudPersonalFirmasService> Firmas) PrepararCreateVacaciones(
+        ApplicationDbContext context)
     {
-        var context = CreateInMemoryContext();
-        var idUsuario = 123;
-        var anio = DateTime.Now.Year;
+        const int idTipo = 11;
+        const int idAccion = 200;
 
-        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        var (resolver, firmas, _) = PrepararWorkflowConEnviar(idAccion);
+
+        context.WorkflowEstados.Add(new WorkflowEstados
         {
-            IdUsuario = idUsuario,
-            IdEmpresa = 1,
-            Anio = anio,
-            DiasGenerados = 10,
-            DiasPendientes = 10,
+            IdEstado = 1,
+            Codigo = "CREADA",
+            Nombre = "Creada",
             Activo = true
         });
+        context.SaveChanges();
 
-        await context.SaveChangesAsync();
-
-        var service = CreateService(context);
-        var tipo = new TipoSolicitud { Clave = "vacaciones" };
-        var solicitud = new SolicitudPersonal
+        var tipo = new TipoSolicitud
         {
-            FechaInicio = new DateTime(anio, 1, 1),
-            FechaFin = new DateTime(anio, 1, 5)
+            IdTipoSolicitud = idTipo,
+            Nombre = "Vacaciones",
+            Descripcion = "Vacaciones",
+            Clave = "vacaciones",
+            Categoria = CategoriaSolicitud.Vacaciones,
+            Activo = true,
+            RequiereFechaFin = true,
+            PermiteFechasPasadas = true,
+            PermiteFechasFuturas = true
         };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(idTipo)).ReturnsAsync(tipo);
 
-        var method = typeof(SolicitudPersonalService).GetMethod(
-            "ValidarSaldoVacacionesAsync",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+        var adminRepository = new Mock<IAdminRepository>();
+        adminRepository
+            .Setup(r => r.GetUsuarioDetalleAsync(It.IsAny<int>()))
+            .ReturnsAsync(new UsuarioDetalle { IdUsuario = 1, IdEmpresa = 1, IdSucursal = 1, IdArea = 1 });
 
-        method.Should().NotBeNull();
+        var profileService = new Mock<IProfileService>();
+        profileService
+            .Setup(p => p.HasFirmaAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
 
-        var task = (Task<ErrorOr<Success>>)method!.Invoke(
-            service,
-            new object?[] { idUsuario, solicitud, tipo, null })!;
+        var service = CreateService(
+            context,
+            tipoRepository: tipoRepository.Object,
+            workflowResolver: resolver.Object,
+            firmasService: firmas.Object,
+            adminRepository: adminRepository.Object,
+            profileService: profileService.Object);
 
-        var result = await task;
+        return (service, firmas);
+    }
+
+    private static CreateSolicitudPersonalRequest RequestVacaciones(DateTime inicio, DateTime fin) => new()
+    {
+        IdTipoSolicitud = 11,
+        Motivo = "Motivo de prueba con mas de diez caracteres",
+        FechaInicio = inicio,
+        FechaFin = fin
+    };
+
+    [Fact]
+    public async Task CreateAsync_Vacaciones_Sin_Saldo_Retorna_Exito()
+    {
+        var context = CreateInMemoryContext();
+        var (service, _) = PrepararCreateVacaciones(context);
+
+        var anio = DateTime.Now.Year;
+        var result = await service.CreateAsync(
+            RequestVacaciones(new DateTime(anio, 1, 1), new DateTime(anio, 1, 5)),
+            idUsuario: 1, puedeCrearParaOtro: false);
 
         result.IsError.Should().BeFalse();
     }
 
     [Fact]
-    public async Task ValidarSaldoVacacionesAsync_Saldo_Insuficiente_Retorna_Error_De_Validacion()
+    public async Task CreateAsync_Vacaciones_Con_Saldo_Insuficiente_Retorna_Exito()
     {
         var context = CreateInMemoryContext();
-        var idUsuario = 123;
         var anio = DateTime.Now.Year;
 
         context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
         {
-            IdUsuario = idUsuario,
+            IdUsuario = 1,
             IdEmpresa = 1,
             Anio = anio,
             DiasGenerados = 3,
             DiasPendientes = 3,
             Activo = true
         });
-
         await context.SaveChangesAsync();
 
-        var service = CreateService(context);
-        var tipo = new TipoSolicitud { Clave = "vacaciones" };
-        var solicitud = new SolicitudPersonal
-        {
-            FechaInicio = new DateTime(anio, 1, 1),
-            FechaFin = new DateTime(anio, 1, 10)
-        };
+        var (service, _) = PrepararCreateVacaciones(context);
 
-        var method = typeof(SolicitudPersonalService).GetMethod(
-            "ValidarSaldoVacacionesAsync",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+        var result = await service.CreateAsync(
+            RequestVacaciones(new DateTime(anio, 1, 1), new DateTime(anio, 1, 10)),
+            idUsuario: 1, puedeCrearParaOtro: false);
 
-        var task = (Task<ErrorOr<Success>>)method!.Invoke(
-            service,
-            new object?[] { idUsuario, solicitud, tipo, null })!;
-
-        var result = await task;
-
-        result.IsError.Should().BeTrue();
-        result.FirstError.Code.Should().Contain("Validation");
+        result.IsError.Should().BeFalse();
     }
 
     [Fact]
-    public async Task ValidarSaldoVacacionesAsync_Sin_Saldo_Retorna_NotFound()
+    public async Task GetByIdAsync_Vacaciones_Adjunta_Bloque_De_Saldo_Con_Negativo()
     {
         var context = CreateInMemoryContext();
-        var service = CreateService(context);
-        var tipo = new TipoSolicitud { Clave = "vacaciones" };
         var anio = DateTime.Now.Year;
+
+        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        {
+            IdUsuario = 123,
+            IdEmpresa = 1,
+            Anio = anio,
+            DiasGenerados = 2,
+            DiasPendientes = 2,
+            Activo = true
+        });
+        context.DiasHabiles.Add(new DiaHabil
+        {
+            IdEmpresa = 1,
+            Anio = anio,
+            Mes = 1,
+            Dia = 3,
+            Fecha = new DateTime(anio, 1, 3),
+            Descripcion = "Día oficial",
+            ConsumeSaldo = false,
+            Activo = true,
+            FechaCreacion = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
         var solicitud = new SolicitudPersonal
         {
+            IdSolicitud = 9,
+            Folio = "SOL-9",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 123,
+            IdUsuarioSolicitante = 123,
+            IdTipoSolicitud = 11,
             FechaInicio = new DateTime(anio, 1, 1),
-            FechaFin = new DateTime(anio, 1, 5)
+            FechaFin = new DateTime(anio, 1, 5),
+            FechaCreacion = DateTime.Now
         };
 
-        var method = typeof(SolicitudPersonalService).GetMethod(
-            "ValidarSaldoVacacionesAsync",
-            BindingFlags.NonPublic | BindingFlags.Instance);
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetWithDetalleAsync(9)).ReturnsAsync(solicitud);
 
-        var task = (Task<ErrorOr<Success>>)method!.Invoke(
-            service,
-            new object?[] { 123, solicitud, tipo, null })!;
+        var tipo = new TipoSolicitud
+        {
+            IdTipoSolicitud = 11,
+            Nombre = "Vacaciones",
+            Clave = "vacaciones",
+            Categoria = CategoriaSolicitud.Vacaciones,
+            Activo = true
+        };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(11)).ReturnsAsync(tipo);
 
-        var result = await task;
+        var service = CreateService(context, tipoRepository: tipoRepository.Object, repository: repository.Object);
 
-        result.IsError.Should().BeTrue();
-        result.FirstError.Code.Should().Contain("NotFound");
+        var result = await service.GetByIdAsync(9);
+
+        result.IsError.Should().BeFalse();
+        var saldo = result.Value.SaldoVacaciones;
+        saldo.Should().NotBeNull();
+        saldo!.DiasQueDescuentan.Should().Be(4);
+        saldo.DiasPendientes.Should().Be(2);
+        saldo.SaldoResultante.Should().Be(-2);
+        saldo.QuedaNegativo.Should().BeTrue();
     }
 
     [Fact]
