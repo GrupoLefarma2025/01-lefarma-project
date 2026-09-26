@@ -124,6 +124,7 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; }
         public bool UsarEnCondiciones { get; set; }
+        public string? CodigoProceso { get; set; }
         public bool Activo { get; set; }
     }
 
@@ -222,6 +223,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public string? SourceCatalog { get; set; }
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; } = false;
+        public bool UsarEnCondiciones { get; set; } = false;
+        public string? CodigoProceso { get; set; }
         public bool Activo { get; set; } = true;
     }
 
@@ -233,6 +236,8 @@ namespace Lefarma.API.Features.Config.Workflows.DTOs
         public string? SourceCatalog { get; set; }
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; } = false;
+        public bool UsarEnCondiciones { get; set; } = false;
+        public string? CodigoProceso { get; set; }
         public bool Activo { get; set; } = true;
     }
 

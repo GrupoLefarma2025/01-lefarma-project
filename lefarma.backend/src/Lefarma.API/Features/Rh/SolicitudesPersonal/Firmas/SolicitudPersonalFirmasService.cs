@@ -503,8 +503,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 PDFBinarioAdicional = null
             };
 
-            // QUITAR COMENTARIO PARA INSERTAR DOCUMENTO EN ASOKAM
-            //_asokamContext.Documentos.Add(documento);
+            _asokamContext.Documentos.Add(documento);
 
             //Guardar el registro en Asokam.app.DocumentosInterfaseSolicitud
             var interfase = new Domain.Entities.Asokam.DocumentoInterfaseSolicitud
@@ -522,7 +521,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 additionalContext: new Dictionary<string, object>
                 {
                     ["idEnvio"] = envio.IdEnvio,
-                    ["idDocumento"] = Guid.NewGuid(),// documento.Id,
+                    ["idDocumento"] = documento.Id,
                 });
 
             return new EnviarDirectorResponse
@@ -581,7 +580,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (acciones.IsError)
                 return acciones.Errors;
 
-            var codigoAccionInterna = esAutorizar ? "CERRAR" : "DEVOLVER";
+            var codigoAccionInterna = esAutorizar ? "AUTORIZAR" : "DEVOLVER";
             var accionInterna = acciones.Value
                 .FirstOrDefault(a => a.TipoAccionCodigo == codigoAccionInterna);
 

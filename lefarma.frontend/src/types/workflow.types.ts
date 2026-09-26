@@ -78,6 +78,7 @@ export interface WorkflowCampo {
   propiedadEntidad?: string;
   validarFiscal?: boolean;
   usarEnCondiciones: boolean;
+  codigoProceso?: string | null;
   activo: boolean;
 }
 
