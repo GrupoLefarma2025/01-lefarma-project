@@ -8,7 +8,7 @@ import type {
   ReglasDescuentoResponse,
   SolicitudPersonalResponse,
 } from '@/types/solicitudPersonal.types';
-import { Info, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import {
   Tooltip,
@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudDetalleTab } from './SolicitudDetalleTab';
-import { ReglasDescuentoContenido } from './ReglasDescuentoContenido';
+import { ReglasDescuentoModal } from './ReglasDescuentoModal';
 import {
   textoAcumulacion,
   textoAcumulacionDetalle,
@@ -355,12 +355,7 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground">{periodoLabel}</p>
             {!loading && (
-              <div className="space-y-3 rounded-lg border bg-muted/40 p-3">
-                <div className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <Info className="h-4 w-4" />
-                  ¿Cómo se generan los descuentos?
-                </div>
-                <ReglasDescuentoContenido reglas={reglas} />
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
                     Descuentos por justificar: {resumenDescuentos.generados}
@@ -370,6 +365,7 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
                     {resumenDescuentos.limite}
                   </span>
                 </div>
+                <ReglasDescuentoModal />
               </div>
             )}
             {loading ? (

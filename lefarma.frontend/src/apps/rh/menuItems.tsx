@@ -10,6 +10,7 @@ import {
   CalendarDays,
   UserCog,
   ClipboardList,
+  PenLine,
 } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
@@ -79,7 +80,7 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
     ],
   },
   {
-    title: 'Catálogos y configuración',
+    title: 'Catálogos',
     icon: List,
     isCollapsible: true,
     items: [
@@ -95,11 +96,24 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
         path: '/rh/catalogos/incidencias-checado-config',
         permission: { require: 'incidencias_checado.crear' },
       },
+    ],
+  },
+  {
+    title: 'Configuración',
+    icon: Settings,
+    isCollapsible: true,
+    items: [
       {
         title: 'Jefes y niveles de empleados',
         icon: UserCog,
         path: '/rh/jefes-niveles',
         permission: { require: 'solicitud_personal.jefes_niveles.ver' },
+      },
+      {
+        title: 'Firmas digitales',
+        icon: PenLine,
+        path: '/rh/firmas',
+        permission: { require: 'usuarios.firma.habilitar_cambio' },
       },
     ],
   },

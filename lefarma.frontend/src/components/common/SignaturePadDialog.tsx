@@ -245,7 +245,7 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
             Dibuja tu firma
           </DialogTitle>
           <DialogDescription>
-            Firma dentro del recuadro usando el mouse, el dedo o un lápiz digital.
+            Firma dentro del recuadro usando el mouse, el dedo o un lápiz digital. Procurando que sea lo más parecido a tu credencial de elector. Sujeto a validación de RH.
           </DialogDescription>
         </DialogHeader>
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg border bg-white">
@@ -292,7 +292,7 @@ export function SignaturePadDialog({ open, onOpenChange, onSave, isSaving = fals
             className="shrink-0"
           >
             {isSaving ? <Loader2 className="animate-spin" /> : <Check />}
-            <span>Guardar firma</span>
+            <span>Continuar</span>
           </Button>
         </div>
       </DialogContent>

@@ -75,6 +75,15 @@ export interface SolicitudPersonalResponse {
   fechaCreacion: string;
   fechaModificacion?: string;
   detalle?: SolicitudPersonalDetalleDto[];
+  saldoVacaciones?: SaldoVacacionesSolicitud | null;
+}
+
+export interface SaldoVacacionesSolicitud {
+  anio: number;
+  diasPendientes: number;
+  diasQueDescuentan: number;
+  saldoResultante: number;
+  quedaNegativo: boolean;
 }
 
 export interface TipoSolicitudResponse {

@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Modal } from '@/components/ui/modal';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
@@ -49,7 +48,6 @@ import {
   buildPlantillaDiasHabilesCsv,
   downloadCsv,
   parseDiasHabilesCsv,
-  parseConsumeSaldo,
 } from '@/utils/csv';
 import type {
   DiaHabilResponse,
@@ -82,7 +80,6 @@ export function DiasHabilesPage() {
   // Carga manual
   const [fechaInput, setFechaInput] = useState('');
   const [descripcionInput, setDescripcionInput] = useState('');
-  const [permiteSaldoNegativoInput, setPermiteSaldoNegativoInput] = useState(false);
 
   // Carga CSV
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -192,16 +189,6 @@ export function DiasHabilesPage() {
         ),
     },
     {
-      accessorKey: 'permiteSaldoNegativo',
-      header: 'Permite saldo negativo',
-      cell: ({ row }) =>
-        row.original.permiteSaldoNegativo ? (
-          <Badge variant="default" className="bg-amber-600 hover:bg-amber-700">Sí</Badge>
-        ) : (
-          <Badge variant="secondary">No</Badge>
-        ),
-    },
-    {
       id: 'estado',
       header: 'Estado',
       cell: ({ row }) =>
@@ -255,19 +242,6 @@ export function DiasHabilesPage() {
     {
       accessorKey: 'empresaNombre',
       header: 'Empresa',
-    },
-    {
-      id: 'permiteSaldoNegativo',
-      header: 'Permite saldo negativo',
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={row.original.permiteSaldoNegativo}
-            onCheckedChange={(checked) => setPermiteSaldoNegativoStaged(row.original, checked)}
-          />
-          <span className="text-xs text-muted-foreground">{row.original.permiteSaldoNegativo ? 'Sí' : 'No'}</span>
-        </div>
-      ),
     },
     /* {
       accessorKey: 'source',
@@ -341,13 +315,6 @@ export function DiasHabilesPage() {
     setStagedItems((prev) => prev.filter((s) => stagedKey(s) !== key));
   };
 
-  const setPermiteSaldoNegativoStaged = (item: StagedItem, permiteSaldoNegativo: boolean) => {
-    const key = stagedKey(item);
-    setStagedItems((prev) =>
-      prev.map((s) => (stagedKey(s) === key ? { ...s, permiteSaldoNegativo } : s)),
-    );
-  };
-
   // --- Carga manual ---
   const agregarFechaManual = () => {
     if (!fechaInput) return;
@@ -360,8 +327,7 @@ export function DiasHabilesPage() {
       mes: m,
       dia: d,
       descripcion: descripcionInput.trim() || undefined,
-      consumeSaldo: permiteSaldoNegativoInput,
-      permiteSaldoNegativo: permiteSaldoNegativoInput,
+      consumeSaldo: false,
       source: 'manual',
       idEmpresa: selectedEmpresa === '__all__' ? '__all__' : Number(selectedEmpresa),
       empresaNombre,
@@ -374,7 +340,6 @@ export function DiasHabilesPage() {
     );
     setFechaInput('');
     setDescripcionInput('');
-    setPermiteSaldoNegativoInput(false);
     toast.success('Día agregado a la cola');
   };
 
@@ -426,8 +391,7 @@ export function DiasHabilesPage() {
         mes,
         dia,
         descripcion: desc || undefined,
-        consumeSaldo: parseConsumeSaldo(row.permite_saldo_negativo),
-        permiteSaldoNegativo: parseConsumeSaldo(row.permite_saldo_negativo),
+        consumeSaldo: false,
         source: 'csv',
         rowNumber: i + 2,
         idEmpresa: selectedEmpresa === '__all__' ? '__all__' : Number(selectedEmpresa),
@@ -548,7 +512,6 @@ export function DiasHabilesPage() {
     resetCsv();
     setFechaInput('');
     setDescripcionInput('');
-    setPermiteSaldoNegativoInput(false);
   };
 
   const renderFiltros = (disabled = false) => (
@@ -684,19 +647,11 @@ export function DiasHabilesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <label className="text-sm font-medium">Permite saldo negativo</label>
-                    <p className="text-xs text-muted-foreground">
-                      Marca si este día puede dejar el saldo de vacaciones en negativo,
-                      es decir, si un empleado sin días disponibles aún puede tomar este día
-                      aunque su saldo quede en deuda y después se descuente de futuras vacaciones.
-                    </p>
-                  </div>
-                  <Switch
-                    checked={permiteSaldoNegativoInput}
-                    onCheckedChange={setPermiteSaldoNegativoInput}
-                  />
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Los días registrados aquí son días oficiales: no descuentan saldo de vacaciones
+                    y no generan incidencias de checado.
+                  </p>
                 </div>
 
                 <div className="flex justify-end">
@@ -771,7 +726,7 @@ export function DiasHabilesPage() {
                   </p>
                   {!csvFile && !dragActive && (
                     <p className="mt-1 text-xs text-muted-foreground">
-                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion, permite_saldo_negativo</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono">dia, mes, anio, descripcion</span>
                     </p>
                   )}
                 </div>

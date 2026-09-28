@@ -1848,6 +1848,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     PropiedadEntidad = c.PropiedadEntidad,
                     ValidarFiscal = c.ValidarFiscal,
                     UsarEnCondiciones = c.UsarEnCondiciones,
+                    CodigoProceso = c.CodigoProceso,
                     Activo = c.Activo
                 }).ToList();
             }
@@ -1876,6 +1877,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     SourceCatalog = request.SourceCatalog,
                     PropiedadEntidad = request.PropiedadEntidad?.Trim(),
                     ValidarFiscal = request.ValidarFiscal,
+                    UsarEnCondiciones = request.UsarEnCondiciones,
+                    CodigoProceso = request.CodigoProceso?.Trim().ToUpperInvariant(),
                     Activo = request.Activo
                 };
 
@@ -1892,6 +1895,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     SourceCatalog = campo.SourceCatalog,
                     PropiedadEntidad = campo.PropiedadEntidad,
                     ValidarFiscal = campo.ValidarFiscal,
+                    UsarEnCondiciones = campo.UsarEnCondiciones,
+                    CodigoProceso = campo.CodigoProceso,
                     Activo = campo.Activo
                 };
             }
@@ -1918,6 +1923,8 @@ public class WorkflowService : BaseService, IWorkflowService
                 campo.SourceCatalog = request.SourceCatalog;
                 campo.PropiedadEntidad = request.PropiedadEntidad?.Trim();
                 campo.ValidarFiscal = request.ValidarFiscal;
+                campo.UsarEnCondiciones = request.UsarEnCondiciones;
+                campo.CodigoProceso = request.CodigoProceso?.Trim().ToUpperInvariant();
                 campo.Activo = request.Activo;
                 await _context.SaveChangesAsync();
 
@@ -1931,6 +1938,8 @@ public class WorkflowService : BaseService, IWorkflowService
                     SourceCatalog = campo.SourceCatalog,
                     PropiedadEntidad = campo.PropiedadEntidad,
                     ValidarFiscal = campo.ValidarFiscal,
+                    UsarEnCondiciones = campo.UsarEnCondiciones,
+                    CodigoProceso = campo.CodigoProceso,
                     Activo = campo.Activo
                 };
             }
@@ -1974,6 +1983,7 @@ public class WorkflowService : BaseService, IWorkflowService
             Activo = w.Activo,
             FechaCreacion = w.FechaCreacion,
             Campos = campos
+                .Where(c => c.CodigoProceso == null || c.CodigoProceso == w.CodigoProceso)
                 .OrderBy(c => c.EtiquetaUsuario)
                 .Select(c => new WorkflowCampoResponse
                 {
@@ -1985,6 +1995,7 @@ public class WorkflowService : BaseService, IWorkflowService
                     PropiedadEntidad = c.PropiedadEntidad,
                     ValidarFiscal = c.ValidarFiscal,
                     UsarEnCondiciones = c.UsarEnCondiciones,
+                    CodigoProceso = c.CodigoProceso,
                     Activo = c.Activo
                 }).ToList(),
                 Pasos = w.Pasos.OrderBy(p => p.Orden).Select(p => new WorkflowPasoResponse

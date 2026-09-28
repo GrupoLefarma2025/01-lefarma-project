@@ -15,6 +15,14 @@ public class UsuarioDetalle
     /// </summary>
     public string? FirmaPath { get; set; }
 
+    /// <summary>
+    /// Historial de eventos de la firma digital (JSON: subida, eliminacion, solicitud,
+    /// habilitacion). El estado (subidas, cambio habilitado, solicitud pendiente) se
+    /// deriva del historial via Domain.Firmas.FirmaControl.
+    /// Regla: solo la subida inicial es libre; reemplazos requieren habilitación RH.
+    /// </summary>
+    public string? FirmaControlJson { get; set; }
+
     // Contacto
     public string? TelefonoOficina { get; set; }
     public string? Extension { get; set; }

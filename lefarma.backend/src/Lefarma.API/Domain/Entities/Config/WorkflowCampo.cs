@@ -10,6 +10,8 @@ namespace Lefarma.API.Domain.Entities.Config
         public string? PropiedadEntidad { get; set; }
         public bool ValidarFiscal { get; set; } = false;
         public bool UsarEnCondiciones { get; set; } = false;
+        /// <summary>Proceso al que aplica el campo. NULL = disponible para todos los procesos.</summary>
+        public string? CodigoProceso { get; set; }
         public bool Activo { get; set; } = true;
     }
 }

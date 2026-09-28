@@ -18,6 +18,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Config
             builder.Property(c => c.PropiedadEntidad).HasColumnName("propiedad_entidad").HasMaxLength(100);
             builder.Property(c => c.ValidarFiscal).HasColumnName("validar_fiscal").HasDefaultValue(false);
             builder.Property(c => c.UsarEnCondiciones).HasColumnName("usar_en_condiciones").HasDefaultValue(false);
+            builder.Property(c => c.CodigoProceso).HasColumnName("codigo_proceso").HasMaxLength(50);
             builder.Property(c => c.Activo).HasColumnName("activo").HasDefaultValue(true);
 
             builder.HasIndex(c => c.NombreTecnico)

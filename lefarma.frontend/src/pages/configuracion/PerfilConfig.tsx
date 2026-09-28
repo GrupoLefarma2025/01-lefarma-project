@@ -29,7 +29,6 @@ import { FirmaUploadCard } from '@/components/common/FirmaUploadCard';
 const perfilSchema = z.object({
   nombreCompleto: z.string().min(3, 'El nombre debe tener al menos 3 caracteres'),
   correo: z.string().email('Email inválido').optional().or(z.literal('')),
-  firmaPath: z.string().optional().nullable(),
   detalle: z.object({
     celular: z.string().optional().nullable(),
     telefonoOficina: z.string().optional().nullable(),
@@ -61,7 +60,6 @@ export function PerfilConfig() {
   defaultValues: {
       nombreCompleto: '',
       correo: '',
-      firmaPath: null,
       detalle: {
         celular: '',
         telefonoOficina: '',
@@ -91,7 +89,6 @@ export function PerfilConfig() {
         form.reset({
           nombreCompleto: u.nombreCompleto || '',
           correo: u.correo || '',
-          firmaPath: u.detalle?.firmaPath ?? null,
           detalle: {
             celular: u.detalle?.celular || '',
             telefonoOficina: u.detalle?.telefonoOficina || '',
@@ -130,7 +127,6 @@ export function PerfilConfig() {
       const payload = {
         nombreCompleto: values.nombreCompleto,
         correo: values.correo,
-        firmaPath: values.firmaPath,
         ...(usuario.detalle && {
           detalle: {
             ...usuario.detalle,

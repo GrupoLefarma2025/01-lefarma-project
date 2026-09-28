@@ -10,6 +10,10 @@ export interface UsuarioDetalle {
   puesto?: string;
   numeroEmpleado?: string;
   firmaPath?: string;
+  firmaSubidas?: number;
+  firmaCambioHabilitado?: boolean;
+  firmaCambioSolicitado?: boolean;
+  fechaSolicitudCambioFirma?: string;
   telefonoOficina?: string;
   extension?: string;
   celular?: string;

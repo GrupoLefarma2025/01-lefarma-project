@@ -153,7 +153,9 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
     saldo.diasGenerados > 0
       ? Math.min(100, Math.round((saldo.diasTomados / saldo.diasGenerados) * 100))
       : 0;
-  const agotado = saldo.diasPendientes <= 0;
+  const negativo = saldo.diasPendientes < 0;
+  const agotado = saldo.diasPendientes === 0;
+  const alerta = negativo || agotado;
 
   return (
     <div className="flex flex-col gap-4 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50/80 to-cyan-50/30 px-4 py-4 dark:border-blue-900/40 dark:from-blue-950/30 dark:to-cyan-950/10 sm:flex-row sm:items-center">
@@ -172,7 +174,7 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
           <span
             className={cn(
               'text-3xl font-bold tabular-nums leading-none',
-              agotado ? 'text-red-600 dark:text-red-400' : 'text-foreground'
+              alerta ? 'text-red-600 dark:text-red-400' : 'text-foreground'
             )}
           >
             {saldo.diasPendientes}
@@ -180,6 +182,11 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
           <span className="text-sm text-muted-foreground">
             de {saldo.diasGenerados} días disponibles
           </span>
+          {negativo && (
+            <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              Saldo en negativo
+            </span>
+          )}
           {agotado && (
             <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               Agotado
@@ -197,9 +204,9 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
           <div
             className={cn(
               'h-full rounded-full transition-all duration-500',
-              agotado ? 'bg-red-500' : 'bg-blue-500'
+              alerta ? 'bg-red-500' : 'bg-blue-500'
             )}
-            style={{ width: `${porcentaje}%` }}
+            style={{ width: negativo ? '100%' : `${porcentaje}%` }}
           />
         </div>
       </div>
@@ -319,7 +326,8 @@ export function LimitesSolicitudCard({
   );
 
   const hayAlerta = resumen.bloqueados > 0 || resumen.casiAgotados > 0;
-  const vacacionesAgotadas = saldoPrincipal != null && saldoPrincipal.diasPendientes <= 0;
+  const vacacionesNegativas = saldoPrincipal != null && saldoPrincipal.diasPendientes < 0;
+  const vacacionesAgotadas = saldoPrincipal != null && saldoPrincipal.diasPendientes === 0;
 
   return (
     <Card className="border-0 shadow-sm">
@@ -348,16 +356,17 @@ export function LimitesSolicitudCard({
                 <span
                   className={cn(
                     'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium',
-                    vacacionesAgotadas
+                    vacacionesNegativas || vacacionesAgotadas
                       ? 'border-red-200 bg-red-100 text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300'
                       : 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-300'
                   )}
                 >
                   <Palmtree className="h-3 w-3" />
-                  Vacaciones:{' '}
-                  {vacacionesAgotadas
-                    ? 'sin días disponibles'
-                    : `${saldoPrincipal.diasPendientes} días disponibles`}
+                  {vacacionesNegativas
+                    ? `Saldo: ${saldoPrincipal.diasPendientes} días`
+                    : vacacionesAgotadas
+                      ? 'Vacaciones: sin días disponibles'
+                      : `Vacaciones: ${saldoPrincipal.diasPendientes} días disponibles`}
                 </span>
               )}
               {limites.map((l) => {

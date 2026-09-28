@@ -27,6 +27,8 @@ export type CampoWorkflowEditable = Pick<
   | 'sourceCatalog'
   | 'propiedadEntidad'
   | 'validarFiscal'
+  | 'usarEnCondiciones'
+  | 'codigoProceso'
   | 'activo'
 >;
 
@@ -39,6 +41,16 @@ const TIPOS_CONTROL = [
   { value: 'Archivo', label: 'Archivo (documento)' },
   { value: 'Alerta', label: 'Alerta' },
   { value: 'Validacion', label: 'Validación' },
+];
+
+const PROCESO_GLOBAL = 'TODOS';
+
+const CODIGOS_PROCESO = [
+  { value: PROCESO_GLOBAL, label: 'Todos (global)' },
+  { value: 'ORDEN_COMPRA', label: 'Orden de Compra' },
+  { value: 'SOLICITUD_PERSONAL', label: 'Solicitud de Personal' },
+  { value: 'EDUCACION_MEDICA_SELECCION', label: 'Educación Médica · Selección mensual' },
+  { value: 'EDUCACION_MEDICA_RUTAS', label: 'Educación Médica · Planificación de rutas' },
 ];
 
 interface CampoEditModalProps {
@@ -56,6 +68,8 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
   const [sourceCatalog, setSourceCatalog] = useState('');
   const [propiedadEntidad, setPropiedadEntidad] = useState('');
   const [validarFiscal, setValidarFiscal] = useState(false);
+  const [usarEnCondiciones, setUsarEnCondiciones] = useState(false);
+  const [codigoProceso, setCodigoProceso] = useState(PROCESO_GLOBAL);
   const [activo, setActivo] = useState(true);
 
   useEffect(() => {
@@ -67,6 +81,8 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
       setSourceCatalog(campo.sourceCatalog ?? '');
       setPropiedadEntidad(campo.propiedadEntidad ?? '');
       setValidarFiscal(campo.validarFiscal ?? false);
+      setUsarEnCondiciones(campo.usarEnCondiciones ?? false);
+      setCodigoProceso(campo.codigoProceso ?? PROCESO_GLOBAL);
       setActivo(campo.activo);
     } else {
       setNombreTecnico('');
@@ -75,6 +91,8 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
       setSourceCatalog('');
       setPropiedadEntidad('');
       setValidarFiscal(false);
+      setUsarEnCondiciones(false);
+      setCodigoProceso(PROCESO_GLOBAL);
       setActivo(true);
     }
   }, [open, campo]);
@@ -94,6 +112,8 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
         sourceCatalog: tipoControl === 'Selector' ? sourceCatalog.trim() || null : null,
         propiedadEntidad: propiedadEntidad.trim() || null,
         validarFiscal,
+        usarEnCondiciones,
+        codigoProceso: codigoProceso === PROCESO_GLOBAL ? null : codigoProceso,
         activo,
       };
 
@@ -200,6 +220,25 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
               Solo para campos de entrada (Field): propiedad donde se guarda el valor.
             </p>
           </div>
+          <div className="space-y-2">
+            <Label>Proceso</Label>
+            <Select value={codigoProceso} onValueChange={setCodigoProceso}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CODIGOS_PROCESO.map((p) => (
+                  <SelectItem key={p.value} value={p.value}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Limita el campo a un proceso (aparecerá solo en sus condiciones y workflows).
+              "Todos" lo deja global.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-6">
@@ -210,6 +249,14 @@ export function CampoEditModal({ campo, open, setOpen, onSaved }: CampoEditModal
               onCheckedChange={(v) => setValidarFiscal(Boolean(v))}
             />
             <Label htmlFor="campo-validar-fiscal">Validar fiscal</Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="campo-usar-en-condiciones"
+              checked={usarEnCondiciones}
+              onCheckedChange={(v) => setUsarEnCondiciones(Boolean(v))}
+            />
+            <Label htmlFor="campo-usar-en-condiciones">Usar en condiciones</Label>
           </div>
           <div className="flex items-center gap-2">
             <Checkbox

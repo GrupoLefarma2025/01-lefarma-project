@@ -39,6 +39,16 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public DateTime FechaCreacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
         public List<SolicitudPersonalDetalleDto> Detalle { get; set; } = new();
+        public SaldoVacacionesSolicitudDto? SaldoVacaciones { get; set; }
+    }
+
+    public class SaldoVacacionesSolicitudDto
+    {
+        public int Anio { get; set; }
+        public decimal DiasPendientes { get; set; }
+        public int DiasQueDescuentan { get; set; }
+        public decimal SaldoResultante { get; set; }
+        public bool QuedaNegativo { get; set; }
     }
 
     public class SolicitudPersonalRequest
