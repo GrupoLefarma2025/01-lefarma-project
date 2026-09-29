@@ -30,8 +30,8 @@ public class IncidenciasChecadoController : ControllerBase
     [HttpGet("mis-incidencias-checado")]
     [SwaggerOperation(
         Summary = "Consultar mis incidencias de checado",
-        Description = "Retorna las incidencias de checado del usuario autenticado filtradas por año y mes")]
-    [SwaggerResponse(200, "Incidencias obtenidas exitosamente", typeof(ApiResponse<List<IncidenciaChecadoResponse>>))]
+        Description = "Valida primero si el empleado tiene el checado deshabilitado (Checa = No). En ese caso no consulta incidencias y lo indica en la respuesta.")]
+    [SwaggerResponse(200, "Incidencias obtenidas exitosamente", typeof(ApiResponse<MisIncidenciasChecadoResponse>))]
     public async Task<IActionResult> GetMisIncidencias(
         [FromQuery] IncidenciasChecadoRequest request,
         CancellationToken cancellationToken)
@@ -46,13 +46,35 @@ public class IncidenciasChecadoController : ControllerBase
             });
         }
 
+        // Si el empleado no checa, nunca tendrá incidencias: se evita la consulta.
+        var checaResult = await _service.TieneChecaDeshabilitadaAsync(idUsuario, cancellationToken);
+        if (checaResult.IsError)
+        {
+            // Reutiliza el mapeo estándar de errores (el callback no se ejecuta en error).
+            return checaResult.ToActionResult(this, _ => StatusCode(StatusCodes.Status500InternalServerError));
+        }
+
+        if (checaResult.Value)
+        {
+            return Ok(new ApiResponse<MisIncidenciasChecadoResponse>
+            {
+                Success = true,
+                Message = "No se muestran incidencias porque tu registro de checado está deshabilitado.",
+                Data = new MisIncidenciasChecadoResponse { ChecaDeshabilitado = true }
+            });
+        }
+
         var result = await _service.GetMisIncidenciasAsync(request, idUsuario, cancellationToken);
 
-        return result.ToActionResult(this, data => Ok(new ApiResponse<List<IncidenciaChecadoResponse>>
+        return result.ToActionResult(this, data => Ok(new ApiResponse<MisIncidenciasChecadoResponse>
         {
             Success = true,
             Message = "Incidencias de checado obtenidas exitosamente.",
-            Data = data
+            Data = new MisIncidenciasChecadoResponse
+            {
+                ChecaDeshabilitado = false,
+                Incidencias = data
+            }
         }));
     }
 

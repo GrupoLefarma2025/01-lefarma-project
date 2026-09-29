@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Plus } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Info, Plus } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +24,7 @@ function fmtFechaCorta(fecha: string) {
 
 export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) {
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
+  const [checaDeshabilitado, setChecaDeshabilitado] = useState(false);
   const [solicitudes, setSolicitudes] = useState<SolicitudPersonalResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState(true);
@@ -50,7 +51,10 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
         }).catch(() => null),
       ]);
 
-      setIncidencias(incRes?.data.success ? incRes.data.data ?? [] : []);
+      setIncidencias(incRes?.data.success ? (incRes.data.data?.incidencias ?? []) : []);
+      setChecaDeshabilitado(
+        incRes?.data.success ? (incRes.data.data?.checaDeshabilitado ?? false) : false
+      );
       setSolicitudes(solRes?.data.success ? solRes.data.data?.items ?? [] : []);
     } finally {
       setLoading(false);
@@ -146,13 +150,26 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
           </CardContent>
         ) : sinPendientes ? (
           <CardContent className="pt-0">
-            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
-              <CheckCircle2 className="h-4 w-4 shrink-0" />
-              No tienes pendientes por ahora.
-            </div>
+            {checaDeshabilitado ? (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
+                <Info className="h-4 w-4 shrink-0" />
+                No se muestran incidencias porque tu registro de checado está deshabilitado.
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-800 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-200">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                No tienes pendientes por ahora.
+              </div>
+            )}
           </CardContent>
         ) : mostrarDetalle ? (
           <CardContent className="space-y-4 pt-0">
+            {checaDeshabilitado && pendientes.length === 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
+                <Info className="h-3.5 w-3.5 shrink-0" />
+                No se muestran incidencias porque tu registro de checado está deshabilitado.
+              </div>
+            )}
             {pendientes.length > 0 && (
               <div className="space-y-1.5">
                 {pendientes.slice(0, 3).map((incidencia) => (

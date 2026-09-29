@@ -28,4 +28,12 @@ public interface IIncidenciasChecadoService
 
     Task<ErrorOr<ReglasDescuentoResponse>> GetReglasDescuentoAsync(
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Indica si el empleado del usuario tiene el checado deshabilitado (Checa = "No").
+    /// En ese caso nunca verá incidencias; el frontend lo usa para explicarlo.
+    /// </summary>
+    Task<ErrorOr<bool>> TieneChecaDeshabilitadaAsync(
+        int idUsuario,
+        CancellationToken cancellationToken = default);
 }

@@ -160,6 +160,29 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
         }
     }
 
+    public async Task<ErrorOr<bool>> TieneChecaDeshabilitadaAsync(
+        int idUsuario,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario, cancellationToken);
+            if (!nomina.HasValue)
+                return false;
+
+            return await _repository.EmpleadoTieneChecaDeshabilitadaAsync(nomina.Value, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent("TieneChecaDeshabilitada", exception: ex);
+            return CommonErrors.DatabaseError("verificar el estado de checado");
+        }
+    }
+
     public async Task<ErrorOr<PagedResult<IncidenciaChecadoResponse>>> GetAllAsync(
         IncidenciasChecadoConsultaRequest request,
         CancellationToken cancellationToken = default)

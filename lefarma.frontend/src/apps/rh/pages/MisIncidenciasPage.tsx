@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Plus } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Clock, Info, Plus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -87,6 +87,7 @@ export default function MisIncidenciasPage() {
   const [fechaInicioPersonalizada, setFechaInicioPersonalizada] = useState('');
   const [fechaFinPersonalizada, setFechaFinPersonalizada] = useState('');
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
+  const [checaDeshabilitado, setChecaDeshabilitado] = useState(false);
   const [loading, setLoading] = useState(true);
   const [estadoFiltro, setEstadoFiltro] = useState<EstadoFiltro>('todas');
   const [page, setPage] = useState(1);
@@ -112,7 +113,10 @@ export default function MisIncidenciasPage() {
         fechaDesde: rango.fechaInicio,
         fechaHasta: rango.fechaFin,
       });
-      const lista = res.data.success ? res.data.data ?? [] : [];
+      const lista = res.data.success ? (res.data.data?.incidencias ?? []) : [];
+      setChecaDeshabilitado(
+        res.data.success ? (res.data.data?.checaDeshabilitado ?? false) : false
+      );
       setIncidencias([...lista].sort((a, b) => b.fecha.localeCompare(a.fecha)));
     } catch (error: unknown) {
       const err = toApiError(error);
@@ -261,6 +265,13 @@ export default function MisIncidenciasPage() {
           </div>
         </CardContent>
       </Card>
+
+      {checaDeshabilitado && (
+        <div className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-950/30 dark:text-slate-300">
+          <Info className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>No se muestran incidencias porque tu registro de checado está deshabilitado.</p>
+        </div>
+      )}
 
       {!loading && incidencias.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

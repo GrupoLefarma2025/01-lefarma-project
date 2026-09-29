@@ -164,6 +164,7 @@ function useCalendario(anio: number, mes: number) {
   const [diasJornada, setDiasJornada] = useState<DiasJornadaResponse | null>(null);
   const [diasHabiles, setDiasHabiles] = useState<DiaHabilResponse[]>([]);
   const [incidencias, setIncidencias] = useState<IncidenciaChecadoResponse[]>([]);
+  const [checaDeshabilitado, setChecaDeshabilitado] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const fetchCalendario = async () => {
@@ -191,9 +192,11 @@ function useCalendario(anio: number, mes: number) {
         setDiasHabiles([]);
       }
       if (incRes?.data.success) {
-        setIncidencias(incRes.data.data ?? []);
+        setIncidencias(incRes.data.data?.incidencias ?? []);
+        setChecaDeshabilitado(incRes.data.data?.checaDeshabilitado ?? false);
       } else {
         setIncidencias([]);
+        setChecaDeshabilitado(false);
       }
     } catch (error: unknown) {
       const err = toApiError(error);
@@ -204,6 +207,7 @@ function useCalendario(anio: number, mes: number) {
       setDiasJornada(null);
       setDiasHabiles([]);
       setIncidencias([]);
+      setChecaDeshabilitado(false);
     } finally {
       setLoading(false);
     }
@@ -286,7 +290,7 @@ function useCalendario(anio: number, mes: number) {
     return resultado;
   }, [eventos, diasJornada, diasHabiles, incidencias, anio, mes]);
 
-  return { dias, loading, refetch: fetchCalendario };
+  return { dias, loading, refetch: fetchCalendario, checaDeshabilitado };
 }
 
 function EventoBadge({
@@ -574,7 +578,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
   const [solicitudModalOpen, setSolicitudModalOpen] = useState(false);
   const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
   const crearDirtyRef = useRef(false);
-  const { dias, loading, refetch } = useCalendario(anio, mes);
+  const { dias, loading, refetch, checaDeshabilitado } = useCalendario(anio, mes);
 
   const handleAddSolicitud = () => {
     setIncidenciaParaSolicitud(incidenciaSeleccionada);
@@ -633,6 +637,11 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
             <CardDescription className="text-xs">
               Solicitudes por día desde su creación (incluye canceladas y rechazadas). Haz clic en un evento para ver el detalle.
             </CardDescription>
+            {checaDeshabilitado && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                No se muestran incidencias porque tu registro de checado está deshabilitado.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
