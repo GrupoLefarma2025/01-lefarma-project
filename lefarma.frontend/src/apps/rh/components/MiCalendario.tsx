@@ -152,6 +152,13 @@ function tieneIncidenciaReal(incidencia: IncidenciaChecadoResponse) {
   return (incidencia.incidenciasCalculadas ?? []).length > 0;
 }
 
+// Un día puede tener varias incidencias (ej. retardo + omisión): se muestran
+// todas separadas por " | " tanto en el badge como en su tooltip (title).
+function getIncidenciaLabel(incidencia: IncidenciaChecadoResponse): string | undefined {
+  const nombres = (incidencia.incidenciasCalculadas ?? []).map((i) => i.nombre);
+  return nombres.length > 0 ? nombres.join(' | ') : undefined;
+}
+
 function useCalendario(anio: number, mes: number) {
   const [eventos, setEventos] = useState<CalendarioGlobalEvento[]>([]);
   const [diasJornada, setDiasJornada] = useState<DiasJornadaResponse | null>(null);
@@ -739,7 +746,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     <IncidenciaBadge
                       key={`incidencia-${dia.fecha.toISOString()}`}
                       isPast={isPast}
-                      label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
+                      label={getIncidenciaLabel(dia.incidencia)}
                       onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
                     />
                   );
@@ -876,7 +883,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                           {dia.incidencia && (
                             <IncidenciaBadge
                               isPast={isPast}
-                              label={dia.incidencia.incidenciasCalculadas?.[0]?.nombre}
+                              label={getIncidenciaLabel(dia.incidencia)}
                               onClick={() => setIncidenciaSeleccionada(dia.incidencia!)}
                             />
                           )}

@@ -561,8 +561,8 @@ export default function SolicitudesPersonal() {
           }
           return ok;
         }}
-        onEnviarDirector={async (req, pdfBlob) => {
-          const ok = await enviarDirector(req, pdfBlob);
+        onEnviarDirector={async (req, pdfBlob, archivoSoporte) => {
+          const ok = await enviarDirector(req, pdfBlob, archivoSoporte);
           if (ok) {
             await Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),

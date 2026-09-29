@@ -64,7 +64,11 @@ export interface UseSolicitudesAutorizacionesReturn {
     puedeVerTodas: boolean,
     filters?: SolicitudPersonalFilterParams
   ) => Promise<boolean>;
-  enviarDirector: (request: FirmarRequest, pdfBlob: Blob) => Promise<boolean>;
+  enviarDirector: (
+    request: FirmarRequest,
+    pdfBlob: Blob,
+    archivoSoporte?: File | null
+  ) => Promise<boolean>;
   isSubmittingFirma: boolean;
 }
 
@@ -280,7 +284,11 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
   );
 
   const enviarDirector = useCallback(
-    async (request: FirmarRequest, pdfBlob: Blob): Promise<boolean> => {
+    async (
+      request: FirmarRequest,
+      pdfBlob: Blob,
+      archivoSoporte?: File | null
+    ): Promise<boolean> => {
       if (!selectedSolicitud) return false;
       setIsSubmittingFirma(true);
       try {
@@ -290,6 +298,12 @@ export function useSolicitudesAutorizaciones(): UseSolicitudesAutorizacionesRetu
           formData.append('Comentario', request.comentario);
         }
         formData.append('ArchivoPdf', pdfBlob, `${selectedSolicitud.folio}.pdf`);
+        formData.append('Correo', "");
+        formData.append('CorreoCC', "6@grupolefarma.com.mx");
+        formData.append('TieneDocumentoSoporte', archivoSoporte ? 'true' : 'false');
+        if (archivoSoporte) {
+          formData.append('ArchivoSoporte', archivoSoporte, archivoSoporte.name);
+        }
 
         const res = await API.post<ApiResponse<FirmarResponse>>(
           `/solicitudes-personal/${selectedSolicitud.idSolicitud}/enviar-director`,

@@ -14,7 +14,6 @@ import type {
 } from '@/types/solicitudPersonal.types';
 import { isEstadoTerminal } from '@/hooks/useSolicitudes';
 import { usePermission } from '@/hooks/usePermission';
-import { toISODate } from '@/utils/date';
 import { IncidenciaJustificarFlow } from './IncidenciaJustificarFlow';
 
 function fmtFechaCorta(fecha: string) {
@@ -32,17 +31,19 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
     useState<IncidenciaChecadoResponse | null>(null);
   const puedeVerMisIncidencias = usePermission({ require: 'incidencias_checado.ver_mias' });
 
+  // El contador de incidencias por justificar siempre es del mes presente.
+  const periodoIncidencia = new Date().toLocaleDateString('es-MX', {
+    month: 'long',
+    year: 'numeric',
+  });
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     const hoy = new Date();
-    const primerDiaMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
     try {
       const [incRes, solRes] = await Promise.all([
         misIncidenciasChecadoApi
-          .get({
-            fechaDesde: toISODate(primerDiaMesAnterior),
-            fechaHasta: toISODate(hoy),
-          })
+          .get({ anio: hoy.getFullYear(), mes: hoy.getMonth() + 1 })
           .catch(() => null),
         API.get<ApiResponse<PagedResult<SolicitudPersonalResponse>>>('/solicitudes-personal', {
           params: { verTodas: false, pageSize: 100 },
@@ -88,6 +89,7 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
                 <AlertTriangle className="h-5 w-5 text-primary" />
                 Mis pendientes
               </CardTitle>
+              <p className="text-xs text-muted-foreground">Incidencias de {periodoIncidencia}</p>
 
               {!loading && !sinPendientes && (
                 <div className="flex flex-wrap items-center gap-2">
@@ -175,14 +177,15 @@ export function MisPendientesCard({ refreshKey }: { refreshKey?: number } = {}) 
                   </div>
                 ))}
                 {pendientes.length > 3 && puedeVerMisIncidencias && (
-                  <Link
-                    to="/rh/mis-incidencias"
-                    className="inline-block text-xs font-medium text-primary hover:underline"
-                  >
-                    y {pendientes.length - 3}{' '}
-                    {pendientes.length - 3 === 1 ? 'incidencia más' : 'incidencias más'} · Ver
-                    todas en Mis incidencias
-                  </Link>
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2">
+                    <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                      {pendientes.length - 3}{' '}
+                      {pendientes.length - 3 === 1 ? 'incidencia más' : 'incidencias más'}
+                    </span>
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/rh/mis-incidencias">Ver todas en Mis incidencias</Link>
+                    </Button>
+                  </div>
                 )}
               </div>
             )}

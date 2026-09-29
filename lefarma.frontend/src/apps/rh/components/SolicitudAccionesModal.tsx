@@ -13,6 +13,7 @@ import type {
 import { SolicitudHeaderCard } from './SolicitudHeaderCard';
 import { SolicitudFirmaTab } from './SolicitudFirmaTab';
 import { SolicitudFirmaModal } from './SolicitudFirmaModal';
+import { EnviarDirectorModal } from './EnviarDirectorModal';
 import { SolicitudPersonalPDF } from './PDF/SolicitudPersonalPDF';
 
 interface SolicitudAccionesModalProps {
@@ -30,7 +31,11 @@ interface SolicitudAccionesModalProps {
       | undefined
   ) => { nombre: string; color: string };
   onFirmar: (req: FirmarRequest) => Promise<boolean>;
-  onEnviarDirector?: (req: FirmarRequest, pdfBlob: Blob) => Promise<boolean>;
+  onEnviarDirector?: (
+    req: FirmarRequest,
+    pdfBlob: Blob,
+    archivoSoporte?: File | null
+  ) => Promise<boolean>;
   isSubmittingFirma: boolean;
   hasFirma?: boolean;
 }
@@ -99,20 +104,28 @@ export function SolicitudAccionesModal({
         )}
       </Modal>
 
-      {solicitud && (
-        <SolicitudFirmaModal
-          open={accionParaFirma !== null}
+      {solicitud && accionParaFirma?.tipoAccionCodigo === 'ENVIAR_DIRECTOR' ? (
+        <EnviarDirectorModal
+          open
           onClose={() => setAccionParaFirma(null)}
           accion={accionParaFirma}
           solicitud={solicitud}
           historial={historial}
           pasosWorkflow={pasosWorkflow}
-          getEstadoInfo={getEstadoInfo}
-          onSubmit={onFirmar}
-          onEnviarDirector={onEnviarDirector}
+          onSubmit={onEnviarDirector}
           isSubmitting={isSubmittingFirma}
         />
-      )}
+      ) : solicitud ? (
+        <SolicitudFirmaModal
+          open={accionParaFirma !== null}
+          onClose={() => setAccionParaFirma(null)}
+          accion={accionParaFirma}
+          solicitud={solicitud}
+          getEstadoInfo={getEstadoInfo}
+          onSubmit={onFirmar}
+          isSubmitting={isSubmittingFirma}
+        />
+      ) : null}
 
       {solicitud &&
         accionParaFirma?.tipoAccionCodigo === 'ENVIAR_DIRECTOR' &&

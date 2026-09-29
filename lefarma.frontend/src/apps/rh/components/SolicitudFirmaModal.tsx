@@ -33,19 +33,14 @@ import type {
   FirmarRequest,
   AccionDisponibleResponse,
   WorkflowCampoMetadataResponse,
-  HistorialWorkflowItemResponse,
-  WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
 import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
-import { generarPdfSolicitud } from './PDF/generarPdfSolicitud';
 
 interface SolicitudFirmaModalProps {
   open: boolean;
   onClose: () => void;
   accion: AccionDisponibleResponse | null;
   solicitud: SolicitudPersonalResponse;
-  historial?: HistorialWorkflowItemResponse[];
-  pasosWorkflow?: WorkflowPasoFlowResponse[];
   getEstadoInfo: (
     solicitud:
       | Pick<SolicitudPersonalResponse, 'estadoNombre' | 'estadoColor' | 'idEstado'>
@@ -53,7 +48,6 @@ interface SolicitudFirmaModalProps {
       | undefined
   ) => { nombre: string; color: string };
   onSubmit: (request: FirmarRequest) => Promise<boolean>;
-  onEnviarDirector?: (request: FirmarRequest, pdfBlob: Blob) => Promise<boolean>;
   isSubmitting: boolean;
 }
 
@@ -155,11 +149,8 @@ export function SolicitudFirmaModal({
   onClose,
   accion,
   solicitud,
-  historial = [],
-  pasosWorkflow = [],
   getEstadoInfo,
   onSubmit,
-  onEnviarDirector,
   isSubmitting,
 }: SolicitudFirmaModalProps) {
   const [comentario, setComentario] = useState('');
@@ -172,7 +163,6 @@ export function SolicitudFirmaModal({
   const [adjuntosLibres, setAdjuntosLibres] = useState<Archivo[]>([]);
   const [archivosExistentes, setArchivosExistentes] = useState<ArchivoListItem[]>([]);
   const [revisiones, setRevisiones] = useState<Record<string, boolean>>({});
-  const [generandoPdf, setGenerandoPdf] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const initialCamposRef = useRef<Record<string, unknown>>({});
 
@@ -382,30 +372,6 @@ export function SolicitudFirmaModal({
       datosAdicionales: Object.keys(datosAdicionales).length > 0 ? datosAdicionales : null,
     };
 
-    const esEnviarDirector = accion.tipoAccionCodigo === 'ENVIAR_DIRECTOR';
-
-    if (esEnviarDirector) {
-      if (!onEnviarDirector) {
-        toast.error('No está configurado el envío a director para esta acción');
-        return;
-      }
-      setGenerandoPdf(true);
-      try {
-        const pdfBlob = await generarPdfSolicitud(solicitud, historial, pasosWorkflow);
-        const ok = await onEnviarDirector(request, pdfBlob);
-        if (ok) {
-          cerrar();
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Error al generar el PDF de la solicitud';
-        toast.error('Error al generar/enviar PDF', { description: message, duration: 8000 });
-        console.error('Error al generar/enviar PDF de solicitud', err);
-      } finally {
-        setGenerandoPdf(false);
-      }
-      return;
-    }
-
     const ok = await onSubmit(request);
     if (ok) {
       cerrar();
@@ -437,15 +403,11 @@ export function SolicitudFirmaModal({
           </Button>
           <Button
             onClick={enviar}
-            disabled={isSubmitting || generandoPdf}
+            disabled={isSubmitting}
             variant={esRechazo ? 'destructive' : 'default'}
           >
-            {(isSubmitting || generandoPdf) && (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            )}
-            {generandoPdf
-              ? 'Generando PDF...'
-              : `Confirmar ${accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}`}
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {`Confirmar ${accion?.tipoAccionNombre?.toLowerCase() ?? 'acción'}`}
           </Button>
         </div>
       }
