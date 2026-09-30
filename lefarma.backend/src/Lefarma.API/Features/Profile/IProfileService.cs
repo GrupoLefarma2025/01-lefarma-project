@@ -22,7 +22,16 @@ public interface IProfileService
     /// </summary>
     Task<ErrorOr<bool>> HasFirmaAsync(int userId, CancellationToken cancellationToken = default);
 
-    Task<ErrorOr<string>> UploadSignatureAsync(int userId, IFormFile file, string fileName, string contentType, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Verifica si el usuario tiene una firma en comprobación por RH (remisión sin resolver).
+    /// </summary>
+    Task<ErrorOr<bool>> TieneFirmaEnComprobacionAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Remite una firma (png/jpg ≤2 MB) con foto de INE (png/jpg ≤5 MB) a revisión de RH.
+    /// No cambia la firma vigente: eso ocurre solo cuando RH aprueba la remisión.
+    /// </summary>
+    Task<ErrorOr<string>> UploadSignatureAsync(int userId, IFormFile file, IFormFile ine, string fileName, string contentType, CancellationToken cancellationToken = default);
     Task<ErrorOr<string>> DeleteSignatureAsync(int userId, CancellationToken cancellationToken = default);
 
     /// <summary>

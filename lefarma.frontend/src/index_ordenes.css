@@ -231,6 +231,18 @@
   width: 100% !important;
 }
 
+/* Capture portals (html2canvas): the print doc must be laid out inside the
+   off-screen portal, otherwise it collapses to 0 height and captures blank. */
+#solicitud-personal-envio-director-pdf-portal #solicitud-personal-pdf-print,
+#envio-concentrado-pdf-portal #envio-concentrado-pdf-print {
+  display: block !important;
+}
+
+/* Preview del PDF de solicitud dentro del modal de envío a director */
+.solicitud-pdf-preview #solicitud-personal-pdf-print {
+  display: block !important;
+}
+
 /* ─── Named page boxes (must be outside @media) ───────────────────────────── */
 @page portrait {
   size: A4 portrait;

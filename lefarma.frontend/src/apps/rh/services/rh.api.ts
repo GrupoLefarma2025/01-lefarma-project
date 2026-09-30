@@ -14,6 +14,7 @@ import type {
   IncidenciasChecadoConsultaRequest,
   IncidenciasChecadoResumenEmpleadoRequest,
   IncidenciasChecadoResumenEmpleadoResponse,
+  MisIncidenciasChecadoResponse,
   MisLimitesResponse,
   NotificarIncidenciasResumenRequest,
   NotificarIncidenciasResumenResponse,
@@ -88,7 +89,7 @@ export const diasHabilesApi = {
 
 export const misIncidenciasChecadoApi = {
   get: (request: { anio: number; mes: number } | { fechaDesde: string; fechaHasta: string }) =>
-    API.get<ApiResponse<IncidenciaChecadoResponse[]>>('/rh/mis-incidencias-checado', {
+    API.get<ApiResponse<MisIncidenciasChecadoResponse>>('/rh/mis-incidencias-checado', {
       params: request,
     }),
 };

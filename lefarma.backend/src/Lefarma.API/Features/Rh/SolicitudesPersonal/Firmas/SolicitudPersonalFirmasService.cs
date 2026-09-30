@@ -115,6 +115,18 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo);
             var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
 
+            // 4a. CERRAR queda bloqueado mientras el usuario tenga una firma en comprobación por RH.
+            if (codigoAccionSolicitada == "CERRAR")
+            {
+                var enComprobacion = await _profileService.TieneFirmaEnComprobacionAsync(idUsuario);
+                if (enComprobacion.IsError)
+                    return enComprobacion.Errors;
+
+                if (enComprobacion.Value)
+                    return CommonErrors.Validation("Firma.EnComprobacion",
+                        "Tu firma digital está en comprobación por Recursos Humanos. No puedes cerrar solicitudes hasta que sea resuelta.");
+            }
+
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
                     pasoActual, solicitud.IdWorkflow, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
                     codigoAccion: codigoAccionSolicitada,
@@ -403,6 +415,14 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
             if (extension != ".pdf")
                 return CommonErrors.Validation("ArchivoPdf", "Solo se permiten archivos PDF.");
 
+            //El documento soporte (opcional) debe ser un PDF
+            if (request.TieneDocumentoSoporte && request.ArchivoSoporte != null)
+            {
+                var extensionSoporte = Path.GetExtension(request.ArchivoSoporte.FileName).ToLowerInvariant();
+                if (extensionSoporte != ".pdf")
+                    return CommonErrors.Validation("ArchivoSoporte", "El documento soporte debe ser un PDF.");
+            }
+
             //Cargar solicitud
             var solicitud = await _solicitudRepo.GetByIdAsync(idSolicitud);
             if (solicitud is null)
@@ -472,6 +492,23 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 pdfBytes = ms.ToArray();
             }
 
+            byte[]? soporteBytes = null;
+            if (request.TieneDocumentoSoporte && request.ArchivoSoporte != null)
+            {
+                await using var msSoporte = new MemoryStream();
+                await request.ArchivoSoporte.CopyToAsync(msSoporte);
+                soporteBytes = msSoporte.ToArray();
+            }
+
+            var metadata = new Dictionary<string, string>();
+            if (!string.IsNullOrWhiteSpace(request.Correo)) metadata["to"] = request.Correo.Trim();
+            if (!string.IsNullOrWhiteSpace(request.CorreoCC)) metadata["cc"] = request.CorreoCC.Trim();
+
+            //SubidoPorUsuario se guarda como el correo del usuario de Asokam que firma el envío
+            var usuarioAsokam = await _asokamContext.Usuarios
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.IdUsuario == idUsuario);
+
             var documento = new Domain.Entities.Asokam.Documento
             {
                 Id = Guid.NewGuid(),
@@ -482,7 +519,7 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 PDFBinarioAutorizado = null,
                 Estatus = 1,
                 FechaSubida = DateTime.Now,
-                SubidoPorUsuario = idUsuario.ToString(),
+                SubidoPorUsuario = usuarioAsokam?.Correo ?? idUsuario.ToString(),
                 FechaAutorizacion = null,
                 AutorizadoPorUsuario = null,
                 FechaRechazo = null,
@@ -494,13 +531,9 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 HashSHA256Autorizado = null,
                 EnviadoParaAutorizacion = false,
                 NotificacionEnviada = false,
-                MetadataJSON = System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
-                {
-                    ["to"] = "41@grupolefarma.com.mx",
-                    ["cc"] = ""
-                }),
-                TieneDocumentoLigado = false,
-                PDFBinarioAdicional = null
+                MetadataJSON = metadata.Count > 0 ? System.Text.Json.JsonSerializer.Serialize(metadata) : null,
+                TieneDocumentoLigado = request.TieneDocumentoSoporte,
+                PDFBinarioAdicional = soporteBytes
             };
 
             _asokamContext.Documentos.Add(documento);

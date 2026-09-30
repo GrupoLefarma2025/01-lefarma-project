@@ -25,8 +25,8 @@ public static class JustificacionSolicitudHelper
             .ToDictionary(g => g.Key, g => g.Select(x => x.Fecha.Date).ToHashSet());
     }
 
-    // Si la solicitud tiene detalle de fechas (justificantes de incidencia), solo justifica
-    // esos días; si no, cubre el rango inicio/fin (un solo día cuando no hay fecha fin).
+    // Si la solicitud tiene detalle de fechas, solo justifica esos días; si no, cubre el
+    // rango inicio/fin (un solo día cuando no hay fecha fin).
     public static bool SolicitudCubreFecha(
         int idSolicitud,
         DateTime fechaInicio,

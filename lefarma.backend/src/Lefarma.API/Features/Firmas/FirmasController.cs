@@ -72,6 +72,59 @@ public class FirmasController : ControllerBase
         }));
     }
 
+    [HttpPost("usuarios/{idUsuario:int}/aprobar")]
+    [SwaggerOperation(Summary = "Aprobar la firma en comprobación de un usuario")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AprobarFirma(int idUsuario, CancellationToken cancellationToken = default)
+    {
+        var rhUserId = GetAuthenticatedUserId();
+        if (rhUserId == null)
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuario no autenticado" });
+
+        var result = await _firmasService.AprobarFirmaAsync(idUsuario, rhUserId.Value, cancellationToken);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<bool>
+        {
+            Success = true,
+            Data = data,
+            Message = "Firma aprobada"
+        }));
+    }
+
+    [HttpPost("usuarios/{idUsuario:int}/rechazar")]
+    [SwaggerOperation(Summary = "Rechazar (con motivo) la firma en comprobación de un usuario")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RechazarFirma(
+        int idUsuario,
+        [FromBody] RechazarFirmaRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var rhUserId = GetAuthenticatedUserId();
+        if (rhUserId == null)
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Usuario no autenticado" });
+
+        var result = await _firmasService.RechazarFirmaAsync(idUsuario, rhUserId.Value, request.Motivo, cancellationToken);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<bool>
+        {
+            Success = true,
+            Data = data,
+            Message = "Firma rechazada"
+        }));
+    }
+
+    [HttpGet("usuarios/{idUsuario:int}/ine")]
+    [SwaggerOperation(Summary = "Descargar la foto del INE de la remisión en comprobación")]
+    [ProducesResponseType(typeof(FileContentResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetIne(int idUsuario, CancellationToken cancellationToken = default)
+    {
+        var result = await _firmasService.GetIneAsync(idUsuario, cancellationToken);
+        return result.ToActionResult(this, ine => File(ine.Contenido, ine.ContentType, ine.NombreArchivo));
+    }
+
     private int? GetAuthenticatedUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value

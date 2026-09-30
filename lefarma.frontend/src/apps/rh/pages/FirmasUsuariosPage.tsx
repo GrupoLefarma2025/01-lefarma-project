@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { History, Loader2, PenLine, Send, Trash2, Upload, UserCheck } from 'lucide-react';
+import { CheckCircle2, History, Hourglass, IdCard, Loader2, PenLine, Send, Trash2, Upload, UserCheck, XCircle } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Modal } from '@/components/ui/modal';
+import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
@@ -24,6 +25,10 @@ interface FirmaUsuario {
   firmaCambioHabilitado: boolean;
   firmaCambioSolicitado: boolean;
   fechaSolicitudCambioFirma?: string;
+  enComprobacion: boolean;
+  fechaRemision?: string;
+  tieneIne: boolean;
+  firmaPendientePath?: string;
   idUsuarioHabilito?: number;
   nombreUsuarioHabilito?: string;
   fechaHabilitoFirma?: string;
@@ -40,6 +45,7 @@ interface FirmaHistorialEvento {
   fecha: string;
   idUsuario: number;
   nombreUsuario?: string;
+  motivo?: string;
 }
 
 const ACCION_META: Record<string, { label: string; icon: LucideIcon; className: string }> = {
@@ -63,6 +69,21 @@ const ACCION_META: Record<string, { label: string; icon: LucideIcon; className: 
     icon: UserCheck,
     className: 'border border-blue-200 bg-blue-50 text-blue-700',
   },
+  remision: {
+    label: 'Envió firma a comprobación',
+    icon: Hourglass,
+    className: 'border border-purple-200 bg-purple-50 text-purple-700',
+  },
+  aprobacion: {
+    label: 'RH aprobó la firma',
+    icon: CheckCircle2,
+    className: 'border border-emerald-200 bg-emerald-50 text-emerald-700',
+  },
+  rechazo: {
+    label: 'RH rechazó la firma',
+    icon: XCircle,
+    className: 'border border-red-200 bg-red-50 text-red-700',
+  },
 };
 
 export function FirmasUsuariosPage() {
@@ -77,6 +98,13 @@ export function FirmasUsuariosPage() {
   const [historialLoading, setHistorialLoading] = useState(false);
   const [historialItems, setHistorialItems] = useState<FirmaHistorialEvento[]>([]);
   const [historialUsuario, setHistorialUsuario] = useState<FirmaUsuario | null>(null);
+  const [comprobacionOpen, setComprobacionOpen] = useState(false);
+  const [comprobacionUsuario, setComprobacionUsuario] = useState<FirmaUsuario | null>(null);
+  const [ineBlobUrl, setIneBlobUrl] = useState<string | null>(null);
+  const [loadingIne, setLoadingIne] = useState(false);
+  const [isResolviendo, setIsResolviendo] = useState(false);
+  const [rechazando, setRechazando] = useState(false);
+  const [motivoRechazo, setMotivoRechazo] = useState('');
 
   const load = async () => {
     try {
@@ -93,6 +121,88 @@ export function FirmasUsuariosPage() {
   useEffect(() => {
     load();
   }, []);
+
+  // Liberar el object URL de la INE al cerrar la comprobación.
+  useEffect(() => {
+    return () => {
+      if (ineBlobUrl) URL.revokeObjectURL(ineBlobUrl);
+    };
+  }, [ineBlobUrl]);
+
+  const handleVerComprobacion = async (item: FirmaUsuario) => {
+    setComprobacionUsuario(item);
+    setComprobacionOpen(true);
+    setRechazando(false);
+    setMotivoRechazo('');
+    setIneBlobUrl(null);
+    setLoadingIne(true);
+    try {
+      const res = await API.get(`/firmas/usuarios/${item.idUsuario}/ine`, { responseType: 'blob' });
+      setIneBlobUrl(URL.createObjectURL(res.data as Blob));
+    } catch {
+      // La INE puede no estar disponible; la firma pendiente igual se muestra.
+    } finally {
+      setLoadingIne(false);
+    }
+  };
+
+  const cerrarComprobacion = () => {
+    setComprobacionOpen(false);
+    setComprobacionUsuario(null);
+    setRechazando(false);
+    setMotivoRechazo('');
+    if (ineBlobUrl) {
+      URL.revokeObjectURL(ineBlobUrl);
+      setIneBlobUrl(null);
+    }
+  };
+
+  const handleAprobar = async () => {
+    if (!comprobacionUsuario) return;
+    try {
+      setIsResolviendo(true);
+      const response = await API.post<ApiResponse<boolean>>(
+        `/firmas/usuarios/${comprobacionUsuario.idUsuario}/aprobar`
+      );
+      if (response.data.success) {
+        toast.success(`Firma aprobada para ${comprobacionUsuario.nombreCompleto ?? 'el usuario'}`);
+        cerrarComprobacion();
+        load();
+      } else {
+        toast.error(response.data.message ?? 'No se pudo aprobar la firma');
+      }
+    } catch (error) {
+      toast.error(toApiError(error).message ?? 'Error al aprobar la firma');
+    } finally {
+      setIsResolviendo(false);
+    }
+  };
+
+  const handleRechazar = async () => {
+    if (!comprobacionUsuario) return;
+    if (!motivoRechazo.trim()) {
+      toast.error('El motivo del rechazo es obligatorio');
+      return;
+    }
+    try {
+      setIsResolviendo(true);
+      const response = await API.post<ApiResponse<boolean>>(
+        `/firmas/usuarios/${comprobacionUsuario.idUsuario}/rechazar`,
+        { motivo: motivoRechazo.trim() }
+      );
+      if (response.data.success) {
+        toast.success(`Firma rechazada para ${comprobacionUsuario.nombreCompleto ?? 'el usuario'}`);
+        cerrarComprobacion();
+        load();
+      } else {
+        toast.error(response.data.message ?? 'No se pudo rechazar la firma');
+      }
+    } catch (error) {
+      toast.error(toApiError(error).message ?? 'Error al rechazar la firma');
+    } finally {
+      setIsResolviendo(false);
+    }
+  };
 
   const handleVerHistorial = async (item: FirmaUsuario) => {
     setHistorialUsuario(item);
@@ -172,6 +282,17 @@ export function FirmasUsuariosPage() {
       id: 'estado',
       header: 'Estado',
       cell: ({ row }) => {
+        if (row.original.enComprobacion)
+          return (
+            <div className="flex flex-col gap-0.5">
+              <Badge variant="default" className="bg-purple-600">En comprobación</Badge>
+              {row.original.fechaRemision && (
+                <span className="text-[10px] text-muted-foreground">
+                  {new Date(row.original.fechaRemision).toLocaleString()}
+                </span>
+              )}
+            </div>
+          );
         if (row.original.firmaCambioHabilitado)
           return <Badge variant="default" className="bg-blue-600">Cambio habilitado</Badge>;
         if (row.original.firmaCambioSolicitado)
@@ -185,6 +306,8 @@ export function FirmasUsuariosPage() {
               )}
             </div>
           );
+        if (!row.original.firmaPath)
+          return <Badge variant="outline">Sin firma</Badge>;
         return <Badge variant="secondary">Bloqueada</Badge>;
       },
     },
@@ -210,6 +333,16 @@ export function FirmasUsuariosPage() {
       header: '',
       cell: ({ row }) => (
         <div className="flex justify-end gap-1.5">
+          {row.original.enComprobacion && (
+            <Button
+              size="sm"
+              className="h-8 gap-1.5 bg-purple-600 text-white hover:bg-purple-700"
+              onClick={() => handleVerComprobacion(row.original)}
+            >
+              <IdCard className="h-3.5 w-3.5" />
+              Comprobar
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -223,7 +356,7 @@ export function FirmasUsuariosPage() {
             size="sm"
             variant="outline"
             className="h-8 gap-1.5"
-            disabled={row.original.firmaCambioHabilitado}
+            disabled={row.original.firmaCambioHabilitado || row.original.enComprobacion || !row.original.firmaPath}
             onClick={() => {
               setSelected(row.original);
               setConfirmOpen(true);
@@ -242,8 +375,9 @@ export function FirmasUsuariosPage() {
       <Card>
         <CardContent className="p-4">
           <p className="text-sm text-muted-foreground">
-            Solo la primera firma es libre. Para reemplazos, habilita el cambio
-            aquí (se consume en un solo uso).
+            Toda firma (nueva o cambio) pasa por comprobación: compara la firma
+            enviada con la foto del INE y aprueba o rechaza con motivo. Para
+            cambios, primero habilita la opción aquí (se consume al remitir).
           </p>
         </CardContent>
       </Card>
@@ -314,6 +448,127 @@ export function FirmasUsuariosPage() {
       </Modal>
 
       <Modal
+        id="modal-comprobacion-firma"
+        open={comprobacionOpen}
+        setOpen={(o) => {
+          if (!o) cerrarComprobacion();
+        }}
+        title="Comprobar firma"
+        subtitle={comprobacionUsuario?.nombreCompleto}
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-2 pt-2">
+            {rechazando ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isResolviendo}
+                  onClick={() => {
+                    setRechazando(false);
+                    setMotivoRechazo('');
+                  }}
+                >
+                  Volver
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isResolviendo || !motivoRechazo.trim()}
+                  onClick={handleRechazar}
+                >
+                  {isResolviendo && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Confirmar rechazo
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isResolviendo}
+                  onClick={() => setRechazando(true)}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Rechazar
+                </Button>
+                <Button type="button" disabled={isResolviendo} onClick={handleAprobar}>
+                  {isResolviendo ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                  )}
+                  Aprobar firma
+                </Button>
+              </>
+            )}
+          </div>
+        }
+      >
+        {comprobacionUsuario && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">
+              Compara la firma enviada con la del INE
+              {comprobacionUsuario.fechaRemision
+                ? ` (remitida el ${new Date(comprobacionUsuario.fechaRemision).toLocaleString()})`
+                : ''}
+              . Al aprobar, la firma queda activa; al rechazar, ambas imágenes se eliminan.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Firma enviada
+                </p>
+                <div className="flex h-48 items-center justify-center rounded-lg border bg-white p-3">
+                  {firmaThumbUrl(comprobacionUsuario.firmaPendientePath) ? (
+                    <img
+                      src={firmaThumbUrl(comprobacionUsuario.firmaPendientePath)!}
+                      alt="Firma pendiente"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Sin firma pendiente</span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Foto del INE
+                </p>
+                <div className="flex h-48 items-center justify-center rounded-lg border bg-white p-3">
+                  {loadingIne ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : ineBlobUrl ? (
+                    <img
+                      src={ineBlobUrl}
+                      alt="Foto del INE"
+                      className="max-h-full max-w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-muted-foreground">INE no disponible</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            {rechazando && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-muted-foreground">
+                  Motivo del rechazo (obligatorio, se notifica al usuario)
+                </p>
+                <Textarea
+                  value={motivoRechazo}
+                  onChange={(e) => setMotivoRechazo(e.target.value)}
+                  placeholder="Ej. La firma no coincide con la del INE"
+                  rows={3}
+                  disabled={isResolviendo}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      <Modal
         id="modal-historial-firma"
         open={historialOpen}
         setOpen={setHistorialOpen}
@@ -361,6 +616,9 @@ export function FirmasUsuariosPage() {
                     <p className="text-xs text-muted-foreground">
                       {e.nombreUsuario ?? `Usuario #${e.idUsuario}`}
                     </p>
+                    {e.accion === 'rechazo' && e.motivo && (
+                      <p className="mt-0.5 text-xs text-red-700">Motivo: {e.motivo}</p>
+                    )}
                   </div>
                 </li>
               );

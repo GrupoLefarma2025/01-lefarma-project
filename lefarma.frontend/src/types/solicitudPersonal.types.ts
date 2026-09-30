@@ -266,6 +266,15 @@ export interface IncidenciaChecadoResponse {
   tipoSolicitudNombre?: string | null;
 }
 
+/**
+ * Respuesta de "mis incidencias". Si checaDeshabilitado es true, el empleado
+ * nunca tendrá incidencias (tiene Checa = "No") y la lista viene vacía.
+ */
+export interface MisIncidenciasChecadoResponse {
+  checaDeshabilitado: boolean;
+  incidencias: IncidenciaChecadoResponse[];
+}
+
 export interface CalendarioLaboralRequest {
   anio?: number;
   mes?: number;

@@ -102,13 +102,14 @@ public class ProfileController : ControllerBase
     }
 
     [HttpPost("firma")]
-    [SwaggerOperation(Summary = "Subir firma digital")]
+    [SwaggerOperation(Summary = "Subir firma digital con foto de INE (queda en comprobación por RH)")]
     [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
-    [RequestSizeLimit(5_000_000)]
+    [RequestSizeLimit(8_000_000)]
     public async Task<IActionResult> UploadSignature(
         IFormFile file,
+        IFormFile ine,
         CancellationToken cancellationToken = default)
     {
         var userId = GetAuthenticatedUserId();
@@ -126,12 +127,19 @@ public class ProfileController : ControllerBase
                 Message = "No se seleccionó ningún archivo"
             });
 
-        var result = await _profileService.UploadSignatureAsync(userId.Value, file, file.FileName, file.ContentType, cancellationToken);
+        if (ine == null || ine.Length == 0)
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Debes adjuntar una foto de tu INE para comprobación"
+            });
+
+        var result = await _profileService.UploadSignatureAsync(userId.Value, file, ine, file.FileName, file.ContentType, cancellationToken);
         return result.ToActionResult(this, url => Ok(new ApiResponse<string>
         {
             Success = true,
             Data = url,
-            Message = "Firma subida exitosamente"
+            Message = "Firma enviada a comprobación de Recursos Humanos"
         }));
     }
 

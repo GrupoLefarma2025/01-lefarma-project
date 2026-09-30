@@ -5,7 +5,7 @@ import { ApiResponse } from '@/types/api.types';
 import { Usuario } from '@/types/usuario.types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon, Lock, Info, Send, ShieldCheck } from 'lucide-react';
+import { Loader2, PenLine, Upload, ImagePlus, Crop, RotateCcwIcon, Lock, Info, Send, ShieldCheck, Hourglass, IdCard } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -21,6 +21,7 @@ import type { ChangeEvent } from 'react';
 import { toApiError } from '@/utils/errors';
 
 const MAX_FIRMA_SIZE = 2 * 1024 * 1024;
+const MAX_INE_SIZE = 5 * 1024 * 1024;
 
 export function FirmaUploadCard() {
   const { hasFirma, fetchProfileSignature } = useAuthStore();
@@ -33,12 +34,16 @@ export function FirmaUploadCard() {
   const [firmaSubidas, setFirmaSubidas] = useState(0);
   const [firmaCambioHabilitado, setFirmaCambioHabilitado] = useState(false);
   const [firmaCambioSolicitado, setFirmaCambioSolicitado] = useState(false);
+  const [firmaEnComprobacion, setFirmaEnComprobacion] = useState(false);
   const [fechaSolicitudCambio, setFechaSolicitudCambio] = useState<string | null>(null);
   const [isSolicitando, setIsSolicitando] = useState(false);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [pendingFirmaFile, setPendingFirmaFile] = useState<File | null>(null);
   const [pendingFirmaUrl, setPendingFirmaUrl] = useState<string | null>(null);
+  const [ineFile, setIneFile] = useState<File | null>(null);
+  const [inePreviewUrl, setInePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ineInputRef = useRef<HTMLInputElement>(null);
 
   const fetchFirmaPreview = async () => {
     try {
@@ -51,6 +56,7 @@ export function FirmaUploadCard() {
         setFirmaSubidas(detalle?.firmaSubidas ?? 0);
         setFirmaCambioHabilitado(detalle?.firmaCambioHabilitado ?? false);
         setFirmaCambioSolicitado(detalle?.firmaCambioSolicitado ?? false);
+        setFirmaEnComprobacion(detalle?.firmaEnComprobacion ?? false);
         setFechaSolicitudCambio(detalle?.fechaSolicitudCambioFirma ?? null);
       }
     } catch {
@@ -62,12 +68,13 @@ export function FirmaUploadCard() {
     fetchFirmaPreview();
   }, []);
 
-  // Liberar el object URL de la firma pendiente al desmontar (evitar fugas).
+  // Liberar los object URL pendientes al desmontar (evitar fugas).
   useEffect(() => {
     return () => {
       if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
+      if (inePreviewUrl) URL.revokeObjectURL(inePreviewUrl);
     };
-  }, [pendingFirmaUrl]);
+  }, [pendingFirmaUrl, inePreviewUrl]);
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,19 +96,20 @@ export function FirmaUploadCard() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const uploadFirma = async (file: File): Promise<boolean> => {
+  const uploadFirma = async (file: File, ine: File): Promise<boolean> => {
     setIsUploadingFirma(true);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('ine', ine);
 
       const apiResponse = await API.post('/profile/firma', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
       if (apiResponse.data.success) {
-        toast.success('Firma subida exitosamente');
+        toast.success('Firma enviada a comprobación de Recursos Humanos');
         await fetchFirmaPreview();
         await fetchProfileSignature();
         return true;
@@ -134,6 +142,35 @@ export function FirmaUploadCard() {
     if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
     setPendingFirmaFile(null);
     setPendingFirmaUrl(null);
+    descartarIne();
+  };
+
+  const descartarIne = () => {
+    if (inePreviewUrl) URL.revokeObjectURL(inePreviewUrl);
+    setIneFile(null);
+    setInePreviewUrl(null);
+    if (ineInputRef.current) ineInputRef.current.value = '';
+  };
+
+  const handleIneSelect = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/png', 'image/jpeg'].includes(file.type)) {
+      toast.error('La foto del INE solo puede ser PNG o JPG.');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > MAX_INE_SIZE) {
+      toast.error('La foto del INE no puede superar 5 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    if (inePreviewUrl) URL.revokeObjectURL(inePreviewUrl);
+    setIneFile(file);
+    setInePreviewUrl(URL.createObjectURL(file));
   };
 
   // Volver (o X/Esc): cierra solo el confirm; el recorte/pad queda abierto con lo editado.
@@ -145,7 +182,12 @@ export function FirmaUploadCard() {
   const handleConfirmarEnvio = async () => {
     if (!pendingFirmaFile) return;
 
-    const ok = await uploadFirma(pendingFirmaFile);
+    if (!ineFile) {
+      toast.error('Adjunta una foto de tu INE para enviar la firma a comprobación.');
+      return;
+    }
+
+    const ok = await uploadFirma(pendingFirmaFile, ineFile);
     if (!ok) return; // El dialog queda abierto para reintentar.
 
     setConfirmDialogOpen(false);
@@ -214,7 +256,26 @@ export function FirmaUploadCard() {
           {isUploadingFirma ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <p className="ml-2 text-sm text-muted-foreground">Subiendo firma...</p>
+              <p className="ml-2 text-sm text-muted-foreground">Enviando firma a comprobación...</p>
+            </div>
+          ) : firmaEnComprobacion ? (
+            <div className="space-y-3">
+              {firmaPreviewUrl && (
+                <div className="relative flex justify-center rounded-lg border bg-muted/30 p-4">
+                  <img
+                    src={firmaPreviewUrl}
+                    alt="Firma digital"
+                    className="max-h-32 max-w-full object-contain"
+                  />
+                </div>
+              )}
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <Hourglass className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  Tu firma está en comprobación por Recursos Humanos. Te
+                  avisaremos cuando sea aprobada o rechazada.
+                </p>
+              </div>
             </div>
           ) : hasFirma ? (
             <div className="space-y-3">
@@ -371,7 +432,9 @@ export function FirmaUploadCard() {
               <ShieldCheck className="h-5 w-5" />
               Confirma tu firma
             </DialogTitle>
-            <DialogDescription>¿Estás seguro de tu firma? Así quedará registrada.</DialogDescription>
+            <DialogDescription>
+              Recursos Humanos comprobará tu firma contra tu INE antes de activarla.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             {pendingFirmaUrl && (
@@ -383,12 +446,57 @@ export function FirmaUploadCard() {
                 />
               </div>
             )}
+
+            <input
+              ref={ineInputRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              className="hidden"
+              onChange={handleIneSelect}
+            />
+            {inePreviewUrl ? (
+              <div className="space-y-2">
+                <div className="flex justify-center rounded-lg border bg-white p-3">
+                  <img
+                    src={inePreviewUrl}
+                    alt="Foto del INE"
+                    className="max-h-32 max-w-full object-contain"
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={isUploadingFirma}
+                    onClick={() => ineInputRef.current?.click()}
+                  >
+                    Cambiar foto del INE
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                disabled={isUploadingFirma}
+                onClick={() => ineInputRef.current?.click()}
+                className="flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 bg-muted/10 p-4 transition-colors hover:border-primary/50 hover:bg-muted/20"
+              >
+                <IdCard className="mb-1 h-6 w-6 text-muted-foreground" />
+                <p className="text-sm font-medium text-muted-foreground">
+                  Adjunta una foto de tu INE
+                </p>
+                <p className="text-xs text-muted-foreground/70">PNG o JPG — máximo 5 MB</p>
+              </button>
+            )}
+
             <p className="text-xs text-muted-foreground">
               {firmaSubidas === 0
                 ? 'Solo puedes registrar tu firma libremente una vez. Cambios posteriores requieren autorización de Recursos Humanos.'
                 : firmaCambioHabilitado
-                  ? 'Este cambio fue habilitado por Recursos Humanos, es de un solo uso y se consumirá al guardar.'
-                  : 'Verifica que tu firma sea legible y correcta antes de guardar.'}
+                  ? 'Este cambio fue habilitado por Recursos Humanos, es de un solo uso y se consumirá al enviar.'
+                  : 'Verifica que tu firma sea legible y correcta antes de enviar.'}
+              {' '}Mientras esté en comprobación no podrás cerrar solicitudes personales.
             </p>
             <div className="flex justify-end gap-2">
               <Button
@@ -403,7 +511,7 @@ export function FirmaUploadCard() {
               <Button
                 type="button"
                 size="sm"
-                disabled={isUploadingFirma || !pendingFirmaFile}
+                disabled={isUploadingFirma || !pendingFirmaFile || !ineFile}
                 onClick={handleConfirmarEnvio}
               >
                 {isUploadingFirma ? (
@@ -411,7 +519,7 @@ export function FirmaUploadCard() {
                 ) : (
                   <Send className="mr-2 h-4 w-4" />
                 )}
-                Sí, guardar firma
+                Enviar a comprobación
               </Button>
             </div>
           </div>

@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using ErrorOr;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
 using Lefarma.API.Domain.Interfaces.Config;
@@ -326,6 +327,182 @@ public class SolicitudPersonalFirmasServiceTests
         var interfase = asokam.DocumentosInterfaseSolicitud.Single();
         interfase.IdDocumentoFirmar.Should().Be(documento.Id);
         interfase.IdEnvio.Should().Be(envio.IdEnvio);
+    }
+
+    [Fact]
+    public async Task EnviarDirector_Guarda_Soporte_Y_Metadata_De_Correo()
+    {
+        var context = CreateInMemoryContext();
+        var asokam = CreateAsokamInMemoryContext();
+
+        context.WorkflowTiposAccion.Add(new WorkflowTipoAccion
+        {
+            IdTipoAccion = 1,
+            Codigo = "ENVIAR_DIRECTOR",
+            Nombre = "Enviar al director",
+            CodigoProceso = "SOLICITUD_PERSONAL",
+            Activo = true
+        });
+        context.WorkflowAcciones.Add(new WorkflowAccion
+        {
+            IdAccion = 100,
+            IdPasoOrigen = 10,
+            IdTipoAccion = 1,
+            Activo = true
+        });
+        context.WorkflowPasos.Add(new WorkflowPaso
+        {
+            IdPaso = 10,
+            IdWorkflow = 1,
+            Orden = 1,
+            NombrePaso = "Inicio",
+            EsInicio = true,
+            Activo = true,
+            RequiereAdjunto = false
+        });
+        context.Workflows.Add(new Workflow
+        {
+            IdWorkflow = 1,
+            Nombre = "SP",
+            CodigoProceso = "SOLICITUD_PERSONAL",
+            Activo = true,
+            Version = 1,
+            FechaCreacion = DateTime.Now
+        });
+        var solicitud = new SolicitudPersonal
+        {
+            IdSolicitud = 1,
+            Folio = "SOL-1",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 123,
+            IdUsuarioSolicitante = 123,
+            IdEstado = 1,
+            IdWorkflow = 1,
+            IdPasoActual = 10,
+            IdTipoSolicitud = 11,
+            FechaCreacion = DateTime.Now
+        };
+        context.SolicitudesPersonal.Add(solicitud);
+        await context.SaveChangesAsync();
+
+        asokam.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 123,
+            SamAccountName = "10",
+            Dominio = "Grupolefarma",
+            NombreCompleto = "Usuario Prueba",
+            Correo = "10@grupolefarma.com.mx",
+            EsActivo = true
+        });
+        await asokam.SaveChangesAsync();
+
+        var solicitudRepo = new Mock<ISolicitudPersonalRepository>();
+        solicitudRepo.Setup(r => r.GetByIdAsync(It.IsAny<int>())).ReturnsAsync(solicitud);
+
+        var engine = new Mock<IWorkflowEngine>();
+        engine.Setup(e => e.EjecutarAccionAsync(It.IsAny<WorkflowContext>()))
+            .ReturnsAsync(new WorkflowEjecucionResult(
+                Exitoso: true, Error: null, NuevoIdPaso: 10, NuevoIdEstado: null));
+
+        var workflowRepo = new Mock<IWorkflowRepository>();
+        workflowRepo.Setup(r => r.GetQueryable()).Returns(context.Workflows);
+
+        var queryService = new Mock<IWorkflowQueryService>();
+        queryService.Setup(q => q.GetAccionesDisponiblesAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string>(),
+                It.IsAny<IWorkflowEntity>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<AccionDisponibleResponse>
+            {
+                new() { IdAccion = 100, IdTipoAccion = 1, TipoAccionCodigo = "ENVIAR_DIRECTOR" }
+            });
+
+        var profileService = new Mock<IProfileService>();
+        profileService.Setup(p => p.HasFirmaAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService(
+            context, asokam, solicitudRepo.Object, CreateTipoRepositoryMock().Object,
+            engine.Object, workflowRepo.Object, queryService.Object, profileService.Object);
+
+        static Mock<IFormFile> CrearArchivo(byte[] bytes, string nombre)
+        {
+            var archivo = new Mock<IFormFile>();
+            archivo.Setup(f => f.FileName).Returns(nombre);
+            archivo.Setup(f => f.Length).Returns(bytes.Length);
+            archivo.Setup(f => f.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+                .Returns<Stream, CancellationToken>((stream, _) =>
+                {
+                    stream.Write(bytes, 0, bytes.Length);
+                    return Task.CompletedTask;
+                });
+            return archivo;
+        }
+
+        var pdfBytes = new byte[] { 0x25, 0x50, 0x44, 0x46 };
+        var soporteBytes = new byte[] { 0x53, 0x4F, 0x50 };
+
+        var result = await service.EnviarDirectorAsync(1, new EnviarDirectorRequest
+        {
+            IdAccion = 100,
+            Comentario = "Envío con soporte",
+            ArchivoPdf = CrearArchivo(pdfBytes, "SOL-1.pdf").Object,
+            Correo = "41@grupolefarma.com.mx",
+            CorreoCC = "6@grupolefarma.com.mx",
+            TieneDocumentoSoporte = true,
+            ArchivoSoporte = CrearArchivo(soporteBytes, "soporte.pdf").Object
+        }, idUsuario: 123);
+
+        result.IsError.Should().BeFalse(
+            $"errores: {string.Join(" | ", result.Errors.Select(e => $"{e.Code}: {e.Description}"))}");
+
+        var documento = asokam.Documentos.Single();
+        documento.TieneDocumentoLigado.Should().BeTrue();
+        documento.PDFBinarioAdicional.Should().Equal(soporteBytes);
+        documento.SubidoPorUsuario.Should().Be("10@grupolefarma.com.mx");
+        documento.MetadataJSON.Should().NotBeNull();
+        using var metadata = JsonDocument.Parse(documento.MetadataJSON!);
+        metadata.RootElement.GetProperty("to").GetString().Should().Be("41@grupolefarma.com.mx");
+        metadata.RootElement.GetProperty("cc").GetString().Should().Be("6@grupolefarma.com.mx");
+    }
+
+    [Fact]
+    public async Task EnviarDirector_Rechaza_Soporte_No_Pdf()
+    {
+        var context = CreateInMemoryContext();
+        var asokam = CreateAsokamInMemoryContext();
+
+        var profileService = new Mock<IProfileService>();
+        profileService.Setup(p => p.HasFirmaAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+
+        var service = CreateService(
+            context, asokam,
+            Mock.Of<ISolicitudPersonalRepository>(),
+            CreateTipoRepositoryMock().Object,
+            Mock.Of<IWorkflowEngine>(),
+            Mock.Of<IWorkflowRepository>(),
+            Mock.Of<IWorkflowQueryService>(),
+            profileService.Object);
+
+        static Mock<IFormFile> CrearArchivo(byte[] bytes, string nombre)
+        {
+            var archivo = new Mock<IFormFile>();
+            archivo.Setup(f => f.FileName).Returns(nombre);
+            archivo.Setup(f => f.Length).Returns(bytes.Length);
+            return archivo;
+        }
+
+        var result = await service.EnviarDirectorAsync(1, new EnviarDirectorRequest
+        {
+            IdAccion = 100,
+            ArchivoPdf = CrearArchivo(new byte[] { 0x25, 0x50, 0x44, 0x46 }, "SOL-1.pdf").Object,
+            TieneDocumentoSoporte = true,
+            ArchivoSoporte = CrearArchivo(new byte[] { 1, 2, 3 }, "soporte.docx").Object
+        }, idUsuario: 123);
+
+        result.IsError.Should().BeTrue();
+        result.FirstError.Code.Should().Be("Validation.ArchivoSoporte");
     }
 
     [Fact]

@@ -58,7 +58,7 @@ export default function SolicitudesPersonal() {
     'Solicitudes de personal para autorización y seguimiento'
   );
   const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
-  const { hasFirma, fetchProfileSignature } = useAuthStore();
+  const { hasFirma, firmaEnComprobacion, fetchProfileSignature } = useAuthStore();
 
   const {
     selectedSolicitud,
@@ -561,8 +561,8 @@ export default function SolicitudesPersonal() {
           }
           return ok;
         }}
-        onEnviarDirector={async (req, pdfBlob) => {
-          const ok = await enviarDirector(req, pdfBlob);
+        onEnviarDirector={async (req, pdfBlob, archivoSoporte) => {
+          const ok = await enviarDirector(req, pdfBlob, archivoSoporte);
           if (ok) {
             await Promise.all([
               fetchTabData('pendientes', appliedFiltersByTab.pendientes),
@@ -574,6 +574,7 @@ export default function SolicitudesPersonal() {
         }}
         isSubmittingFirma={isSubmittingFirma}
         hasFirma={hasFirma ?? true}
+        firmaEnComprobacion={firmaEnComprobacion ?? false}
       />
 
       <Modal

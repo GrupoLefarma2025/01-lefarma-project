@@ -28,6 +28,17 @@ public class IncidenciaChecadoResponse
     public string? TipoSolicitudNombre { get; set; }
 }
 
+/// <summary>
+/// Respuesta de "mis incidencias". Si el empleado tiene el checado deshabilitado
+/// (Checa = "No") no se consultan incidencias: nunca tendrá, y el frontend muestra
+/// el aviso correspondiente.
+/// </summary>
+public class MisIncidenciasChecadoResponse
+{
+    public bool ChecaDeshabilitado { get; set; }
+    public List<IncidenciaChecadoResponse> Incidencias { get; set; } = new();
+}
+
 public class IncidenciaCalculadaDto
 {
     public string TipoIncidencia { get; set; } = string.Empty;

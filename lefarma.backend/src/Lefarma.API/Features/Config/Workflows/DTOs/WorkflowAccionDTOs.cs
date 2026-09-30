@@ -96,6 +96,10 @@ public class EnviarDirectorRequest
     public int IdAccion { get; set; }
     public string? Comentario { get; set; }
     public required IFormFile ArchivoPdf { get; set; }
+    public string? Correo { get; set; }
+    public string? CorreoCC { get; set; }
+    public bool TieneDocumentoSoporte { get; set; }
+    public IFormFile? ArchivoSoporte { get; set; }
 }
 
 public class EnviarDirectorResponse

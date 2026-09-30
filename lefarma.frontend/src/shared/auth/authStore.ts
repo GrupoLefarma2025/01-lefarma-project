@@ -69,6 +69,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   areas: [],
   area: null,
   hasFirma: null,
+  firmaEnComprobacion: null,
   puedeSeleccionarEmpresas: false,
   usuarioDetalle: null,
   profileError: null,
@@ -354,6 +355,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       sucursales: [],
       areas: [],
       hasFirma: null,
+      firmaEnComprobacion: null,
       puedeSeleccionarEmpresas: false,
       usuarioDetalle: null,
     });
@@ -434,10 +436,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (profileInflight) return profileInflight;
     profileInflight = (async () => {
       try {
-        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string } }>>('/profile');
-        const firmaPath = response.data.data?.detalle?.firmaPath;
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+        const detalle = response.data.data?.detalle;
+        const firmaPath = detalle?.firmaPath;
         const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
-        set({ hasFirma: !!firmaPath, puedeSeleccionarEmpresas: puedeSeleccionar });
+        set({ hasFirma: !!firmaPath, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
       } catch {
         set({ hasFirma: false });
       } finally {
@@ -454,7 +457,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   loadProfile: async () => {
     try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string } }>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaEnComprobacion?: boolean } }>>('/profile');
       const data = response.data.data;
       const detalle = data?.detalle;
       set({
@@ -467,6 +470,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           : null,
         puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
         hasFirma: detalle ? !!detalle.firmaPath : false,
+        firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false,
         profileError: null,
       });
     } catch {
@@ -509,6 +513,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         sucursales: [],
         areas: [],
         hasFirma: null,
+        firmaEnComprobacion: null,
         puedeSeleccionarEmpresas: false,
       });
 

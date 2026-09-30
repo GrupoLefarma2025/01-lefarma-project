@@ -17,6 +17,14 @@ public class FirmaUsuarioResponse
     public bool FirmaCambioSolicitado { get; set; }
     public DateTime? FechaSolicitudCambioFirma { get; set; }
 
+    /// <summary>Hay una firma con INE esperando aprobación de RH.</summary>
+    public bool EnComprobacion { get; set; }
+    public DateTime? FechaRemision { get; set; }
+    /// <summary>La remisión en comprobación tiene foto de INE disponible.</summary>
+    public bool TieneIne { get; set; }
+    /// <summary>Ruta relativa (bajo /media/archivos) de la firma pendiente de aprobación.</summary>
+    public string? FirmaPendientePath { get; set; }
+
     public int? IdUsuarioHabilito { get; set; }
     public string? NombreUsuarioHabilito { get; set; }
     public DateTime? FechaHabilitoFirma { get; set; }
@@ -27,9 +35,29 @@ public class FirmaUsuarioResponse
 /// </summary>
 public class FirmaHistorialEventoResponse
 {
-    /// <summary>subida | eliminacion | solicitud | habilitacion</summary>
+    /// <summary>subida | eliminacion | solicitud | habilitacion | remision | aprobacion | rechazo</summary>
     public string Accion { get; set; } = string.Empty;
     public DateTime Fecha { get; set; }
     public int IdUsuario { get; set; }
     public string? NombreUsuario { get; set; }
+    /// <summary>Solo en rechazo: motivo indicado por RH.</summary>
+    public string? Motivo { get; set; }
+}
+
+/// <summary>
+/// Request para rechazar una firma en comprobación.
+/// </summary>
+public class RechazarFirmaRequest
+{
+    public string Motivo { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Foto de INE de una remisión en comprobación (para endpoint autenticado).
+/// </summary>
+public class IneArchivoResponse
+{
+    public byte[] Contenido { get; set; } = [];
+    public string ContentType { get; set; } = "application/octet-stream";
+    public string NombreArchivo { get; set; } = string.Empty;
 }
