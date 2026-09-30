@@ -453,7 +453,7 @@ public class IncidenciasChecadoServiceTests
     }
 
     [Fact]
-    public async Task GetIncidenciasPorEmpleadoAsync_No_Justifica_Con_Solicitudes_De_Otra_Categoria()
+    public async Task GetIncidenciasPorEmpleadoAsync_Justifica_Con_Solicitud_De_Vacaciones_Cerrada()
     {
         var asistencias = CreateAsistenciasContext();
         SeedIncidencia(asistencias, new DateTime(2026, 9, 12));
@@ -470,8 +470,32 @@ public class IncidenciasChecadoServiceTests
 
         result.IsError.Should().BeFalse();
         var item = result.Value.Single();
-        item.Justificada.Should().BeFalse();
+        item.Justificada.Should().BeTrue();
         item.EnTramite.Should().BeFalse();
-        item.IdSolicitud.Should().BeNull();
+        item.IdSolicitud.Should().Be(30);
+        item.TipoSolicitudNombre.Should().Be("Vacaciones");
+    }
+
+    [Fact]
+    public async Task GetIncidenciasPorEmpleadoAsync_Marca_EnTramite_Con_Solicitud_De_Vacaciones_Abierta()
+    {
+        var asistencias = CreateAsistenciasContext();
+        SeedIncidencia(asistencias, new DateTime(2026, 9, 12));
+        await asistencias.SaveChangesAsync();
+
+        var lefarma = CreateLefarmaContext();
+        SeedSolicitudVacaciones(
+            lefarma, 31, new DateTime(2026, 9, 12), null, "EN_PROCESO", new DateTime(2026, 9, 12));
+
+        var service = CreateService(asistencias, lefarma);
+
+        var result = await service.GetIncidenciasPorEmpleadoAsync(
+            Nomina, new DateTime(2026, 9, 1), new DateTime(2026, 9, 30), 100);
+
+        result.IsError.Should().BeFalse();
+        var item = result.Value.Single();
+        item.Justificada.Should().BeFalse();
+        item.EnTramite.Should().BeTrue();
+        item.IdSolicitud.Should().Be(31);
     }
 }

@@ -603,7 +603,6 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
                 && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
                 && s.TipoSolicitud != null
-                && s.TipoSolicitud.Categoria == CategoriaSolicitud.Incidencia
                 && s.FechaInicio.Value.Date <= fechaMax.Date
                 && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= fechaMin.Date))
             .Select(s => new
