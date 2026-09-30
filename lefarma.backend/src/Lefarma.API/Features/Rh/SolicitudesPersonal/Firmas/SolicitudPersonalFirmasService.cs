@@ -115,6 +115,18 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
                 .FirstOrDefault(a => a.IdAccion == request.IdAccion && a.Activo);
             var codigoAccionSolicitada = accionSolicitada?.TipoAccion?.Codigo;
 
+            // 4a. CERRAR queda bloqueado mientras el usuario tenga una firma en comprobación por RH.
+            if (codigoAccionSolicitada == "CERRAR")
+            {
+                var enComprobacion = await _profileService.TieneFirmaEnComprobacionAsync(idUsuario);
+                if (enComprobacion.IsError)
+                    return enComprobacion.Errors;
+
+                if (enComprobacion.Value)
+                    return CommonErrors.Validation("Firma.EnComprobacion",
+                        "Tu firma digital está en comprobación por Recursos Humanos. No puedes cerrar solicitudes hasta que sea resuelta.");
+            }
+
                 var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
                     pasoActual, solicitud.IdWorkflow, idUsuario, solicitud.IdUsuarioCreador, _asokamContext, _jefeInmediatoResolver,
                     codigoAccion: codigoAccionSolicitada,

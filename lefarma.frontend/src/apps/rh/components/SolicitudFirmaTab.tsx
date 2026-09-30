@@ -20,6 +20,8 @@ interface SolicitudFirmaTabProps {
   onAccionClick: (accion: AccionDisponibleResponse) => void;
   isSubmittingFirma?: boolean;
   hasFirma?: boolean;
+  /** La firma del usuario está en comprobación por RH: CERRAR queda bloqueado. */
+  firmaEnComprobacion?: boolean;
 }
 
 export function SolicitudFirmaTab({
@@ -27,10 +29,19 @@ export function SolicitudFirmaTab({
   onAccionClick,
   isSubmittingFirma,
   hasFirma = true,
+  firmaEnComprobacion = false,
 }: SolicitudFirmaTabProps) {
+  const cerrarBloqueado = firmaEnComprobacion && acciones.some((a) => a.tipoAccionCodigo === 'CERRAR');
+
   return (
     <div className="space-y-3">
       {hasFirma === false && <SignatureAlert />}
+      {cerrarBloqueado && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+          Tu firma digital está en comprobación por Recursos Humanos. No puedes
+          cerrar solicitudes hasta que sea resuelta.
+        </div>
+      )}
       <div className="rounded-lg border border-blue-200 bg-blue-50/80 p-3 dark:border-blue-800 dark:bg-blue-950/20">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -50,21 +61,32 @@ export function SolicitudFirmaTab({
                 No hay acciones disponibles por ahora
               </span>
             ) : (
-              acciones.map((a) => (
-                <Button
-                  key={a.idAccion}
-                  size="sm"
-                  className={
-                    actionStyles[a.tipoAccionCodigo ?? ''] ??
-                    'bg-blue-600 text-white hover:bg-blue-700'
-                  }
-                  onClick={() => onAccionClick(a)}
-                  disabled={isSubmittingFirma || hasFirma === false}
-                >
-                  {isSubmittingFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
-                  {a.tipoAccionNombre}
-                </Button>
-              ))
+              acciones.map((a) => {
+                const esCerrarBloqueado =
+                  firmaEnComprobacion && a.tipoAccionCodigo === 'CERRAR';
+                return (
+                  <Button
+                    key={a.idAccion}
+                    size="sm"
+                    className={
+                      actionStyles[a.tipoAccionCodigo ?? ''] ??
+                      'bg-blue-600 text-white hover:bg-blue-700'
+                    }
+                    title={
+                      esCerrarBloqueado
+                        ? 'Tu firma está en comprobación por Recursos Humanos'
+                        : undefined
+                    }
+                    onClick={() => onAccionClick(a)}
+                    disabled={
+                      isSubmittingFirma || hasFirma === false || esCerrarBloqueado
+                    }
+                  >
+                    {isSubmittingFirma ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+                    {a.tipoAccionNombre}
+                  </Button>
+                );
+              })
             )}
           </div>
         </div>

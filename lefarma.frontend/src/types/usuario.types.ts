@@ -13,6 +13,8 @@ export interface UsuarioDetalle {
   firmaSubidas?: number;
   firmaCambioHabilitado?: boolean;
   firmaCambioSolicitado?: boolean;
+  /** Hay una firma con INE esperando aprobación de RH. */
+  firmaEnComprobacion?: boolean;
   fechaSolicitudCambioFirma?: string;
   telefonoOficina?: string;
   extension?: string;

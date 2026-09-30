@@ -10,7 +10,6 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Lefarma.API.Shared.Logging;
 using Lefarma.API.Shared.Services;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -26,7 +25,6 @@ public class ProfileService : BaseService, IProfileService
     private readonly UserPermissionService _permissionService;
     private readonly INotificationService _notificationService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
-    private readonly IWebHostEnvironment _env;
     protected override string EntityName => "Profile";
 
     public ProfileService(
@@ -35,7 +33,6 @@ public class ProfileService : BaseService, IProfileService
         UserPermissionService permissionService,
         INotificationService notificationService,
         IOptions<ArchivosSettings> archivosSettings,
-        IWebHostEnvironment env,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -44,7 +41,6 @@ public class ProfileService : BaseService, IProfileService
         _permissionService = permissionService;
         _notificationService = notificationService;
         _archivosSettings = archivosSettings;
-        _env = env;
     }
 
     public async Task<ErrorOr<ProfileResponse>> GetProfileAsync(int userId, CancellationToken cancellationToken = default)
@@ -112,6 +108,7 @@ public class ProfileService : BaseService, IProfileService
                     FirmaSubidas = firmaSubidasEfectivas,
                     FirmaCambioHabilitado = firmaControl.CambioHabilitado,
                     FirmaCambioSolicitado = firmaControl.SolicitudPendiente,
+                    FirmaEnComprobacion = firmaControl.EnComprobacion,
                     FechaSolicitudCambioFirma = firmaControl.SolicitudPendiente ? firmaControl.UltimaSolicitud?.Fecha : null,
                     TelefonoOficina = detalle.TelefonoOficina,
                     Extension = detalle.Extension,
@@ -269,7 +266,26 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
-    public async Task<ErrorOr<string>> UploadSignatureAsync(int userId, IFormFile file, string fileName, string contentType, CancellationToken cancellationToken)
+    public async Task<ErrorOr<bool>> TieneFirmaEnComprobacionAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var firmaControlJson = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .Where(ud => ud.IdUsuario == userId)
+                .Select(ud => ud.FirmaControlJson)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return FirmaControl.Parse(firmaControlJson).EnComprobacion;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "TieneFirmaEnComprobacion", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("verificar la comprobación de la firma digital");
+        }
+    }
+
+    public async Task<ErrorOr<string>> UploadSignatureAsync(int userId, IFormFile file, IFormFile ine, string fileName, string contentType, CancellationToken cancellationToken)
     {
         try
         {
@@ -280,45 +296,69 @@ public class ProfileService : BaseService, IProfileService
             if (file.Length > 2 * 1024 * 1024)
                 return CommonErrors.Validation("Firma.Tamaño", "El archivo no puede exceder 2 MB");
 
+            if (ine == null || ine.Length == 0)
+                return CommonErrors.Validation("Ine.Requerida", "Debes adjuntar una foto de tu INE para comprobación.");
+
+            var ineExtension = Path.GetExtension(ine.FileName).ToLowerInvariant();
+            if (ineExtension != ".png" && ineExtension != ".jpg" && ineExtension != ".jpeg")
+                return CommonErrors.Validation("Ine.Extension", "La foto del INE solo puede ser PNG, JPG o JPEG");
+
+            if (ine.Length > 5 * 1024 * 1024)
+                return CommonErrors.Validation("Ine.Tamaño", "La foto del INE no puede exceder 5 MB");
+
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Solo la subida inicial es libre; reemplazos requieren habilitación RH (un solo uso).
+            // Toda firma (primera o cambio habilitado) pasa por comprobación de RH:
+            // se guarda como PENDIENTE y la vigente no cambia hasta la aprobación.
             var control = FirmaControl.Parse(detalle.FirmaControlJson);
             var subidasEfectivas = Math.Max(control.Subidas, string.IsNullOrEmpty(detalle.FirmaPath) ? 0 : 1);
-            if (!FirmaCambioPolicy.PuedeGuardar(subidasEfectivas, control.CambioHabilitado))
+
+            if (control.EnComprobacion)
+                return CommonErrors.Validation("Firma.EnComprobacion",
+                    "Ya tienes una firma en comprobación por Recursos Humanos.");
+
+            if (!control.PuedeEnviarRemision(subidasEfectivas))
                 return CommonErrors.Validation("Firma.CambioBloqueado",
                     "Tu firma ya fue registrada. Solicita a Recursos Humanos que habilite un cambio.");
 
-            if (!string.IsNullOrEmpty(detalle.FirmaPath))
+            var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
+
+            // Firma pendiente: vive bajo BasePath/firmas_usuarios/pendientes hasta que RH resuelva.
+            var pendientesFolder = Path.Combine(_archivosSettings.Value.BasePath, "firmas_usuarios", "pendientes");
+            Directory.CreateDirectory(pendientesFolder);
+
+            var pendienteFileName = $"{userId}_{timestamp}{extension}";
+            var pendienteFullPath = Path.Combine(pendientesFolder, pendienteFileName);
+            await using (var stream = new FileStream(pendienteFullPath, FileMode.Create, FileAccess.Write))
             {
-                var oldPhysicalPath = Path.Combine(_env.WebRootPath, detalle.FirmaPath.TrimStart('/'));
-                if (File.Exists(oldPhysicalPath))
-                    File.Delete(oldPhysicalPath);
+                await file.CopyToAsync(stream, cancellationToken);
+            }
+            var pendienteRelativePath = $"firmas_usuarios/pendientes/{pendienteFileName}";
+
+            // Foto del INE: carpeta privada, solo accesible por endpoint autenticado.
+            var ineFolder = Path.Combine(_archivosSettings.Value.PrivatePath, "ine_usuarios");
+            Directory.CreateDirectory(ineFolder);
+
+            var ineFileName = $"{userId}_{timestamp}{ineExtension}";
+            var ineFullPath = Path.Combine(ineFolder, ineFileName);
+            await using (var stream = new FileStream(ineFullPath, FileMode.Create, FileAccess.Write))
+            {
+                await ine.CopyToAsync(stream, cancellationToken);
             }
 
-            var firmasFolder = "firmas_usuarios";
-            var directoryPath = Path.Combine(_archivosSettings.Value.BasePath, firmasFolder);
-            Directory.CreateDirectory(directoryPath);
-
-            var newFileName = $"{userId}{extension}";
-            var fullPath = Path.Combine(directoryPath, newFileName);
-            await using (var stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
-            {
-                await file.CopyToAsync(stream);
-            }
-
-            var relativePath = $"{firmasFolder}/{newFileName}";
-
-            // La habilitación RH es de un solo uso: se consume sola al registrar la subida
-            // en el historial (el estado derivado vuelve a bloquear).
-            control.AgregarSubida(userId, DateTime.Now);
+            // La remisión consume la habilitación RH (estado derivado del historial).
+            // FirmaPath no se toca: sigue apuntando a la firma vigente.
+            control.AgregarRemision(userId, DateTime.Now, pendienteRelativePath, ineFileName);
             detalle.FirmaControlJson = control.Serialize();
-            detalle.FirmaPath = relativePath;
             detalle.FechaModificacion = DateTime.Now;
             await _appContext.SaveChangesAsync(cancellationToken);
 
-            EnrichWideEvent(action: "UploadSignature", entityId: userId, nombre: newFileName);
-            return relativePath;
+            EnrichWideEvent(action: "UploadSignature", entityId: userId, nombre: pendienteFileName);
+
+            // Avisar a RH que hay una firma en comprobación (no debe romper la remisión si falla).
+            await NotificarRemisionRhAsync(userId, cancellationToken);
+
+            return pendienteRelativePath;
         }
         catch (Exception ex)
         {
@@ -339,12 +379,18 @@ public class ProfileService : BaseService, IProfileService
 
             // Eliminar también cuenta como cambio: requiere habilitación RH si ya registró firma.
             var control = FirmaControl.Parse(detalle.FirmaControlJson);
+
+            if (control.EnComprobacion)
+                return CommonErrors.Validation("Firma.EnComprobacion",
+                    "Tienes una firma en comprobación por Recursos Humanos. Espera la resolución.");
+
             var subidasEfectivas = Math.Max(control.Subidas, 1);
             if (!FirmaCambioPolicy.PuedeGuardar(subidasEfectivas, control.CambioHabilitado))
                 return CommonErrors.Validation("Firma.CambioBloqueado",
                     "Tu firma ya fue registrada. Solicita a Recursos Humanos que habilite un cambio.");
 
-            var oldPhysicalPath = Path.Combine(_env.WebRootPath, detalle.FirmaPath.TrimStart('/'));
+            // La firma vive bajo ArchivosSettings:BasePath (no wwwroot).
+            var oldPhysicalPath = Path.Combine(_archivosSettings.Value.BasePath, detalle.FirmaPath.TrimStart('/'));
             if (File.Exists(oldPhysicalPath))
                 File.Delete(oldPhysicalPath);
 
@@ -445,6 +491,50 @@ public class ProfileService : BaseService, IProfileService
         catch (Exception ex)
         {
             EnrichWideEvent(action: "SolicitarCambioFirma.NotificacionError", entityId: userId, exception: ex);
+        }
+    }
+
+    /// <summary>
+    /// Notifica (in-app + correo) a los usuarios con permiso de habilitar cambios de firma
+    /// que hay una firma con INE esperando comprobación.
+    /// </summary>
+    private async Task NotificarRemisionRhAsync(int userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var nombre = await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => u.IdUsuario == userId)
+                .Select(u => u.NombreCompleto)
+                .FirstOrDefaultAsync(cancellationToken) ?? $"Usuario {userId}";
+
+            var destinatarios = await GetUsuariosConPermisoAsync(
+                Permissions.Usuarios.HabilitarCambioFirma, userId, cancellationToken);
+
+            if (destinatarios.Count == 0)
+            {
+                EnrichWideEvent(action: "RemisionFirma.NotificacionSinDestinatarios", entityId: userId);
+                return;
+            }
+
+            await _notificationService.SendAsync(new SendNotificationRequest
+            {
+                Title = "Firma en comprobación",
+                Message = $"{nombre} envió su firma digital con foto de INE para comprobación. " +
+                          "Revísala en la página de firmas de la aplicación de RH.",
+                Type = "info",
+                Category = "firmas",
+                Priority = "normal",
+                Channels =
+                [
+                    new NotificationChannelRequest { ChannelType = "in-app", UserIds = destinatarios },
+                    new NotificationChannelRequest { ChannelType = "email", UserIds = destinatarios }
+                ]
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "RemisionFirma.NotificacionError", entityId: userId, exception: ex);
         }
     }
 

@@ -121,6 +121,8 @@ export interface AuthState {
   area: Area | null;
 
   hasFirma: boolean | null;
+  /** La firma del usuario está en comprobación por RH (remisión sin resolver). */
+  firmaEnComprobacion: boolean | null;
   puedeSeleccionarEmpresas: boolean;
   usuarioDetalle: { idEmpresa: number; idSucursal: number; idArea: number | null } | null;
   profileError: string | null;

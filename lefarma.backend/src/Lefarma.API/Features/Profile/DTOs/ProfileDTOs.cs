@@ -39,6 +39,8 @@ public record UsuarioDetalleData
     public int FirmaSubidas { get; init; }
     public bool FirmaCambioHabilitado { get; init; }
     public bool FirmaCambioSolicitado { get; init; }
+    /// <summary>Hay una firma con INE esperando aprobación de RH.</summary>
+    public bool FirmaEnComprobacion { get; init; }
     public DateTime? FechaSolicitudCambioFirma { get; init; }
     public string? TelefonoOficina { get; init; }
     public string? Extension { get; init; }

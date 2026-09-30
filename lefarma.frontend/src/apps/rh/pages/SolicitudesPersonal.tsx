@@ -58,7 +58,7 @@ export default function SolicitudesPersonal() {
     'Solicitudes de personal para autorización y seguimiento'
   );
   const puedeEditar = usePermission({ require: 'solicitud_personal.puede_ver_todas' });
-  const { hasFirma, fetchProfileSignature } = useAuthStore();
+  const { hasFirma, firmaEnComprobacion, fetchProfileSignature } = useAuthStore();
 
   const {
     selectedSolicitud,
@@ -574,6 +574,7 @@ export default function SolicitudesPersonal() {
         }}
         isSubmittingFirma={isSubmittingFirma}
         hasFirma={hasFirma ?? true}
+        firmaEnComprobacion={firmaEnComprobacion ?? false}
       />
 
       <Modal
