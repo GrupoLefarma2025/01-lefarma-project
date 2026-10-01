@@ -34,8 +34,8 @@ Local VERSION = 1.1.2, VERSION-STAGING = 1.1.2-rc.3.
 - Límite 400 líneas no aplica (1 línea).
 
 ## Checklist
-- [ ] T1 Subir VERSION a 1.2.0 y commit work-unit en rama feature (solo VERSION)
-- [ ] T2 Publicar 1.2.0 en productivo vía subagente y verificar HTTP 200 + versión
+- [x] T1 Subir VERSION a 1.2.0 y commit work-unit en rama feature (solo VERSION)
+- [x] T2 Publicar 1.2.0 en productivo vía subagente y verificar HTTP 200 + versión
 
 ## Criterios de aceptación
 - `VERSION` contiene `1.2.0`.
@@ -49,12 +49,16 @@ Local VERSION = 1.1.2, VERSION-STAGING = 1.1.2-rc.3.
 
 ## Progreso
 - 2026-10-01: exploración completa (develop, VERSION 1.1.2, plan iis-027 canDeploy=true). Pendiente T1.
+- 2026-10-01: T1 completo en rama feature/version-1-2-0-productivo, commit 0edaf2b2. VERSION=1.2.0, plan confirma expectedVersion 1.2.0 canDeploy=true. .env sucios intactos sin commitear.
+- 2026-10-01: T2 completo deploy prod exit 0. success.json Version 1.2.0 HTTP 200 Pool Started. history incluye 20261001-122920-add1ca91 success true. Review reliability approved y acknowledged (lineage review-c408cf2c131f53ea, authority burned).
 
 ## Evidencia de verificación
-- (pendiente)
+- T1: `Get-Content VERSION` = 1.2.0; `plan -Env prod` expectedVersion 1.2.0 canDeploy=true; commit 0edaf2b2dbd5436867800ea26ce02bc929bbccb6.
+- T2: run cli/runs/20261001-182920-69a5e5ee exit 0; evidencia 192.168.4.2/despliegues/20261001-122920-add1ca91-lefarma success.json Version 1.2.0 HTTP 200 Pool Started ProtectedUnchanged true; manifest 400 archivos, 7 cambiados, 1031 protegidos intactos; backup D:\DevApps\_codex-deploy\20261001-122920-add1ca91-lefarma\backup; solo URL interna http://192.168.4.2:5074.
+- Review: assess medium (executable_change VERSION, 2 paths, 63 líneas, review_due false under_budget); preflight + consent granted + lens review-reliability sin hallazgos + acknowledge-approved acknowledged authority burned.
 
 ## Siguiente paso
-- Ejecutar T1.
+- Listo. Push/PR/merge quedan a decisión del usuario.
 
 ## Locator
 - Archivo: `odd/tasks/version-1-2-0-productivo.md`
