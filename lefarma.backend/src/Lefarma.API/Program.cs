@@ -239,6 +239,20 @@ builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRegionService, 
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IRankingHospitalesService, Lefarma.API.Features.EducacionMedica.Services.RankingHospitalesService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IConfigRankingService, Lefarma.API.Features.EducacionMedica.Services.ConfigRankingService>();
 
+// Costos de ruta (demo aislada fase 1: stateless, sin BD)
+builder.Services.AddHttpClient("costos-osrm", c => { c.Timeout = TimeSpan.FromSeconds(8); });
+builder.Services.AddHttpClient("costos-cne", c => { c.Timeout = TimeSpan.FromSeconds(15); });
+builder.Services.AddHttpClient("costos-overpass", c => { c.Timeout = TimeSpan.FromSeconds(12); });
+builder.Services.AddHttpClient("costos-clickbus", c => { c.Timeout = TimeSpan.FromSeconds(10); });
+builder.Services.AddHttpClient("costos-distribusion", c => { c.Timeout = TimeSpan.FromSeconds(10); });
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IOsrmClient, Lefarma.API.Features.EducacionMedica.OsrmClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IGasolinaClient, Lefarma.API.Features.EducacionMedica.CneGasolinaClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IHotelesClient, Lefarma.API.Features.EducacionMedica.OverpassHotelesClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IClickBusClient, Lefarma.API.Features.EducacionMedica.ClickBusClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IDistribusionClient, Lefarma.API.Features.EducacionMedica.DistribusionClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IVuelosClient, Lefarma.API.Features.EducacionMedica.EstimadoVuelosClient>();
+builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ICostosRutaService, Lefarma.API.Features.EducacionMedica.CostosRutaService>();
+
 builder.Services.AddScoped<IWorkflowNotificationDispatcher, WorkflowNotificationDispatcher>();
 builder.Services.AddScoped<WorkflowReminderService>();
 
