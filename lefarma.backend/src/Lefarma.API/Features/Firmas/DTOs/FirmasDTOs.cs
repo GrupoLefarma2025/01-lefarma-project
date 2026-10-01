@@ -53,9 +53,9 @@ public class RechazarFirmaRequest
 }
 
 /// <summary>
-/// Foto de INE de una remisión en comprobación (para endpoint autenticado).
+/// Archivo protegido descifrado (firma o foto de INE) para servirse por endpoint autenticado.
 /// </summary>
-public class IneArchivoResponse
+public class ArchivoProtegidoResponse
 {
     public byte[] Contenido { get; set; } = [];
     public string ContentType { get; set; } = "application/octet-stream";

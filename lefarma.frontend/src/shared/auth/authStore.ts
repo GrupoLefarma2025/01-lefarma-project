@@ -436,11 +436,11 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (profileInflight) return profileInflight;
     profileInflight = (async () => {
       try {
-        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
         const detalle = response.data.data?.detalle;
-        const firmaPath = detalle?.firmaPath;
+        const firmaCifrada = detalle?.firmaPathCifrada;
         const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
-        set({ hasFirma: !!firmaPath, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
+        set({ hasFirma: !!firmaCifrada, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
       } catch {
         set({ hasFirma: false });
       } finally {
@@ -457,7 +457,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   loadProfile: async () => {
     try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
       const data = response.data.data;
       const detalle = data?.detalle;
       set({
@@ -469,7 +469,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
             }
           : null,
         puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
-        hasFirma: detalle ? !!detalle.firmaPath : false,
+        hasFirma: detalle ? !!detalle.firmaPathCifrada : false,
         firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false,
         profileError: null,
       });

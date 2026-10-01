@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
 import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaImg } from '@/components/common/FirmaImg';
 import logoImage from '@/assets/logo.png';
 
 // Split an ISO date into DÍA/MES/AÑO without JS-Date timezone drift.
@@ -133,7 +134,7 @@ export function VacacionesPDF({ solicitud, historial = [], pasosWorkflow = [] }:
   // react-hooks/static-components — a nested component remounts every render.
   const firma = (f?: string) => (
     <>
-      {f ? <img src={f} alt="Firma" style={sigImgStyle} /> : null}
+      {f ? <FirmaImg endpoint={f} style={sigImgStyle} /> : null}
       <span style={{ display: 'block', width: '100%', borderBottom: `1px solid ${BLACK}` }} />
     </>
   );

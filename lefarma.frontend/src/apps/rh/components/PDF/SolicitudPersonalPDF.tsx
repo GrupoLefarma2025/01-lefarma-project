@@ -7,6 +7,8 @@ import type {
   WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
 import logoImage from '@/assets/logo.png';
+import { FirmaImg } from '@/components/common/FirmaImg';
+import { firmasEndpoints } from '@/services/firmas.service';
 import { IncidenciaPDF } from './IncidenciaPDF';
 import { PermisoPDF } from './PermisoPDF';
 import { VacacionesPDF } from './VacacionesPDF';
@@ -22,21 +24,29 @@ export interface Props {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// URL de la firma PNG subida desde el perfil del usuario (cache-bust con timestamp).
-export function firmaUsuarioUrl(idUsuario: number): string {
-  const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-  return `${apiUrl}/media/archivos/firmas_usuarios/${idUsuario}.png?t=${Date.now()}`;
-}
-
+// Endpoint autenticado de la firma de un evento de la bitácora. El servidor
+// resuelve la firma capturada en el evento o, en documentos anteriores a la
+// captura, la firma vigente actual del firmante (fallback).
 function buildFirmasMap(historial: HistorialWorkflowItemResponse[]) {
-  const map = new Map<number, string>();
+  const ultimoEventoPorUsuario = new Map<number, number>();
   for (const h of historial) {
-    if (h.idUsuario > 0 && !map.has(h.idUsuario)) {
-      map.set(h.idUsuario, firmaUsuarioUrl(h.idUsuario));
+    if (h.idUsuario > 0 && h.idEvento > (ultimoEventoPorUsuario.get(h.idUsuario) ?? 0)) {
+      ultimoEventoPorUsuario.set(h.idUsuario, h.idEvento);
     }
   }
+  const map = new Map<number, string>();
+  for (const [idUsuario, idEvento] of ultimoEventoPorUsuario) {
+    map.set(idUsuario, firmasEndpoints.firmaEvento(idEvento));
+  }
   return map;
+}
+
+// Endpoint de la firma de un usuario según su último evento en el historial.
+export function firmaEndpointDeUsuario(
+  historial: HistorialWorkflowItemResponse[],
+  idUsuario: number,
+): string | undefined {
+  return buildFirmasMap(historial).get(idUsuario);
 }
 
 export interface FirmanteFlow {
@@ -447,9 +457,8 @@ function LegacyFormattedPDF({
                 <td style={s.firmaTd}>{paso.fecha ? fmtDateTime(paso.fecha) : '—'}</td>
                 <td style={s.firmaTd}>
                   {paso.idUsuario != null && firmasMap.has(paso.idUsuario) ? (
-                    <img
-                      src={firmasMap.get(paso.idUsuario)}
-                      alt="Firma"
+                    <FirmaImg
+                      endpoint={firmasMap.get(paso.idUsuario)}
                       style={{
                         height: 28,
                         width: 80,

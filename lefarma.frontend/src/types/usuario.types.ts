@@ -10,6 +10,8 @@ export interface UsuarioDetalle {
   puesto?: string;
   numeroEmpleado?: string;
   firmaPath?: string;
+  /** Puntero a la firma cifrada vigente del sistema RH (solo ella define "tener firma"). */
+  firmaPathCifrada?: string;
   firmaSubidas?: number;
   firmaCambioHabilitado?: boolean;
   firmaCambioSolicitado?: boolean;

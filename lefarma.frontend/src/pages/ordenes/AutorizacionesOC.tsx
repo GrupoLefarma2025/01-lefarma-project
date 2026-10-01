@@ -74,6 +74,8 @@ import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
 import type { ComprobanteResponse, PartidaPendienteResponse, HistorialComprobante } from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
+import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
+import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import { SubirComprobanteModal } from '@/components/facturas/SubirComprobanteModal';
 import { SubirComprobantePagoModal } from '@/components/facturas/SubirComprobantePagoModal';
 import { FlujoOrdenPDF } from '@/components/ordenes/FlujoOrdenPDF';
@@ -528,32 +530,38 @@ export default function AutorizacionesOC() {
 
   const fetchFirmasUsuarios = async (historialData: HistorialWorkflowItemResponse[]) => {
     try {
-      const userIds = [...new Set(historialData.map(h => h.idUsuario).filter(id => id > 0))];
-
-      if (userIds.length === 0) {
-        setFirmasMap(new Map());
-        return;
-      }
-
-      const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-      const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-
-      // Construir mapa de userId → firmaDocumento (por defecto true si no está presente)
+      // Último evento por usuario (omitiendo firmaDocumento === false): las firmas
+      // ya no son URLs públicas; el servidor sirve la firma del evento o, en
+      // documentos anteriores a la captura, la firma vigente actual (fallback).
+      const ultimoEventoPorUsuario = new Map<number, number>();
       const firmaDocumentoByUser = new Map<number, boolean>();
       for (const h of historialData) {
-        if (h.idUsuario > 0 && !firmaDocumentoByUser.has(h.idUsuario)) {
+        if (h.idUsuario <= 0) continue;
+        if (!firmaDocumentoByUser.has(h.idUsuario)) {
           firmaDocumentoByUser.set(h.idUsuario, h.firmaDocumento !== false);
+        }
+        if (h.idEvento > (ultimoEventoPorUsuario.get(h.idUsuario) ?? 0)) {
+          ultimoEventoPorUsuario.set(h.idUsuario, h.idEvento);
         }
       }
 
-      const newFirmasMap = new Map<number, string>();
-      userIds.forEach(userId => {
-        // Omitir usuarios donde firmaDocumento es explícitamente false
-        if (firmaDocumentoByUser.get(userId) === false) return;
-        newFirmasMap.set(userId, `${apiUrl}/media/archivos/firmas_usuarios/${userId}.png?t=${Date.now()}`);
-      });
+      const results = await Promise.all(
+        [...ultimoEventoPorUsuario.entries()]
+          .filter(([userId]) => firmaDocumentoByUser.get(userId) !== false)
+          .map(async ([userId, idEvento]) =>
+            [userId, await fetchFirmaObjectUrl(firmasEndpoints.firmaEvento(idEvento))] as const,
+          ),
+      );
 
-      setFirmasMap(newFirmasMap);
+      const newFirmasMap = new Map<number, string>();
+      for (const [userId, url] of results) {
+        if (url) newFirmasMap.set(userId, url);
+      }
+
+      setFirmasMap((prev) => {
+        prev.forEach((u) => URL.revokeObjectURL(u));
+        return newFirmasMap;
+      });
     } catch {
       setFirmasMap(new Map());
     }
@@ -2143,8 +2151,10 @@ export default function AutorizacionesOC() {
                               variant="outline"
                               size="sm"
                               className="h-7 gap-1.5 text-xs"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
+                                // Esperar a que las firmas (blobs autenticados) estén cargadas
+                                await waitForPrintImages('#orden-compra-pdf-print');
                                 const handleBeforePrint = () => {
                                   document.body.classList.add('print-orden');
                                 };

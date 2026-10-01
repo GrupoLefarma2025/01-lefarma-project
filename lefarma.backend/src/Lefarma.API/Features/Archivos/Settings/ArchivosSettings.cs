@@ -10,6 +10,12 @@ public class ArchivosSettings
     /// </summary>
     public string PrivatePath { get; set; } = "private-media";
 
+    /// <summary>
+    /// Clave AES-256 en base64 (32 bytes) para cifrar firmas e INE en reposo.
+    /// Perderla implica perder la evidencia: respaldarla fuera del servidor.
+    /// </summary>
+    public string EncryptionKey { get; set; } = "";
+
     public int TamanoMaximoMB { get; set; } = 10;
     public List<string> ExtensionesPermitidas { get; set; } = new()
     {

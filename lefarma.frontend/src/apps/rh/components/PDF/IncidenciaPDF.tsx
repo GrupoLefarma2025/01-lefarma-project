@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
 import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaImg } from '@/components/common/FirmaImg';
 import type { HistorialWorkflowItemResponse } from '@/types/solicitudPersonalWorkflow.types';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
@@ -232,7 +233,7 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: F
   };
   const sigImg = (f: FirmanteFlow | null | undefined) =>
     f?.url ? (
-      <img src={f.url} alt="Firma" style={{ height: 36, objectFit: 'contain', ...PRINT_EXACT }} />
+      <FirmaImg endpoint={f.url} style={{ height: 36, objectFit: 'contain', ...PRINT_EXACT }} />
     ) : null;
 
   const colLeft: React.CSSProperties = { width: '38%', paddingRight: 6, boxSizing: 'border-box' };

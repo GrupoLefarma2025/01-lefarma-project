@@ -11,9 +11,16 @@ public class UsuarioDetalle
     public string? Puesto { get; set; }
     public string? NumeroEmpleado { get; set; }
     /// <summary>
-    /// Ruta del archivo de firma digital del usuario
+    /// Ruta del archivo de firma digital del usuario (contrato exclusivo de la versión CXP).
+    /// El sistema RH no la escribe ni la usa.
     /// </summary>
     public string? FirmaPath { get; set; }
+
+    /// <summary>
+    /// Puntero a la firma cifrada vigente del sistema RH (nombre lógico sin .enc).
+    /// Único campo que define "tener firma" para RH; los usuarios legacy lo tienen nulo.
+    /// </summary>
+    public string? FirmaPathCifrada { get; set; }
 
     /// <summary>
     /// Historial de eventos de la firma digital (JSON: subida, eliminacion, solicitud,

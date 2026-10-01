@@ -94,7 +94,19 @@ public class FirmaControl
     }
 
     /// <param name="idUsuarioRh">Usuario de RH que aprueba.</param>
-    public void AgregarAprobacion(int idUsuarioRh, DateTime fecha) => Agregar(FirmaAccion.Aprobacion, idUsuarioRh, fecha);
+    /// <param name="firmaArchivo">Nombre lógico de la firma que queda autorizada (versión conservada).</param>
+    /// <param name="ineArchivo">Nombre lógico de la foto de INE que queda como evidencia.</param>
+    public void AgregarAprobacion(int idUsuarioRh, DateTime fecha, string? firmaArchivo = null, string? ineArchivo = null)
+    {
+        Eventos.Add(new FirmaEvento
+        {
+            Accion = FirmaAccion.Aprobacion,
+            Fecha = fecha,
+            IdUsuario = idUsuarioRh,
+            FirmaArchivo = firmaArchivo,
+            IneArchivo = ineArchivo
+        });
+    }
 
     /// <param name="idUsuarioRh">Usuario de RH que rechaza.</param>
     public void AgregarRechazo(int idUsuarioRh, DateTime fecha, string motivo)

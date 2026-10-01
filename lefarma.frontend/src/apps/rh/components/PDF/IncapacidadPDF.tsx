@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import { firmaUsuarioUrl, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { firmaEndpointDeUsuario, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaImg } from '@/components/common/FirmaImg';
+import { firmasEndpoints } from '@/services/firmas.service';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
 
@@ -112,7 +114,7 @@ function FormCopy({
 
   const sigImg = (url?: string) =>
     url ? (
-      <img src={url} alt="Firma" style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }} />
+      <FirmaImg endpoint={url} style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }} />
     ) : null;
   const sigCell: React.CSSProperties = {
     borderTop: BORDER,
@@ -266,7 +268,13 @@ export function IncapacidadPDF({ solicitud, historial = [], pasosWorkflow = [] }
     if (!idUsuarioSolicitante || !solicitanteNombre) return flow;
     if (flow.some((f) => f.nombre === solicitanteNombre)) return flow;
     return [
-      { nombre: solicitanteNombre, url: firmaUsuarioUrl(idUsuarioSolicitante), esSolicitante: true },
+      {
+        nombre: solicitanteNombre,
+        url:
+          firmaEndpointDeUsuario(historial, idUsuarioSolicitante) ??
+          (solicitud.idSolicitud ? firmasEndpoints.firmaSolicitante(solicitud.idSolicitud) : undefined),
+        esSolicitante: true,
+      },
       ...flow.map((f) => (f.esSolicitante ? { ...f, esSolicitante: false, rol: 'ELABORA' } : f)),
     ];
   }, [pasosWorkflow, historial, solicitud]);
