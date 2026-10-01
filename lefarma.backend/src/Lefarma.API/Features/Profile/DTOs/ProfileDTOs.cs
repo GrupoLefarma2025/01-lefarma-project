@@ -36,6 +36,8 @@ public record UsuarioDetalleData
     public string? Puesto { get; init; }
     public string? NumeroEmpleado { get; init; }
     public string? FirmaPath { get; init; }
+    /// <summary>Puntero a la firma cifrada vigente del sistema RH (solo ella define "tener firma").</summary>
+    public string? FirmaPathCifrada { get; init; }
     public int FirmaSubidas { get; init; }
     public bool FirmaCambioHabilitado { get; init; }
     public bool FirmaCambioSolicitado { get; init; }

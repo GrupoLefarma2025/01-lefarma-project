@@ -23,6 +23,14 @@ public class FirmaEvento
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Ine { get; set; }
 
+    /// <summary>Solo en aprobacion: nombre lógico de la firma autorizada (versión conservada).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? FirmaArchivo { get; set; }
+
+    /// <summary>Solo en aprobacion: nombre lógico de la foto de INE autorizada (evidencia conservada).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? IneArchivo { get; set; }
+
     /// <summary>Solo en rechazo: motivo indicado por RH.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Motivo { get; set; }

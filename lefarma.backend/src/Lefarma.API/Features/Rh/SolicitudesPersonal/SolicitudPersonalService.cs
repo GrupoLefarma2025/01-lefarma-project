@@ -677,13 +677,24 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 if (accionInicial is not null)
                 {
+                    // Fase 2 (T7): capturar las firmas al momento de la creación.
+                    // firmaArchivo = creador (cuadro ELABORA); firmaSolicitanteArchivo = solicitante
+                    // (cuadro SOLICITA; p. ej. incapacidades creadas por otra persona).
+                    var firmasAlCrear = await _context.UsuariosDetalle
+                        .AsNoTracking()
+                        .Where(ud => ud.IdUsuario == idUsuario || ud.IdUsuario == (solicitud.IdUsuarioSolicitante ?? 0))
+                        .Select(ud => new { ud.IdUsuario, ud.FirmaPathCifrada })
+                        .ToDictionaryAsync(ud => ud.IdUsuario, ud => ud.FirmaPathCifrada, ct);
+
                     var snapshot = new Dictionary<string, object?>
                     {
                         ["idWorkflow"] = workflow.IdWorkflow,
                         ["idPasoAnterior"] = null,
                         ["idPasoNuevo"] = solicitud.IdPasoActual,
                         ["idEstadoNuevo"] = solicitud.IdEstado,
-                        ["datosAdicionales"] = null
+                        ["datosAdicionales"] = null,
+                        ["firmaArchivo"] = firmasAlCrear.GetValueOrDefault(idUsuario),
+                        ["firmaSolicitanteArchivo"] = firmasAlCrear.GetValueOrDefault(solicitud.IdUsuarioSolicitante ?? 0)
                     };
 
                     _context.WorkflowBitacoras.Add(new WorkflowBitacora

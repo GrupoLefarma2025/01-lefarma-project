@@ -19,6 +19,7 @@ import { SignaturePadDialog } from '@/components/common/SignaturePadDialog';
 
 import type { ChangeEvent } from 'react';
 import { toApiError } from '@/utils/errors';
+import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
 
 const MAX_FIRMA_SIZE = 2 * 1024 * 1024;
 const MAX_INE_SIZE = 5 * 1024 * 1024;
@@ -50,9 +51,10 @@ export function FirmaUploadCard() {
       const response = await API.get<ApiResponse<Usuario>>('/profile');
       if (response.data.success && response.data.data) {
         const detalle = response.data.data.detalle;
-        const firmaPath = detalle?.firmaPath ?? null;
-        const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-        setFirmaPreviewUrl(firmaPath ? `${apiUrl}/media/archivos/${firmaPath}` : null);
+        const firmaCifrada = detalle?.firmaPathCifrada ?? null;
+        // La firma ya no es una URL pública: se descarga como blob autenticado.
+        if (firmaPreviewUrl) URL.revokeObjectURL(firmaPreviewUrl);
+        setFirmaPreviewUrl(firmaCifrada ? await fetchFirmaObjectUrl(firmasEndpoints.miFirma) : null);
         setFirmaSubidas(detalle?.firmaSubidas ?? 0);
         setFirmaCambioHabilitado(detalle?.firmaCambioHabilitado ?? false);
         setFirmaCambioSolicitado(detalle?.firmaCambioSolicitado ?? false);
@@ -71,10 +73,11 @@ export function FirmaUploadCard() {
   // Liberar los object URL pendientes al desmontar (evitar fugas).
   useEffect(() => {
     return () => {
+      if (firmaPreviewUrl) URL.revokeObjectURL(firmaPreviewUrl);
       if (pendingFirmaUrl) URL.revokeObjectURL(pendingFirmaUrl);
       if (inePreviewUrl) URL.revokeObjectURL(inePreviewUrl);
     };
-  }, [pendingFirmaUrl, inePreviewUrl]);
+  }, [firmaPreviewUrl, pendingFirmaUrl, inePreviewUrl]);
 
   const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -282,7 +285,7 @@ export function FirmaUploadCard() {
               {firmaPreviewUrl && (
                 <div className="relative flex justify-center rounded-lg border bg-muted/30 p-4">
                   <img
-                    src={`${firmaPreviewUrl}?t=${Date.now()}`}
+                    src={firmaPreviewUrl}
                     alt="Firma digital"
                     className="max-h-32 max-w-full object-contain"
                   />

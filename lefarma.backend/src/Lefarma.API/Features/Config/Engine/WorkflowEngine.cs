@@ -173,6 +173,13 @@ namespace Lefarma.API.Features.Config.Engine
                 saltos++;
             }
 
+            // Fase 2 (T6): firma del usuario actuante al momento del evento (reimpresión fiel).
+            var firmaArchivo = await _context.UsuariosDetalle
+                .AsNoTracking()
+                .Where(d => d.IdUsuario == ctx.IdUsuario)
+                .Select(d => d.FirmaPathCifrada)
+                .FirstOrDefaultAsync();
+
             // Registrar en bitácora la omisión de cada paso saltado
             foreach (var (pasoOmitido, accionAvance, nivel, motivo, destino) in pasosOmitidos)
             {
@@ -192,7 +199,8 @@ namespace Lefarma.API.Features.Config.Engine
                         ["motivo"] = motivo?.ToString(),
                         ["nivelJefe"] = nivel,
                         ["idPasoOmitido"] = pasoOmitido.IdPaso,
-                        ["idPasoDestinoSalto"] = destino
+                        ["idPasoDestinoSalto"] = destino,
+                        ["firmaArchivo"] = firmaArchivo
                     }),
                     FechaEvento = DateTime.Now
                 });
@@ -205,7 +213,8 @@ namespace Lefarma.API.Features.Config.Engine
                 ["idPasoAnterior"] = accion.PasoOrigen.IdPaso,
                 ["idPasoNuevo"] = nuevoPaso?.IdPaso,
                 ["idEstadoNuevo"] = nuevoPaso?.IdEstado,
-                ["datosAdicionales"] = ctx.DatosAdicionales
+                ["datosAdicionales"] = ctx.DatosAdicionales,
+                ["firmaArchivo"] = firmaArchivo
             };
 
             _context.WorkflowBitacoras.Add(new WorkflowBitacora

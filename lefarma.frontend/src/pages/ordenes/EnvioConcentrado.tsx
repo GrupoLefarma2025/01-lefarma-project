@@ -45,6 +45,8 @@ import { Label } from '@/components/ui/label';
 import { Printer, Paperclip, Send, RefreshCw, LayoutGrid, CheckSquare, Square, CheckCircle, XCircle, AlertTriangle, Download, Eye, Trash } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toApiError } from '@/utils/errors';
+import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
+import { waitForPrintImages } from '@/utils/waitForPrintImages';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -190,19 +192,36 @@ export default function EnvioConcentrado() {
   const isSingleOrden = ordenesSeleccionadas.length === 1;
   const singleOrden = isSingleOrden ? ordenesSeleccionadas[0] : null;
 
-  const firmaElaboroUrl = (() => {
-    if (!user?.id) return undefined;
-    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-    return `${apiUrl}/media/archivos/firmas_usuarios/${user.id}.png`;
-  })();
+  // Firmas del concentrado: ya no son URLs públicas; se descargan como blobs
+  // autenticados ("elaboró" = mi firma; "revisó" = usuario 73, Marco Polo).
+  const REVISO_USUARIO_ID = 73;
+  const [firmaElaboroUrl, setFirmaElaboroUrl] = useState<string | undefined>(undefined);
+  const [firmaRevisoUrl, setFirmaRevisoUrl] = useState<string | undefined>(undefined);
+  // Precarga: generarPdfBlob espera a que ambas firmas estén resueltas.
+  const firmasListasRef = useRef<Promise<void>>(Promise.resolve());
 
-  // Firma del revisor (usuario 73 en Asokam — Marco Polo) para el concentrado multi
-  const firmaRevisoUrl = (() => {
-    const baseUrl = import.meta.env.VITE_API_URL || window.location.origin;
-    const apiUrl = baseUrl.endsWith('/api') ? baseUrl : `${baseUrl}/api`;
-    return `${apiUrl}/media/archivos/firmas_usuarios/73.png`;
-  })();
+  useEffect(() => {
+    let cancelled = false;
+    const created: string[] = [];
+    firmasListasRef.current = (async () => {
+      const [elaboro, reviso] = await Promise.all([
+        user?.id ? fetchFirmaObjectUrl(firmasEndpoints.miFirma) : Promise.resolve(null),
+        fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(REVISO_USUARIO_ID)),
+      ]);
+      if (cancelled) {
+        [elaboro, reviso].forEach((u) => u && URL.revokeObjectURL(u));
+        return;
+      }
+      if (elaboro) created.push(elaboro);
+      if (reviso) created.push(reviso);
+      setFirmaElaboroUrl(elaboro ?? undefined);
+      setFirmaRevisoUrl(reviso ?? undefined);
+    })();
+    return () => {
+      cancelled = true;
+      created.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [user?.id]);
 
   // ── Nombres completos de Revisó (44) y Autorizó (41) para etiquetas ──────
   const [nombresFirmas, setNombresFirmas] = useState<{ reviso?: string; autorizo?: string }>({});
@@ -312,10 +331,15 @@ setNombresFirmas({
   };
 
   async function generarPdfBlob(): Promise<Blob> {
+    // Precarga: sin URLs públicas las firmas se descargan como blobs; hay que
+    // esperar a que estén resueltas antes de armar/capturar el PDF.
+    await firmasListasRef.current;
+
     // Single orden: html2canvas → jsPDF portrait
     if (isSingleOrden) {
       const portalEl = document.getElementById('envio-concentrado-pdf-portal');
       if (portalEl) {
+        await waitForPrintImages('#envio-concentrado-pdf-portal');
         const canvas = await html2canvas(portalEl, {
           scale: 2,
           useCORS: true,

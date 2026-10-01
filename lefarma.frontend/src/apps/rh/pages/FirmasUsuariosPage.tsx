@@ -13,6 +13,7 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
+import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
 
 interface FirmaUsuario {
   idUsuario: number;
@@ -32,12 +33,6 @@ interface FirmaUsuario {
   idUsuarioHabilito?: number;
   nombreUsuarioHabilito?: string;
   fechaHabilitoFirma?: string;
-}
-
-function firmaThumbUrl(firmaPath?: string): string | null {
-  if (!firmaPath) return null;
-  const apiUrl = import.meta.env.VITE_API_URL || window.location.origin;
-  return `${apiUrl}/media/archivos/${firmaPath}?t=${Date.now()}`;
 }
 
 interface FirmaHistorialEvento {
@@ -90,6 +85,7 @@ export function FirmasUsuariosPage() {
   usePageTitle('Firmas digitales', 'Control de cambios de firma de usuarios');
 
   const [items, setItems] = useState<FirmaUsuario[]>([]);
+  const [firmaThumbs, setFirmaThumbs] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
   const [isHabilitando, setIsHabilitando] = useState(false);
   const [selected, setSelected] = useState<FirmaUsuario | null>(null);
@@ -101,6 +97,7 @@ export function FirmasUsuariosPage() {
   const [comprobacionOpen, setComprobacionOpen] = useState(false);
   const [comprobacionUsuario, setComprobacionUsuario] = useState<FirmaUsuario | null>(null);
   const [ineBlobUrl, setIneBlobUrl] = useState<string | null>(null);
+  const [pendienteBlobUrl, setPendienteBlobUrl] = useState<string | null>(null);
   const [loadingIne, setLoadingIne] = useState(false);
   const [isResolviendo, setIsResolviendo] = useState(false);
   const [rechazando, setRechazando] = useState(false);
@@ -110,7 +107,20 @@ export function FirmasUsuariosPage() {
     try {
       setLoading(true);
       const response = await API.get<ApiResponse<FirmaUsuario[]>>('/firmas/usuarios');
-      setItems(response.data.data ?? []);
+      const data = response.data.data ?? [];
+      setItems(data);
+      // Thumbnails: las firmas ya no son públicas; se descargan como blobs autenticados.
+      const entries = await Promise.all(
+        data
+          .filter((u) => u.firmaPath)
+          .map(async (u) =>
+            [u.idUsuario, await fetchFirmaObjectUrl(firmasEndpoints.firmaUsuario(u.idUsuario))] as const,
+          ),
+      );
+      setFirmaThumbs((prev) => {
+        Object.values(prev).forEach((u) => URL.revokeObjectURL(u));
+        return Object.fromEntries(entries.filter(([, url]) => url) as [number, string][]);
+      });
     } catch (error) {
       toast.error(toApiError(error).message ?? 'Error al obtener las firmas');
     } finally {
@@ -135,10 +145,15 @@ export function FirmasUsuariosPage() {
     setRechazando(false);
     setMotivoRechazo('');
     setIneBlobUrl(null);
+    setPendienteBlobUrl(null);
     setLoadingIne(true);
     try {
-      const res = await API.get(`/firmas/usuarios/${item.idUsuario}/ine`, { responseType: 'blob' });
-      setIneBlobUrl(URL.createObjectURL(res.data as Blob));
+      const [ineUrl, pendienteUrl] = await Promise.all([
+        fetchFirmaObjectUrl(firmasEndpoints.ineUsuario(item.idUsuario)),
+        fetchFirmaObjectUrl(firmasEndpoints.firmaPendiente(item.idUsuario)),
+      ]);
+      setIneBlobUrl(ineUrl);
+      setPendienteBlobUrl(pendienteUrl);
     } catch {
       // La INE puede no estar disponible; la firma pendiente igual se muestra.
     } finally {
@@ -154,6 +169,10 @@ export function FirmasUsuariosPage() {
     if (ineBlobUrl) {
       URL.revokeObjectURL(ineBlobUrl);
       setIneBlobUrl(null);
+    }
+    if (pendienteBlobUrl) {
+      URL.revokeObjectURL(pendienteBlobUrl);
+      setPendienteBlobUrl(null);
     }
   };
 
@@ -261,7 +280,7 @@ export function FirmasUsuariosPage() {
       id: 'firma',
       header: 'Firma',
       cell: ({ row }) => {
-        const url = firmaThumbUrl(row.original.firmaPath);
+        const url = firmaThumbs[row.original.idUsuario];
         return url ? (
           <div className="flex h-12 w-28 items-center justify-center rounded border bg-white p-1">
             <img src={url} alt="firma" className="max-h-10 max-w-full object-contain" />
@@ -368,7 +387,7 @@ export function FirmasUsuariosPage() {
         </div>
       ),
     },
-  ], []);
+  ], [firmaThumbs]);
 
   return (
     <div className="space-y-6">
@@ -421,10 +440,10 @@ export function FirmasUsuariosPage() {
                 <b>{selected.nombreCompleto}</b>.
               </p>
             </div>
-            {firmaThumbUrl(selected.firmaPath) && (
+            {firmaThumbs[selected.idUsuario] && (
               <div className="flex justify-center rounded-lg border bg-muted/30 p-4">
                 <img
-                  src={firmaThumbUrl(selected.firmaPath)!}
+                  src={firmaThumbs[selected.idUsuario]}
                   alt="firma actual"
                   className="max-h-24 max-w-full object-contain"
                 />
@@ -520,9 +539,11 @@ export function FirmasUsuariosPage() {
                   Firma enviada
                 </p>
                 <div className="flex h-48 items-center justify-center rounded-lg border bg-white p-3">
-                  {firmaThumbUrl(comprobacionUsuario.firmaPendientePath) ? (
+                  {loadingIne ? (
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                  ) : pendienteBlobUrl ? (
                     <img
-                      src={firmaThumbUrl(comprobacionUsuario.firmaPendientePath)!}
+                      src={pendienteBlobUrl}
                       alt="Firma pendiente"
                       className="max-h-full max-w-full object-contain"
                     />

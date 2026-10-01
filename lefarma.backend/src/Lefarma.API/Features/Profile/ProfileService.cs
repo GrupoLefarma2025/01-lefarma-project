@@ -5,6 +5,7 @@ using Lefarma.API.Features.Archivos.Settings;
 using Lefarma.API.Features.Notifications.DTOs;
 using Lefarma.API.Features.Profile.DTOs;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Infrastructure.Files;
 using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
@@ -25,6 +26,7 @@ public class ProfileService : BaseService, IProfileService
     private readonly UserPermissionService _permissionService;
     private readonly INotificationService _notificationService;
     private readonly IOptions<ArchivosSettings> _archivosSettings;
+    private readonly IFileCipher _cipher;
     protected override string EntityName => "Profile";
 
     public ProfileService(
@@ -33,6 +35,7 @@ public class ProfileService : BaseService, IProfileService
         UserPermissionService permissionService,
         INotificationService notificationService,
         IOptions<ArchivosSettings> archivosSettings,
+        IFileCipher cipher,
         IWideEventAccessor wideEventAccessor)
         : base(wideEventAccessor)
     {
@@ -41,6 +44,7 @@ public class ProfileService : BaseService, IProfileService
         _permissionService = permissionService;
         _notificationService = notificationService;
         _archivosSettings = archivosSettings;
+        _cipher = cipher;
     }
 
     public async Task<ErrorOr<ProfileResponse>> GetProfileAsync(int userId, CancellationToken cancellationToken = default)
@@ -58,10 +62,12 @@ public class ProfileService : BaseService, IProfileService
 
             var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
 
-            // Estado de firma derivado del historial JSON (firma_control).
+            // Estado de firma del sistema RH: solo cuenta firma_path_cifrada.
+            // El usuario legacy se trata como nuevo (0 subidas; el backfill 027 no aplica).
             var firmaControl = FirmaControl.Parse(detalle.FirmaControlJson);
-            var firmaSubidasEfectivas = Math.Max(firmaControl.Subidas,
-                string.IsNullOrEmpty(detalle.FirmaPath) ? 0 : 1);
+            var firmaSubidasEfectivas = string.IsNullOrEmpty(detalle.FirmaPathCifrada)
+                ? 0
+                : Math.Max(firmaControl.Subidas, 1);
 
             // Obtener si la empresa del usuario puede seleccionar otras empresas
             var puedeSeleccionarEmpresas = false;
@@ -105,6 +111,7 @@ public class ProfileService : BaseService, IProfileService
                     Puesto = detalle.Puesto,
                     NumeroEmpleado = detalle.NumeroEmpleado,
                     FirmaPath = detalle.FirmaPath,
+                    FirmaPathCifrada = detalle.FirmaPathCifrada,
                     FirmaSubidas = firmaSubidasEfectivas,
                     FirmaCambioHabilitado = firmaControl.CambioHabilitado,
                     FirmaCambioSolicitado = firmaControl.SolicitudPendiente,
@@ -255,7 +262,7 @@ public class ProfileService : BaseService, IProfileService
         {
             var tieneFirma = await _appContext.UsuariosDetalle
                 .AsNoTracking()
-                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPath), cancellationToken);
+                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPathCifrada), cancellationToken);
 
             return tieneFirma;
         }
@@ -310,8 +317,11 @@ public class ProfileService : BaseService, IProfileService
 
             // Toda firma (primera o cambio habilitado) pasa por comprobación de RH:
             // se guarda como PENDIENTE y la vigente no cambia hasta la aprobación.
+            // El usuario legacy (sin firma_path_cifrada) puede remitir libremente.
             var control = FirmaControl.Parse(detalle.FirmaControlJson);
-            var subidasEfectivas = Math.Max(control.Subidas, string.IsNullOrEmpty(detalle.FirmaPath) ? 0 : 1);
+            var subidasEfectivas = string.IsNullOrEmpty(detalle.FirmaPathCifrada)
+                ? 0
+                : Math.Max(control.Subidas, 1);
 
             if (control.EnComprobacion)
                 return CommonErrors.Validation("Firma.EnComprobacion",
@@ -323,42 +333,33 @@ public class ProfileService : BaseService, IProfileService
 
             var timestamp = DateTime.Now.ToString("yyyyMMddHHmmss");
 
-            // Firma pendiente: vive bajo BasePath/firmas_usuarios/pendientes hasta que RH resuelva.
-            var pendientesFolder = Path.Combine(_archivosSettings.Value.BasePath, "firmas_usuarios", "pendientes");
-            Directory.CreateDirectory(pendientesFolder);
-
-            var pendienteFileName = $"{userId}_{timestamp}{extension}";
-            var pendienteFullPath = Path.Combine(pendientesFolder, pendienteFileName);
-            await using (var stream = new FileStream(pendienteFullPath, FileMode.Create, FileAccess.Write))
-            {
-                await file.CopyToAsync(stream, cancellationToken);
-            }
-            var pendienteRelativePath = $"firmas_usuarios/pendientes/{pendienteFileName}";
-
-            // Foto del INE: carpeta privada, solo accesible por endpoint autenticado.
-            var ineFolder = Path.Combine(_archivosSettings.Value.PrivatePath, "ine_usuarios");
-            Directory.CreateDirectory(ineFolder);
-
+            // Firma candidata e INE: carpeta privada, cifradas en reposo (AES-256-GCM).
+            // El nombre lógico (sin .enc) es la referencia estable de la versión en el historial JSON.
+            var firmaFileName = $"{userId}_{timestamp}{extension}";
             var ineFileName = $"{userId}_{timestamp}{ineExtension}";
-            var ineFullPath = Path.Combine(ineFolder, ineFileName);
-            await using (var stream = new FileStream(ineFullPath, FileMode.Create, FileAccess.Write))
-            {
-                await ine.CopyToAsync(stream, cancellationToken);
-            }
+            await using (var firmaStream = file.OpenReadStream())
+                await _cipher.SaveEncryptedAsync(firmaStream,
+                    Path.Combine(_archivosSettings.Value.PrivatePath, "firmas"), firmaFileName, cancellationToken);
+            await using (var ineStream = ine.OpenReadStream())
+                await _cipher.SaveEncryptedAsync(ineStream,
+                    Path.Combine(_archivosSettings.Value.PrivatePath, "ine"), ineFileName, cancellationToken);
+
+            var firmaLogical = $"firmas/{firmaFileName}";
+            var ineLogical = $"ine/{ineFileName}";
 
             // La remisión consume la habilitación RH (estado derivado del historial).
-            // FirmaPath no se toca: sigue apuntando a la firma vigente.
-            control.AgregarRemision(userId, DateTime.Now, pendienteRelativePath, ineFileName);
+            // FirmaPathCifrada no se toca: la vigente cambia solo al aprobar.
+            control.AgregarRemision(userId, DateTime.Now, firmaLogical, ineLogical);
             detalle.FirmaControlJson = control.Serialize();
             detalle.FechaModificacion = DateTime.Now;
             await _appContext.SaveChangesAsync(cancellationToken);
 
-            EnrichWideEvent(action: "UploadSignature", entityId: userId, nombre: pendienteFileName);
+            EnrichWideEvent(action: "UploadSignature", entityId: userId, nombre: firmaFileName);
 
             // Avisar a RH que hay una firma en comprobación (no debe romper la remisión si falla).
             await NotificarRemisionRhAsync(userId, cancellationToken);
 
-            return pendienteRelativePath;
+            return firmaLogical;
         }
         catch (Exception ex)
         {
@@ -374,7 +375,7 @@ public class ProfileService : BaseService, IProfileService
             var detalle = await _appContext.UsuariosDetalle
                 .FirstOrDefaultAsync(ud => ud.IdUsuario == userId, cancellationToken);
 
-            if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPath))
+            if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPathCifrada))
                 return CommonErrors.NotFound("Firma");
 
             // Eliminar también cuenta como cambio: requiere habilitación RH si ya registró firma.
@@ -389,16 +390,12 @@ public class ProfileService : BaseService, IProfileService
                 return CommonErrors.Validation("Firma.CambioBloqueado",
                     "Tu firma ya fue registrada. Solicita a Recursos Humanos que habilite un cambio.");
 
-            // La firma vive bajo ArchivosSettings:BasePath (no wwwroot).
-            var oldPhysicalPath = Path.Combine(_archivosSettings.Value.BasePath, detalle.FirmaPath.TrimStart('/'));
-            if (File.Exists(oldPhysicalPath))
-                File.Delete(oldPhysicalPath);
-
-            // La habilitación RH se consume sola al registrar la eliminación en el historial.
+            // Solo se anula el puntero: el archivo autorizado se conserva porque los
+            // documentos firmados con él deben poder reimprimirse (decisión de retención).
             control.AgregarEliminacion(userId, DateTime.Now);
             detalle.FirmaControlJson = control.Serialize();
 
-            detalle.FirmaPath = null;
+            detalle.FirmaPathCifrada = null;
             detalle.FechaModificacion = DateTime.Now;
             await _appContext.SaveChangesAsync(cancellationToken);
 
@@ -419,7 +416,7 @@ public class ProfileService : BaseService, IProfileService
             var detalle = await _appContext.UsuariosDetalle
                 .FirstOrDefaultAsync(ud => ud.IdUsuario == userId, cancellationToken);
 
-            if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPath))
+            if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPathCifrada))
                 return CommonErrors.NotFound("Firma");
 
             var control = FirmaControl.Parse(detalle.FirmaControlJson);

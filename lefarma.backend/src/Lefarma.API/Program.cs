@@ -161,6 +161,7 @@ builder.Services.AddScoped<IHelpModuleService, HelpModuleService>();
 // Archivos
 builder.Services.Configure<ArchivosSettings>(
     builder.Configuration.GetSection("ArchivosSettings"));
+builder.Services.AddSingleton<Lefarma.API.Infrastructure.Files.IFileCipher, Lefarma.API.Infrastructure.Files.AesFileCipher>();
 builder.Services.AddScoped<IArchivoRepository, ArchivoRepository>();
 builder.Services.AddScoped<IArchivoService, ArchivoService>();
 

@@ -24,6 +24,7 @@ import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
 import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
 import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
+import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
 import { solicitudesPersonalApi } from '../services/rh.api';
@@ -51,6 +52,7 @@ import {
   Filter,
   Tag,
   LayoutGrid,
+  Loader2,
 } from 'lucide-react';
 
 const NONE_VALUE = 'none';
@@ -140,6 +142,7 @@ export default function GestionSolicitudes() {
     historial: false,
   });
   const [imprimirSolicitud, setImprimirSolicitud] = useState(false);
+  const [preparandoImpresion, setPreparandoImpresion] = useState(false);
 
   const toggleModal = (modalName: keyof typeof modalStates, state?: boolean) => {
     setModalStates((prev) => ({
@@ -162,6 +165,7 @@ export default function GestionSolicitudes() {
     const handleAfterPrint = () => {
       document.body.classList.remove('print-solicitud');
       setImprimirSolicitud(false);
+      setPreparandoImpresion(false);
       window.removeEventListener('beforeprint', handleBeforePrint);
       window.removeEventListener('afterprint', handleAfterPrint);
     };
@@ -171,16 +175,11 @@ export default function GestionSolicitudes() {
 
     let cancelled = false;
     // ponytail: wait for img decode because the print container is hidden (opacity:0/height:0) on screen, so the browser defers decode and window.print() would capture blank images
+    // (también espera las firmas: se descargan como blobs autenticados vía FirmaImg)
     (async () => {
-      const imgs = document.querySelectorAll<HTMLImageElement>('#solicitud-personal-pdf-print img');
-      await Promise.all(
-        [...imgs].map((img) =>
-          img.complete && img.naturalWidth > 0
-            ? Promise.resolve()
-            : img.decode().catch(() => {}),
-        ),
-      );
+      await waitForPrintImages('#solicitud-personal-pdf-print');
       if (!cancelled) window.print();
+      setPreparandoImpresion(false);
     })();
 
     return () => {
@@ -345,6 +344,7 @@ export default function GestionSolicitudes() {
   };
 
   const handleImprimir = async (s: SolicitudPersonalResponse) => {
+    setPreparandoImpresion(true);
     selectSolicitud(s.idSolicitud);
     await fetchDetalleCompleto(s.idSolicitud);
     await fetchHistorial(s.idSolicitud);
@@ -395,6 +395,14 @@ export default function GestionSolicitudes() {
 
   return (
     <div className="w-full space-y-4">
+      {preparandoImpresion && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 rounded-lg bg-background px-5 py-4 shadow-lg">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+            <span className="text-sm font-medium">Preparando documento…</span>
+          </div>
+        </div>
+      )}
       <Card className="border-0 shadow-sm">
         <CardContent className="space-y-3 pt-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

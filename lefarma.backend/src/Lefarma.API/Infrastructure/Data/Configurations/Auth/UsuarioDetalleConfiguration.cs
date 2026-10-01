@@ -41,6 +41,10 @@ public class UsuarioDetalleConfiguration : IEntityTypeConfiguration<UsuarioDetal
             .HasColumnName("firma_path")
             .HasMaxLength(500);
 
+        builder.Property(ud => ud.FirmaPathCifrada)
+            .HasColumnName("firma_path_cifrada")
+            .HasMaxLength(500);
+
         builder.Property(ud => ud.FirmaControlJson)
             .HasColumnName("firma_control")
             .HasColumnType("NVARCHAR(MAX)");
