@@ -23,6 +23,8 @@ import type { WorkflowEstado } from '@/types/workflow.types';
 import { SignatureAlert } from '@/components/common/SignatureAlert';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
+  ConcentracionEquipo,
+  MatrizTalleresDetalle,
   PendienteAprobacion,
   Ruta,
   RutaVersionDto,
@@ -51,7 +53,7 @@ const formatearFecha = (fecha?: string | null) => {
 
 interface FiltrosBandeja {
   busqueda: string;
-  tipo: 'todos' | 'seleccion' | 'rutas';
+  tipo: 'todos' | 'seleccion' | 'rutas' | 'matriz';
   idEstado: string; // 'all' | idEstado
   etapa: string; // 'all' | pasoNombre
   fechaDesde: string;
@@ -102,6 +104,8 @@ export default function BandejaAprobacionesPage() {
   const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
   const [rutasVersion, setRutasVersion] = useState<Ruta[]>([]);
   const [totalHospitalesSeleccion, setTotalHospitalesSeleccion] = useState<number | null>(null);
+  const [matrizDetalle, setMatrizDetalle] = useState<MatrizTalleresDetalle | null>(null);
+  const [matrizEquipos, setMatrizEquipos] = useState<ConcentracionEquipo[]>([]);
 
   const draftFilters = draftFiltersByTab[tab];
   const appliedFilters = appliedFiltersByTab[tab];
@@ -218,11 +222,20 @@ export default function BandejaAprobacionesPage() {
     setVersionInfo(null);
     setRutasVersion([]);
     setTotalHospitalesSeleccion(null);
+    setMatrizDetalle(null);
+    setMatrizEquipos([]);
 
     try {
       if (item.tipo === 'seleccion') {
         const detRes = await educacionMedicaApi.seleccionesMensuales.getById(item.idEntidad);
         if (detRes.data.success) setSeleccionDetalle(detRes.data.data ?? null);
+      } else if (item.tipo === 'matriz') {
+        const [detRes, concRes] = await Promise.all([
+          educacionMedicaApi.matricesTalleres.getById(item.idEntidad),
+          educacionMedicaApi.matricesTalleres.concentracion(item.idEntidad),
+        ]);
+        if (detRes.data.success) setMatrizDetalle(detRes.data.data ?? null);
+        if (concRes.data.success) setMatrizEquipos(concRes.data.data ?? []);
       } else {
         const verRes = await educacionMedicaApi.rutas.version(
           item.idSeleccionMensual,
@@ -278,7 +291,9 @@ export default function BandejaAprobacionesPage() {
       const res =
         seleccionado.tipo === 'seleccion'
           ? await educacionMedicaApi.seleccionesMensuales.firmar(seleccionado.idEntidad, payload)
-          : await educacionMedicaApi.rutas.firmarVersion(seleccionado.idEntidad, payload);
+          : seleccionado.tipo === 'matriz'
+            ? await educacionMedicaApi.matricesTalleres.firmar(seleccionado.idEntidad, payload)
+            : await educacionMedicaApi.rutas.firmarVersion(seleccionado.idEntidad, payload);
 
       if (res.data.success) {
         toast.success(res.data.message ?? 'Acción registrada.');
@@ -310,6 +325,10 @@ export default function BandejaAprobacionesPage() {
   const abrirDocumento = (item: PendienteAprobacion) => {
     if (item.tipo === 'rutas') {
       navigate(`/educacion-medica/seleccion/${item.idSeleccionMensual}/rutas`);
+      return;
+    }
+    if (item.tipo === 'matriz') {
+      navigate(`/educacion-medica/talleres?idMatriz=${item.idEntidad}`);
       return;
     }
     navigate(`/educacion-medica/seleccion?idSeleccion=${item.idEntidad}`);
@@ -404,6 +423,7 @@ export default function BandejaAprobacionesPage() {
                   <SelectItem value="todos">Todos los tipos</SelectItem>
                   <SelectItem value="seleccion">Selección mensual</SelectItem>
                   <SelectItem value="rutas">Rutas</SelectItem>
+                  <SelectItem value="matriz">Matriz de talleres</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -628,6 +648,48 @@ export default function BandejaAprobacionesPage() {
               {seleccionado.tipo === 'rutas' && !versionInfo && !cargandoDetalle && (
                 <p className="mt-2 text-sm text-muted-foreground">
                   No se pudo cargar la información de la versión.
+                </p>
+              )}
+              {seleccionado.tipo === 'matriz' && matrizDetalle && (
+                <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gerencia</p>
+                    <p>{matrizDetalle.gerencia ?? `Gerencia ${matrizDetalle.idTipoGerencia}`}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Periodo</p>
+                    <p>{matrizDetalle.periodo.slice(0, 7).split('-').reverse().join('/')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paso actual</p>
+                    <p>{matrizDetalle.pasoNombre ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Talleres</p>
+                    <p>{matrizDetalle.totalTalleres}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Costo total</p>
+                    <p>
+                      {matrizDetalle.costoTotal.toLocaleString('es-MX', {
+                        style: 'currency',
+                        currency: 'MXN',
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Equipos</p>
+                    <p>
+                      {matrizEquipos.length} ·{' '}
+                      {matrizEquipos.filter((e) => e.estado === 'Generada').length} generadas /{' '}
+                      {matrizEquipos.filter((e) => e.estado === 'EnCaptura').length} en captura
+                    </p>
+                  </div>
+                </div>
+              )}
+              {seleccionado.tipo === 'matriz' && !matrizDetalle && !cargandoDetalle && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No se pudo cargar la información de la matriz.
                 </p>
               )}
             </section>

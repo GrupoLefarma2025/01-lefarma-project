@@ -38,11 +38,18 @@ internal sealed class WorkflowTestHarness
     public Dictionary<string, int> PasosRutas { get; } = new();
     public Dictionary<string, int> AccionesRutas { get; } = new();
 
+    // Matriz de talleres (IMSS = principal; Desc. para el ruteo por gerencia)
+    public required Workflow WfMatriz { get; init; }
+    public required Workflow WfMatrizDesc { get; init; }
+    public Dictionary<string, int> PasosMatriz { get; } = new();
+    public Dictionary<string, int> AccionesMatriz { get; } = new();
+
     public int UsuarioGg { get; init; } = 10;
     public int UsuarioGvImss { get; init; } = 20;
     public int UsuarioGvDesc { get; init; } = 30;
     public int UsuarioCa { get; init; } = 40;
     public int UsuarioDc { get; init; } = 50;
+    public int UsuarioAem { get; init; } = 60;
 
     public static WorkflowTestHarness Crear()
     {
@@ -118,6 +125,39 @@ internal sealed class WorkflowTestHarness
         NuevoPaso(context, wfRutDesc.IdWorkflow, 10, "Firma Gerente de Ventas - Descentralizado", estadoRevision.IdEstado);
         context.SaveChanges();
 
+        // ----- Matriz · 'Matriz de talleres - IMSS': Concentración -> GV IMSS -> costos AEM -> CA -> DC -> Autorizada -----
+        var wfMatImss = NuevoWorkflow(context, "Matriz de talleres - IMSS", CodigoProceso.EDUCACION_MEDICA_MATRIZ);
+        var miConc = NuevoPaso(context, wfMatImss.IdWorkflow, 0, "Concentración", estadoBorrador.IdEstado, esInicio: true);
+        var miGv = NuevoPaso(context, wfMatImss.IdWorkflow, 10, "Firma Gerente de Ventas - IMSS", estadoRevision.IdEstado, requiereFirma: true);
+        var miAem = NuevoPaso(context, wfMatImss.IdWorkflow, 20, "Registro de costos - AEM", estadoPreparacion.IdEstado);
+        var miCa = NuevoPaso(context, wfMatImss.IdWorkflow, 30, "Revisión de costos - CA", estadoRevision.IdEstado, requiereFirma: true);
+        var miDc = NuevoPaso(context, wfMatImss.IdWorkflow, 40, "Autorización - DC", estadoRevisionDirector.IdEstado, requiereFirma: true);
+        var miFin = NuevoPaso(context, wfMatImss.IdWorkflow, 50, "Autorizada", estadoAprobacion.IdEstado, esFinal: true);
+        var accMiEnviar = NuevaAccion(context, miConc.IdPaso, miGv.IdPaso, tipoEnviar.IdTipoAccion);
+        var accMiGv = NuevaAccion(context, miGv.IdPaso, miAem.IdPaso, tipoAutorizar.IdTipoAccion);
+        var accMiGvDevolver = NuevaAccion(context, miGv.IdPaso, miConc.IdPaso, tipoDevolver.IdTipoAccion);
+        var accMiAemEnviar = NuevaAccion(context, miAem.IdPaso, miCa.IdPaso, tipoEnviar.IdTipoAccion);
+        var accMiAemDevolver = NuevaAccion(context, miAem.IdPaso, miConc.IdPaso, tipoDevolver.IdTipoAccion);
+        var accMiCa = NuevaAccion(context, miCa.IdPaso, miDc.IdPaso, tipoAutorizar.IdTipoAccion);
+        var accMiCaDevolver = NuevaAccion(context, miCa.IdPaso, miAem.IdPaso, tipoDevolver.IdTipoAccion);
+        var accMiDc = NuevaAccion(context, miDc.IdPaso, miFin.IdPaso, tipoAutorizar.IdTipoAccion);
+        var accMiDcDevolver = NuevaAccion(context, miDc.IdPaso, miCa.IdPaso, tipoDevolver.IdTipoAccion);
+        context.SaveChanges();
+
+        // ----- Matriz · 'Matriz de talleres - Descentralizado' (para el ruteo por gerencia) -----
+        var wfMatDesc = NuevoWorkflow(context, "Matriz de talleres - Descentralizado", CodigoProceso.EDUCACION_MEDICA_MATRIZ);
+        var mdConc = NuevoPaso(context, wfMatDesc.IdWorkflow, 0, "Concentración", estadoBorrador.IdEstado, esInicio: true);
+        var mdGv = NuevoPaso(context, wfMatDesc.IdWorkflow, 10, "Firma Gerente de Ventas - Descentralizado", estadoRevision.IdEstado, requiereFirma: true);
+        var mdAem = NuevoPaso(context, wfMatDesc.IdWorkflow, 20, "Registro de costos - AEM", estadoPreparacion.IdEstado);
+        var mdCa = NuevoPaso(context, wfMatDesc.IdWorkflow, 30, "Revisión de costos - CA", estadoRevision.IdEstado, requiereFirma: true);
+        var mdDc = NuevoPaso(context, wfMatDesc.IdWorkflow, 40, "Autorización - DC", estadoRevisionDirector.IdEstado, requiereFirma: true);
+        NuevoPaso(context, wfMatDesc.IdWorkflow, 50, "Autorizada", estadoAprobacion.IdEstado, esFinal: true);
+        NuevaAccion(context, mdConc.IdPaso, mdGv.IdPaso, tipoEnviar.IdTipoAccion);
+        NuevaAccion(context, mdGv.IdPaso, mdAem.IdPaso, tipoAutorizar.IdTipoAccion);
+        NuevaAccion(context, mdAem.IdPaso, mdCa.IdPaso, tipoEnviar.IdTipoAccion);
+        NuevaAccion(context, mdCa.IdPaso, mdDc.IdPaso, tipoAutorizar.IdTipoAccion);
+        context.SaveChanges();
+
         // Participantes (usuarios directos)
         context.WorkflowParticipantes.AddRange(
             new WorkflowParticipante { IdPaso = siGg.IdPaso, IdUsuario = 10, Activo = true },
@@ -126,7 +166,17 @@ internal sealed class WorkflowTestHarness
             new WorkflowParticipante { IdPaso = sdGv.IdPaso, IdUsuario = 30, Activo = true },
             new WorkflowParticipante { IdPaso = riGv.IdPaso, IdUsuario = 20, Activo = true },
             new WorkflowParticipante { IdPaso = riCa.IdPaso, IdUsuario = 40, Activo = true },
-            new WorkflowParticipante { IdPaso = riDc.IdPaso, IdUsuario = 50, Activo = true });
+            new WorkflowParticipante { IdPaso = riDc.IdPaso, IdUsuario = 50, Activo = true },
+            new WorkflowParticipante { IdPaso = miConc.IdPaso, IdUsuario = 20, Activo = true },
+            new WorkflowParticipante { IdPaso = miGv.IdPaso, IdUsuario = 20, Activo = true },
+            new WorkflowParticipante { IdPaso = miAem.IdPaso, IdUsuario = 60, Activo = true },
+            new WorkflowParticipante { IdPaso = miCa.IdPaso, IdUsuario = 40, Activo = true },
+            new WorkflowParticipante { IdPaso = miDc.IdPaso, IdUsuario = 50, Activo = true },
+            new WorkflowParticipante { IdPaso = mdConc.IdPaso, IdUsuario = 30, Activo = true },
+            new WorkflowParticipante { IdPaso = mdGv.IdPaso, IdUsuario = 30, Activo = true },
+            new WorkflowParticipante { IdPaso = mdAem.IdPaso, IdUsuario = 60, Activo = true },
+            new WorkflowParticipante { IdPaso = mdCa.IdPaso, IdUsuario = 40, Activo = true },
+            new WorkflowParticipante { IdPaso = mdDc.IdPaso, IdUsuario = 50, Activo = true });
         context.SaveChanges();
 
         // Navegaciones en memoria para el resolver (los servicios resuelven pasos iniciales y acciones)
@@ -143,6 +193,16 @@ internal sealed class WorkflowTestHarness
 
         wfRutImss.Pasos = [riDraft, riGv, riCa, riDc, riFin, riCan];
         riDraft.AccionesOrigen = [accRiEnviar, accRiCancelar];
+
+        wfMatImss.Pasos = [miConc, miGv, miAem, miCa, miDc, miFin];
+        miConc.AccionesOrigen = [accMiEnviar];
+        miGv.AccionesOrigen = [accMiGv, accMiGvDevolver];
+        miAem.AccionesOrigen = [accMiAemEnviar, accMiAemDevolver];
+        miCa.AccionesOrigen = [accMiCa, accMiCaDevolver];
+        miDc.AccionesOrigen = [accMiDc, accMiDcDevolver];
+        miFin.AccionesOrigen = [];
+
+        wfMatDesc.Pasos = context.WorkflowPasos.Where(p => p.IdWorkflow == wfMatDesc.IdWorkflow).ToList();
 
         var jefeMock = new Mock<IJefeInmediatoResolver>();
         var provider = new ServiceCollection().BuildServiceProvider();
@@ -161,7 +221,25 @@ internal sealed class WorkflowTestHarness
             WfSeleccionDesc = wfSelDesc,
             WfRutas = wfRutImss,
             WfRutasDesc = wfRutDesc,
+            WfMatriz = wfMatImss,
+            WfMatrizDesc = wfMatDesc,
         };
+
+        harness.PasosMatriz["Concentracion"] = miConc.IdPaso;
+        harness.PasosMatriz["GvImss"] = miGv.IdPaso;
+        harness.PasosMatriz["Aem"] = miAem.IdPaso;
+        harness.PasosMatriz["Ca"] = miCa.IdPaso;
+        harness.PasosMatriz["Dc"] = miDc.IdPaso;
+        harness.PasosMatriz["Final"] = miFin.IdPaso;
+        harness.AccionesMatriz["Enviar"] = accMiEnviar.IdAccion;
+        harness.AccionesMatriz["GvImssAutorizar"] = accMiGv.IdAccion;
+        harness.AccionesMatriz["GvImssDevolver"] = accMiGvDevolver.IdAccion;
+        harness.AccionesMatriz["AemEnviar"] = accMiAemEnviar.IdAccion;
+        harness.AccionesMatriz["AemDevolver"] = accMiAemDevolver.IdAccion;
+        harness.AccionesMatriz["CaAutorizar"] = accMiCa.IdAccion;
+        harness.AccionesMatriz["CaDevolver"] = accMiCaDevolver.IdAccion;
+        harness.AccionesMatriz["DcAutorizar"] = accMiDc.IdAccion;
+        harness.AccionesMatriz["DcDevolver"] = accMiDcDevolver.IdAccion;
 
         harness.PasosSeleccion["Inicio"] = siInicio.IdPaso;
         harness.PasosSeleccion["Gg"] = siGg.IdPaso;
@@ -218,7 +296,8 @@ internal sealed class WorkflowTestHarness
         string nombre,
         int idEstado,
         bool esInicio = false,
-        bool esFinal = false)
+        bool esFinal = false,
+        bool requiereFirma = false)
     {
         var paso = new WorkflowPaso
         {
@@ -228,6 +307,7 @@ internal sealed class WorkflowTestHarness
             IdEstado = idEstado,
             EsInicio = esInicio,
             EsFinal = esFinal,
+            RequiereFirma = requiereFirma,
             Activo = true,
         };
         context.WorkflowPasos.Add(paso);
@@ -261,6 +341,7 @@ internal sealed class WorkflowTestHarness
                 {
                     CodigoProceso.EDUCACION_MEDICA_SELECCION => esDesc ? WfSeleccionDesc : WfSeleccion,
                     CodigoProceso.EDUCACION_MEDICA_RUTAS => esDesc ? WfRutasDesc : WfRutas,
+                    CodigoProceso.EDUCACION_MEDICA_MATRIZ => esDesc ? WfMatrizDesc : WfMatriz,
                     _ => null,
                 };
             });

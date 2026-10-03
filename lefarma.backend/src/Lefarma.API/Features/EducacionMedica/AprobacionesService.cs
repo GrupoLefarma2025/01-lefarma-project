@@ -182,6 +182,68 @@ public class AprobacionesService : IAprobacionesService
             });
         }
 
+        // ----- Matrices generales de talleres -----
+        var queryMatrices = _context.MatricesGenerales.AsNoTracking()
+            .Include(m => m.EstadoWorkflow)
+            .Include(m => m.TipoGerencia)
+            .AsQueryable();
+
+        if (filtroNormalizado == FiltroPendientes)
+        {
+            queryMatrices = queryMatrices.Where(m =>
+                m.IdWorkflow != null
+                && m.IdPasoActual != null
+                && idsPasosFirma.Contains(m.IdPasoActual.Value));
+        }
+        else if (filtroNormalizado == FiltroMios)
+        {
+            queryMatrices = queryMatrices.Where(m => m.IdUsuarioCreacion == idUsuario);
+        }
+
+        foreach (var matriz in await queryMatrices.ToListAsync(ct))
+        {
+            var acciones = await ObtenerAccionesAsync(
+                matriz.IdWorkflow,
+                matriz.IdMatrizGeneral,
+                matriz.IdPasoActual,
+                idUsuario,
+                CodigoProceso.EDUCACION_MEDICA_MATRIZ,
+                matriz,
+                ct);
+
+            if (filtroNormalizado == FiltroPendientes && acciones.Count == 0)
+            {
+                continue;
+            }
+
+            var paso = matriz.IdPasoActual is not null
+                && pasosPorId.TryGetValue(matriz.IdPasoActual.Value, out var pasoMat)
+                    ? pasoMat
+                    : null;
+
+            var totalTalleres = await _context.Talleres.AsNoTracking()
+                .CountAsync(t => t.IdMatrizGeneral == matriz.IdMatrizGeneral && t.Activo, ct);
+
+            documentos.Add(new PendienteAprobacionDto
+            {
+                Tipo = "matriz",
+                IdEntidad = matriz.IdMatrizGeneral,
+                IdMatrizGeneral = matriz.IdMatrizGeneral,
+                IdWorkflow = matriz.IdWorkflow,
+                IdPasoActual = matriz.IdPasoActual,
+                Documento = $"Matriz de talleres {matriz.Periodo:MM/yyyy} – {matriz.TipoGerencia?.Descripcion ?? matriz.IdTipoGerencia.ToString()}",
+                Detalle = $"{totalTalleres} taller(es)",
+                IdUsuarioCreador = matriz.IdUsuarioCreacion,
+                PasoNombre = paso?.NombrePaso,
+                Estado = matriz.EstadoWorkflow?.Codigo,
+                IdEstado = matriz.IdEstado,
+                EstadoNombre = matriz.EstadoWorkflow?.Nombre,
+                EstadoColor = matriz.EstadoWorkflow?.ColorHex,
+                Fecha = matriz.FechaCreacion,
+                Acciones = acciones,
+            });
+        }
+
         await ResolverNombresCreadoresAsync(documentos, ct);
 
         return documentos

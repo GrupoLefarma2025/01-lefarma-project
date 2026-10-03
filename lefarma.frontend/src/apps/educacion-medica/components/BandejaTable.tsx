@@ -101,7 +101,11 @@ export function BandejaTable({
         header: 'Tipo',
         cell: ({ row }) => (
           <Badge variant="outline" className="text-[10px] uppercase">
-            {row.original.tipo === 'seleccion' ? 'Selección' : 'Rutas'}
+            {row.original.tipo === 'seleccion'
+              ? 'Selección'
+              : row.original.tipo === 'matriz'
+                ? 'Matriz'
+                : 'Rutas'}
           </Badge>
         ),
       },

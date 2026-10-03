@@ -92,6 +92,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<RankingEjecucion> RankingsEjecuciones { get; set; }
         public DbSet<RankingEjecucionHospital> RankingsEjecucionesHospitales { get; set; }
         public DbSet<Taller> Talleres { get; set; }
+        public DbSet<TallerRecurso> TalleresRecursos { get; set; }
+        public DbSet<MatrizIndividual> MatricesIndividuales { get; set; }
+        public DbSet<MatrizGeneral> MatricesGenerales { get; set; }
 
         // DbSets - Catalogos Nuevos (Sistema CxP)
         public DbSet<Proveedor> Proveedores { get; set; }

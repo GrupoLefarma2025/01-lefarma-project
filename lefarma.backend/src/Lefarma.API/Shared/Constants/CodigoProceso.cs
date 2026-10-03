@@ -12,6 +12,7 @@
         /// </summary>
         public const string EDUCACION_MEDICA_SELECCION = "EDUCACION_MEDICA_SELECCION";
         public const string EDUCACION_MEDICA_RUTAS = "EDUCACION_MEDICA_RUTAS";
+        public const string EDUCACION_MEDICA_MATRIZ = "EDUCACION_MEDICA_MATRIZ";
     }
 
     /// <summary>Claves de scope usadas por los servicios al resolver workflows.</summary>

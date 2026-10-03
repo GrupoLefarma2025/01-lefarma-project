@@ -66,7 +66,9 @@ export function DocumentoHistorialModal({
     const historialPromise =
       tipo === 'seleccion'
         ? educacionMedicaApi.seleccionesMensuales.historial(idEntidad)
-        : educacionMedicaApi.rutas.historialVersion(idEntidad);
+        : tipo === 'matriz'
+          ? educacionMedicaApi.matricesTalleres.historial(idEntidad)
+          : educacionMedicaApi.rutas.historialVersion(idEntidad);
 
     const flujoPromise = cacheFlujo
       ? Promise.resolve(null)

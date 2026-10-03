@@ -103,9 +103,14 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
     isCollapsible: true,
     items: [
       {
-        title: 'Taller',
+        title: 'Matriz de talleres',
         icon: Presentation,
         path: '/educacion-medica/talleres',
+      },
+      {
+        title: 'Mis talleres',
+        icon: ClipboardList,
+        path: '/educacion-medica/talleres/mis-talleres',
       },
       {
         title: 'Bandeja de Autorizaciones',

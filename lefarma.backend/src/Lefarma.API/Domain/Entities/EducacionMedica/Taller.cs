@@ -45,4 +45,12 @@ public class Taller
     public DateTime FechaModificacion { get; set; }
     public int? IdUsuarioCreacion { get; set; }
     public int? IdUsuarioModificacion { get; set; }
+
+    // Matriz de talleres (ADR-00007): enlaces a la matriz individual (equipo + mes) y general (gerencia + mes)
+    public int? IdMatrizIndividual { get; set; }
+    public int? IdMatrizGeneral { get; set; }
+
+    public virtual MatrizIndividual? MatrizIndividual { get; set; }
+    public virtual MatrizGeneral? MatrizGeneral { get; set; }
+    public virtual ICollection<TallerRecurso> Recursos { get; set; } = new List<TallerRecurso>();
 }

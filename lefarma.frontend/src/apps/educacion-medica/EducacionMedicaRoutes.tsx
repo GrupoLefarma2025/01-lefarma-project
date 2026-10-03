@@ -17,7 +17,8 @@ import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
 import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
 import RutasPage from './pages/planificacion/RutasPage';
 import CalendarioPage from './pages/planificacion/CalendarioPage';
-import TallerPage from './pages/taller/TallerPage';
+import MatrizTalleresPage from './pages/taller/MatrizTalleresPage';
+import MisTalleresPage from './pages/taller/MisTalleresPage';
 import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
 import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
 import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
@@ -72,7 +73,8 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         <Route path="seleccion" element={<SeleccionMensualPage />} />
         <Route path="seleccion/:idSeleccion/rutas" element={<RutasPage />} />
         <Route path="calendario" element={<CalendarioPage />} />
-        <Route path="talleres" element={<TallerPage />} />
+        <Route path="talleres" element={<MatrizTalleresPage />} />
+        <Route path="talleres/mis-talleres" element={<MisTalleresPage />} />
         <Route path="aprobaciones" element={<BandejaAprobacionesPage />} />
         <Route path="mis-asignaciones" element={<MisAsignacionesPage />} />
         <Route path="indicadores" element={<IndicadoresPage />} />

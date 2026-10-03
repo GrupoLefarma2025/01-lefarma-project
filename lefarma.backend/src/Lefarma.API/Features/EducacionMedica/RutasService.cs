@@ -707,6 +707,7 @@ public class RutasService : IRutasService
                     IdRuta = ruta.IdRuta,
                     NombreRuta = ruta.Nombre,
                     IdSeleccionMensual = ruta.IdSeleccionMensual,
+                    IdSeleccionHospital = visita.IdSeleccionHospital,
                     FechaVisita = visita.FechaVisita,
                     Orden = visita.Orden,
                     IdHospital = hospital?.IdHospital,

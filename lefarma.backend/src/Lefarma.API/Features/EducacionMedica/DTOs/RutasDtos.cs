@@ -85,6 +85,7 @@ public class AsignacionDto
     public int IdRuta { get; set; }
     public string? NombreRuta { get; set; }
     public int IdSeleccionMensual { get; set; }
+    public int IdSeleccionHospital { get; set; }
     public DateOnly FechaVisita { get; set; }
     public int Orden { get; set; }
     public int? IdHospital { get; set; }

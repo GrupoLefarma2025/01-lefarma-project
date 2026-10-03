@@ -33,11 +33,28 @@ public class TallerConfiguration : IEntityTypeConfiguration<Taller>
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
+        builder.Property(e => e.IdMatrizIndividual).HasColumnName("id_matriz_individual");
+        builder.Property(e => e.IdMatrizGeneral).HasColumnName("id_matriz_general");
 
         builder.HasOne<SeleccionHospital>()
             .WithMany()
             .HasForeignKey(e => e.IdSeleccionHospital)
             .HasConstraintName("FK_talleres_seleccion_hospital")
             .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne(e => e.MatrizIndividual)
+            .WithMany(m => m.Talleres)
+            .HasForeignKey(e => e.IdMatrizIndividual)
+            .HasConstraintName("FK_talleres_matriz_individual")
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasOne(e => e.MatrizGeneral)
+            .WithMany(m => m.Talleres)
+            .HasForeignKey(e => e.IdMatrizGeneral)
+            .HasConstraintName("FK_talleres_matriz_general")
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(e => e.IdMatrizIndividual).HasDatabaseName("IX_talleres_id_matriz_individual");
+        builder.HasIndex(e => e.IdMatrizGeneral).HasDatabaseName("IX_talleres_id_matriz_general");
     }
 }

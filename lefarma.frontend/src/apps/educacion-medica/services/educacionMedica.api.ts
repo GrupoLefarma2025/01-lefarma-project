@@ -58,6 +58,16 @@ import type {
   ConfigRankingResumen,
   ConfigRanking,
   UpsertConfigRankingRequest,
+  MisTalleresResponse,
+  Taller,
+  CrearTallerRequest,
+  ActualizarTallerRequest,
+  MatrizIndividual,
+  MatrizGeneralResumen,
+  MatrizTalleresDetalle,
+  ConcentracionEquipo,
+  ActualizarCostosTallerRequest,
+  MatrizDocumento,
 } from '../types/educacionMedica.types';
 
 const BASE = '/educacion-medica';
@@ -377,6 +387,67 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<PendienteAprobacion[]>>(`${BASE}/aprobaciones/documentos`, {
         params: { filtro },
       }),
+  },
+  talleres: {
+    misTalleres: (periodo?: string) =>
+      API.get<ApiResponse<MisTalleresResponse>>(`${BASE}/talleres/mis-talleres`, {
+        params: periodo ? { periodo } : undefined,
+      }),
+    crear: (payload: CrearTallerRequest) =>
+      API.post<ApiResponse<Taller>>(`${BASE}/talleres`, payload),
+    actualizar: (idTaller: number, payload: ActualizarTallerRequest) =>
+      API.put<ApiResponse<Taller>>(`${BASE}/talleres/${idTaller}`, payload),
+    eliminar: (idTaller: number) =>
+      API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}`),
+    generarMatrizIndividual: (idMatrizIndividual: number) =>
+      API.post<ApiResponse<MatrizIndividual>>(
+        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/generar`
+      ),
+    reabrirMatrizIndividual: (idMatrizIndividual: number) =>
+      API.post<ApiResponse<MatrizIndividual>>(
+        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/reabrir`
+      ),
+  },
+  matricesTalleres: {
+    getAll: (gerencia?: number, periodo?: string) =>
+      API.get<ApiResponse<MatrizGeneralResumen[]>>(`${BASE}/matrices-talleres`, {
+        params: {
+          ...(gerencia ? { gerencia } : {}),
+          ...(periodo ? { periodo } : {}),
+        },
+      }),
+    getById: (idMatrizGeneral: number) =>
+      API.get<ApiResponse<MatrizTalleresDetalle>>(`${BASE}/matrices-talleres/${idMatrizGeneral}`),
+    concentracion: (idMatrizGeneral: number) =>
+      API.get<ApiResponse<ConcentracionEquipo[]>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/concentracion`
+      ),
+    actualizarCostos: (
+      idMatrizGeneral: number,
+      idTaller: number,
+      payload: ActualizarCostosTallerRequest
+    ) =>
+      API.put<ApiResponse<Taller>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/talleres/${idTaller}/costos`,
+        payload
+      ),
+    firmar: (idMatrizGeneral: number, payload: FirmarWorkflowRequest) =>
+      API.post<ApiResponse<MatrizTalleresDetalle>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/firmar`,
+        payload
+      ),
+    accionesDisponibles: (idMatrizGeneral: number) =>
+      API.get<ApiResponse<AccionDisponible[]>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/acciones-disponibles`
+      ),
+    historial: (idMatrizGeneral: number) =>
+      API.get<ApiResponse<HistorialWorkflowItem[]>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/historial`
+      ),
+    documento: (idMatrizGeneral: number) =>
+      API.get<ApiResponse<MatrizDocumento>>(
+        `${BASE}/matrices-talleres/${idMatrizGeneral}/documento`
+      ),
   },
   parametrosModulo: {
     getAll: () =>

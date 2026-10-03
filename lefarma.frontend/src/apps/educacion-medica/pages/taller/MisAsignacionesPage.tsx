@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { RefreshCcw } from 'lucide-react';
+import { ClipboardPlus, RefreshCcw } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -21,6 +22,7 @@ function formatearFecha(fecha: string): string {
 export default function MisAsignacionesPage() {
   usePageTitle('Mis hospitales del mes', 'Educación Médica');
 
+  const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user?.id);
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +45,7 @@ export default function MisAsignacionesPage() {
   }, [userId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
     fetchAsignaciones();
   }, [fetchAsignaciones]);
 
@@ -88,8 +91,26 @@ export default function MisAsignacionesPage() {
             <Badge variant="outline">Programada</Badge>
           ),
       },
+      {
+        id: 'acciones',
+        header: 'Acciones',
+        cell: ({ row }) => (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              navigate(
+                `/educacion-medica/talleres/mis-talleres?idSeleccionHospital=${row.original.idSeleccionHospital}&nuevo=1`
+              )
+            }
+          >
+            <ClipboardPlus className="mr-1.5 h-4 w-4" />
+            Registrar taller
+          </Button>
+        ),
+      },
     ],
-    [hoy]
+    [hoy, navigate]
   );
 
   return (

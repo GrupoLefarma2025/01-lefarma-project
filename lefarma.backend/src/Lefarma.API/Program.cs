@@ -234,6 +234,8 @@ builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IEquipoPareoServ
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ISeleccionMensualService, Lefarma.API.Features.EducacionMedica.SeleccionMensualService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRutasService, Lefarma.API.Features.EducacionMedica.RutasService>();
         builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IAprobacionesService, Lefarma.API.Features.EducacionMedica.AprobacionesService>();
+        builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.ITalleresService, Lefarma.API.Features.EducacionMedica.TalleresService>();
+        builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IMatrizTalleresService, Lefarma.API.Features.EducacionMedica.MatrizTalleresService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IParametroModuloService, Lefarma.API.Features.EducacionMedica.ParametroModuloService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.IRegionService, Lefarma.API.Features.EducacionMedica.RegionService>();
 builder.Services.AddScoped<Lefarma.API.Features.EducacionMedica.Services.IRankingHospitalesService, Lefarma.API.Features.EducacionMedica.Services.RankingHospitalesService>();

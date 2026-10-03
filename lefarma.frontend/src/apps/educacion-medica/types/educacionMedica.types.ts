@@ -446,9 +446,11 @@ export interface RutaVersionDto {
 
 /** Item de la Bandeja de Autorizaciones del módulo. */
 export interface PendienteAprobacion {
-  tipo: 'seleccion' | 'rutas';
+  tipo: 'seleccion' | 'rutas' | 'matriz';
   idEntidad: number;
   idSeleccionMensual: number;
+  /** Matriz general cuando el documento es de tipo `matriz`. */
+  idMatrizGeneral?: number | null;
   /** Workflow del documento (para dibujar el flujo en el historial). */
   idWorkflow: number | null;
   idPasoActual: number | null;
@@ -516,6 +518,7 @@ export interface Asignacion {
   idRuta: number;
   nombreRuta: string | null;
   idSeleccionMensual: number;
+  idSeleccionHospital: number;
   fechaVisita: string;
   orden: number;
   idHospital: number | null;
@@ -716,4 +719,186 @@ export interface UpsertConfigRankingRequest {
   nombre: string;
   activo?: boolean;
   factores: UpsertConfigRankingFactorRequest[];
+}
+
+// ─── Matriz de Talleres (FOR-005) ────────────────────────────────────────────
+
+/** Tipos de recurso del taller (constantes del backend: Producto/Folleto/Envio/BoxLunch). */
+export type TipoRecursoTaller = 'Producto' | 'Folleto' | 'Envio' | 'BoxLunch';
+
+export interface TallerRecurso {
+  idTallerRecurso: number;
+  tipoRecurso: string;
+  idProducto: string | null;
+  descripcion: string | null;
+  tipoEnvio: string | null;
+  cantidad: number | null;
+  costoUnitario: number | null;
+  subtotal: number | null;
+  observaciones: string | null;
+}
+
+export interface Taller {
+  idTaller: number;
+  idSeleccionHospital: number | null;
+  idHospital: number | null;
+  nombreHospital: string | null;
+  region: string | null;
+  entidadFederativa: string | null;
+  ciudadMunicipio: string | null;
+  numeroParticipantes: number | null;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  unidadMedica: string | null;
+  lugar: string | null;
+  /** DateOnly del backend: 'YYYY-MM-DD'. */
+  fechaTaller: string | null;
+  /** TimeOnly del backend: 'HH:mm:ss'. */
+  horaTaller: string | null;
+  requiereEquipoProyeccion: boolean | null;
+  tipoEquipoProyeccion: string | null;
+  estado: string;
+  observaciones: string | null;
+  idMatrizIndividual: number | null;
+  idMatrizGeneral: number | null;
+  recursos: TallerRecurso[];
+  /** Suma de los subtotales de los recursos (calculada en el servicio). */
+  costoTotal: number;
+}
+
+/** Matriz individual de un equipo de pareo (equipo + mes). */
+export interface MatrizIndividual {
+  idMatrizIndividual: number;
+  idEquipo: number;
+  /** DateOnly del backend: 'YYYY-MM-DD' (siempre día 1). */
+  periodo: string;
+  estado: 'EnCaptura' | 'Generada' | string;
+  fechaGeneracion: string | null;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  totalTalleres: number;
+}
+
+/** Respuesta de "Mis talleres": equipo, matriz individual del mes y talleres capturados. */
+export interface MisTalleresResponse {
+  idEquipo: number | null;
+  nombreRegion: string | null;
+  periodo: string;
+  matriz: MatrizIndividual | null;
+  talleres: Taller[];
+}
+
+/** Recurso capturado por el equipo (sin costos; los costos los registra el AEM). */
+export interface GuardarTallerRecursoRequest {
+  tipoRecurso: string;
+  idProducto?: string | null;
+  descripcion?: string | null;
+  tipoEnvio?: string | null;
+  cantidad?: number | null;
+  observaciones?: string | null;
+}
+
+/** Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección). */
+export interface CrearTallerRequest {
+  idSeleccionHospital: number;
+  numeroParticipantes?: number | null;
+  unidadMedica?: string | null;
+  lugar?: string | null;
+  fechaTaller?: string | null;
+  horaTaller?: string | null;
+  requiereEquipoProyeccion?: boolean | null;
+  tipoEquipoProyeccion?: string | null;
+  observaciones?: string | null;
+  recursos?: GuardarTallerRecursoRequest[] | null;
+}
+
+/** Edición de un taller (la liga a la selección/hospital no cambia). */
+export interface ActualizarTallerRequest {
+  numeroParticipantes?: number | null;
+  unidadMedica?: string | null;
+  lugar?: string | null;
+  fechaTaller?: string | null;
+  horaTaller?: string | null;
+  requiereEquipoProyeccion?: boolean | null;
+  tipoEquipoProyeccion?: string | null;
+  observaciones?: string | null;
+  recursos?: GuardarTallerRecursoRequest[] | null;
+}
+
+/** Resumen de una matriz general (lista por gerencia/mes). */
+export interface MatrizGeneralResumen {
+  idMatrizGeneral: number;
+  idTipoGerencia: number;
+  gerencia: string | null;
+  periodo: string;
+  idWorkflow: number | null;
+  idPasoActual: number | null;
+  pasoNombre: string | null;
+  idEstado: number | null;
+  estadoNombre: string | null;
+  estadoColor: string | null;
+  totalTalleres: number;
+  costoTotal: number;
+}
+
+/** Detalle de la matriz general: talleres con recursos, totales y acciones del workflow. */
+export interface MatrizTalleresDetalle extends MatrizGeneralResumen {
+  esEditable: boolean;
+  esFinal: boolean;
+  talleres: Taller[];
+  acciones: AccionDisponible[];
+}
+
+/** Panel "Matrices por equipo" de la concentración (estado de cada matriz individual). */
+export interface ConcentracionEquipo {
+  idMatrizIndividual: number;
+  idEquipo: number;
+  nombreRegion: string | null;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  estado: 'EnCaptura' | 'Generada' | string;
+  fechaGeneracion: string | null;
+  totalTalleres: number;
+}
+
+/** Recurso con costo capturado por el AEM en el paso de costos. */
+export interface GuardarCostoRecursoRequest {
+  tipoRecurso: string;
+  idProducto?: string | null;
+  descripcion?: string | null;
+  tipoEnvio?: string | null;
+  cantidad?: number | null;
+  costoUnitario?: number | null;
+  observaciones?: string | null;
+}
+
+/** Reemplazo del conjunto de recursos/costos de un taller (paso del AEM). */
+export interface ActualizarCostosTallerRequest {
+  recursos: GuardarCostoRecursoRequest[];
+}
+
+export interface MatrizDocumentoFirma {
+  pasoNombre: string | null;
+  idUsuario: number;
+  nombreUsuario: string | null;
+  comentario: string | null;
+  fecha: string;
+}
+
+/** Documento imprimible de la matriz (layout FOR-005). */
+export interface MatrizDocumento {
+  titulo: string;
+  gerencia: string | null;
+  periodo: string;
+  pasoNombre: string | null;
+  estadoNombre: string | null;
+  talleres: Taller[];
+  costoTotal: number;
+  firmas: MatrizDocumentoFirma[];
 }

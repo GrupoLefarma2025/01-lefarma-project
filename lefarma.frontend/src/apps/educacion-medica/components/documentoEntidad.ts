@@ -10,4 +10,5 @@ export type TipoDocumentoEm = PendienteAprobacion['tipo'];
 export const ENTIDAD_ARCHIVOS: Record<TipoDocumentoEm, { tipo: string; carpeta: string }> = {
   seleccion: { tipo: 'SeleccionMensual', carpeta: 'educacion-medica-selecciones' },
   rutas: { tipo: 'RutaVersion', carpeta: 'educacion-medica-rutas' },
+  matriz: { tipo: 'MatrizGeneral', carpeta: 'educacion-medica-matrices' },
 };

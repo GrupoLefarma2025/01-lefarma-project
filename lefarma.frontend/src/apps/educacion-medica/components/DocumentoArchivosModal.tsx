@@ -44,7 +44,11 @@ export function DocumentoArchivosModal({
         <div className="bg-muted/30 rounded-md border p-3">
           <p className="text-sm font-semibold">{documento}</p>
           <p className="text-xs text-muted-foreground">
-            {tipo === 'seleccion' ? 'Selección mensual' : 'Versión de rutas'}
+            {tipo === 'seleccion'
+              ? 'Selección mensual'
+              : tipo === 'matriz'
+                ? 'Matriz de talleres'
+                : 'Versión de rutas'}
           </p>
         </div>
         <DocumentoArchivosTab
