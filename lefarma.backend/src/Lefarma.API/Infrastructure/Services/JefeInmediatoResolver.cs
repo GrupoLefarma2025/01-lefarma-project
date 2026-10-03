@@ -47,7 +47,7 @@ namespace Lefarma.API.Infrastructure.Services
                 .ToListAsync(ct);
 
             if (config.Count == 0)
-                return nivel == 1; // default legacy
+                return true; // sin configuracion: aplican todos los niveles de la cadena
 
             return config.FirstOrDefault(c => c.Nivel == nivel)?.Aplica ?? false;
         }

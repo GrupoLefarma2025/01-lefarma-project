@@ -56,6 +56,30 @@ public class WorkflowEngineAutoSkipTests
         ctx.SaveChanges();
     }
 
+    private static void SembrarWorkflowMultinivel(ApplicationDbContext ctx)
+    {
+        ctx.Workflows.Add(new Workflow { IdWorkflow = 1, Nombre = "Test", CodigoProceso = "SOLICITUD_PERSONAL", Activo = true });
+        ctx.WorkflowPasos.AddRange(
+            new WorkflowPaso { IdPaso = 10, IdWorkflow = 1, Orden = 1, NombrePaso = "Inicio", EsInicio = true, Activo = true },
+            new WorkflowPaso { IdPaso = 20, IdWorkflow = 1, Orden = 2, NombrePaso = "Jefe Nivel 1", Activo = true },
+            new WorkflowPaso { IdPaso = 30, IdWorkflow = 1, Orden = 3, NombrePaso = "Jefe Nivel 2", Activo = true },
+            new WorkflowPaso { IdPaso = 40, IdWorkflow = 1, Orden = 4, NombrePaso = "Jefe Nivel 3", Activo = true },
+            new WorkflowPaso { IdPaso = 50, IdWorkflow = 1, Orden = 5, NombrePaso = "Fin", EsFinal = true, Activo = true });
+
+        ctx.WorkflowAcciones.AddRange(
+            new WorkflowAccion { IdAccion = 100, IdPasoOrigen = 10, IdPasoDestino = 20, IdTipoAccion = 1, Activo = true },
+            new WorkflowAccion { IdAccion = 200, IdPasoOrigen = 20, IdPasoDestino = 30, IdTipoAccion = 1, Activo = true },
+            new WorkflowAccion { IdAccion = 300, IdPasoOrigen = 30, IdPasoDestino = 40, IdTipoAccion = 1, Activo = true },
+            new WorkflowAccion { IdAccion = 400, IdPasoOrigen = 40, IdPasoDestino = 50, IdTipoAccion = 1, Activo = true });
+
+        ctx.WorkflowParticipantes.AddRange(
+            new WorkflowParticipante { IdParticipante = 1, IdPaso = 20, RequiereJefeInmediato = true, NivelJefe = 1, Activo = true },
+            new WorkflowParticipante { IdParticipante = 2, IdPaso = 30, RequiereJefeInmediato = true, NivelJefe = 2, Activo = true },
+            new WorkflowParticipante { IdParticipante = 3, IdPaso = 40, RequiereJefeInmediato = true, NivelJefe = 3, Activo = true });
+
+        ctx.SaveChanges();
+    }
+
     private static WorkflowEngine CrearEngine(
         ApplicationDbContext app, AsokamDbContext asokam, IJefeInmediatoResolver resolver)
     {
@@ -95,7 +119,11 @@ public class WorkflowEngineAutoSkipTests
         ctx.SaveChanges();
     }
 
-    private static WorkflowContext CrearCtxSolicitud(int idTipoSolicitud)
+    private static WorkflowContext CrearCtxSolicitud(
+        int idTipoSolicitud,
+        int idUsuarioCreador = 55,
+        int idUsuarioSolicitante = 55,
+        int idUsuario = 55)
     {
         var solicitud = new SolicitudPersonal
         {
@@ -106,14 +134,14 @@ public class WorkflowEngineAutoSkipTests
             IdWorkflow = 1,
             IdPasoActual = 10,
             IdEstado = 1,
-            IdUsuarioCreador = 55,
-            IdUsuarioSolicitante = 55,
+            IdUsuarioCreador = idUsuarioCreador,
+            IdUsuarioSolicitante = idUsuarioSolicitante,
             IdTipoSolicitud = idTipoSolicitud,
             FechaCreacion = DateTime.Now
         };
 
         return new(IdWorkflow: 1, IdEntidad: 1, TipoEntidad: CodigoProceso.SOLICITUD_PERSONAL,
-                   Entidad: solicitud, IdAccion: 100, IdUsuario: 55,
+                   Entidad: solicitud, IdAccion: 100, IdUsuario: idUsuario,
                    Orden: null!, Comentario: null);
     }
 
@@ -224,5 +252,73 @@ public class WorkflowEngineAutoSkipTests
 
         resultado.Exitoso.Should().BeTrue();
         resultado.NuevoIdPaso.Should().Be(20); // el participante directo 99 conserva el paso
+    }
+
+    [Fact]
+    public async Task AutoSkip_Resuelve_Jefe_Del_Solicitante_No_Del_Creador()
+    {
+        var (app, asokam) = CrearContextos();
+        SembrarWorkflow(app);
+
+        var basesConsultadas = new List<int>();
+        var mock = new Mock<IJefeInmediatoResolver>();
+        mock.Setup(r => r.ResolverJefeEfectivoAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Callback<int, int, int, CancellationToken>((_, idUsuarioBase, _, _) => basesConsultadas.Add(idUsuarioBase))
+            .ReturnsAsync(new JefeEfectivoResult(88, null));
+
+        var engine = CrearEngine(app, asokam, mock.Object);
+        var ctx = CrearCtxSolicitud(
+            idTipoSolicitud: 5, idUsuarioCreador: 55, idUsuarioSolicitante: 77, idUsuario: 77);
+
+        var resultado = await engine.EjecutarAccionAsync(ctx);
+
+        resultado.Exitoso.Should().BeTrue();
+        basesConsultadas.Should().NotBeEmpty();
+        basesConsultadas.Should().OnlyContain(id => id == 77);
+    }
+
+    [Fact]
+    public async Task Nivel_Excluido_Se_Omite_Y_Continua_Al_Siguiente_Nivel()
+    {
+        var (app, asokam) = CrearContextos();
+        SembrarWorkflowMultinivel(app);
+
+        var mock = new Mock<IJefeInmediatoResolver>();
+        mock.Setup(r => r.ResolverJefeEfectivoAsync(
+                It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new JefeEfectivoResult(99, null));
+        mock.Setup(r => r.ResolverJefeEfectivoAsync(
+                It.IsAny<int>(), It.IsAny<int>(), 2, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new JefeEfectivoResult(null, MotivoOmisionJefe.Excluido));
+
+        var engine = CrearEngine(app, asokam, mock.Object);
+        var ctx = new WorkflowContext(
+            IdWorkflow: 1, IdEntidad: 1, TipoEntidad: CodigoProceso.SOLICITUD_PERSONAL,
+            Entidad: new SolicitudPersonal
+            {
+                IdSolicitud = 1,
+                Folio = "SOL-1",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdWorkflow = 1,
+                IdPasoActual = 20,
+                IdEstado = 1,
+                IdUsuarioCreador = 55,
+                IdUsuarioSolicitante = 55,
+                IdTipoSolicitud = 5,
+                FechaCreacion = DateTime.Now
+            },
+            IdAccion: 200, IdUsuario: 99, Orden: null!, Comentario: null);
+
+        var resultado = await engine.EjecutarAccionAsync(ctx);
+
+        resultado.Exitoso.Should().BeTrue();
+        resultado.NuevoIdPaso.Should().Be(40); // salta el nivel 2 excluido y se detiene en el nivel 3
+
+        var omision = app.WorkflowBitacoras.Local
+            .FirstOrDefault(b => b.Comentario != null && b.Comentario.Contains("omitido"));
+        omision.Should().NotBeNull();
+        omision!.DatosSnapshot.Should().Contain("Excluido");
     }
 }

@@ -255,7 +255,7 @@ namespace Lefarma.API.Features.Config.EmpleadoJefes
                     return new EmpleadoJefeNivelCompletoDto
                     {
                         Nivel = nivel,
-                        Aplica = cfg?.Aplica ?? (esConfigPorDefecto && nivel == 1),
+                        Aplica = cfg?.Aplica ?? esConfigPorDefecto,
                         IdUsuarioJefeOverride = over?.IdUsuarioJefe,
                         NombreJefeOverride = over?.IdUsuarioJefe is null
                             ? null
