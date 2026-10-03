@@ -429,8 +429,8 @@ export function FirmaUploadCard() {
 
       {/* Dialog de confirmación final: doble validación con vista previa antes de guardar */}
       <Dialog open={confirmDialogOpen} onOpenChange={handleConfirmOpenChange}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
+        <DialogContent className="max-w-sm overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5" />
               Confirma tu firma
@@ -439,7 +439,7 @@ export function FirmaUploadCard() {
               Recursos Humanos comprobará tu firma contra tu INE antes de activarla.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             {pendingFirmaUrl && (
               <div className="flex justify-center rounded-lg border bg-white p-4">
                 <img
@@ -501,44 +501,44 @@ export function FirmaUploadCard() {
                   : 'Verifica que tu firma sea legible y correcta antes de enviar.'}
               {' '}Mientras esté en comprobación no podrás cerrar solicitudes personales.
             </p>
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isUploadingFirma}
-                onClick={() => handleConfirmOpenChange(false)}
-              >
-                Volver
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                disabled={isUploadingFirma || !pendingFirmaFile || !ineFile}
-                onClick={handleConfirmarEnvio}
-              >
-                {isUploadingFirma ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="mr-2 h-4 w-4" />
-                )}
-                Enviar a comprobación
-              </Button>
-            </div>
+          </div>
+          <div className="flex shrink-0 justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isUploadingFirma}
+              onClick={() => handleConfirmOpenChange(false)}
+            >
+              Volver
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isUploadingFirma || !pendingFirmaFile || !ineFile}
+              onClick={handleConfirmarEnvio}
+            >
+              {isUploadingFirma ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="mr-2 h-4 w-4" />
+              )}
+              Enviar a comprobación
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Dialog de Cropper para Firma */}
       <Dialog open={cropDialogOpen} onOpenChange={setCropDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="max-w-3xl overflow-hidden">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <Crop className="h-5 w-5" />
               Recortar Firma Digital
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
             <p className="text-sm text-muted-foreground">
               Ajusta tu firma dentro del área de recorte. Puedes mover y redimensionar la selección.
             </p>
