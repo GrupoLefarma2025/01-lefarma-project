@@ -161,13 +161,14 @@ public class JefeInmediatoResolverTests
     }
 
     [Fact]
-    public async Task AplicaNivel_Sin_Config_Solo_Nivel1()
+    public async Task AplicaNivel_Sin_Config_Todos_Los_Niveles()
     {
         var resolver = new JefeInmediatoResolver(
             CreateAsistenciasContext(), CreateAppContext(), CrearRepoEmpleadoMock().Object);
 
         (await resolver.AplicaNivelJefeAsync(55, 1)).Should().BeTrue();
-        (await resolver.AplicaNivelJefeAsync(55, 2)).Should().BeFalse();
+        (await resolver.AplicaNivelJefeAsync(55, 2)).Should().BeTrue();
+        (await resolver.AplicaNivelJefeAsync(55, 5)).Should().BeTrue();
     }
 
     [Fact]
@@ -186,17 +187,49 @@ public class JefeInmediatoResolverTests
     }
 
     [Fact]
-    public async Task Check_Apagado_Motivo_ConfigNoAplica()
+    public async Task Sin_Config_Nivel2_Resuelve_Jefe_De_La_Vista()
     {
         var asistencias = CreateAsistenciasContext();
         SembrarCadena(asistencias);
         var resolver = new JefeInmediatoResolver(asistencias, CreateAppContext(), CrearRepoEmpleadoMock().Object);
 
-        // sin config: nivel 2 no aplica por default
+        // sin config: todos los niveles de la cadena aplican
         var resultado = await resolver.ResolverJefeEfectivoAsync(1, 55, 2);
 
+        resultado.IdUsuario.Should().Be(88);
+        resultado.MotivoOmision.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Sin_Config_Columna_Sin_Valor_Motivo_CadenaRota()
+    {
+        var asistencias = CreateAsistenciasContext();
+        SembrarCadena(asistencias); // niveles 4 y 5 son NULL en la fila sembrada
+        var resolver = new JefeInmediatoResolver(asistencias, CreateAppContext(), CrearRepoEmpleadoMock().Object);
+
+        var resultado = await resolver.ResolverJefeEfectivoAsync(1, 55, 4);
+
         resultado.IdUsuario.Should().BeNull();
-        resultado.MotivoOmision.Should().Be(MotivoOmisionJefe.ConfigNoAplica);
+        resultado.MotivoOmision.Should().Be(MotivoOmisionJefe.CadenaRota);
+    }
+
+    [Fact]
+    public async Task Sin_Config_Jefe_Excluido_Motivo_Excluido()
+    {
+        var asistencias = CreateAsistenciasContext();
+        SembrarCadena(asistencias);
+        var app = CreateAppContext();
+        // vetamos al usuario 88 (jefe de nivel 2) en el workflow 1
+        app.WorkflowJefesExcluidos.Add(new WorkflowJefeExcluido
+        { IdWorkflow = 1, IdUsuarioJefe = 88, Activo = true });
+        app.SaveChanges();
+
+        var resolver = new JefeInmediatoResolver(asistencias, app, CrearRepoEmpleadoMock().Object);
+
+        var resultado = await resolver.ResolverJefeEfectivoAsync(idWorkflow: 1, idUsuarioCreador: 55, nivel: 2);
+
+        resultado.IdUsuario.Should().BeNull();
+        resultado.MotivoOmision.Should().Be(MotivoOmisionJefe.Excluido);
     }
 
     [Fact]

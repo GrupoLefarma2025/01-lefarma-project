@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, History, Hourglass, IdCard, Loader2, PenLine, Send, Trash2, Upload, UserCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, History, Hourglass, IdCard, Loader2, PenLine, Send, Trash2, Upload, UserCheck, XCircle, ZoomIn } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import type { ApiResponse } from '@/types/api.types';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toApiError } from '@/utils/errors';
 import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
+import { ImageZoomDialog } from '@/components/common/ImageZoomDialog';
 
 interface FirmaUsuario {
   idUsuario: number;
@@ -102,6 +103,7 @@ export function FirmasUsuariosPage() {
   const [isResolviendo, setIsResolviendo] = useState(false);
   const [rechazando, setRechazando] = useState(false);
   const [motivoRechazo, setMotivoRechazo] = useState('');
+  const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; title: string } | null>(null);
 
   const load = async () => {
     try {
@@ -162,6 +164,7 @@ export function FirmasUsuariosPage() {
   };
 
   const cerrarComprobacion = () => {
+    setZoomImage(null);
     setComprobacionOpen(false);
     setComprobacionUsuario(null);
     setRechazando(false);
@@ -535,40 +538,72 @@ export function FirmasUsuariosPage() {
             </p>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Firma enviada
-                </p>
-                <div className="flex h-48 items-center justify-center rounded-lg border bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Firma enviada
+                  </p>
+                  {pendienteBlobUrl && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <ZoomIn className="h-3 w-3" />
+                      Clic para ampliar
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={!pendienteBlobUrl}
+                  onClick={() =>
+                    pendienteBlobUrl &&
+                    setZoomImage({ src: pendienteBlobUrl, alt: 'Firma pendiente', title: 'Firma enviada' })
+                  }
+                  className="flex h-48 w-full items-center justify-center rounded-lg border bg-white p-3 transition hover:border-primary/50 disabled:cursor-default cursor-zoom-in"
+                >
                   {loadingIne ? (
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : pendienteBlobUrl ? (
                     <img
                       src={pendienteBlobUrl}
                       alt="Firma pendiente"
-                      className="max-h-full max-w-full object-contain"
+                      className="pointer-events-none max-h-full max-w-full object-contain"
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">Sin firma pendiente</span>
                   )}
-                </div>
+                </button>
               </div>
               <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Foto del INE
-                </p>
-                <div className="flex h-48 items-center justify-center rounded-lg border bg-white p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Foto del INE
+                  </p>
+                  {ineBlobUrl && (
+                    <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                      <ZoomIn className="h-3 w-3" />
+                      Clic para ampliar
+                    </span>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  disabled={!ineBlobUrl}
+                  onClick={() =>
+                    ineBlobUrl &&
+                    setZoomImage({ src: ineBlobUrl, alt: 'Foto del INE', title: 'Foto del INE' })
+                  }
+                  className="flex h-48 w-full items-center justify-center rounded-lg border bg-white p-3 transition hover:border-primary/50 disabled:cursor-default cursor-zoom-in"
+                >
                   {loadingIne ? (
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : ineBlobUrl ? (
                     <img
                       src={ineBlobUrl}
                       alt="Foto del INE"
-                      className="max-h-full max-w-full object-contain"
+                      className="pointer-events-none max-h-full max-w-full object-contain"
                     />
                   ) : (
                     <span className="text-xs text-muted-foreground">INE no disponible</span>
                   )}
-                </div>
+                </button>
               </div>
             </div>
             {rechazando && (
@@ -588,6 +623,8 @@ export function FirmasUsuariosPage() {
           </div>
         )}
       </Modal>
+
+      <ImageZoomDialog image={zoomImage} onClose={() => setZoomImage(null)} />
 
       <Modal
         id="modal-historial-firma"

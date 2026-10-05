@@ -141,22 +141,23 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                     .Distinct()
                     .ToList();
 
-                // Resolver jefes efectivos por (workflow, creador, nivel) con caché
+                // Resolver jefes efectivos por (workflow, solicitante, nivel) con caché
                 var jefeCache = new Dictionary<(int, int, int), JefeEfectivoResult>();
                 var idsJefesDirectos = new HashSet<int>();
 
                 foreach (var entity in entities)
                 {
-                    if (!entity.IdUsuarioCreador.HasValue || !entity.IdPasoActual.HasValue)
+                    var idUsuarioBase = entity.IdUsuarioSolicitante ?? entity.IdUsuarioCreador;
+                    if (!idUsuarioBase.HasValue || !entity.IdPasoActual.HasValue)
                         continue;
                     if (!infoPorPaso.TryGetValue(entity.IdPasoActual.Value, out var info))
                         continue;
 
-                    var key = (info.IdWorkflow, entity.IdUsuarioCreador.Value, info.Nivel);
+                    var key = (info.IdWorkflow, idUsuarioBase.Value, info.Nivel);
                     if (!jefeCache.TryGetValue(key, out var jefe))
                     {
                         jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
-                            info.IdWorkflow, entity.IdUsuarioCreador.Value, info.Nivel, ct);
+                            info.IdWorkflow, idUsuarioBase.Value, info.Nivel, ct);
                         jefeCache[key] = jefe;
                     }
 
