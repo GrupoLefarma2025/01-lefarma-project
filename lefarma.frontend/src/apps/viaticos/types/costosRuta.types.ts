@@ -1,3 +1,10 @@
+/** Punto capturado manualmente (mapa, búsqueda global o selector guiado). */
+export interface PuntoSeleccion {
+  nombre: string;
+  latitud: number;
+  longitud: number;
+}
+
 export interface CostosRutaOpciones {
   respetarHorarioLaboral: boolean;
   calcularHoteles: boolean;
@@ -7,7 +14,39 @@ export interface CostosRutaOpciones {
 
 export interface CostosRutaRequest {
   opciones: CostosRutaOpciones;
-  personas: unknown[];
+  personas: CostosRutaPersonaInput[];
+}
+
+export interface CostosRutaPersonaInput {
+  nombre: string;
+  carro_propio: boolean;
+  gasolina: 'magna' | 'premium';
+  draft: boolean;
+  trabajo: {
+    hora_entrada: string;
+    hora_salida: string;
+    primer_dia_laboral: number;
+    ultimo_dia_laboral: number;
+  };
+  lugares: CostosRutaLugarInput[];
+}
+
+export interface CostosRutaLugarInput {
+  orden: number;
+  tipo: 'salida' | 'taller' | 'punto' | 'hotel';
+  nombre: string;
+  latitud: number;
+  longitud: number;
+  fecha_salida?: string;
+  hora_salida?: string;
+  fecha_llegada?: string;
+  hora_llegada?: string;
+  fecha_limite_llegada?: string;
+  hora_limite_llegada?: string;
+  fecha_inicio_actividad?: string;
+  hora_inicio_actividad?: string;
+  fecha_fin_actividad?: string;
+  hora_fin_actividad?: string;
 }
 
 export interface CostosRutaCompra {

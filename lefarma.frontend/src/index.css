@@ -852,3 +852,32 @@
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* ===== Impresion del Concentrado de Viaticos =====
+   Hoja ASK-ADM-FOR-008: 14 columnas, horizontal. Portal #costos-viaticos-print
+   visible solo al imprimir. */
+@media print {
+  body.print-viaticos {
+    page: landscape;
+  }
+
+  body.print-viaticos #costos-viaticos-print {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    background: #fff !important;
+    color: #111 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+  }
+
+  body.print-viaticos #costos-viaticos-print table {
+    page-break-inside: avoid;
+  }
+
+  #costos-viaticos-print * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

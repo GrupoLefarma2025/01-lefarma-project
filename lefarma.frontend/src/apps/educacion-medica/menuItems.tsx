@@ -14,7 +14,7 @@ import {
   Presentation,
   PenLine,
   MapPin,
-  Calculator,
+  
   LineChart,
   BarChart3,
   Sparkles,
@@ -95,11 +95,6 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         title: 'Calendario',
         icon: Calendar,
         path: '/educacion-medica/calendario',
-      },
-      {
-        title: 'Costos demo',
-        icon: Calculator,
-        path: '/educacion-medica/costos-demo',
       },
     ],
   },

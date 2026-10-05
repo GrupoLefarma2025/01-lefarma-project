@@ -1,4 +1,6 @@
-namespace Lefarma.API.Features.EducacionMedica.DTOs;
+using System.Text.Json.Serialization;
+
+namespace Lefarma.API.Features.Viaticos.DTOs;
 
 // Fase 1 (demo aislada): cálculo de itinerarios/costos. Stateless, sin BD.
 // rendimiento_km_l se acepta pero se ignora: RENDIMIENTO FIJO 12 km/L.
@@ -26,14 +28,27 @@ public class CostosRutaPersonaInput
     public bool Draft { get; set; }
     public CostosRutaTrabajoInput? Trabajo { get; set; }
     public List<CostosRutaLugarInput> Lugares { get; set; } = [];
+
+    // Input-only aliases retain pasted snake_case requests and existing camelCase clients.
+    [JsonPropertyName("carro_propio")]
+    public bool CarroPropioWire { set => CarroPropio = value; }
 }
 
 public class CostosRutaTrabajoInput
 {
-    public string HoraEntrada { get; set; } = "09:00";
-    public string HoraSalida { get; set; } = "18:00";
+    public string HoraEntrada { get; set; } = "08:00";
+    public string HoraSalida { get; set; } = "18:30";
     public int PrimerDiaLaboral { get; set; } = 1;
     public int UltimoDiaLaboral { get; set; } = 5;
+
+    [JsonPropertyName("hora_entrada")]
+    public string HoraEntradaWire { set => HoraEntrada = value; }
+    [JsonPropertyName("hora_salida")]
+    public string HoraSalidaWire { set => HoraSalida = value; }
+    [JsonPropertyName("primer_dia_laboral")]
+    public int PrimerDiaLaboralWire { set => PrimerDiaLaboral = value; }
+    [JsonPropertyName("ultimo_dia_laboral")]
+    public int UltimoDiaLaboralWire { set => UltimoDiaLaboral = value; }
 }
 
 public class CostosRutaLugarInput
@@ -53,6 +68,27 @@ public class CostosRutaLugarInput
     public string? HoraInicioActividad { get; set; }
     public string? FechaFinActividad { get; set; }
     public string? HoraFinActividad { get; set; }
+
+    [JsonPropertyName("fecha_salida")]
+    public string? FechaSalidaWire { set => FechaSalida = value; }
+    [JsonPropertyName("hora_salida")]
+    public string? HoraSalidaWire { set => HoraSalida = value; }
+    [JsonPropertyName("fecha_llegada")]
+    public string? FechaLlegadaWire { set => FechaLlegada = value; }
+    [JsonPropertyName("hora_llegada")]
+    public string? HoraLlegadaWire { set => HoraLlegada = value; }
+    [JsonPropertyName("fecha_limite_llegada")]
+    public string? FechaLimiteLlegadaWire { set => FechaLimiteLlegada = value; }
+    [JsonPropertyName("hora_limite_llegada")]
+    public string? HoraLimiteLlegadaWire { set => HoraLimiteLlegada = value; }
+    [JsonPropertyName("fecha_inicio_actividad")]
+    public string? FechaInicioActividadWire { set => FechaInicioActividad = value; }
+    [JsonPropertyName("hora_inicio_actividad")]
+    public string? HoraInicioActividadWire { set => HoraInicioActividad = value; }
+    [JsonPropertyName("fecha_fin_actividad")]
+    public string? FechaFinActividadWire { set => FechaFinActividad = value; }
+    [JsonPropertyName("hora_fin_actividad")]
+    public string? HoraFinActividadWire { set => HoraFinActividad = value; }
 }
 
 public class CostosRutaResponse

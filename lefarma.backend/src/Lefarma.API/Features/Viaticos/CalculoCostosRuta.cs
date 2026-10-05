@@ -1,17 +1,73 @@
-using Lefarma.API.Features.EducacionMedica.DTOs;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using System.Xml;
+using Lefarma.API.Features.Viaticos.DTOs;
+using Microsoft.Extensions.Caching.Memory;
 
-namespace Lefarma.API.Features.EducacionMedica;
+namespace Lefarma.API.Features.Viaticos;
 
-public class CostosRutaService(
-    IOsrmClient osrm,
-    IGasolinaClient gasolina,
-    IHotelesClient hoteles,
-    IClickBusClient clickbus,
-    IDistribusionClient distribusion,
-    IVuelosClient vuelos) : ICostosRutaService
+// Fase 1 (demo aislada): cálculo de itinerarios/costos. Stateless, sin BD.
+// Una sola clase estática: normalización, cálculo, seeds y conectores HTTP
+// viven aquí como métodos. Cero interfaces, cero servicios instanciables.
+// El controller le pasa HttpClient (vía IHttpClientFactory) e IMemoryCache
+// como parámetros; los timeouts por proveedor se aplican por llamada.
+// Conectores: try/catch con fallback a seed y `fuente` siempre declarada.
+
+public record RutaCarretera(double Km, double Horas, string Fuente);
+public record PreciosGasolina(double Magna, double Premium, string Fuente);
+public record HotelCercano(string Nombre, double DistKm);
+public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota);
+public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
+
+public static class CalculoCostosRuta
 {
     // RENDIMIENTO FIJO 12 km/L (fase 1: se ignora rendimiento_km_l de la entrada).
     public const double RendimientoKmL = 12.0;
+
+    // Seeds MXN aprox (2025-2026), siempre etiquetados con su `fuente`.
+    private static readonly Dictionary<string, (string Nombre, double Lat, double Lon, string? Iata)> Ciudades = new()
+    {
+        ["CDMX"] = ("Ciudad de México", 19.4326, -99.1332, "MEX"),
+        ["GDL"] = ("Guadalajara", 20.6597, -103.3496, "GDL"),
+        ["MTY"] = ("Monterrey", 25.6866, -100.3161, "MTY"),
+        ["QRO"] = ("Querétaro", 20.5888, -100.3899, "QRO"),
+        ["PUE"] = ("Puebla", 19.0414, -98.2063, "PBC"),
+        ["CUN"] = ("Cancún", 21.1619, -86.8515, "CUN"),
+        ["TIJ"] = ("Tijuana", 32.5149, -117.0382, "TIJ"),
+        ["XAL"] = ("Xalapa", 19.5438, -96.9102, null),
+        ["BJX"] = ("León", 21.1214, -101.6830, "BJX"),
+    };
+
+    private static readonly Dictionary<string, double> CasetasIda = new()
+    {
+        ["CDMX-GDL"] = 950, ["CDMX-MTY"] = 1180, ["CDMX-QRO"] = 330, ["CDMX-PUE"] = 180,
+        ["GDL-MTY"] = 900, ["CDMX-CUN"] = 1450, ["GDL-CUN"] = 1250,
+    };
+
+    private static readonly Dictionary<string, (double Base, double PorKm)> Taxi = new()
+    {
+        ["CDMX"] = (30, 11), ["GDL"] = (28, 10), ["MTY"] = (30, 12), ["QRO"] = (25, 10),
+        ["PUE"] = (27, 10), ["CUN"] = (35, 13), ["TIJ"] = (32, 12),
+        ["XAL"] = (27, 10), ["BJX"] = (28, 10),
+    };
+
+    private static readonly Dictionary<string, (double ComidaDia, double HospedajeNoche)> Viaticos = new()
+    {
+        ["CDMX"] = (811, 3533), ["GDL"] = (653, 2006), ["MTY"] = (674, 2353), ["QRO"] = (596, 1700),
+        ["PUE"] = (546, 1500), ["CUN"] = (627, 2300), ["TIJ"] = (640, 2100),
+        ["XAL"] = (546, 1500), ["BJX"] = (596, 1700),
+    };
+
+    private const double CasetaPorKm = 1.4;
+    private const double ComidaDiaEstandar = 600;
+    private const int BufferMin = 30;
+    private const double SnapKm = 25.0;
+    private const string UberEstimateUrl = "https://www.uber.com/mx/es/price-estimate/";
+    private const string DidiUrl = "https://web.didiglobal.com/mx/pasajero/";
+    private const string PreciosCneUrl = "https://publicacionexterna.azurewebsites.net/publicaciones/prices";
+    // retailerPartnerNumber=343401 solo como default documentado (sin credencial real en fase 1).
+    private const string RetailerPartnerNumber = "343401";
 
     private static readonly string[] CategoriasSalida =
         ["aviones", "autobuses", "hoteles", "autos", "renta_autos", "taxis_uber", "trenes", "ferris", "transporte_publico"];
@@ -37,7 +93,253 @@ public class CostosRutaService(
     private sealed record TramoCalc(string From, string To, double Km, double Hrs, List<OpCalc> Opciones);
     private sealed record ComparteInfo(int N, string? Conductor);
 
-    public async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, CancellationToken ct = default)
+    // ---------- Geo ----------
+
+    public static double HaversineKm(double lat1, double lon1, double lat2, double lon2)
+    {
+        var la1 = double.DegreesToRadians(lat1);
+        var lo1 = double.DegreesToRadians(lon1);
+        var la2 = double.DegreesToRadians(lat2);
+        var lo2 = double.DegreesToRadians(lon2);
+        var h = Math.Pow(Math.Sin((la2 - la1) / 2), 2)
+            + Math.Cos(la1) * Math.Cos(la2) * Math.Pow(Math.Sin((lo2 - lo1) / 2), 2);
+        return 2 * 6371.0 * Math.Asin(Math.Sqrt(h));
+    }
+
+    // ---------- Seeds ----------
+
+    private static (string? Key, double Dist) SnapCiudad(double lat, double lon)
+    {
+        string? mejor = null;
+        var md = double.MaxValue;
+        foreach (var (k, c) in Ciudades)
+        {
+            var d = HaversineKm(lat, lon, c.Lat, c.Lon);
+            if (d < md) { md = d; mejor = k; }
+        }
+        return md <= SnapKm ? (mejor, md) : (null, md);
+    }
+
+    private static List<ViajeBus> ViajesBusSeed(DateOnly fecha, double km, string fuente)
+    {
+        var base_ = 250 + km * 1.05;
+        var lineas = new[]
+        {
+            ("ETN Turistar", 1.30, 0.92, 22, 30, "https://etn.com.mx", "nocturno, directo"),
+            ("ADO Gl / Platino", 1.25, 1.00, 8, 0, "https://www.ado.com.mx", "matutino"),
+            ("Primera Plus", 1.10, 1.02, 14, 30, "https://www.primeraplus.com.mx", "vespertino"),
+        };
+        return lineas.Select(l =>
+        {
+            var dur = km / 72.0 + 0.5;
+            dur *= l.Item3;
+            var sal = fecha.ToDateTime(new TimeOnly(l.Item4, l.Item5));
+            var arr = sal.AddHours(dur);
+            var fare = base_ * l.Item2;
+            return new ViajeBus(l.Item1, sal, arr, Math.Round(fare * 0.88, 2), Math.Round(fare * 1.15, 2),
+                null, fuente, l.Item6, l.Item7);
+        }).ToList();
+    }
+
+    // ---------- Clientes HTTP ----------
+
+    public static async Task<RutaCarretera?> ObtenerRutaOsrmAsync(HttpClient http,
+        double latO, double lonO, double latD, double lonD, CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(8));
+            var t = cts.Token;
+            var url = $"https://router.project-osrm.org/route/v1/driving/{lonO},{latO};{lonD},{latD}?overview=false";
+            using var res = await http.GetAsync(url, t);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+            var route = doc.RootElement.GetProperty("routes")[0];
+            var km = route.GetProperty("distance").GetDouble() / 1000.0;
+            var hrs = route.GetProperty("duration").GetDouble() / 3600.0;
+            return new RutaCarretera(km, hrs, "OSRM/OpenStreetMap (en vivo)");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static async Task<PreciosGasolina> ObtenerPreciosGasolinaAsync(HttpClient http, IMemoryCache cache, CancellationToken ct)
+    {
+        if (cache.TryGetValue("costos-gasolina", out PreciosGasolina? cached) && cached is not null)
+            return cached;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var t = cts.Token;
+            using var res = await http.GetAsync(PreciosCneUrl, t);
+            res.EnsureSuccessStatusCode();
+            var xml = await res.Content.ReadAsStringAsync(t);
+            var doc = new XmlDocument();
+            doc.LoadXml(xml);
+            var vals = new Dictionary<string, List<double>>
+            {
+                ["regular"] = [], ["premium"] = [], ["diesel"] = []
+            };
+            foreach (XmlNode n in doc.GetElementsByTagName("gas_price"))
+            {
+                var type = n.Attributes?["type"]?.Value;
+                if (type is null || !vals.ContainsKey(type)) continue;
+                if (double.TryParse(n.InnerText, System.Globalization.NumberStyles.Any,
+                        System.Globalization.CultureInfo.InvariantCulture, out var v) && v > 0.5)
+                    vals[type].Add(v);
+            }
+            if (vals.Values.Any(v => v.Count == 0)) throw new InvalidOperationException("CNE sin datos");
+            var magna = vals["regular"].Average();
+            var premium = vals["premium"].Average();
+            var result = new PreciosGasolina(magna, premium, $"CNE oficial (prom. nacional {vals["regular"].Count} estaciones)");
+            cache.Set("costos-gasolina", result, TimeSpan.FromHours(1));
+            return result;
+        }
+        catch
+        {
+            return new PreciosGasolina(23.5, 25.5, "seed gasolina (CNE no respondió)");
+        }
+    }
+
+    public static async Task<List<HotelCercano>> BuscarHotelesCercanosAsync(HttpClient http, IMemoryCache cache,
+        double lat, double lon, CancellationToken ct)
+    {
+        var key = $"costos-hoteles:{Math.Round(lat, 3)},{Math.Round(lon, 3)}";
+        if (cache.TryGetValue(key, out List<HotelCercano>? cached) && cached is not null)
+            return cached;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(12));
+            var t = cts.Token;
+            var q = $"[out:json][timeout:12];(node(around:9000,{lat},{lon})[\"tourism\"=\"hotel\"];);out 8;";
+            using var res = await http.PostAsync("https://overpass-api.de/api/interpreter",
+                new StringContent("data=" + Uri.EscapeDataString(q), Encoding.UTF8, "application/x-www-form-urlencoded"), t);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+            var out_ = new List<HotelCercano>();
+            foreach (var el in doc.RootElement.GetProperty("elements").EnumerateArray())
+            {
+                var hlat = el.GetProperty("lat").GetDouble();
+                var hlon = el.GetProperty("lon").GetDouble();
+                var nombre = el.TryGetProperty("tags", out var tags) && tags.TryGetProperty("name", out var nm)
+                    ? nm.GetString() ?? "Hotel" : "Hotel";
+                out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon)));
+            }
+            var ordered = out_.OrderBy(h => h.DistKm).Take(5).ToList();
+            cache.Set(key, ordered, TimeSpan.FromHours(6));
+            return ordered;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
+        string origen, string destino, DateOnly fecha, double km, CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            var t = cts.Token;
+            using var res = await http.PostAsJsonAsync("https://adapter.clickbus.com.mx/api/trips/search",
+                new { origin = origen, destination = destino, date = fecha.ToString("yyyy-MM-dd") }, t);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+            var viajes = new List<ViajeBus>();
+            if (doc.RootElement.TryGetProperty("trips", out var trips))
+            {
+                foreach (var trip in trips.EnumerateArray())
+                {
+                    var sal = trip.GetProperty("departure").GetDateTime();
+                    var arr = trip.GetProperty("arrival").GetDateTime();
+                    var precio = trip.GetProperty("price").GetDouble();
+                    int? asientos = trip.TryGetProperty("seats", out var s) ? s.GetInt32() : null;
+                    var linea = trip.TryGetProperty("company", out var c) ? c.GetString() ?? "ClickBus" : "ClickBus";
+                    viajes.Add(new ViajeBus(linea, sal, arr, precio, Math.Round(precio * 1.15, 2), asientos,
+                        "ClickBus adapter (en vivo)",
+                        $"https://www.clickbus.com.mx/trips?departure_date={fecha:yyyy-MM-dd}",
+                        "horarios + precios + asientos del adapter"));
+                }
+            }
+            if (viajes.Count > 0) return viajes;
+            throw new InvalidOperationException("ClickBus sin viajes");
+        }
+        catch
+        {
+            return ViajesBusSeed(fecha, km, "seed bus (ClickBus no respondió)");
+        }
+    }
+
+    public static async Task<List<ViajeBus>> BuscarBusesDistribusionAsync(HttpClient http,
+        string origen, string destino, DateOnly fecha, double km, CancellationToken ct)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            var t = cts.Token;
+            var url = $"https://book.api.distribusion.com/connections?retailerPartnerNumber={RetailerPartnerNumber}"
+                + $"&origin={Uri.EscapeDataString(origen)}&destination={Uri.EscapeDataString(destino)}&date={fecha:yyyy-MM-dd}";
+            using var res = await http.GetAsync(url, t);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+            var viajes = new List<ViajeBus>();
+            if (doc.RootElement.TryGetProperty("connections", out var conns))
+            {
+                foreach (var c in conns.EnumerateArray())
+                {
+                    var sal = c.GetProperty("departure").GetDateTime();
+                    var arr = c.GetProperty("arrival").GetDateTime();
+                    var barato = c.TryGetProperty("cheapest_price", out var p) ? p.GetDouble() : 300;
+                    int? asientos = c.TryGetProperty("seats_available", out var s) ? s.GetInt32() : null;
+                    viajes.Add(new ViajeBus("Distribusion · red asociada", sal, arr, barato, Math.Round(barato * 1.15, 2),
+                        asientos, "Distribusion (en vivo)",
+                        "https://book.api.distribusion.com", "connections + seats + cheapest_prices"));
+                }
+            }
+            if (viajes.Count > 0) return viajes;
+            throw new InvalidOperationException("Distribusion sin conexiones");
+        }
+        catch
+        {
+            return ViajesBusSeed(fecha, km, "seed bus (Distribusion no respondió; retailerPartnerNumber=343401 default sin credencial)")
+                .Select(v => v with { Linea = v.Linea + " · vía Distribusion" }).ToList();
+        }
+    }
+
+    /// <summary>Fase 1: estimados etiquetados. Método listo para cambiarse por un proveedor con llave.</summary>
+    public static Task<List<ViajeVuelo>> BuscarVuelosEstimadosAsync(double kmAerea, string origen, string destino, DateOnly fecha, CancellationToken ct)
+    {
+        var ft = 0.5 + kmAerea / 760.0;
+        var base_ = 690 + kmAerea * 1.45;
+        var lineas = new[]
+        {
+            ("VivaAerobus", 0.82, 6, 25, "ultra bajo costo", "https://www.vivaaerobus.com/es-mx"),
+            ("Volaris", 0.90, 11, 5, "bajo costo", "https://www.volaris.com/"),
+            ("Aeroméxico", 1.32, 17, 40, "servicio completo", "https://www.aeromexico.com/es-mx"),
+        };
+        var out_ = lineas.Select((l, ix) =>
+        {
+            var sal = fecha.ToDateTime(new TimeOnly(l.Item3, l.Item4));
+            var arr = sal.AddHours(ft);
+            var fare = base_ * l.Item2;
+            return new ViajeVuelo(l.Item1, sal, arr, Math.Round(fare * 0.85, 2), Math.Round(fare * 1.18, 2),
+                "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
+                l.Item6, $"{l.Item5} · vuelo estimado {(1000 + (int)kmAerea % 900) + ix}");
+        }).ToList();
+        return Task.FromResult(out_);
+    }
+
+    // ---------- Cálculo ----------
+
+    public static async Task<CostosRutaResponse> CalcularAsync(CostosRutaRequest request, HttpClient http, IMemoryCache cache, CancellationToken ct = default)
     {
         if (request.Personas is null || request.Personas.Count == 0)
             throw new ArgumentException("Manda 'personas' con al menos 1 persona.");
@@ -47,10 +349,10 @@ public class CostosRutaService(
 
         var normas = new List<PersonaNorm>();
         for (var i = 0; i < request.Personas.Count; i++)
-            normas.Add(await NormalizarAsync(request.Personas[i], i, ct));
+            normas.Add(await NormalizarAsync(request.Personas[i], i, http, ct));
 
         var grupos = DetectarCompartidos(normas);
-        var precios = await gasolina.ObtenerPreciosAsync(ct);
+        var precios = await ObtenerPreciosGasolinaAsync(http, cache, ct);
 
         var resp = new CostosRutaResponse
         {
@@ -60,7 +362,7 @@ public class CostosRutaService(
         for (var i = 0; i < normas.Count; i++)
         {
             var norm = normas[i];
-            var (prop, razones) = await DraftAsync(norm, ct);
+            var (prop, razones) = await DraftAsync(norm, http, ct);
             var tramos = new List<TramoCalc>();
             for (var t = 0; t < prop.Count - 1; t++)
             {
@@ -69,7 +371,7 @@ public class CostosRutaService(
                     gd.TryGetValue(t, out ci);
                 var intermedio = t > 0 && t < prop.Count - 2;
                 tramos.Add(await CalcularTramoAsync(norm, i, t, prop[t], prop[t + 1],
-                    ci, !opciones.CalcularViajesIntermedios && intermedio, precios, ct));
+                    ci, !opciones.CalcularViajesIntermedios && intermedio, precios, http, cache, ct));
             }
 
             var incumplimientos = new List<string>();
@@ -78,7 +380,7 @@ public class CostosRutaService(
             if (tramos.Any(t => t.Opciones.Count > 0 && t.Opciones.All(o => o.Late || o.SaleAntes)))
                 incumplimientos.Add("Con tu horario, algún tramo no tiene alternativa viable (todas llegan tarde o salen antes de que puedas tomarlas).");
 
-            var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, ct, incumplimientos);
+            var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, http, cache, ct, incumplimientos);
             var resultado = new CostosRutaResultado
             {
                 Nombre = norm.Nombre,
@@ -136,7 +438,7 @@ public class CostosRutaService(
 
     // ---------- Normalización ----------
 
-    private async Task<PersonaNorm> NormalizarAsync(CostosRutaPersonaInput p, int i, CancellationToken ct)
+    private static async Task<PersonaNorm> NormalizarAsync(CostosRutaPersonaInput p, int i, HttpClient http, CancellationToken ct)
     {
         var tag = $"Persona {i + 1} ({p.Nombre ?? $"persona_{i + 1}"})";
         var nombre = string.IsNullOrWhiteSpace(p.Nombre) ? $"persona_{i + 1}" : p.Nombre.Trim();
@@ -217,8 +519,8 @@ public class CostosRutaService(
         {
             var p1 = lugares[1];
             if (p1.Deadline is null) throw new ArgumentException($"{tag}: para calcular la salida, el lugar 2 necesita fecha límite.");
-            var hrs = await HorasManejoAsync(lugares[0].Lat, lugares[0].Lon, p1.Lat, p1.Lon, ct);
-            lugares[0] = lugares[0] with { Salida = p1.Deadline.Value.AddHours(-hrs).AddMinutes(-CostosRutaSeeds.BufferMin) };
+            var hrs = await HorasManejoAsync(http, lugares[0].Lat, lugares[0].Lon, p1.Lat, p1.Lon, ct);
+            lugares[0] = lugares[0] with { Salida = p1.Deadline.Value.AddHours(-hrs).AddMinutes(-BufferMin) };
         }
         return new PersonaNorm(nombre, p.CarroPropio, gas, p.Draft, hIn, hOut, tr.PrimerDiaLaboral, tr.UltimoDiaLaboral, lugares);
     }
@@ -266,7 +568,7 @@ public class CostosRutaService(
 
     // ---------- Draft ----------
 
-    private async Task<(List<LugarNorm> Prop, List<string> Razones)> DraftAsync(PersonaNorm norm, CancellationToken ct)
+    private static async Task<(List<LugarNorm> Prop, List<string> Razones)> DraftAsync(PersonaNorm norm, HttpClient http, CancellationToken ct)
     {
         var lugares = norm.Lugares.Select(l => l).ToList();
         var razones = new List<string>();
@@ -274,7 +576,7 @@ public class CostosRutaService(
         var origen = lugares[0];
         var last = lugares[^1];
         var finUlt = last.Tipo is "punto" or "taller" ? last.FinActividad!.Value : last.Salida!.Value;
-        var drive = await HorasManejoAsync(last.Lat, last.Lon, origen.Lat, origen.Lon, ct);
+        var drive = await HorasManejoAsync(http, last.Lat, last.Lon, origen.Lat, origen.Lon, ct);
         var llegada = finUlt.AddHours(drive);
         var limite = llegada.Date.Add(norm.HOut.ToTimeSpan()).AddHours(4);
         var inviable = llegada > limite || (drive > 3 && llegada.Hour >= 22);
@@ -283,8 +585,8 @@ public class CostosRutaService(
             var checkin = finUlt.AddHours(1);
             var checkout = checkin.AddDays(1).Date.AddHours(7);
             if (checkout <= checkin) checkout = checkout.AddDays(1);
-            var (key, _) = CostosRutaSeeds.SnapCiudad(last.Lat, last.Lon);
-            var ciudad = key is not null ? CostosRutaSeeds.Ciudades[key].Nombre : "la zona";
+            var (key, _) = SnapCiudad(last.Lat, last.Lon);
+            var ciudad = key is not null ? Ciudades[key].Nombre : "la zona";
             lugares.Add(new LugarNorm(lugares.Count + 1, "hotel", $"Hotel propuesto — {ciudad}",
                 last.Lat, last.Lon, checkout, checkin, checkin, null, null, true));
             razones.Add($"Regresar esa noche llegaría {llegada:dd/MM HH:mm} (manejo ~{drive:F1} h), fuera de tu jornada -> hotel en {ciudad}.");
@@ -319,30 +621,31 @@ public class CostosRutaService(
 
     // ---------- Tramos ----------
 
-    private async Task<double> HorasManejoAsync(double latO, double lonO, double latD, double lonD, CancellationToken ct)
+    private static async Task<double> HorasManejoAsync(HttpClient http, double latO, double lonO, double latD, double lonD, CancellationToken ct)
     {
-        var r = await osrm.ObtenerRutaAsync(latO, lonO, latD, lonD, ct);
-        return r is not null ? r.Horas : CostosRutaGeo.HaversineKm(latO, lonO, latD, lonD) / 70.0;
+        var r = await ObtenerRutaOsrmAsync(http, latO, lonO, latD, lonD, ct);
+        return r is not null ? r.Horas : HaversineKm(latO, lonO, latD, lonD) / 70.0;
     }
 
-    private async Task<TramoCalc> CalcularTramoAsync(PersonaNorm norm, int ixP, int ti,
-        LugarNorm a, LugarNorm b, ComparteInfo? comparte, bool intermedioSimple, PreciosGasolina precios, CancellationToken ct)
+    private static async Task<TramoCalc> CalcularTramoAsync(PersonaNorm norm, int ixP, int ti,
+        LugarNorm a, LugarNorm b, ComparteInfo? comparte, bool intermedioSimple, PreciosGasolina precios,
+        HttpClient http, IMemoryCache cache, CancellationToken ct)
     {
         var deadline = b.Deadline ?? b.Llegada ?? b.Salida ?? throw new ArgumentException($"Tramo {ti + 1}: sin hora de referencia.");
         var salidaPrevia = a.Salida;
-        var ruta = await osrm.ObtenerRutaAsync(a.Lat, a.Lon, b.Lat, b.Lon, ct);
+        var ruta = await ObtenerRutaOsrmAsync(http, a.Lat, a.Lon, b.Lat, b.Lon, ct);
         double km, hrs;
         string srcRuta;
         if (ruta is not null) { km = ruta.Km; hrs = ruta.Horas; srcRuta = ruta.Fuente; }
         else
         {
-            km = CostosRutaGeo.HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
+            km = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
             hrs = km / 70.0;
             srcRuta = "seed de distancia (OSRM no respondió)";
         }
-        var air = CostosRutaGeo.HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon);
-        var (keyO, _) = CostosRutaSeeds.SnapCiudad(a.Lat, a.Lon);
-        var (keyD, _) = CostosRutaSeeds.SnapCiudad(b.Lat, b.Lon);
+        var air = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon);
+        var (keyO, _) = SnapCiudad(a.Lat, a.Lon);
+        var (keyD, _) = SnapCiudad(b.Lat, b.Lon);
         var cas = Casetas(keyO, keyD, km);
         var gas = km / RendimientoKmL * precios.Magna;
         var osm = $"https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route={a.Lat}%2C{a.Lon}%3B{b.Lat}%2C{b.Lon}";
@@ -357,21 +660,21 @@ public class CostosRutaService(
             foreach (var (nombre, casetas, factorT) in new[] { ("Auto (cuota)", cas.Costo, 1.0), ("Auto (libre)", 0.0, 1.15) })
             {
                 var dur = hrs * factorT;
-                var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-CostosRutaSeeds.BufferMin);
+                var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
                 var arr = sal.AddHours(dur);
                 var parte = (gas + casetas) / (nSh is > 1 ? nSh.Value : 1);
                 opts.Add(new OpCalc("auto", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, dur, 0,
                     parte, parte * 1.1, parte, false, km / RendimientoKmL, precios.Magna, casetas, null,
                     arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                     $"OSRM + CNE ({srcRuta}; {precios.Fuente})", false,
-                    salidaPrevia is not null ? $"casetas + gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"casetas + gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {CostosRutaSeeds.BufferMin} min antes{NotaSh()}",
+                    salidaPrevia is not null ? $"casetas + gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"casetas + gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {BufferMin} min antes{NotaSh()}",
                     osm, "OSRM + OpenStreetMap", "ver ruta", $"ruta de manejo {a.Nombre} → {b.Nombre}", ""));
             }
         }
 
         foreach (var (nombre, tarifa, notaR) in new[] { ("Renta económica", 650.0, "auto compacto"), ("Renta SUV", 1150.0, "camioneta familiar") })
         {
-            var sal = salidaPrevia ?? deadline.AddHours(-hrs).AddMinutes(-CostosRutaSeeds.BufferMin);
+            var sal = salidaPrevia ?? deadline.AddHours(-hrs).AddMinutes(-BufferMin);
             var arr = sal.AddHours(hrs);
             var total = (tarifa + gas + cas.Costo) / (nSh is > 1 ? nSh.Value : 1);
             opts.Add(new OpCalc("renta", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, hrs, 0,
@@ -387,8 +690,8 @@ public class CostosRutaService(
             var candidatos = new List<ViajeBus>();
             foreach (var f in fechas)
             {
-                candidatos.AddRange(await clickbus.BuscarAsync(a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
-                candidatos.AddRange(await distribusion.BuscarAsync(a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
+                candidatos.AddRange(await BuscarBusesClickBusAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
+                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
             }
             foreach (var g in candidatos.GroupBy(v => v.Linea))
             {
@@ -404,13 +707,13 @@ public class CostosRutaService(
                     "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", ""));
             }
 
-            var (iataO, iataD) = (keyO is not null ? CostosRutaSeeds.Ciudades[keyO].Iata : null,
-                keyD is not null ? CostosRutaSeeds.Ciudades[keyD].Iata : null);
+            var (iataO, iataD) = (keyO is not null ? Ciudades[keyO].Iata : null,
+                keyD is not null ? Ciudades[keyD].Iata : null);
             if (air >= 300 || (iataO is not null && iataD is not null))
             {
                 var cands = new List<ViajeVuelo>();
                 foreach (var f in fechas)
-                    cands.AddRange(await vuelos.BuscarAsync(air, iataO ?? a.Nombre, iataD ?? b.Nombre, DateOnly.FromDateTime(f), ct));
+                    cands.AddRange(await BuscarVuelosEstimadosAsync(air, iataO ?? a.Nombre, iataD ?? b.Nombre, DateOnly.FromDateTime(f), ct));
                 foreach (var g in cands.GroupBy(v => v.Linea))
                 {
                     var mejor = MejorHorario(g.ToList(), salidaPrevia, 120, deadline,
@@ -465,9 +768,9 @@ public class CostosRutaService(
     private static (double Costo, string Fuente) Casetas(string? keyO, string? keyD, double km)
     {
         foreach (var par in new[] { $"{keyO}-{keyD}", $"{keyD}-{keyO}" })
-            if (CostosRutaSeeds.CasetasIda.TryGetValue(par, out var v))
+            if (CasetasIda.TryGetValue(par, out var v))
                 return (v, $"seed de corredor {par} (estilo CAPUFE)");
-        return (Math.Round(km * CostosRutaSeeds.CasetaPorKm), "seed ~$1.4/km (estilo CAPUFE)");
+        return (Math.Round(km * CasetaPorKm), "seed ~$1.4/km (estilo CAPUFE)");
     }
 
     private static List<OpCalc> TaxiUber(LugarNorm a, LugarNorm b, double km, double hrs,
@@ -480,7 +783,7 @@ public class CostosRutaService(
         void Add(string linea, double costo, string nota, string fuente, string url, string sitio)
         {
             var dur = hrs * 1.3;
-            var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-CostosRutaSeeds.BufferMin);
+            var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
             var arr = sal.AddHours(dur);
             list.Add(new OpCalc("uber", linea, $"{km:F0} km · por auto (hasta 4 pax)", sal, arr, dur, 0,
                 costo, costo * 1.25, costo, false, null, null, null, null,
@@ -502,14 +805,14 @@ public class CostosRutaService(
         }
         else
         {
-            var (tb, tk) = CostosRutaSeeds.Taxi.GetValueOrDefault(ciudad, (30, 11));
+            var (tb, tk) = Taxi.GetValueOrDefault(ciudad, (30, 11));
             Add($"Taxi {ciudad}", tb + tk * km, $"seed tarifa base ${tb} + ${tk}/km", "seed taxi", osm, "OSRM");
         }
-        var (bb, bk) = CostosRutaSeeds.Taxi.GetValueOrDefault(ciudad, (30, 11));
+        var (bb, bk) = Taxi.GetValueOrDefault(ciudad, (30, 11));
         var baseKm = bb + bk * km;
-        Add("UberX", baseKm, "uber económico · cotiza en la app", "seed apps", CostosRutaSeeds.UberEstimateUrl, "Uber");
-        Add("Uber Comfort", baseKm * 1.35, "uber confort · cotiza en la app", "seed apps", CostosRutaSeeds.UberEstimateUrl, "Uber");
-        Add("DiDi Taxi", baseKm * 1.15, "taxi vía DiDi · verifica disponibilidad en tu ciudad", "seed apps", CostosRutaSeeds.DidiUrl, "DiDi");
+        Add("UberX", baseKm, "uber económico · cotiza en la app", "seed apps", UberEstimateUrl, "Uber");
+        Add("Uber Comfort", baseKm * 1.35, "uber confort · cotiza en la app", "seed apps", UberEstimateUrl, "Uber");
+        Add("DiDi Taxi", baseKm * 1.15, "taxi vía DiDi · verifica disponibilidad en tu ciudad", "seed apps", DidiUrl, "DiDi");
         return list;
     }
 
@@ -524,7 +827,7 @@ public class CostosRutaService(
             _ => ("Camión urbano", 14.0),
         };
         var dur = hrs * 2.2 + 0.3;
-        var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-CostosRutaSeeds.BufferMin);
+        var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
         var arr = sal.AddHours(dur);
         return new OpCalc("metro", $"Transporte público ({sist})", $"{km:F0} km · tarifa plana", sal, arr, dur + 0.33, 20,
             tarifa, tarifa * 1.3, tarifa, true, null, null, null, null,
@@ -536,8 +839,9 @@ public class CostosRutaService(
 
     // ---------- Hoteles ----------
 
-    private async Task<List<CostosRutaHotel>> HotelesAsync(PersonaNorm norm, int ixP, List<LugarNorm> prop,
-        List<TramoCalc> tramos, bool calcular, CancellationToken ct,         List<string> incumplimientos)
+    private static async Task<List<CostosRutaHotel>> HotelesAsync(PersonaNorm norm, int ixP, List<LugarNorm> prop,
+        List<TramoCalc> tramos, bool calcular, HttpClient http, IMemoryCache cache, CancellationToken ct,
+        List<string> incumplimientos)
     {
         var propuestos = new List<CostosRutaHotel>();
         for (var idx = 0; idx < prop.Count; idx++)
@@ -563,9 +867,9 @@ public class CostosRutaService(
                 incumplimientos.Add($"{nl.Nombre}: requiere hospedaje no calculado (pernocte de {noches} noche(s)).");
                 continue;
             }
-            var (key, _) = CostosRutaSeeds.SnapCiudad(nl.Lat, nl.Lon);
-            var ciudad = key is not null ? CostosRutaSeeds.Ciudades[key].Nombre : nl.Nombre;
-            var tarifa = CostosRutaSeeds.Viaticos.GetValueOrDefault(key ?? "CDMX", (600, 2000)).HospedajeNoche;
+            var (key, _) = SnapCiudad(nl.Lat, nl.Lon);
+            var ciudad = key is not null ? Ciudades[key].Nombre : nl.Nombre;
+            var tarifa = Viaticos.GetValueOrDefault(key ?? "CDMX", (600, 2000)).HospedajeNoche;
             var ci = llegada.Date.ToString("yyyy-MM-dd");
             var co = nl.Salida.Value.Date.ToString("yyyy-MM-dd");
             var link = (string n) => $"https://www.booking.com/searchresults.es.html?ss={Uri.EscapeDataString(n)}&checkin={ci}&checkout={co}&group_adults=1&no_rooms=1";
@@ -575,7 +879,7 @@ public class CostosRutaService(
                 Motivo = $"pernocte {noches} noche(s) × 1 hab · tarifa tabulador ~${tarifa:F0}/noche",
                 Fuente = "seed tabulador SHCP", Link = link(ciudad),
             });
-            var reales = await hoteles.BuscarCercanosAsync(nl.Lat, nl.Lon, ct);
+            var reales = await BuscarHotelesCercanosAsync(http, cache, nl.Lat, nl.Lon, ct);
             foreach (var h in reales.Take(5))
                 propuestos.Add(new CostosRutaHotel
                 {
@@ -599,7 +903,7 @@ public class CostosRutaService(
 
     // ---------- Propuestas (6) ----------
 
-    private List<CostosRutaPropuesta> ArmarPropuestas(PersonaNorm norm, List<LugarNorm> prop,
+    private static List<CostosRutaPropuesta> ArmarPropuestas(PersonaNorm norm, List<LugarNorm> prop,
         List<TramoCalc> tramos, List<CostosRutaHotel> hoteles, List<string> incumplimientosBase)
     {
         var defs = new[]
@@ -613,7 +917,7 @@ public class CostosRutaService(
         };
         var totalRoadH = tramos.Sum(t => t.Hrs);
         var diasComidas = Math.Max(1, (int)Math.Ceiling(totalRoadH * 2 / 24));
-        var comidas = diasComidas * CostosRutaSeeds.ComidaDiaEstandar;
+        var comidas = diasComidas * ComidaDiaEstandar;
         var out_ = new List<CostosRutaPropuesta>();
         foreach (var (clave, titulo, razon, modoPref) in defs)
         {
@@ -694,12 +998,12 @@ public class CostosRutaService(
         double extra = 0;
         foreach (var s in new[] { a, b })
         {
-            var (key, _) = CostosRutaSeeds.SnapCiudad(s.Lat, s.Lon);
+            var (key, _) = SnapCiudad(s.Lat, s.Lon);
             if (key is null) continue;
-            var c = CostosRutaSeeds.Ciudades[key];
-            var d = CostosRutaGeo.HaversineKm(s.Lat, s.Lon, c.Lat, c.Lon);
+            var c = Ciudades[key];
+            var d = HaversineKm(s.Lat, s.Lon, c.Lat, c.Lon);
             if (d <= 3) continue;
-            var (tb, tk) = CostosRutaSeeds.Taxi.GetValueOrDefault(key, (30, 11));
+            var (tb, tk) = Taxi.GetValueOrDefault(key, (30, 11));
             extra += tb + tk * d;
         }
         return extra;
@@ -707,8 +1011,8 @@ public class CostosRutaService(
 
     private static double TarifaHotel(string ciudad)
     {
-        var kv = CostosRutaSeeds.Ciudades.FirstOrDefault(kv => kv.Value.Nombre == ciudad);
-        return CostosRutaSeeds.Viaticos.GetValueOrDefault(kv.Key ?? "CDMX", (600, 2000)).HospedajeNoche;
+        var kv = Ciudades.FirstOrDefault(kv => kv.Value.Nombre == ciudad);
+        return Viaticos.GetValueOrDefault(kv.Key ?? "CDMX", (600, 2000)).HospedajeNoche;
     }
 
     // ---------- Ruta armada / ofertas ----------
@@ -720,8 +1024,8 @@ public class CostosRutaService(
         {
             var t = tramos[ti];
             var litros = t.Km / RendimientoKmL;
-            var (keyO, _) = CostosRutaSeeds.SnapCiudad(prop[ti].Lat, prop[ti].Lon);
-            var (keyD, _) = CostosRutaSeeds.SnapCiudad(prop[ti + 1].Lat, prop[ti + 1].Lon);
+            var (keyO, _) = SnapCiudad(prop[ti].Lat, prop[ti].Lon);
+            var (keyD, _) = SnapCiudad(prop[ti + 1].Lat, prop[ti + 1].Lon);
             var cas = Casetas(keyO, keyD, t.Km);
             var cm = litros * precios.Magna;
             var cp = litros * precios.Premium;
@@ -802,7 +1106,7 @@ public class CostosRutaService(
         return legGroups;
     }
 
-    private List<CostosRutaCompartido> CompartidosResumen(List<PersonaNorm> normas,
+    private static List<CostosRutaCompartido> CompartidosResumen(List<PersonaNorm> normas,
         Dictionary<int, Dictionary<int, ComparteInfo>> grupos, bool compartirActivo)
     {
         var vistos = new HashSet<string>();
@@ -819,8 +1123,8 @@ public class CostosRutaService(
                     .Select(kv => normas[kv.Key].Nombre).Distinct().OrderBy(x => x).ToList();
                 var clave = $"{a.Nombre}|{b.Nombre}|{string.Join(",", miembros)}";
                 if (!vistos.Add(clave)) continue;
-                var km = CostosRutaGeo.HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
-                var indiv = km / RendimientoKmL * 23.5 + Math.Round(km * CostosRutaSeeds.CasetaPorKm);
+                var km = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
+                var indiv = km / RendimientoKmL * 23.5 + Math.Round(km * CasetaPorKm);
                 var ahorro = Math.Round(indiv * (1 - 1.0 / info.N), 2);
                 out_.Add(new CostosRutaCompartido
                 {

@@ -1,4 +1,4 @@
-import { GraduationCap, ReceiptText, Users } from 'lucide-react';
+import { GraduationCap, Plane, ReceiptText, Users } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 /**
@@ -67,5 +67,14 @@ export const appRegistry: AppRegistryEntry[] = [
     icon: GraduationCap,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_educacion_medica',
+  },
+  {
+    id: 'viaticos',
+    label: 'Viáticos',
+    path: '/viaticos/',
+    description: 'Cálculo de costos de ruta',
+    icon: Plane,
+    disabled: false,
+    permission: 'baseapp.hub.puede_ver_viaticos',
   },
 ];
