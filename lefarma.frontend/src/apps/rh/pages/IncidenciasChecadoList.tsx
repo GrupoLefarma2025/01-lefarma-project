@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { authService } from '@/shared/auth/authService';
 import type { Empresa } from '@/types/auth.types';
 import { Eye, Mail, RotateCcw, Search } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
@@ -505,8 +504,19 @@ export default function IncidenciasChecadoList() {
               variant="secondary"
               size="sm"
               disabled={selectedEmpleados.length === 0 || !appliedFilters.fechaInicio || !appliedFilters.fechaFin}
-              onClick={() => setNotificarModalOpen(true)}
-            >
+              onClick={() => {
+                setNotificarModalOpen(true);
+
+                setTimeout(() => {
+                  // Agregamos 'as HTMLElement' al final de querySelector
+                  const notifications = document.querySelector('.tox-notifications-container') as HTMLElement | null;
+                  
+                  if (notifications) {
+                    notifications.style.setProperty('display', 'none', 'important');
+                  }
+                }, 2000);
+              }}
+              >
               <Mail className="mr-1.5 h-4 w-4" />
               Notificar {selectedEmpleados.length > 0 && `(${selectedEmpleados.length})`}
             </Button>
