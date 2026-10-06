@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import { firmaEndpointDeUsuario, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaMarcador, firmaEndpointDeUsuario, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import { FirmaImg } from '@/components/common/FirmaImg';
 import { firmasEndpoints } from '@/services/firmas.service';
 import logoImage from '@/assets/logo.png';
@@ -112,9 +112,14 @@ function FormCopy({
   const fieldRow: React.CSSProperties = { display: 'flex', alignItems: 'baseline', marginBottom: 12 };
   const fieldLabel: React.CSSProperties = { ...s.bold, whiteSpace: 'nowrap', fontSize: BODY };
 
-  const sigImg = (url?: string) =>
-    url ? (
-      <FirmaImg endpoint={url} style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }} />
+  const sigImg = (f?: FirmanteFlow) =>
+    f?.pendienteFirma ? (
+      <FirmaMarcador style={{ fontSize: 12 }} />
+    ) : f?.url ? (
+      <FirmaImg
+        endpoint={f.url}
+        style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }}
+      />
     ) : null;
   const sigCell: React.CSSProperties = {
     borderTop: BORDER,
@@ -244,7 +249,7 @@ function FormCopy({
                 <div style={sigInner}>
                   {/* Firma encima de una línea continua (la línea es elemento propio, no un border del contenedor). */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                    {sigImg(f.url)}
+                    {sigImg(f)}
                     <div style={{ width: '100%', borderTop: BORDER }} />
                   </div>
                   <div style={sigLabel}>{f.rol ?? (f.esSolicitante ? 'SOLICITA' : 'AUTORIZA')}</div>
@@ -259,11 +264,16 @@ function FormCopy({
   );
 }
 
-export function IncapacidadPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
+export function IncapacidadPDF({
+  solicitud,
+  historial = [],
+  pasosWorkflow = [],
+  firmaDirector = false,
+}: Props) {
   // Firmantes del flujo aprobado + el empleado cuando RH crea la solicitud por él:
   // el empleado va primero como SOLICITA y quien firmó el paso inicial queda como ELABORA.
   const firmantes = useMemo(() => {
-    const flow = firmantesDelFlujo(pasosWorkflow, historial);
+    const flow = firmantesDelFlujo(pasosWorkflow, historial, firmaDirector);
     const { idUsuarioSolicitante, solicitanteNombre } = solicitud;
     if (!idUsuarioSolicitante || !solicitanteNombre) return flow;
     if (flow.some((f) => f.nombre === solicitanteNombre)) return flow;
@@ -277,7 +287,7 @@ export function IncapacidadPDF({ solicitud, historial = [], pasosWorkflow = [] }
       },
       ...flow.map((f) => (f.esSolicitante ? { ...f, esSolicitante: false, rol: 'ELABORA' } : f)),
     ];
-  }, [pasosWorkflow, historial, solicitud]);
+  }, [pasosWorkflow, historial, solicitud, firmaDirector]);
 
   const typeIdx = incapacidadTypeIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 

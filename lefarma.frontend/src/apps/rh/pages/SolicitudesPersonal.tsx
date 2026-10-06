@@ -312,6 +312,7 @@ export default function SolicitudesPersonal() {
     }
     selectSolicitud(s.idSolicitud);
     await fetchDetalleCompleto(s.idSolicitud);
+    await fetchHistorial(s.idSolicitud);
     fetchAcciones(s.idSolicitud);
     toggleModal('firma', true);
   };

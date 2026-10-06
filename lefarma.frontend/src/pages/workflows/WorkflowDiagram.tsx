@@ -122,7 +122,6 @@ export default function WorkflowDiagram() {
   useEffect(() => {
     if (id) {
       fetchWorkflow(parseInt(id));
-      catalogs.loadEstados();
     }
   }, [id]);
 
@@ -134,6 +133,7 @@ export default function WorkflowDiagram() {
       );
       if (response.data.success && response.data.data) {
         setWorkflow(response.data.data);
+        void catalogs.loadEstados(response.data.data.codigoProceso);
       }
     } catch (error: unknown) {
       const err = toApiError(error);
