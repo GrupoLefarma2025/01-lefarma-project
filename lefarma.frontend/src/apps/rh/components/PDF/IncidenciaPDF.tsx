@@ -1,10 +1,17 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaMarcador, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import { FirmaImg } from '@/components/common/FirmaImg';
-import type { HistorialWorkflowItemResponse } from '@/types/solicitudPersonalWorkflow.types';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
+import {
+  INCIDENCIA_OPCIONES,
+  NOTES,
+  PERMISO_OPCIONES,
+  indicesIncidencia,
+  normalize,
+  splitFechaISO as splitFecha,
+} from '@/apps/rh/utils/pdf/incidenciaFormato';
 
 const BLUE = '#00B0F0';
 const CBOX = '#41719C';
@@ -42,26 +49,8 @@ const s: Record<string, React.CSSProperties> = {
   bold: { fontWeight: 700 },
 };
 
-// Split an ISO date into DÍA/MES/AÑO without JS-Date timezone drift.
-function splitFecha(fecha?: string | null) {
-  if (!fecha) return { d: '', m: '', y: '' };
-  const mt = /^(\d{4})-(\d{2})-(\d{2})/.exec(fecha);
-  if (mt) return { y: mt[1], m: mt[2], d: mt[3] };
-  const dt = new Date(fecha);
-  if (isNaN(dt.getTime())) return { d: '', m: '', y: '' };
-  return {
-    y: String(dt.getFullYear()),
-    m: String(dt.getMonth() + 1).padStart(2, '0'),
-    d: String(dt.getDate()).padStart(2, '0'),
-  };
-}
-
-function normalize(text?: string | null) {
-  return (text ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '');
-}
+// splitFecha/normalize ahora viven en incidenciaFormato.ts (splitFechaISO, normalize) y se
+// comparten con el generador de texto.
 
 // ponytail: checkbox selection by tipoSolicitudNombre is best-effort keyword match
 // (tipo labels are DB-driven, not confirmable against these form strings). Falsy if no match.
@@ -169,54 +158,31 @@ function FechaGrid({
   );
 }
 
-// ponytail: match() covers BOTH the printed-form label and the real DB tipo names
-// (e.g. DB "Retardo mayor a 20 minutos" must tick the form's "Retardo de mas de 20 minutos",
-// and "Retardo menor..." must tick "Retardo de menos..."). Keyword-only matching missed these.
-const INCIDENCIA_OPCIONES: { label: string; match: (t: string) => boolean }[] = [
-  { label: 'Omisión de checado entrada o salida', match: (t) => t.includes('omision') },
-  {
-    label: 'Retardo de menos de 20 minutos',
-    match: (t) => t.includes('retardo') && (t.includes('menor') || t.includes('menos')),
-  },
-  {
-    label: 'Retardo de mas de 20 minutos',
-    match: (t) => t.includes('retardo') && (t.includes('mayor') || t.includes('mas')),
-  },
-];
-
-const PERMISO_OPCIONES: { label: string; match: (t: string) => boolean }[] = [
-  { label: 'Llegar tarde sin reposición de tiempo:', match: (t) => t.includes('llegar') && t.includes('sin reposicion') },
-  { label: 'Llegar tarde con reposición de tiempo:', match: (t) => t.includes('llegar') && t.includes('con reposicion') },
-  { label: 'Salida temprano sin reposición de tiempo', match: (t) => t.includes('salida') && t.includes('sin reposicion') },
-  { label: 'Salida temprano con reposición de tiempo', match: (t) => t.includes('salida') && t.includes('con reposicion') },
-  { label: 'Permiso de día sin goce de sueldo', match: (t) => t.includes('goce') },
-  { label: 'Comisión de trabajo', match: (t) => t.includes('comision') },
-];
-
-const NOTES = [
-  '1- Si el empleado solicita tiempo a cuenta de vacaciones se debe llenar el formato "Solicitud de vacaciones".',
-  '2- Si el empleado va a comisión de trabajo, en el apartado "Lugar de comisión" deberá requisitarse el lugar en el que se hará la comisión',
-  '3- En el apartado "Descripción / Motivo / Incidencia o Permiso" se detallarán los motivos por los cuales se solicitará la incidencia.',
-  '4- Si el empleado requiere permiso día con goce de sueldo, hará uso de un formato llamado "Solicitud de día con goce de sueldo"',
-  'el cual requerirá aprobación de Dirección Corporativa.',
-];
+// INCIDENCIA_OPCIONES / PERMISO_OPCIONES / NOTES / indicesIncidencia viven en
+// incidenciaFormato.ts (compartidos con el generador de texto).
 
 type Solicitud = Props['solicitud'];
 
-function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: FirmanteFlow[] }) {
-  const tipoNorm = normalize(solicitud.tipoSolicitudNombre);
+function FormCopy({
+  solicitud,
+  firmantes,
+  marcadorVisible = false,
+}: {
+  solicitud: Solicitud;
+  firmantes: FirmanteFlow[];
+  marcadorVisible?: boolean;
+}) {
   const empresa = solicitud.empresaNombre ?? `ID ${solicitud.idEmpresa}`;
   const area = solicitud.areaNombre ?? `ID ${solicitud.idArea}`;
   const puesto = solicitud.solicitantePuesto ?? '-';
   const nombre = solicitud.solicitanteNombre ?? '-';
   const fechaInc = solicitud.fechaInicio;
+  const tipoNorm = normalize(solicitud.tipoSolicitudNombre);
 
   // Index (0-based) of the checked option in each group; -1 if none. Drives both the tick and
   // the grid row the date lands on (so the date sits "enfrente" of its option, not always row 1).
-  const idxJust = INCIDENCIA_OPCIONES.findIndex((o) => o.match(tipoNorm));
-  const idxPerm = PERMISO_OPCIONES.findIndex((o) => o.match(tipoNorm));
   // Reposición grid rows map to the two "con reposición" options (idx 1 and 3).
-  const fillRepos = idxPerm === 1 ? 1 : idxPerm === 3 ? 2 : 0;
+  const { idxJust, idxPerm, fillRepos } = indicesIncidencia(solicitud.tipoSolicitudNombre);
 
   const sigCell: React.CSSProperties = {
     height: 44,
@@ -232,7 +198,9 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: F
     fontWeight: 700,
   };
   const sigImg = (f: FirmanteFlow | null | undefined) =>
-    f?.url ? (
+    f?.pendienteFirma ? (
+      <FirmaMarcador style={{ fontSize: 12 }} visible={marcadorVisible} />
+    ) : f?.url ? (
       <FirmaImg endpoint={f.url} style={{ height: 36, objectFit: 'contain', ...PRINT_EXACT }} />
     ) : null;
 
@@ -416,17 +384,26 @@ function FormCopy({ solicitud, firmantes }: { solicitud: Solicitud; firmantes: F
   );
 }
 
-export function IncidenciaPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
+export function IncidenciaPDF({
+  solicitud,
+  historial = [],
+  pasosWorkflow = [],
+  firmaDirector = false,
+  marcadorVisible = false,
+}: Props) {
   // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
-  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
+  const firmantes = useMemo(
+    () => firmantesDelFlujo(pasosWorkflow, historial, firmaDirector),
+    [pasosWorkflow, historial, firmaDirector]
+  );
 
   // El formato físico lleva 2 copias idénticas por hoja (original + empleado).
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
-      <FormCopy solicitud={solicitud} firmantes={firmantes} />
+      <FormCopy solicitud={solicitud} firmantes={firmantes} marcadorVisible={marcadorVisible} />
       {/* ponytail: inter-copy cut gap (40px ≈ 10.6mm); max visible value that keeps both copies on one A4 even with default print margins. */}
       <div style={{ height: 40 }} />
-      <FormCopy solicitud={solicitud} firmantes={firmantes} />
+      <FormCopy solicitud={solicitud} firmantes={firmantes} marcadorVisible={marcadorVisible} />
     </div>
   );
 }

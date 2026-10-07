@@ -20,6 +20,10 @@ export interface Props {
   solicitud: SolicitudPersonalResponse;
   historial?: HistorialWorkflowItemResponse[];
   pasosWorkflow?: WorkflowPasoFlowResponse[];
+  /** Render del PDF que se envía al director: agrega la caja de firma "#firmad". */
+  firmaDirector?: boolean;
+  /** En el preview del modal el #firmad se ve (como OC); en el portal de captura va transparente. */
+  marcadorVisible?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,6 +59,8 @@ export interface FirmanteFlow {
   esSolicitante: boolean;
   /** Etiqueta de la caja (SOLICITA/AUTORIZA/ELABORA); si falta, se deduce de esSolicitante. */
   rol?: string;
+  /** Caja pendiente: la firma la estampa el sistema externo al reemplazar "#firmad". */
+  pendienteFirma?: boolean;
 }
 
 // Firmantes según el flujo aprobado: primero el solicitante (paso esInicio) y después cada
@@ -63,6 +69,7 @@ export interface FirmanteFlow {
 export function firmantesDelFlujo(
   pasosWorkflow: WorkflowPasoFlowResponse[] = [],
   historial: HistorialWorkflowItemResponse[] = [],
+  firmaDirector = false,
 ): FirmanteFlow[] {
   const porPaso = new Map<number, HistorialWorkflowItemResponse[]>();
   for (const h of historial) {
@@ -73,7 +80,7 @@ export function firmantesDelFlujo(
   const firmas = buildFirmasMap(historial);
   // Una misma persona puede firmar varios pasos del flujo: una sola caja por nombre.
   const vistos = new Set<string>();
-  return pasosWorkflow
+  const firmantes: FirmanteFlow[] = pasosWorkflow
     .filter((p) => p.activo)
     .sort((a, b) => a.orden - b.orden)
     .flatMap((paso) => {
@@ -91,6 +98,20 @@ export function firmantesDelFlujo(
         },
       ];
     });
+
+  // Caja pendiente de Dirección Corporativa: solo en el render que se envía al director
+  // (firmaDirector). El director firma en el sistema externo, que reemplaza el texto
+  // "#firmad" por su firma (misma mecánica que el envío concentrado de OC).
+  if (firmaDirector) {
+    firmantes.push({
+      nombre: 'Dirección Corporativa',
+      esSolicitante: false,
+      rol: 'AUTORIZA',
+      pendienteFirma: true,
+    });
+  }
+
+  return firmantes;
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
@@ -267,6 +288,7 @@ function LegacyFormattedPDF({
   solicitud,
   historial = [],
   pasosWorkflow = [],
+  firmaDirector = false,
 }: Props) {
   const firmasMap = useMemo(() => buildFirmasMap(historial), [historial]);
 
@@ -298,6 +320,24 @@ function LegacyFormattedPDF({
       };
     })
     .filter((p) => p.tieneEvento);
+
+  // Fila pendiente de Dirección Corporativa: solo en el render que se envía al director
+  // (firmaDirector); la firma la estampa el sistema externo (#firmad).
+  if (firmaDirector) {
+    flujoPasos.push({
+      idPaso: -1,
+      orden: 999,
+      nombrePaso: 'Aprobación Dirección Corporativa',
+      esInicio: false,
+      esFinal: false,
+      idUsuario: null,
+      participante: 'Dirección Corporativa',
+      accion: null,
+      fecha: null,
+      comentario: null,
+      tieneEvento: false,
+    });
+  }
 
   return (
     <div id="solicitud-personal-pdf-print" style={s.page}>
@@ -469,6 +509,8 @@ function LegacyFormattedPDF({
                         WebkitPrintColorAdjust: 'exact',
                       }}
                     />
+                  ) : !paso.tieneEvento ? (
+                    <FirmaMarcador style={{ display: 'block', marginLeft: 'auto' }} />
                   ) : null}
                 </td>
               </tr>
@@ -477,6 +519,33 @@ function LegacyFormattedPDF({
         </table>
       )}
     </div>
+  );
+}
+
+// ─── Marcador de firma del director (#firmad) ─────────────────────────────────
+// El PDF que se envía al director lleva "#firmad" en su caja de autorización; el
+// sistema externo (PyMuPDF) reemplaza ese texto por la firma del director.
+// generarPdfSolicitud agrega el mismo texto en la capa de texto del PDF (invisible),
+// porque la captura es una imagen rasterizada sin texto.
+
+export function FirmaMarcador({ style, visible }: { style?: React.CSSProperties; visible?: boolean }) {
+  return (
+    // Transparente por defecto: en la captura por imagen (html2canvas) el sistema externo
+    // redacta el "#firmad" de la capa de texto y estampa la firma encima, pero NO toca las
+    // imágenes — si el marcador se viera en la captura, quedaría horneado en la imagen.
+    // En el preview del modal (marcadorVisible) sí se ve, como en el concentrado de OC.
+    <span
+      data-firmad
+      style={{
+        fontWeight: 700,
+        fontSize: 13,
+        letterSpacing: 1,
+        color: visible ? '#1a3a5c' : 'transparent',
+        ...style,
+      }}
+    >
+      #firmad
+    </span>
   );
 }
 
