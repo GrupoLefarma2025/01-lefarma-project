@@ -26,12 +26,26 @@ describe('apps/_registry — static app registry module', () => {
       expect(typeof entry.path).toBe('string');
       // Navigation target must be an absolute path (open-redirect / href safety).
       expect(entry.path.startsWith('/')).toBe(true);
+      // Hairline figure, when present, must reference a renderable component.
+      // React.forwardRef components are exotic objects (not functions), so accept both.
+      if (entry.hairline !== undefined) {
+        expect(entry.hairline).toBeTruthy();
+        expect(['function', 'object']).toContain(typeof entry.hairline);
+      }
     });
   });
 
   it('entry ids are unique', () => {
     const ids = appRegistry.map((e) => e.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('the launcher apps carry their Hairline figures', () => {
+    // The /hub tiles for these apps render a Hairline figure instead of the
+    // Lucide icon; lock the three integrations in place.
+    for (const id of ['cxp', 'rh', 'educacion-medica']) {
+      expect(appRegistry.find((e) => e.id === id)?.hairline).toBeTruthy();
+    }
   });
 
   it('adding an app entry is code-only (no shell wiring required)', () => {
