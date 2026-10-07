@@ -152,7 +152,7 @@ export function Home() {
   );
 }
 
-const GRID_CLASS = 'grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6';
+const GRID_CLASS = 'grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5';
 
 function SortableGrid({
   entries,
@@ -213,11 +213,12 @@ function SortableTile({
     disabled: app.disabled,
   });
   const Icon = app.icon;
+  const HairlineFigure = app.hairline;
 
   const card = (
     <Card
       className={cn(
-        'relative flex h-full flex-col items-center justify-center gap-2 p-4 text-center',
+        'relative flex h-full flex-col items-center justify-between gap-3 p-4 text-center',
         'transition-all duration-200 ease-out',
         'animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-both',
         !app.disabled && [
@@ -230,17 +231,23 @@ function SortableTile({
       )}
       style={{ animationDelay: `${index * 60}ms` }}
     >
-      {Icon && (
-        <div
-          className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
-            'bg-primary/10 text-primary transition-colors duration-200',
-            !app.disabled && 'group-hover:bg-primary group-hover:text-primary-foreground'
-          )}
-        >
-          <Icon className="h-5 w-5" />
-        </div>
-      )}
+      <div className="flex w-full items-center justify-center">
+        {HairlineFigure ? (
+          <div className="w-24 sm:w-28 transition-transform duration-200 group-hover:scale-105">
+            <HairlineFigure intensity={0.6} />
+          </div>
+        ) : Icon ? (
+          <div
+            className={cn(
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl',
+              'bg-primary/10 text-primary transition-colors duration-200',
+              !app.disabled && 'group-hover:bg-primary group-hover:text-primary-foreground'
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+        ) : null}
+      </div>
 
       <div className="space-y-0.5">
         <p className="text-sm font-semibold leading-tight tracking-tight">{app.label}</p>

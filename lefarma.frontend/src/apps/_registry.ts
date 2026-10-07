@@ -1,5 +1,7 @@
 import { GraduationCap, ReceiptText, Users } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
+import type { HairlineProps } from '@lucasmarkes/hairline/react';
+import { Branches, Drawer, Riffle } from '@lucasmarkes/hairline/react';
 
 /**
  * Registro estático de apps — la única fuente de verdad para el launcher del
@@ -19,7 +21,9 @@ export interface AppRegistryEntry {
   /** Destino de navegación absoluto, ej. '/cxp/'. */
   path: string;
   /** Componente de ícono inicial opcional (renderizado por el tile del launcher). */
-  icon?: LucideIcon;
+  icon?: ComponentType<{ className?: string }>;
+  /** Componente de figura Hairline interactiva para el tile. */
+  hairline?: ComponentType<HairlineProps>;
   /** Texto de ayuda opcional mostrado bajo la etiqueta. */
   description?: string;
   /** Cuando es true la entrada se renderiza pero no es navegable (ej. aún no migrada). */
@@ -47,6 +51,7 @@ export const appRegistry: AppRegistryEntry[] = [
     path: '/cxp/',
     description: 'Órdenes de compra',
     icon: ReceiptText,
+    hairline: Drawer,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_cxp',
   },
@@ -56,6 +61,7 @@ export const appRegistry: AppRegistryEntry[] = [
     path: '/rh/',
     description: 'Gestión de personal',
     icon: Users,
+    hairline: Riffle,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_rh',
   },
@@ -65,6 +71,7 @@ export const appRegistry: AppRegistryEntry[] = [
     path: '/educacion-medica/',
     description: 'Cursos y capacitaciones',
     icon: GraduationCap,
+    hairline: Branches,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_educacion_medica',
   },
