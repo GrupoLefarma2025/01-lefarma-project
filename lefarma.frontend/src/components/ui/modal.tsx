@@ -42,11 +42,11 @@ export const Modal: React.FC<ModalProps> = ({
             case 'xl':
                 return 'max-w-xl';
             case 'wide':
-                return 'max-w-[90vw] max-h-[90vh]';
+                return 'max-w-[90vw] max-h-[calc(100dvh-2rem)]';
             case 'w75':
-                return 'w-[75vw] max-w-[75vw] max-h-[90vh]';
+                return 'w-[75vw] max-w-[75vw] max-h-[calc(100dvh-2rem)]';
             case 'full':
-                return 'max-w-[80vw] max-h-[90vh]';
+                return 'max-w-[80vw] max-h-[calc(100dvh-2rem)]';
             default:
                 return 'max-w-md';
         }
@@ -66,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
                 className={`bg-card text-card-foreground border border-border shadow-lg rounded-lg ${sizeStyles}`}
                 onInteractOutside={(e) => { if (!closeOnOutsideClick) e.preventDefault(); }}
             >
-                <DialogHeader>
+                <DialogHeader className="shrink-0">
                     {title && (
                         <DialogTitle className="text-lg font-bold">
                             {title}
@@ -76,10 +76,10 @@ export const Modal: React.FC<ModalProps> = ({
                         {subtitle || (typeof title === 'string' ? title : 'Modal')}
                     </DialogDescription>
                 </DialogHeader>
-                <hr className="border-border" />
+                <hr className="border-border shrink-0" />
                 <div className="min-h-0 flex-1 overflow-y-auto -mx-6 px-6 py-4">{children}</div>
-                <hr className="border-border" />
-                <DialogFooter>
+                <hr className="border-border shrink-0" />
+                <DialogFooter className="shrink-0">
                     {footer ? (
                         footer
                     ) : (

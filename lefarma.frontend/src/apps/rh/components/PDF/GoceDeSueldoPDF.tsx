@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { Props } from './SolicitudPersonalPDF';
-import { firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
+import { FirmaMarcador, firmantesDelFlujo, type FirmanteFlow } from './SolicitudPersonalPDF';
 import { FirmaImg } from '@/components/common/FirmaImg';
 import logoImage from '@/assets/logo.png';
 import { fmtDate } from './pdfFormat';
@@ -98,9 +98,14 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
   const fieldRow: React.CSSProperties = { display: 'flex', alignItems: 'baseline', marginBottom: 12 };
   const fieldLabel: React.CSSProperties = { ...s.bold, whiteSpace: 'nowrap', fontSize: BODY };
 
-  const sigImg = (url?: string) =>
-    url ? (
-      <FirmaImg endpoint={url} style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }} />
+  const sigImg = (f?: FirmanteFlow) =>
+    f?.pendienteFirma ? (
+      <FirmaMarcador style={{ fontSize: 12 }} />
+    ) : f?.url ? (
+      <FirmaImg
+        endpoint={f.url}
+        style={{ maxHeight: 44, objectFit: 'contain', ...PRINT_EXACT }}
+      />
     ) : null;
   const sigCell: React.CSSProperties = {
     borderTop: BORDER,
@@ -219,7 +224,7 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
                 <div style={sigInner}>
                   {/* Firma encima de una línea continua (la línea es elemento propio, no un border del contenedor). */}
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center' }}>
-                    {sigImg(f.url)}
+                    {sigImg(f)}
                     <div style={{ width: '100%', borderTop: BORDER }} />
                   </div>
                   <div style={sigLabel}>{f.esSolicitante ? 'SOLICITA' : 'AUTORIZA'}</div>
@@ -234,9 +239,17 @@ function FormCopy({ solicitud, reasonIdx, firmantes }: { solicitud: Solicitud; r
   );
 }
 
-export function GoceDeSueldoPDF({ solicitud, historial = [], pasosWorkflow = [] }: Props) {
+export function GoceDeSueldoPDF({
+  solicitud,
+  historial = [],
+  pasosWorkflow = [],
+  firmaDirector = false,
+}: Props) {
   // Firmantes del flujo aprobado: solicitante + cada paso firmado en orden de workflow.
-  const firmantes = useMemo(() => firmantesDelFlujo(pasosWorkflow, historial), [pasosWorkflow, historial]);
+  const firmantes = useMemo(
+    () => firmantesDelFlujo(pasosWorkflow, historial, firmaDirector),
+    [pasosWorkflow, historial, firmaDirector]
+  );
 
   const reasonIdx = goceReasonIndex(solicitud.motivo, solicitud.tipoSolicitudNombre);
 

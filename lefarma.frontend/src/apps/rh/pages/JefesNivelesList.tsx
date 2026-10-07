@@ -276,10 +276,10 @@ export default function JefesNivelesList() {
       };
     }
     if (!nivel.nominaJefeVista) {
-      return { tipo: 'sin-jefe' as const, texto: 'Sin jefe (vista)' };
+      return { tipo: 'sin-jefe' as const, texto: 'Sin jefe' };
     }
     if (!nivel.idUsuarioJefeVista) {
-      return { tipo: 'sin-usuario' as const, texto: `${nivel.nominaJefeVista} (sin usuario)` };
+      return { tipo: 'sin-usuario' as const, texto: `${nivel.nominaJefeVista} (sin cuenta)` };
     }
     return {
       tipo: 'ok' as const,
@@ -319,7 +319,7 @@ export default function JefesNivelesList() {
           .filter((n) => n.aplica)
           .sort((a, b) => a.nivel - b.nivel);
         if (activos.length === 0) {
-          return <Badge variant="secondary">Default (nivel 1)</Badge>;
+          return <Badge variant="secondary">Sin niveles activos</Badge>;
         }
         return (
           <div className="flex flex-wrap gap-1">
@@ -337,7 +337,7 @@ export default function JefesNivelesList() {
               if (jefe.tipo === 'sin-usuario') {
                 return (
                   <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-amber-500/40 bg-amber-500/10 text-amber-700"
-                    title={`El jefe ${jefe.texto} no tiene usuario en el sistema. El paso de nivel ${n.nivel} no aplicará.`}>
+                    title={`El jefe ${jefe.texto} no tiene cuenta en el sistema. El paso de nivel ${n.nivel} no aplicará.`}>
                     <span className="font-mono text-xs">Nivel {n.nivel}</span>
                     {jefe.texto}
                   </Badge>
@@ -346,15 +346,15 @@ export default function JefesNivelesList() {
               if (jefe.tipo === 'override') {
                 return (
                   <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-blue-500/40 bg-blue-500/10 text-blue-700"
-                    title={`Override: el paso de nivel ${n.nivel} irá a ${jefe.texto}`}>
+                    title={`Jefe asignado manualmente: el paso de nivel ${n.nivel} irá a ${jefe.texto}`}>
                     <span className="font-mono text-xs">Nivel {n.nivel}</span>
                     <span className="truncate">{jefe.texto}</span>
                   </Badge>
                 );
               }
               return (
-                <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-green-500/40 bg-green-500/10 text-green-700"
-                  title={`El jefe ${jefe.texto} tiene usuario en el sistema. El paso de nivel ${n.nivel} aplicará.`}>
+                  <Badge key={n.nivel} variant="outline" className="h-5 w-fit gap-1.5 border-green-500/40 bg-green-500/10 text-green-700"
+                  title={`El jefe ${jefe.texto} tiene cuenta en el sistema. El paso de nivel ${n.nivel} aplicará.`}>
                   <span className="font-mono text-xs">Nivel {n.nivel}</span>
                   <span className="truncate">{jefe.texto}</span>
                 </Badge>
@@ -419,7 +419,8 @@ export default function JefesNivelesList() {
               No hay empleados con configuración de niveles
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              Los empleados sin configuración usan el default legacy (solo nivel 1).
+              Los empleados sin configuración usan todos los jefes de su cadena (los niveles sin
+              jefe o sin cuenta en el sistema se omiten).
             </p>
             <Button className="mt-4" size="sm" onClick={handleNuevo}>
               <Plus className="mr-2 h-4 w-4" /> Crear primera configuración
@@ -510,8 +511,8 @@ export default function JefesNivelesList() {
                       </Combobox>
                     </FormControl>
                     <FormDescription>
-                      Solo aparecen usuarios del sistema. Si no encuentras al empleado, verifica que
-                      tenga usuario en Asokam.
+                      Solo aparecen empleados con cuenta en el sistema. Si no encuentras a alguien,
+                      pídele al área de Sistemas que le cree su cuenta.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -562,12 +563,12 @@ export default function JefesNivelesList() {
                               <span className="text-muted-foreground">Cargando cadena de jefes...</span>
                             ) : !completo?.nominaJefe ? (
                               <span className="text-amber-700">
-                                No hay jefe en la vista para este nivel.
+                                No hay un jefe asignado para este nivel.
                               </span>
                             ) : (
                               <div className="space-y-1">
                                 <div className="text-muted-foreground">
-                                  Vista: {completo.nombreJefe ?? `nómina ${completo.nominaJefe}`}
+                                  Jefe actual: {completo.nombreJefe ?? `nómina ${completo.nominaJefe}`}
                                 </div>
                               </div>
                             )}
@@ -577,13 +578,13 @@ export default function JefesNivelesList() {
                               name={`niveles.${nivel - 1}.idUsuarioJefeOverride`}
                               render={({ field: overrideField }) => (
                                 <FormItem className="mt-2">
-                                  <FormLabel className="text-xs font-normal">Override de jefe</FormLabel>
+                                  <FormLabel className="text-xs font-normal">Asignar otro jefe (opcional)</FormLabel>
                                   <FormControl>
                                     <Combobox
                                       type="jefe"
                                       value={String(overrideField.value ?? '')}
                                       onValueChange={(v) => overrideField.onChange(v ? Number(v) : null)}
-                                      data={[{ value: '', label: 'Usar jefe de la vista' }, ...usuarioOptions]}
+                                      data={[{ value: '', label: 'Usar el jefe asignado' }, ...usuarioOptions]}
                                     >
                                       <ComboboxTrigger className="h-9 w-full" disabled={loadingUsuarios}>
                                         <span className="flex w-full items-center justify-between gap-2">
@@ -591,18 +592,18 @@ export default function JefesNivelesList() {
                                             {overrideField.value != null
                                               ? usuarioOptions.find((o) => o.value === String(overrideField.value))?.label ??
                                                 `Usuario ${overrideField.value}`
-                                              : 'Usar jefe de la vista'}
+                                              : 'Usar el jefe asignado'}
                                           </span>
                                           <ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                                         </span>
                                       </ComboboxTrigger>
                                       <ComboboxContent>
                                         <ComboboxInput placeholder="Buscar jefe..." />
-                                        <ComboboxEmpty>No se encontraron usuarios</ComboboxEmpty>
+                                        <ComboboxEmpty>No se encontraron empleados</ComboboxEmpty>
                                         <ComboboxList>
                                           <ComboboxGroup>
-                                            <ComboboxItem value="" keywords={['vista']}>
-                                              Usar jefe de la vista
+                                            <ComboboxItem value="" keywords={['jefe asignado']}>
+                                              Usar el jefe asignado
                                             </ComboboxItem>
                                             {usuarioOptions.map((opt) => (
                                               <ComboboxItem key={opt.value} value={opt.value} keywords={[opt.label]}>
@@ -620,7 +621,10 @@ export default function JefesNivelesList() {
 
                             {overrideId && (
                               <div className="mt-1 text-xs text-blue-600">
-                                ⚡ El paso irá al usuario #{overrideId} (override)
+                                ⚡ La solicitud se enviará a{' '}
+                                {usuarioOptions.find((o) => o.value === String(overrideId))?.label ??
+                                  `Usuario ${overrideId}`}{' '}
+                                en lugar del jefe asignado.
                               </div>
                             )}
                           </div>
@@ -631,7 +635,7 @@ export default function JefesNivelesList() {
                 })}
                 <p className="text-muted-foreground pt-2 text-xs">
                   {nivelesActivos === 0
-                    ? '⚠️ Ningún nivel activo: se guardará como default legacy (solo nivel 1).'
+                    ? '⚠️ Ningún nivel activo: se guardará como default (todos los jefes de la cadena).'
                     : `${nivelesActivos} nivel(es) activo(s).`}
                 </p>
               </CardContent>
@@ -640,9 +644,10 @@ export default function JefesNivelesList() {
             <div className="text-muted-foreground flex items-start gap-2 rounded-md border border-dashed p-3 text-xs">
               <UserCog className="mt-0.5 h-4 w-4 shrink-0" />
               <div>
-                <strong>Recordatorio:</strong> sin configuración, el sistema usa el default
-                legacy (solo nivel 1). Los pasos con nivel 1 funcionan siempre; los niveles 2+
-                solo aplican si los activas aquí. El override reemplaza al jefe de la vista.
+                <strong>Recordatorio:</strong> sin configuración, el sistema recorre todos los
+                niveles de la cadena de jefes (los niveles sin jefe o sin cuenta en el sistema se
+                omiten). Si configuras este empleado, solo aplicarán los niveles que marques. Si
+                asignas otro jefe, se reemplaza al jefe que le corresponde.
               </div>
             </div>
           </form>
@@ -657,8 +662,8 @@ export default function JefesNivelesList() {
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar la configuración de jefes?</AlertDialogTitle>
             <AlertDialogDescription>
-              Este empleado volverá a la asignación automática de jefes (solo nivel 1). Podrás
-              configurarla de nuevo más adelante.
+              Este empleado volverá a la asignación automática con todos los jefes de su cadena.
+              Podrás configurarla de nuevo más adelante.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

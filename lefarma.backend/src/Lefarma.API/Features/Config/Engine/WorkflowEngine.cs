@@ -152,7 +152,7 @@ namespace Lefarma.API.Features.Config.Engine
 
             while (nuevoPaso is not null && !nuevoPaso.EsFinal && saltos < maxSaltos)
             {
-                var (omitir, nivel, motivo) = await DebeOmitirsePasoJefeAsync(nuevoPaso, ctx.Entidad.IdUsuarioCreador);
+                var (omitir, nivel, motivo) = await DebeOmitirsePasoJefeAsync(nuevoPaso, idUsuarioSolicitante);
                 if (!omitir) break;
 
                 var accionAvance = nuevoPaso.AccionesOrigen
@@ -373,7 +373,7 @@ namespace Lefarma.API.Features.Config.Engine
             foreach (var p in participantes.Where(p => p.RequiereJefeInmediato))
             {
                 var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(
-                    paso.IdWorkflow, idUsuarioCreador, p.NivelJefe ?? 1);
+                    paso.IdWorkflow, idUsuarioSolicitante ?? idUsuarioCreador, p.NivelJefe ?? 1);
                 if (jefe.IdUsuario.HasValue && jefe.IdUsuario.Value == idUsuario)
                     return true;
             }
@@ -427,7 +427,7 @@ namespace Lefarma.API.Features.Config.Engine
         /// y ninguno tiene un jefe efectivo (check activo, cadena resoluble, usuario existe, no excluido).
         /// </summary>
         private async Task<(bool Omitir, int Nivel, MotivoOmisionJefe? Motivo)> DebeOmitirsePasoJefeAsync(
-            WorkflowPaso paso, int idUsuarioCreador)
+            WorkflowPaso paso, int idUsuarioBase)
         {
             var participantes = paso.Participantes?.Where(p => p.Activo).ToList() ?? new();
             if (participantes.Count == 0) return (false, 0, null);
@@ -437,7 +437,7 @@ namespace Lefarma.API.Features.Config.Engine
             foreach (var p in participantes)
             {
                 var nivel = p.NivelJefe ?? 1;
-                var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(paso.IdWorkflow, idUsuarioCreador, nivel);
+                var jefe = await _jefeInmediatoResolver.ResolverJefeEfectivoAsync(paso.IdWorkflow, idUsuarioBase, nivel);
                 if (jefe.IdUsuario.HasValue)
                     return (false, nivel, null); // hay jefe efectivo -> NO omitir
                 ultimoMotivo = jefe.MotivoOmision;
