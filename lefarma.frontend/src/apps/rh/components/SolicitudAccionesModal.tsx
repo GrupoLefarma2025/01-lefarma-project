@@ -150,6 +150,7 @@ export function SolicitudAccionesModal({
               solicitud={solicitud}
               historial={historial}
               pasosWorkflow={pasosWorkflow}
+              firmaDirector
             />
           </div>,
           document.body

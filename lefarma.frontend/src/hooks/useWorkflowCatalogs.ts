@@ -37,7 +37,7 @@ export interface WorkflowCatalogs {
   loadRoles: () => Promise<void>;
   loadUsuarios: () => Promise<void>;
   loadTiposNotificacion: () => Promise<void>;
-  loadEstados: () => Promise<void>;
+  loadEstados: (codigoProceso?: string) => Promise<void>;
   loadAll: () => Promise<void>;
 }
 
@@ -85,11 +85,11 @@ export function useWorkflowCatalogs(): WorkflowCatalogs {
     } finally { setLoadingTiposNotificacion(false); }
   }, [tiposNotificacion.length]);
 
-  const loadEstados = useCallback(async () => {
+  const loadEstados = useCallback(async (codigoProceso?: string) => {
     if (estados.length > 0) return;
     setLoadingEstados(true);
     try {
-      setEstados(await fetchWorkflowEstados());
+      setEstados(await fetchWorkflowEstados(codigoProceso));
     } catch {
       // Silencioso: los catálogos se cargan bajo demanda
     } finally { setLoadingEstados(false); }

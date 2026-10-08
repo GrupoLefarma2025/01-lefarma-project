@@ -38,6 +38,16 @@ const HANDLER_OPTIONS = [
   { value: 'ProviderAuthorization', label: 'Validacion de proveedor' },
 ];
 
+// Procesos compatibles por handler; '*' aplica a todos.
+// Debe reflejar TiposEntidadCompatibles de los IWorkflowActionHandler del backend.
+const PROCESOS_POR_HANDLER: Record<string, string[]> = {
+  Field: ['*'],
+  Alerta: ['*'],
+  Document: ['ORDEN_COMPRA'],
+  Archivo: ['SOLICITUD_PERSONAL', 'ORDEN_COMPRA'],
+  ProviderAuthorization: ['ORDEN_COMPRA'],
+};
+
 const CAMPOS_COMPROBANTE_OC = ['comprobante_gasto', 'comprobante_pago'];
 
 interface OpcionAplica {
@@ -145,6 +155,11 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
   const camposAplica = workflow.codigoProceso
     ? CAMPOS_APLICA[workflow.codigoProceso] ?? []
     : [];
+
+  const handlerOptions = HANDLER_OPTIONS.filter((o) => {
+    const procesos = PROCESOS_POR_HANDLER[o.value] ?? [];
+    return procesos.includes('*') || procesos.includes(workflow.codigoProceso);
+  });
 
   const cargarOpciones = async (clave: string) => {
     if (opcionesAplica[clave]) return;
@@ -354,7 +369,7 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
             <Select value={handlerKey} onValueChange={handleHandlerKeyChange}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                {HANDLER_OPTIONS.map(o => (
+                {handlerOptions.map(o => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}
               </SelectContent>

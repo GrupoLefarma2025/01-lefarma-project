@@ -20,6 +20,14 @@ import type {
 } from '@/types/solicitudPersonalWorkflow.types';
 import { SolicitudPersonalPDF } from './PDF/SolicitudPersonalPDF';
 import { generarPdfSolicitud } from './PDF/generarPdfSolicitud';
+import { getCategoriaNombre } from '@/types/solicitudPersonal.types';
+
+/** Comentario inicial del envío al director: menciona el tipo y quién solicita (editable). */
+function comentarioDefault(solicitud: SolicitudPersonalResponse): string {
+  const tipo = solicitud.tipoSolicitudNombre || getCategoriaNombre(solicitud.categoria);
+  const solicitante = solicitud.solicitanteNombre ?? '—';
+  return `${tipo}. Solicitante: ${solicitante}. Se envía para autorización de Dirección Corporativa.`;
+}
 
 interface EnviarDirectorModalProps {
   open: boolean;
@@ -50,7 +58,7 @@ export function EnviarDirectorModal({
   onSubmit,
   isSubmitting,
 }: EnviarDirectorModalProps) {
-  const [comentario, setComentario] = useState('');
+  const [comentario, setComentario] = useState(() => comentarioDefault(solicitud));
   const [archivoSoporte, setArchivoSoporte] = useState<File | null>(null);
   const [archivosPdf, setArchivosPdf] = useState<ArchivoListItem[]>([]);
   const [idArchivoSeleccionado, setIdArchivoSeleccionado] = useState<number | null>(null);
@@ -165,24 +173,28 @@ export function EnviarDirectorModal({
           </div>
         }
       >
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="space-y-5">
 
-          {/* ── Columna derecha: vista previa ── */}
-          <div className="space-y-5">
+          {/* 1. Vista previa (arriba, como OC) */}
+          <div className="space-y-2">
             <Label>Vista previa de la solicitud</Label>
-            <div className="solicitud-pdf-preview max-h-[60vh] overflow-auto rounded-lg border bg-white">
-              <SolicitudPersonalPDF
-                solicitud={solicitud}
-                historial={historial}
-                pasosWorkflow={pasosWorkflow}
-              />
+            {/* Ancho fijo 820px (igual que el portal de captura): si se deja al ancho de
+                la columna, el documento re-acomoda el texto y el PDF no coincide. */}
+            <div className="solicitud-pdf-preview max-h-[55vh] overflow-auto rounded-lg border bg-white">
+              <div style={{ width: 820, minWidth: 820, margin: '0 auto' }}>
+                <SolicitudPersonalPDF
+                  solicitud={solicitud}
+                  historial={historial}
+                  pasosWorkflow={pasosWorkflow}
+                  firmaDirector
+                  marcadorVisible
+                />
+              </div>
             </div>
           </div>
 
-          {/* ── Columna izquierda: inputs ── */}
+          {/* 2. Documento soporte (uno, PDF) */}
           <div className="space-y-2">
-            {/* Documento soporte (uno, PDF) */}
-            <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <Label htmlFor="soporte-archivo">Documento soporte</Label>
                 {haySoporte && (
@@ -299,10 +311,10 @@ export function EnviarDirectorModal({
                 Este PDF se enviará como documento de soporte del envío. Solo se acepta uno y en
                 formato PDF.
               </p>
-            </div>
+          </div>
 
-            {/* Comentario */}
-            <div className="space-y-2">
+          {/* 3. Comentario (con valor por defecto: la solicitud y quién solicita) */}
+          <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="comentario-enviar-director">
                   Comentario
@@ -319,10 +331,8 @@ export function EnviarDirectorModal({
                 placeholder="Escribe un comentario para el director"
                 rows={3}
               />
-            </div>
           </div>
 
-          
         </div>
       </Modal>
 
