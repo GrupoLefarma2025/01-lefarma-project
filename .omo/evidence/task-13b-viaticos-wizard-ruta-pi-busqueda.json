@@ -1,0 +1,66 @@
+{
+  "task": "13b — Tests de AprobacionesController (Viaticos) + fix del 403 de la bandeja",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/AprobacionesControllerTests.cs (NUEVO — 8 tests, harness TestServer + EF InMemory + PermisosEndpointTests.TestAuthHandler)",
+    "lefarma.backend/src/Lefarma.API/Features/Viaticos/AprobacionesController.cs (MODIFICADO — fix del 403 de la bandeja + port de raw SQL T-SQL a EF LINQ, aprobado por el supervisor como Opción A)"
+  ],
+  "not_touched": [
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+    "odd/tasks/costos-ruta-formulario.md",
+    "pruebas de gastos/",
+    "lefarma.backend/src/Lefarma.API/Features/EducacionMedica/**",
+    "CalculoCostosRuta.cs",
+    "lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql",
+    "SolicitudesController.cs / CapturasService.cs",
+    "Sin commit, sin git add, sin push, sin PR. Nada en staging."
+  ],
+  "bugs_found_and_fixed": [
+    {
+      "regla_de_negocio_mal": "La bandeja (GET /api/viaticos/solicitudes) devolvía 403 cuando el usuario NO tenía 'viaticos.ver_todos'. La regla correcta es FILTRAR: sin ver_todos la bandeja se recorta a id_usuario_solicitante = User.GetUserId() y responde 200.",
+      "por_que_es_bug": "El controller se contradecía a sí mismo: su propio Swagger Description (línea 38) decía 'Si el usuario no tiene viaticos.ver_todos, se filtran automaticamente a sus propias solicitudes', pero el código cortaba con 403 y el SQL ya traía el filtro escrito (@p3 = 0 OR s.id_usuario_solicitante = @p4) que quedaba muerto. También contradecía el brief del orquestador y la regla equivalente ya aplicada en SolicitudesController GET /solicitudes/{id}.",
+      "fix": "Se eliminó el 403 Temprano de GetSolicitudes; el recorte por solicitante quedó en LINQ cuando verTodos es false. El doc 403 del Swagger de ese endpoint pasó a 401.",
+      "test_que_lo_detecta": "Bandeja_SinVerTodos_DevuelveSoloLasPropias (fallaba con 'Expected ... OK {value: 200}, but found ... Forbidden {value: 403}')"
+    },
+    {
+      "regla_de_negocio_mal": "AprobacionesController era el ÚNICO controller de Viaticos con SQL crudo (SqlQueryRaw / ExecuteSqlRawAsync / Database.GetDbConnection), lo que lo hacía intestable con el harness del repo (EF InMemory lanza 'Relational-specific methods can only be used when the context is using a relational database provider').",
+      "por_que_es_bug": "No es una regla de negocio mal escrita sino una inconsistencia estructural: sus hermanos SolicitudesController y CapturasService van 100% por LINQ y tienen tests verdes con el mismo harness. Con raw SQL, 4 de los 8 casos pedidos no se podían cubrir sin una BD real (prohibida por el brief).",
+      "fix": "Port completo a EF LINQ (Opción A, aprobada explícitamente por el supervisor). Se conservan las 8 reglas: 403 por falta de permiso en autorizar/ajustar, 400 sin motivo nombrando 'motivo', 404 si no existe, 409 si el estado no permite la transición, ValorAnterior conservado, transición a 'autorizada_con_ajustes', eventos 'autorizada'/'rechazada'/'ajuste_aplicado'. La carrera optimista (UPDATE ... WHERE estado='enviada') se preserva filtrando por estado en el FirstOrDefaultAsync tracked antes de mutar. Se eliminó el BeginTransactionAsync explícito: un solo SaveChangesAsync ya es atómico en el proveedor relacional (transacción implícita) y es lo que hace testeable el flujo. El total de la bandeja se calcula en memoria leyendo $.total de datos_json, porque EF Core no traduce JSON_VALUE; lleva un comentario WHY para que nadie lo 'optimice' de vuelta a SQL crudo."
+    }
+  ],
+  "tests": {
+    "command_filtered": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter \"FullyQualifiedName~Aprobaciones\"",
+    "output_filtered": "Serie de pruebas para P:\\Trabajo\\01-lefarma-project\\lefarma.backend\\tests\\Lefarma.UnitTests\\bin\\Debug\\net10.0\\Lefarma.UnitTests.dll (.NETCoreApp,Version=v10.0)\n1 archivos de prueba en total coincidieron con el patrón especificado.\n\nCorrectas! - Con error:     0, Superado:    12, Omitido:     0, Total:    12, Duración: 5 s - Lefarma.UnitTests.dll (net10.0)",
+    "count_breakdown": "12 = 8 nuevos de AprobacionesControllerTests + 4 preexistentes de EducacionMedica.AprobacionesServiceTests que también matchean el filtro 'Aprobaciones'.",
+    "new_tests": [
+      "Bandeja_SinVerTodos_DevuelveSoloLasPropias",
+      "Bandeja_ConVerTodos_DevuelveTodas",
+      "Autorizar_SinPermisoAutorizar_Retorna403",
+      "Autorizar_SolicitudYaAutorizada_Retorna409",
+      "Ajustar_SinPermisoAjustar_Retorna403",
+      "Ajustar_SinMotivo_Retorna400NominandoElCampoMotivo",
+      "Ajustar_ConMotivo_ConservaValorAnteriorAplicaValorNuevoYDejaEvento",
+      "Rechazar_SinMotivo_Retorna400"
+    ],
+    "command_full": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+    "output_full": "Correctas! - Con error:     0, Superado:   349, Omitido:     0, Total:   349, Duración: 12 s - Lefarma.UnitTests.dll (net10.0)",
+    "regressions": "Ninguna. 0 errores. El conteo global oscila entre 349 y 350 entre corridas porque otros workers (T8 y frontend) agregan/ajustan archivos en paralelo; en ambas corridas hubo 0 fallos.",
+    "aislamiento": "Base InMemory con nombre único por test (Guid) + siembra propia. Sin estado compartido, sin dependencia del orden de ejecución."
+  },
+  "manual_qa": {
+    "how": "HTTP real sobre TestServer con el AprobacionesController real + ApplicationDbContext sobre EF InMemory + PermisosEndpointTests.TestAuthHandler. Respuestas capturadas literalmente (no parafraseadas) en un test temporal que se eliminó después.",
+    "1_bandeja_filtrada_sin_ver_todos": "REQUEST: X-Test-UserId: 1000, X-Test-Permissions: viaticos.solicitar\nGET /api/viaticos/solicitudes\nHTTP 200 OK\n{\"success\":true,\"message\":\"Bandeja de solicitudes obtenida exitosamente.\",\"data\":[{\"id_solicitud\":2,\"id_usuario_solicitante\":1000,\"nombre_solicitante\":\"\",\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"autorizada\",\"total\":1000,\"fecha_creacion\":\"2026-10-07T15:26:44.654588Z\"},{\"id_solicitud\":1,\"id_usuario_solicitante\":1000,\"nombre_solicitante\":\"\",\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"enviada\",\"total\":1000,\"fecha_creacion\":\"2026-10-07T15:26:44.3781948Z\"}],\"errors\":null}\n\n(con 3 filas en BD: 2 propias de 1000 + 1 ajena de 2000; devuelve 2 y solo las propias)",
+    "2_bandeja_con_ver_todos": "REQUEST: X-Test-UserId: 5000, X-Test-Permissions: viaticos.ver_todos,viaticos.autorizar\nGET /api/viaticos/solicitudes\nHTTP 200 OK\n{\"success\":true,\"message\":\"Bandeja de solicitudes obtenida exitosamente.\",\"data\":[{\"id_solicitud\":3,\"id_usuario_solicitante\":6002,\"nombre_solicitante\":\"\",\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"autorizada\",\"total\":1000,\"fecha_creacion\":\"2026-10-07T15:26:45.388986Z\"},{\"id_solicitud\":2,\"id_usuario_solicitante\":6001,\"nombre_solicitante\":\"\",\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"enviada\",\"total\":1000,\"fecha_creacion\":\"2026-10-07T15:26:45.3851424Z\"},{\"id_solicitud\":1,\"id_usuario_solicitante\":5000,\"nombre_solicitante\":\"\",\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"enviada\",\"total\":1000,\"fecha_creacion\":\"2026-10-07T15:26:45.3840382Z\"}],\"errors\":null}\n\n(devuelve las 3, incluidas las ajenas; orden por fecha_creacion DESC)",
+    "3_ajuste_sin_motivo": "REQUEST: X-Test-UserId: 7004, X-Test-Permissions: viaticos.ajustar\nPOST /api/viaticos/solicitudes/1/ajustes\nBODY {\"campo\":\"total\",\"valor_anterior\":\"1000\",\"valor_nuevo\":\"900\"}\nHTTP 400 BadRequest\n{\"success\":false,\"message\":\"El motivo del ajuste es obligatorio.\",\"data\":null,\"errors\":null}\nESTADO EN BD: autorizada  (no se movió; el motivo se valida antes de tocar BD)",
+    "4_ajuste_con_motivo": "REQUEST: X-Test-UserId: 7005, X-Test-Permissions: viaticos.ajustar\nPOST /api/viaticos/solicitudes/1/ajustes\nBODY {\"id_opcion\":0,\"campo\":\"total\",\"valor_anterior\":\"1000\",\"valor_nuevo\":\"900\",\"motivo\":\"cotizacion corregida por el admin\"}\nHTTP 200 OK\n{\"success\":true,\"message\":\"Ajuste registrado exitosamente.\",\"data\":null,\"errors\":null}\nESTADO EN BD: autorizada_con_ajustes\nAJUSTE EN BD: campo=total valor_anterior=1000 valor_nuevo=900 motivo=\"cotizacion corregida por el admin\" id_usuario_admin=7005\nEVENTO EN BD: tipo=ajuste_aplicado id_usuario=7005 payload={\"campo\":\"total\",\"valor_anterior\":\"1000\",\"valor_nuevo\":\"900\",\"motivo\":\"cotizacion corregida por el admin\",\"id_opcion\":null}"
+  },
+  "risks": [
+    "RIESGO PRINCIPAL, NO VERIFICADO: la traducción EF LINQ -> SQL Server no se pudo comprobar sin una base de datos real (el brief prohíbe levantar o ejecutar SQL contra un servidor, y el repo no tiene harness de BD real: no hay Testcontainers, no hay provider SQLite de EF en el cache offline, y el SQL anterior era T-SQL con schema viaticos./SYSUTCDATETIME/JSON_VALUE que SQLite ni ejecutaría). El SQL generado por EF puede diferir del raw original. VERIFICACIÓN PENDIENTE OBLIGATORIA antes de producción: correr lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql contra un SQL Server real y ejercitar GET /api/viaticos/solicitudes (con y sin ver_todos, y con filtros periodo/estado/gerencia) y los tres POST. No se presenta esto como verificado.",
+    "Comportamiento de Total: se calculó en cliente leyendo $.total de datos_json en vez de con ISNULL(TRY_CAST(JSON_VALUE(...))). Para un JSON malformado ahora devuelve 0 en vez de dejar la consulta fallar; y si $.total fuera un string numérico ('\"1000\"'), SQL lo habría casteado y el cliente devuelve 0. Caso límite no cubierto por los datos del wizard, pero es un delta real frente al SQL anterior.",
+    "Filtros de query string: se conserva la semántica original (@p0 IS NULL) usando 'is not null', así que un ?periodo= vacío sigue filtrando por '' en vez de ignorarse. Es fiel al comportamiento previo, pero es una rareza heredada.",
+    "Se eliminó el BeginTransactionAsync explícito. La atomicidad queda cubierta por la transacción implícita de SaveChangesAsync en el proveedor relacional (múltiples sentencias = una transacción). Verificado solo contra EF InMemory; en SQL Server es el comportamiento documentado de EF Core pero no fue ejecutado contra un servidor real.",
+    "El modelo EF mapea a las tablas del esquema viaticos. con el script 0003 como origen; si el mapeo declarado en Infrastructure/Data/Configurations/Viaticos/SolicitudConfiguration.cs no coincide columna por columna con el script, el LINQ fallará en SQL Server aunque los tests InMemory sigan verdes (InMemory ignora el mapeo de columnas). Revisar ese archivo durante la verificación con BD real.",
+    "Conteo global de la suite oscila entre 349 y 350 entre corridas por archivos que otros workers modifican en paralelo (T8). Ambas corridas: 0 fallos."
+  ],
+  "done": true
+}

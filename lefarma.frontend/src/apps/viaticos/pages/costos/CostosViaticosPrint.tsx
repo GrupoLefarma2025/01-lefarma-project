@@ -82,7 +82,7 @@ export function CostosViaticosPrint({ respuesta, solicitud, nombreSolicitante, s
   const names = solicitud?.personas.map(p => p.nombre) ?? [...new Set(respuesta.propuestas.map(p => p.persona))];
   const proposals = names.map(n => selectedProposal(respuesta, n, seleccion));
   const costs = proposals.map(p => p ? selectedCosts(respuesta, p) : null);
-  const sum = (key: 'autobus' | 'avion' | 'gasolina' | 'casetas' | 'total') => {
+  const sum = (key: 'autobus' | 'avion' | 'gasolina' | 'casetas' | 'hospedaje' | 'comida' | 'taxi' | 'total') => {
     const known = costs.flatMap(c => c?.[key] !== null && c?.[key] !== undefined ? [c[key]!] : []);
     return known.length ? money(known.reduce((a, b) => a + b, 0)) : UNKNOWN;
   };
@@ -106,15 +106,17 @@ export function CostosViaticosPrint({ respuesta, solicitud, nombreSolicitante, s
           <td style={border}><RequestRange request={solicitud} name={name} /></td>
           <td style={border}>{p?.tramos[0]?.de ?? UNKNOWN}</td><td style={border}>{p?.tramos.map(t => t.a).join(' → ') || UNKNOWN}</td>
           {[c?.autobus, c?.avion, c?.gasolina, c?.casetas].map((n, j) => <td style={border} key={j}>{money(n ?? null)}</td>)}
-          <td style={border}>{UNKNOWN}</td><td style={border}>{UNKNOWN}</td><td style={border}>{UNKNOWN}</td>
+          <td style={border}>{money(c?.hospedaje ?? null)}</td>
+          <td style={border}>{money(c?.comida ?? null)}</td>
+          <td style={border}>{money(c?.taxi ?? null)}</td>
           <td style={border}>{money(c?.total ?? null)}</td>
         </tr>;
       })}<tr><td colSpan={5} style={border}>Total conocido</td>
         {(['autobus','avion','gasolina','casetas'] as const).map(key => <td key={key} style={border}>{sum(key)}</td>)}
-        <td style={border}>{UNKNOWN}</td><td style={border}>{UNKNOWN}</td><td style={border}>{UNKNOWN}</td><td style={border}>{sum('total')}</td>
+        <td style={border}>{sum('hospedaje')}</td><td style={border}>{sum('comida')}</td><td style={border}>{sum('taxi')}</td><td style={border}>{sum('total')}</td>
       </tr></tbody>
     </table>
-    <p>Estimación de la propuesta seleccionada, no autorización. Total: costo reportado por la propuesta; no incluye precios desconocidos de hospedaje, comida o taxis adicionales. Guion: no desglosado/no disponible, nunca cero. La cotización de automóvil de referencia no se agrega a autobús/avión.</p>
+    <p>Estimación de la propuesta seleccionada, no autorización. Total: costo reportado por la propuesta; incluye transporte, hospedaje, comida y taxi, que el motor calcula y suma. El hospedaje es la tarifa tabulador del pernocte, sin multiplicar las alternativas de hotel ofrecidas. Guion: no desglosado/no disponible, nunca cero. La cotización de automóvil de referencia no se agrega a autobús/avión.</p>
     {proposals.map((p, i) => <p key={names[i]}>{names[i]}: {p?.incumplimientos.join(' · ') || (p ? 'Sin incumplimientos reportados.' : 'Sin propuesta.')}</p>)}
     <SourceReference example={ejemplo} />
     <Signatures rows={reviewers} /><Footer code="ASK-ADM-FOR-008" />
@@ -129,6 +131,10 @@ export function CostosSolicitudPrint({ respuesta, solicitud, seleccion = {}, per
   const legs = proposal?.tramos ?? [];
   const hotels = proposal?.hotelesPropuestos ?? [];
   const taxis = legs.filter(t => ['uber', 'taxi'].includes(t.modo));
+  // Solo bus/avión implican comprar boleto; cualquier otro modo (auto, renta,
+  // metro, uber) responde "No". La pregunta siempre aplica: exactamente una
+  // casilla queda marcada, nunca las dos en blanco.
+  const requiereBoleto = legs.some(t => ['bus', 'avion'].includes(t.modo));
   const split = (text: string | undefined) => text?.split(' ') ?? [];
   return <article className="costos-report costos-report-solicitud" aria-label="Solicitud individual FOR-007">
     <Header title="Solicitud de Viáticos" />
@@ -139,17 +145,17 @@ export function CostosSolicitudPrint({ respuesta, solicitud, seleccion = {}, per
     <Grid label="Objetivo y fechas del viaje" headings={['No.','Fecha del viaje','Origen','Destino','Objetivo del viaje']}
       rows={person.lugares.slice(1).map((p, i) => [i + 1, `${p.fecha_inicio_actividad} ${p.hora_inicio_actividad}–${p.hora_fin_actividad}`,
         person.lugares[0]?.nombre ?? UNKNOWN, p.nombre, 'Presencia solicitada; objetivo específico pendiente.'])} />
-    <p>¿Requiere compra de boleto para transporte? Si [{legs.some(t => ['bus','avion'].includes(t.modo)) ? 'X' : ' '}] · No [{legs.length && legs.every(t => t.modo === 'auto') ? 'X' : ' '}] · Auto propio [{person.carro_propio ? 'X' : ' '}]</p>
+    <p>¿Requiere compra de boleto para transporte? Si [{requiereBoleto ? 'X' : ' '}] · No [{requiereBoleto ? ' ' : 'X'}] · Auto propio [{person.carro_propio ? 'X' : ' '}]</p>
     <Grid label="Transporte de la propuesta" headings={['No.','Fecha de salida','Tipo de transporte','Origen','Horario de salida','Destino','Horario de llegada','Costo conocido']}
       rows={legs.map((t, i) => [i + 1, split(t.salida)[0] ?? UNKNOWN, t.modo, t.de, split(t.salida).slice(1).join(' ') || UNKNOWN,
         t.a, t.llegada || UNKNOWN, money(t.costo)])} />
-    <p>Hospedaje · Si [{hotels.length ? 'X' : ' '}] · No [ ] · {hotels.length ? 'Propuesto, precio no disponible.' : 'No propuesto; necesidad no confirmada.'}</p>
+    <p>Hospedaje · Si [{hotels.length ? 'X' : ' '}] · No [{hotels.length ? ' ' : 'X'}] · {hotels.length ? 'Propuesto; la lista son alternativas de hotel sin precio por hotel y el hospedaje se estima en el total a tarifa tabulador del pernocte.' : 'No propuesto; necesidad no confirmada.'}</p>
     <Grid label="Hospedaje propuesto" headings={['No.','Entrada','Salida','Número de noches','Lugar']}
       rows={hotels.map((h, i) => [i + 1, h.checkIn, h.checkOut, h.noches, `${h.lugar} · ${h.ciudad}`])} />
     <h2>Desglose uso de Taxis</h2>
     <Grid label="Taxis conocidos" headings={['Fecha','No. de Taxis','Origen','Destino','Costo conocido']}
       rows={taxis.map((t, i) => [split(t.salida)[0] ?? UNKNOWN, i + 1, t.de, t.a, money(t.costo)])} />
-    <p>Total de propuesta: {money(proposal?.costoTotalMxn ?? null)}. Guion: dato no disponible; hospedaje/comida/taxis adicionales no cotizados.</p>
+    <p>Total de propuesta: {money(proposal?.costoTotalMxn ?? null)}. Incluye transporte, hospedaje estimado a tarifa tabulador del pernocte, comida y taxi, que el motor calcula y suma; el desglose por concepto está en el concentrado FOR-008. Guion: dato no disponible, nunca cero.</p>
     <p>{proposal?.incumplimientos.join(' · ')}</p><SourceReference example={ejemplo} />
     <Signatures rows={authors} /><Footer code="ASK-ADM-FOR-007" />
   </article>;

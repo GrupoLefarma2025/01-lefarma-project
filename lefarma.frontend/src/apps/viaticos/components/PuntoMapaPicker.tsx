@@ -9,15 +9,13 @@ import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type { EstadoCatalogo } from '@/apps/educacion-medica/types/educacionMedica.types';
 import { municipiosApi } from '../services/municipios.api';
+import {
+  urlGeocodificarCascada,
+  urlGeocodificarGlobal,
+  type RespuestaGeocodificar,
+} from '../services/geocodificar.api';
 import type { Municipio } from '../types/municipios.types';
 import type { PuntoSeleccion } from '../types/costosRuta.types';
-
-/** Resultado crudo de Nominatim (OpenStreetMap). */
-interface NominatimCrudo {
-  display_name?: string;
-  lat: string;
-  lon: string;
-}
 
 export interface PuntoMapaPickerProps {
   value: PuntoSeleccion | null;
@@ -33,23 +31,6 @@ const ZOOM_PUNTO = 15;
 const DEBOUNCE_MS = 400;
 const THROTTLE_MS = 1000;
 const MIN_TEXTO = 3;
-
-// Mismo esquema de OSM/Nominatim que la búsqueda global del proyecto.
-function urlBusquedaGlobal(texto: string): string {
-  return `https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=mx&addressdetails=1&limit=5&q=${encodeURIComponent(texto)}`;
-}
-
-function urlBusquedaGuiada(estado: string, municipio: string, direccion: string): string {
-  const params = new URLSearchParams({
-    format: 'jsonv2',
-    countrycodes: 'mx',
-    state: estado,
-    city: municipio,
-    street: direccion,
-    limit: '5',
-  });
-  return `https://nominatim.openstreetmap.org/search?${params.toString()}`;
-}
 
 function iconoMarcador() {
   return L.divIcon({
@@ -133,13 +114,13 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoM
     try {
       const respuesta = await fetch(url, { headers: { Accept: 'application/json' } });
       if (!respuesta.ok) throw new Error(`HTTP ${respuesta.status}`);
-      const crudos = (await respuesta.json()) as NominatimCrudo[];
+      const cuerpo = (await respuesta.json()) as RespuestaGeocodificar;
       if (seq !== seqRef.current) return;
-      const limpios = crudos
+      const limpios = (cuerpo.data ?? [])
         .map(item => ({
-          nombre: (item.display_name ?? '').trim() || 'Punto sin nombre',
-          latitud: Number(item.lat),
-          longitud: Number(item.lon),
+          nombre: item.nombre.trim() || 'Punto sin nombre',
+          latitud: item.latitud,
+          longitud: item.longitud,
         }))
         .filter(punto => Number.isFinite(punto.latitud) && Number.isFinite(punto.longitud));
       cacheRef.current.set(clave, limpios);
@@ -162,7 +143,7 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoM
       return;
     }
     const id = window.setTimeout(() => {
-      void ejecutarBusqueda(urlBusquedaGlobal(limpio), `global:${limpio.toLocaleLowerCase()}`);
+      void ejecutarBusqueda(urlGeocodificarGlobal(limpio), `global:${limpio.toLocaleLowerCase()}`);
     }, DEBOUNCE_MS);
     return () => window.clearTimeout(id);
   }, [texto, ejecutarBusqueda]);
@@ -248,7 +229,7 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoM
     const estado = estados.find(item => item.codigoEstado === estadoCodigo);
     if (!estado || !municipioSel || direccion.trim().length < MIN_TEXTO) return;
     void ejecutarBusqueda(
-      urlBusquedaGuiada(estado.nombreEstado, municipioSel.nombre, direccion.trim()),
+      urlGeocodificarCascada(estado.nombreEstado, municipioSel.nombre, direccion.trim()),
       `guiada:${estado.codigoEstado}:${municipioSel.idMunicipio}:${direccion.trim().toLocaleLowerCase()}`
     );
   }

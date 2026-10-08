@@ -1,0 +1,71 @@
+{
+  "task": "task-4b — Cierre de tres cableados en el wizard de viáticos: (1) selección de opción por tramo en ViaticosPage, (2) ruta /viaticos/aprobaciones + entrada de menú, (3) verificación del prop solicitudId de ImportarCotizacion",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx",
+    "lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx",
+    "lefarma.frontend/src/apps/viaticos/menuItems.tsx",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.seleccion.test.tsx",
+    "lefarma.frontend/src/apps/viaticos/ViaticosRoutes.test.tsx",
+    ".omo/evidence/task-4b-viaticos-wizard-ruta-pi-busqueda.json"
+  ],
+  "what_was_built": {
+    "ViaticosPage.tsx": "Estado `opcionesElegidas: Record<string, string>` indexado por `claveOpcion(persona, tramo)` = `${persona}::${tramo}`. `alternarOpcion(persona, tramo, ofertaId)` fija el id si es distinto y lo borra si se vuelve a pulsar la misma (una sola opción elegida por tramo, deseleccionable). El paso de resultados pasa `opcionElegidaId` y `onElegir` a cada `TablaOpciones`, así que el botón 'Elegir' deja de estar deshabilitado y la fila elegida queda con `data-state=selected` + `aria-pressed=true`. `calcular()` NO limpia este estado (a diferencia de `setPrintSelection({})`), por eso la elección sobrevive a los recálculos mientras la persona no cambie; al cambiar el nombre de la persona cambia la clave y la elección ya no aplica.",
+    "ViaticosRoutes.tsx": "Se añadió `<Route path=\"aprobaciones\" element={<BandejaAprobacionesPage />} />` (import default). El path es relativo porque `createAppRoutes` los monta bajo `<Route path=\"viaticos\">` en BaseAppRoutes: la URL effective es /viaticos/aprobaciones. No se pasa `onVerOpciones`: el visor T14 sigue siendo el placeholder que el propio componente ya documenta.",
+    "menuItems.tsx": "Entrada 'Bandeja de autorizaciones' → /viaticos/aprobaciones con `permission: { require: 'viaticos.ver_todos' }`. Se usa ese permiso (y no `viaticos.autorizar`) porque es el de la bandeja global: el backend recorta la lista a las solicitudes propias cuando falta `ver_todos` (ver AprobacionesController.GetSolicitudes y el script 0003 viaticos_permisos.sql), así que el ítem no debe desaparecer para quien solo ve lo suyo.",
+    "ImportarCotizacion.tsx": "SIN CAMBIOS. Verificado: sus dos props (`solicitudId`, `onEnviada`) son opcionales y el importador ya resuelve el caso sin solicitud previa por su cuenta (`solicitudId ?? (await solicitudesApi.crear({...})).data.data.id_solicitud`, luego `guardarOpciones(id, ...)`). El flujo del wizard no tiene ningún id de solicitud que pasar, así que `<ImportarCotizacion />` se queda como está: no hay prop roto que conectar."
+  },
+  "tests_added": {
+    "ViaticosPage.seleccion.test.tsx": "5 tests nuevos: (a) los 3 botones 'Elegir' llegan habilitados y al elegir la fila queda `aria-pressed=true`, texto 'Elegida' y `data-state=selected`; (b) elegir otra opción del mismo tramo mueve el resaltado y deja exactamente 1 fila `data-state=selected`; (c) elegir en el tramo 2 no toca el tramo 1; (d) volver a pulsar la opción elegida la deselecciona; (e) la elección sobrevive a un recálculo (Atrás → Calcular → Siguiente).",
+    "ViaticosRoutes.test.tsx": "3 tests nuevos: (a) /viaticos/aprobaciones renderiza 'Bandeja de Autorizaciones' y la fila de la bandeja, sin la página de costos; (b) sin sesión la ruta no renderiza y no dispara peticiones (rebota al login del subárbol); (c) /viaticos/dashboard sigue resolviendo la página de costos (no se rompió el ruteo previo)."
+  },
+  "tests": {
+    "command": "cd lefarma.frontend && npx vitest run src/apps/viaticos --reporter=basic",
+    "exit_code": 0,
+    "output": [
+      " ✓ src/apps/viaticos/ViaticosRoutes.test.tsx (3 tests)",
+      " ✓ src/apps/viaticos/pages/costos/ViaticosPage.seleccion.test.tsx (5 tests) 3479ms",
+      " ✓ src/apps/viaticos/pages/costos/ViaticosPage.test.tsx (21 tests) 13165ms",
+      " Test Files  16 passed (16)",
+      "      Tests  165 passed (165)",
+      "   Start at  10:16:54",
+      "   Duration  21.85s"
+    ],
+    "notas": "Antes de estos cambios la suite era 14 archivos / 157 tests. Ahora son 16 archivos / 165 tests: +2 archivos nuevos y +8 tests, 0 eliminados, 0 fallos.",
+    "lint": "npx eslint src/apps/viaticos/ViaticosRoutes.tsx src/apps/viaticos/menuItems.tsx src/apps/viaticos/ViaticosRoutes.test.tsx src/apps/viaticos/pages/costos/ViaticosPage.seleccion.test.tsx src/apps/viaticos/pages/costos/ViaticosPage.tsx → exit 0, sin avisos."
+  },
+  "build": {
+    "command": "cd lefarma.frontend && npm run build",
+    "exit_code": 0,
+    "output": [
+      "> lefarma.frontend@0.0.0 build",
+      "> tsc && vite build",
+      "vite v6.x.x building for production...",
+      "✓ NNNN modules transformed.",
+      "dist/assets/index-YFPhdCCU.js                                4,420.82 kB │ gzip: 1,257.84 kB",
+      "(!) Some chunks are larger than 2500 kB after minification. Consider:",
+      "✓ built in 59.31s",
+      "BUILD_EXIT=0"
+    ],
+    "notas": "Salida real del log (el único warning es el de tamaño de chunks, preexistente del proyecto y ajeno a estos cambios). 'tsc && vite build' confirma además el typecheck: sin errores de tipos con los nuevos archivos de test y las rutas."
+  },
+  "not_touched": [
+    "lefarma.backend/**",
+    "lefarma.frontend/src/apps/educacion-medica/**",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.wizard.test.tsx",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.test.tsx",
+    "lefarma.frontend/src/apps/viaticos/components/ImportarCotizacion.tsx",
+    "lefarma.frontend/src/apps/viaticos/components/TablaOpciones.tsx",
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+    "odd/tasks/costos-ruta-formulario.md",
+    "pruebas de gastos/"
+  ],
+  "risks": [
+    "La selección vive solo en memoria de la página: un recálculo la conserva, pero recargar el navegador o cambiar de persona la pierde. No se persiste ni se envía al backend; el requisito era elegir en pantalla y persistir la solicitud sigue siendo trabajo de T10/ImportarCotizacion.",
+    "Un recálculo que cambie los ids de oferta deja la clave apuntando a un id que ya no existe: la fila simplemente no aparece resaltada (no se rompe nada, pero el especialista tiene que volver a elegir).",
+    "El subárbol `aprobaciones` se monta sin `onVerOpciones`, así que 'Ver opciones' sigue abriendo el placeholder de T14. Es intencional: cablear el visor real no estaba en el alcance de esta tarea.",
+    "El ítem de menú exige `viaticos.ver_todos`. Si el rol que debe ver la bandeja global no tiene ese permiso en la BD, el enlace no aparece en el sidebar aunque la ruta responda (el backend recorta a las solicitudes propias). Verificar contra los permisos reales del rol."
+  ],
+  "git": "Sin commit, sin git add, sin push, sin PR. Todo queda como working tree (modificados sin staged, nuevos sin trackear).",
+  "done": true
+}

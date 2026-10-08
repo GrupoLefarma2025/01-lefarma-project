@@ -83,6 +83,10 @@ export interface CostosRutaOferta {
   fuente: string;
   estimado: boolean;
   comprar: CostosRutaCompra;
+  /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
+  rutaCaptura?: string;
+  /** Capturas del JSON de cotizacion de pi (URL o data URI); se usa la primera. */
+  capturas?: string[];
 }
 
 export interface CostosRutaPropuestaTramo {
@@ -106,6 +110,10 @@ export interface CostosRutaHotel {
   motivo: string;
   fuente: string;
   link: string;
+  /** Ruta del PNG capturado (columna `ruta_captura` de solicitud_opciones). */
+  rutaCaptura?: string;
+  /** Capturas del JSON de cotizacion de pi (URL o data URI); se usa la primera. */
+  capturas?: string[];
 }
 
 export interface CostosRutaPropuesta {
@@ -117,6 +125,11 @@ export interface CostosRutaPropuesta {
   llegadaFinal: string;
   margenMinimoMinutos: number;
   costoTotalMxn: number;
+  // Componentes del costo ya sumados dentro de costoTotalMxn; el motor los
+  // expone tal cual (backend CostosRutaDtos.cs) y no se recalculan aqui.
+  comida: number;
+  taxi: number;
+  hospedaje: number;
   tramos: CostosRutaPropuestaTramo[];
   hotelesPropuestos: CostosRutaHotel[];
   incumplimientos: string[];

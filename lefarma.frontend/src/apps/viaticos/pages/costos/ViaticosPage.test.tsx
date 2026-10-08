@@ -75,6 +75,7 @@ function mockCatalogs(overrides: { branches?: unknown; hospitals?: unknown } = {
 const response: CostosRutaResponse = {
   propuestas: [{ persona: 'Ana', clave: 'barata', titulo: 'Propuesta barata', cumpleTodos: false,
     salidaOrigen: '2026-10-14T22:00', llegadaFinal: '2026-10-15T08:00', margenMinimoMinutos: 0, costoTotalMxn: 400,
+    comida: 0, taxi: 0, hospedaje: 0,
     tramos: [], hotelesPropuestos: [], incumplimientos: ['No viable fixture'], fuentes: ['mock only'] }],
   resultados: [{ nombre: 'Ana', gasolina: 'magna', propuesta: { razones: [], lugares: [] }, tramos: [],
     rutaArmada: { tramos: [], totales: { km: 120, litros: 10, casetas: 30, subtotalMagna: 300, subtotalPremium: 330 } },

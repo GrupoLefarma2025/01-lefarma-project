@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lefarma.local/schemas/cotizacion-viajes.schema.json",
+  "title": "Cotizacion de viajes - resultado de busqueda con pi",
+  "description": "Contrato del JSON que devuelve el agente pi al investigar vuelos y transportes que operan en Mexico para una ruta dada. Version 1.0.0. La aplicacion de viaticos importa este JSON y lo muestra como tabla con links de compra y capturas. Prompt asociado: lefarma.docs/viaticos/prompts/busqueda-viaticos.md. Ejemplo valido: lefarma.frontend/src/apps/viaticos/test/fixtures/cotizacion-ejemplo.json. Validador propio sin dependencias: lefarma.frontend/src/apps/viaticos/components/validadorCotizacion.ts (cubre el subconjunto type/required/properties/additionalProperties/items/enum/const/if-then de este schema; no evalua el keyword 'format', que queda como anotacion).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "consulta",
+    "cobertura_declarada",
+    "transportistas_no_encontrados",
+    "opciones"
+  ],
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "1.0.0",
+      "description": "Version del contrato. Los cambios incompatibles incrementan el componente mayor y obligan a actualizar el prompt y el importador."
+    },
+    "consulta": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Eco de los parametros con los que se pidio la busqueda.",
+      "required": ["origen", "destino", "fecha_salida", "fecha_regreso", "personas"],
+      "properties": {
+        "origen": {
+          "type": "string",
+          "description": "Ciudad o punto de origen de la ruta consultada."
+        },
+        "destino": {
+          "type": "string",
+          "description": "Ciudad o punto de destino de la ruta consultada."
+        },
+        "fecha_salida": {
+          "type": "string",
+          "format": "date",
+          "description": "Fecha de salida (ISO 8601, AAAA-MM-DD)."
+        },
+        "fecha_regreso": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Fecha de regreso (ISO 8601, AAAA-MM-DD). null cuando el viaje es solo de ida."
+        },
+        "personas": {
+          "type": "integer",
+          "description": "Numero de personas de la consulta (minimo 1)."
+        }
+      }
+    },
+    "cobertura_declarada": {
+      "type": "string",
+      "description": "Texto donde pi declara EXPLICITAMENTE que si cubrio la busqueda: sitios/modos consultados y sus limites. Este contrato NO garantiza el 100% de los transportistas del corredor y el texto nunca debe prometerlo; describe lo que si se cubrio y lo que quedo fuera."
+    },
+    "transportistas_no_encontrados": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Mecanismo de honestidad de cobertura. DEBE existir siempre como array (puede estar vacio solo cuando no hubo faltantes reales). Cada elemento nombra un transportista/proveedor que se busco y no se encontro (o cuyo resultado no fue accesible) y el motivo. Si algo no se encontro se declara aqui: no se omite ni se disimula."
+    },
+    "opciones": {
+      "type": "array",
+      "description": "Opciones localizadas con tarifa o precio disponible para mostrar en la tabla (vuelos, autobuses y hospedaje).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "transportista",
+          "modo",
+          "salida",
+          "llegada",
+          "precio",
+          "url_compra",
+          "fuente"
+        ],
+        "properties": {
+          "transportista": {
+            "type": "string",
+            "description": "Operador del servicio: aerolinea, linea de autobus o proveedor de hospedaje (hotel)."
+          },
+          "modo": {
+            "type": "string",
+            "enum": ["avion", "autobus", "hotel"],
+            "description": "Como se consume la opcion: 'avion' o 'autobus' para transporte en el corredor; 'hotel' para hospedaje en el destino."
+          },
+          "salida": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Inicio de la opcion, ISO 8601 con zona horaria: despegue, salida de terminal o check-in."
+          },
+          "llegada": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Fin de la opcion, ISO 8601 con zona horaria: aterrizaje, llegada a destino o check-out."
+          },
+          "precio": {
+            "type": ["number", "null"],
+            "description": "Precio por persona en la moneda indicada. Puede ser null SOLO cuando el campo 'fuente' es literalmente \"estimado\" (importe no publicado por la fuente); la regla se impone con el if/then de este objeto y se prueba en cotizacionSchema.test.ts. Nunca se inventa ni se redondea un precio como si fuera publicado."
+          },
+          "moneda": {
+            "type": "string",
+            "description": "Codigo ISO 4217 del precio (normalmente MXN). pi lo incluye siempre en cada opcion."
+          },
+          "url_compra": {
+            "type": "string",
+            "description": "URL de compra o reservacion de ESTA opcion, utilizable por el usuario."
+          },
+          "capturas": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Capturas de la pagina del resultado consultado: URLs o imagenes en base64 (data URI). Puede ir vacio; pi lo incluye siempre como array."
+          },
+          "fuente": {
+            "type": "string",
+            "description": "Sitio del que proviene el dato (dominio o nombre del sitio). El literal \"estimado\" identifica un precio no publicado y es el unico caso en que 'precio' puede ser null."
+          },
+          "consultado_en": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Momento de la consulta a la fuente, ISO 8601 con zona horaria. pi lo incluye siempre en cada opcion."
+          }
+        },
+        "if": {
+          "required": ["precio"],
+          "properties": {
+            "precio": {
+              "type": "null"
+            }
+          }
+        },
+        "then": {
+          "required": ["fuente"],
+          "properties": {
+            "fuente": {
+              "const": "estimado"
+            }
+          }
+        }
+      }
+    }
+  }
+}

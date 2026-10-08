@@ -89,4 +89,12 @@ public static class Permissions
         public const string SaldosCargar = "vacaciones.saldos.cargar";
         public const string SolicitudesCrear = "rh.vacaciones.solicitudes.crear";
     }
+
+    public static class Viaticos
+    {
+        public const string Solicitar = "viaticos.solicitar";
+        public const string VerTodos = "viaticos.ver_todos";
+        public const string Autorizar = "viaticos.autorizar";
+        public const string Ajustar = "viaticos.ajustar";
+    }
 }

@@ -19,6 +19,7 @@ function printResponse(mode = 'bus', fuel = 'magna'): CostosRutaResponse {
     propuestas: [{ persona: 'Ana', clave: 'selected', titulo: 'Selected', cumpleTodos: false,
       salidaOrigen: '05/10 05:00', llegadaFinal: '05/10 09:00', margenMinimoMinutos: -60,
       costoTotalMxn: mode === 'auto' ? (fuel === 'premium' ? 350 : 300) : 100,
+      comida: 120, taxi: 60, hospedaje: 850,
       tramos: [{ tramo: 1, de: 'Base', a: 'Hospital', modo: mode, linea: 'Fixture', salida: '05/10 05:00', llegada: '05/10 09:00', costo: mode === 'auto' ? (fuel === 'premium' ? 350 : 300) : 100 }],
       hotelesPropuestos: [], incumplimientos: ['Late'], fuentes: ['fixture'] }],
     resultados: [{ nombre: 'Ana', gasolina: fuel, propuesta: { razones: [], lugares: [] },
@@ -57,7 +58,7 @@ describe('FOR-008 selected transport', () => {
     const response = printResponse('auto');
     response.propuestas[0].tramos[0].costo = 150;
     response.propuestas[0].costoTotalMxn = 150;
-    expect(selectedCosts(response, response.propuestas[0])).toEqual({ autobus: null, avion: null, gasolina: null, casetas: null, total: 150 });
+    expect(selectedCosts(response, response.propuestas[0])).toEqual({ autobus: null, avion: null, gasolina: null, casetas: null, hospedaje: 850, comida: 120, taxi: 60, total: 150 });
   });
 
   it('selects a viable proposal by default and honors explicit selection', () => {
@@ -99,5 +100,107 @@ describe('FOR-008 selected transport', () => {
     expect(container.querySelector('.costos-report-solicitud')).toBeInTheDocument();
     expect(printCss).toContain('@page costos-solicitud { size: A4 portrait');
     expect(printCss).toContain('@page costos-concentrado { size: A4 landscape');
+  });
+});
+
+describe('FOR-008 live printout hospedaje, comida and taxi', () => {
+  it('prints the proposal hospedaje, comida and taxi amounts instead of a dash', () => {
+    const { container } = render(<CostosViaticosPrint respuesta={printResponse()} solicitud={null} />);
+    const cells = within(container.querySelectorAll('table')[1].querySelector('tbody tr')! as HTMLElement).getAllByRole('cell');
+    expect(cells[9]).toHaveTextContent('$850.00');  // Hospedaje: lo expone la propuesta
+    expect(cells[10]).toHaveTextContent('$120.00'); // Comida: viene en la propuesta
+    expect(cells[11]).toHaveTextContent('$60.00');  // Taxi: viene en la propuesta
+  });
+
+  it('totals hospedaje, comida and taxi in the footer', () => {
+    const { container } = render(<CostosViaticosPrint respuesta={printResponse()} solicitud={null} />);
+    const rows = container.querySelectorAll('table')[1].querySelectorAll('tbody tr');
+    const footer = within(rows[rows.length - 1] as HTMLElement).getAllByRole('cell');
+    expect(footer[5]).toHaveTextContent('$850.00'); // Hospedaje
+    expect(footer[6]).toHaveTextContent('$120.00'); // Comida
+    expect(footer[7]).toHaveTextContent('$60.00');  // Taxi
+  });
+
+  it('states the total already includes hospedaje, comida and taxi', () => {
+    const { container } = render(<CostosViaticosPrint respuesta={printResponse()} solicitud={null} />);
+    const legend = container.querySelector('p')!;
+    expect(legend).toHaveTextContent('incluye transporte, hospedaje, comida y taxi');
+    expect(legend).not.toHaveTextContent('El precio del hospedaje no viene en la respuesta del motor');
+    expect(legend).toHaveTextContent('Guion: no desglosado/no disponible, nunca cero.');
+    expect(legend).not.toHaveTextContent('no incluye precios desconocidos de hospedaje, comida o taxis adicionales');
+  });
+});
+
+describe('FOR-007 total and hospedaje wording', () => {
+  function solicitudConHotel() {
+    const request: CostosRutaRequest = { opciones: { respetarHorarioLaboral: true, calcularHoteles: true, calcularViajesIntermedios: true, compartirViaje: false },
+      personas: [{ nombre: 'Ana', carro_propio: false, gasolina: 'magna', draft: false,
+        trabajo: { hora_entrada: '08:00', hora_salida: '18:30', primer_dia_laboral: 1, ultimo_dia_laboral: 5 },
+        lugares: [{ orden: 1, tipo: 'salida', nombre: 'Base', latitud: 19, longitud: -99 },
+          { orden: 2, tipo: 'taller', nombre: 'Hospital', latitud: 20, longitud: -100, fecha_inicio_actividad: '2026-10-05', hora_inicio_actividad: '08:00', hora_fin_actividad: '18:30' }] }] };
+    const response = printResponse();
+    response.propuestas[0].hotelesPropuestos = [{ lugar: 'Hotel Centro', ciudad: 'Puebla', checkIn: '05/10', checkOut: '06/10', noches: 1, habitaciones: 1, motivo: 'pernocte', fuente: 'tabulador', link: '' }];
+    return { response, request };
+  }
+  const parrafo = (container: HTMLElement, prefix: string) =>
+    Array.from(container.querySelectorAll('p')).find(p => p.textContent?.startsWith(prefix))!;
+
+  it('states the FOR-007 total includes hospedaje, comida and taxi and still renders the amount', () => {
+    const { response, request } = solicitudConHotel();
+    const { container } = render(<CostosSolicitudPrint respuesta={response} solicitud={request} persona="Ana" />);
+    const total = parrafo(container, 'Total de propuesta:');
+    expect(total).toHaveTextContent('Total de propuesta: $100.00.');
+    expect(total).toHaveTextContent('Incluye transporte, hospedaje estimado a tarifa tabulador del pernocte, comida y taxi');
+    expect(total).toHaveTextContent('Guion: dato no disponible, nunca cero.');
+    expect(total).not.toHaveTextContent('no cotizados');
+    expect(total).not.toHaveTextContent('hospedaje/comida/taxis adicionales no cotizados');
+  });
+
+  it('states the FOR-007 hotel list carries no per-hotel price while the total estimates hospedaje at the tabulador rate', () => {
+    const { response, request } = solicitudConHotel();
+    const { container } = render(<CostosSolicitudPrint respuesta={response} solicitud={request} persona="Ana" />);
+    const hospedaje = parrafo(container, 'Hospedaje ·');
+    expect(hospedaje).toHaveTextContent('alternativas de hotel sin precio por hotel');
+    expect(hospedaje).toHaveTextContent('el hospedaje se estima en el total a tarifa tabulador del pernocte');
+    expect(hospedaje).not.toHaveTextContent('precio no disponible');
+  });
+});
+
+describe('FOR-007 tick boxes mark exactly one answer', () => {
+  const solicitud: CostosRutaRequest = { opciones: { respetarHorarioLaboral: true, calcularHoteles: true, calcularViajesIntermedios: true, compartirViaje: false },
+    personas: [{ nombre: 'Ana', carro_propio: false, gasolina: 'magna', draft: false,
+      trabajo: { hora_entrada: '08:00', hora_salida: '18:30', primer_dia_laboral: 1, ultimo_dia_laboral: 5 },
+      lugares: [{ orden: 1, tipo: 'salida', nombre: 'Base', latitud: 19, longitud: -99 },
+        { orden: 2, tipo: 'taller', nombre: 'Hospital', latitud: 20, longitud: -100, fecha_inicio_actividad: '2026-10-05', hora_inicio_actividad: '08:00', hora_fin_actividad: '18:30' }] }] };
+  const parrafo = (container: HTMLElement, prefix: string) =>
+    Array.from(container.querySelectorAll('p')).find(p => p.textContent?.startsWith(prefix))!;
+
+  it('answers "No" to the boleto question when no leg is bus or avion (metro/uber)', () => {
+    const { container } = render(<CostosSolicitudPrint respuesta={printResponse('metro')} solicitud={solicitud} persona="Ana" />);
+    const boleto = parrafo(container, '¿Requiere compra de boleto');
+    // El motor emite metro/uber/renta: solo bus/avion compran boleto; la
+    // pregunta siempre aplica y no puede quedar sin marcar.
+    expect(boleto).toHaveTextContent('Si [ ] · No [X]');
+  });
+
+  it('answers "Si" to the boleto question when a leg is bus', () => {
+    const { container } = render(<CostosSolicitudPrint respuesta={printResponse('bus')} solicitud={solicitud} persona="Ana" />);
+    const boleto = parrafo(container, '¿Requiere compra de boleto');
+    expect(boleto).toHaveTextContent('Si [X] · No [ ]');
+  });
+
+  it('answers "No" to the Hospedaje question when no hotel is proposed', () => {
+    const { container } = render(<CostosSolicitudPrint respuesta={printResponse()} solicitud={solicitud} persona="Ana" />);
+    const hospedaje = parrafo(container, 'Hospedaje ·');
+    expect(hospedaje).toHaveTextContent('No propuesto');
+    expect(hospedaje).toHaveTextContent('Si [ ] · No [X]');
+  });
+
+  it('answers "Si" to the Hospedaje question when a hotel is proposed', () => {
+    const response = printResponse();
+    response.propuestas[0].hotelesPropuestos = [{ lugar: 'Hotel Centro', ciudad: 'Puebla', checkIn: '05/10', checkOut: '06/10', noches: 1, habitaciones: 1, motivo: 'pernocte', fuente: 'tabulador', link: '' }];
+    const { container } = render(<CostosSolicitudPrint respuesta={response} solicitud={solicitud} persona="Ana" />);
+    const hospedaje = parrafo(container, 'Hospedaje ·');
+    expect(hospedaje).toHaveTextContent('Si [X] · No [ ]');
   });
 });

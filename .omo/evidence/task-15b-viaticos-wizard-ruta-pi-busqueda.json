@@ -1,0 +1,75 @@
+{
+  "task": "15b",
+  "title": "Exponer payload_json de solicitud_eventos en el detalle HTTP (GET /api/viaticos/solicitudes/{id})",
+  "branch": "feature/costos-ruta-demo",
+  "status": "done",
+  "problem": "El backend escribia payload_json en solicitud_eventos con el detalle del ajuste (campo, valor_anterior, valor_nuevo, motivo) via NuevoEvento en AprobacionesController, pero SolicitudEventoDto no exponia ese payload y MapearDto no lo leia. El dato estaba en la DB, verificado por un test backend, pero nunca salia por HTTP: el frontend no podia mostrar que cambio ni el motivo de un ajuste.",
+  "changed_files": [
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/SolicitudDtos.cs",
+      "change": "Aditiva: nueva propiedad [JsonPropertyName(\"payload\")] public JsonElement? Payload en SolicitudEventoDto. Ningun campo existente cambiado, renombrado ni eliminado. Doc comment actualizado para explicar el null tolerante."
+    },
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Features/Viaticos/SolicitudesController.cs",
+      "change": "MapearDto ahora mapea Payload = ParsearJsonTolerante(ev.PayloadJson) dentro del Select de Eventos. Nuevo helper privado estatico ParsearJsonTolerante(string? json) que devuelve null si es null/vacio/whitespace y atrapa JsonException devolviendo null: nunca lanza ni rompe el detalle. El mapeo de datos (datos_json) no se toco."
+    },
+    {
+      "path": "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/SolicitudesControllerTests.cs",
+      "change": "Aditiva: 2 tests nuevos, parametro opcional payloadJson en el helper SembrarEvento (las llamadas existentes siguen compilando sin cambios) y propiedad Payload en el tipo de deserializacion SolicitudEventoDtoJson. Ningun test existente fue ajustado."
+    }
+  ],
+  "tests_added": [
+    {
+      "name": "GetDetalle_EventoDeAjuste_ExponeElPayloadConCampoValorAnteriorYMotivo",
+      "why": "Prueba de cierre del hueco: siembra en BD un evento 'ajuste_aplicado' con el mismo payload_json que escribe AprobacionesController ({campo, valor_anterior, valor_nuevo, motivo, id_opcion}) y verifica via HTTP que detalle().eventos[] lo devuelve parseado. Ademas comprueba que un evento sembrado sin payload sigue saliendo completo con payload = null (no se rompió el contrato previo)."
+    },
+    {
+      "name": "GetDetalle_EventoConPayloadJsonInvalido_ExponePayloadNullYNoRompeElDetalle",
+      "why": "Cubre la tolerancia exigida: payload_json con JSON invalido devuelve payload null y el detalle responde 200 en vez de lanzar."
+    }
+  ],
+  "commands": [
+    {
+      "command": "dotnet build lefarma.backend/src/Lefarma.API/Lefarma.API.csproj",
+      "exit_code": 0,
+      "output": "    34 Advertencia(s)\n    0 Errores\n\nTiempo transcurrido 00:00:27.77\n\n(advertencias preexistentes de otros modulos: Catalogos/Proveedores, Rh/SolicitudesPersonal; ninguna de los 3 archivos tocados)"
+    },
+    {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter FullyQualifiedName~Solicitudes",
+      "exit_code": 0,
+      "output": "Serie de pruebas para P:\\Trabajo\\01-lefarma-project\\lefarma.backend\\tests\\Lefarma.UnitTests\\bin\\Debug\\net10.0\\Lefarma.UnitTests.dll (.NETCoreApp,Version=v10.0)\n1 archivos de prueba en total coincidieron con el patron especificado.\n\nCorrectas! - Con error:     0, Superado:    41, Omitido:     0, Total:    41, Duracion: 8 s - Lefarma.UnitTests.dll (net10.0)"
+    },
+    {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+      "exit_code": 0,
+      "output": "Serie de pruebas para P:\\Trabajo\\01-lefarma-project\\lefarma.backend\\tests\\Lefarma.UnitTests\\bin\\Debug\\net10.0\\Lefarma.UnitTests.dll (.NETCoreApp,Version=v10.0)\n1 archivos de prueba en total coincidieron con el patron especificado.\n\nCorrectas! - Con error:     0, Superado:   354, Omitido:     0, Total:   354, Duracion: 11 s - Lefarma.UnitTests.dll (net10.0)"
+    }
+  ],
+  "acceptance": {
+    "build_exit_0": true,
+    "filtered_tests_exit_0": true,
+    "filtered_tests_green": 41,
+    "full_suite_exit_0": true,
+    "full_suite_green": 354,
+    "full_suite_failed": 0,
+    "baseline_green_before": 352,
+    "note": "352 -> 354 = los 2 tests nuevos de este task. Los 14 tests preexistentes de SolicitudesControllerTests siguen verdes sin ningun ajuste."
+  },
+  "constraints_respected": [
+    "Sin commit, sin git add, sin push, sin PR.",
+    "Sin git reset / checkout -- / restore / stash / clean.",
+    "No se toco AprobacionesController.cs, appsettings.Development.json, .lefarma.sql, educacion-medica, CapturasService.cs ni pruebas de gastos/.",
+    "No se aplico SQL.",
+    "Cambio aditivo: ningun campo existente del DTO ni del mapeo fue modificado, renombrado o eliminado."
+  ],
+  "risks": [
+    "Cambio aditivo en el contrato HTTP: la respuesta de GET /api/viaticos/solicitudes/{id} ahora incluye la clave 'payload' (null o objeto) en cada elemento de eventos[]. Ningun cliente existente se rompe porque solo se agrega una clave, pero cualquier consumidor que compare el JSON de eventos de forma estricta (snapshot golden) notara la diferencia.",
+    "El frontend todavia no lee 'payload': cerrar el extremo del contrato (tipos + vista de 'que cambio'/'motivo' en costosRuta.types.ts y la pantalla de detalle) queda para el worker de frontend.",
+    "El shape del payload no tiene version ni discriminador: si AprobacionesController anade campos al payload_json, el DTO los expone tal cual sin romper, pero el frontend debe leerlo defensivamente.",
+    "354 verdes depende del estado actual del arbol de trabajo compartido: otros workers estaban tocando archivos a la vez, asi que un re-run concurrente podria dar otro numero."
+  ],
+  "next_steps": [
+    "Worker de frontend: agregar 'payload' al tipo de evento en costosRuta.types.ts y mostrar campo/valor_anterior/valor_nuevo/motivo en el detalle.",
+    "Opcional: regresion visual manual en la UI sobre una solicitud en 'autorizada_con_ajustes'."
+  ]
+}

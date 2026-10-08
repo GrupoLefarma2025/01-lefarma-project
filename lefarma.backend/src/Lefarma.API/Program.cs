@@ -41,6 +41,7 @@ using Lefarma.API.Features.Firmas;
 using Lefarma.API.Features.Rh.IncidenciasChecado;
 using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
+using Lefarma.API.Features.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Infrastructure.Data.Repositories;
 using Lefarma.API.Infrastructure.Data.Repositories.Admin;
@@ -117,6 +118,13 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient("sat", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);
+});
+builder.Services.AddHttpClient("nominatim", c =>
+{
+    // Política de Nominatim (OSM): requiere un User-Agent identificable de la app
+    // (https://operations.osmfoundation.org/policies/nominatim/).
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
+    c.Timeout = TimeSpan.FromSeconds(12);
 });
 
 // DbContext
@@ -287,6 +295,12 @@ builder.Services.AddScoped<IAdminService, AdminService>();
     builder.Services.AddSingleton<ISseService, SseService>();
 builder.Services.AddSingleton<ISseTicketService, SseTicketService>();
 builder.Services.AddMemoryCache();
+
+// Capturas de viaticos (T8): servicio + runner del script de Playwright.
+// Configuracion bajo appsettings: CapturasSettings (whitelist, ruta script, timeout).
+builder.Services.Configure<CapturasSettings>(builder.Configuration.GetSection("CapturasSettings"));
+builder.Services.AddSingleton<ICapturasScriptRunner, NodeCapturasScriptRunner>();
+builder.Services.AddSingleton<CapturasService>();
 
 // Notification Services
 builder.Services.AddScoped<Lefarma.API.Domain.Interfaces.ITemplateService, TemplateService>();
@@ -480,6 +494,24 @@ app.UseSwaggerUI(c =>
 
 app.UseHttpsRedirection();
 
+// Guardia de las capturas de viaticos. Esos PNG se sirven SOLO por el endpoint
+// [Authorize] api/viaticos/capturas/{archivo} (CapturasController): UseStaticFiles
+// NO ejecuta autenticacion en ninguna posicion del pipeline, asi que aqui se
+// cortan sus alias estaticos anonimos ANTES de que el middleware estatico los
+// alcance (el catch-all de /api/media y el wwwroot base servido en /media/...).
+app.Use(async (context, next) =>
+{
+    var ruta = context.Request.Path;
+    if (ruta.StartsWithSegments("/api/media/capturas-viaticos")
+        || ruta.StartsWithSegments("/media/capturas-viaticos"))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
+    }
+
+    await next();
+});
+
 // ---> AGREGADO PARA LA SPA <---
 // Permite servir index.html por defecto y habilita los archivos estáticos base de wwwroot
 app.UseDefaultFiles();
@@ -532,17 +564,30 @@ app.UseStaticFiles(new StaticFileOptions
     }
 });
 
-// Static files for help images under /api/media/help
+// Static files for help images under /api/media/help. La raiz es media/help (no
+// media/) a proposito: un provider sobre media/ completo exponia de forma anonima
+// cualquier subcarpeta, incluidas las capturas de viaticos.
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(
-        Path.Combine(app.Environment.WebRootPath, "media")),
-    RequestPath = "/api/media",
+        Path.Combine(app.Environment.WebRootPath, "media", "help")),
+    RequestPath = "/api/media/help",
     OnPrepareResponse = ctx =>
     {
         ctx.Context.Response.Headers.Append("Cache-Control", "public,max-age=31536000");
     }
 });
+
+// Capturas de viaticos (T8): el script escribe en
+// lefarma.frontend/public/capturas/viaticos/ y CapturasService copia cada PNG
+// exitoso a wwwroot/media/capturas-viaticos/ antes de responder.
+//
+// El PNG NO se sirve por UseStaticFiles (toda registration estatica es anonima):
+// se sirve SOLO por el endpoint [Authorize] api/viaticos/capturas/{archivo} de
+// CapturasController. El directorio se asegura en el arranque porque
+// CapturasService lo crea de forma perezosa y ese endpoint lee/escribe ahi.
+var capturasDir = Path.Combine(app.Environment.WebRootPath, "media", "capturas-viaticos");
+Directory.CreateDirectory(capturasDir);
 
 // Authentication & Authorization - Order matters: Authentication must come before Authorization
 app.UseAuthentication();
@@ -573,3 +618,7 @@ app.MapControllers();
 app.MapFallbackToFile("/index.html");
 
 app.Run();
+
+// Hace Program accesible a Microsoft.AspNetCore.Mvc.Testing.WebApplicationFactory<Program>
+// sin necesidad de una clase Program publica generada por top-level statements.
+public partial class Program { }

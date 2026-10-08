@@ -13,6 +13,7 @@
     "publish": "pwsh -ExecutionPolicy Bypass -File scripts/publish.ps1",
     "format": "prettier --write \"src/**/*.{ts,tsx,json,css,md}\"",
     "test": "vitest run",
+    "test:captura-viaticos": "vitest run scripts/captura-viaticos.test.mjs",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "test:e2e:login": "playwright test tests/login.spec.ts"

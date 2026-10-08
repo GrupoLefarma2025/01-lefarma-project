@@ -1,0 +1,51 @@
+{
+  "task": "task-11b-viaticos-wizard-ruta-pi-busqueda",
+  "scope": "Dos campos en la bandeja de viaticos: nombre del solicitante (JOIN al directorio activo) y destino (leido de solicitudes.datos_json)",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/AprobacionDtos.cs",
+    "lefarma.backend/src/Lefarma.API/Features/Viaticos/AprobacionesController.cs",
+    "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/AprobacionesControllerTests.cs"
+  ],
+  "changes": [
+    "SolicitudBandejaDto: nueva propiedad nullable Destino (JsonPropertyName \"destino\") y doc-comment corregido.",
+    "AprobacionesController.GetSolicitudes: un unico query extra a _context.Usuarios filtrado por EsActivo, mapeado a diccionario IdUsuario -> NombreCompleto, para evitar N+1; NombreSolicitante cae a \"Usuario #{id}\" si no hay match o el nombre es blanco.",
+    "AprobacionesController: helper privado estatico LeerDestinoDesdeJson(string?) que sigue el patron de LeerTotalDesdeJson: devuelve null si el JSON es vacio, no parsea, no es objeto, no tiene la clave o el valor no es string no vacio. Nunca lanza.",
+    "AprobacionesControllerTests: overload SembrarSolicitud(duenoId, estado, datosJson), helper SembrarUsuario(id, nombre, esActivo), BandejaItemJson gana destino y nombre_solicitante, y 3 tests nuevos."
+  ],
+  "tests": [
+    {
+      "name": "dotnet build lefarma.backend/src/Lefarma.API/Lefarma.API.csproj",
+      "exit_code": 0,
+      "output": "    34 Advertencia(s)\n    0 Errores\n\nTiempo transcurrido 00:00:22.90"
+    },
+    {
+      "name": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter \"FullyQualifiedName~Aprobaciones\"",
+      "exit_code": 0,
+      "output": "Serie de pruebas para P:\\Trabajo\\01-lefarma-project\\lefarma.backend\\tests\\Lefarma.UnitTests\\bin\\Debug\\net10.0\\Lefarma.UnitTests.dll (.NETCoreApp,Version=v10.0)\n1 archivos de prueba en total coincidieron con el patrón especificado.\n\nCorrectas! - Con error:     0, Superado:    15, Omitido:     0, Total:    15, Duración: 7 s - Lefarma.UnitTests.dll (net10.0)"
+    },
+    {
+      "name": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+      "exit_code": 0,
+      "output": "Serie de pruebas para P:\\Trabajo\\01-lefarma-project\\lefarma.backend\\tests\\Lefarma.UnitTests\\bin\\Debug\\net10.0\\Lefarma.UnitTests.dll (.NETCoreApp,Version=v10.0)\n1 archivos de prueba en total coincidieron con el patrón especificado.\n\nCorrectas! - Con error:     0, Superado:   352, Omitido:     0, Total:   352, Duración: 9 s - Lefarma.UnitTests.dll (net10.0)"
+    }
+  ],
+  "tests_added": [
+    "AprobacionesControllerTests.Bandeja_LeeDestinoDeDatosJsonYNombreDelDirectorio: dos solicitudes con datos_json incluyendo destino (Cusco, Puno) -> la bandeja devuelve ese destino y el nombre del directorio.",
+    "AprobacionesControllerTests.Bandeja_DatosJsonVacioOMalformado_DevuelveDestinoNullSinLanzar: datos_json vacio, malformado y sin clave destino -> destino null, HTTP 200, sin excepcion.",
+    "AprobacionesControllerTests.Bandeja_SolicitanteFueraDelDirectorio_CaeAUsuarioPorId: usuario inactivo y usuario inexistente -> fallback \"Usuario #{id}\" (respetando el filtro EsActivo)."
+  ],
+  "baseline_note": "Suite completa paso de 349 a 352 tests (3 nuevos). Los 8 tests preexistentes de AprobacionesControllerTests NO se tocaron: ninguno afirmaba sobre nombre_solicitante, asi que el nuevo valor poblado no los rompio.",
+  "invariants_preserved": [
+    "Filtro por id_usuario_solicitante cuando no hay viaticos.ver_todos: intacto (no se modifico ese bloque).",
+    "Filtros periodo, estado y gerencia: intactos.",
+    "Solo LINQ de EF Core, sin SQL crudo.",
+    "No se hizo commit, git add, push ni PR. No se uso git reset/checkout/restore/stash/clean.",
+    "No se tocaron appsettings.Development.json, odd/tasks/costos-ruta-formulario.md, pruebas de gastos/, educacion-medica, SolicitudesController.cs ni CapturasService.cs."
+  ],
+  "risks": [
+    "El query extra a _context.Usuarios solo trae los solicitantes de la pagina actual (antes de paginar, la bandeja hoy no pagina); si mas adelante se agrega paginacion server-side, el diccionario debe recalcularse por pagina.",
+    "El fallback \"Usuario #{id}\" se aplica tambien a usuarios inactivos: si el negocio quiere mostrar el nombre historico de un solicitante dado de baja, hay que quitar el filtro EsActivo.",
+    "El frontend (AprobacionesBandejaTable.tsx / aprobaciones.types.ts) todavia no consume destino ni cambio nombre_solicitante: el campo ya viaja en la API pero no se renderiza hasta que otro worker lo cablee."
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "task": "task-13a-viaticos-wizard-ruta-pi-busqueda",
+  "scope": "crear AprobacionesController.cs + AprobacionDtos.cs (parte A del todo 13)",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/AprobacionDtos.cs (nuevo)",
+    "lefarma.backend/src/Lefarma.API/Features/Viaticos/AprobacionesController.cs (nuevo)"
+  ],
+  "not_touched": [
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json (regla dura)",
+    "odd/tasks/costos-ruta-formulario.md (regla dura)",
+    "pruebas de gastos/ (regla dura)",
+    "Features/Viaticos/CalculoCostosRuta.cs (regla dura)",
+    "Features/Viaticos/SolicitudesController.cs (lo crea otro worker)",
+    "Features/Viaticos/DTOs/SolicitudDtos.cs (lo crea otro worker)",
+    "Features/EducacionMedica/* (regla dura)"
+  ],
+  "tests": {
+    "command": "dotnet build lefarma.backend/src/Lefarma.API/Lefarma.API.csproj --nologo -v q",
+    "exit_code": 1,
+    "outcome": "FALLA por errores preexistentes del worker paralelo en Program.cs (NO míos)",
+    "summary": "Compilan AprobacionesController.cs y AprobacionDtos.cs sin warnings ni errors. El build entero falla con 4 errores CS0246 en Program.cs(300-302) que referencian CapturasSettings/ICapturasScriptRunner/NodeCapturasScriptRunner/CapturasService sin la using directive correspondiente. Esos tipos viven en Features/Viaticos/CapturasService.cs (creado por el worker paralelo). El fix sería una sola línea: 'using Lefarma.API.Features.Viaticos;' en Program.cs. Por regla de la tarea no lo aplico: ese archivo no es mío.",
+    "raw_errors": [
+      "Program.cs(300,28): error CS0246: El nombre del tipo o del espacio de nombres 'CapturasSettings' no se encontró",
+      "Program.cs(301,31): error CS0246: El nombre del tipo o del espacio de nombres 'ICapturasScriptRunner' no se encontró",
+      "Program.cs(301,54): error CS0246: El nombre del tipo o del espacio de nombres 'NodeCapturasScriptRunner' no se encontró",
+      "Program.cs(302,31): error CS0246: El nombre del tipo o del espacio de nombres 'CapturasService' no se encontró"
+    ],
+    "warning_count": 34,
+    "error_count": 4,
+    "errors_attributable_to_mine": 0
+  },
+  "implementation_notes": {
+    "approach": "Uso de EF Core 10 raw SQL (Database.SqlQueryRaw<T> / ExecuteSqlRawAsync / GetDbConnection) para acceder a viaticos.solicitudes, solicitud_ajustes, solicitud_eventos. Decisión: no crear entidades EF ni DbSet para esas tablas porque ese terreno es del worker paralelo (SolicitudesController). Mantener el controller y los DTOs como los únicos archivos nuevos del task.",
+    "endpoints": {
+      "GET /api/viaticos/solicitudes?periodo=&estado=&gerencia=": "bandeja; 403 sin viaticos.ver_todos; mensaje idéntico al patrón de Features/EducacionMedica/AprobacionesController.cs (líneas 30-45)",
+      "POST /api/viaticos/solicitudes/{id}/autorizar": "requiere viaticos.autorizar; 409 si no está en 'enviada'; UPDATE atómico con WHERE estado='enviada' + INSERT en solicitud_eventos tipo 'autorizada' dentro de transacción",
+      "POST /api/viaticos/solicitudes/{id}/rechazar": "requiere viaticos.autorizar; motivo obligatorio (400 si vacío); solo desde 'enviada' (409); UPDATE + INSERT evento tipo 'rechazada' con payload_json {motivo}",
+      "POST /api/viaticos/solicitudes/{id}/ajustes": "requiere viaticos.ajustar; motivo obligatorio; solo desde 'autorizada' o 'autorizada_con_ajustes' (409); INSERT en solicitud_ajustes (valor_anterior se conserva siempre: INSERT, no UPDATE) + INSERT en solicitud_eventos tipo 'ajuste_aplicado' + transición de 'autorizada' a 'autorizada_con_ajustes' dentro de transacción"
+    },
+    "decisions": {
+      "permissions": "Permissions.Viaticos.VerTodos / Autorizar / Ajustar (constantes ya existentes en Shared/Constants/AuthorizationConstants.cs)",
+      "user_id": "User.GetUserId() (ya en Shared/Authorization/ClaimsPrincipalExtensions.cs)",
+      "envelope": "ApiResponse<T> (ya en Shared/Models/ApiResponse.cs)",
+      "total_field": "Se calcula con JSON_VALUE(datos_json, '$.total') y cae a 0 cuando el campo no existe; el path del JSON se documenta en AprobacionDtos.cs para que el equipo de frontend sepa dónde escribirlo",
+      "nombre_solicitante": "Queda como string.Empty; no hay FK en viaticos.solicitudes hacia una tabla de usuarios, y VwDirectorioActivo no expone id_usuario numérico. Se documenta en AprobacionDtos.cs para seguimiento futuro",
+      "estado_transition_rule": "Ajustes solo permitidos en 'autorizada' o 'autorizada_con_ajustes' (es donde la regla '>=1 ajuste -> autorizada_con_ajustes' tiene sentido). Autorizar/Rechazar solo desde 'enviada' (como dice la spec literal)"
+    }
+  },
+  "risks": [
+    "El worker paralelo debe agregar 'using Lefarma.API.Features.Viaticos;' a Program.cs (o ya lo agregará) para que el build entero pase; sin esa línea los 4 errores CS0246 persisten.",
+    "El query de bandeja (SolicitudBandejaDto) hace el join a usuarios lógicamente, no físicamente. Si el frontend necesita el nombre real del solicitante, hay que cruzar con VwDirectorioActivo (vía numeroNomina) o agregar una columna a la tabla solicitudes; eso queda fuera del scope de este task.",
+    "El campo Total asume que el JSON del wizard tendrá una clave '$.total'. Si el frontend usa otra ruta, ajustar el JSON_VALUE en AprobacionesController.GetSolicitudes (línea del SELECT).",
+    "El INSERT de solicitud_ajustes no valida que id_opcion exista cuando se pasa uno (id_opcion=0 -> NULL, otros valores -> error de FK en runtime). Es comportamiento esperado por el modelo, pero conviene exponerlo en tests del worker que sigue."
+  ]
+}

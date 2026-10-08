@@ -1,0 +1,32 @@
+{
+  "schema_version": 2,
+  "active_work_id": "viaticos-wizard-ruta-pi-busqueda",
+  "works": {
+    "viaticos-wizard-ruta-pi-busqueda": {
+      "work_id": "viaticos-wizard-ruta-pi-busqueda",
+      "active_plan": ".omo/plans/viaticos-wizard-ruta-pi-busqueda.md",
+      "plan_name": "viaticos-wizard-ruta-pi-busqueda",
+      "session_ids": [
+        "senpi:01a113b3-7ea4-9a6e-f995faec8149"
+      ],
+      "status": "paused",
+      "worktree_path": null,
+      "delivery": "direct",
+      "commits_allowed": false,
+      "lane_topology": "wave-1 independent lanes -> one parallel spawn burst (5 workers), no team; no shared contract between them",
+      "rounds": 0,
+      "session_origins": {},
+      "stale_since": "2026-10-07T00:35:56.610Z",
+      "task_sessions": {}
+    }
+  },
+  "session_ids": [
+    "senpi:01a113b3-7ea4-9a6e-f995faec8149"
+  ],
+  "session_origins": {},
+  "task_sessions": {},
+  "active_plan": ".omo/plans/viaticos-wizard-ruta-pi-busqueda.md",
+  "plan_name": "viaticos-wizard-ruta-pi-busqueda",
+  "status": "paused",
+  "worktree_path": null
+}

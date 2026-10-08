@@ -37,6 +37,15 @@
 -- politica de uso). El Python ahora manda UA descriptivo, cae al mirror
 -- overpass.kumi.systems si el principal falla, y reporta el error HTTP con el
 -- cuerpo de la respuesta para diagnostico en el historial del job.
+--
+-- CORRECCION 2026-10-07: Overpass falla de forma transitoria y por endpoint
+-- (ej. HTTP 500 en private.coffee y kumi en horas distintas). Antes, un solo
+-- estado caido abortaba la carga completa. Ahora: (1) los estados caidos o
+-- vacios se reportan con AVISO y se cargan los demas (solo se aborta si no
+-- vino ningun municipio); (2) el error resume los tres endpoints; (3) el
+-- volcado acota la desactivacion a los estados presentes en el lote, llena
+-- coordenadas por (estado, nombre) y no da altas en estados ya poblados
+-- (el catalogo ya tiene autoridad: carga INEGI).
 -- ============================================================
 
 SET NOCOUNT ON;
@@ -84,7 +93,7 @@ BEGIN
         id_municipio            INT IDENTITY(1,1) NOT NULL,
         codigo_estado         INT NOT NULL,   -- FK logica -> Asokam.genEstadosCat.codigoEstado
         nombre                NVARCHAR(150) NOT NULL,
-        clave_municipio       NVARCHAR(30) NULL,  -- identificador OpenStreetMap (admin_level=8)
+        clave_municipio       NVARCHAR(30) NULL,  -- identificador OpenStreetMap (admin_level=6: municipio en Mexico)
         latitud               DECIMAL(9,6) NULL,  -- centroide OSM; centra el mapa del selector
         longitud              DECIMAL(9,6) NULL,
         activo                BIT NOT NULL CONSTRAINT DF_municipios_cat_activo DEFAULT (1),
@@ -160,24 +169,50 @@ BEGIN
     WHERE mc.clave_municipio IS NOT NULL;
     DECLARE @actualizados INT = @@ROWCOUNT;
 
-    -- 2) Insertar nuevos: clave OSM desconocida y sin choque por
-    --    (codigo_estado, nombre) para respetar el UNIQUE.
+    -- 1b) Llenar coordenadas de filas sin clave OSM (p. ej. las cargadas de
+    --     INEGI) cuando el nombre coincide dentro del estado, ignorando el
+    --     prefijo "Municipio de " y diferencias de acento.
+    UPDATE mc
+    SET mc.latitud            = COALESCE(s.latitud, mc.latitud),
+        mc.longitud           = COALESCE(s.longitud, mc.longitud),
+        mc.fecha_modificacion = SYSUTCDATETIME()
+    FROM viaticos.municipios_cat AS mc
+    JOIN viaticos.municipios_osm_staging AS s
+        ON s.codigo_estado = mc.codigo_estado
+       AND REPLACE(s.nombre, N'Municipio de ', N'') COLLATE Latin1_General_CI_AI
+           = mc.nombre COLLATE Latin1_General_CI_AI
+    WHERE mc.clave_municipio IS NULL
+      AND (s.latitud IS NOT NULL OR s.longitud IS NOT NULL);
+    DECLARE @coordenadas INT = @@ROWCOUNT;
+
+    -- 2) Insertar altas nuevas: solo si el estado NO tiene filas activas en el
+    --    catalogo (el catalogo ya tiene autoridad, p. ej. carga INEGI; OSM no
+    --    da altas donde ya existe el estado, para no duplicar variantes de
+    --    nombre) y sin duplicados dentro del lote.
     INSERT INTO viaticos.municipios_cat
         (codigo_estado, nombre, clave_municipio, latitud, longitud, activo, fecha_creacion, fecha_modificacion)
     SELECT s.codigo_estado, s.nombre, s.clave_municipio, s.latitud, s.longitud, 1, SYSUTCDATETIME(), SYSUTCDATETIME()
     FROM viaticos.municipios_osm_staging AS s
     WHERE NOT EXISTS (SELECT 1 FROM viaticos.municipios_cat mc WHERE mc.clave_municipio = s.clave_municipio)
       AND NOT EXISTS (SELECT 1 FROM viaticos.municipios_cat mc2
-                      WHERE mc2.codigo_estado = s.codigo_estado AND mc2.nombre = s.nombre);
+                      WHERE mc2.codigo_estado = s.codigo_estado AND mc2.nombre = s.nombre)
+      AND NOT EXISTS (SELECT 1 FROM viaticos.municipios_cat mc3
+                      WHERE mc3.codigo_estado = s.codigo_estado AND mc3.activo = 1)
+      AND NOT EXISTS (SELECT 1 FROM viaticos.municipios_osm_staging s2
+                      WHERE s2.codigo_estado = s.codigo_estado AND s2.nombre = s.nombre
+                        AND s2.id_staging < s.id_staging);
     DECLARE @insertados INT = @@ROWCOUNT;
 
-    -- 3) Desactivar los OSM que ya no vienen (altas manuales intactas).
+    -- 3) Desactivar los OSM que ya no vienen, SOLO de estados presentes en el
+    --    lote (un estado caido o vacio no toca sus filas; altas manuales intactas).
     UPDATE mc
     SET mc.activo             = 0,
         mc.fecha_modificacion = SYSUTCDATETIME()
     FROM viaticos.municipios_cat AS mc
     WHERE mc.clave_municipio IS NOT NULL
       AND mc.activo = 1
+      AND EXISTS (SELECT 1 FROM viaticos.municipios_osm_staging s2
+                  WHERE s2.codigo_estado = mc.codigo_estado)
       AND NOT EXISTS (SELECT 1 FROM viaticos.municipios_osm_staging s
                       WHERE s.clave_municipio = mc.clave_municipio);
     DECLARE @desactivados INT = @@ROWCOUNT;
@@ -186,6 +221,7 @@ BEGIN
     DELETE FROM viaticos.municipios_osm_staging;
 
     PRINT CONCAT('Municipios: ', @insertados, ' insertados, ', @actualizados, ' actualizados, ',
+                 @coordenadas, ' coordenadas por nombre, ',
                  @desactivados, ' desactivados. Bandeja: ', @en_bandeja, ' filas consumidas.');
 END
 GO
@@ -229,11 +265,12 @@ UA = "GrupoLefarma-MunicipiosSync/1.0 (sistemas@grupolefarma.com.mx)"
 ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
 ]
 
 def consulta_overpass(consulta):
     datos = urllib.parse.urlencode({"data": consulta}).encode("utf-8")
-    ultimo_error = ""
+    errores = []
     for url in ENDPOINTS:
         try:
             peticion = urllib.request.Request(url, data=datos)
@@ -242,28 +279,43 @@ def consulta_overpass(consulta):
             with urllib.request.urlopen(peticion, timeout=300) as respuesta:
                 return json.loads(respuesta.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            cuerpo = e.read().decode("utf-8", "replace")[:300]
-            ultimo_error = "HTTP " + str(e.code) + " en " + url + ": " + cuerpo
+            errores.append(url.split("/")[2] + ": HTTP " + str(e.code))
         except Exception as e:
-            ultimo_error = type(e).__name__ + " en " + url + ": " + str(e)
+            errores.append(url.split("/")[2] + ": " + type(e).__name__)
         time.sleep(1.1)
-    raise RuntimeError("Overpass fallo en todos los endpoints: " + ultimo_error)
+    raise RuntimeError("Overpass fallo en todos los endpoints: " + " | ".join(errores))
 
 filas = []
+fallidos = []
+vacios = []
 
 for iso, codigo in ESTADOS:
     consulta = (
         "[out:json][timeout:300];"
         + "area[\"ISO3166-2\"=\"" + iso + "\"][admin_level=4]->.e;"
-        + "rel(area.e)[\"boundary\"=\"administrative\"][\"admin_level\"=\"8\"];"
+        + "rel(area.e)[\"boundary\"=\"administrative\"][\"admin_level\"=\"6\"];"
         + "out center tags;"
     )
-    try:
-        contenido = consulta_overpass(consulta)
-    except RuntimeError as e:
-        raise RuntimeError("Estado " + iso + ": " + str(e))
+    contenido = None
+    ultimo = ""
+    # Overpass devuelve 500/429 de forma transitoria por endpoint: reintentar
+    # antes de dar un estado por perdido.
+    for intento in range(1, 4):
+        try:
+            contenido = consulta_overpass(consulta)
+            break
+        except RuntimeError as e:
+            ultimo = str(e)
+            time.sleep(8 * intento)
+    if contenido is None:
+        fallidos.append(iso + ": " + ultimo)
+        time.sleep(3)
+        continue
 
-    for elemento in contenido.get("elements", []):
+    elementos = contenido.get("elements", [])
+    if not elementos:
+        vacios.append(iso)
+    for elemento in elementos:
         etiquetas = elemento.get("tags") or {}
         nombre = etiquetas.get("name")
         if not nombre:
@@ -276,7 +328,19 @@ for iso, codigo in ESTADOS:
             "latitud": centro.get("lat"),
             "longitud": centro.get("lon"),
         })
-    time.sleep(1.1)  # cortesia con Overpass (1 req/s)
+    time.sleep(3)  # cortesia con Overpass (pide 1 req/s; se deja margen)
+
+# TOLERANCIA POR ESTADO: los estados caidos o vacios se reportan y NO se
+# vuelcan; sus filas del catalogo quedan intactas porque el paso 2 acota la
+# desactivacion a los estados presentes en la bandeja. Solo se aborta si no
+# vino ningun municipio.
+if fallidos:
+    print("AVISO: Overpass no respondio para " + str(len(fallidos))
+          + " estado(s); se cargan los demas: " + " | ".join(fallidos))
+if vacios:
+    print("AVISO: 0 municipios para: " + " | ".join(vacios))
+if len(filas) == 0:
+    raise RuntimeError("Overpass devolvio 0 municipios; NO se vuelca al catalogo.")
 
 df = pd.DataFrame(filas, columns=["clave_municipio", "codigo_estado", "nombre", "latitud", "longitud"])
 # NaN -> NULL para las coordenadas faltantes

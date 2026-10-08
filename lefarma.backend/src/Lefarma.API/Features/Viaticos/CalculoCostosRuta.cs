@@ -59,6 +59,10 @@ public static class CalculoCostosRuta
         ["XAL"] = (546, 1500), ["BJX"] = (596, 1700),
     };
 
+    // Fuente de la unica entrada valuada de un pernocte (tarifa tabulador).
+    // Las alternativas de Overpass no traen precio propio: son un menu.
+    private const string FuenteTabuladorHotel = "seed tabulador SHCP";
+
     private const double CasetaPorKm = 1.4;
     private const double ComidaDiaEstandar = 600;
     private const int BufferMin = 30;
@@ -389,7 +393,7 @@ public static class CalculoCostosRuta
                 Tramos = tramos.Select((t, ti) => new CostosRutaTramo
                 {
                     From = t.From, To = t.To, Km = Math.Round(t.Km, 1),
-                    Opciones = t.Opciones.Select(o => OfertaDe(o, norm.Nombre, i, ti + 1, t.From, t.To)).ToList(),
+                    Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To)).ToList(),
                 }).ToList(),
                 RutaArmada = RutaArmada(prop, tramos, precios),
                 HotelesPropuestos = hoteles,
@@ -398,9 +402,9 @@ public static class CalculoCostosRuta
             resp.Resultados.Add(resultado);
 
             foreach (var (t, ti) in tramos.Select((t, ti) => (t, ti)))
-                foreach (var o in t.Opciones)
+                foreach (var (o, oi) in t.Opciones.Select((o, oi) => (o, oi)))
                 {
-                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, t.From, t.To);
+                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To);
                     resp.Categorias[CatDeModo[o.Modo]].Add(of);
                 }
             foreach (var h in hoteles)
@@ -422,12 +426,16 @@ public static class CalculoCostosRuta
                 var pool = viables.Count > 0 ? viables : tramos[ti].Opciones;
                 if (pool.Count == 0) continue;
                 var mejor = pool.MinBy(o => o.CostoGrupo)!;
+                // El id de la oferta incluye su posición dentro del tramo (varios
+                // modos se repiten: 6 taxis "uber" en un tramo corto). La mejor
+                // oferta se marca por esa misma posición, no por patrón modo.
+                var ixMejor = tramos[ti].Opciones.FindIndex(o => ReferenceEquals(o, mejor));
                 resp.Recomendaciones.Add(new CostosRutaRecomendacion
                 {
                     Persona = norm.Nombre, Tramo = ti + 1, De = tramos[ti].From, A = tramos[ti].To,
                     Km = Math.Round(tramos[ti].Km, 1),
                     Razon = $"Prioridad del motor: 1º llegar a tiempo, 2º precio, 3º tiempo puerta a puerta. «{mejor.Linea}» encabeza este tramo.",
-                    MejorOfertaId = $"p{i}-t{ti + 1}-{mejor.Modo}",
+                    MejorOfertaId = $"p{i}-t{ti + 1}-{ixMejor}-{mejor.Modo}",
                 });
             }
         }
@@ -877,7 +885,7 @@ public static class CalculoCostosRuta
             {
                 Lugar = nl.Nombre, Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
                 Motivo = $"pernocte {noches} noche(s) × 1 hab · tarifa tabulador ~${tarifa:F0}/noche",
-                Fuente = "seed tabulador SHCP", Link = link(ciudad),
+                Fuente = FuenteTabuladorHotel, Link = link(ciudad),
             });
             var reales = await BuscarHotelesCercanosAsync(http, cache, nl.Lat, nl.Lon, ct);
             foreach (var h in reales.Take(5))
@@ -885,7 +893,7 @@ public static class CalculoCostosRuta
                 {
                     Lugar = nl.Nombre, Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
                     Motivo = $"{h.Nombre} a {h.DistKm:F1} km de {nl.Nombre} · precio estimado con tarifa tabulador",
-                    Fuente = reales.Count > 0 ? "OpenStreetMap/Overpass" : "seed tabulador SHCP (Overpass no respondió)",
+                    Fuente = reales.Count > 0 ? "OpenStreetMap/Overpass" : $"{FuenteTabuladorHotel} (Overpass no respondió)",
                     Link = link(h.Nombre),
                 });
         }
@@ -944,7 +952,18 @@ public static class CalculoCostosRuta
             var taxiExtra = validas
                 .Select((o, ti) => o.Modo is "bus" or "avion" ? MillaExtra(prop[ti], prop[ti + 1]) : 0)
                 .Sum();
-            var hosp = hoteles.Sum(h => h.Noches * 1 * TarifaHotel(h.Ciudad));
+            // Cada pernocte se cuenta UNA vez: la entrada valuada con tarifa
+            // tabulador es la representante; los hoteles de Overpass son
+            // alternativas sin precio propio (menu, no reservas simultaneas).
+            // Se agrupa por estancia (lugar + check-in + check-out) para no
+            // depender del orden de la lista ni de la primera posicion.
+            var hosp = hoteles
+                .GroupBy(h => (h.Lugar, h.CheckIn, h.CheckOut))
+                .Sum(g =>
+                {
+                    var rep = g.FirstOrDefault(h => h.Fuente == FuenteTabuladorHotel) ?? g.First();
+                    return rep.Noches * 1 * TarifaHotel(rep.Ciudad);
+                });
             var total = transporte + taxiExtra + hosp + comidas;
             var margenes = new List<int>();
             for (var ti = 0; ti < validas.Count; ti++)
@@ -963,6 +982,11 @@ public static class CalculoCostosRuta
                 LlegadaFinal = validas.Count > 0 ? validas[^1].Llegada.ToString("dd/MM HH:mm") : "",
                 MargenMinimoMinutos = margenes.Count > 0 ? margenes.Min() : 0,
                 CostoTotalMxn = Math.Round(total, 2),
+                // Mismos locales ya sumados en `total`; solo se redondean para
+                // presentacion, nunca se recalculan.
+                Comida = Math.Round(comidas, 2),
+                Taxi = Math.Round(taxiExtra, 2),
+                Hospedaje = Math.Round(hosp, 2),
                 Tramos = validas.Select((o, ti) => new CostosRutaPropuestaTramo
                 {
                     Tramo = ti + 1, De = tramos[ti].From, A = tramos[ti].To, Modo = o.Modo, Linea = o.Linea,
@@ -1053,12 +1077,14 @@ public static class CalculoCostosRuta
         return armada;
     }
 
-    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, string de, string a)
+    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a)
     {
         var mid = (o.Lo + o.Hi) / 2;
         return new CostosRutaOferta
         {
-            Id = $"p{ixP}-t{tramo}-{o.Modo}",
+            // ixOferta es la posición del modo dentro del tramo: modo solo no
+            // basta porque un tramo puede traer varias ofertas del mismo modo.
+            Id = $"p{ixP}-t{tramo}-{ixOferta}-{o.Modo}",
             Modo = o.Modo, Linea = o.Linea, Servicio = o.Codigo, Persona = persona,
             Tramo = tramo, De = de, A = a,
             Salida = o.Salida.ToString("yyyy-MM-ddTHH:mm"), Llegada = o.Llegada.ToString("yyyy-MM-ddTHH:mm"),

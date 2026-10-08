@@ -1,0 +1,104 @@
+{
+  "task": "task-11-viaticos-wizard-ruta-pi-busqueda",
+  "scope": "Bandeja de autorizaciones del administrador de viaticos (frontend): pagina, cliente API de los 4 endpoints y tabla con Autorizar / Ver opciones",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.frontend/src/apps/viaticos/pages/aprobaciones/BandejaAprobacionesPage.tsx (nuevo)",
+    "lefarma.frontend/src/apps/viaticos/pages/aprobaciones/BandejaAprobacionesPage.test.tsx (nuevo, 12 tests)",
+    "lefarma.frontend/src/apps/viaticos/components/AprobacionesBandejaTable.tsx (nuevo)",
+    "lefarma.frontend/src/apps/viaticos/services/aprobaciones.api.ts (nuevo)",
+    "lefarma.frontend/src/apps/viaticos/types/aprobaciones.types.ts (nuevo)"
+  ],
+  "not_touched": [
+    "lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx (regla dura: lo tiene otro worker)",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx (regla dura)",
+    "src/apps/educacion-medica/** (solo lectura, como patrón)",
+    "lefarma.backend/** (regla dura)",
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json (regla dura)",
+    "odd/tasks/costos-ruta-formulario.md (regla dura)",
+    "pruebas de gastos/ (regla dura)",
+    "package.json / package-lock.json (sin dependencias nuevas)"
+  ],
+  "proposed_route": {
+    "path": "aprobaciones",
+    "full": "/viaticos/aprobaciones",
+    "file_to_edit": "lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx",
+    "snippet": "import BandejaAprobacionesPage from './pages/aprobaciones/BandejaAprobacionesPage';  // + <Route path=\"aprobaciones\" element={<BandejaAprobacionesPage />} />",
+    "note": "NO lo conecté yo. Cuando T14 monte el visor de opciones puede pasar onVerOpciones={...} a la ruta; sin ese prop la página abre el placeholder."
+  },
+  "api_contract_consumed": {
+    "GET /api/viaticos/solicitudes?periodo=&estado=&gerencia=": "aprobacionesApi.bandeja(filtros). Los filtros vacios se omiten de la query string.",
+    "POST /api/viaticos/solicitudes/{id}/autorizar": "aprobacionesApi.autorizar(id)",
+    "POST /api/viaticos/solicitudes/{id}/rechazar": "aprobacionesApi.rechazar(id, motivo) — cliente listo, la UI de rechazo es trabajo futuro",
+    "POST /api/viaticos/solicitudes/{id}/ajustes": "aprobacionesApi.registrarAjuste(id, payload) — cliente listo, la UI de ajustes es trabajo futuro",
+    "dto": "SolicitudBandeja { id_solicitud, id_usuario_solicitante, nombre_solicitante, periodo, gerencia, destino: string | null, estado, total, fecha_creacion } — identico al backend ya cableado."
+  },
+  "tests": {
+    "suite": {
+      "command": "cd lefarma.frontend && npx vitest run src/apps/viaticos --reporter=basic",
+      "exit_code": 0,
+      "literal_output": [
+        "",
+        " Test Files  11 passed (11)",
+        "      Tests  120 passed (120)",
+        "   Start at  09:54:26",
+        "   Duration  17.80s (transform 5.33s, setup 9.14s, collect 17.09s, tests 19.25s, environment 22.91s, prepare 5.00s)",
+        "",
+        "VITEST_EXIT=0"
+      ],
+      "delta_vs_baseline": "baseline 108 verdes / 10 archivos -> 120 verdes / 11 archivos. +12 tests, +1 archivo. 0 eliminados."
+    },
+    "new_tests": {
+      "file": "lefarma.frontend/src/apps/viaticos/pages/aprobaciones/BandejaAprobacionesPage.test.tsx",
+      "command": "cd lefarma.frontend && npx vitest run src/apps/viaticos/pages/aprobaciones --reporter=basic",
+      "exit_code": 0,
+      "literal_output": [
+        " ✓ src/apps/viaticos/pages/aprobaciones/BandejaAprobacionesPage.test.tsx (12 tests) 748ms",
+        "",
+        " Test Files  1 passed (1)",
+        "      Tests  12 passed (12)"
+      ],
+      "acceptance_criteria_covered": [
+        "cada fila tiene exactamente los 2 botones -> 'renderiza cada fila con exactamente los botones Autorizar y Ver opciones' (assert sobre el orden exacto ['Autorizar','Ver opciones'])",
+        "sin viaticos.autorizar no se renderiza Autorizar -> 'no renderiza Autorizar sin el permiso viaticos.autorizar'",
+        "autorizar cambia el estado de la fila sin recargar -> 'autorizar cambia el estado de la fila sin recargar la bandeja' (ademas asserta que el GET de bandeja se llamo UNA sola vez)",
+        "filtro de periodo -> 'filtra por periodo en la consulta a la bandeja' (asserta la query ?periodo=2026-11); extra: 'filtra por estado y gerencia'"
+      ]
+    },
+    "build": {
+      "command": "cd lefarma.frontend && npm run build",
+      "exit_code": 0,
+      "literal_output": [
+        "> lefarma.frontend@0.0.0 build",
+        "> tsc && vite build",
+        "",
+        "vite v7.3.6 building client environment for production...",
+        "✓ 4672 modules transformed.",
+        "✓ built in 35.28s",
+        "BUILD_EXIT=0"
+      ],
+      "note": "tsc limpio: cero errores de tipo. Los warnings de chunk size y de import mixto de HospitalesMap son preexistentes y ajenos a este task."
+    },
+    "lint": {
+      "command": "cd lefarma.frontend && npx eslint src/apps/viaticos/pages/aprobaciones src/apps/viaticos/components/AprobacionesBandejaTable.tsx src/apps/viaticos/services/aprobaciones.api.ts src/apps/viaticos/types/aprobaciones.types.ts",
+      "exit_code": 0
+    }
+  },
+  "implementation_notes": {
+    "row_actions": "Exactamente dos botones por fila: 'Autorizar' y 'Ver opciones'. Autorizar se renderiza solo si usePermission({ require: 'viaticos.autorizar' }).",
+    "autorizar_refresh": "Al autorizar se parchea SOLO la fila afectada en estado local (estado -> 'autorizada'); no se recarga la bandeja completa, porque el endpoint no mueve ningun otro campo y recargar perderia scroll y filtros. Cubierto por test.",
+    "estado_autorizable": "El boton Autorizar queda disabled (no oculto) cuando la fila no esta en 'enviada', con title explicando que el backend responde 409. Sigue siendo un boton, asi que la fila conserva sus 2 acciones.",
+    "ver_opciones_seam": "La pagina acepta la prop opcional onVerOpciones. Si viene, se usa y el placeholder no existe; si no, se abre un Dialog placeholder. T14 sustituye el placeholder pasando el callback, sin tocar la tabla.",
+    "estados_visibles": "Carga con spinner, error en role=alert con boton Reintentar, y tres mensajes de vacio distintos (sin filtros / con filtros / total vacio). Nunca se muestra tabla vacia sin explicar.",
+    "select_nativo": "Estado usa <select> nativo (no Radix Select) siguiendo el precedente de apps/rh/pages/IncidenciasChecadoList.tsx: los tests lo pueden disparar con fireEvent.change de forma determinista.",
+    "consumo_de_detalle": "No se duplico el cliente de detalle: el visor de T14 puede reusar solicitudesApi.detalle(id)."
+  },
+  "risks": [
+    "La ruta /viaticos/aprobaciones NO esta conectada: ViaticosRoutes.tsx lo tiene otro worker. Hasta que la conecte, la pagina es inalcanzable en la app (los tests y el build no la exercitan via router).",
+    "Rechazar y registrarAjuste estan en el cliente pero sin UI. El requisito del brief pedia solo Autorizar y Ver opciones por fila, asi que no construi modales de motivo.",
+    "Autorizar hace parche local en vez de refetch. Si el backend normalizara algun otro campo al autorizar, la fila quedaria desfasada hasta el siguiente Refetch manual.",
+    "Durante la corrida, un worker paralelo dejo un archivo scratch (__scratch_leaflet.test.tsx, luego __scratch_hidden.test.tsx) en apps/viaticos/components/ que movio el conteo de la suite entre 120 y 121. No es mio y no lo toque; el conteo final 120 corresponde ya sin esos scratch.",
+    "El conteo de la suite depende de los archivos que otros workers agreguen; el delta mio es exactamente +12 tests en 1 archivo nuevo, verificado tambien corriendo solo mi archivo.",
+    "El backend de destino devuelve null cuando datos_json no trae la clave; hasta que el wizard (T4/T10) la guarde, la columna Destino se vera como — en datos reales. Es el comportamiento correcto, no un bug."
+  ]
+}

@@ -1,0 +1,97 @@
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/menuItems.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'lefarma.frontend/src/apps/viaticos/types/costosRuta.types.ts', LF will be replaced by CRLF the next time Git touches it
+lefarma.backend/src/Lefarma.API/Features/EducacionMedica/AprobacionesController.cs
+lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs
+lefarma.backend/src/Lefarma.API/Program.cs
+lefarma.backend/src/Lefarma.API/Shared/Constants/AuthorizationConstants.cs
+lefarma.backend/src/Lefarma.API/appsettings.Development.json
+lefarma.backend/src/Lefarma.API/appsettings.json
+lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj
+lefarma.docs/educacion-medica/decisiones/00003_estimador-viaticos-catalogo.md
+lefarma.frontend/.gitignore
+lefarma.frontend/package.json
+lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx
+lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.test.tsx
+lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.tsx
+lefarma.frontend/src/apps/viaticos/menuItems.tsx
+lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx
+lefarma.frontend/src/apps/viaticos/types/costosRuta.types.ts
+ M lefarma.backend/src/Lefarma.API/Features/EducacionMedica/AprobacionesController.cs
+ M lefarma.backend/src/Lefarma.API/Infrastructure/Data/ApplicationDbContext.cs
+ M lefarma.backend/src/Lefarma.API/Program.cs
+ M lefarma.backend/src/Lefarma.API/Shared/Constants/AuthorizationConstants.cs
+ M lefarma.backend/src/Lefarma.API/appsettings.Development.json
+ M lefarma.backend/src/Lefarma.API/appsettings.json
+ M lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj
+ M lefarma.docs/educacion-medica/decisiones/00003_estimador-viaticos-catalogo.md
+ M lefarma.frontend/.gitignore
+ M lefarma.frontend/package.json
+ M lefarma.frontend/src/apps/viaticos/ViaticosRoutes.tsx
+ M lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.test.tsx
+ M lefarma.frontend/src/apps/viaticos/components/PuntoMapaPicker.tsx
+ M lefarma.frontend/src/apps/viaticos/menuItems.tsx
+ M lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx
+ M lefarma.frontend/src/apps/viaticos/types/costosRuta.types.ts
+?? .omo/
+?? _test_output.txt
+?? d.txt
+?? lefarma.backend/src/Lefarma.API/Domain/Entities/Viaticos/Solicitud.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/AprobacionesController.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/CapturasController.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/CapturasService.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/AprobacionDtos.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/CapturaDtos.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/DTOs/SolicitudDtos.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/GeocodificarController.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/GeocodificarService.cs
+?? lefarma.backend/src/Lefarma.API/Features/Viaticos/SolicitudesController.cs
+?? lefarma.backend/src/Lefarma.API/Infrastructure/Data/Configurations/Viaticos/SolicitudConfiguration.cs
+?? lefarma.backend/src/Lefarma.API/Shared/Authorization/ClaimsPrincipalExtensions.cs
+?? lefarma.backend/tests/Lefarma.IntegrationTests/Viaticos/
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/AprobacionesControllerTests.cs
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/CapturasEndpointSecurityTests.cs
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/CapturasServiceTests.cs
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosEndpointTests.cs
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosHelperTests.cs
+?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/SolicitudesControllerTests.cs
+?? lefarma.database/viaticos/0003_20261007-0000_viaticos_permisos.sql
+?? lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql
+?? lefarma.docs/educacion-medica/decisiones/00007_busqueda-cotizacion-viaticos.md
+?? lefarma.docs/educacion-medica/tareas/00007_busqueda-cotizacion-viaticos.md
+?? lefarma.docs/viaticos/
+?? lefarma.frontend/scripts/captura-viaticos.mjs
+?? lefarma.frontend/scripts/captura-viaticos.test.mjs
+?? lefarma.frontend/src/apps/viaticos/ViaticosRoutes.test.tsx
+?? lefarma.frontend/src/apps/viaticos/components/AprobacionesBandejaTable.tsx
+?? lefarma.frontend/src/apps/viaticos/components/ImportarCotizacion.test.tsx
+?? lefarma.frontend/src/apps/viaticos/components/ImportarCotizacion.tsx
+?? lefarma.frontend/src/apps/viaticos/components/SelectorRutaModal.test.tsx
+?? lefarma.frontend/src/apps/viaticos/components/SelectorRutaModal.tsx
+?? lefarma.frontend/src/apps/viaticos/components/TablaHoteles.tsx
+?? lefarma.frontend/src/apps/viaticos/components/TablaOpciones.tsx
+?? lefarma.frontend/src/apps/viaticos/components/analizadorCotizacion.ts
+?? lefarma.frontend/src/apps/viaticos/components/celdasCotizacion.test.tsx
+?? lefarma.frontend/src/apps/viaticos/components/celdasCotizacion.tsx
+?? lefarma.frontend/src/apps/viaticos/components/cotizacionSchema.test.ts
+?? lefarma.frontend/src/apps/viaticos/components/tablasCotizacion.test.tsx
+?? lefarma.frontend/src/apps/viaticos/components/validadorCotizacion.ts
+?? lefarma.frontend/src/apps/viaticos/pages/aprobaciones/
+?? lefarma.frontend/src/apps/viaticos/pages/costos/ConcentradoViaticosPrint.test.tsx
+?? lefarma.frontend/src/apps/viaticos/pages/costos/ConcentradoViaticosPrint.tsx
+?? lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.seleccion.test.tsx
+?? lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.wizard.test.tsx
+?? lefarma.frontend/src/apps/viaticos/schemas/
+?? lefarma.frontend/src/apps/viaticos/services/aprobaciones.api.ts
+?? lefarma.frontend/src/apps/viaticos/services/geocodificar.api.ts
+?? lefarma.frontend/src/apps/viaticos/services/solicitudes.api.ts
+?? lefarma.frontend/src/apps/viaticos/test/
+?? lefarma.frontend/src/apps/viaticos/types/aprobaciones.types.ts
+?? lefarma.frontend/src/apps/viaticos/types/cotizacion.types.ts
+?? lefarma.frontend/src/apps/viaticos/types/solicitud.types.ts
+?? lefarma.frontend/tests/viaticos-flujo.spec.ts
+?? odd/tasks/costos-ruta-formulario.md
+?? "pruebas de gastos/"

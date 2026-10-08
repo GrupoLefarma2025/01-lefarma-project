@@ -27,5 +27,16 @@ export function selectedCosts(response: CostosRutaResponse, proposal: CostosRuta
       if (Math.abs(selected - fuelCost - tollCost) < 0.02) { gasoline = fuelCost; tolls = tollCost; }
     }
   }
-  return { autobus: modeCost('bus'), avion: modeCost('avion'), gasolina: gasoline, casetas: tolls, total: proposal.costoTotalMxn };
+  return {
+    autobus: modeCost('bus'),
+    avion: modeCost('avion'),
+    gasolina: gasoline,
+    casetas: tolls,
+    // Hospedaje, comida y taxi ya vienen calculados por el motor dentro de la
+    // propuesta; se exponen tal cual para que el importador los persista.
+    hospedaje: proposal.hospedaje,
+    comida: proposal.comida,
+    taxi: proposal.taxi,
+    total: proposal.costoTotalMxn,
+  };
 }

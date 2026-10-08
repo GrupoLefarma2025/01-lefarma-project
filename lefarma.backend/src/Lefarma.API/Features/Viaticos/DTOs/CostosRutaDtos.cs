@@ -177,6 +177,12 @@ public class CostosRutaPropuesta
     public string LlegadaFinal { get; set; } = string.Empty;
     public int MargenMinimoMinutos { get; set; }
     public double CostoTotalMxn { get; set; }
+    // Componentes del costo que ya estan sumados dentro de CostoTotalMxn.
+    // Se exponen tal cual los calculo el motor: NO recalcular aqui, o el
+    // reporte empezaria a discrepar del total consigo mismo.
+    public double Comida { get; set; }
+    public double Taxi { get; set; }
+    public double Hospedaje { get; set; }
     public List<CostosRutaPropuestaTramo> Tramos { get; set; } = [];
     public List<CostosRutaHotel> HotelesPropuestos { get; set; } = [];
     public List<string> Incumplimientos { get; set; } = [];

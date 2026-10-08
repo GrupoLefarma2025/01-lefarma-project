@@ -227,6 +227,31 @@ public class CostosRutaServiceTests
         }
     }
 
+    // Overpass responde 5 hoteles cercanos; el resto de las llamadas externas
+    // fallan para forzar los fallbacks a seed (OSRM/CNE/ClickBus).
+    private sealed class HotelesOverpassHandler : HttpMessageHandler
+    {
+        private const string OverpassJson = """
+        {"elements":[
+        {"lat":19.0419,"lon":-98.2060,"tags":{"name":"Hotel A"}},
+        {"lat":19.0421,"lon":-98.2065,"tags":{"name":"Hotel B"}},
+        {"lat":19.0410,"lon":-98.2070,"tags":{"name":"Hotel C"}},
+        {"lat":19.0409,"lon":-98.2055,"tags":{"name":"Hotel D"}},
+        {"lat":19.0425,"lon":-98.2058,"tags":{"name":"Hotel E"}}
+        ]}
+        """;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            if (request.RequestUri is not null && request.RequestUri.Host.Contains("overpass-api.de"))
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent(OverpassJson, Encoding.UTF8, "application/json"),
+                });
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError));
+        }
+    }
+
     // Handler que falla todas las llamadas externas: fuerza los fallbacks a
     // seed dentro de CalculoCostosRuta (equivale a los stubs anteriores).
     private sealed class FallaTodoHandler : HttpMessageHandler
@@ -313,6 +338,115 @@ public class CostosRutaServiceTests
     }
 
     [Fact]
+    public async Task Propuesta_ExponeComidaYTaxiQueYaSumanElTotal()
+    {
+        // Puntos a ~11 km del centroide de su ciudad: siguen "snappeando" a la
+        // ciudad (<= 25 km) pero no al centro (> 3 km), que es la condicion para
+        // que MillaExtra cuente un taxi real y no 0.
+        var (http, cache) = Infra();
+        CostosRutaPersonaInput Persona() => new()
+        {
+            Nombre = "Ana",
+            CarroPropio = false,
+            Gasolina = "magna",
+            Draft = false,
+            Lugares =
+            [
+                new CostosRutaLugarInput
+                {
+                    Orden = 1, Tipo = "salida", Nombre = "CDMX base",
+                    Latitud = 19.4326 + 0.1, Longitud = -99.1332,
+                    FechaSalida = "2026-10-20", HoraSalida = "05:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 2, Tipo = "taller", Nombre = "Taller Monterrey",
+                    Latitud = 25.6866 + 0.1, Longitud = -100.3161,
+                    FechaInicioActividad = "2026-10-20", HoraInicioActividad = "12:00",
+                    FechaFinActividad = "2026-10-20", HoraFinActividad = "18:00",
+                },
+            ],
+        };
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
+
+        // La comida (>= 1 dia x 600) es componente de TODAS las propuestas.
+        resp.Propuestas.Should().OnlyContain(p => p.Comida > 0);
+
+        // El viaje largo genera avion; esa propuesta paga taxi extra y su
+        // comida queda expuesta tal cual la sumo el total.
+        var avion = resp.Propuestas.Single(p => p.Clave == "tipo3-avion");
+        avion.Tramos.Should().Contain(t => t.Modo == "avion");
+        avion.Taxi.Should().BeGreaterThan(0);
+        avion.Comida.Should().BeGreaterThan(0);
+        // Es un componente del total, no una copia de el.
+        avion.Taxi.Should().BeLessThan(avion.CostoTotalMxn);
+    }
+
+    [Fact]
+    public async Task Hospedaje_ConAlternativas_SoloSumaLaTarifaDelTabuladorUnaVez()
+    {
+        // Un pernocte de 1 noche en Puebla (tarifa tabulador 1500) para el que
+        // Overpass devuelve 5 hoteles alternativos SIN precio propio: son un
+        // menu de opciones, no 6 reservas simultaneas.
+        CostosRutaPersonaInput Persona() => new()
+        {
+            Nombre = "Ana",
+            CarroPropio = true,
+            Gasolina = "magna",
+            Draft = false,
+            Trabajo = new CostosRutaTrabajoInput { HoraEntrada = "08:00", HoraSalida = "18:30" },
+            Lugares =
+            [
+                new CostosRutaLugarInput
+                {
+                    Orden = 1, Tipo = "salida", Nombre = "CDMX base",
+                    Latitud = 19.4326, Longitud = -99.1332,
+                    FechaSalida = "2026-10-15", HoraSalida = "06:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 2, Tipo = "taller", Nombre = "Taller Puebla 1",
+                    Latitud = 19.0414, Longitud = -98.2063,
+                    FechaInicioActividad = "2026-10-15", HoraInicioActividad = "10:00",
+                    FechaFinActividad = "2026-10-15", HoraFinActividad = "14:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 3, Tipo = "hotel", Nombre = "Hotel Puebla",
+                    Latitud = 19.0414, Longitud = -98.2063,
+                    FechaLlegada = "2026-10-15", HoraLlegada = "20:00",
+                    FechaSalida = "2026-10-16", HoraSalida = "07:00",
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 4, Tipo = "taller", Nombre = "Taller Puebla 2",
+                    Latitud = 19.0520, Longitud = -98.2100,
+                    FechaInicioActividad = "2026-10-16", HoraInicioActividad = "09:00",
+                    FechaFinActividad = "2026-10-16", HoraFinActividad = "12:00",
+                },
+            ],
+        };
+        using var handler = new HotelesOverpassHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
+
+        // La lista ofrecida al viajero conserva las 5 alternativas de Overpass.
+        resp.Resultados[0].HotelesPropuestos.Should().HaveCount(6);
+
+        const double tarifaPuebla = 1500; // Viaticos["PUE"].HospedajeNoche
+        foreach (var p in resp.Propuestas)
+        {
+            // hospedaje = total - transporte (tramos) - taxi - comida
+            var hospedaje = p.CostoTotalMxn - p.Tramos.Sum(t => t.Costo) - p.Taxi - p.Comida;
+            hospedaje.Should().BeApproximately(tarifaPuebla, 1.0,
+                "un pernocte de 1 noche debe sumar la tarifa tabulador UNA vez, aunque haya 5 alternativas");
+            // Ahora expuesto en la propuesta (paso 3), tal cual lo sumo el total.
+            p.Hospedaje.Should().Be(tarifaPuebla);
+        }
+    }
+
+    [Fact]
     public async Task Personas_Vacias_Lanza_400()
     {
         var controller = new CostosRutaController(new FabricaFake(new FallaTodoHandler()), new MemoryCache(new MemoryCacheOptions()));
@@ -373,5 +507,55 @@ public class CostosRutaServiceTests
         resp.Propuestas.Should().HaveCount(6);
         var tipo3 = resp.Propuestas.First(p => p.Clave == "tipo3-avion");
         tipo3.Tramos.Should().Contain(t => t.Modo == "avion");
+    }
+
+    [Fact]
+    public async Task Ofertas_Del_Mismo_Tramo_Tienen_Id_Unico_Y_La_Recomendacion_Apunta_Al_Mejor()
+    {
+        // Tramo corto intra-CDMX: el motor ofrece varios taxis en modo "uber"
+        // (Taxi libre, sitio, radio, UberX, Uber Comfort, DiDi). Antes del arreglo
+        // todos compartían el id p0-t1-uber y React los recibía con clave duplicada.
+        var (http, cache) = Infra();
+        CostosRutaPersonaInput Persona() => new()
+        {
+            Nombre = "Ana",
+            CarroPropio = true,
+            Gasolina = "magna",
+            Draft = false,
+            Trabajo = new CostosRutaTrabajoInput { HoraEntrada = "08:00", HoraSalida = "18:30", PrimerDiaLaboral = 1, UltimoDiaLaboral = 5 },
+            Lugares =
+            [
+                new CostosRutaLugarInput
+                {
+                    Orden = 1, Tipo = "salida", Nombre = "CDMX origen",
+                    Latitud = 19.4326, Longitud = -99.1332,
+                },
+                new CostosRutaLugarInput
+                {
+                    Orden = 2, Tipo = "taller", Nombre = "CDMX destino",
+                    Latitud = 19.4400, Longitud = -99.1400,
+                    FechaInicioActividad = "2026-10-15", HoraInicioActividad = "10:00",
+                    FechaFinActividad = "2026-10-15", HoraFinActividad = "14:00",
+                },
+            ],
+        };
+
+        var resp = await CalculoCostosRuta.CalcularAsync(new CostosRutaRequest { Personas = [Persona()] }, http, cache);
+
+        var tramo = resp.Resultados[0].Tramos[0];
+        tramo.Opciones.Should().HaveCountGreaterThan(1, "el escenario necesita varias ofertas en el tramo");
+        tramo.Opciones.Where(o => o.Modo == "uber").Should().HaveCountGreaterThan(1,
+            "el escenario necesita varias ofertas uber que antes colisionaban en el id");
+
+        // Todas las ofertas del motor (categorías por modo) tienen id único.
+        resp.Categorias.Values.SelectMany(o => o).Select(o => o.Id).Should().OnlyHaveUniqueItems();
+
+        // La recomendación marca la oferta más barata del tramo y su id apunta a ESA oferta.
+        var recomendacion = resp.Recomendaciones.Single();
+        var marcada = resp.Categorias.Values.SelectMany(o => o).Single(o => o.Id == recomendacion.MejorOfertaId);
+        var viables = tramo.Opciones.Where(o => o.ATiempo).ToList();
+        var esperada = (viables.Count > 0 ? viables : tramo.Opciones).MinBy(o => o.CostoGrupo)!;
+        marcada.Modo.Should().Be(esperada.Modo);
+        marcada.Linea.Should().Be(esperada.Linea);
     }
 }

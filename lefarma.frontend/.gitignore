@@ -57,6 +57,9 @@ skills-lock.json
 !.env.example
 
 
+# Capturas generadas por scripts/captura-viaticos.mjs
+public/capturas/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

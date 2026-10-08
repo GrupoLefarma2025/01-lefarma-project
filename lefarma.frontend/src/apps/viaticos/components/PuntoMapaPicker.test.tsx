@@ -68,8 +68,9 @@ describe('selector de punto en mapa', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     await act(async () => { await vi.advanceTimersByTimeAsync(200); });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('nominatim.openstreetmap.org/search');
-    expect(String(fetchMock.mock.calls[0][0])).toContain('q=reforma');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('/viaticos/geocodificar');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('tipo=global');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('texto=reforma');
   });
 
   it('throttle: no dispara más de una petición por segundo', async () => {
@@ -91,9 +92,10 @@ describe('selector de punto en mapa', () => {
 
   it('selecciona un resultado global y fija el marcador con sus coordenadas', async () => {
     const onChange = vi.fn();
-    const fetchMock = vi.fn().mockResolvedValue(respuestaOk([
-      { display_name: 'Av. Reforma 123, CDMX', lat: '19.4326', lon: '-99.1332' },
-    ]));
+    const fetchMock = vi.fn().mockResolvedValue(respuestaOk({
+      success: true,
+      data: [{ nombre: 'Av. Reforma 123, CDMX', latitud: 19.4326, longitud: -99.1332 }],
+    }));
     vi.stubGlobal('fetch', fetchMock);
     render(<PuntoMapaPicker value={null} onChange={onChange} />);
     fireEvent.change(screen.getByLabelText('Buscar dirección (OpenStreetMap)'), { target: { value: 'reforma 123' } });
@@ -114,10 +116,11 @@ describe('selector de punto en mapa', () => {
     fireEvent.change(screen.getByPlaceholderText('Ej. Av. Reforma 123'), { target: { value: 'Av. Reforma 123' } });
     fireEvent.click(screen.getByRole('button', { name: 'Buscar en el mapa' }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    const params = new URL(String(fetchMock.mock.calls[0][0])).searchParams;
-    expect(params.get('state')).toBe('México');
-    expect(params.get('city')).toBe('Toluca');
-    expect(params.get('street')).toBe('Av. Reforma 123');
+    const params = new URL(String(fetchMock.mock.calls[0][0]), 'http://localhost').searchParams;
+    expect(params.get('tipo')).toBe('cascada');
+    expect(params.get('estado')).toBe('México');
+    expect(params.get('municipio')).toBe('Toluca');
+    expect(params.get('texto')).toBe('Av. Reforma 123');
   });
 
   it('no inventa coordenadas cuando no hay resultados', async () => {
