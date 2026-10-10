@@ -22,7 +22,7 @@ import { SolicitudesTable } from '../components/SolicitudesTable';
 import { SolicitudHeaderCard } from '../components/SolicitudHeaderCard';
 import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
-import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
+import { WorkflowHistorialModal } from '@/components/workflows/WorkflowHistorialModal';
 import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
 import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import { API } from '@/shared/api/apiClient';
@@ -46,7 +46,6 @@ import { calcularRangoPeriodo, PERIODOS } from '@/utils/date';
 import {
   FileText,
   Paperclip,
-  History,
   Search,
   RotateCcw,
   Filter,
@@ -836,34 +835,22 @@ export default function GestionSolicitudes() {
         {selectedSolicitud && <SolicitudArchivosTab idSolicitud={selectedSolicitud.idSolicitud} />}
       </Modal>
 
-      <Modal
-        id="modal-admin-solicitud-historial"
+      {/* ── Modal: Historial ── */}
+      <WorkflowHistorialModal
         open={modalStates.historial}
-        setOpen={(o) => {
-          if (!o) closeModal('historial');
-        }}
-        title={
-          <div className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            <span>Historial de solicitud</span>
-          </div>
-        }
-        size="full"
-      >
-        {selectedSolicitud && (
-          <div className="mb-4">
+        onClose={() => closeModal('historial')}
+        titulo="Historial de solicitud"
+        encabezado={
+          selectedSolicitud ? (
             <SolicitudHeaderCard solicitud={selectedSolicitud} getEstadoInfo={getEstadoInfo} />
-          </div>
-        )}
-        {loadingHistorial && <InlineLoader message="Cargando historial..." />}
-        {!loadingHistorial && selectedSolicitud && (
-          <SolicitudFlujoTab
-            solicitud={selectedSolicitud}
-            pasosWorkflow={pasosWorkflow}
-            historial={historial}
-          />
-        )}
-      </Modal>
+          ) : undefined
+        }
+        cargando={loadingHistorial}
+        idPasoActual={selectedSolicitud?.idPasoActual ?? null}
+        estadoNombre={selectedSolicitud?.estadoNombre}
+        pasos={pasosWorkflow}
+        historial={historial}
+      />
 
       {/* ── PDF Print Document — Solicitud de Personal ── */}
       {selectedSolicitud &&

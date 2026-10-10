@@ -13,6 +13,22 @@ public interface ITalleresService
     Task<TallerDto> ActualizarAsync(int idTaller, ActualizarTallerRequest request, int idUsuario, CancellationToken ct = default);
     Task EliminarAsync(int idTaller, int idUsuario, CancellationToken ct = default);
 
+    /// <summary>Crea la solicitud de cambio del equipo (candado puesto / fuera de captura; ADR-00010).</summary>
+    Task<TallerSolicitudCambioDto> CrearSolicitudCambioAsync(
+        int idTaller,
+        CrearSolicitudCambioRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    /// <summary>Resuelve la solicitud (CEM): aprobar aplica el ajuste; rechazar solo registra motivo.</summary>
+    Task<TallerSolicitudCambioDto> ResolverSolicitudCambioAsync(
+        int idSolicitud,
+        ResolverSolicitudCambioRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    Task<List<TallerSolicitudCambioDto>> GetSolicitudesCambioAsync(int idTaller, CancellationToken ct = default);
+
     /// <summary>Genera (bloquea) la matriz individual del equipo.</summary>
     Task<MatrizIndividualDto> GenerarMatrizIndividualAsync(int idMatrizIndividual, int idUsuario, CancellationToken ct = default);
 

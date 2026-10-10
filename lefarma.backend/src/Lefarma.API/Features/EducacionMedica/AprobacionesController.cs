@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -12,6 +13,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/aprobaciones")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.HubVerModulo)]
 public class AprobacionesController : ControllerBase
 {
     private readonly IAprobacionesService _service;

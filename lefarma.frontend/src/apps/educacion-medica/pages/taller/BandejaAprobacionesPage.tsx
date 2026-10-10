@@ -35,6 +35,7 @@ import { BandejaTable } from '@/apps/educacion-medica/components/BandejaTable';
 import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
+import { etiquetaEstadoDominio } from '@/apps/educacion-medica/components/seleccionUtils';
 
 const PERMISO_VER_TODOS = 'educacion_medica.aprobaciones.puede_ver_todos';
 
@@ -112,23 +113,29 @@ export default function BandejaAprobacionesPage() {
   const loadingCurrentTab = tab === 'pendientes' ? loadingPendientes : loadingTodos;
   const documentosTab = tab === 'pendientes' ? dataPendientes : dataTodos;
 
-  const fetchTab = useCallback(async (targetTab: 'pendientes' | 'todos') => {
-    const setLoading = targetTab === 'pendientes' ? setLoadingPendientes : setLoadingTodos;
-    const setData = targetTab === 'pendientes' ? setDataPendientes : setDataTodos;
-    setLoading(true);
-    try {
-      const res = await educacionMedicaApi.aprobaciones.getDocumentos(targetTab);
-      if (res.data.success) {
-        setData(res.data.data ?? []);
-      } else {
+  const fetchTab = useCallback(
+    async (targetTab: 'pendientes' | 'todos'): Promise<PendienteAprobacion[] | null> => {
+      const setLoading = targetTab === 'pendientes' ? setLoadingPendientes : setLoadingTodos;
+      const setData = targetTab === 'pendientes' ? setDataPendientes : setDataTodos;
+      setLoading(true);
+      try {
+        const res = await educacionMedicaApi.aprobaciones.getDocumentos(targetTab);
+        if (res.data.success) {
+          const data = res.data.data ?? [];
+          setData(data);
+          return data;
+        }
         toast.error(res.data.message ?? 'No se pudieron cargar los documentos');
+        return null;
+      } catch (error: unknown) {
+        toast.error(toApiError(error).message ?? 'No se pudieron cargar los documentos');
+        return null;
+      } finally {
+        setLoading(false);
       }
-    } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'No se pudieron cargar los documentos');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -279,8 +286,8 @@ export default function BandejaAprobacionesPage() {
     accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => {
-    if (!seleccionado) return;
+  ): Promise<boolean> => {
+    if (!seleccionado) return false;
     setGuardando(true);
     try {
       const payload = {
@@ -297,15 +304,22 @@ export default function BandejaAprobacionesPage() {
 
       if (res.data.success) {
         toast.success(res.data.message ?? 'Acción registrada.');
-        toggleModal('firma', false);
-        setSeleccionado(null);
-        await fetchTab('pendientes');
-        if (puedeVerTodos) await fetchTab('todos');
-      } else {
-        toast.error(res.data.message ?? 'No se pudo aplicar la acción');
+        // Patrón RH: se cierra solo el formulario y la lista de acciones queda
+        // abierta, refrescada con las acciones restantes del documento.
+        const pendientes = await fetchTab('pendientes');
+        const todos = puedeVerTodos ? await fetchTab('todos') : null;
+        const actualizado = [...(pendientes ?? []), ...(todos ?? [])].find(
+          (d) => d.tipo === seleccionado.tipo && d.idEntidad === seleccionado.idEntidad
+        );
+        setSeleccionado(actualizado ?? { ...seleccionado, acciones: [] });
+        return true;
       }
+
+      toast.error(res.data.message ?? 'No se pudo aplicar la acción');
+      return false;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -340,7 +354,12 @@ export default function BandejaAprobacionesPage() {
   );
   const hospitalesPlanificados = useMemo(() => {
     const ids = new Set<number>();
-    rutasVersion.forEach((r) => r.visitas.forEach((v) => ids.add(v.idSeleccionHospital)));
+    rutasVersion.forEach((r) =>
+      r.visitas.forEach((v) => {
+        // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
+        if (v.idSeleccionHospital != null) ids.add(v.idSeleccionHospital);
+      })
+    );
     return ids.size;
   }, [rutasVersion]);
 
@@ -589,7 +608,7 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Estado</p>
-                    <p>{seleccionDetalle.estado}</p>
+                    <p>{seleccionDetalle.estadoNombre ?? etiquetaEstadoDominio(seleccionDetalle.estado) ?? '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Hospitales</p>
@@ -626,7 +645,7 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Estado</p>
-                    <p>{versionInfo.estado}</p>
+                    <p>{versionInfo.estadoNombre ?? etiquetaEstadoDominio(versionInfo.estado) ?? '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Equipos</p>
@@ -681,8 +700,8 @@ export default function BandejaAprobacionesPage() {
                     <p className="text-xs text-muted-foreground">Equipos</p>
                     <p>
                       {matrizEquipos.length} ·{' '}
-                      {matrizEquipos.filter((e) => e.estado === 'Generada').length} generadas /{' '}
-                      {matrizEquipos.filter((e) => e.estado === 'EnCaptura').length} en captura
+                      {matrizEquipos.filter((e) => e.esBloqueado).length} bloqueadas /{' '}
+                      {matrizEquipos.filter((e) => !e.esBloqueado).length} en captura
                     </p>
                   </div>
                 </div>
@@ -707,7 +726,7 @@ export default function BandejaAprobacionesPage() {
               setSeleccionado(null);
             }}
             documento={seleccionado.documento}
-            estadoTexto={seleccionado.estadoNombre ?? seleccionado.estado ?? '—'}
+            estadoTexto={seleccionado.estadoNombre ?? etiquetaEstadoDominio(seleccionado.estado) ?? '—'}
             pasoNombre={seleccionado.pasoNombre}
             tipo={seleccionado.tipo}
             idEntidad={seleccionado.idEntidad}
@@ -736,7 +755,7 @@ export default function BandejaAprobacionesPage() {
               setSeleccionado(null);
             }}
             documento={seleccionado.documento}
-            estadoTexto={seleccionado.estadoNombre ?? seleccionado.estado ?? '—'}
+            estadoTexto={seleccionado.estadoNombre ?? etiquetaEstadoDominio(seleccionado.estado) ?? '—'}
             tipo={seleccionado.tipo}
             idEntidad={seleccionado.idEntidad}
             idWorkflow={seleccionado.idWorkflow}

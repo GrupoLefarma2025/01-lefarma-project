@@ -28,3 +28,22 @@ export function formatearFechaSeleccion(fecha?: string | null): string {
   const [anio, mes, dia] = fecha.slice(0, 10).split('-');
   return `${dia}/${mes}/${anio}`;
 }
+
+const ETIQUETAS_ESTADO_DOMINIO: Record<string, string> = {
+  Creada: 'Creada',
+  EnRevision: 'En revisión',
+  Cerrada: 'Cerrada',
+  Rechazada: 'Rechazada',
+  Cancelada: 'Cancelada',
+  Archivada: 'Archivada',
+};
+
+/**
+ * Etiqueta legible para un estado de dominio cuando no hay nombre del catálogo
+ * del workflow (`config.workflow_estados`). Evita mostrar códigos crudos como
+ * "EnRevision" en la UI.
+ */
+export function etiquetaEstadoDominio(estado?: string | null): string | null {
+  if (!estado) return null;
+  return ETIQUETAS_ESTADO_DOMINIO[estado] ?? estado;
+}

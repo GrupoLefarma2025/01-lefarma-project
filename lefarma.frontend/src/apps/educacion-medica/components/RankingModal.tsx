@@ -57,7 +57,7 @@ interface RankingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   ejecucion: RankingEjecucion | null;
-  onAplicar: (hospitales: RankingHospitalItem[]) => void;
+  onAplicar: (hospitales: RankingHospitalItem[], productos: Record<number, string>) => void;
   guardando: boolean;
   cargando?: boolean;
   onRegenerar?: (cantidad: number) => void;
@@ -141,6 +141,8 @@ export function RankingModal({
   });
   const [hospitalActivo, setHospitalActivo] = useState<RankingHospitalItem | null>(null);
   const [cantidadInput, setCantidadInput] = useState('');
+  /** Producto a promocionar por hospital (opcional, FOR-004). */
+  const [productos, setProductos] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (open) setCantidadInput(cantidadDefault ? String(redondearCien(cantidadDefault)) : '');
@@ -321,6 +323,24 @@ export function RankingModal({
         ),
       },
       {
+        id: 'producto',
+        header: 'Producto a promocionar',
+        cell: ({ row }) => (
+          <Input
+            className="h-8 w-44 text-xs"
+            placeholder="Opcional"
+            value={productos[row.original.idHospital] ?? ''}
+            disabled={!seleccionados.has(row.original.idHospital)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) =>
+              setProductos((prev) => ({ ...prev, [row.original.idHospital]: e.target.value }))
+            }
+          />
+        ),
+        enableSorting: false,
+        enableHiding: false,
+      },
+      {
         accessorKey: 'ciudadMunicipio',
         header: 'Estado / Ciudad',
         cell: ({ row }) => (
@@ -432,10 +452,10 @@ export function RankingModal({
         enableHiding: false,
       },
     ];
-  }, [ejecucion, seleccionados, toggleTodos, toggleSeleccion]);
+  }, [ejecucion, seleccionados, toggleTodos, toggleSeleccion, productos]);
 
   const handleAplicar = () => {
-    onAplicar(seleccionadosOrdenados);
+    onAplicar(seleccionadosOrdenados, productos);
   };
 
   const generar = () => {

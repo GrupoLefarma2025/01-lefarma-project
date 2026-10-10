@@ -1,3 +1,10 @@
+/* =====================================================================
+   Base global (tema, tipografía, layout) + estilos de impresión de CxP:
+   flujo, orden de compra y envío concentrado.
+   Los estilos de impresión de RH y de Educación Médica viven en
+   index_rh.css e index_educacion_medica.css respectivamente.
+   ===================================================================== */
+
 @import '@fontsource-variable/geist';
 @import '@fontsource-variable/geist-mono';
 
@@ -215,12 +222,12 @@
 
 /* ─── Print / PDF styles ─────────────────────────────────────────────────── */
 
-/* On screen: hide all print documents */
+/* On screen: hide all print documents (CxP). Los portales de RH y de
+   Educación Médica se ocultan en sus propios archivos. */
 #flujo-pdf-print,
 #orden-compra-pdf-print,
 #envio-concentrado-pdf-print,
-#envio-concentrado-pdf-preview,
-#solicitud-personal-pdf-print {
+#envio-concentrado-pdf-preview {
   display: none;
 }
 
@@ -233,13 +240,7 @@
 
 /* Capture portals (html2canvas): the print doc must be laid out inside the
    off-screen portal, otherwise it collapses to 0 height and captures blank. */
-#solicitud-personal-envio-director-pdf-portal #solicitud-personal-pdf-print,
 #envio-concentrado-pdf-portal #envio-concentrado-pdf-print {
-  display: block !important;
-}
-
-/* Preview del PDF de solicitud dentro del modal de envío a director */
-.solicitud-pdf-preview #solicitud-personal-pdf-print {
   display: block !important;
 }
 
@@ -376,39 +377,7 @@
     display: table-row-group;
   }
 
-  /* ── SOLICITUD DE PERSONAL ── */
-  body.print-solicitud #solicitud-personal-pdf-print,
-  body.print-solicitud #solicitud-personal-pdf-print * {
-    visibility: visible !important;
-  }
-
-  body.print-solicitud #solicitud-personal-pdf-print {
-    display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100% !important;
-    background: #fff !important;
-    color: #111 !important;
-    font-family: 'Arial', sans-serif !important;
-    font-size: 10pt !important;
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-
-  body.print-solicitud #solicitud-personal-pdf-print table {
-    page-break-inside: avoid;
-  }
-
-  body.print-solicitud #solicitud-personal-pdf-print img {
-    overflow: visible !important;
-  }
-
-  body.print-solicitud #flujo-pdf-print,
-  body.print-solicitud #orden-compra-pdf-print,
-  body.print-solicitud #envio-concentrado-pdf-print {
-    display: none !important;
-  }
+  /* (La impresion de Solicitud de Personal de RH vive en index_rh.css) */
 
   /* Header */
   .pdf-header {
@@ -849,45 +818,6 @@
   padding-bottom: calc(var(--spacing-factor) * 1rem);
 }
 
-/* ===== Impresion del resumen de seleccion (educacion medica) =====
-   El contenido imprimible vive en un portal propio (createPortal a body,
-   ver ResumenSeleccionModal). El bloque @media print de arriba oculta TODO
-   con visibility:hidden; aqui se re-visible el resumen y se saca al resto
-   del DOM (#root, dialogo y overlay abiertos) del flujo de impresion. */
-@media print {
-  #root,
-  [role="dialog"],
-  body > .fixed.inset-0.z-50.bg-black\/80 {
-    display: none !important;
-  }
-
-  #resumen-seleccion-print,
-  #resumen-seleccion-print * {
-    visibility: visible !important;
-    color: #111 !important;
-    print-color-adjust: exact;
-    -webkit-print-color-adjust: exact;
-  }
-
-  #resumen-seleccion-print {
-    display: block !important;
-    position: static !important;
-    width: 100% !important;
-    background: #fff !important;
-    font-family: 'Geist Variable', 'Geist', ui-sans-serif, sans-serif !important;
-    font-size: 10pt !important;
-    padding: 0 !important;
-  }
-
-  #resumen-seleccion-print table {
-    width: 100% !important;
-  }
-
-  #resumen-seleccion-print thead {
-    display: table-header-group;
-  }
-
-  #resumen-seleccion-print tr {
-    break-inside: avoid;
-  }
-}
+/* Los estilos de impresion de Educacion Medica (resumen de seleccion,
+   planificacion de rutas y matriz de talleres) viven en
+   index_educacion_medica.css. */

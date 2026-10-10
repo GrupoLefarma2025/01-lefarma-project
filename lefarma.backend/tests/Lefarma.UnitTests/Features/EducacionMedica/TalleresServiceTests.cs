@@ -44,7 +44,7 @@ public class TalleresServiceTests
             IdSeleccionMensual = 1,
             FechaSeleccion = new DateOnly(2026, 10, 15),
             IdTipoGerencia = 1,
-            Estado = SeleccionMensual.EstadoAutorizada,
+            Estado = SeleccionMensual.EstadoCerrada,
             Activo = true,
         });
         contexto.SeleccionesRegiones.Add(new SeleccionRegion
@@ -64,6 +64,24 @@ public class TalleresServiceTests
             CiudadMunicipio = "Cuauhtémoc",
             IdRegion = 1,
         });
+        // Ruta autorizada del hospital (candado de captura: solo hospitales con ruta cerrada).
+        contexto.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = IdEquipo,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+            Nombre = "Ruta 1",
+        });
+        contexto.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = IdSeleccionHospital,
+            FechaVisita = new DateOnly(2026, 10, 20),
+            Orden = 1,
+        });
         contexto.SaveChanges();
     }
 
@@ -74,6 +92,10 @@ public class TalleresServiceTests
             _workflow.Asokam,
             _workflow.CreateResolverMock().Object,
             _workflow.JefeResolverMock.Object,
+            new Mock<Lefarma.API.Domain.Interfaces.INotificationService>().Object,
+            new Lefarma.API.Services.Identity.UserPermissionService(
+                _workflow.Asokam, new Microsoft.Extensions.Caching.Memory.MemoryCache(
+                    new Microsoft.Extensions.Caching.Memory.MemoryCacheOptions())),
             NullLogger<TalleresService>.Instance);
     }
 
@@ -108,7 +130,7 @@ public class TalleresServiceTests
         var individual = contexto.MatricesIndividuales.Single(m => m.IdMatrizIndividual == taller.IdMatrizIndividual);
         individual.IdEquipo.Should().Be(IdEquipo);
         individual.Periodo.Should().Be(Periodo);
-        individual.Estado.Should().Be(MatrizIndividual.EstadoEnCaptura);
+        individual.EsBloqueado.Should().BeFalse();
 
         // La general nace en el paso inicial del workflow de la gerencia (IMSS -> WfMatriz)
         var general = contexto.MatricesGenerales.Single(m => m.IdMatrizGeneral == taller.IdMatrizGeneral);
@@ -127,6 +149,27 @@ public class TalleresServiceTests
 
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*Ejecutivo de Ventas o el Especialista*");
+    }
+
+    [Fact]
+    public async Task Crear_SinRutaAutorizada_Debe_Fallar()
+    {
+        // Hospital de la selección sin visita de ruta cerrada.
+        _workflow.Context.SeleccionesHospitales.Add(new SeleccionHospital
+        {
+            IdSeleccionHospital = 2,
+            IdSeleccionMensual = 1,
+            IdHospital = 200,
+            IdRegion = 1,
+        });
+        _workflow.Context.SaveChanges();
+
+        var servicio = CrearServicio();
+        var act = () => servicio.CrearAsync(
+            new CrearTallerRequest { IdSeleccionHospital = 2, NumeroParticipantes = 10 }, IdEv);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*ruta autorizada*");
     }
 
     [Fact]
@@ -165,12 +208,12 @@ public class TalleresServiceTests
 
         var matriz = await servicio.GenerarMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
 
-        matriz.Estado.Should().Be(MatrizIndividual.EstadoGenerada);
-        matriz.FechaGeneracion.Should().NotBeNull();
+        matriz.EsBloqueado.Should().BeTrue();
+        matriz.FechaBloqueo.Should().NotBeNull();
 
         var act = () => servicio.CrearAsync(NuevaSolicitud(), IdEv);
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ya fue generada*reabr*");
+            .WithMessage("*ya está bloqueada*reabr*");
     }
 
     [Fact]
@@ -181,7 +224,6 @@ public class TalleresServiceTests
         {
             IdEquipo = IdEquipo,
             Periodo = Periodo,
-            Estado = MatrizIndividual.EstadoEnCaptura,
         };
         contexto.MatricesIndividuales.Add(individual);
         contexto.SaveChanges();
@@ -194,7 +236,7 @@ public class TalleresServiceTests
     }
 
     [Fact]
-    public async Task Reabrir_GvParticipante_Debe_ReabrirLaCaptura()
+    public async Task Reabrir_Debe_DesbloquearLaCaptura()
     {
         var taller = await CapturarTallerAsync();
         var servicio = CrearServicio();
@@ -202,22 +244,27 @@ public class TalleresServiceTests
 
         var matriz = await servicio.ReabrirMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, _workflow.UsuarioGvImss);
 
-        matriz.Estado.Should().Be(MatrizIndividual.EstadoEnCaptura);
-        matriz.FechaGeneracion.Should().BeNull();
+        matriz.EsBloqueado.Should().BeFalse();
+        matriz.FechaDesbloqueo.Should().NotBeNull();
+        matriz.FechaBloqueo.Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Reabrir_UsuarioQueNoEsGvParticipante_Debe_Fallar()
+    public async Task Reabrir_ConMatrizGeneralFueraDelPasoInicial_Debe_Fallar()
     {
         var taller = await CapturarTallerAsync();
         var servicio = CrearServicio();
         await servicio.GenerarMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
 
-        // El propio EV que capturó NO puede reabrir (solo el GV participante del paso)
-        var act = () => servicio.ReabrirMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
+        // La general avanza a firma GV: ya no se puede reabrir hasta devolverla a Creada
+        var general = _workflow.Context.MatricesGenerales.Single();
+        general.IdPasoActual = _workflow.PasosMatriz["GvImss"];
+        _workflow.Context.SaveChanges();
+
+        var act = () => servicio.ReabrirMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, _workflow.UsuarioGvImss);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*Solo el Gerente de Ventas*");
+            .WithMessage("*ya está en autorización*");
     }
 
     [Fact]
@@ -243,7 +290,9 @@ public class TalleresServiceTests
         resultado.IdEquipo.Should().Be(IdEquipo);
         resultado.Periodo.Should().Be(Periodo);
         resultado.Matriz.Should().NotBeNull();
-        resultado.Matriz!.Estado.Should().Be(MatrizIndividual.EstadoEnCaptura);
+        resultado.Matriz!.EsBloqueado.Should().BeFalse();
         resultado.Talleres.Should().HaveCount(1);
+        resultado.EstadoMatrizGeneral.Should().Be("Creada");
+        resultado.PasoActualMatrizGeneral.Should().Be("Creada");
     }
 }

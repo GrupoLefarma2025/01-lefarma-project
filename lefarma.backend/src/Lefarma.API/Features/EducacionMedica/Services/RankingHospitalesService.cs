@@ -311,7 +311,7 @@ public class RankingHospitalesService : IRankingHospitalesService
         var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
 
-        if (seleccion.Estado is SeleccionMensual.EstadoAutorizada or SeleccionMensual.EstadoCerrada)
+        if (seleccion.Estado is not (SeleccionMensual.EstadoCreada or SeleccionMensual.EstadoEnRevision))
         {
             throw new InvalidOperationException($"La selección {idSeleccionMensual} está {seleccion.Estado.ToLowerInvariant()} y no admite generación de ranking.");
         }
@@ -498,7 +498,8 @@ public class RankingHospitalesService : IRankingHospitalesService
         foreach (var hospital in hospitales)
         {
             var extension = extensionesDict.GetValueOrDefault(hospital.CodigoContacto);
-            if (extension?.IdTipoGerencia == idTipoGerencia)
+            // Candidato = gerencia correcta y contacto no logístico (es_sede_taller != 0; NULL se conserva).
+            if (extension?.IdTipoGerencia == idTipoGerencia && extension.EsSedeTaller != false)
             {
                 candidatos.Add(hospital);
             }
@@ -945,7 +946,8 @@ public class RankingHospitalesService : IRankingHospitalesService
             LongitudSnapshot = h.LongitudSnapshot,
             IdRegion = h.IdRegion,
             ScoreSugerencia = ejecucion.Hospitales.FirstOrDefault(r => r.IdHospital == h.IdHospital)?.ScoreTotal,
-            Origen = "Sugerencia",
+            Origen = null,
+            TipoAlta = "Sugerencia",
         }).ToList();
     }
 

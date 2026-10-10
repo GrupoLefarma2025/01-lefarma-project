@@ -8,7 +8,6 @@ import { ClipboardPlus, RefreshCcw } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
-import { useAuthStore } from '@/shared/auth/authStore';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type { Asignacion } from '@/apps/educacion-medica/types/educacionMedica.types';
 
@@ -23,15 +22,13 @@ export default function MisAsignacionesPage() {
   usePageTitle('Mis hospitales del mes', 'Educación Médica');
 
   const navigate = useNavigate();
-  const userId = useAuthStore((s) => s.user?.id);
   const [asignaciones, setAsignaciones] = useState<Asignacion[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchAsignaciones = useCallback(async () => {
-    if (!userId) return;
     setLoading(true);
     try {
-      const response = await educacionMedicaApi.rutas.asignaciones(userId);
+      const response = await educacionMedicaApi.rutas.asignaciones();
       if (response.data.success) {
         setAsignaciones(response.data.data ?? []);
       } else {
@@ -42,7 +39,7 @@ export default function MisAsignacionesPage() {
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
@@ -63,7 +60,20 @@ export default function MisAsignacionesPage() {
 
   const columnas = useMemo<ColumnDef<Asignacion>[]>(
     () => [
-      { accessorKey: 'nombreHospital', header: 'Hospital' },
+      {
+        id: 'hospital',
+        accessorFn: (asignacion) =>
+          [asignacion.nombreHospital, asignacion.nombreRegion].filter(Boolean).join(' '),
+        header: 'Hospital',
+        cell: ({ row }) => (
+          <div className="min-w-0">
+            <p className="truncate">{row.original.nombreHospital ?? '—'}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {row.original.nombreRegion ?? '—'}
+            </p>
+          </div>
+        ),
+      },
       {
         accessorKey: 'fechaVisita',
         header: 'Fecha',
@@ -78,7 +88,6 @@ export default function MisAsignacionesPage() {
         header: 'Posición',
         cell: ({ row }) => `Visita ${row.original.orden}`,
       },
-      { accessorKey: 'nombreRegion', header: 'Región' },
       { accessorKey: 'nombreRuta', header: 'Ruta' },
       {
         accessorKey: 'fechaVisita',

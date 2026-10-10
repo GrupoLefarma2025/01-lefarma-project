@@ -8,6 +8,8 @@ public class TallerRecursoDto
     public int IdTallerRecurso { get; set; }
     public string TipoRecurso { get; set; } = string.Empty;
     public string? IdProducto { get; set; }
+    /// <summary>Nombre visible del producto (catálogo Asokam); solo para recursos tipo Producto.</summary>
+    public string? NombreProducto { get; set; }
     public string? Descripcion { get; set; }
     public string? TipoEnvio { get; set; }
     public int? Cantidad { get; set; }
@@ -41,6 +43,16 @@ public class TallerDto
     public string? Observaciones { get; set; }
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
+    /// <summary>Fecha real de cierre (estado Realizado; ADR-00008).</summary>
+    public DateOnly? FechaRealizado { get; set; }
+    /// <summary>1 = taller extraordinario (ADR-00011): hospital del catálogo fuera de la selección.</summary>
+    public bool EsExtraordinario { get; set; }
+    public string? MotivoExtraordinario { get; set; }
+    /// <summary>"Capturado por" cuando el usuario no pertenece al equipo (captura asistida CEM; ADR-00011).</summary>
+    public int? IdUsuarioCreacion { get; set; }
+    public string? CapturadoPor { get; set; }
+    /// <summary>Solicitud de cambio pendiente del equipo (join; ADR-00010 decisión 15).</summary>
+    public TallerSolicitudCambioResumenDto? SolicitudCambioPendiente { get; set; }
     public List<TallerRecursoDto> Recursos { get; set; } = [];
     /// <summary>Suma de los subtotales de los recursos (calculada en el servicio).</summary>
     public decimal CostoTotal { get; set; }
@@ -52,8 +64,10 @@ public class MatrizIndividualDto
     public int IdMatrizIndividual { get; set; }
     public int IdEquipo { get; set; }
     public DateOnly Periodo { get; set; }
-    public string Estado { get; set; } = string.Empty;
-    public DateTime? FechaGeneracion { get; set; }
+    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada por el equipo).</summary>
+    public bool EsBloqueado { get; set; }
+    public DateTime? FechaBloqueo { get; set; }
+    public DateTime? FechaDesbloqueo { get; set; }
     public int? IdEjecutivo { get; set; }
     public string? NombreEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
@@ -66,8 +80,16 @@ public class MisTalleresResponse
 {
     public int? IdEquipo { get; set; }
     public string? NombreRegion { get; set; }
+    public string? NombreEjecutivo { get; set; }
+    public string? NombreEspecialista { get; set; }
     public DateOnly Periodo { get; set; }
     public MatrizIndividualDto? Matriz { get; set; }
+    /// <summary>Estado real del workflow de la matriz general (la entidad que firman GV→AEM→CA→DC).</summary>
+    public string? EstadoMatrizGeneral { get; set; }
+    /// <summary>Color del estado del workflow (catálogo config.workflow_estados).</summary>
+    public string? EstadoMatrizGeneralColor { get; set; }
+    /// <summary>Paso actual del workflow de la matriz general.</summary>
+    public string? PasoActualMatrizGeneral { get; set; }
     public List<TallerDto> Talleres { get; set; } = [];
 }
 
@@ -97,9 +119,22 @@ public class GuardarTallerRecursoRequest
 /// <summary>Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección).</summary>
 public class CrearTallerRequest
 {
-    [Required(ErrorMessage = "El hospital de la selección es obligatorio.")]
+    /// <summary>Hospital de la selección; obligatorio en el modo normal (null en extraordinario).</summary>
     [Range(1, int.MaxValue, ErrorMessage = "El hospital de la selección es obligatorio.")]
-    public int IdSeleccionHospital { get; set; }
+    public int? IdSeleccionHospital { get; set; }
+
+    /// <summary>Equipo explícito para la captura asistida del CEM (ADR-00011); null = el del hospital.</summary>
+    public int? IdEquipo { get; set; }
+
+    /// <summary>Modo extraordinario (ADR-00011): hospital del catálogo fuera de la selección.</summary>
+    public bool EsExtraordinario { get; set; }
+
+    /// <summary>Hospital del catálogo Asokam; obligatorio en el modo extraordinario.</summary>
+    public int? IdHospital { get; set; }
+
+    /// <summary>Motivo obligatorio del taller extraordinario.</summary>
+    [MaxLength(500)]
+    public string? MotivoExtraordinario { get; set; }
 
     [Range(0, int.MaxValue, ErrorMessage = "El número de participantes no puede ser negativo.")]
     public int? NumeroParticipantes { get; set; }
@@ -144,6 +179,10 @@ public class ActualizarTallerRequest
 
     [MaxLength(500)]
     public string? Observaciones { get; set; }
+
+    /// <summary>Motivo del ajuste post-cierre (obligatorio con el taller Autorizado/Programado; ADR-00010).</summary>
+    [MaxLength(500)]
+    public string? Motivo { get; set; }
 
     public List<GuardarTallerRecursoRequest>? Recursos { get; set; }
 }

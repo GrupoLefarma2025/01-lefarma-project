@@ -67,8 +67,8 @@ public class MatrizTalleresServiceTests
         {
             IdEquipo = IdEquipo,
             Periodo = Periodo,
-            Estado = MatrizIndividual.EstadoGenerada,
-            FechaGeneracion = DateTime.UtcNow,
+            EsBloqueado = true,
+            FechaBloqueo = DateTime.UtcNow,
         };
         contexto.MatricesIndividuales.Add(individual);
 
@@ -92,7 +92,7 @@ public class MatrizTalleresServiceTests
                 Region = "1",
                 NumeroParticipantes = 15,
                 FechaTaller = new DateOnly(2026, 10, 15 + i),
-                Estado = Taller.EstadoBorrador,
+                Estado = Taller.EstadoCreada,
                 Activo = true,
                 IdEjecutivo = IdEv,
                 IdEspecialista = IdEp,
@@ -179,7 +179,7 @@ public class MatrizTalleresServiceTests
         await MoverMatrizAPasoAsync(general, "CaAutorizar", _workflow.UsuarioCa);
         var detalle = await CrearServicio().FirmarAsync(
             general.IdMatrizGeneral,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesMatriz["DcAutorizar"] },
+            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesMatriz["DcCerrar"] },
             _workflow.UsuarioDc);
 
         detalle.IdPasoActual.Should().Be(_workflow.PasosMatriz["Final"]);
@@ -189,7 +189,14 @@ public class MatrizTalleresServiceTests
         var talleres = _workflow.Context.Talleres
             .Where(t => t.IdMatrizGeneral == general.IdMatrizGeneral)
             .ToList();
-        talleres.Should().OnlyContain(t => t.Estado == Taller.EstadoAutorizado);
+        // ADR-00008 revisión 2026-10-09: el cierre de la matriz programa los talleres automáticamente.
+        talleres.Should().OnlyContain(t => t.Estado == Taller.EstadoProgramado);
+
+        var historial = _workflow.Context.TalleresEstadosHistorial
+            .Where(h => h.EstadoNuevo == Taller.EstadoProgramado)
+            .ToList();
+        historial.Should().HaveCount(talleres.Count);
+        historial.Should().OnlyContain(h => h.Origen == TallerEstadoHistorial.OrigenAutomatico);
 
         // El documento imprimible acumula las firmas de la bitácora
         var documento = await CrearServicio().GetDocumentoAsync(general.IdMatrizGeneral);
@@ -317,13 +324,13 @@ public class MatrizTalleresServiceTests
 
         // Segundo equipo con su matriz individual aún EnCaptura
         contexto.EquiposPareo.Add(new EquipoPareo { IdEquipo = 2, IdRegion = 2, IdEjecutivo = 700, IdEspecialista = 800, Activo = true });
-        var individual2 = new MatrizIndividual { IdEquipo = 2, Periodo = Periodo, Estado = MatrizIndividual.EstadoEnCaptura };
+        var individual2 = new MatrizIndividual { IdEquipo = 2, Periodo = Periodo };
         contexto.MatricesIndividuales.Add(individual2);
         contexto.SaveChanges();
         contexto.Talleres.Add(new Taller
         {
             IdHospital = 200,
-            Estado = Taller.EstadoBorrador,
+            Estado = Taller.EstadoCreada,
             Activo = true,
             IdMatrizIndividual = individual2.IdMatrizIndividual,
             IdMatrizGeneral = general.IdMatrizGeneral,
@@ -333,8 +340,8 @@ public class MatrizTalleresServiceTests
         var panel = await CrearServicio().GetConcentracionAsync(general.IdMatrizGeneral);
 
         panel.Should().HaveCount(2);
-        panel.Should().Contain(e => e.IdEquipo == IdEquipo && e.Estado == MatrizIndividual.EstadoGenerada && e.TotalTalleres == 2);
-        panel.Should().Contain(e => e.IdEquipo == 2 && e.Estado == MatrizIndividual.EstadoEnCaptura && e.TotalTalleres == 1);
+        panel.Should().Contain(e => e.IdEquipo == IdEquipo && e.EsBloqueado && e.TotalTalleres == 2);
+        panel.Should().Contain(e => e.IdEquipo == 2 && !e.EsBloqueado && e.TotalTalleres == 1);
     }
 
     [Fact]

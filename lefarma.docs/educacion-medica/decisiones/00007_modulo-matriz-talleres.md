@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-10-02 12:00
-fecha_modificacion: 2026-10-02 12:00
+fecha_modificacion: 2026-10-08 12:00
 resumen: Módulo Matriz de Talleres de Educación Médica — captura de talleres (FOR-005) por el equipo de pareo EV+EP, matriz individual generable/bloqueable con reapertura del GV, matriz general automática por gerencia y mes, y autorización con el motor de workflow (GV → costos AEM → CA → DC). Sin tipo de acción nuevo (el AEM usa ENVIAR), acciones por proceso (codigo_proceso) y candado de edición en el paso inicial estilo OC/Solicitudes.
 ---
 
@@ -18,6 +18,23 @@ Proposed
 > 1. **Sin tipo de acción nuevo**: no se crea `CONFIRMAR`; el paso de costos del AEM usa la acción `ENVIAR` (label configurable del tipo por proceso).
 > 2. **Acciones por proceso**: `config.workflow_tipos_accion` ahora exige `codigo_proceso` (único por `codigo + codigo_proceso`). El script crea los tipos de acción de Educación Médica y **remapea** las acciones existentes de los workflows EM de ADR-00006 a los tipos de su proceso.
 > 3. **Candado de edición estilo OC/Solicitudes**: nada de un estado "Borrador" propio; la matriz general es editable **solo en el paso inicial** (estado `CREADA`, que es el "paso 1"), como `OrdenesCompra` y `SolicitudesPersonal` (`Solo se pueden editar ... en estado Creada`).
+
+> **Revisión 2026-10-08 — encabezado FOR-008 en la captura e imprimible FOR-005 de dos bloques.** Por acuerdo con el usuario:
+>
+> - **Captura del taller**: al elegir el hospital se muestra un bloque de solo lectura con **Región, Estado, Ciudad/Municipio e Institución** (resueltos desde la selección y los catálogos de Asokam) y el **equipo de pareo** (EV + EP); **Unidad médica** se prellena con el nombre del hospital y queda **editable** (el papel admite afinarlo); **Lugar** permanece libre (FOR-008: "el lugar donde se imparte el taller", sin fuente en el sistema).
+> - **DTOs**: `AsignacionDto` expone `entidadFederativa` (nombre resuelto desde `genEstadosCat`), `ciudadMunicipio` e `institucion` (hospital padre vía `codigoContactoPrincipal`); `TallerRecursoDto` expone el **nombre del producto**; `TallerDto.entidadFederativa` también resuelve el nombre (antes salía el código crudo); `MisTalleresResponse` expone los nombres del EV/EP aun sin matriz individual capturada.
+> - **Imprimible de la matriz** (individual y general, `MatrizPrintDocument`): se replica el **layout de dos bloques del FOR-005** — tabla principal con grupos de encabezado (Equipo de proyección con "¿Se requiere?" y "Propio o rentado" separados; Muestras con Producto y Cantidad; Folletos, Gastos de envío y Box lunch con cantidad/costo unitario) y bloque **"Costo por Recurso Solicitado"** con una fila por taller y fila **Total**. El bloque 2 muestra **subtotales por tipo** (la guía del formato mezcla "costo unitario" y "resultado de la multiplicación"; se adoptó el criterio consistente con la fila Total y el `costoTotal` del taller). Impresión en **A4 horizontal** (`body.print-matriz` → `@page landscape`), por las 19 columnas de la tabla principal.
+> - **Sin cambios de esquema ni de costos**: los recursos del taller ya se persisten en `taller_recursos` (reemplazo completo al crear/editar, incluidos los costos que captura después el AEM).
+
+> **Revisión 2026-10-08 (segunda) — candados de la captura y vista del equipo en "Mis talleres".**
+>
+> - **Solo planeación vigente**: `GET /rutas/talleres/asignaciones` filtra las selecciones **vencidas** (`hoy > fin de vigencia`); las **próximas** (vigencia aún no iniciada) sí se muestran, porque la selección recién autorizada es la que se trabaja (antes mostraba también rutas confirmadas de selecciones anteriores).
+> - **Candado de captura**: `TalleresService.CrearAsync` exige que el hospital tenga una visita de ruta en estado `Cerrada` (autorizada); si no, responde "El hospital aún no tiene una ruta autorizada; el taller se captura cuando la ruta de visitas está cerrada."
+> - **Estado del taller**: `Borrador` → `Creada`, coherente con el patrón `Creada` + `Cerrada/Rechazada/Cancelada`; migración, CHECK y default actualizados en 0016/0018.
+> - **Vista del equipo ("Mis talleres")**: bloque read-only con los datos de la ruta planeada (FOR-008) y el equipo; unidad médica y **fecha del taller prellenadas** desde la visita planeada (editables); confirmación (AlertDialog) antes de generar/bloquear la matriz; acción **"Ver detalle"** por taller con logística, recursos y datos del hospital (dirección, correo, **minimapa OpenStreetMap** y enlace a Google Maps); buscador, selector de columnas y actualizar del DataTable; filtro de mes y año separados.
+> - **Reapertura de captura (2026-10-08, tercera)**: la acción **"Reabrir captura" por equipo** vive en la **Matriz general** (panel "Avance por equipo"), con confirmación; la ejecuta el **GV** (permiso `talleres.puede_revisar` + participante del paso `Creada` del workflow) y solo mientras la general siga en el paso inicial. `DEVOLVER` regresa la general a `Creada` pero **no reabre automáticamente**: el GV reabre **selectivamente** los equipos a corregir. En "Mis talleres" se retiró el botón (queda la leyenda informativa; antes el equipo lo veía pero el servicio solo acepta al GV).
+> - **Candado explícito de la matriz individual (2026-10-08, cuarta)**: `matrices_individuales.estado` (`EnCaptura | Generada`) se reemplaza por **`es_bloqueado`** (0 = captura abierta, 1 = bloqueada) + `fecha_bloqueo` + `fecha_desbloqueo` (el estado es vocabulario del workflow; la matriz individual solo necesita su candado). `Generar` bloquea; `Reabrir` desbloquea. La reapertura **ya no exige participante del paso `Creada`**: la valida el permiso `talleres.puede_revisar` (GV/CA) y se mantiene "solo con la general en Creada" (la corrección sigue el camino Devolver → reabrir). Script `0026`; instalación limpia en `0016`.
+> - **Vistas de la Matriz (2026-10-08)**: toggle **"Por equipo" / "Hospitales"**. "Por equipo" = una fila por matriz individual (equipo EV+EP, región, captura abierta/bloqueada, talleres, costo total, fechas, acciones **Reabrir captura** + **Ver detalle** con los hospitales de ese equipo); reemplaza las tarjetas "Avance por equipo". "Hospitales" = la tabla plana con filtros y costos (para el AEM).
 
 ## Índice
 

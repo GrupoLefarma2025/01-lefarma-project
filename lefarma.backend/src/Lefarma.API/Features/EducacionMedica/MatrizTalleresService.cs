@@ -136,8 +136,9 @@ public class MatrizTalleresService : IMatrizTalleresService
                 NombreEjecutivo = m.Equipo is not null ? nombresUsuarios.GetValueOrDefault(m.Equipo.IdEjecutivo) : null,
                 IdEspecialista = m.Equipo?.IdEspecialista,
                 NombreEspecialista = m.Equipo is not null ? nombresUsuarios.GetValueOrDefault(m.Equipo.IdEspecialista) : null,
-                Estado = m.Estado,
-                FechaGeneracion = m.FechaGeneracion,
+                EsBloqueado = m.EsBloqueado,
+                FechaBloqueo = m.FechaBloqueo,
+                FechaDesbloqueo = m.FechaDesbloqueo,
                 TotalTalleres = talleresPorIndividual.GetValueOrDefault(m.IdMatrizIndividual),
             })
             .ToList();
@@ -219,7 +220,9 @@ public class MatrizTalleresService : IMatrizTalleresService
             [taller.IdHospital],
             [taller.IdEjecutivo, taller.IdEspecialista],
             ct);
-        return TallerDtoMapper.Armar(taller, nombresHospitales, nombresUsuarios);
+        var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
+            _asokamContext, [taller], ct);
+        return TallerDtoMapper.Armar(taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
     }
 
     public async Task<MatrizTalleresDetalleDto> FirmarAsync(int idMatrizGeneral, FirmarWorkflowRequest request, int idUsuario, CancellationToken ct = default)
@@ -259,13 +262,14 @@ public class MatrizTalleresService : IMatrizTalleresService
         }
 
         // Salvaguarda (Opción B): a partir de la SEGUNDA firma (CA en la cadena estándar), ningún
-        // AUTORIZAR avanza si hay talleres sin costos, aunque el paso del AEM se elimine del admin.
+        // avance (AUTORIZAR o CERRAR) progresa si hay talleres sin costos, aunque el paso del AEM
+        // se elimine del admin.
         var pasosFirma = workflow.Pasos
             .Where(p => p.Activo && !p.EsInicio && !p.EsFinal && p.RequiereFirma)
             .OrderBy(p => p.Orden)
             .ToList();
         var esFirmaPosteriorALaPrimera = pasosFirma.Skip(1).Any(p => p.IdPaso == pasoActual.IdPaso);
-        if (codigoAccion == "AUTORIZAR" && esFirmaPosteriorALaPrimera)
+        if ((codigoAccion == "AUTORIZAR" || codigoAccion == "CERRAR") && esFirmaPosteriorALaPrimera)
         {
             await ValidarCostosCapturadosAsync(idMatrizGeneral, ct);
         }
@@ -289,18 +293,39 @@ public class MatrizTalleresService : IMatrizTalleresService
         matriz.IdEstado = resultado.NuevoIdEstado ?? matriz.IdEstado;
         matriz.IdUsuarioModificacion = idUsuario;
 
-        // Autorización final (DC): los talleres de la matriz pasan a Autorizado
+        // Cierre final (DC): los talleres de la matriz pasan automáticamente a Programado
+        // (ADR-00008 revisión 2026-10-09) con historial de origen Automático.
         var pasoResultante = workflow.Pasos.FirstOrDefault(p => p.IdPaso == matriz.IdPasoActual);
-        if (pasoResultante?.EsFinal == true && codigoAccion == "AUTORIZAR")
+        if (pasoResultante?.EsFinal == true && codigoAccion == "CERRAR")
         {
             var talleres = await _context.Talleres
                 .Where(t => t.IdMatrizGeneral == idMatrizGeneral && t.Activo)
                 .ToListAsync(ct);
             foreach (var taller in talleres)
             {
-                taller.Estado = Taller.EstadoAutorizado;
+                if (taller.Estado is Taller.EstadoProgramado or Taller.EstadoEnCurso or Taller.EstadoRealizado or Taller.EstadoCancelado)
+                {
+                    continue;
+                }
+
+                var estadoAnterior = taller.Estado;
+                taller.Estado = Taller.EstadoProgramado;
                 taller.IdUsuarioModificacion = idUsuario;
+
+                _context.TalleresEstadosHistorial.Add(new TallerEstadoHistorial
+                {
+                    IdTaller = taller.IdTaller,
+                    EstadoAnterior = estadoAnterior,
+                    EstadoNuevo = Taller.EstadoProgramado,
+                    Origen = TallerEstadoHistorial.OrigenAutomatico,
+                    IdUsuario = idUsuario,
+                    Fecha = DateTime.Now,
+                });
             }
+
+            _logger.LogInformation(
+                "Matriz general {IdMatrizGeneral} cerrada: {Total} taller(es) programados automáticamente.",
+                idMatrizGeneral, talleres.Count);
         }
 
         await _context.SaveChangesAsync(ct);
@@ -493,6 +518,8 @@ public class MatrizTalleresService : IMatrizTalleresService
             talleres.Select(t => t.IdHospital),
             talleres.SelectMany(t => new[] { t.IdEjecutivo, t.IdEspecialista }),
             ct);
+        var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
+            _asokamContext, talleres, ct);
 
         var esEditable = false;
         var esFinal = false;
@@ -521,6 +548,16 @@ public class MatrizTalleresService : IMatrizTalleresService
             }
         }
 
+        var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
+        var talleresDto = talleres
+            .Select(t =>
+            {
+                var dto = TallerDtoMapper.Armar(t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+                dto.SolicitudCambioPendiente = solicitudesPendientes.GetValueOrDefault(t.IdTaller);
+                return dto;
+            })
+            .ToList();
+
         return new MatrizTalleresDetalleDto
         {
             IdMatrizGeneral = resumen.IdMatrizGeneral,
@@ -537,9 +574,57 @@ public class MatrizTalleresService : IMatrizTalleresService
             CostoTotal = resumen.CostoTotal,
             EsEditable = esEditable,
             EsFinal = esFinal,
-            Talleres = talleres.Select(t => TallerDtoMapper.Armar(t, nombresHospitales, nombresUsuarios)).ToList(),
+            Talleres = talleresDto,
             Acciones = acciones,
         };
+    }
+
+    /// <summary>
+    /// Solicitudes de cambio pendientes por taller (join para ordenar/destacar la Matriz
+    /// General; ADR-00010 decisión 15 — sin consultar la tabla desde el listado).
+    /// </summary>
+    private async Task<Dictionary<int, TallerSolicitudCambioResumenDto>> CargarSolicitudesPendientesAsync(
+        IEnumerable<Taller> talleres,
+        CancellationToken ct)
+    {
+        var idsTalleres = talleres.Select(t => t.IdTaller).ToList();
+        if (idsTalleres.Count == 0)
+        {
+            return [];
+        }
+
+        var pendientes = await _context.TalleresSolicitudesCambio.AsNoTracking()
+            .Where(s => idsTalleres.Contains(s.IdTaller) && s.Estado == TallerSolicitudCambio.EstadoPendiente)
+            .ToListAsync(ct);
+
+        if (pendientes.Count == 0)
+        {
+            return [];
+        }
+
+        var idsSolicitantes = pendientes
+            .Where(s => s.IdUsuarioCreacion.HasValue)
+            .Select(s => s.IdUsuarioCreacion!.Value)
+            .Distinct()
+            .ToList();
+        var nombres = idsSolicitantes.Count > 0
+            ? await _asokamContext.Usuarios.AsNoTracking()
+                .Where(u => idsSolicitantes.Contains(u.IdUsuario))
+                .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? string.Empty, ct)
+            : new Dictionary<int, string>();
+
+        return pendientes.ToDictionary(
+            s => s.IdTaller,
+            s => new TallerSolicitudCambioResumenDto
+            {
+                IdSolicitud = s.IdSolicitud,
+                DatosJson = s.DatosJson,
+                IdSolicitante = s.IdUsuarioCreacion,
+                NombreSolicitante = s.IdUsuarioCreacion.HasValue
+                    ? nombres.GetValueOrDefault(s.IdUsuarioCreacion.Value)
+                    : null,
+                Fecha = s.FechaCreacion,
+            });
     }
 
     private async Task<(Dictionary<int, string> Hospitales, Dictionary<int, string> Usuarios)> ResolverNombresAsync(

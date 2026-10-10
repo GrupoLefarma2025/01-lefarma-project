@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-08-10 13:54
-fecha_modificacion: 2026-08-22 17:45
+fecha_modificacion: 2026-10-10 16:30
 resumen: Planificación del módulo Educación Médica (proceso Talleres Médicos en Hospitales): schema de base de datos, backend y frontend.
 ---
 
@@ -11,6 +11,12 @@ resumen: Planificación del módulo Educación Médica (proceso Talleres Médico
 Superseded by ADR-00002
 
 > El cálculo de anestesias cambió de columnas `PERSISTED` en `hospital_extension` a columnas almacenadas calculadas en el backend a partir de factores configurables en `parametros_anestesias` por año. Ver ADR-00002 para el diseño actual.
+
+> **Revisión 2026-10-08** — Se elimina `selecciones_mensuales_hospitales.id_ejecutivo`: la asignación a equipo vive a nivel **región** (`selecciones_regiones.id_equipo`, ADR-00004) y la columna nunca se llenó (cero lecturas/escrituras en el backend). Instalación limpia ya no la crea (0016) y el script `0022_..._drop-id-ejecutivo-seleccion-hospital.lefarma.sql` la elimina en BD existentes. En el mismo pase se unificó `origen` a su diseño (NULL = región de catálogo/alta manual | `GPS` = fallback por centroide), se agregó `tipoAlta` calculado (Manual/Sugerencia) al DTO y el equipo del hospital (EV/EP de su región) se expone en el detalle de la selección.
+>
+> **Revisión 2026-10-08 (clasificación de contactos)** — `hospital_extension` clasifica los contactos hijos de los padres institucionales con tres banderas: `es_almacen`, `es_farmacia` y `es_sede_taller` (script `0024`; instalación limpia en `0016`). Regla inicial por nombre: almacenes delegacionales/subdelegacionales y BIRMEX no son sede; el **sub-almacén** es la sede preferente de su UMAE; la **farmacia** es sede solo si no existe sub-almacén del mismo UMAE; el resto es sede. El buscador de Selección Mensual y los candidatos del ranking excluyen los contactos logísticos (`es_sede_taller = 0`; los NULL no se excluyen). Ver §1.2.12.
+>
+> **Revisión 2026-10-08 (matriz individual)** — `matrices_individuales.estado` (`EnCaptura | Generada`) se reemplaza por **`es_bloqueado`** (BIT; 0 = captura abierta, 1 = bloqueada) + `fecha_bloqueo` + `fecha_desbloqueo` (script `0026`; instalación limpia en `0016`): la matriz individual solo guarda su candado de captura — el estado es vocabulario del workflow (ADR-00007).
 
 ## Índice
 
@@ -283,7 +289,7 @@ Semilla del catálogo (script 0003): `IMSS`, `Descentralizado`, `Privado`.
 |---|---|---|
 | `id_hospital` | Hospital elegido | FK lógica → `genContactosCat.codigoContacto` |
 | `region` / `entidad_federativa` / `ciudad_municipio` | Ubicación | La regla agrupa hospitales **por zona (mín. 4 hospitales/viaje)** y la consulta no debe ir a Asokam cada vez. **Validado en Asokam:** la región sale de `genContactosCat.zona` (CDMX NORTE, NORESTE, OCCIDENTE…); el estado se resuelve con `codigoEstado` → `genEstadosCat.nombreEstado`; el **municipio NO existe** en Asokam → se captura en el módulo |
-| `id_ejecutivo` | A quién se asigna | FK lógica → `app.Usuarios` (EV) |
+| `id_ejecutivo` | **Eliminada (2026-10-08)** | Columna en desuso: la asignación a equipo vive a nivel región (`selecciones_regiones.id_equipo`, ADR-00004) y nunca se llenó. Script `0022`. |
 | `producto_a_promocionar` | Producto del mes | Lo que se promocionará en esas visitas |
 | `observaciones` | Notas de la reunión | Prioridad / contexto de la selección |
 
@@ -346,8 +352,9 @@ La coordinación de entrega (regla IDT-004: CDMX 4:30–6:30 p.m. / foránea por
 | `cedula_profesional` | Cédula | **Adición del sistema** (el papel no la pide): identifica al médico líder para tecnovigilancia |
 | `puesto_medico` | Puesto | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Puesto" (ej. jefe de anestesiología) |
 | `telefono_celular` / `correo_electronico` | Contacto | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campos "Teléfono Celular" / "Correo electrónico" |
-| `firma_url` | Firma escaneada | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Firma": la firma en papel se fotografía/escanea; guardamos la URL |
 | `observaciones` | Médico líder +/− | [[referencias/pdf-to-md/Formularios/ASK-CEM-FOR-008 Registro de Asistencia|FOR-008]], campo "Observaciones": registrar quién es líder positivo/negativo del producto |
+
+> **Revisión 2026-10-10 (ADR-00008):** la columna `firma_url` por asistente se elimina (script `0031`). La firma del FOR-008 ya no se digitaliza por médico: la hoja firmada a mano se adjunta **una sola vez** como evidencia del taller (`taller_evidencias`, tipo `documento`, descripción fija "Hoja de lista de asistencia firmada").
 
 #### 1.2.10 `taller_aprobaciones` — pie de firmas del proceso (no es formulario)
 
@@ -492,7 +499,7 @@ Prefijo: `/api/educacion-medica`. Cada endpoint digitaliza una operación que ho
 | `POST /talleres/{id}/estado` | Transición de estado | Ciclo de firmas Borrador→…→Realizado | **Valida el salto** (ej. `Borrador→Revisado` se rechaza) |
 | `GET/POST/PUT/DELETE /talleres/{id}/recursos` | Recursos del taller | FOR-005 grupos de recursos | `tipo_recurso` válido; recalcula `costo_total` (SUM) al mutar |
 | `GET/PUT /talleres/{id}/materiales` | Solicitud/entrega de material | FOR-007 + IDT-004 | 1:1 (UNIQUE); regla de entrega CDMX/foránea |
-| `GET/POST/DELETE /talleres/{id}/asistencias` | Lista de médicos | FOR-008 | CHECK 1–20; firma_url al capturar |
+| `GET/POST/DELETE /talleres/{id}/asistencias` | Lista de médicos | FOR-008 | CHECK 1–20; transcripción + hoja firmada como evidencia (rev. 2026-10-10) |
 | `POST /talleres/{id}/aprobaciones` | Firma Elaboró/Revisó/Autorizó | Pie de firmas de los formularios | Rol válido, permiso del rol firmante; log inmutable |
 | `GET/POST/DELETE /talleres/{id}/evidencias` | Evidencias post-taller | Auditoría / CQ / Tecnovigilancia | Solo después de `Realizado` |
 

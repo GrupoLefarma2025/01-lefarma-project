@@ -9,7 +9,9 @@ internal static class TallerDtoMapper
     public static TallerDto Armar(
         Taller taller,
         IReadOnlyDictionary<int, string>? nombresHospitales = null,
-        IReadOnlyDictionary<int, string>? nombresUsuarios = null)
+        IReadOnlyDictionary<int, string>? nombresUsuarios = null,
+        IReadOnlyDictionary<int, string>? nombresProductos = null,
+        IReadOnlyDictionary<string, string>? nombresEstados = null)
     {
         var recursos = taller.Recursos
             .OrderBy(r => r.IdTallerRecurso)
@@ -18,6 +20,10 @@ internal static class TallerDtoMapper
                 IdTallerRecurso = r.IdTallerRecurso,
                 TipoRecurso = r.TipoRecurso,
                 IdProducto = r.IdProducto,
+                NombreProducto = r.IdProducto is not null
+                    && int.TryParse(r.IdProducto, out var idProducto)
+                    ? nombresProductos?.GetValueOrDefault(idProducto)
+                    : null,
                 Descripcion = r.Descripcion,
                 TipoEnvio = r.TipoEnvio,
                 Cantidad = r.Cantidad,
@@ -36,7 +42,9 @@ internal static class TallerDtoMapper
                 ? nombresHospitales?.GetValueOrDefault(taller.IdHospital.Value)
                 : null,
             Region = taller.Region,
-            EntidadFederativa = taller.EntidadFederativa,
+            EntidadFederativa = taller.EntidadFederativa is not null
+                ? nombresEstados?.GetValueOrDefault(taller.EntidadFederativa, taller.EntidadFederativa) ?? taller.EntidadFederativa
+                : null,
             CiudadMunicipio = taller.CiudadMunicipio,
             NumeroParticipantes = taller.NumeroParticipantes,
             IdEjecutivo = taller.IdEjecutivo,
@@ -57,6 +65,13 @@ internal static class TallerDtoMapper
             Observaciones = taller.Observaciones,
             IdMatrizIndividual = taller.IdMatrizIndividual,
             IdMatrizGeneral = taller.IdMatrizGeneral,
+            FechaRealizado = taller.FechaRealizado,
+            EsExtraordinario = taller.EsExtraordinario,
+            MotivoExtraordinario = taller.MotivoExtraordinario,
+            IdUsuarioCreacion = taller.IdUsuarioCreacion,
+            CapturadoPor = taller.IdUsuarioCreacion.HasValue
+                ? nombresUsuarios?.GetValueOrDefault(taller.IdUsuarioCreacion.Value)
+                : null,
             Recursos = recursos,
             CostoTotal = recursos.Sum(r => r.Subtotal ?? 0m),
         };

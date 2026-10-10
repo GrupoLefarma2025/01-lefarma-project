@@ -11,8 +11,9 @@ namespace Lefarma.API.Domain.Entities.EducacionMedica;
 /// </summary>
 public class RutaVersion : IWorkflowEntity
 {
-    public const string EstadoDraft = "Draft";
-    public const string EstadoConfirmada = "Confirmada";
+    public const string EstadoCreada = "Creada";
+    public const string EstadoCerrada = "Cerrada";
+    public const string EstadoRechazada = "Rechazada";
     public const string EstadoCancelada = "Cancelada";
     public const string EstadoArchivada = "Archivada";
 
@@ -20,7 +21,7 @@ public class RutaVersion : IWorkflowEntity
     public int IdSeleccionMensual { get; set; }
     public int Version { get; set; }
     public int? IdTipoGerencia { get; set; }   // denormalizado de la selección (condición del GV)
-    public string Estado { get; set; } = EstadoDraft;
+    public string Estado { get; set; } = EstadoCreada;
     public DateTime? FechaConfirmacion { get; set; }
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }

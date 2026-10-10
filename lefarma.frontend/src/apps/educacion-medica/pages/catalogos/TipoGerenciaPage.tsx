@@ -32,6 +32,7 @@ export default function TipoGerenciaPage() {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
     fetchTipos();
   }, []);
 
@@ -44,6 +45,11 @@ export default function TipoGerenciaPage() {
       {
         accessorKey: 'descripcion',
         header: 'Descripción',
+      },
+      {
+        accessorKey: 'totalHospitales',
+        header: 'Hospitales',
+        cell: ({ row }) => row.original.totalHospitales.toLocaleString('es-MX'),
       },
     ],
     []

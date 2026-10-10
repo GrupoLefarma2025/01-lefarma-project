@@ -6,10 +6,11 @@ namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
 public class SeleccionMensual : IWorkflowEntity
 {
-    public const string EstadoBorrador = "Borrador";
+    public const string EstadoCreada = "Creada";
     public const string EstadoEnRevision = "EnRevision";
-    public const string EstadoAutorizada = "Autorizada";
     public const string EstadoCerrada = "Cerrada";
+    public const string EstadoRechazada = "Rechazada";
+    public const string EstadoCancelada = "Cancelada";
 
     public int IdSeleccionMensual { get; set; }
     public DateOnly FechaSeleccion { get; set; }
@@ -17,7 +18,7 @@ public class SeleccionMensual : IWorkflowEntity
     public DateOnly? FechaInicioVigencia { get; set; }
     public DateOnly? FechaFinVigencia { get; set; }
     public int? TalleresObjetivoMes { get; set; }
-    public string Estado { get; set; } = EstadoBorrador;
+    public string Estado { get; set; } = EstadoCreada;
     public DateTime? FirmaGvFecha { get; set; }
     public DateTime? FirmaGgFecha { get; set; }
     public bool Activo { get; set; }

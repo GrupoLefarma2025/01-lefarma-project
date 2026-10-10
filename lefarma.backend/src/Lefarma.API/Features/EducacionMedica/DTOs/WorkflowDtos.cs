@@ -23,8 +23,14 @@ public class RutaVersionDto
     public int IdRutaVersion { get; set; }
     public int Version { get; set; }
     public string Estado { get; set; } = string.Empty;
+    /// <summary>Workflow de la versión (para dibujar el flujo en el historial).</summary>
+    public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
     public string? PasoNombre { get; set; }
+    /// <summary>Estado del workflow (catálogo config.workflow_estados): nombre y color para la UI.</summary>
+    public int? IdEstado { get; set; }
+    public string? EstadoNombre { get; set; }
+    public string? EstadoColor { get; set; }
     public bool EsEditable { get; set; }
     public bool EsFinal { get; set; }
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];

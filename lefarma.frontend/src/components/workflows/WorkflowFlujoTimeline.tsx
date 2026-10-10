@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import {
   Collapsible,
   CollapsibleContent,
@@ -19,7 +18,6 @@ import {
   Ban,
   Circle,
 } from 'lucide-react';
-import type { SolicitudPersonalResponse } from '@/types/solicitudPersonal.types';
 import type {
   HistorialWorkflowItemResponse,
   WorkflowPasoFlowResponse,
@@ -32,20 +30,6 @@ const fmtFecha = (dateStr?: string | null) => {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return dateStr;
-  }
-};
-
-const fmtFechaCorta = (dateStr?: string | null) => {
-  if (!dateStr) return '-';
-  try {
-    return new Date(dateStr).toLocaleDateString('es-MX', {
-      day: '2-digit',
-      month: 'short',
       hour: '2-digit',
       minute: '2-digit',
     });
@@ -135,20 +119,36 @@ interface NoAplicaTimelineItem {
 
 type TimelineItem = PasoTimelineItem | OmitidosTimelineItem | NoAplicaTimelineItem;
 
-interface SolicitudFlujoTabProps {
-  solicitud: SolicitudPersonalResponse;
-  pasosWorkflow: WorkflowPasoFlowResponse[];
+interface WorkflowFlujoTimelineProps {
+  /** Paso actual del documento en su workflow. */
+  idPasoActual: number | null;
+  /** Estado del workflow (para detectar estados terminales por nombre). */
+  estadoNombre?: string | null;
+  pasos: WorkflowPasoFlowResponse[];
   historial: HistorialWorkflowItemResponse[];
+  /** Subtítulo del encabezado; por defecto "Paso a paso del documento". */
+  descripcion?: string;
 }
 
-export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: SolicitudFlujoTabProps) {
+/**
+ * Línea de tiempo del flujo de un documento: pasos con eventos, devoluciones,
+ * omisiones automáticas y pasos que no aplican. Compartido por todos los módulos
+ * (RH y Educación Médica); solo cambia el contexto desde donde se abre.
+ */
+export function WorkflowFlujoTimeline({
+  idPasoActual,
+  estadoNombre,
+  pasos,
+  historial,
+  descripcion = 'Paso a paso del documento',
+}: WorkflowFlujoTimelineProps) {
   const [expandedHistorial, setExpandedHistorial] = useState<Set<number>>(new Set());
   const [expandedOmitidos, setExpandedOmitidos] = useState<Set<number>>(new Set());
   const [expandedNoAplica, setExpandedNoAplica] = useState<Set<number>>(new Set());
 
   const pasosOrdenados = useMemo(
-    () => [...pasosWorkflow].sort((a, b) => a.orden - b.orden),
-    [pasosWorkflow]
+    () => [...pasos].sort((a, b) => a.orden - b.orden),
+    [pasos]
   );
 
   const pasosPorId = useMemo(() => {
@@ -197,17 +197,17 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
     return pasosOrdenados.find((p) => p.idPaso === ultimoDetenido.idPaso) ?? null;
   }, [historial, pasosOrdenados]);
 
-  const isSolicitudTerminal = useMemo(
+  const isDocumentoTerminal = useMemo(
     () =>
-      isEstadoTerminal(solicitud.estadoNombre) ||
-      pasosOrdenados.some((p) => p.idPaso === solicitud.idPasoActual && p.esFinal) ||
+      isEstadoTerminal(estadoNombre) ||
+      pasosOrdenados.some((p) => p.idPaso === idPasoActual && p.esFinal) ||
       pasoDetencion != null,
-    [solicitud.estadoNombre, solicitud.idPasoActual, pasosOrdenados, pasoDetencion]
+    [estadoNombre, idPasoActual, pasosOrdenados, pasoDetencion]
   );
 
   const indexPasoActual = useMemo(() => {
-    return pasosOrdenados.findIndex((p) => p.idPaso === solicitud.idPasoActual);
-  }, [pasosOrdenados, solicitud.idPasoActual]);
+    return pasosOrdenados.findIndex((p) => p.idPaso === idPasoActual);
+  }, [pasosOrdenados, idPasoActual]);
 
   const comentariosPorPaso = useMemo(() => {
     const map = new Map<number, string>();
@@ -243,13 +243,13 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
         const idxDetencion = pasosOrdenados.findIndex((p) => p.idPaso === pasoDetencion.idPaso);
         return idxDetencion !== -1 && idx > idxDetencion;
       }
-      if (!isSolicitudTerminal) return false;
+      if (!isDocumentoTerminal) return false;
       const idx = pasosOrdenados.findIndex((p) => p.idPaso === paso.idPaso);
       return indexPasoActual !== -1 && idx > indexPasoActual;
     };
 
     const esPasoFinalNoActivo = (paso: WorkflowPasoFlowResponse) => {
-      return paso.esFinal && paso.idPaso !== solicitud.idPasoActual;
+      return paso.esFinal && paso.idPaso !== idPasoActual;
     };
 
     const flushOmitidos = () => {
@@ -281,9 +281,9 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
         continue;
       }
 
-      const isPasoActual = solicitud.idPasoActual === paso.idPaso;
+      const isPasoActual = idPasoActual === paso.idPaso;
       const eventos = eventosPorPaso.get(paso.idPaso) ?? [];
-      if (isSolicitudTerminal && !isPasoActual && eventos.length === 0) {
+      if (isDocumentoTerminal && !isPasoActual && eventos.length === 0) {
         bufferNoAplica.push(paso);
         continue;
       }
@@ -309,9 +309,9 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
 
       const isPasoDetencion = pasoDetencion?.idPaso === paso.idPaso;
       let estadoTerminal: PasoTimelineItem['estadoTerminal'] = null;
-      if ((isPasoActual || isPasoDetencion) && isSolicitudTerminal) {
+      if ((isPasoActual || isPasoDetencion) && isDocumentoTerminal) {
         estadoTerminal =
-          getEstadoTerminal(solicitud.estadoNombre) ??
+          getEstadoTerminal(estadoNombre) ??
           (isPasoDetencion
             ? inferirEstadoTerminalDesdeEvento(ultimoEvento?.nombreAccion)
             : null);
@@ -337,9 +337,9 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
     eventosPorPaso,
     eventosOmision,
     pasosPorId,
-    solicitud.idPasoActual,
-    solicitud.estadoNombre,
-    isSolicitudTerminal,
+    idPasoActual,
+    estadoNombre,
+    isDocumentoTerminal,
     indexPasoActual,
     pasoDetencion,
   ]);
@@ -371,17 +371,17 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
     });
   };
 
-  if (pasosWorkflow.length === 0) {
+  if (pasos.length === 0) {
     return (
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Seguimiento de la solicitud</p>
-            <p className="text-xs text-muted-foreground">Avance paso a paso</p>
+            <p className="text-sm font-medium">Línea de tiempo del workflow</p>
+            <p className="text-xs text-muted-foreground">Trazabilidad paso a paso</p>
           </div>
         </div>
         <p className="rounded border bg-background p-3 text-xs text-muted-foreground">
-          Esta solicitud aún no tiene seguimiento registrado.
+          Este documento no tiene un workflow configurado.
         </p>
       </div>
     );
@@ -392,11 +392,11 @@ export function SolicitudFlujoTab({ solicitud, pasosWorkflow, historial }: Solic
       {/* Header resumen */}
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">Seguimiento de la solicitud</p>
-          <p className="text-xs text-muted-foreground">Paso a paso de la solicitud</p>
+          <p className="text-sm font-medium">Línea de tiempo del flujo</p>
+          <p className="text-xs text-muted-foreground">{descripcion}</p>
         </div>
         <Badge variant="outline" className="text-xs">
-          {pasosOrdenados.length} {pasosOrdenados.length === 1 ? 'paso' : 'pasos'}
+          {pasosOrdenados.length} paso(s)
         </Badge>
       </div>
 
@@ -534,7 +534,7 @@ function PasoItem({
       >
         {isActual ? (
           <span className="relative flex h-2.5 w-2.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75 motion-reduce:animate-none" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
             <span className="relative inline-flex h-full w-full rounded-full bg-white" />
           </span>
         ) : DotIcon ? (
@@ -546,52 +546,45 @@ function PasoItem({
       <div className={`rounded-lg border border-l-4 p-3 text-xs ${cardClass}`}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2">
+            <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold text-muted-foreground">
+              {paso.orden}
+            </span>
             <span className="font-medium text-foreground">{paso.nombrePaso}</span>
           </div>
-          <Badge variant={badge.variant} className={`text-xs ${badge.className}`}>
+          <Badge variant={badge.variant} className={`text-[10px] ${badge.className}`}>
             {badge.label}
           </Badge>
         </div>
 
         {paso.descripcionAyuda && (
-          <p className="mt-1 text-xs text-muted-foreground">{paso.descripcionAyuda}</p>
+          <p className="mt-1 text-[11px] text-muted-foreground">{paso.descripcionAyuda}</p>
         )}
 
         {/* Resumen último evento */}
         {ultimoEvento ? (
           <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Clock className="h-3 w-3" />
               <span>{fmtFecha(ultimoEvento.fechaEvento)}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <UserRound className="h-3 w-3" />
-              <span>{ultimoEvento.nombreUsuario || 'No disponible'}</span>
+              <span>{ultimoEvento.nombreUsuario || `Usuario ${ultimoEvento.idUsuario}`}</span>
             </div>
             {isDevuelto && pasoOrigenRetorno && (
-              <div className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
                 <Undo2 className="h-3 w-3" />
                 <span>Devuelto desde: {pasoOrigenRetorno}</span>
               </div>
             )}
             {comentarioPaso && (
-              <div
-                className={cn(
-                  'mt-1.5 rounded-md border px-2.5 py-2 text-xs italic leading-relaxed',
-                  isRechazado
-                    ? 'border-red-200 bg-red-50/70 text-red-900 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-200'
-                    : isDevuelto
-                      ? 'border-amber-200 bg-amber-50/70 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200'
-                      : 'border-border/60 bg-background/80 text-foreground/90'
-                )}
-              >
-                {isRechazado ? 'Motivo del rechazo: ' : isDevuelto ? 'Motivo de la devolución: ' : ''}
+              <div className="mt-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-2 text-[11px] italic leading-relaxed text-foreground/90">
                 "{comentarioPaso}"
               </div>
             )}
           </div>
         ) : (
-          <p className="mt-2 text-xs text-muted-foreground">Sin actividad registrada</p>
+          <p className="mt-2 text-[11px] text-muted-foreground">Sin actividad registrada</p>
         )}
 
         {/* Historial completo */}
@@ -601,7 +594,7 @@ function PasoItem({
               variant="ghost"
               size="sm"
               onClick={onToggle}
-              className="h-8 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+              className="h-6 gap-1 px-1 text-[11px] text-muted-foreground hover:text-foreground"
             >
               {isExpanded ? (
                 <ChevronDown className="h-3 w-3" />
@@ -651,7 +644,7 @@ function OmitidosItem({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-[10px] text-muted-foreground">
                   Omitido
                 </Badge>
                 <span className="text-xs font-medium text-muted-foreground">
@@ -681,12 +674,12 @@ function OmitidosItem({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-muted-foreground">{paso.nombrePaso}</span>
-                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
                       Omitido
                     </Badge>
                   </div>
                   {evt && (
-                    <div className="mt-1.5 space-y-1 text-xs text-muted-foreground">
+                    <div className="mt-1.5 space-y-1 text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-1.5">
                         <Clock className="h-3 w-3" />
                         <span>{fmtFecha(evt.fechaEvento)}</span>
@@ -732,7 +725,7 @@ function NoAplicaItem({
           >
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs text-muted-foreground">
+                <Badge variant="outline" className="text-[10px] text-muted-foreground">
                   No aplica
                 </Badge>
                 <span className="text-xs font-medium text-muted-foreground">
@@ -757,7 +750,7 @@ function NoAplicaItem({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium text-muted-foreground">{paso.nombrePaso}</span>
-                  <Badge variant="outline" className="text-xs text-muted-foreground">
+                  <Badge variant="outline" className="text-[10px] text-muted-foreground">
                     No aplica
                   </Badge>
                 </div>
@@ -786,25 +779,25 @@ function EventoCard({
     <div className="rounded-md border bg-background/80 p-2.5 text-xs">
       <div className="flex items-center justify-between gap-2">
         <span className="font-medium text-foreground">
-          {evento.nombreAccion || 'Acción registrada'}
+          {evento.nombreAccion || `Acción ${evento.idAccion}`}
         </span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-[10px] text-muted-foreground">
           {fmtFecha(evento.fechaEvento)}
         </span>
       </div>
-      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
         <UserRound className="h-3 w-3" />
-        <span>{evento.nombreUsuario || 'No disponible'}</span>
+        <span>{evento.nombreUsuario || `Usuario ${evento.idUsuario}`}</span>
       </div>
       {showTrans && (
-        <div className="mt-1 text-xs text-muted-foreground">
+        <div className="mt-1 text-[11px] text-muted-foreground">
           <span className="text-foreground/60">{pasoOrigen?.nombrePaso}</span>
           <span className="mx-1">→</span>
           <span className="font-medium text-foreground">{pasoDestino?.nombrePaso}</span>
         </div>
       )}
       {evento.comentario && (
-        <p className="mt-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-xs italic leading-relaxed text-foreground/90">
+        <p className="mt-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-1.5 text-[11px] italic leading-relaxed text-foreground/90">
           “{evento.comentario}”
         </p>
       )}

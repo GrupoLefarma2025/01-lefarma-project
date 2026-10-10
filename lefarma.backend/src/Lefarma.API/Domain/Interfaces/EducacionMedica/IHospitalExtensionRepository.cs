@@ -17,6 +17,10 @@ public interface IHospitalExtensionRepository
         Domain.Entities.EducacionMedica.HospitalExtension extension,
         CancellationToken cancellationToken = default);
 
+    Task CreateRangeAsync(
+        IEnumerable<Domain.Entities.EducacionMedica.HospitalExtension> extensiones,
+        CancellationToken cancellationToken = default);
+
     Task UpdateAsync(
         Domain.Entities.EducacionMedica.HospitalExtension extension,
         CancellationToken cancellationToken = default);

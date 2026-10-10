@@ -9,10 +9,12 @@ using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
 using Lefarma.API.Features.Profile;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Services.Identity;
 using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Errors;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 
 namespace Lefarma.API.Features.EducacionMedica;
 
@@ -22,6 +24,7 @@ public class RutasService : IRutasService
     public const string EstrategiaCentroide = "centroide";
 
     private const int MaxViajesForaneosPorMesDefault = 3;
+    private const int DiasLimiteCambioDefault = 45;
 
     private readonly IRutaRepository _rutaRepository;
     private readonly ISeleccionMensualRepository _seleccionRepository;
@@ -37,6 +40,8 @@ public class RutasService : IRutasService
     private readonly IProfileService _profileService;
     private readonly IJefeInmediatoResolver _jefeInmediatoResolver;
     private readonly AsokamDbContext _asokamContext;
+    private readonly ApplicationDbContext _context;
+    private readonly UserPermissionService _permissionService;
 
     public RutasService(
         IRutaRepository rutaRepository,
@@ -52,7 +57,9 @@ public class RutasService : IRutasService
         IWorkflowQueryService workflowQuery,
         IProfileService profileService,
         IJefeInmediatoResolver jefeInmediatoResolver,
-        AsokamDbContext asokamContext)
+        AsokamDbContext asokamContext,
+        ApplicationDbContext context,
+        UserPermissionService permissionService)
     {
         _rutaRepository = rutaRepository;
         _seleccionRepository = seleccionRepository;
@@ -68,6 +75,8 @@ public class RutasService : IRutasService
         _profileService = profileService;
         _jefeInmediatoResolver = jefeInmediatoResolver;
         _asokamContext = asokamContext;
+        _context = context;
+        _permissionService = permissionService;
     }
 
     public async Task<GenerarRutasResponse> GenerarAsync(
@@ -88,14 +97,14 @@ public class RutasService : IRutasService
         var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccionMensual, ct)
             ?? throw new InvalidOperationException($"La selección {idSeleccionMensual} no existe.");
 
-        if (seleccion.Estado != SeleccionMensual.EstadoAutorizada)
+        if (seleccion.Estado != SeleccionMensual.EstadoCerrada)
         {
             throw new InvalidOperationException(
-                $"Solo una selección Autorizada puede planificar rutas (estado actual: {seleccion.Estado}).");
+                $"Solo una selección Cerrada (autorizada por completo) puede planificar rutas (estado actual: {seleccion.Estado}).");
         }
 
         var rutasExistentes = await _rutaRepository.GetBySeleccionAsync(idSeleccionMensual, null, ct);
-        if (rutasExistentes.Any(r => r.Estado == Ruta.EstadoConfirmada))
+        if (rutasExistentes.Any(r => r.Estado == Ruta.EstadoCerrada))
         {
             throw new InvalidOperationException(
                 "Esta selección ya tiene rutas confirmadas. Cancélalas antes de regenerar la propuesta.");
@@ -108,12 +117,21 @@ public class RutasService : IRutasService
             ?? throw new InvalidOperationException("El workflow de rutas no tiene paso inicial configurado.");
 
         var versionActiva = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct);
-        if (versionActiva is { Estado: RutaVersion.EstadoDraft }
-            && versionActiva.IdPasoActual.HasValue
-            && versionActiva.IdPasoActual.Value != pasoInicioRutas.IdPaso)
+        if (versionActiva is { Estado: RutaVersion.EstadoCreada })
         {
-            throw new InvalidOperationException(
-                "La versión de rutas está en autorización (GV → CA → DC). Cancélala o espera su resolución antes de regenerar.");
+            if (versionActiva.IdPasoActual.HasValue
+                && versionActiva.IdPasoActual.Value != pasoInicioRutas.IdPaso)
+            {
+                throw new InvalidOperationException(
+                    "La versión de rutas está en autorización (GV → CA → DC). Cancélala o espera su resolución antes de regenerar.");
+            }
+
+            if (versionActiva.IdUsuarioCreacion.HasValue
+                && versionActiva.IdUsuarioCreacion.Value != idUsuario)
+            {
+                throw new InvalidOperationException(
+                    "Esta versión está en captura por otro usuario; solo su creador puede regenerarla o enviarla.");
+            }
         }
 
         var regiones = await _seleccionRepository.GetRegionesAsync(idSeleccionMensual, ct);
@@ -171,7 +189,7 @@ public class RutasService : IRutasService
             avisos.Add($"{sinClasificar} hospital(es) sin clasificar (es_zona_metropolitana); se cuentan como foráneos.");
         }
 
-        var draftsPrevios = rutasExistentes.Where(r => r.Estado == Ruta.EstadoDraft).ToList();
+        var draftsPrevios = rutasExistentes.Where(r => r.Estado == Ruta.EstadoCreada).ToList();
         foreach (var draft in draftsPrevios)
         {
             draft.Estado = Ruta.EstadoArchivada;
@@ -184,7 +202,7 @@ public class RutasService : IRutasService
             avisos.Add($"La versión draft anterior ({draftsPrevios.Count} ruta(s)) fue archivada.");
         }
 
-        if (versionActiva is { Estado: RutaVersion.EstadoDraft })
+        if (versionActiva is { Estado: RutaVersion.EstadoCreada })
         {
             versionActiva.Estado = RutaVersion.EstadoArchivada;
             versionActiva.IdUsuarioModificacion = idUsuario;
@@ -199,7 +217,7 @@ public class RutasService : IRutasService
             IdSeleccionMensual = idSeleccionMensual,
             Version = version,
             IdTipoGerencia = seleccion.IdTipoGerencia,
-            Estado = RutaVersion.EstadoDraft,
+            Estado = RutaVersion.EstadoCreada,
             IdWorkflow = workflowRutas.IdWorkflow,
             IdPasoActual = pasoInicioRutas.IdPaso,
             IdEstado = pasoInicioRutas.IdEstado,
@@ -222,7 +240,7 @@ public class RutasService : IRutasService
                 Version = version,
                 IdRutaVersion = versionRow.IdRutaVersion,
                 Nombre = $"Ruta Equipo {idEquipo} · v{version}",
-                Estado = Ruta.EstadoDraft,
+                Estado = Ruta.EstadoCreada,
                 IdUsuarioCreacion = idUsuario,
                 IdUsuarioModificacion = idUsuario,
             }, ct);
@@ -279,7 +297,7 @@ public class RutasService : IRutasService
         int idUsuario,
         CancellationToken ct = default)
     {
-        var ruta = await ObtenerRutaEditableAsync(idRuta, ct);
+        var ruta = await ObtenerRutaAsync(idRuta, ct);
         var visita = await _rutaRepository.GetVisitaByIdAsync(idRutaVisita, ct)
             ?? throw new InvalidOperationException($"La visita {idRutaVisita} no existe.");
 
@@ -288,14 +306,93 @@ public class RutasService : IRutasService
             throw new InvalidOperationException($"La visita {idRutaVisita} no pertenece a la ruta {idRuta}.");
         }
 
-        var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
-        await ValidarMovimientoAsync(ruta, visita.IdSeleccionHospital, request.FechaVisita, request.Orden, visita.IdRutaVisita, maxDia, maxSemana, ct);
+        var esAjuste = ruta.Estado == Ruta.EstadoCerrada;
+        if (esAjuste)
+        {
+            await ValidarPermisoAjusteAsync(idUsuario, ct);
+            ValidarMotivoAjuste(request.Motivo);
+            await ValidarLimiteTemporalAsync(visita.FechaVisita, ct);
+        }
+        else
+        {
+            await ValidarRutaEditableAsync(ruta, ct);
+        }
 
+        var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
+        var avisos = await ValidarMovimientoAsync(
+            ruta, visita.IdSeleccionHospital, visita.EsExtraordinaria,
+            request.FechaVisita, request.Orden, visita.IdRutaVisita,
+            maxDia, maxSemana, esAjuste, ct);
+
+        var antes = new { fechaVisita = visita.FechaVisita, orden = visita.Orden };
         visita.FechaVisita = request.FechaVisita;
         visita.Orden = request.Orden;
         visita.IdUsuarioModificacion = idUsuario;
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
         await _rutaRepository.UpdateVisitaAsync(visita, ct);
 
+        if (esAjuste)
+        {
+            await RegistrarAjusteAsync(
+                AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita, AjustePostCierre.AccionMoverVisita,
+                antes, new { fechaVisita = request.FechaVisita, orden = request.Orden },
+                request.Motivo!, idUsuario, ct);
+        }
+
+        await tx.CommitAsync(ct);
+
+        var dto = await ArmarVisitaDtoAsync(visita, ct);
+        dto.Avisos = avisos;
+        return dto;
+    }
+
+    /// <summary>Edición de horas de la visita: normal en Creada; ajuste auditado en Cerrada (ADR-00010).</summary>
+    public async Task<RutaVisitaDto> EditarHorasVisitaAsync(
+        int idRuta,
+        int idRutaVisita,
+        EditarHorasVisitaRequest request,
+        int idUsuario,
+        CancellationToken ct = default)
+    {
+        var ruta = await ObtenerRutaAsync(idRuta, ct);
+        var visita = await _rutaRepository.GetVisitaByIdAsync(idRutaVisita, ct)
+            ?? throw new InvalidOperationException($"La visita {idRutaVisita} no existe.");
+
+        if (visita.IdRuta != idRuta)
+        {
+            throw new InvalidOperationException($"La visita {idRutaVisita} no pertenece a la ruta {idRuta}.");
+        }
+
+        var esAjuste = ruta.Estado == Ruta.EstadoCerrada;
+        if (esAjuste)
+        {
+            await ValidarPermisoAjusteAsync(idUsuario, ct);
+            ValidarMotivoAjuste(request.Motivo);
+            await ValidarLimiteTemporalAsync(visita.FechaVisita, ct);
+        }
+        else
+        {
+            await ValidarRutaEditableAsync(ruta, ct);
+        }
+
+        var antes = new { horaSalida = visita.HoraSalida, horaLlegada = visita.HoraLlegada };
+        visita.HoraSalida = request.HoraSalida;
+        visita.HoraLlegada = request.HoraLlegada;
+        visita.IdUsuarioModificacion = idUsuario;
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
+        await _rutaRepository.UpdateVisitaAsync(visita, ct);
+
+        if (esAjuste)
+        {
+            await RegistrarAjusteAsync(
+                AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita, AjustePostCierre.AccionEditarHoras,
+                antes, new { horaSalida = request.HoraSalida, horaLlegada = request.HoraLlegada },
+                request.Motivo!, idUsuario, ct);
+        }
+
+        await tx.CommitAsync(ct);
         return await ArmarVisitaDtoAsync(visita, ct);
     }
 
@@ -305,7 +402,19 @@ public class RutasService : IRutasService
         int idUsuario,
         CancellationToken ct = default)
     {
-        var ruta = await ObtenerRutaEditableAsync(idRuta, ct);
+        var ruta = await ObtenerRutaAsync(idRuta, ct);
+
+        var esAjuste = ruta.Estado == Ruta.EstadoCerrada;
+        if (esAjuste)
+        {
+            await ValidarPermisoAjusteAsync(idUsuario, ct);
+            ValidarMotivoAjuste(request.Motivo);
+            await ValidarLimiteTemporalAsync(request.FechaVisita, ct);
+        }
+        else
+        {
+            await ValidarRutaEditableAsync(ruta, ct);
+        }
 
         var hospital = await _seleccionRepository.GetHospitalByIdAsync(request.IdSeleccionHospital, ct)
             ?? throw new InvalidOperationException($"El hospital seleccionado {request.IdSeleccionHospital} no existe.");
@@ -337,7 +446,12 @@ public class RutasService : IRutasService
         }
 
         var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
-        await ValidarMovimientoAsync(ruta, request.IdSeleccionHospital, request.FechaVisita, request.Orden, idVisitaExcluida: null, maxDia, maxSemana, ct);
+        var avisos = await ValidarMovimientoAsync(
+            ruta, request.IdSeleccionHospital, esExtraordinaria: false,
+            request.FechaVisita, request.Orden, idVisitaExcluida: null,
+            maxDia, maxSemana, esAjuste, ct);
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
 
         var visita = await _rutaRepository.AddVisitaAsync(new RutaVisita
         {
@@ -350,6 +464,17 @@ public class RutasService : IRutasService
             IdUsuarioModificacion = idUsuario,
         }, ct);
 
+        if (esAjuste)
+        {
+            await RegistrarAjusteAsync(
+                AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita, AjustePostCierre.AccionAltaVisita,
+                null,
+                new { idSeleccionHospital = request.IdSeleccionHospital, fechaVisita = request.FechaVisita, orden = request.Orden },
+                request.Motivo!, idUsuario, ct);
+        }
+
+        await tx.CommitAsync(ct);
+
         if (aviso is not null)
         {
             _logger.LogInformation(
@@ -359,12 +484,122 @@ public class RutasService : IRutasService
 
         var dto = await ArmarVisitaDtoAsync(visita, ct);
         dto.Aviso = aviso;
+        dto.Avisos = avisos;
         return dto;
     }
 
-    public async Task QuitarVisitaAsync(int idRuta, int idRutaVisita, int idUsuario, CancellationToken ct = default)
+    /// <summary>
+    /// Alta de visita extraordinaria (ADR-00011): hospital del catálogo fuera de la selección,
+    /// en la versión activa Cerrada, con get-or-create de la ruta del equipo.
+    /// </summary>
+    public async Task<RutaVisitaDto> AgregarVisitaExtraordinariaAsync(
+        int idSeleccionMensual,
+        VisitaExtraordinariaRequest request,
+        int idUsuario,
+        CancellationToken ct = default)
     {
-        _ = await ObtenerRutaEditableAsync(idRuta, ct);
+        await ValidarPermisoAjusteAsync(idUsuario, ct);
+
+        var version = await _rutaRepository.GetVersionMaximaAsync(idSeleccionMensual, ct)
+            ?? throw new InvalidOperationException("No hay versiones de rutas en esta selección.");
+
+        if (version.Estado != RutaVersion.EstadoCerrada)
+        {
+            throw new InvalidOperationException(
+                $"Las visitas extraordinarias se agregan a la versión activa Cerrada (estado actual: {version.Estado}).");
+        }
+
+        var hospital = await _hospitalRepository.GetByIdAsync(request.IdHospital, ct)
+            ?? throw new InvalidOperationException($"El hospital {request.IdHospital} no existe en el catálogo.");
+
+        if (request.FechaVisita.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            throw new InvalidOperationException("Las visitas solo pueden caer en días laborales (Lun–Vie).");
+        }
+
+        await ValidarLimiteTemporalAsync(request.FechaVisita, ct);
+
+        var ruta = (await _rutaRepository.GetBySeleccionAsync(idSeleccionMensual, version.Version, ct))
+            .FirstOrDefault(r => r.IdEquipo == request.IdEquipo);
+
+        if (ruta is null)
+        {
+            ruta = await _rutaRepository.CreateAsync(new Ruta
+            {
+                IdSeleccionMensual = idSeleccionMensual,
+                IdEquipo = request.IdEquipo,
+                Version = version.Version,
+                IdRutaVersion = version.IdRutaVersion,
+                Estado = Ruta.EstadoCerrada,
+                Nombre = "Ruta extraordinaria",
+                FechaConfirmacion = DateTime.UtcNow,
+                IdUsuarioCreacion = idUsuario,
+                IdUsuarioModificacion = idUsuario,
+            }, ct);
+
+            _logger.LogInformation(
+                "Ruta get-or-create para el equipo {IdEquipo} en la versión v{Version} de la selección {IdSeleccion} (visita extraordinaria).",
+                request.IdEquipo, version.Version, idSeleccionMensual);
+        }
+        else if (ruta.Estado != Ruta.EstadoCerrada)
+        {
+            throw new InvalidOperationException(
+                $"La ruta del equipo {request.IdEquipo} no está confirmada (estado actual: {ruta.Estado}).");
+        }
+
+        var visitasRuta = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
+        var orden = request.Orden ?? visitasRuta
+            .Where(v => v.FechaVisita == request.FechaVisita)
+            .Select(v => v.Orden)
+            .DefaultIfEmpty(0)
+            .Max() + 1;
+
+        var (maxDia, maxSemana, _) = await LeerParametrosAsync(ct);
+        var avisos = await ValidarMovimientoAsync(
+            ruta, idSeleccionHospital: null, esExtraordinaria: true,
+            request.FechaVisita, orden, idVisitaExcluida: null,
+            maxDia, maxSemana, modoAjuste: true, ct);
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
+
+        var visita = await _rutaRepository.AddVisitaAsync(new RutaVisita
+        {
+            IdRuta = ruta.IdRuta,
+            IdSeleccionHospital = null,
+            IdHospital = request.IdHospital,
+            FechaVisita = request.FechaVisita,
+            Orden = orden,
+            EsExtraordinaria = true,
+            IdUsuarioCreacion = idUsuario,
+            IdUsuarioModificacion = idUsuario,
+        }, ct);
+
+        await RegistrarAjusteAsync(
+            AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita, AjustePostCierre.AccionAltaVisita,
+            null,
+            new { idHospital = request.IdHospital, fechaVisita = request.FechaVisita, orden, esExtraordinaria = true },
+            request.Motivo, idUsuario, ct);
+
+        await tx.CommitAsync(ct);
+
+        _logger.LogInformation(
+            "Visita extraordinaria {IdRutaVisita} (hospital {IdHospital}) agregada a la ruta {IdRuta} por el usuario {IdUsuario}.",
+            visita.IdRutaVisita, request.IdHospital, ruta.IdRuta, idUsuario);
+
+        var dto = await ArmarVisitaDtoAsync(visita, ct);
+        dto.Aviso = $"Visita extraordinaria: {hospital.NombreContacto ?? $"Hospital {request.IdHospital}"}";
+        dto.Avisos = avisos;
+        return dto;
+    }
+
+    public async Task QuitarVisitaAsync(
+        int idRuta,
+        int idRutaVisita,
+        string? motivo,
+        int idUsuario,
+        CancellationToken ct = default)
+    {
+        var ruta = await ObtenerRutaAsync(idRuta, ct);
 
         var visita = await _rutaRepository.GetVisitaByIdAsync(idRutaVisita, ct)
             ?? throw new InvalidOperationException($"La visita {idRutaVisita} no existe.");
@@ -374,7 +609,37 @@ public class RutasService : IRutasService
             throw new InvalidOperationException($"La visita {idRutaVisita} no pertenece a la ruta {idRuta}.");
         }
 
+        var esAjuste = ruta.Estado == Ruta.EstadoCerrada;
+        if (esAjuste)
+        {
+            await ValidarPermisoAjusteAsync(idUsuario, ct);
+            ValidarMotivoAjuste(motivo);
+            await ValidarLimiteTemporalAsync(visita.FechaVisita, ct);
+        }
+        else
+        {
+            await ValidarRutaEditableAsync(ruta, ct);
+        }
+
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
         await _rutaRepository.RemoveVisitaAsync(visita, ct);
+
+        if (esAjuste)
+        {
+            await RegistrarAjusteAsync(
+                AjustePostCierre.EntidadRutaVisita, visita.IdRutaVisita, AjustePostCierre.AccionBajaVisita,
+                new
+                {
+                    idSeleccionHospital = visita.IdSeleccionHospital,
+                    idHospital = visita.IdHospital,
+                    fechaVisita = visita.FechaVisita,
+                    orden = visita.Orden,
+                    esExtraordinaria = visita.EsExtraordinaria,
+                },
+                null, motivo!, idUsuario, ct);
+        }
+
+        await tx.CommitAsync(ct);
     }
 
     public async Task<RutaVersionDto?> GetVersionInfoAsync(int idSeleccionMensual, int? version, int idUsuario, CancellationToken ct = default)
@@ -402,8 +667,6 @@ public class RutasService : IRutasService
             throw new InvalidOperationException("La versión de rutas no está en un workflow activo.");
         }
 
-        await ValidarFirmaUsuarioAsync(idUsuario);
-
         var workflow = await _workflowRepo.GetQueryable()
             .Include(w => w.Pasos)
                 .ThenInclude(p => p.AccionesOrigen)
@@ -421,6 +684,12 @@ public class RutasService : IRutasService
 
         var codigoAccion = accion.TipoAccion?.Codigo ?? string.Empty;
 
+        // Cancelar no exige firma digital: la ejecuta el creador (con comentario obligatorio).
+        if (codigoAccion != "CANCELAR")
+        {
+            await ValidarFirmaUsuarioAsync(idUsuario);
+        }
+
         // El envío a autorización solo lo ejecuta el planificador que generó la versión
         if (codigoAccion == "ENVIAR" && version.IdUsuarioCreacion.HasValue && version.IdUsuarioCreacion.Value != idUsuario)
         {
@@ -429,19 +698,14 @@ public class RutasService : IRutasService
 
         var validacion = await WorkflowFirmaHelper.ValidarParticipanteAsync(
             pasoActual, workflow.IdWorkflow, idUsuario, version.IdUsuarioCreacion ?? 0,
-            _asokamContext, _jefeInmediatoResolver);
+            _asokamContext, _jefeInmediatoResolver, codigoAccion);
         if (validacion.IsError)
         {
             throw new InvalidOperationException(validacion.FirstError.Description);
         }
 
-        // Cobertura 100% antes de enviar a autorización y antes de la autorización final (DC)
-        var esUltimoPasoIntermedio = pasoActual.IdPaso == workflow.Pasos
-            .Where(p => p.Activo && !p.EsInicio && !p.EsFinal)
-            .OrderByDescending(p => p.Orden)
-            .Select(p => p.IdPaso)
-            .FirstOrDefault();
-        if (codigoAccion == "ENVIAR" || (codigoAccion == "AUTORIZAR" && esUltimoPasoIntermedio))
+        // Cobertura 100% antes de enviar a autorización y antes del cierre (DC)
+        if (codigoAccion is "ENVIAR" or "CERRAR")
         {
             await ValidarCoberturaVersionAsync(version, ct);
         }
@@ -468,12 +732,17 @@ public class RutasService : IRutasService
         var pasoResultante = workflow.Pasos.FirstOrDefault(p => p.IdPaso == version.IdPasoActual);
         if (pasoResultante?.EsFinal == true)
         {
-            var estadoFinal = codigoAccion == "CANCELAR" ? RutaVersion.EstadoCancelada : RutaVersion.EstadoConfirmada;
+            var estadoFinal = codigoAccion switch
+            {
+                "RECHAZAR" => RutaVersion.EstadoRechazada,
+                "CANCELAR" => RutaVersion.EstadoCancelada,
+                _ => RutaVersion.EstadoCerrada, // CERRAR
+            };
             await AplicarEstadoVersionAsync(version, estadoFinal, idUsuario, ct);
         }
         else if (pasoResultante?.EsInicio == true)
         {
-            await AplicarEstadoVersionAsync(version, RutaVersion.EstadoDraft, idUsuario, ct);
+            await AplicarEstadoVersionAsync(version, RutaVersion.EstadoCreada, idUsuario, ct);
         }
         else
         {
@@ -515,7 +784,19 @@ public class RutasService : IRutasService
             throw new InvalidOperationException($"La versión v{version.Version} está {version.Estado.ToLowerInvariant()} y no se puede cancelar.");
         }
 
+        await using var tx = await _context.Database.BeginTransactionAsync(ct);
+
+        var estadoAnterior = version.Estado;
         await AplicarEstadoVersionAsync(version, RutaVersion.EstadoCancelada, idUsuario, ct);
+
+        // El motivo deja de perderse en logs: queda persistido en la bitácora de ajustes (ADR-00010, decisión 8).
+        await RegistrarAjusteAsync(
+            AjustePostCierre.EntidadRutaVersion, version.IdRutaVersion, AjustePostCierre.AccionCancelarVersion,
+            new { estado = estadoAnterior },
+            new { estado = RutaVersion.EstadoCancelada },
+            request.Motivo, idUsuario, ct);
+
+        await tx.CommitAsync(ct);
 
         _logger.LogInformation(
             "Versión de rutas v{Version} de la selección {IdSeleccion} cancelada por el usuario {IdUsuario}. Motivo: {Motivo}",
@@ -565,7 +846,11 @@ public class RutasService : IRutasService
             var visitas = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
             foreach (var visita in visitas)
             {
-                idsPlanificados.Add(visita.IdSeleccionHospital);
+                // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
+                if (visita.IdSeleccionHospital.HasValue)
+                {
+                    idsPlanificados.Add(visita.IdSeleccionHospital.Value);
+                }
             }
         }
 
@@ -582,24 +867,25 @@ public class RutasService : IRutasService
     {
         version.Estado = estado;
         version.IdUsuarioModificacion = idUsuario;
-        version.FechaConfirmacion = estado == RutaVersion.EstadoConfirmada
+        version.FechaConfirmacion = estado == RutaVersion.EstadoCerrada
             ? (version.FechaConfirmacion ?? DateTime.UtcNow)
             : null;
         await _rutaRepository.UpdateVersionAsync(version, ct);
 
         var estadoRuta = estado switch
         {
-            RutaVersion.EstadoConfirmada => Ruta.EstadoConfirmada,
+            RutaVersion.EstadoCerrada => Ruta.EstadoCerrada,
+            RutaVersion.EstadoRechazada => Ruta.EstadoRechazada,
             RutaVersion.EstadoCancelada => Ruta.EstadoCancelada,
             RutaVersion.EstadoArchivada => Ruta.EstadoArchivada,
-            _ => Ruta.EstadoDraft,
+            _ => Ruta.EstadoCreada,
         };
 
         var rutas = await _rutaRepository.GetBySeleccionAsync(version.IdSeleccionMensual, version.Version, ct);
         foreach (var ruta in rutas)
         {
             ruta.Estado = estadoRuta;
-            ruta.FechaConfirmacion = estado == RutaVersion.EstadoConfirmada
+            ruta.FechaConfirmacion = estado == RutaVersion.EstadoCerrada
                 ? (ruta.FechaConfirmacion ?? DateTime.UtcNow)
                 : null;
             ruta.IdUsuarioModificacion = idUsuario;
@@ -643,8 +929,12 @@ public class RutasService : IRutasService
             IdRutaVersion = version.IdRutaVersion,
             Version = version.Version,
             Estado = version.Estado,
+            IdWorkflow = version.IdWorkflow,
             IdPasoActual = version.IdPasoActual,
             PasoNombre = pasoNombre,
+            IdEstado = version.IdEstado,
+            EstadoNombre = version.EstadoWorkflow?.Nombre,
+            EstadoColor = version.EstadoWorkflow?.ColorHex,
             EsEditable = esEditable,
             EsFinal = esFinal,
             Acciones = acciones,
@@ -670,10 +960,21 @@ public class RutasService : IRutasService
             return [];
         }
 
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
         var hospitalesSeleccion = new Dictionary<int, SeleccionHospital>();
         var regionesPorSeleccion = new Dictionary<int, Dictionary<int, string>>();
+        var seleccionesVigentes = new HashSet<int>();
         foreach (var idSeleccion in rutas.Select(r => r.IdSeleccionMensual).Distinct())
         {
+            // Solo la planeación vigente o próxima ("mis hospitales del mes"), no selecciones vencidas:
+            // la selección recién autorizada puede empezar su vigencia en los próximos días y es la que se trabaja.
+            var seleccion = await _seleccionRepository.GetByIdAsync(idSeleccion, ct);
+            if (seleccion is null || hoy > seleccion.FechaFinVigencia)
+            {
+                continue;
+            }
+
+            seleccionesVigentes.Add(idSeleccion);
             hospitalesSeleccion = hospitalesSeleccion.Union(
                 (await _seleccionRepository.GetHospitalesAsync(idSeleccion, ct))
                     .ToDictionary(h => h.IdSeleccionHospital))
@@ -683,24 +984,65 @@ public class RutasService : IRutasService
                 .ToDictionary(r => r.IdRegion, r => r.Nombre ?? $"Región {r.IdRegion}");
         }
 
+        if (seleccionesVigentes.Count == 0)
+        {
+            return [];
+        }
+
+        rutas = rutas.Where(r => seleccionesVigentes.Contains(r.IdSeleccionMensual)).ToList();
+
+        var visitasPorRuta = new Dictionary<int, List<RutaVisita>>();
+        foreach (var ruta in rutas)
+        {
+            visitasPorRuta[ruta.IdRuta] = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
+        }
+
         var idsAsokam = hospitalesSeleccion.Values
             .Where(h => h.IdHospital.HasValue)
             .Select(h => h.IdHospital!.Value)
+            .Concat(visitasPorRuta.Values.SelectMany(v => v)
+                .Where(v => v.EsExtraordinaria && v.IdHospital.HasValue)
+                .Select(v => v.IdHospital!.Value))
             .Distinct()
             .ToList();
 
-        var nombresHospitales = idsAsokam.Count > 0
-            ? (await _hospitalRepository.GetByIdsAsync(idsAsokam, ct))
-                .ToDictionary(h => h.CodigoContacto, h => h.NombreContacto ?? $"Hospital {h.CodigoContacto}")
-            : new Dictionary<int, string>();
+        var hospitalesAsokam = idsAsokam.Count > 0
+            ? await _hospitalRepository.GetByIdsAsync(idsAsokam, ct)
+            : [];
+        var hospitalesAsokamPorId = hospitalesAsokam.ToDictionary(h => h.CodigoContacto);
+        var nombresHospitales = hospitalesAsokam
+            .ToDictionary(h => h.CodigoContacto, h => h.NombreContacto ?? $"Hospital {h.CodigoContacto}");
+
+        var idsInstituciones = hospitalesAsokam
+            .Where(h => h.CodigoContactoPrincipal.HasValue)
+            .Select(h => h.CodigoContactoPrincipal!.Value)
+            .Distinct()
+            .ToList();
+        var instituciones = idsInstituciones.Count > 0
+            ? await _hospitalRepository.GetByIdsAsync(idsInstituciones, ct)
+            : [];
+        var nombresInstituciones = instituciones
+            .ToDictionary(h => h.CodigoContacto, h => h.NombreContacto ?? $"Institución {h.CodigoContacto}");
+        var institucionPorHospital = hospitalesAsokam
+            .Where(h => h.CodigoContactoPrincipal.HasValue
+                && nombresInstituciones.ContainsKey(h.CodigoContactoPrincipal.Value))
+            .ToDictionary(h => h.CodigoContacto, h => nombresInstituciones[h.CodigoContactoPrincipal!.Value]);
+
+        var nombresEstados = await EducacionMedicaNombres.ResolverEstadosAsync(
+            _asokamContext, hospitalesSeleccion.Values.Select(h => h.EntidadFederativa), ct);
 
         var asignaciones = new List<AsignacionDto>();
         foreach (var ruta in rutas)
         {
-            var visitas = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
-            foreach (var visita in visitas)
+            foreach (var visita in visitasPorRuta[ruta.IdRuta])
             {
-                var hospital = hospitalesSeleccion.GetValueOrDefault(visita.IdSeleccionHospital);
+                var hospital = visita.IdSeleccionHospital.HasValue
+                    ? hospitalesSeleccion.GetValueOrDefault(visita.IdSeleccionHospital.Value)
+                    : null;
+                var idHospital = hospital?.IdHospital ?? visita.IdHospital;
+                var hospitalAsokam = idHospital.HasValue
+                    ? hospitalesAsokamPorId.GetValueOrDefault(idHospital.Value)
+                    : null;
                 asignaciones.Add(new AsignacionDto
                 {
                     IdRutaVisita = visita.IdRutaVisita,
@@ -710,18 +1052,106 @@ public class RutasService : IRutasService
                     IdSeleccionHospital = visita.IdSeleccionHospital,
                     FechaVisita = visita.FechaVisita,
                     Orden = visita.Orden,
-                    IdHospital = hospital?.IdHospital,
-                    NombreHospital = hospital?.IdHospital.HasValue == true
-                        ? nombresHospitales.GetValueOrDefault(hospital.IdHospital.Value, $"Hospital {hospital.IdHospital}")
+                    IdHospital = idHospital,
+                    NombreHospital = idHospital.HasValue
+                        ? nombresHospitales.GetValueOrDefault(idHospital.Value, $"Hospital {idHospital}")
                         : null,
                     NombreRegion = hospital?.IdRegion.HasValue == true
                         ? regionesPorSeleccion.GetValueOrDefault(ruta.IdSeleccionMensual)?.GetValueOrDefault(hospital.IdRegion.Value)
                         : null,
+                    EntidadFederativa = hospital?.EntidadFederativa is { } entidad
+                        ? nombresEstados.GetValueOrDefault(entidad, entidad)
+                        : null,
+                    CiudadMunicipio = hospital?.CiudadMunicipio,
+                    Institucion = idHospital.HasValue
+                        ? institucionPorHospital.GetValueOrDefault(idHospital.Value)
+                        : null,
+                    EsExtraordinaria = visita.EsExtraordinaria,
+                    Latitud = hospital?.LatitudSnapshot ?? hospitalAsokam?.Latitud,
+                    Longitud = hospital?.LongitudSnapshot ?? hospitalAsokam?.Longitud,
+                    Calle = hospitalAsokam?.Calle,
+                    Colonia = hospitalAsokam?.Colonia,
+                    CodigoPostal = hospitalAsokam?.Cp,
+                    Email = hospitalAsokam?.Email,
                 });
             }
         }
 
         return asignaciones.OrderBy(a => a.FechaVisita).ThenBy(a => a.Orden).ToList();
+    }
+
+    /// <summary>
+    /// Hospitales elegibles para la captura asistida (ADR-00011): hospitales de la selección
+    /// del equipo elegido cuya ruta está Cerrada, con snapshots para el buscador.
+    /// </summary>
+    public async Task<List<HospitalElegibleDto>> GetHospitalesElegiblesAsync(int idEquipo, CancellationToken ct = default)
+    {
+        var rutas = (await _rutaRepository.GetByEquipoAsync(idEquipo, ct))
+            .Where(r => r.Estado == Ruta.EstadoCerrada)
+            .ToList();
+
+        if (rutas.Count == 0)
+        {
+            return [];
+        }
+
+        var resultado = new List<HospitalElegibleDto>();
+        var idsHospitales = new HashSet<int>();
+
+        foreach (var ruta in rutas)
+        {
+            var hospitales = (await _seleccionRepository.GetHospitalesAsync(ruta.IdSeleccionMensual, ct))
+                .ToDictionary(h => h.IdSeleccionHospital);
+            var visitas = await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct);
+
+            foreach (var visita in visitas)
+            {
+                if (visita.EsExtraordinaria || !visita.IdSeleccionHospital.HasValue)
+                {
+                    continue;
+                }
+
+                var hospital = hospitales.GetValueOrDefault(visita.IdSeleccionHospital.Value);
+                if (hospital is null)
+                {
+                    continue;
+                }
+
+                if (hospital.IdHospital.HasValue)
+                {
+                    idsHospitales.Add(hospital.IdHospital.Value);
+                }
+
+                resultado.Add(new HospitalElegibleDto
+                {
+                    IdSeleccionHospital = hospital.IdSeleccionHospital,
+                    IdSeleccionMensual = ruta.IdSeleccionMensual,
+                    IdHospital = hospital.IdHospital,
+                    Region = hospital.Region,
+                    EntidadFederativa = hospital.EntidadFederativa,
+                    CiudadMunicipio = hospital.CiudadMunicipio,
+                    IdRuta = ruta.IdRuta,
+                    FechaVisita = visita.FechaVisita,
+                });
+            }
+        }
+
+        var nombres = idsHospitales.Count > 0
+            ? (await _hospitalRepository.GetByIdsAsync(idsHospitales, ct))
+                .ToDictionary(h => h.CodigoContacto, h => h.NombreContacto ?? $"Hospital {h.CodigoContacto}")
+            : new Dictionary<int, string>();
+
+        foreach (var elegible in resultado)
+        {
+            elegible.NombreHospital = elegible.IdHospital.HasValue
+                ? nombres.GetValueOrDefault(elegible.IdHospital.Value, $"Hospital {elegible.IdHospital}")
+                : null;
+        }
+
+        return resultado
+            .OrderBy(e => e.FechaVisita)
+            .ThenBy(e => e.NombreHospital)
+            .ToList();
     }
 
     private async Task<(int MaxDia, int MaxSemana, int MaxForaneos)> LeerParametrosAsync(CancellationToken ct)
@@ -958,12 +1388,15 @@ public class RutasService : IRutasService
         return conValor.Count == 0 ? null : conValor.Average();
     }
 
-    private async Task<Ruta> ObtenerRutaEditableAsync(int idRuta, CancellationToken ct)
+    private async Task<Ruta> ObtenerRutaAsync(int idRuta, CancellationToken ct)
     {
-        var ruta = await _rutaRepository.GetByIdAsync(idRuta, ct)
+        return await _rutaRepository.GetByIdAsync(idRuta, ct)
             ?? throw new InvalidOperationException($"La ruta {idRuta} no existe.");
+    }
 
-        if (ruta.Estado != Ruta.EstadoDraft)
+    private async Task ValidarRutaEditableAsync(Ruta ruta, CancellationToken ct)
+    {
+        if (ruta.Estado != Ruta.EstadoCreada)
         {
             throw new InvalidOperationException($"Solo una ruta en Draft es editable (estado actual: {ruta.Estado}).");
         }
@@ -982,18 +1415,18 @@ public class RutasService : IRutasService
                 }
             }
         }
-
-        return ruta;
     }
 
-    private async Task ValidarMovimientoAsync(
+    private async Task<List<string>> ValidarMovimientoAsync(
         Ruta ruta,
-        int idSeleccionHospital,
+        int? idSeleccionHospital,
+        bool esExtraordinaria,
         DateOnly fechaVisita,
         int orden,
         int? idVisitaExcluida,
         int maxVisitasPorDia,
         int maxVisitasPorSemana,
+        bool modoAjuste,
         CancellationToken ct)
     {
         if (fechaVisita.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
@@ -1006,16 +1439,22 @@ public class RutasService : IRutasService
             throw new InvalidOperationException("El orden debe ser mayor a cero.");
         }
 
+        var avisos = new List<string>();
+
         var rutasMismaVersion = (await _rutaRepository.GetBySeleccionAsync(ruta.IdSeleccionMensual, ruta.Version, ct))
-            .Where(r => r.Estado is Ruta.EstadoDraft or Ruta.EstadoConfirmada)
+            .Where(r => r.Estado is Ruta.EstadoCreada or Ruta.EstadoCerrada)
             .ToList();
 
         foreach (var otra in rutasMismaVersion)
         {
             var visitas = await _rutaRepository.GetVisitasAsync(otra.IdRuta, ct);
 
-            if (otra.IdRuta != ruta.IdRuta
-                && visitas.Any(v => v.IdSeleccionHospital == idSeleccionHospital && v.IdRutaVisita != idVisitaExcluida))
+            if (!esExtraordinaria
+                && idSeleccionHospital.HasValue
+                && otra.IdRuta != ruta.IdRuta
+                && visitas.Any(v => !v.EsExtraordinaria
+                    && v.IdSeleccionHospital == idSeleccionHospital.Value
+                    && v.IdRutaVisita != idVisitaExcluida))
             {
                 throw new InvalidOperationException("Ese hospital ya tiene una visita en otra ruta de la versión actual.");
             }
@@ -1030,7 +1469,9 @@ public class RutasService : IRutasService
                 var delDia = visitas.Count(v => v.FechaVisita == fechaVisita && v.IdRutaVisita != idVisitaExcluida);
                 if (delDia >= maxVisitasPorDia)
                 {
-                    throw new InvalidOperationException($"El día {fechaVisita:dd/MM} ya alcanzó el máximo de {maxVisitasPorDia} visitas.");
+                    var mensaje = $"El día {fechaVisita:dd/MM} ya alcanzó el máximo de {maxVisitasPorDia} visitas.";
+                    if (modoAjuste) avisos.Add($"{mensaje} (ajuste post-cierre: se permite con motivo).");
+                    else throw new InvalidOperationException(mensaje);
                 }
 
                 var dt = fechaVisita.ToDateTime(TimeOnly.MinValue);
@@ -1045,10 +1486,78 @@ public class RutasService : IRutasService
 
                 if (deLaSemana >= maxVisitasPorSemana)
                 {
-                    throw new InvalidOperationException($"La semana {clave.Semana} ya alcanzó el máximo de {maxVisitasPorSemana} visitas.");
+                    var mensaje = $"La semana {clave.Semana} ya alcanzó el máximo de {maxVisitasPorSemana} visitas.";
+                    if (modoAjuste) avisos.Add($"{mensaje} (ajuste post-cierre: se permite con motivo).");
+                    else throw new InvalidOperationException(mensaje);
                 }
             }
         }
+
+        return avisos;
+    }
+
+    // ----- Ajustes post-cierre (ADR-00010) -----
+
+    private async Task ValidarPermisoAjusteAsync(int idUsuario, CancellationToken ct)
+    {
+        var permisos = await _permissionService.GetPermissionsAsync(idUsuario);
+        if (!permisos.Contains(Permissions.EducacionMedica.RutasAjustar))
+        {
+            throw new InvalidOperationException(
+                "No tienes permiso para ajustar documentos cerrados (educacion_medica.rutas.puede_ajustar).");
+        }
+    }
+
+    private static void ValidarMotivoAjuste(string? motivo)
+    {
+        if (string.IsNullOrWhiteSpace(motivo))
+        {
+            throw new InvalidOperationException("El motivo del ajuste post-cierre es obligatorio.");
+        }
+    }
+
+    /// <summary>Límite temporal del ajuste: la fecha original no puede superar dias_limite_cambio (ADR-00010).</summary>
+    private async Task ValidarLimiteTemporalAsync(DateOnly fechaOriginal, CancellationToken ct)
+    {
+        var parametros = await _parametroRepository.GetAllAsync(ct);
+        var diasLimite = (int)(parametros.FirstOrDefault(p => p.Clave == "dias_limite_cambio")?.Valor
+            ?? DiasLimiteCambioDefault);
+
+        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        if (fechaOriginal < hoy.AddDays(-diasLimite))
+        {
+            throw new InvalidOperationException(
+                $"El ajuste excede el límite de {diasLimite} días (fecha original: {fechaOriginal:dd/MM/yyyy}). Solicita un cambio estructural.");
+        }
+    }
+
+    private async Task RegistrarAjusteAsync(
+        string entidadTipo,
+        int idEntidad,
+        string accion,
+        object? valoresAntes,
+        object? valoresDespues,
+        string motivo,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        _context.AjustesPostCierre.Add(new AjustePostCierre
+        {
+            EntidadTipo = entidadTipo,
+            IdEntidad = idEntidad,
+            Accion = accion,
+            ValoresAntes = valoresAntes is null ? null : JsonSerializer.Serialize(valoresAntes),
+            ValoresDespues = valoresDespues is null ? null : JsonSerializer.Serialize(valoresDespues),
+            Motivo = motivo,
+            IdUsuario = idUsuario,
+            FechaAjuste = DateTime.Now,
+        });
+
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "Ajuste post-cierre {Accion} sobre {EntidadTipo} {IdEntidad} por el usuario {IdUsuario}. Motivo: {Motivo}",
+            accion, entidadTipo, idEntidad, idUsuario, motivo);
     }
 
     private async Task<List<RutaDto>> ArmarDetalleAsync(
@@ -1134,7 +1643,6 @@ public class RutasService : IRutasService
             nombreHospital = hospital?.NombreContacto ?? $"Hospital {visita.IdHospital}";
         }
 
-        var hospitalSeleccion = hospitales.GetValueOrDefault(visita.IdSeleccionHospital);
         var esForanea = visita.IdHospital.HasValue
             ? (await _extensionRepository.GetByHospitalIdAsync(visita.IdHospital.Value, ct))?.EsZonaMetropolitana != true
             : false;
@@ -1156,7 +1664,9 @@ public class RutasService : IRutasService
         Dictionary<int, bool?>? extensiones,
         string? nombreHospitalForzado = null)
     {
-        var hospital = hospitales.GetValueOrDefault(visita.IdSeleccionHospital);
+        var hospital = visita.IdSeleccionHospital.HasValue
+            ? hospitales.GetValueOrDefault(visita.IdSeleccionHospital.Value)
+            : null;
         var esForanea = visita.IdHospital.HasValue
             ? extensiones?.GetValueOrDefault(visita.IdHospital.Value) != true
             : false;
@@ -1173,7 +1683,10 @@ public class RutasService : IRutasService
                     : null),
             FechaVisita = visita.FechaVisita,
             Orden = visita.Orden,
+            HoraSalida = visita.HoraSalida,
+            HoraLlegada = visita.HoraLlegada,
             EsForanea = esForanea,
+            EsExtraordinaria = visita.EsExtraordinaria,
             IdRegion = hospital?.IdRegion,
             NombreRegion = hospital?.IdRegion.HasValue == true
                 ? regiones.GetValueOrDefault(hospital.IdRegion.Value)

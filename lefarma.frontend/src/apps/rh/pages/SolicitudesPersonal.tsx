@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { Plus, FileText, Paperclip, History, RotateCcw, Search, Loader2 } from 'lucide-react';
+import { Plus, FileText, Paperclip, RotateCcw, Search, Loader2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
@@ -35,7 +35,7 @@ import { LimitesSolicitudCard } from '../components/LimitesSolicitudCard';
 import { SolicitudHeaderCard } from '../components/SolicitudHeaderCard';
 import { SolicitudDetalleTab } from '../components/SolicitudDetalleTab';
 import { SolicitudArchivosTab } from '../components/SolicitudArchivosTab';
-import { SolicitudFlujoTab } from '../components/SolicitudFlujoTab';
+import { WorkflowHistorialModal } from '@/components/workflows/WorkflowHistorialModal';
 import { SolicitudPersonalPDF } from '../components/PDF/SolicitudPersonalPDF';
 import { waitForPrintImages } from '@/utils/waitForPrintImages';
 import { CrearSolicitud } from '../components/CrearSolicitud';
@@ -613,40 +613,22 @@ export default function SolicitudesPersonal() {
         {selectedSolicitud && <SolicitudArchivosTab idSolicitud={selectedSolicitud.idSolicitud} />}
       </Modal>
 
-      <Modal
-        id="modal-solicitud-historial"
+      {/* ── Modal: Historial ── */}
+      <WorkflowHistorialModal
         open={modalStates.historial}
-        setOpen={(o) => {
-          if (!o) closeModal('historial');
-        }}
-        title={
-          <div className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            <span>Historial de solicitud</span>
-          </div>
-        }
-        size="full"
-      >
-        {selectedSolicitud && (
-          <div className="mb-4">
+        onClose={() => closeModal('historial')}
+        titulo="Historial de solicitud"
+        encabezado={
+          selectedSolicitud ? (
             <SolicitudHeaderCard solicitud={selectedSolicitud} getEstadoInfo={getEstadoInfo} />
-          </div>
-        )}
-        {loadingHistorial && <InlineLoader message="Cargando historial de la solicitud..." />}
-        {!loadingHistorial && !selectedSolicitud && (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
-            <History className="h-10 w-10 opacity-30" />
-            <p className="text-sm font-medium">Selecciona una solicitud para ver su historial</p>
-          </div>
-        )}
-        {!loadingHistorial && selectedSolicitud && (
-          <SolicitudFlujoTab
-            solicitud={selectedSolicitud}
-            pasosWorkflow={pasosWorkflow}
-            historial={historial}
-          />
-        )}
-      </Modal>
+          ) : undefined
+        }
+        cargando={loadingHistorial}
+        idPasoActual={selectedSolicitud?.idPasoActual ?? null}
+        estadoNombre={selectedSolicitud?.estadoNombre}
+        pasos={pasosWorkflow}
+        historial={historial}
+      />
 
       <Modal
         id="modal-crear-solicitud"

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +14,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/selecciones-mensuales")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.SeleccionesVer)]
 public class SeleccionesMensualesController : ControllerBase
 {
     private readonly ISeleccionMensualService _service;
@@ -64,6 +67,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Crear selección mensual",
         Description = "Crea la selección en estado Borrador (reunión del día 15, periodo de vigencia ~45 días).")]
@@ -89,6 +93,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/hospitales")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Agregar hospital a la selección",
         Description = "Agrega un hospital con snapshot de coordenadas GPS al momento del alta.")]
@@ -116,6 +121,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpDelete("{idSeleccionMensual:int}/hospitales/{idSeleccionHospital:int}")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Quitar hospital de la selección",
         Description = "Quita el hospital de la selección; la zona que quede vacía se elimina.")]
@@ -135,6 +141,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/agrupar")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Recalcular regiones por zona del hospital",
         Description = "Agrupa los hospitales por la región asignada en hospital_extension (fallback GPS al centroide más cercano con origen=GPS); persiste las regiones (selecciones_regiones) y avisa si alguna queda con menos de 4 hospitales.")]
@@ -159,6 +166,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPut("{idSeleccionMensual:int}/regiones/{idRegion:int}/equipo")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Asignar región a un equipo",
         Description = "Asigna la región completa a un equipo de pareo validando su capacidad en el periodo (3/día, 8/semana, Lun–Vie).")]
@@ -187,6 +195,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/regiones/{idRegion:int}/dividir")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Dividir región (excepción manual)",
         Description = "Divide la región en dos: la mitad más alejada del centroide forma una región nueva. Requiere motivo (excepción humana de la regla región→equipo).")]
@@ -215,6 +224,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPut("{idSeleccionMensual:int}/hospitales/{idSeleccionHospital:int}/region")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Asignar un hospital sin región a una región existente",
         Description = "Mueve un hospital sin región a la región indicada; hereda el equipo de esa región. Solo hospitales sin región (para reagrupar use Recalcular regiones).")]
@@ -242,6 +252,7 @@ public class SeleccionesMensualesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/enviar-revision")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Enviar selección a revisión",
         Description = "Borrador → EnRevision. Requiere al menos una región asignada a un equipo.")]
@@ -328,30 +339,6 @@ public class SeleccionesMensualesController : ControllerBase
             Message = "Historial obtenido.",
             Data = resultado.Value
         });
-    }
-
-    [HttpPost("{idSeleccionMensual:int}/cerrar")]
-    [SwaggerOperation(
-        Summary = "Cerrar la selección",
-        Description = "Autorizada → Cerrada (mes planificado).")]
-    [SwaggerResponse(200, "Selección cerrada", typeof(ApiResponse<SeleccionMensualDto>))]
-    [SwaggerResponse(409, "Estado inválido")]
-    public async Task<IActionResult> Cerrar(int idSeleccionMensual, CancellationToken ct)
-    {
-        try
-        {
-            var seleccion = await _service.CerrarAsync(idSeleccionMensual, GetUserId(), ct);
-            return Ok(new ApiResponse<SeleccionMensualDto>
-            {
-                Success = true,
-                Message = "Selección cerrada exitosamente.",
-                Data = seleccion
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
-        }
     }
 
     [HttpGet("{idSeleccionMensual:int}/hospitales-cercanos")]

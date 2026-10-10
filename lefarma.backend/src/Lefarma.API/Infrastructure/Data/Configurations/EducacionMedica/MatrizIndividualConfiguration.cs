@@ -14,8 +14,9 @@ public class MatrizIndividualConfiguration : IEntityTypeConfiguration<MatrizIndi
         builder.Property(e => e.IdMatrizIndividual).HasColumnName("id_matriz_individual");
         builder.Property(e => e.IdEquipo).HasColumnName("id_equipo");
         builder.Property(e => e.Periodo).HasColumnName("periodo");
-        builder.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(15).IsRequired();
-        builder.Property(e => e.FechaGeneracion).HasColumnName("fecha_generacion");
+        builder.Property(e => e.EsBloqueado).HasColumnName("es_bloqueado");
+        builder.Property(e => e.FechaBloqueo).HasColumnName("fecha_bloqueo");
+        builder.Property(e => e.FechaDesbloqueo).HasColumnName("fecha_desbloqueo");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");

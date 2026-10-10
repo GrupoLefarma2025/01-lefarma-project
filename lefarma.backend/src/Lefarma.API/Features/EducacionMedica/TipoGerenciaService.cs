@@ -16,8 +16,15 @@ public class TipoGerenciaService : ITipoGerenciaService
     public async Task<List<TipoGerenciaDto>> GetAllAsync(CancellationToken ct = default)
     {
         var items = await _repository.GetAllAsync(ct);
+        var conteos = await _repository.GetConteosHospitalesAsync(ct);
+
         return items
-            .Select(t => t.ToResponse())
+            .Select(t =>
+            {
+                var dto = t.ToResponse();
+                dto.TotalHospitales = conteos.GetValueOrDefault(t.IdTipoGerencia);
+                return dto;
+            })
             .ToList();
     }
 }

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +14,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/selecciones-mensuales")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.SeleccionesVer)]
 public class RankingHospitalesController : ControllerBase
 {
     private readonly IRankingHospitalesService _rankingService;
@@ -125,6 +128,7 @@ public class RankingHospitalesController : ControllerBase
     }
 
     [HttpPost("{idSeleccionMensual:int}/hospitales/lote")]
+    [HasPermission(Permissions.EducacionMedica.SeleccionesGestionar)]
     [SwaggerOperation(
         Summary = "Agregar hospitales sugeridos desde un ranking",
         Description = "Agrega a la selección los hospitales indicados de la ejecución más reciente (o de la ejecución explícita, siempre que sea la última).")]

@@ -8,4 +8,8 @@ public interface ITipoGerenciaRepository
     Task<Domain.Entities.EducacionMedica.TipoGerencia?> GetByIdAsync(
         int id,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Conteo de hospitales con extensión activa por id de tipo de gerencia.</summary>
+    Task<Dictionary<int, int>> GetConteosHospitalesAsync(
+        CancellationToken cancellationToken = default);
 }

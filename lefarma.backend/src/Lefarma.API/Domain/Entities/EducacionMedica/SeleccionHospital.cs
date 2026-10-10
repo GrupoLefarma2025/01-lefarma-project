@@ -8,7 +8,6 @@ public class SeleccionHospital
     public string? Region { get; set; }
     public string? EntidadFederativa { get; set; }
     public string? CiudadMunicipio { get; set; }
-    public int? IdEjecutivo { get; set; }
     public string? ProductoAPromocionar { get; set; }
     public string? Observaciones { get; set; }
     public decimal? LatitudSnapshot { get; set; }

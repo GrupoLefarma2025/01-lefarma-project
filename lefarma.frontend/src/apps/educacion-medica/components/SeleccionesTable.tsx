@@ -4,7 +4,7 @@ import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Eye, FileSignature, History, Paperclip, Pencil } from 'lucide-react';
+import { Eye, FileSignature, History, Paperclip, Pencil, Route } from 'lucide-react';
 import type { SeleccionMensual } from '@/apps/educacion-medica/types/educacionMedica.types';
 import { formatearFechaSeleccion, formatearPeriodoSeleccion } from './seleccionUtils';
 
@@ -47,8 +47,10 @@ interface SeleccionesTableProps {
   title?: string;
   subtitle?: string;
   onVer: (s: SeleccionMensual) => void;
-  /** Abre el detalle en modo edición (solo disponible en Borrador). */
+  /** Abre el detalle en modo edición (solo disponible en Creada). */
   onEditar: (s: SeleccionMensual) => void;
+  /** Lleva a la planificación de rutas (solo si la selección ya tiene propuesta). */
+  onRutas?: (s: SeleccionMensual) => void;
   onFirma: (s: SeleccionMensual) => void;
   onHistorial: (s: SeleccionMensual) => void;
   onArchivos: (s: SeleccionMensual) => void;
@@ -64,6 +66,7 @@ export function SeleccionesTable({
   subtitle,
   onVer,
   onEditar,
+  onRutas,
   onFirma,
   onHistorial,
   onArchivos,
@@ -158,10 +161,17 @@ export function SeleccionesTable({
         header: 'Acciones',
         cell: ({ row }) => {
           const s = row.original;
-          const editable = s.estado === 'Borrador';
+          const editable = s.estado === 'Creada';
           return (
             <div className="flex items-center gap-1">
               <ActionButton label="Ver detalle" icon={Eye} onClick={() => onVer(s)} />
+              {s.tieneRutas && onRutas && (
+                <ActionButton
+                  label="Planificar rutas"
+                  icon={Route}
+                  onClick={() => onRutas(s)}
+                />
+              )}
               {editable && (
                 <ActionButton label="Editar" icon={Pencil} onClick={() => onEditar(s)} />
               )}
@@ -179,7 +189,7 @@ export function SeleccionesTable({
         },
       },
     ],
-    [onVer, onEditar, onFirma, onHistorial, onArchivos]
+    [onVer, onEditar, onRutas, onFirma, onHistorial, onArchivos]
   );
 
   return (

@@ -28,6 +28,7 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
         builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
+        builder.Property(e => e.EsExtraordinaria).HasColumnName("es_extraordinaria");
 
         builder.HasOne<Ruta>()
             .WithMany()
@@ -39,14 +40,16 @@ public class RutaVisitaConfiguration : IEntityTypeConfiguration<RutaVisita>
             .HasForeignKey(e => e.IdSeleccionHospital)
             .OnDelete(DeleteBehavior.Restrict);
 
-        // UN UNIQUE (id_ruta, fecha_visita, orden) y (id_ruta, id_seleccion_hospital)
-        // viven en el script 0007; EF los replica para el proveedor InMemory de pruebas.
+        // UN UNIQUE (id_ruta, fecha_visita, orden) y el índice único filtrado
+        // (id_ruta, id_seleccion_hospital) WHERE id_seleccion_hospital IS NOT NULL
+        // viven en los scripts 0007/0028; EF los replica para el proveedor InMemory.
         builder.HasIndex(e => new { e.IdRuta, e.FechaVisita, e.Orden })
             .IsUnique()
             .HasDatabaseName("UQ_rutas_visitas_orden");
 
         builder.HasIndex(e => new { e.IdRuta, e.IdSeleccionHospital })
             .IsUnique()
-            .HasDatabaseName("UQ_rutas_visitas_hospital");
+            .HasFilter("[id_seleccion_hospital] IS NOT NULL")
+            .HasDatabaseName("UX_rutas_visitas_hospital");
     }
 }

@@ -78,10 +78,10 @@ export function estadoDelDia(actual: number, maximo: number): EstadoDia {
 }
 
 export const CLASES_ESTADO_DIA: Record<EstadoDia, string> = {
-  vacio: 'bg-muted/60 text-muted-foreground',
-  incompleto: 'bg-red-50 text-red-700',
-  lleno: 'bg-emerald-50 text-emerald-700',
-  excedido: 'bg-red-100 text-red-800',
+  vacio: 'bg-slate-100 text-muted-foreground dark:bg-slate-800/60',
+  incompleto: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300',
+  lleno: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+  excedido: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200',
 };
 
 const MESES_CORTOS = [
@@ -112,11 +112,12 @@ export function rangoSemanal(fechas: string[]): string {
   return primera === ultima ? fechaCorta(primera) : `${fechaCorta(primera)} – ${fechaCorta(ultima)}`;
 }
 
-export type EstadoVersion = 'Draft' | 'Confirmada' | 'Cancelada' | 'Archivada';
+export type EstadoVersion = 'Creada' | 'Cerrada' | 'Rechazada' | 'Cancelada' | 'Archivada';
 
 export function estadoDeVersion(rutasDeVersion: Ruta[]): EstadoVersion {
-  if (rutasDeVersion.some((r) => r.estado === 'Draft')) return 'Draft';
-  if (rutasDeVersion.some((r) => r.estado === 'Confirmada')) return 'Confirmada';
+  if (rutasDeVersion.some((r) => r.estado === 'Creada')) return 'Creada';
+  if (rutasDeVersion.some((r) => r.estado === 'Cerrada')) return 'Cerrada';
+  if (rutasDeVersion.some((r) => r.estado === 'Rechazada')) return 'Rechazada';
   if (rutasDeVersion.some((r) => r.estado === 'Cancelada')) return 'Cancelada';
   return 'Archivada';
 }

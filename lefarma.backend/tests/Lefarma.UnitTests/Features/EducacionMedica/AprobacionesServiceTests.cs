@@ -32,7 +32,7 @@ public class AprobacionesServiceTests
         var selBorrador = new SeleccionMensual
         {
             FechaSeleccion = new DateOnly(2026, 9, 15),
-            Estado = SeleccionMensual.EstadoBorrador,
+            Estado = SeleccionMensual.EstadoCreada,
             IdWorkflow = workflow.WfSeleccion.IdWorkflow,
             IdPasoActual = workflow.PasosSeleccion["Inicio"],
             IdUsuarioCreacion = 55,
@@ -45,7 +45,7 @@ public class AprobacionesServiceTests
         {
             IdSeleccionMensual = selPendiente.IdSeleccionMensual,
             Version = 1,
-            Estado = RutaVersion.EstadoDraft,
+            Estado = RutaVersion.EstadoCreada,
             IdWorkflow = workflow.WfRutas.IdWorkflow,
             IdPasoActual = workflow.PasosRutas["Ca"],
             IdUsuarioCreacion = 99,
@@ -54,7 +54,7 @@ public class AprobacionesServiceTests
         {
             IdSeleccionMensual = selPendiente.IdSeleccionMensual,
             Version = 2,
-            Estado = RutaVersion.EstadoConfirmada,
+            Estado = RutaVersion.EstadoCerrada,
             IdWorkflow = workflow.WfRutas.IdWorkflow,
             IdPasoActual = workflow.PasosRutas["Final"],
             IdUsuarioCreacion = 99,
@@ -141,9 +141,9 @@ public class AprobacionesServiceTests
 
         // El nombre del paso se resuelve también para pasos de inicio/fin (no solo "de firma").
         documentos.Should().Contain(d =>
-            d.Tipo == "seleccion" && d.Estado == SeleccionMensual.EstadoBorrador && d.PasoNombre == "Borrador");
+            d.Tipo == "seleccion" && d.Estado == SeleccionMensual.EstadoCreada && d.PasoNombre == "Creada");
         documentos.Should().Contain(d =>
-            d.Tipo == "rutas" && d.Estado == RutaVersion.EstadoConfirmada && d.PasoNombre == "Confirmada");
+            d.Tipo == "rutas" && d.Estado == RutaVersion.EstadoCerrada && d.PasoNombre == "Cerrada");
     }
 
     [Fact]
@@ -252,6 +252,6 @@ public class AprobacionesServiceTests
         documentos.Should().Contain(d =>
             d.Tipo == "matriz" && d.IdMatrizGeneral == idMatrizPendiente && d.Acciones.Count == 1);
         documentos.Should().Contain(d =>
-            d.Tipo == "matriz" && d.PasoNombre == "Concentración" && d.Acciones.Count == 0);
+            d.Tipo == "matriz" && d.PasoNombre == "Creada" && d.Acciones.Count == 0);
     }
 }

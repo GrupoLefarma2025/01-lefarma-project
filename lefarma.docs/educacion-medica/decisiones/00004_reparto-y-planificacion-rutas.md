@@ -16,6 +16,8 @@ Accepted
 
 > **Revisión 2026-09-10** — El empaque del draft pasa de "distancia al centroide de la región" a **bloques por localidad (ciudad/estado)**: las ciudades de una región se ordenan con vecino más cercano determinista y **no se fragmentan entre días** salvo que superen la capacidad diaria (entonces van a días consecutivos). Evita el patrón observado "lunes Tepic → salto → jueves otra vez Tepic" y visitas de ciudades distintas mezcladas en un día cuando cabían juntas. El criterio es **seleccionable por el usuario en `POST /generar`** (`estrategia`: `ciudad` default | `centroide` = empaque clásico que llena los días aunque mezclen ciudades) — sigue siendo una sugerencia corregible; el usuario cambia todo con drag & drop. El script 0013 clasifica en bloque `es_zona_metropolitana` (CDMX + municipios conurbados del Edoméx = locales) para que el conteo de viajes foráneos deje de contar NULLs.
 
+> **Revisión 2026-10-08 — nomenclatura de estados y cierre alineados al patrón OC/Solicitudes (ver ADR-00006 revisión de la misma fecha):** selección `Creada | EnRevision | Cerrada | Rechazada | Cancelada` (el paso **Cerrada es la autorización completa**; lo ejecuta el GV con la acción `CERRAR` del penúltimo paso, validando que **todas** las regiones tengan equipo) y rutas `Creada | Cerrada | Rechazada | Cancelada | Archivada` (`Confirmada` → `Cerrada`; el DC cierra con `CERRAR` validando cobertura 100%). Los endpoints `POST /{id}/autorizar` y `POST /{id}/cerrar` **se retiran**: son acciones del workflow (`firmar`). `enviar-revision` ahora exige **todas** las zonas/regiones con equipo (antes "mínimo 1"). La planificación de rutas se habilita cuando la selección está **`Cerrada`** (antes `Autorizada`).
+
 ## Índice
 
 - [[#Status|Status]]
@@ -119,8 +121,8 @@ Las decisiones 1–12 se tomaron revisando esta propuesta con una revisión de d
 
 12. **Estados separados: la selección y las rutas no comparten máquina de estados.**
     *Por qué:* "la selección fue autorizada" y "las rutas fueron confirmadas" son cosas distintas.
-    - Selección: `Borrador → EnRevision → Autorizada → Cerrada` (la **doble firma GV + GG vive aquí**, antes de planificar rutas).
-    - Rutas: `Draft → Confirmada → Cancelada` (+ `Archivada` para versiones pasadas).
+    - Selección: `Creada → EnRevision → Cerrada` (+ `Rechazada`/`Cancelada` como finales del workflow; el paso `Cerrada` **es** la autorización completa — revisión 2026-10-08, ver ADR-00006). La **doble firma GG + GV vive aquí**, antes de planificar rutas; el GV cierra y su firma equivale a la autorización.
+    - Rutas: `Creada → Cerrada → Cancelada` (+ `Rechazada`; `Archivada` para versiones pasadas). El DC cierra con la acción `CERRAR`.
     - Cambio post-confirmación: **no se edita una ruta confirmada**; v1 = Cancelar rutas → regenerar → confirmar de nuevo (queda huella por versiones). Una pantalla de "solicitud de modificación" formal queda como ADR futuro.
 
 13. **`rutas_visitas` y `talleres` son entidades distintas con vínculo futuro.**
@@ -139,7 +141,7 @@ Convenciones heredadas del script 0003: schema `educacion_medica`, snake_case, `
 | Tabla / ALTER | Qué agrega y por qué |
 |---|---|
 | `equipos_pareo` (nueva) | Pareo 1 EV + 1 EP. `id_ejecutivo` / `id_especialista` NOT NULL (el equipo no existe sin pareo completo). `fecha_inicio` / `fecha_fin` = vigencia (decisión 7). **Índices únicos filtrados** `WHERE activo = 1` sobre cada integrante = exclusividad actual sin bloquear el histórico (decisión 6). Sin FK física a Asokam (cross-DB): validación en servicio |
-| `selecciones_mensuales` + `estado` | `Borrador / EnRevision / Autorizada / Cerrada` con CHECK — hoy la tabla solo tiene `activo BIT` y no distingue borrador de autorizada (decisión 12) |
+| `selecciones_mensuales` + `estado` | `Creada / EnRevision / Cerrada / Rechazada / Cancelada` con CHECK (revisión 2026-10-08; antes `Borrador/Autorizada`) — hoy la tabla solo tiene `activo BIT` y no distingue borrador de autorizada (decisión 12) |
 | `selecciones_mensuales` + firmas | `firma_gv_fecha`, `firma_gg_fecha` (DATETIME2 NULL) — la doble firma de la selección. Quién firmó queda en auditoría + bitácora del endpoint |
 | `selecciones_mensuales_hospitales` + snapshot | `latitud_snapshot`, `longitud_snapshot` DECIMAL(10,7) NULL — coordenadas congeladas al momento de la selección (decisión 4) |
 | `selecciones_mensuales_hospitales` + `id_zona` | Columna NULL; la FK física se crea en 0007 (dependencia de `selecciones_zonas`) |
@@ -150,7 +152,7 @@ Convenciones heredadas del script 0003: schema `educacion_medica`, snake_case, `
 | Tabla | Qué modela y por qué |
 |---|---|
 | `selecciones_zonas` | Zonas calculadas de una selección: `centro_latitud/longitud` (centroide), `cantidad_hospitales`, `algoritmo` (p. ej. `haversine-greedy-v1`), `fecha_calculo`, `id_equipo` (asignación zona → equipo, FK física — misma BD). Al regenerar la agrupación, las zonas de la selección se recalculan (DELETE + INSERT; son hijas de un agregado en revisión, no histórico firmado) |
-| `rutas` | Ruta por equipo y versión: `id_seleccion_mensual`, `id_equipo`, `version`, `estado` (`Draft/Confirmada/Cancelada/Archivada`), `fecha_confirmacion`. Una misma versión puede tener varias rutas del mismo equipo (zona dividida autorizada) — no hay UNIQUE (equipo, versión) |
+| `rutas` | Ruta por equipo y versión: `id_seleccion_mensual`, `id_equipo`, `version`, `estado` (`Creada/Cerrada/Rechazada/Cancelada/Archivada`; revisión 2026-10-08), `fecha_confirmacion`. Una misma versión puede tener varias rutas del mismo equipo (zona dividida autorizada) — no hay UNIQUE (equipo, versión) |
 | `rutas_visitas` | La visita planificada: `id_ruta`, `id_seleccion_hospital` (trazable, decisión 3), `id_hospital` (denormalizado para consulta, FK lógica a Asokam), `fecha_visita DATE` NOT NULL, `orden TINYINT` NOT NULL, `hora_salida` / `hora_llegada` TIME NULL (regla de horario laboral). `UNIQUE (id_ruta, fecha_visita, orden)` y `UNIQUE (id_ruta, id_seleccion_hospital)`. Sin columna `estado` propia: el estado de la ruta gobierna sus visitas (v1); se agregará si aparece cancelación de visita individual |
 
 ---
@@ -174,14 +176,15 @@ Feature `Features/EducacionMedica/` (ya existe); controllers nuevos. Todos los e
 | Endpoint | Qué hace | Validación clave |
 |---|---|---|
 | `GET /?anio&mes` · `GET /{id}` | Lista / detalle con hospitales y zonas | — |
-| `POST /` | Crea selección `Borrador` (periodo de 45 días) | No duplicar periodo+gerencia activo |
+| `POST /` | Crea selección `Creada` (periodo de 45 días) | No duplicar periodo+gerencia activo |
 | `POST /{id}/hospitales` · `DELETE /{id}/hospitales/{idSelHospital}` | Agrega / quita hospitales | Hospital existe en Asokam; snapshot de lat/long al agregar; **borrar hospital elimina su zona si queda vacía** |
 | `POST /{id}/agrupar` | Clustering haversine sobre snapshot → persiste `selecciones_zonas` | Determinístico; aviso zonas con **< 4 hospitales**; regenerar borra zonas previas (advertencia si había equipos asignados) |
 | `PUT /{id}/zonas/{idZona}/equipo` | Asigna zona → equipo | Capacidad del equipo en el periodo vs. hospitales de la zona; déficit → 409 con opciones (reasignar/dividir) |
 | `POST /{id}/zonas/{idZona}/dividir` | Divide zona en dos (excepción humana) | Requiere observación del motivo |
-| `POST /{id}/enviar-revision` | `Borrador → EnRevision` | Mínimo 1 zona con equipo |
-| `POST /{id}/autorizar` | `EnRevision → Autorizada` (**doble firma** GV + GG) | Roles correctos; meta ≥ talleres_objetivo avisada (no bloqueante si negocio decide excepción) |
-| `POST /{id}/cerrar` | `Autorizada → Cerrada` (mes planificado y ejecutado) | Rutas confirmadas |
+| `POST /{id}/enviar-revision` | `Creada → EnRevision` (acción `ENVIAR` del motor) | **Todas las zonas con equipo** (revisión 2026-10-08) |
+| `POST /{id}/firmar` | Ejecuta la acción del workflow (`AUTORIZAR`, `DEVOLVER`, `RECHAZAR`, `CANCELAR`, `CERRAR`) | Participante del paso; `CERRAR` valida **todas las regiones con equipo**; `CANCELAR` no exige firma digital |
+| ~~`POST /{id}/autorizar`~~ | **Retirado** — la firma es la acción `AUTORIZAR`/`CERRAR` del workflow (ADR-00006) | — |
+| ~~`POST /{id}/cerrar`~~ | **Retirado** — el cierre es la acción `CERRAR` del penúltimo paso (la ejecuta el GV) | — |
 
 ### `RutasController` — `api/educacion-medica/selecciones-mensuales/{id}/rutas`
 

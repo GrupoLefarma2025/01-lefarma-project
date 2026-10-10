@@ -5,6 +5,7 @@ import type {
   HospitalExtension,
   HospitalFilterParams,
   HospitalUbicacion,
+  SincronizarHospitalesResponse,
   PagedResult,
   Producto,
   TipoGerencia,
@@ -68,6 +69,25 @@ import type {
   ConcentracionEquipo,
   ActualizarCostosTallerRequest,
   MatrizDocumento,
+  RutaVisita,
+  EditarHorasVisitaRequest,
+  VisitaExtraordinariaRequest,
+  HospitalElegible,
+  AjustePostCierre,
+  TallerMaterial,
+  GuardarTallerMaterialRequest,
+  ConfirmarMaterialRequest,
+  TallerAsistencia,
+  GuardarTallerAsistenciaRequest,
+  TallerEvidencia,
+  GuardarTallerEvidenciaRequest,
+  CambiarEstadoTallerRequest,
+  TallerEstadoHistorial,
+  CrearSolicitudCambioRequest,
+  ResolverSolicitudCambioRequest,
+  TallerSolicitudCambio,
+  TallerDocumentoMaterial,
+  TallerDocumentoAsistencia,
 } from '../types/educacionMedica.types';
 
 const BASE = '/educacion-medica';
@@ -96,6 +116,7 @@ function buildHospitalFilters(filters: HospitalFilterParams): Record<string, unk
   if (filters.tieneCoordenadas !== undefined && filters.tieneCoordenadas !== null) {
     params.tieneCoordenadas = filters.tieneCoordenadas;
   }
+  if (filters.filtroSede) params.filtroSede = filters.filtroSede;
   if (filters.orderBy) params.orderBy = filters.orderBy;
   if (filters.orderDirection) params.orderDirection = filters.orderDirection;
   if (filters.page !== undefined && filters.page !== null) params.page = filters.page;
@@ -123,6 +144,10 @@ export const educacionMedicaApi = {
       API.put<ApiResponse<HospitalExtension>>(
         `${BASE}/hospitales/${id}/extension`,
         payload
+      ),
+    sincronizar: () =>
+      API.post<ApiResponse<SincronizarHospitalesResponse>>(
+        `${BASE}/hospitales/sincronizar`
       ),
   },
   productos: {
@@ -285,10 +310,6 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<HistorialWorkflowItem[]>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/historial`
       ),
-    cerrar: (idSeleccionMensual: number) =>
-      API.post<ApiResponse<SeleccionMensual>>(
-        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/cerrar`
-      ),
     generarRanking: (idSeleccionMensual: number, payload: GenerarRankingRequest) =>
       API.post<ApiResponse<RankingEjecucion>>(
         `${BASE}/selecciones-mensuales/${idSeleccionMensual}/ranking`,
@@ -370,17 +391,41 @@ export const educacionMedicaApi = {
         `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}/mover`,
         payload
       ),
+    editarHoras: (idRuta: number, idRutaVisita: number, payload: EditarHorasVisitaRequest) =>
+      API.put<ApiResponse<RutaVisita>>(
+        `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}/horas`,
+        payload
+      ),
     agregarVisita: (idRuta: number, payload: AgregarVisitaRequest) =>
       API.post<ApiResponse<import('../types/educacionMedica.types').RutaVisita>>(
         `${BASE}/rutas/${idRuta}/visitas`,
         payload
       ),
-    quitarVisita: (idRuta: number, idRutaVisita: number) =>
-      API.delete<ApiResponse<unknown>>(
-        `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}`
+    agregarVisitaExtraordinaria: (
+      idSeleccionMensual: number,
+      payload: VisitaExtraordinariaRequest
+    ) =>
+      API.post<ApiResponse<RutaVisita>>(
+        `${BASE}/selecciones-mensuales/${idSeleccionMensual}/rutas/visitas-extraordinarias`,
+        payload
       ),
-    asignaciones: (idUsuario: number) =>
-      API.get<ApiResponse<Asignacion[]>>(`${BASE}/talleres/asignaciones/${idUsuario}`),
+    quitarVisita: (idRuta: number, idRutaVisita: number, motivo?: string | null) =>
+      API.delete<ApiResponse<unknown>>(
+        `${BASE}/rutas/${idRuta}/visitas/${idRutaVisita}`,
+        { params: motivo ? { motivo } : undefined }
+      ),
+    hospitalesElegibles: (idEquipo: number) =>
+      API.get<ApiResponse<HospitalElegible[]>>(`${BASE}/talleres/hospitales-elegibles`, {
+        params: { idEquipo },
+      }),
+    asignaciones: () =>
+      API.get<ApiResponse<Asignacion[]>>(`${BASE}/talleres/asignaciones`),
+  },
+  ajustes: {
+    listar: (entidadTipo: AjustePostCierre['entidadTipo'], idEntidad: number) =>
+      API.get<ApiResponse<AjustePostCierre[]>>(`${BASE}/ajustes`, {
+        params: { entidadTipo, idEntidad },
+      }),
   },
   aprobaciones: {
     getDocumentos: (filtro: 'pendientes' | 'mios' | 'todos' = 'pendientes') =>
@@ -406,6 +451,64 @@ export const educacionMedicaApi = {
     reabrirMatrizIndividual: (idMatrizIndividual: number) =>
       API.post<ApiResponse<MatrizIndividual>>(
         `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/reabrir`
+      ),
+    // Impartición (ADR-00008)
+    material: (idTaller: number) =>
+      API.get<ApiResponse<TallerMaterial | null>>(`${BASE}/talleres/${idTaller}/material`),
+    guardarMaterial: (idTaller: number, payload: GuardarTallerMaterialRequest) =>
+      API.put<ApiResponse<TallerMaterial>>(`${BASE}/talleres/${idTaller}/material`, payload),
+    confirmarMaterial: (idTaller: number, payload: ConfirmarMaterialRequest) =>
+      API.post<ApiResponse<TallerMaterial>>(
+        `${BASE}/talleres/${idTaller}/material/confirmar`,
+        payload
+      ),
+    asistencias: (idTaller: number) =>
+      API.get<ApiResponse<TallerAsistencia[]>>(`${BASE}/talleres/${idTaller}/asistencias`),
+    crearAsistencia: (idTaller: number, payload: GuardarTallerAsistenciaRequest) =>
+      API.post<ApiResponse<TallerAsistencia>>(`${BASE}/talleres/${idTaller}/asistencias`, payload),
+    actualizarAsistencia: (
+      idTaller: number,
+      idAsistencia: number,
+      payload: GuardarTallerAsistenciaRequest
+    ) =>
+      API.put<ApiResponse<TallerAsistencia>>(
+        `${BASE}/talleres/${idTaller}/asistencias/${idAsistencia}`,
+        payload
+      ),
+    eliminarAsistencia: (idTaller: number, idAsistencia: number) =>
+      API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}/asistencias/${idAsistencia}`),
+    evidencias: (idTaller: number) =>
+      API.get<ApiResponse<TallerEvidencia[]>>(`${BASE}/talleres/${idTaller}/evidencias`),
+    agregarEvidencia: (idTaller: number, payload: GuardarTallerEvidenciaRequest) =>
+      API.post<ApiResponse<TallerEvidencia>>(`${BASE}/talleres/${idTaller}/evidencias`, payload),
+    eliminarEvidencia: (idTaller: number, idEvidencia: number) =>
+      API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}/evidencias/${idEvidencia}`),
+    cambiarEstado: (idTaller: number, payload: CambiarEstadoTallerRequest) =>
+      API.post<ApiResponse<Taller>>(`${BASE}/talleres/${idTaller}/estado`, payload),
+    estados: (idTaller: number) =>
+      API.get<ApiResponse<TallerEstadoHistorial[]>>(`${BASE}/talleres/${idTaller}/estados`),
+    documentoMaterial: (idTaller: number) =>
+      API.get<ApiResponse<TallerDocumentoMaterial>>(
+        `${BASE}/talleres/${idTaller}/documento-material`
+      ),
+    documentoAsistencia: (idTaller: number) =>
+      API.get<ApiResponse<TallerDocumentoAsistencia>>(
+        `${BASE}/talleres/${idTaller}/documento-asistencia`
+      ),
+    // Solicitudes de cambio del equipo (ADR-00010)
+    crearSolicitudCambio: (idTaller: number, payload: CrearSolicitudCambioRequest) =>
+      API.post<ApiResponse<TallerSolicitudCambio>>(
+        `${BASE}/talleres/${idTaller}/solicitudes-cambio`,
+        payload
+      ),
+    resolverSolicitudCambio: (idSolicitud: number, payload: ResolverSolicitudCambioRequest) =>
+      API.post<ApiResponse<TallerSolicitudCambio>>(
+        `${BASE}/talleres/solicitudes-cambio/${idSolicitud}/resolver`,
+        payload
+      ),
+    solicitudesCambio: (idTaller: number) =>
+      API.get<ApiResponse<TallerSolicitudCambio[]>>(
+        `${BASE}/talleres/${idTaller}/solicitudes-cambio`
       ),
   },
   matricesTalleres: {

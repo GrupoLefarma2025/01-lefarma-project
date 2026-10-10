@@ -1,7 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Modal } from '@/components/ui/modal';
-import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Circle, History, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API } from '@/shared/api/apiClient';
 import { ApiResponse } from '@/types/api.types';
@@ -9,10 +6,10 @@ import type {
   WorkflowFlowResponse,
   WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
-import { WorkflowHistorial } from '@/components/workflows/WorkflowHistorial';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type { HistorialWorkflowItem } from '@/apps/educacion-medica/types/educacionMedica.types';
 import { toApiError } from '@/utils/errors';
+import { WorkflowHistorialModal } from '@/components/workflows/WorkflowHistorialModal';
 import type { TipoDocumentoEm } from './documentoEntidad';
 
 // Los pasos de los workflows son configuración estable: se cachean por sesión.
@@ -30,9 +27,9 @@ interface DocumentoHistorialModalProps {
 }
 
 /**
- * Historial de un documento de Educación Médica, separado en Flujo (dónde está
- * el documento) y Bitácora (qué ocurrió). Independiente del detalle y la firma,
- * compartido por la Bandeja y el listado de Selecciones Mensuales.
+ * Historial de un documento de Educación Médica. Carga la bitácora y el flujo,
+ * y delega la vista en el modal compartido (`WorkflowHistorialModal`) que usan
+ * todos los módulos.
  */
 export function DocumentoHistorialModal({
   open,
@@ -66,9 +63,7 @@ export function DocumentoHistorialModal({
     const historialPromise =
       tipo === 'seleccion'
         ? educacionMedicaApi.seleccionesMensuales.historial(idEntidad)
-        : tipo === 'matriz'
-          ? educacionMedicaApi.matricesTalleres.historial(idEntidad)
-          : educacionMedicaApi.rutas.historialVersion(idEntidad);
+        : educacionMedicaApi.rutas.historialVersion(idEntidad);
 
     const flujoPromise = cacheFlujo
       ? Promise.resolve(null)
@@ -107,84 +102,22 @@ export function DocumentoHistorialModal({
     return (workflow?.pasos ?? []).filter((p) => p.activo).sort((a, b) => a.orden - b.orden);
   }, [idWorkflow, workflowsFlow]);
 
-  const idxActual = useMemo(
-    () => pasosFlujo.findIndex((p) => p.idPaso === idPasoActual),
-    [pasosFlujo, idPasoActual]
-  );
-
   return (
-    <Modal
-      id="modal-documento-historial"
+    <WorkflowHistorialModal
       open={open}
-      setOpen={(o) => {
-        if (!o) onClose();
-      }}
-      title={
-        <div className="flex items-center gap-2">
-          <History className="h-5 w-5" />
-          <span>Historial del documento</span>
-        </div>
-      }
-      size="full"
-    >
-      <div className="space-y-5">
+      onClose={onClose}
+      titulo="Historial del documento"
+      encabezado={
         <div className="bg-muted/30 rounded-md border p-3">
           <p className="text-sm font-semibold">{documento}</p>
           <p className="text-xs text-muted-foreground">Estado actual: {estadoTexto}</p>
         </div>
-
-        {cargando ? (
-          <div className="flex justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : (
-          <>
-            {pasosFlujo.length > 0 && (
-              <section>
-                <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Flujo
-                </h4>
-                <div className="space-y-1">
-                  {pasosFlujo.map((paso, idx) => {
-                    const completado = idxActual !== -1 && idx < idxActual;
-                    const actual = paso.idPaso === idPasoActual;
-                    return (
-                      <div key={paso.idPaso} className="flex items-center gap-2 text-sm">
-                        {completado ? (
-                          <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                        ) : actual ? (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Actual
-                          </Badge>
-                        ) : (
-                          <Circle className="h-4 w-4 text-muted-foreground/50" />
-                        )}
-                        <span
-                          className={
-                            actual
-                              ? 'font-medium'
-                              : completado
-                                ? 'text-muted-foreground'
-                                : 'text-muted-foreground/70'
-                          }
-                        >
-                          {paso.nombrePaso}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            )}
-            <section>
-              <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Bitácora
-              </h4>
-              <WorkflowHistorial items={historial} />
-            </section>
-          </>
-        )}
-      </div>
-    </Modal>
+      }
+      cargando={cargando}
+      idPasoActual={idPasoActual ?? null}
+      estadoNombre={estadoTexto}
+      pasos={pasosFlujo}
+      historial={historial}
+    />
   );
 }

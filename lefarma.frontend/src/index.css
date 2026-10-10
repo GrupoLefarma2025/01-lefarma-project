@@ -852,3 +852,20 @@
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* ===== Impresion de la matriz de talleres (MatrizPrintDocument) =====
+   El FOR-005 tiene 19 columnas en la tabla principal: A4 horizontal. */
+@media print {
+  body.print-matriz {
+    page: landscape;
+  }
+
+  #matriz-print {
+    color: #000;
+  }
+
+  #matriz-print * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

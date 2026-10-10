@@ -390,7 +390,7 @@ public class EquipoPareoServiceTests
             {
                 IdSeleccionMensual = 1,
                 FechaSeleccion = new DateOnly(2026, 8, 15),
-                Estado = SeleccionMensual.EstadoAutorizada,
+                Estado = SeleccionMensual.EstadoEnRevision,
             });
 
         var service = CreateService(CreateRepositoryMock(context), asokam, seleccionRepo);
@@ -422,7 +422,7 @@ public class EquipoPareoServiceTests
             {
                 IdSeleccionMensual = 1,
                 FechaSeleccion = new DateOnly(2026, 8, 15),
-                Estado = SeleccionMensual.EstadoAutorizada,
+                Estado = SeleccionMensual.EstadoCerrada,
             });
 
         var rutaRepo = new Mock<IRutaRepository>();
@@ -430,7 +430,7 @@ public class EquipoPareoServiceTests
             .Setup(r => r.GetByEquipoAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(
             [
-                new Ruta { IdRuta = 5, IdSeleccionMensual = 1, IdEquipo = 1, Version = 1, Estado = Ruta.EstadoConfirmada },
+                new Ruta { IdRuta = 5, IdSeleccionMensual = 1, IdEquipo = 1, Version = 1, Estado = Ruta.EstadoCerrada },
             ]);
         rutaRepo
             .Setup(r => r.GetVisitasAsync(5, It.IsAny<CancellationToken>()))
@@ -449,7 +449,7 @@ public class EquipoPareoServiceTests
         operacion.TotalSelecciones.Should().Be(1);
         operacion.TotalVisitasConfirmadas.Should().Be(2);
         operacion.Participaciones.Single().Regiones.Single().Nombre.Should().Be("Región 01");
-        operacion.Participaciones.Single().Rutas.Single().Estado.Should().Be(Ruta.EstadoConfirmada);
+        operacion.Participaciones.Single().Rutas.Single().Estado.Should().Be(Ruta.EstadoCerrada);
     }
 
     [Fact]

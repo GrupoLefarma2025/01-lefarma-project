@@ -71,7 +71,10 @@ public static class EducacionMedicaMappings
             AnestesiasEpidurales = extension.AnestesiasEpidurales,
             AnestesiasSubdurales = extension.AnestesiasSubdurales,
             AnestesiasMixtasObesos = extension.AnestesiasMixtasObesos,
-            AnestesiasMixtasNoObesos = extension.AnestesiasMixtasNoObesos
+            AnestesiasMixtasNoObesos = extension.AnestesiasMixtasNoObesos,
+            EsAlmacen = extension.EsAlmacen,
+            EsFarmacia = extension.EsFarmacia,
+            EsSedeTaller = extension.EsSedeTaller
         };
     }
 

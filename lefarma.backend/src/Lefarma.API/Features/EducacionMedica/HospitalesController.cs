@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/hospitales")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.HospitalesVer)]
 public class HospitalesController : ControllerBase
 {
     private readonly IHospitalService _service;
@@ -108,6 +111,7 @@ public class HospitalesController : ControllerBase
     }
 
     [HttpPut("{idHospital}/extension")]
+    [HasPermission(Permissions.EducacionMedica.HospitalesGestionar)]
     [SwaggerOperation(
         Summary = "Crear o actualizar extensión del hospital",
         Description = "Crea o edita los datos propios del módulo (gerencia, SIA, quirófanos) para un hospital.")]
@@ -134,6 +138,24 @@ public class HospitalesController : ControllerBase
         {
             return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
+    }
+
+    [HttpPost("sincronizar")]
+    [HasPermission(Permissions.EducacionMedica.HospitalesGestionar)]
+    [SwaggerOperation(
+        Summary = "Sincronizar extensiones de hospitales",
+        Description = "Crea las extensiones faltantes en educacion_medica.hospital_extension para los hospitales del catálogo (activos, sin Privado/Distribuidor). Las extensiones existentes NO se insertan ni actualizan.")]
+    [SwaggerResponse(200, "Sincronización completada", typeof(ApiResponse<SincronizarHospitalesResponse>))]
+    public async Task<IActionResult> Sincronizar(CancellationToken ct)
+    {
+        var resultado = await _service.SincronizarExtensionesAsync(GetUserId(), ct);
+
+        return Ok(new ApiResponse<SincronizarHospitalesResponse>
+        {
+            Success = true,
+            Message = $"Sincronización completada: {resultado.Creadas} extensión(es) creada(s), {resultado.YaExistian} ya existían.",
+            Data = resultado
+        });
     }
 
     private int GetUserId()

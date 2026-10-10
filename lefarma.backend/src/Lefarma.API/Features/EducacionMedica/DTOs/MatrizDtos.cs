@@ -39,8 +39,10 @@ public class ConcentracionEquipoDto
     public string? NombreEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
     public string? NombreEspecialista { get; set; }
-    public string Estado { get; set; } = string.Empty;
-    public DateTime? FechaGeneracion { get; set; }
+    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada).</summary>
+    public bool EsBloqueado { get; set; }
+    public DateTime? FechaBloqueo { get; set; }
+    public DateTime? FechaDesbloqueo { get; set; }
     public int TotalTalleres { get; set; }
 }
 

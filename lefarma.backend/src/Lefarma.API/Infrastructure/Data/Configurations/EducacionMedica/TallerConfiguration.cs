@@ -35,6 +35,9 @@ public class TallerConfiguration : IEntityTypeConfiguration<Taller>
         builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
         builder.Property(e => e.IdMatrizIndividual).HasColumnName("id_matriz_individual");
         builder.Property(e => e.IdMatrizGeneral).HasColumnName("id_matriz_general");
+        builder.Property(e => e.FechaRealizado).HasColumnName("fecha_realizado");
+        builder.Property(e => e.EsExtraordinario).HasColumnName("es_extraordinario");
+        builder.Property(e => e.MotivoExtraordinario).HasColumnName("motivo_extraordinario").HasMaxLength(500);
 
         builder.HasOne<SeleccionHospital>()
             .WithMany()

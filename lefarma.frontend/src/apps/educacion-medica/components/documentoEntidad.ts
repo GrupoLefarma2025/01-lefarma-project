@@ -12,3 +12,12 @@ export const ENTIDAD_ARCHIVOS: Record<TipoDocumentoEm, { tipo: string; carpeta: 
   rutas: { tipo: 'RutaVersion', carpeta: 'educacion-medica-rutas' },
   matriz: { tipo: 'MatrizGeneral', carpeta: 'educacion-medica-matrices' },
 };
+
+/**
+ * Entidades del servicio de archivos para la impartición de talleres (ADR-00008):
+ * evidencias del taller (fotos/video/documentos, incluida la hoja firmada de la
+ * lista de asistencia).
+ */
+export const ENTIDAD_ARCHIVOS_IMPARTICION = {
+  evidencia: { tipo: 'TallerEvidencia', carpeta: 'educacion-medica-evidencias' },
+} as const;

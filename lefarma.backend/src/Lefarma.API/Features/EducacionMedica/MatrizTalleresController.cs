@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Lefarma.API.Features.Config.Workflows.DTOs;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +14,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/matrices-talleres")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.TalleresVer)]
 public class MatrizTalleresController : ControllerBase
 {
     private readonly IMatrizTalleresService _service;
@@ -92,6 +95,7 @@ public class MatrizTalleresController : ControllerBase
     }
 
     [HttpPut("{idMatrizGeneral:int}/talleres/{idTaller:int}/costos")]
+    [HasPermission(Permissions.EducacionMedica.TalleresCapturar)]
     [SwaggerOperation(
         Summary = "Registrar costos de un taller (AEM)",
         Description = "Reemplaza los recursos del taller con sus costos y recalcula subtotales. Solo el participante del paso de registro de costos y solo en ese paso.")]

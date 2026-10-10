@@ -157,6 +157,18 @@ public class RegionServiceTests
             return Task.FromResult(extension);
         }
 
+        public Task CreateRangeAsync(IEnumerable<HospitalExtension> extensiones, CancellationToken cancellationToken = default)
+        {
+            foreach (var extension in extensiones)
+            {
+                extension.IdHospitalExtension = _siguiente++;
+                extension.Activo = true;
+                Extensiones.Add(extension);
+            }
+
+            return Task.CompletedTask;
+        }
+
         public Task UpdateAsync(HospitalExtension extension, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
@@ -174,6 +186,9 @@ public class RegionServiceTests
 
         public Task<TipoGerencia?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
             => Task.FromResult(Tipos.FirstOrDefault(t => t.IdTipoGerencia == id && t.Activo));
+
+        public Task<Dictionary<int, int>> GetConteosHospitalesAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new Dictionary<int, int>());
     }
 
     private static AsokamDbContext CreateAsokamInMemoryContext()

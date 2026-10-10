@@ -93,6 +93,12 @@ public class ApplicationDbContext : DbContext
         public DbSet<RankingEjecucionHospital> RankingsEjecucionesHospitales { get; set; }
         public DbSet<Taller> Talleres { get; set; }
         public DbSet<TallerRecurso> TalleresRecursos { get; set; }
+        public DbSet<TallerMaterial> TalleresMateriales { get; set; }
+        public DbSet<TallerAsistencia> TalleresAsistencias { get; set; }
+        public DbSet<TallerEvidencia> TalleresEvidencias { get; set; }
+        public DbSet<TallerEstadoHistorial> TalleresEstadosHistorial { get; set; }
+        public DbSet<AjustePostCierre> AjustesPostCierre { get; set; }
+        public DbSet<TallerSolicitudCambio> TalleresSolicitudesCambio { get; set; }
         public DbSet<MatrizIndividual> MatricesIndividuales { get; set; }
         public DbSet<MatrizGeneral> MatricesGenerales { get; set; }
 
