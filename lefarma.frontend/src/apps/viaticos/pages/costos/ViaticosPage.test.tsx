@@ -273,24 +273,6 @@ describe('hospital working-day form', () => {
     expect(mocks.calculate).not.toHaveBeenCalled();
   });
 
-  it('loads a source example without arbitrary hospital matches or fabricated origin departure', async () => {
-    await prepare();
-    fireEvent.change(screen.getByLabelText('Cargar ejemplo de viáticos'), { target: { value: 'v20' } });
-    expect(within(personGroup()).getByLabelText('Nombre')).toHaveValue('CESAR MARTIN GARCIA ALONSO');
-    expect(within(screen.getByRole('group', { name: 'Origen de persona 1' })).getByRole('combobox')).toHaveValue('1');
-    expect(within(destinationGroup(1)).getByRole('combobox')).toHaveValue('');
-    expect(screen.getByLabelText('Hora de salida del origen')).toHaveValue('');
-    expect(screen.getByText(/Salida de terminal.*06:00/)).toBeInTheDocument();
-    expect(mocks.warning).toHaveBeenCalled();
-    expect(calculateButton()).toBeDisabled();
-  });
-
-  it('warns about example destinations missing from the hospital catalog', async () => {
-    await prepare();
-    fireEvent.change(screen.getByLabelText('Cargar ejemplo de viáticos'), { target: { value: 'v15' } });
-    expect(mocks.warning).toHaveBeenCalledWith(expect.stringContaining('PACHUCA'));
-  });
-
   it('handles unsuccessful and rejected calculation while retaining existing outputs', async () => {
     await prepare();
     fireEvent.click(calculateButton());

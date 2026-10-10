@@ -37,8 +37,6 @@ import { TablaOpciones } from '../../components/TablaOpciones';
 import { TablaHoteles } from '../../components/TablaHoteles';
 import { buildRouteRequest, localTomorrow, newPerson } from './costosRutaForm';
 import type { DestinationForm, PersonForm } from './costosRutaForm';
-import { aplicarEjemplo, VIAJES_EJEMPLO } from './costosRutaEjemplos';
-import type { ViajeEjemplo } from './costosRutaEjemplos';
 import { CostosSolicitudPrint, CostosViaticosPrint } from './CostosViaticosPrint';
 import { selectedCosts, selectedProposal } from './costosViaticosData';
 
@@ -166,9 +164,8 @@ export function ViaticosPage() {
   const [calcularIntermedios, setCalcularIntermedios] = useState(true);
   const [compartir, setCompartir] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [snapshot, setSnapshot] = useState<{ request: CostosRutaRequest; response: CostosRutaResponse; example: ViajeEjemplo | null; coordinateWarning: boolean } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ request: CostosRutaRequest; response: CostosRutaResponse; coordinateWarning: boolean } | null>(null);
   const data = snapshot?.response ?? null;
-  const [example, setExample] = useState<ViajeEjemplo | null>(null);
   const [printSelection, setPrintSelection] = useState<Record<string, string>>({});
   // Opción elegida por tramo. No se limpia al recalcular: el especialista
   // elige una vez y un recálculo no le borra lo que ya decidió.
@@ -356,21 +353,6 @@ export function ViaticosPage() {
     updatePerson(person.id, { destinations });
   }
 
-  function cargarEjemplo(id: string) {
-    const viaje = VIAJES_EJEMPLO.find(item => item.id === id);
-    if (!viaje) return;
-    const personId = nextPersonId.current++;
-    const primeroDestinoId = nextDestinationId.current;
-    nextDestinationId.current += Math.max(1, viaje.destinos.length);
-    const { person, hospitalesNoEncontrados } = aplicarEjemplo(viaje, branches, hospitals, { personId, primeroDestinoId, originId: people[0]?.originId });
-    setPeople([person]);
-    setPersonaPuntosId(person.id);
-    setExample(viaje);
-    if (hospitalesNoEncontrados.length > 0) {
-      toast.warning(`Sin hospital en el catálogo para: ${hospitalesNoEncontrados.join(', ')}. Selecciónalos manualmente.`);
-    }
-  }
-
   function confirmarSecuencia(secuencia: PuntoSeleccion[]) {
     if (!personaPuntos) return;
     setPeople(current => current.map(person => person.id === personaPuntos.id
@@ -387,7 +369,7 @@ export function ViaticosPage() {
         toast.error(res.data.message ?? 'Error al calcular el itinerario');
         return;
       }
-      setSnapshot({ request, response: res.data.data, example,
+      setSnapshot({ request, response: res.data.data,
         coordinateWarning: request.personas.some(p => p.lugares.some(l => suspiciousCoordinates(l.latitud, l.longitud))) });
       setPrintSelection({});
       setPrintPerson(request.personas[0].nombre);
@@ -423,10 +405,11 @@ export function ViaticosPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Costos de ruta (demo aislada · fase 1)</CardTitle>
+          <CardTitle>Solicitud de viáticos (motor de costos)</CardTitle>
           <CardDescription>
-            Selecciona el origen y los hospitales de destino con el día de presencia por persona. Cada destino requiere
-            por defecto toda su jornada laboral; puedes indicar una ventana de cita por destino. La salida explícita no se mueve;
+            Selecciona el origen y los destinos del viaje con sus fechas por persona. Cada destino puede ser
+            cualquier lugar: usa el catálogo o fija un punto en el mapa. Cada destino requiere por defecto
+            toda su jornada laboral; puedes indicar una ventana de cita por destino. La salida explícita no se mueve;
             el cálculo reporta llegadas tardías o inviables. Rendimiento fijo: 12 km/L.
           </CardDescription>
         </CardHeader>
@@ -460,22 +443,6 @@ export function ViaticosPage() {
             {hospitalLoading && <p role="status">Cargando hospitales…</p>}
             {hospitalError && <p role="alert">No se pudieron cargar los hospitales: {hospitalError}</p>}
             {!hospitalLoading && !hospitalError && hospitals.length === 0 && <p role="alert">No hay hospitales disponibles.</p>}
-            <label className="space-y-1">Cargar ejemplo de viáticos
-              <select className="h-9 w-full rounded-md border bg-background px-3" value=""
-                disabled={!catalogsReady || loading}
-                onChange={event => cargarEjemplo(event.target.value)}>
-                <option value="">Selecciona un viaje del concentrado de octubre…</option>
-                {VIAJES_EJEMPLO.map(viaje => <option key={viaje.id} value={viaje.id}>{viaje.etiqueta}</option>)}
-              </select>
-            </label>
-            {example && <aside className="rounded border p-3 text-sm" aria-label="Referencia del ejemplo">
-              <p>Rango original FOR-008: {example.inicio} al {example.fin} · {example.ciudades.join(' → ')}.</p>
-              <p>Salida de terminal FOR-007: {example.salidaFecha} {example.salidaHora} ({example.transporte}). No es la salida del origen.
-                {example.vueloHora ? ` Solicitud de vuelos: ${example.vueloHora}.` : ''}</p>
-              <p>Horarios de presencia propuestos/editables: jornada completa. Las fuentes no documentan duración de citas; ajusta visitas que coinciden.</p>
-              <p>Fuentes: {example.fuentes.join(' · ')}</p>
-              {example.conflictos.map(c => <p key={c}>Discrepancia documental: {c}</p>)}
-            </aside>}
             {people.map((person, personIndex) => (
               <fieldset key={person.id} disabled={loading} className="space-y-3 rounded-md border p-4">
                 <legend className="px-2 font-semibold">Persona {personIndex + 1}</legend>
@@ -911,10 +878,10 @@ export function ViaticosPage() {
             solicitud={snapshot?.request ?? null}
             nombreSolicitante={nombreSolicitante}
             seleccion={printSelection}
-            ejemplo={snapshot?.example}
+            ejemplo={null}
             aviso={printNotice}
           /> : <CostosSolicitudPrint respuesta={data} solicitud={snapshot?.request ?? null}
-            seleccion={printSelection} persona={selectedPrintPerson} ejemplo={snapshot?.example} aviso={printNotice} />}
+            seleccion={printSelection} persona={selectedPrintPerson} ejemplo={null} aviso={printNotice} />}
         </div>,
         document.body
       )}

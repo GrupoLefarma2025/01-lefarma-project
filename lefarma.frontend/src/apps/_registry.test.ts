@@ -43,7 +43,7 @@ describe('apps/_registry — static app registry module', () => {
   it('the launcher apps carry their Hairline figures', () => {
     // The /hub tiles for these apps render a Hairline figure instead of the
     // Lucide icon; lock the three integrations in place.
-    for (const id of ['cxp', 'rh', 'educacion-medica']) {
+    for (const id of ['cxp', 'rh', 'educacion-medica', 'viaticos']) {
       expect(appRegistry.find((e) => e.id === id)?.hairline).toBeTruthy();
     }
   });

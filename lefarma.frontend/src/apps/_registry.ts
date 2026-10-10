@@ -1,7 +1,7 @@
 import { GraduationCap, Plane, ReceiptText, Users } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { HairlineProps } from '@lucasmarkes/hairline/react';
-import { Branches, Drawer, Riffle } from '@lucasmarkes/hairline/react';
+import { Branches, Drawer, Riffle, Terrain } from '@lucasmarkes/hairline/react';
 
 /**
  * Registro estático de apps — la única fuente de verdad para el launcher del
@@ -81,6 +81,7 @@ export const appRegistry: AppRegistryEntry[] = [
     path: '/viaticos/',
     description: 'Cálculo de costos de ruta',
     icon: Plane,
+    hairline: Terrain,
     disabled: false,
     permission: 'baseapp.hub.puede_ver_viaticos',
   },

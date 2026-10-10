@@ -1,18 +1,24 @@
-import { ClipboardCheck, Plane } from 'lucide-react';
+import { ClipboardCheck, Luggage, Plane } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 export const viaticosMenuItems: SidebarMenuItemConfig[] = [
   {
-    title: 'Viáticos',
+    title: 'Solicitud de viáticos',
     icon: Plane,
-    path: '/viaticos/dashboard',
+    path: '/viaticos/solicitud',
   },
   {
-    // `viaticos.ver_todos` es el permiso de la bandeja global; sin él, el
-    // backend ya recorta la lista a las solicitudes propias del usuario.
-    title: 'Bandeja de autorizaciones',
+    title: 'Mis viajes',
+    icon: Luggage,
+    path: '/viaticos/mis-viajes',
+  },
+  {
+    // `viaticos.ver_todos` es el permiso de revisión global; sin él, el
+    // backend recorta la bandeja a las solicitudes propias del usuario y la
+    // vista lo declara en vez de mostrar un concentrado ajeno.
+    title: 'Concentrado de viáticos',
     icon: ClipboardCheck,
-    path: '/viaticos/aprobaciones',
+    path: '/viaticos/concentrado',
     permission: { require: 'viaticos.ver_todos' },
   },
 ];

@@ -11,7 +11,9 @@ import type { SolicitudBandeja } from './types/aprobaciones.types';
  */
 
 vi.mock('@/pages/Perfil', () => ({ default: () => <div>PERFIL_MARK</div> }));
-vi.mock('./pages/costos/ViaticosPage', () => ({ ViaticosPage: () => <div>VIATICOS_MARK</div> }));
+vi.mock('./pages/solicitud/SolicitudPage', () => ({ SolicitudPage: () => <div>SOLICITUD_MARK</div> }));
+vi.mock('./pages/mis-viajes/MisViajesPage', () => ({ MisViajesPage: () => <div>MIS_VIAJES_MARK</div> }));
+vi.mock('./pages/concentrado/ConcentradoPage', () => ({ ConcentradoPage: () => <div>CONCENTRADO_MARK</div> }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
@@ -63,7 +65,7 @@ describe('ViaticosRoutes — bandeja de aprobaciones', () => {
 
     await waitFor(() => expect(screen.getByText('Bandeja de Autorizaciones')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText('Beto Empleado')).toBeInTheDocument());
-    expect(screen.queryByText('VIATICOS_MARK')).not.toBeInTheDocument();
+    expect(screen.queryByText('SOLICITUD_MARK')).not.toBeInTheDocument();
   });
 
   it('sin sesión, /viaticos/aprobaciones rebota al login del subárbol con el destino', () => {
@@ -75,8 +77,23 @@ describe('ViaticosRoutes — bandeja de aprobaciones', () => {
     expect(mocks.get).not.toHaveBeenCalled();
   });
 
-  it('/viaticos/dashboard sigue resolviendo la página de costos', () => {
+  it('/viaticos/dashboard es alias temporal del asistente de solicitud', () => {
     renderAt('/viaticos/dashboard');
-    expect(screen.getByText('VIATICOS_MARK')).toBeInTheDocument();
+    expect(screen.getByText('SOLICITUD_MARK')).toBeInTheDocument();
+  });
+
+  it('/viaticos/solicitud, /viaticos/mis-viajes y /viaticos/concentrado resuelven sus páginas', () => {
+    renderAt('/viaticos/solicitud');
+    expect(screen.getByText('SOLICITUD_MARK')).toBeInTheDocument();
+  });
+
+  it('/viaticos/mis-viajes resuelve Mis viajes', () => {
+    renderAt('/viaticos/mis-viajes');
+    expect(screen.getByText('MIS_VIAJES_MARK')).toBeInTheDocument();
+  });
+
+  it('/viaticos/concentrado resuelve el concentrado de revisión', () => {
+    renderAt('/viaticos/concentrado');
+    expect(screen.getByText('CONCENTRADO_MARK')).toBeInTheDocument();
   });
 });
