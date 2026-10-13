@@ -575,6 +575,143 @@ public class SolicitudPersonalServiceTests
     }
 
     [Fact]
+    public async Task GetByIdAsync_Vacaciones_Usa_Dias_Del_Detalle_En_Lugar_Del_Rango()
+    {
+        var context = CreateInMemoryContext();
+        var anio = DateTime.Now.Year;
+
+        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        {
+            IdUsuario = 123,
+            IdEmpresa = 1,
+            Anio = anio,
+            DiasGenerados = 20,
+            DiasPendientes = 20,
+            Activo = true
+        });
+        await context.SaveChangesAsync();
+
+        var solicitud = new SolicitudPersonal
+        {
+            IdSolicitud = 10,
+            Folio = "SOL-10",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 123,
+            IdUsuarioSolicitante = 123,
+            IdTipoSolicitud = 11,
+            FechaInicio = new DateTime(anio, 10, 9),
+            FechaFin = new DateTime(anio, 10, 13),
+            FechaCreacion = DateTime.Now,
+            Detalle = new List<SolicitudPersonalDetalle>
+            {
+                new() { IdSolicitud = 10, Fecha = new DateTime(anio, 10, 9), FechaCreacion = DateTime.Now },
+                new() { IdSolicitud = 10, Fecha = new DateTime(anio, 10, 12), FechaCreacion = DateTime.Now },
+                new() { IdSolicitud = 10, Fecha = new DateTime(anio, 10, 13), FechaCreacion = DateTime.Now }
+            }
+        };
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetWithDetalleAsync(10)).ReturnsAsync(solicitud);
+
+        var tipo = new TipoSolicitud
+        {
+            IdTipoSolicitud = 11,
+            Nombre = "Vacaciones",
+            Clave = "vacaciones",
+            Categoria = CategoriaSolicitud.Vacaciones,
+            Activo = true
+        };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(11)).ReturnsAsync(tipo);
+
+        var service = CreateService(context, tipoRepository: tipoRepository.Object, repository: repository.Object);
+
+        var result = await service.GetByIdAsync(10);
+
+        result.IsError.Should().BeFalse();
+        var saldo = result.Value.SaldoVacaciones;
+        saldo.Should().NotBeNull();
+        saldo!.DiasQueDescuentan.Should().Be(3);
+        saldo.DiasPendientes.Should().Be(20);
+        saldo.SaldoResultante.Should().Be(17);
+        saldo.QuedaNegativo.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_Vacaciones_Detalle_Excluye_Dias_Que_No_Consumen_Saldo()
+    {
+        var context = CreateInMemoryContext();
+        var anio = DateTime.Now.Year;
+
+        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        {
+            IdUsuario = 123,
+            IdEmpresa = 1,
+            Anio = anio,
+            DiasGenerados = 20,
+            DiasPendientes = 20,
+            Activo = true
+        });
+        context.DiasHabiles.Add(new DiaHabil
+        {
+            IdEmpresa = 1,
+            Anio = anio,
+            Mes = 1,
+            Dia = 3,
+            Fecha = new DateTime(anio, 1, 3),
+            Descripcion = "Día oficial",
+            ConsumeSaldo = false,
+            Activo = true,
+            FechaCreacion = DateTime.Now
+        });
+        await context.SaveChangesAsync();
+
+        var solicitud = new SolicitudPersonal
+        {
+            IdSolicitud = 11,
+            Folio = "SOL-11",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 123,
+            IdUsuarioSolicitante = 123,
+            IdTipoSolicitud = 11,
+            FechaInicio = new DateTime(anio, 1, 1),
+            FechaFin = new DateTime(anio, 1, 5),
+            FechaCreacion = DateTime.Now,
+            Detalle = new List<SolicitudPersonalDetalle>
+            {
+                new() { IdSolicitud = 11, Fecha = new DateTime(anio, 1, 1), FechaCreacion = DateTime.Now },
+                new() { IdSolicitud = 11, Fecha = new DateTime(anio, 1, 3), FechaCreacion = DateTime.Now }
+            }
+        };
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetWithDetalleAsync(11)).ReturnsAsync(solicitud);
+
+        var tipo = new TipoSolicitud
+        {
+            IdTipoSolicitud = 11,
+            Nombre = "Vacaciones",
+            Clave = "vacaciones",
+            Categoria = CategoriaSolicitud.Vacaciones,
+            Activo = true
+        };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(11)).ReturnsAsync(tipo);
+
+        var service = CreateService(context, tipoRepository: tipoRepository.Object, repository: repository.Object);
+
+        var result = await service.GetByIdAsync(11);
+
+        result.IsError.Should().BeFalse();
+        var saldo = result.Value.SaldoVacaciones;
+        saldo.Should().NotBeNull();
+        saldo!.DiasQueDescuentan.Should().Be(1);
+        saldo.SaldoResultante.Should().Be(19);
+    }
+
+    [Fact]
     public async Task ValidarDescuentos_Con_Dos_Ya_Cubiertos_Bloquea_Cualquier_Solicitud_Del_Mes()
     {
         var context = CreateInMemoryContext();

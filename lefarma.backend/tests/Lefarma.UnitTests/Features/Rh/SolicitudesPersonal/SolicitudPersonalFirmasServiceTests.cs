@@ -200,6 +200,48 @@ public class SolicitudPersonalFirmasServiceTests
     }
 
     [Fact]
+    public async Task Cierre_Vacaciones_Descuenta_Fechas_Del_Detalle_En_Lugar_Del_Rango()
+    {
+        var context = CreateInMemoryContext();
+        var anio = DateTime.Now.Year;
+
+        context.SaldosVacacionesAnuales.Add(new SaldoVacacionesAnual
+        {
+            IdUsuario = 123,
+            IdEmpresa = 1,
+            Anio = anio,
+            DiasGenerados = 20,
+            DiasPendientes = 20,
+            Activo = true
+        });
+
+        foreach (var fecha in new[]
+                 {
+                     new DateTime(anio, 10, 9),
+                     new DateTime(anio, 10, 12),
+                     new DateTime(anio, 10, 13)
+                 })
+        {
+            context.SolicitudesPersonalDetalle.Add(new SolicitudPersonalDetalle
+            {
+                IdSolicitud = 1,
+                Fecha = fecha,
+                FechaCreacion = DateTime.Now
+            });
+        }
+
+        await context.SaveChangesAsync();
+
+        var service = CreateService(context);
+        var result = await ProcesarVacacionesAsync(
+            service, SolicitudVacaciones(new DateTime(anio, 10, 9), new DateTime(anio, 10, 13)));
+
+        result.IsError.Should().BeFalse();
+        var saldo = context.SaldosVacacionesAnuales.Single(s => s.IdUsuario == 123);
+        saldo.DiasTomados.Should().Be(3);
+    }
+
+    [Fact]
     public async Task EnviarDirector_Guarda_Envio_Y_Documento_Con_Interfase_En_Asokam()
     {
         var context = CreateInMemoryContext();
