@@ -131,6 +131,21 @@ public class HospitalService : IHospitalService
 
     private static List<HospitalDto> AplicarFiltrosExtension(List<HospitalDto> hospitales, HospitalFilterParams filter)
     {
+        if (!string.IsNullOrWhiteSpace(filter.FiltroSede))
+        {
+            hospitales = filter.FiltroSede.ToLowerInvariant() switch
+            {
+                // "sedes" excluye solo los marcados explícitamente como logísticos (0);
+                // los NULL (sin clasificar) se conservan para no ocultar hospitales.
+                "sedes" => hospitales.Where(h => h.Extension?.EsSedeTaller != false).ToList(),
+                "logisticos" => hospitales.Where(h => h.Extension?.EsSedeTaller == false).ToList(),
+                "sin-clasificar" => hospitales
+                    .Where(h => h.Extension is not null && h.Extension.EsSedeTaller == null)
+                    .ToList(),
+                _ => hospitales,
+            };
+        }
+
         if (filter.ConSia.HasValue)
         {
             hospitales = hospitales
@@ -263,6 +278,9 @@ public class HospitalService : IHospitalService
                 ConSia = request.ConSia,
                 NumeroQuirofanos = request.NumeroQuirofanos,
                 EsZonaMetropolitana = request.EsZonaMetropolitana,
+                EsAlmacen = request.EsAlmacen,
+                EsFarmacia = request.EsFarmacia,
+                EsSedeTaller = request.EsSedeTaller,
                 IdUsuarioCreacion = idUsuario,
                 IdUsuarioModificacion = idUsuario
             }, ct);
@@ -279,6 +297,9 @@ public class HospitalService : IHospitalService
         existing.ConSia = request.ConSia;
         existing.NumeroQuirofanos = request.NumeroQuirofanos;
         existing.EsZonaMetropolitana = request.EsZonaMetropolitana;
+        existing.EsAlmacen = request.EsAlmacen;
+        existing.EsFarmacia = request.EsFarmacia;
+        existing.EsSedeTaller = request.EsSedeTaller;
         existing.IdUsuarioModificacion = idUsuario;
 
         AnestesiaCalculator.Calcular(existing, factores);
@@ -310,5 +331,158 @@ public class HospitalService : IHospitalService
         }
 
         return extensiones.Count;
+    }
+
+    public async Task<SincronizarHospitalesResponse> SincronizarExtensionesAsync(
+        int idUsuario,
+        CancellationToken ct = default)
+    {
+        // Universo = el mismo del catálogo: activos y sin Privado/Distribuidor.
+        var hospitales = await _hospitalRepository.GetHospitalesAsync(
+            new HospitalFilterParams { ExcluirTipos = ["Privado", "Distribuidor"] }, ct);
+
+        if (hospitales.Count == 0)
+        {
+            return new SincronizarHospitalesResponse();
+        }
+
+        var ids = hospitales.Select(h => h.CodigoContacto).ToList();
+        var existentes = await _extensionRepository.GetByHospitalIdsAsync(ids, ct);
+        var idsConExtension = existentes.Select(e => e.IdHospital).ToHashSet();
+
+        // Gerencia por jerarquía institucional (espeja el script 0019).
+        var tiposGerencia = await _tipoGerenciaRepository.GetAllAsync(ct);
+        var idsPorGerencia = tiposGerencia.ToDictionary(t => t.Descripcion, t => t.IdTipoGerencia);
+
+        // Solo altas: las extensiones existentes no se insertan ni actualizan.
+        var nuevas = hospitales
+            .Where(h => !idsConExtension.Contains(h.CodigoContacto))
+            .Select(h =>
+            {
+                var (esAlmacen, esFarmacia, esSedeTaller) = ClasificarContacto(h, hospitales);
+                return new HospitalExtension
+                {
+                    IdHospital = h.CodigoContacto,
+                    IdTipoGerencia = idsPorGerencia.TryGetValue(ClasificarTipoGerencia(h), out var idGerencia)
+                        ? idGerencia
+                        : null,
+                    EsZonaMetropolitana = ClasificarZonaMetropolitana(h),
+                    EsAlmacen = esAlmacen,
+                    EsFarmacia = esFarmacia,
+                    EsSedeTaller = esSedeTaller,
+                    IdUsuarioCreacion = idUsuario,
+                    IdUsuarioModificacion = idUsuario,
+                };
+            })
+            .ToList();
+
+        if (nuevas.Count > 0)
+        {
+            await _extensionRepository.CreateRangeAsync(nuevas, ct);
+        }
+
+        return new SincronizarHospitalesResponse
+        {
+            TotalHospitales = hospitales.Count,
+            Creadas = nuevas.Count,
+            YaExistian = idsConExtension.Count,
+        };
+    }
+
+    /// <summary>
+    /// Gerencia por jerarquía institucional (espeja vw_hospitales_clasificados y el
+    /// script 0019): 364 o hijo de 364 -> IMSS; tipo Privado -> Privado; todo lo demás
+    /// (Gobierno, Bienestar 385, ISSSTE 370, tipo NULL) -> Descentralizado.
+    /// </summary>
+    private static string ClasificarTipoGerencia(Hospital hospital)
+    {
+        if (hospital.CodigoContacto == 364 || hospital.CodigoContactoPrincipal == 364)
+        {
+            return "IMSS";
+        }
+
+        return hospital.Tipo == "Privado" ? "Privado" : "Descentralizado";
+    }
+
+    /// <summary>
+    /// Clasificación del contacto como sede/logístico (espeja el script 0024): almacenes
+    /// delegacionales/subdelegacionales y BIRMEX no son sede; el sub-almacén es la sede
+    /// preferente de su UMAE; la farmacia es sede solo si no existe sub-almacén del mismo
+    /// prefijo; el resto es sede.
+    /// </summary>
+    private static (bool EsAlmacen, bool EsFarmacia, bool EsSedeTaller) ClasificarContacto(
+        Hospital hospital,
+        IReadOnlyCollection<Hospital> universo)
+    {
+        var nombre = (hospital.NombreContacto ?? string.Empty).Trim().ToUpperInvariant();
+
+        var esAlmacenDistribucion =
+            nombre.Contains("BIRMEX")
+            || (nombre.Contains("ALMAC") && (nombre.Contains("DELEGACIONAL") || nombre.Contains("DELEGACION")));
+        if (esAlmacenDistribucion)
+        {
+            return (true, false, false);
+        }
+
+        if (nombre.Contains("SUB-ALMAC") || nombre.Contains("SUB ALMAC"))
+        {
+            return (true, false, true);
+        }
+
+        if (nombre.Contains("FARMACIA"))
+        {
+            var baseNombre = nombre.Replace(" - FARMACIA", string.Empty);
+            var tieneSubAlmacen = universo.Any(o =>
+            {
+                var n = (o.NombreContacto ?? string.Empty).Trim().ToUpperInvariant();
+                return (n.Contains("SUB-ALMAC") || n.Contains("SUB ALMAC"))
+                    && n.StartsWith(baseNombre, StringComparison.Ordinal);
+            });
+            return (false, true, !tieneSubAlmacen);
+        }
+
+        return (false, false, true);
+    }
+
+    /// <summary>
+    /// ZMVM: CDMX (493) y municipios conurbados de Edomex (501); espeja la regla
+    /// del script 0017 (clasificar zona metropolitana).
+    /// </summary>
+    private static bool ClasificarZonaMetropolitana(Hospital hospital)
+    {
+        if (!int.TryParse(hospital.CodigoEstado, out var codigoEstado))
+        {
+            return false;
+        }
+
+        if (codigoEstado == 493)
+        {
+            return true;
+        }
+
+        if (codigoEstado != 501)
+        {
+            return false;
+        }
+
+        var ciudad = (hospital.Ciudad ?? string.Empty).Trim().ToUpperInvariant();
+        return ciudad.StartsWith("ECATEPEC")
+            || ciudad.StartsWith("CIUDAD ECATEPEC")
+            || ciudad.StartsWith("NEZAHUALC")
+            || ciudad.StartsWith("NETZAHUALC")
+            || ciudad.StartsWith("NAUCALPAN")
+            || ciudad.StartsWith("TLALNEPANTLA")
+            || ciudad.Contains("UAUTITLAN")
+            || ciudad.StartsWith("TULTITLAN")
+            || ciudad.StartsWith("COACALCO")
+            || (ciudad.StartsWith("NICOL") && ciudad.Contains("ROMERO"))
+            || ciudad.StartsWith("ATIZAPAN")
+            || ciudad.StartsWith("MELCHOR OCAMPO")
+            || ciudad.StartsWith("CHIMALHUAC")
+            || ciudad.StartsWith("IXTAPALUCA")
+            || ciudad.StartsWith("VALLE DE CHALCO")
+            || ciudad.StartsWith("CHICOLOAPAN")
+            || ciudad.StartsWith("TEPOZOTL")
+            || ciudad == "LA PAZ";
     }
 }

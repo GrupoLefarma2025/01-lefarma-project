@@ -2,7 +2,7 @@
 -- 9999_20260903-1300_educacion-medica_drop-schema-reset.lefarma.sql
 -- Descripcion: UTILIDAD DE DESARROLLO. Elimina TODO el schema
 --   educacion_medica (vistas, FKs y tablas) sin depender del orden,
---   para recrear la base desde cero con los scripts 0002 a 0010.
+--   para recrear la base desde cero con 0016 (esquema) y 0030 (catálogos).
 --   El orden de borrado es irrelevante porque primero se quitan todas
 --   las restricciones FOREIGN KEY del schema y luego todas las tablas.
 --   NO ejecutar en produccion: borra todo el modulo.
@@ -44,7 +44,7 @@ PRINT 'Tablas eliminadas.';
 IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'educacion_medica')
 BEGIN
     DROP SCHEMA educacion_medica;
-    PRINT 'Schema [educacion_medica] eliminado. Listo para recrear con 0002-0010.';
+    PRINT 'Schema [educacion_medica] eliminado. Listo para recrear con 0016 + 0030.';
 END
 ELSE
     PRINT 'Schema [educacion_medica] no existe. Nada que eliminar.';

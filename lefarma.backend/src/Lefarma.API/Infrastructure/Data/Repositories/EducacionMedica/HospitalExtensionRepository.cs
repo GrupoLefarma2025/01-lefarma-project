@@ -57,6 +57,25 @@ public class HospitalExtensionRepository : IHospitalExtensionRepository
         return extension;
     }
 
+    public async Task CreateRangeAsync(
+        IEnumerable<HospitalExtension> extensiones,
+        CancellationToken cancellationToken = default)
+    {
+        var lista = extensiones.ToList();
+        if (lista.Count == 0) return;
+
+        var ahora = DateTime.UtcNow;
+        foreach (var extension in lista)
+        {
+            extension.Activo = true;
+            extension.FechaCreacion = ahora;
+            extension.FechaModificacion = ahora;
+        }
+
+        _context.HospitalesExtension.AddRange(lista);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task UpdateAsync(
         HospitalExtension extension,
         CancellationToken cancellationToken = default)

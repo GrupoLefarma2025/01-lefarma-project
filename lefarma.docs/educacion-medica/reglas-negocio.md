@@ -628,6 +628,7 @@ Esta es la **sección central**: las reglas de negocio que el módulo implementa
 
 - **El sistema propone una distribución draft (optimizada)** respetando capacidad (§5.2), pareo (§5.3) y zonas (§5.4).
 - **Los humanos seleccionan/corrigen** la asignación final. El sistema no asigna en automático; propone.
+- Una vez **cerrada** la versión de rutas, los cambios puntuales (fecha, hora, orden, altas/bajas) ya no reabren el flujo: se aplican como **ajuste post-cierre auditado** (§5.11) o, para el equipo, como **solicitud de cambio** resuelta por el Coordinador de Educación Médica.
 
 ### 5.6 Contenido de cada taller / visita
 
@@ -637,6 +638,8 @@ Cada taller lleva:
 - **Folletos**
 - **Productos + cantidad** (muestras)
 - **Equipo de proyección** (propio o rentado)
+
+El ciclo de **impartición** (material FOR-007, asistencia FOR-008, evidencias y estados) se gobierna por las reglas de §5.12.
 
 > Fuente: `Formularios/ASK-CEM-FOR-005 Matriz de Talleres Médicos.md` — recursos producto + folleto + gastos de envío + box lunch; `ASK-CEM-FOR-007` — checklist de material.
 
@@ -688,6 +691,50 @@ Asokam **NO** tiene fuerza de ventas:
 
 → El módulo **crea su propia** distinción de roles (**EV / EP / GV**) y las tablas de pareo EV+EP, con **FK lógica → `app.Usuarios.IdUsuario`**.
 
+### 5.11 Ajustes post-cierre (fecha, hora y logística)
+
+Regla: un documento **ya publicado** (versión de rutas `Cerrada`, taller `Autorizado`/`Programado`) no reabre el workflow por un imprevisto; se corrige con un **ajuste auditado** (ADR-00010):
+
+- **Alcance**: rutas `Cerrada` — mover visita (fecha/orden), editar `hora_salida`/`hora_llegada`, alta y baja de visita; talleres `Autorizado`/`Programado` — fecha, hora, lugar y número de participantes. `EnCurso`/`Realizado` quedan cerrados (los gobierna §5.12).
+- **Permiso exclusivo** del **Coordinador de Educación Médica (CEM)** (`rutas.puede_ajustar`, `talleres.puede_ajustar`); los permisos normales de captura **no** habilitan ajustes.
+- **Motivo obligatorio** + auditoría completa en `ajustes_post_cierre` (usuario, fecha, acción y valores antes/después). **Sin firma digital.**
+- **Límite temporal** _(configurable)_: la fecha original del taller/visita no puede superar **45 días** hacia atrás (`dias_limite_cambio`); fuera del plazo se rechaza con aviso.
+- **Capacidad**: en modo ajuste los topes (3/día, 8/semana) **avisan pero no bloquean**; el motivo documenta la excepción.
+- **Sincronización taller → ruta**: al cambiar la fecha de un taller se mueve la visita de la ruta activa en la misma transacción, revalidando capacidad; si no cabe, el ajuste se rechaza sin cambios parciales.
+- **"Solicitar cambio" (cancelación de versión)** no cambia de comportamiento, pero su motivo deja de perderse: se registra como `CANCELAR_VERSION`.
+- **Solicitud de cambio del equipo**: cuando el candado de captura está puesto o la matriz salió de captura, el equipo envía una **solicitud** (`taller_solicitudes_cambio`, estado `Pendiente/Aprobada/Rechazada/Cancelada`, diff y motivos en JSON). El CEM la resuelve desde la **Matriz General** (pendientes arriba con icono); al aprobar se aplica la misma lógica del ajuste y al rechazar solo se registra el motivo. Notificación **in-app (campana) y por correo** al CEM al crear y al solicitante al resolver.
+
+> Fuente de la necesidad: `Procesos/Talleres Médicos en Hospitales.md` — *"EV: Notifica al GV para que reagende la visita para ofrecer el taller médico."* El mecanismo de ajuste/auditoría es decisión de digitalización (ADR-00010).
+
+### 5.12 Impartición de talleres (digital)
+
+El ciclo posterior a la Matriz autorizada se digitaliza **sin workflow** (la impartición es ejecución, no autorización; ADR-00008):
+
+- **Cierre de matriz → `Programado` automático**: el `CERRAR` del DC escribe `Programado` en todos los talleres de la matriz (historial con origen **Automático**). `Autorizado` deja de ser estado de reposo.
+- **Material (FOR-007, 1:1)**: el **AEM** registra el paquete (producto/cantidad + checklist de 6 ítems + fecha) y el **EV** confirma la recepción con **firma digital** (firma + fecha + usuario, patrón bitácora). El papel firmado/escaneado se sube además como evidencia.
+- **Asistencia (FOR-008, máx. 20)**: la lista se llena a mano en sitio y el equipo la **transcribe** (cédula, puesto, contacto y observaciones médico líder +/−); la **hoja firmada se sube una sola vez como evidencia** del taller (foto/escaneo, tipo documento — revisión 2026-10-10: sin firma digital por asistente).
+- **Evidencias**: fotos/video/documentos del taller; se capturan **desde que el taller está `EnCurso`**.
+- **Máquina de estados** (validada en servicio; la UI solo ofrece transiciones permitidas por rol/estado):
+  - `Programado → EnCurso` (EV/EP; obligatorio **sin candado de horario**, con **sugerencia** el día del taller).
+  - `EnCurso → Realizado` (EV/EP; exige **≥1 evidencia y ≥1 asistencia**; escribe `fecha_realizado`).
+  - `Programado/EnCurso → Cancelado` (**GV, AEM o CEM**, motivo obligatorio).
+  - Borrar el taller sigue disponible solo mientras la Matriz esté en `Creada`.
+- **Historial**: cada transición se registra en `taller_estados_historial` (estado anterior/nuevo, origen Automático/Manual, motivo, usuario, fecha).
+- **Panel de situación** en "Mis talleres": KPIs del mes (total, programados, en curso, realizados, cancelados), barra de avance y badges con icono por estado.
+- `Realizado` alimenta `cobertura_taller` del ranking (lee `estado = 'Realizado'` por hospital).
+
+> Fuentes: `Instructivos/Solicitud y Entrega de Materiales para Talleres Médicos.md` §5.8–5.9 y `Formularios/ASK-CEM-FOR-007`; `Instructivos/Impartición de Talleres Médicos.md` §5.1–5.2 y `Formularios/ASK-CEM-FOR-008`.
+
+### 5.13 Hospitales extraordinarios y captura asistida
+
+- **Hospital extraordinario** = hospital del **catálogo oficial (FOR-002)** que **no pertenece a la selección autorizada** y se visita por un imprevisto durante la vigencia. **La selección mensual firmada no se toca** (ADR-00011).
+- **Visita extraordinaria**: se da de alta en la versión de rutas activa (`Cerrada`) con el modo ajuste de §5.11 (`id_seleccion_hospital` NULL + `es_extraordinaria` + hospital por `id_hospital` del catálogo). Aparece en calendario, impresión y Mis asignaciones como cualquier visita; **no tiene estado propio** (cancelarla es un ajuste `BAJA_VISITA`). Si el equipo no tiene ruta en la versión, el sistema la crea para colgar la visita.
+- **Taller extraordinario**: exige **equipo (EV+EP)** y **motivo obligatorio**; `id_seleccion_hospital` NULL; entra a la matriz individual del equipo y a la general de la gerencia, cuenta para la meta mensual y el ranking como cualquier taller, y **nace `Programado`** con historial de origen Automático.
+- **Captura asistida**: con el permiso `talleres.puede_capturar_asistida`, el **CEM** puede crear talleres **a nombre de cualquier equipo**, eligiendo hospitales de la lista de la selección de ese equipo (rutas `Cerrada`). Sustituye la validación "ser integrante del equipo" solo con ese permiso; la UI muestra "Capturado por".
+- **Permisos nuevos** (solo CEM; el SuperAdministrador hereda): `talleres.puede_capturar_asistida` y `talleres.puede_capturar_extraordinarios` (junto con los de ajuste de §5.11).
+
+> Fuente del catálogo: `Formularios/ASK-CEM-FOR-002 Base de Datos de Hospitales.md` — *"Formato para registrar la base de datos de hospitales del sistema público de salud que serán considerados para los Talleres Médicos en Hospitales."* La figura de "hospital extraordinario" es decisión de digitalización (ADR-00011), no está en los instructivos.
+
 ---
 
 ## 6. Modelo de datos y dependencias del legacy (Asokam)
@@ -711,7 +758,7 @@ Investigación de la BD Asokam (2026-08-10): el módulo es **más greenfield de 
 | SIA, quirófanos | ⚠️ **Module-owned** | No existen en Asokam; columnas propias en `hospital_extension` |
 | Tipo de gerencia | ⚠️ **Module-owned** | Catálogo propio `tipo_gerencia` (IMSS / Descentralizado / Privado) |
 
-> **Magnitud:** los hospitales se organizan **jerárquicamente** bajo 3 contactos institucionales padre (IMSS 364 / ISSSTE 370 / Bienestar 385) con miles de unidades hijas (79 / 8 / 4,225). El módulo cura cuáles son sedes reales de taller (UMAE/HGZ) vs almacenes/distribuidores. Detalle técnico: [[decisiones/00001_esquema-datos-educacion-medica]] §1.2.12.
+> **Magnitud:** los hospitales se organizan **jerárquicamente** bajo 3 contactos institucionales padre (IMSS 364 / ISSSTE 370 / Bienestar 385) con miles de unidades hijas (79 / 8 / 4,225). El módulo **cura cuáles son sedes reales de taller (UMAE/HGZ) vs almacenes/distribuidores**: `hospital_extension` clasifica cada contacto con `es_almacen`, `es_farmacia` y `es_sede_taller` (regla inicial por nombre —los almacenes delegacionales/BIRMEX no son sede; el sub-almacén es la sede preferente de su UMAE; la farmacia es sede solo si no hay sub-almacén—, revisable en la pantalla Hospitales). El buscador de Selección Mensual y los candidatos del ranking excluyen los contactos logísticos. Detalle técnico: [[decisiones/00001_esquema-datos-educacion-medica]] §1.2.12.
 
 ### 6.3 Catálogo — mapeo Educación Médica ↔ Asokam (autoritativo)
 
@@ -747,29 +794,30 @@ erDiagram
     TALLERES ||--|{ TALLER_RECURSOS : "costea (polimórfico)"
     TALLERES ||--|| TALLER_MATERIALES : "prepara (FOR-007)"
     TALLERES ||--o{ TALLER_ASISTENCIAS : "registra (FOR-008)"
-    TALLERES ||--o{ TALLER_APROBACIONES : "firma (log)"
     TALLERES ||--o{ TALLER_EVIDENCIAS : "evidencia (post-taller)"
+    TALLERES ||--o{ TALLER_ESTADOS_HISTORIAL : "transiciona (ADR-00008)"
+    TALLERES ||--o{ TALLER_SOLICITUDES_CAMBIO : "solicita cambio (ADR-00010)"
+    %% AJUSTES_POST_CIERRE: bitácora polimórfica (RUTA_VISITA | RUTA_VERSION | TALLER), sin FK física (ADR-00010)
+    %% RUTAS_VISITAS.es_extraordinaria + id_seleccion_hospital NULL: visita extraordinaria (ADR-00011)
 ```
 
-> Los scripts SQL manuales están en `lefarma.database/educacion-medica/` (`0003_..._create-tablas-operacionales.lefarma.sql`: catálogo `tipo_gerencia` + las 11 tablas operacionales). Sin EF migrations.
+> Los scripts SQL manuales están en `lefarma.database/educacion-medica/`: `0016_..._create-esquema-completo.lefarma.sql` (instalación limpia con TODAS las tablas y columnas finales — incluye impartición, ajustes post-cierre y extraordinarios) y `0030_..._instalacion-limpia-catalogos.lefarma.sql` (catálogos y backfills, solo Lefarma). Los incrementales de esquema 0022/0023/0025/0026/0027/0028 se retiraron el 2026-10-10 al quedar integrados en `0016`. Sin EF migrations.
 
 ### 6.5 Máquina de estados del taller (código Mermaid)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Borrador
-    Borrador --> Elaborado : elabora (EV/EP)
-    Elaborado --> Revisado : CA revisa costos
-    Revisado --> Autorizado : DC autoriza Matriz
-    Autorizado --> Programado : agenda en calendario
-    Programado --> EnCurso : inicia taller
-    EnCurso --> Realizado : cierra con evidencias
-    Borrador --> Cancelado : cancela
+    [*] --> Creada
+    Creada --> Programado : cierre de la matriz (DC CERRAR, automático)
+    Programado --> EnCurso : inicia taller (EV/EP, sugerido el día)
+    EnCurso --> Realizado : cierra con >=1 evidencia y >=1 asistencia (EV/EP)
+    Programado --> Cancelado : cancela (GV/AEM/CEM, motivo obligatorio)
+    EnCurso --> Cancelado : cancela (GV/AEM/CEM, motivo obligatorio)
     Realizado --> [*]
     Cancelado --> [*]
 ```
 
-> Restricciones: CHECK `estado` en BD + transiciones validadas en servicio; DELETE solo en `Borrador`; cada firma es un registro en `taller_aprobaciones` (log).
+> Restricciones: CHECK `estado` en BD + transiciones y rol validadas en servicio; DELETE del taller solo con la Matriz en `Creada`; cada transición queda en `taller_estados_historial` (origen Automático/Manual, motivo, usuario, fecha). `Autorizado` se conserva por si se revierte el disparador del cierre (el flujo normal ya no se detiene ahí). `Elaborado`/`Revisado` quedan como vocabulario legacy sin uso.
 
 ## 7. Parámetros configurables
 
@@ -781,6 +829,7 @@ Consolidado de todos los valores que el área puede ajustar **en cualquier momen
 | Split por institución | IMSS / ISSSTE / Otros | Todos configurables; no hay defaults fijos por segmento |
 | Máx visitas/día por persona | **3** | Techo de capacidad diaria |
 | Máx visitas/semana por persona | **8** | A la vez objetivo y techo |
+| Días límite para ajuste post-cierre | **45** | `dias_limite_cambio`: máximo de días hacia atrás (desde hoy contra la fecha original del taller/visita) para permitir un ajuste (§5.11) |
 
 ---
 
@@ -837,6 +886,7 @@ Regla del documento: toda abreviatura se escribe completa la primera vez que apa
 | **GPS** | Sistema de posicionamiento global* | Base del cálculo de zonas de visita (agrupamiento sobre latitud/longitud) |
 | **PDF / MD / QR** | Formato de documento portátil / Markdown / código de respuesta rápida* | Soportes del expediente físico (PDF), de las fuentes (MD) y de la encuesta de satisfacción (QR) |
 | **EF / SSMS / SQL** | Entity Framework / SQL Server Management Studio / Structured Query Language* | Herramientas de la capa de datos del backend |
+| **JSON** | JavaScript Object Notation* | Formato de los valores antes/después de los ajustes y del contenido de las solicitudes de cambio (§5.11) |
 | **SPA / API** | Single Page Application / Application Programming Interface* | Aplicación frontend (SPA) y su interfaz de servicios (API) |
 | **PERSISTED / CHECK / UNIQUE** | Columnas calculadas persistidas / restricción de valores / restricción de unicidad* | Mecanismos SQL usados en el schema (cascada calculada por la BD, state machine y anti-duplicados) |
 | **N:M / CSV** | Muchos a muchos / valores separados por coma* | Relación programa↔hospital×producto (N:M) y claves de producto guardadas como CSV |

@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AlertTriangle, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { DragPayload } from '../rutasUtils';
 
@@ -37,7 +38,7 @@ function ItemSinPlanificar({ item, editable }: { item: HospitalSinPlanificar; ed
         isDragging && 'opacity-40'
       )}
     >
-      {editable && <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />}
+      {editable && <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />}
       <div className="min-w-0 flex-1">
         <p className="truncate font-medium">{item.nombre}</p>
         <p className="truncate text-xs text-muted-foreground">
@@ -70,20 +71,23 @@ export function SinPlanificarPanel({ items, errores, editable, dragActivo }: Sin
       className={cn(
         'rounded-md border transition-all',
         isOver && editable && arrastrandoVisita
-          ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-          : 'bg-muted/30'
+          ? 'border-primary bg-blue-50 ring-1 ring-blue-200 dark:bg-blue-950/40 dark:ring-blue-900'
+          : 'bg-slate-100 dark:bg-slate-800/50'
       )}
     >
       <button
         type="button"
         className="flex w-full items-center justify-between px-3 py-2 text-sm"
         onClick={() => setAbierto((v) => !v)}
+        aria-expanded={abierto}
       >
         <span className="flex items-center gap-1 font-medium">
           {abierto ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           Sin planificar
         </span>
-        <span className="text-xs text-muted-foreground">{items.length}</span>
+        <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">
+          {items.length}
+        </Badge>
       </button>
 
       {abierto && (
@@ -97,8 +101,9 @@ export function SinPlanificarPanel({ items, errores, editable, dragActivo }: Sin
             <div key={item.idSeleccionHospital} className="space-y-1">
               <ItemSinPlanificar item={item} editable={editable} />
               {errores[item.idSeleccionHospital] && (
-                <p className="px-2 text-xs text-destructive">
-                  ⚠ {errores[item.idSeleccionHospital]}
+                <p className="flex items-start gap-1 px-2 text-xs text-destructive">
+                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                  {errores[item.idSeleccionHospital]}
                 </p>
               )}
             </div>

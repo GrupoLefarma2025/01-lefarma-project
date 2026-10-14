@@ -1,4 +1,5 @@
-import { Search } from 'lucide-react';
+import { AlertTriangle, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -45,12 +46,16 @@ export function EquiposPanel({
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Equipos
         </p>
-        <span className="text-xs text-muted-foreground">{equipos.length}</span>
+        <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">
+          {equipos.length}
+        </Badge>
       </div>
 
       <div className="relative border-b p-2">
         <Search className="absolute left-[18px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
+          type="search"
+          aria-label="Buscar equipo por nombre o integrantes"
           placeholder="Buscar equipo..."
           className="h-8 pl-8 text-sm"
           value={busqueda}
@@ -72,11 +77,12 @@ export function EquiposPanel({
               key={equipo.idEquipo}
               type="button"
               onClick={() => onSelect(equipo.idEquipo)}
+              aria-current={activo ? 'true' : undefined}
               className={cn(
                 'mb-1 w-full rounded-md border-l-2 px-3 py-2 text-left transition-colors',
                 activo
-                  ? 'border-l-primary bg-primary/5'
-                  : 'border-l-transparent hover:bg-muted/60'
+                  ? 'border-l-primary bg-blue-50 ring-1 ring-inset ring-blue-200 dark:bg-blue-950/40 dark:ring-blue-900'
+                  : 'border-l-transparent hover:bg-slate-100 dark:hover:bg-slate-800/60'
               )}
             >
               <span className={cn('block text-sm font-medium', activo && 'text-primary')}>
@@ -85,22 +91,39 @@ export function EquiposPanel({
               <span className="block truncate text-xs text-muted-foreground">
                 {equipo.integrantes}
               </span>
-              <span className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
-                <span>{equipo.totalVisitas} visitas</span>
-                <span className={cn(semanaExcedida && 'font-semibold text-destructive')}>
-                  Semana{' '}
+              <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
+                <span className="tabular-nums">{equipo.totalVisitas} visitas</span>
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1',
+                    semanaExcedida && 'font-semibold text-destructive'
+                  )}
+                >
+                  Semana pico{' '}
                   {equipo.peorSemana
                     ? `${equipo.peorSemana.carga}/${maxVisitasSemana}`
                     : `0/${maxVisitasSemana}`}
-                  {semanaExcedida && ' ⚠'}
+                  {semanaExcedida && (
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
                 </span>
-                <span className={cn(foraneosExcedidos && 'font-semibold text-destructive')}>
+                <span
+                  className={cn(
+                    'inline-flex items-center gap-1',
+                    foraneosExcedidos && 'font-semibold text-destructive'
+                  )}
+                >
                   Foráneos {equipo.foraneos}/{maxViajesForaneos}
-                  {foraneosExcedidos && ' ⚠'}
+                  {foraneosExcedidos && (
+                    <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
                 </span>
               </span>
               {equipo.excede && !semanaExcedida && !foraneosExcedidos && (
-                <span className="mt-0.5 block text-xs text-amber-600">Con ajustes pendientes</span>
+                <span className="mt-0.5 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Con ajustes pendientes
+                </span>
               )}
             </button>
           );

@@ -29,4 +29,14 @@ public class TipoGerenciaRepository : ITipoGerenciaRepository
             .AsNoTracking()
             .FirstOrDefaultAsync(t => t.IdTipoGerencia == id && t.Activo, cancellationToken);
     }
+
+    public async Task<Dictionary<int, int>> GetConteosHospitalesAsync(CancellationToken cancellationToken = default)
+    {
+        return await _context.HospitalesExtension
+            .AsNoTracking()
+            .Where(h => h.Activo && h.IdTipoGerencia != null)
+            .GroupBy(h => h.IdTipoGerencia!.Value)
+            .Select(g => new { IdTipoGerencia = g.Key, Total = g.Count() })
+            .ToDictionaryAsync(x => x.IdTipoGerencia, x => x.Total, cancellationToken);
+    }
 }

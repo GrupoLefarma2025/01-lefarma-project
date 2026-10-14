@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +13,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/regiones")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.HospitalesVer)]
 public class RegionesController : ControllerBase
 {
     private readonly IRegionService _service;
@@ -37,6 +40,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPost]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Crear región",
         Description = "Crea una región nueva con su centroide y los estados que la componen. Los hospitales no se mueven; se reasignan con 'Aplicar mapeo a hospitales'.")]
@@ -62,6 +66,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPut("{idRegion:int}")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Actualizar región",
         Description = "Edita nombre, centroide, estatus y los estados que componen la región. Cambiar los estados NO mueve hospitales; se reasignan con 'Aplicar mapeo a hospitales'.")]
@@ -87,6 +92,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpGet("estados-catalogo")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Obtener catálogo de estados",
         Description = "Retorna los 32 estados (Asokam.genEstadosCat) con la región que los tiene asignada en la gerencia indicada, para la edición por checkboxes.")]
@@ -127,6 +133,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPost("aplicar-mapeo/preview")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Preview de aplicar mapeo a hospitales",
         Description = "Cuenta, por estado, cuántos hospitales se moverían a la región de su estado EN SU GERENCIA según el mapeo actual, y cuántos hospitales sin región y sin mapeo se asignarían a la región con centroide más cercano (GPS). Opcionalmente acotado a una gerencia; sin parámetro evalúa ambas. No cambia datos.")]
@@ -143,6 +150,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPost("aplicar-mapeo")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Aplicar mapeo a hospitales",
         Description = "Pase 1: asigna a cada hospital la región de su estado en su gerencia donde difiere (sobrescribe según el mapeo). Pase 2: los hospitales que siguen sin región se asignan a la región activa de SU gerencia con centroide más cercano (GPS); nunca toca los que ya tienen región y omita hospitales sin gerencia. Opcionalmente acotado a una gerencia. Revisa el preview antes.")]
@@ -181,6 +189,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPut("estados/{codigoEstado:int}")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Asignar estado a región",
         Description = "Crea o actualiza el mapeo de un estado hacia una región.")]
@@ -206,6 +215,7 @@ public class RegionesController : ControllerBase
     }
 
     [HttpPatch("hospitales/{codigoContacto:int}")]
+    [HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
     [SwaggerOperation(
         Summary = "Asignar región a un hospital",
         Description = "Asigna (o quita, con idRegion: null) la región de un hospital en su extensión. La asignación es manual y queda registrada con el usuario que la hizo.")]

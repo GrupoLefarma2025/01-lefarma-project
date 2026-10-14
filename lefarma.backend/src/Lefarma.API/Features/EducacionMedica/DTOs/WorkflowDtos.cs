@@ -23,8 +23,14 @@ public class RutaVersionDto
     public int IdRutaVersion { get; set; }
     public int Version { get; set; }
     public string Estado { get; set; } = string.Empty;
+    /// <summary>Workflow de la versión (para dibujar el flujo en el historial).</summary>
+    public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }
     public string? PasoNombre { get; set; }
+    /// <summary>Estado del workflow (catálogo config.workflow_estados): nombre y color para la UI.</summary>
+    public int? IdEstado { get; set; }
+    public string? EstadoNombre { get; set; }
+    public string? EstadoColor { get; set; }
     public bool EsEditable { get; set; }
     public bool EsFinal { get; set; }
     public List<AccionDisponibleResponse> Acciones { get; set; } = [];
@@ -33,9 +39,11 @@ public class RutaVersionDto
 /// <summary>Item de la Bandeja de Autorizaciones del módulo.</summary>
 public class PendienteAprobacionDto
 {
-    public string Tipo { get; set; } = string.Empty;   // "seleccion" | "rutas"
-    public int IdEntidad { get; set; }                 // idSeleccionMensual | idRutaVersion
+    public string Tipo { get; set; } = string.Empty;   // "seleccion" | "rutas" | "matriz"
+    public int IdEntidad { get; set; }                 // idSeleccionMensual | idRutaVersion | idMatrizGeneral
     public int IdSeleccionMensual { get; set; }        // para navegar a la pantalla correspondiente
+    /// <summary>Id de la matriz general cuando el documento es de tipo "matriz" (para el deep-link).</summary>
+    public int? IdMatrizGeneral { get; set; }
     /// <summary>Workflow del documento (para dibujar el flujo en el modal de historial).</summary>
     public int? IdWorkflow { get; set; }
     public int? IdPasoActual { get; set; }

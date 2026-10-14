@@ -1,4 +1,6 @@
 using Lefarma.API.Features.EducacionMedica.DTOs;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +12,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/productos")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.ProductosVer)]
 public class ProductosController : ControllerBase
 {
     private readonly IProductoService _service;

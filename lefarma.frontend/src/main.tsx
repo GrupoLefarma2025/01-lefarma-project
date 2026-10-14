@@ -1,6 +1,11 @@
 ﻿import { createRoot } from 'react-dom/client'
-// import './index.css'
-import './index_ordenes.css' // merged via worktree test
+// CSS por responsabilidad:
+// - index_ordenes.css: base global (tema/layout) + impresión de CxP
+// - index_rh.css: impresión de RH (Solicitud de Personal)
+// - index_educacion_medica.css: impresión de Educación Médica
+import './index_ordenes.css'
+import './index_rh.css'
+import './index_educacion_medica.css'
 
 import App from './App.tsx'
 

@@ -77,6 +77,25 @@ public static class Permissions
 
     public static class EducacionMedica
     {
+        public const string HubVerModulo = "baseapp.hub.puede_ver_educacion_medica";
+        public const string HospitalesVer = "educacion_medica.hospitales.puede_ver";
+        public const string HospitalesGestionar = "educacion_medica.hospitales.puede_gestionar";
+        public const string ProductosVer = "educacion_medica.productos.puede_ver";
+        public const string SeleccionesVer = "educacion_medica.selecciones.puede_ver";
+        public const string SeleccionesGestionar = "educacion_medica.selecciones.puede_gestionar";
+        public const string RutasVer = "educacion_medica.rutas.puede_ver";
+        public const string RutasGestionar = "educacion_medica.rutas.puede_gestionar";
+        public const string RutasAjustar = "educacion_medica.rutas.puede_ajustar";
+        public const string ConfiguracionGestionar = "educacion_medica.configuracion.puede_gestionar";
+        public const string TalleresVer = "educacion_medica.talleres.puede_ver";
+        public const string TalleresCapturar = "educacion_medica.talleres.puede_capturar";
+        public const string TalleresRevisar = "educacion_medica.talleres.puede_revisar";
+        public const string TalleresAjustar = "educacion_medica.talleres.puede_ajustar";
+        public const string TalleresCapturarAsistida = "educacion_medica.talleres.puede_capturar_asistida";
+        public const string TalleresCapturarExtraordinarios = "educacion_medica.talleres.puede_capturar_extraordinarios";
+        public const string MaterialesGestionar = "educacion_medica.materiales.puede_gestionar";
+        public const string MaterialesConfirmar = "educacion_medica.materiales.puede_confirmar";
+        public const string EvidenciasGestionar = "educacion_medica.evidencias.puede_gestionar";
         public const string BandejaVerTodos = "educacion_medica.aprobaciones.puede_ver_todos";
     }
 

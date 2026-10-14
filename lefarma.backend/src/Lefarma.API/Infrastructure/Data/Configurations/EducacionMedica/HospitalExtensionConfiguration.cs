@@ -28,6 +28,10 @@ public class HospitalExtensionConfiguration : IEntityTypeConfiguration<HospitalE
         builder.Property(e => e.AnestesiasMixtasObesos).HasColumnName("anestesias_mixtas_obesos").HasPrecision(18, 2);
         builder.Property(e => e.AnestesiasMixtasNoObesos).HasColumnName("anestesias_mixtas_no_obesos").HasPrecision(18, 2);
 
+        builder.Property(e => e.EsAlmacen).HasColumnName("es_almacen");
+        builder.Property(e => e.EsFarmacia).HasColumnName("es_farmacia");
+        builder.Property(e => e.EsSedeTaller).HasColumnName("es_sede_taller");
+
         builder.Property(e => e.Activo).HasColumnName("activo");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");

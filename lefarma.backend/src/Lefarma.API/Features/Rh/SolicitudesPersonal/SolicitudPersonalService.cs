@@ -422,8 +422,10 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     && string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase)
                     && soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
                 {
-                    var diasQueDescuentan = await ContarDiasQueConsumenSaldoAsync(
-                        _context, soli.IdEmpresa, soli.FechaInicio.Value, soli.FechaFin.Value);
+                    var fechasDetalle = soli.Detalle.Select(d => d.Fecha).ToList();
+                    var diasQueDescuentan = fechasDetalle.Count > 0
+                        ? await ContarDiasQueConsumenSaldoAsync(_context, soli.IdEmpresa, fechasDetalle)
+                        : await ContarDiasQueConsumenSaldoAsync(_context, soli.IdEmpresa, soli.FechaInicio.Value, soli.FechaFin.Value);
 
                     var anioSaldo = soli.FechaInicio.Value.Year;
                     var idUsuarioSaldo = soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador;
@@ -1258,6 +1260,14 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             return fechas.Count;
         }
 
+        internal static async Task<int> ContarDiasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, IEnumerable<DateTime> fechasSolicitud)
+        {
+            var fechas = fechasSolicitud.Select(f => f.Date).Distinct().ToList();
+            var consumenSaldo = await FiltrarFechasQueConsumenSaldoAsync(context, idEmpresa, fechas);
+            return consumenSaldo.Count;
+        }
+
         internal static async Task<List<DateTime>> ObtenerFechasQueConsumenSaldoAsync(
             ApplicationDbContext context, int idEmpresa, DateTime fechaInicio, DateTime fechaFin)
         {
@@ -1268,6 +1278,12 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 .Select(d => fechaInicio.AddDays(d).Date)
                 .ToList();
 
+            return await FiltrarFechasQueConsumenSaldoAsync(context, idEmpresa, fechas);
+        }
+
+        private static async Task<List<DateTime>> FiltrarFechasQueConsumenSaldoAsync(
+            ApplicationDbContext context, int idEmpresa, List<DateTime> fechas)
+        {
             // Días hábiles con ConsumeSaldo = false para esta empresa
             var diasNoConsumen = await context.DiasHabiles
                 .AsNoTracking()

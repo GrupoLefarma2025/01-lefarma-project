@@ -12,10 +12,23 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Modal } from '@/components/ui/modal';
-import { SignatureAlert } from '@/components/common/SignatureAlert';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { WorkflowAccionModal } from '@/components/workflows/WorkflowAccionModal';
+import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
+import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
+import { DocumentoHeaderCard } from '@/apps/educacion-medica/components/DocumentoHeaderCard';
+import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
+import { formatearPeriodoSeleccion } from '@/apps/educacion-medica/components/seleccionUtils';
 import { useAuthStore } from '@/shared/auth/authStore';
 import {
   Select,
@@ -24,8 +37,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Gavel, GripVertical, Loader2, Printer, RefreshCcw, Sparkles, Undo2 } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CalendarCheck,
+  CalendarPlus,
+  Gavel,
+  GripVertical,
+  History,
+  Info,
+  Loader2,
+  MapPin,
+  Plane,
+  Printer,
+  RefreshCcw,
+  Route,
+  Sparkles,
+  Undo2,
+  Users,
+} from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { usePermission } from '@/hooks/usePermission';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
@@ -52,6 +85,10 @@ import {
   type EquipoImpresion,
   type EncabezadoImpresion,
 } from './components/RutasPrintModal';
+import { MotivoDialog } from './components/MotivoDialog';
+import { VisitaExtraordinariaModal } from './components/VisitaExtraordinariaModal';
+import { AjustesRutasModal } from './components/AjustesRutasModal';
+import { HorasVisitaModal } from './components/HorasVisitaModal';
 import {
   agruparPorDia,
   contarViajesForaneos,
@@ -91,6 +128,8 @@ export default function RutasPage() {
   const [version, setVersion] = useState<number | null>(null);
   const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
   const [accionFirmaRutas, setAccionFirmaRutas] = useState<AccionDisponible | null>(null);
+  const [modalFirma, setModalFirma] = useState(false);
+  const [modalHistorial, setModalHistorial] = useState(false);
   const { hasFirma } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
@@ -113,6 +152,19 @@ export default function RutasPage() {
   const [maxVisitasSemana, setMaxVisitasSemana] = useState(8);
   const [maxViajesForaneos, setMaxViajesForaneos] = useState(3);
   const [estrategia, setEstrategia] = useState<EstrategiaReparto>('ciudad');
+
+  // Modo ajuste post-cierre (ADR-00010) y visita extraordinaria (ADR-00011)
+  const puedeAjustar = usePermission({ require: 'educacion_medica.rutas.puede_ajustar' });
+  const [modoAjuste, setModoAjuste] = useState(false);
+  const [accionMotivo, setAccionMotivo] = useState<{
+    titulo: string;
+    descripcion?: string;
+    ejecutar: (motivo: string) => Promise<void>;
+  } | null>(null);
+  const [extraordinariaOpen, setExtraordinariaOpen] = useState(false);
+  const [ajustesOpen, setAjustesOpen] = useState(false);
+  const [horasVisita, setHorasVisita] = useState<RutaVisita | null>(null);
+  const [guardandoMotivo, setGuardandoMotivo] = useState(false);
   // dnd-kit (pointer events): sirve igual para mouse y tactil; el payload llega
   // via data del evento (sin carreras de estado) y el estado solo alimenta visuales.
   const sensors = useSensors(
@@ -156,6 +208,7 @@ export default function RutasPage() {
   );
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
     fetchTodo(null);
   }, [fetchTodo]);
 
@@ -230,20 +283,29 @@ export default function RutasPage() {
   const versionInfoActual = versionInfo && versionInfo.version === version ? versionInfo : null;
 
   const editable =
-    estadoVersion === 'Draft' &&
-    seleccion?.estado === 'Autorizada' &&
+    estadoVersion === 'Creada' &&
+    seleccion?.estado === 'Cerrada' &&
     (versionInfoActual?.esEditable ?? true);
+  // Modo ajuste (ADR-00010): versión Cerrada + permiso exclusivo del CEM.
+  const ajusteDisponible = estadoVersion === 'Cerrada' && puedeAjustar;
+  const ajusteActivo = ajusteDisponible && modoAjuste;
+  const arrastrable = editable || ajusteActivo;
   const accionEnviarRutas =
     versionInfoActual?.acciones.find((a) => a.tipoAccionCodigo === 'ENVIAR') ?? null;
   const accionesFirmaRutas =
     versionInfoActual && !versionInfoActual.esEditable && !versionInfoActual.esFinal
       ? versionInfoActual.acciones.filter((a) => a.tipoAccionCodigo !== 'CANCELAR')
       : [];
-  const hayDraft = rutasVisibles.some((r) => r.estado === 'Draft');
+  const hayDraft = rutasVisibles.some((r) => r.estado === 'Creada');
 
   const planificadasIds = useMemo(() => {
     const s = new Set<number>();
-    rutasVisibles.forEach((r) => r.visitas.forEach((v) => s.add(v.idSeleccionHospital)));
+    rutasVisibles.forEach((r) =>
+      r.visitas.forEach((v) => {
+        // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
+        if (v.idSeleccionHospital != null) s.add(v.idSeleccionHospital);
+      })
+    );
     return s;
   }, [rutasVisibles]);
 
@@ -351,19 +413,21 @@ export default function RutasPage() {
 
   const infoBanner = useMemo(() => {
     if (estadoVersion === 'Archivada') {
-      return 'Estás viendo una versión archivada. Es de solo lectura; genera una propuesta nueva para editar.';
+      return 'Versión archivada: solo lectura. Genera una propuesta nueva para editar.';
     }
     if (estadoVersion === 'Cancelada') {
-      return 'Esta versión fue cancelada (solo lectura). Genera una propuesta nueva para retomar la calendarización.';
+      return 'Versión cancelada: solo lectura. Genera una propuesta nueva para retomar la calendarización.';
     }
-    if (estadoVersion === 'Confirmada') {
-      return 'Rutas confirmadas y publicadas. Para modificarlas usa "Solicitar cambio" (cancelar → regenerar → volver a firmar).';
+    if (estadoVersion === 'Cerrada') {
+      return puedeAjustar
+        ? 'Rutas publicadas (documento cerrado). Activa «Modo ajuste» para corregir fecha, hora u orden: cada cambio exige motivo y queda auditado.'
+        : 'Rutas publicadas. Para modificarlas usa «Solicitar cambio».';
     }
-    if (seleccion && seleccion.estado !== 'Autorizada' && seleccion.estado !== 'Cerrada') {
-      return 'La selección aún no está autorizada; autorízala en el paso Autorización para poder confirmar rutas.';
+    if (seleccion && seleccion.estado !== 'Cerrada') {
+      return 'La selección aún no está cerrada. El Gerente de Ventas debe cerrarla para poder planificar rutas.';
     }
     return null;
-  }, [estadoVersion, seleccion]);
+  }, [estadoVersion, seleccion, puedeAjustar]);
 
   const totalHospitales = seleccion?.hospitales.length ?? 0;
   const planificadas = planificadasIds.size;
@@ -407,11 +471,11 @@ export default function RutasPage() {
   };
 
   const firmarVersionRutas = async (
-    accion: AccionDisponible,
+    accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => {
-    if (!versionInfoActual) return;
+  ): Promise<boolean> => {
+    if (!versionInfoActual) return false;
     setGuardando(true);
     try {
       const response = await educacionMedicaApi.rutas.firmarVersion(versionInfoActual.idRutaVersion, {
@@ -421,21 +485,26 @@ export default function RutasPage() {
       });
 
       if (response.data.success) {
-        const confirmada = response.data.data?.estado === 'Confirmada';
+        const confirmada = response.data.data?.estado === 'Cerrada';
         if (confirmada) {
           toast.success('Rutas confirmadas. Las asignaciones ya están publicadas.');
           setAvisosBackend([]);
         } else {
           toast.success('Acción registrada.');
         }
+        // Cierra el modal de "Enviar a autorización" (acción suelta); la lista de
+        // acciones del modal de firma queda abierta y se refresca (patrón RH).
         setAccionFirmaRutas(null);
         setEditadoManual(false);
         await fetchTodo();
-      } else {
-        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+        return true;
       }
+
+      toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+      return false;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -470,16 +539,26 @@ export default function RutasPage() {
     }
   };
 
-  const moverVisita = async (visita: RutaVisita, fechaDestino: string, orden: number) => {
+  const moverVisita = async (
+    visita: RutaVisita,
+    fechaDestino: string,
+    orden: number,
+    motivo?: string
+  ) => {
     try {
       const response = await educacionMedicaApi.rutas.moverVisita(
         visita.idRuta,
         visita.idRutaVisita,
-        { fechaVisita: fechaDestino, orden }
+        { fechaVisita: fechaDestino, orden, motivo: motivo ?? null }
       );
       if (response.data.success) {
         toast.success('Visita movida.');
-        setEditadoManual(true);
+        const avisos = response.data.data?.avisos ?? [];
+        if (avisos.length > 0) {
+          setAvisosBackend(avisos);
+          toast.warning(avisos[0]);
+        }
+        if (!ajusteActivo) setEditadoManual(true);
         await fetchTodo(version);
       } else {
         toast.error(response.data.message ?? 'No se pudo mover la visita');
@@ -489,12 +568,20 @@ export default function RutasPage() {
     }
   };
 
-  const quitarVisita = async (visita: RutaVisita) => {
+  const quitarVisita = async (visita: RutaVisita, motivo?: string) => {
     try {
-      const response = await educacionMedicaApi.rutas.quitarVisita(visita.idRuta, visita.idRutaVisita);
+      const response = await educacionMedicaApi.rutas.quitarVisita(
+        visita.idRuta,
+        visita.idRutaVisita,
+        motivo ?? null
+      );
       if (response.data.success) {
-        toast.success('El hospital volvió a Sin planificar (sigue en la selección).');
-        setEditadoManual(true);
+        toast.success(
+          ajusteActivo
+            ? 'Visita quitada (ajuste auditado).'
+            : 'El hospital volvió a Sin planificar (sigue en la selección).'
+        );
+        if (!ajusteActivo) setEditadoManual(true);
         await fetchTodo(version);
       } else {
         toast.error(response.data.message ?? 'No se pudo quitar la visita');
@@ -504,8 +591,43 @@ export default function RutasPage() {
     }
   };
 
+  /** En modo ajuste toda acción pasa por el diálogo de motivo (ADR-00010). */
+  const solicitarMotivo = (
+    titulo: string,
+    descripcion: string,
+    ejecutar: (motivo: string) => Promise<void>
+  ) => {
+    setAccionMotivo({ titulo, descripcion, ejecutar });
+  };
+
+  const guardarHorasVisita = async (
+    horas: { horaSalida: string | null; horaLlegada: string | null },
+    motivo?: string
+  ) => {
+    if (!horasVisita) return;
+    setGuardando(true);
+    try {
+      const response = await educacionMedicaApi.rutas.editarHoras(
+        horasVisita.idRuta,
+        horasVisita.idRutaVisita,
+        { ...horas, motivo: motivo ?? null }
+      );
+      if (response.data.success) {
+        toast.success('Horas de la visita actualizadas.');
+        setHorasVisita(null);
+        await fetchTodo(version);
+      } else {
+        toast.error(response.data.message ?? 'No se pudieron actualizar las horas');
+      }
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'No se pudieron actualizar las horas');
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   const handleDropEnDia = async (ruta: Ruta, fecha: string, payload: DragPayload) => {
-    if (!editable) return;
+    if (!arrastrable) return;
 
     if (payload.tipo === 'visita' && payload.visita.idRuta !== ruta.idRuta) {
       toast.error(
@@ -516,9 +638,10 @@ export default function RutasPage() {
 
     // Tope duro en cliente (espejo de ValidarMovimientoAsync del backend): evita
     // la llamada que terminaria rechazada y explica el motivo al instante.
+    // En modo ajuste la capacidad avisa (no bloquea): decide el backend (ADR-00010).
     const esReordenMismoDia =
       payload.tipo === 'visita' && payload.visita.fechaVisita === fecha;
-    if (!esReordenMismoDia) {
+    if (!esReordenMismoDia && !ajusteActivo) {
       const delDia = ruta.visitas.filter((v) => v.fechaVisita === fecha).length;
       if (delDia >= maxVisitasDia) {
         toast.error(
@@ -543,36 +666,63 @@ export default function RutasPage() {
 
     if (payload.tipo === 'nuevo') {
       const idSeleccionHospital = payload.idSeleccionHospital;
-      setGuardando(true);
-      try {
-        const res = await educacionMedicaApi.rutas.agregarVisita(ruta.idRuta, {
-          idSeleccionHospital,
-          fechaVisita: fecha,
-          orden,
-        });
-        if (res.data.success) {
-          const aviso = res.data.data?.aviso;
-          if (aviso) toast.warning(aviso);
-          else toast.success('Visita agregada.');
-          setErroresAgregar((prev) => {
-            const next = { ...prev };
-            delete next[idSeleccionHospital];
-            return next;
+      const agregar = async (motivo?: string) => {
+        setGuardando(true);
+        try {
+          const res = await educacionMedicaApi.rutas.agregarVisita(ruta.idRuta, {
+            idSeleccionHospital,
+            fechaVisita: fecha,
+            orden,
+            motivo: motivo ?? null,
           });
-          setEditadoManual(true);
-          await fetchTodo(version);
-        } else {
-          const msg = res.data.message ?? 'No se pudo agregar la visita';
+          if (res.data.success) {
+            const aviso = res.data.data?.aviso;
+            const avisos = res.data.data?.avisos ?? [];
+            if (aviso) toast.warning(aviso);
+            else toast.success('Visita agregada.');
+            if (avisos.length > 0) {
+              setAvisosBackend(avisos);
+              toast.warning(avisos[0]);
+            }
+            setErroresAgregar((prev) => {
+              const next = { ...prev };
+              delete next[idSeleccionHospital];
+              return next;
+            });
+            if (!ajusteActivo) setEditadoManual(true);
+            await fetchTodo(version);
+          } else {
+            const msg = res.data.message ?? 'No se pudo agregar la visita';
+            setErroresAgregar((prev) => ({ ...prev, [idSeleccionHospital]: msg }));
+            toast.error(msg);
+          }
+        } catch (error: unknown) {
+          const msg = toApiError(error).message ?? 'No se pudo agregar la visita';
           setErroresAgregar((prev) => ({ ...prev, [idSeleccionHospital]: msg }));
           toast.error(msg);
+        } finally {
+          setGuardando(false);
         }
-      } catch (error: unknown) {
-        const msg = toApiError(error).message ?? 'No se pudo agregar la visita';
-        setErroresAgregar((prev) => ({ ...prev, [idSeleccionHospital]: msg }));
-        toast.error(msg);
-      } finally {
-        setGuardando(false);
+      };
+
+      if (ajusteActivo) {
+        solicitarMotivo(
+          'Agregar visita (ajuste post-cierre)',
+          `El hospital se agrega el ${formatearFecha(fecha)} con motivo auditado.`,
+          agregar
+        );
+      } else {
+        await agregar();
       }
+      return;
+    }
+
+    if (ajusteActivo) {
+      solicitarMotivo(
+        'Mover visita (ajuste post-cierre)',
+        `La visita se mueve al ${formatearFecha(fecha)} (posición ${orden}) con motivo auditado. Si la ruta no tiene cupo, el backend avisará.`,
+        (motivo) => moverVisita(payload.visita, fecha, orden, motivo)
+      );
       return;
     }
 
@@ -587,9 +737,20 @@ export default function RutasPage() {
     setDragPayload(null);
     const payload = event.active.data.current as DragPayload | undefined;
     const over = event.over;
-    if (!editable || !payload || !over) return;
+    if (!arrastrable || !payload || !over) return;
     if (over.id === 'sin-planificar') {
-      if (payload.tipo === 'visita') void quitarVisita(payload.visita);
+      if (payload.tipo === 'visita') {
+        const visita = payload.visita;
+        if (ajusteActivo) {
+          solicitarMotivo(
+            'Quitar visita (ajuste post-cierre)',
+            'La visita se da de baja de la ruta con motivo auditado.',
+            (motivo) => quitarVisita(visita, motivo)
+          );
+        } else {
+          void quitarVisita(visita);
+        }
+      }
       return;
     }
     const dia = over.data.current as { fecha: string; idRuta: number } | undefined;
@@ -625,7 +786,7 @@ export default function RutasPage() {
     (fecha: string, visitas: RutaVisita[]) => {
       const dict = new Map((seleccion?.hospitales ?? []).map((h) => [h.idSeleccionHospital, h]));
       const ubicaciones: HospitalUbicacion[] = visitas.flatMap((v) => {
-        const h = dict.get(v.idSeleccionHospital);
+        const h = v.idSeleccionHospital != null ? dict.get(v.idSeleccionHospital) : undefined;
         if (!h || h.latitudSnapshot == null || h.longitudSnapshot == null) return [];
         return [
           {
@@ -774,10 +935,8 @@ export default function RutasPage() {
   return (
     <div className="space-y-4">
       <RutasHeader
-        seleccion={seleccion}
         versiones={versionesInfo}
         version={version}
-        estadoVersion={estadoVersion}
         onVersionChange={(v) => {
           setVersion(v);
           setEquipoSeleccionado(null);
@@ -786,98 +945,213 @@ export default function RutasPage() {
         onBack={() => navigate('/educacion-medica/seleccion')}
       />
 
-      {!loading && rutasVisibles.length > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {resumenEquipos.length} {resumenEquipos.length === 1 ? 'equipo' : 'equipos'} ·{' '}
-          {planificadas}/{totalHospitales} planificadas · {sinPlanificarTotal} sin planificar
-          {advertenciasTotales > 0 && (
-            <span className="text-amber-600"> · {advertenciasTotales} advertencias</span>
-          )}
-        </p>
+      {versionInfoActual && (
+        <DocumentoHeaderCard
+          titulo={`Rutas v${versionInfoActual.version}`}
+          pasoNombre={versionInfoActual.pasoNombre}
+          estadoNombre={versionInfoActual.estadoNombre}
+          estadoColor={versionInfoActual.estadoColor}
+          estadoFallback={versionInfoActual.estado ?? estadoVersion}
+          detalle={
+            seleccion
+              ? `${seleccion.tipoGerencia ?? 'Sin gerencia'} · Selección ${formatearPeriodoSeleccion(seleccion.fechaSeleccion)}`
+              : undefined
+          }
+          showFirmar={accionesFirmaRutas.length > 0}
+          onFirmar={() => setModalFirma(true)}
+          firmando={guardando}
+          firmarDeshabilitado={hasFirma === false}
+          showHistorial
+          onHistorial={() => setModalHistorial(true)}
+        />
       )}
 
-      {(seleccion?.estado === 'Autorizada' || rutasVisibles.length > 0) && (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => fetchTodo(version)} disabled={loading}>
-            <RefreshCcw className="mr-2 h-4 w-4" />
-            Actualizar
-          </Button>
-          {rutasVisibles.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setModalImprimir(true)}>
-              <Printer className="mr-2 h-4 w-4" />
-              Vista de impresión
-            </Button>
-          )}
+      {/* Modo ajuste post-cierre (ADR-00010): permiso exclusivo del CEM en versión Cerrada */}
+      {ajusteDisponible && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 dark:border-amber-800 dark:bg-amber-950/30">
+          <Switch
+            id="switch-modo-ajuste"
+            checked={modoAjuste}
+            onCheckedChange={(valor) => {
+              setModoAjuste(valor);
+              if (!valor) setAvisosBackend([]);
+            }}
+          />
+          <label htmlFor="switch-modo-ajuste" className="text-sm font-medium">
+            Modo ajuste
+          </label>
+          <span className="text-xs text-muted-foreground">
+            Documento cerrado: los cambios (fecha, hora, orden, altas/bajas) exigen motivo y quedan
+            auditados; la capacidad avisa pero no bloquea.
+          </span>
           <div className="flex-1" />
-          {seleccion?.estado === 'Autorizada' && estadoVersion !== 'Confirmada' && (
+          {ajusteActivo && (
             <>
-              <div
-                className="flex items-center gap-1.5"
-                title="Cómo reparte el sistema las visitas al generar la propuesta. Siempre es una sugerencia: puedes mover visitas después."
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-card"
+                onClick={() => setExtraordinariaOpen(true)}
               >
-                <span className="text-xs text-muted-foreground">Criterio</span>
-                <Select
-                  value={estrategia}
-                  onValueChange={(v) => setEstrategia(v as EstrategiaReparto)}
-                >
-                  <SelectTrigger className="h-8 w-[225px] text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ciudad">
-                      Ciudades juntas (una ciudad por día)
-                    </SelectItem>
-                    <SelectItem value="centroide">
-                      Compacto (por distancia al centroide)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button variant="outline" size="sm" disabled={guardando} onClick={onClickRegenerar}>
-                {guardando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                {hayDraft ? 'Regenerar propuesta' : 'Generar propuesta'}
+                <CalendarPlus className="mr-1.5 h-4 w-4" />
+                Visita extraordinaria
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-card"
+                onClick={() => setAjustesOpen(true)}
+                disabled={versionInfoActual == null}
+              >
+                <History className="mr-1.5 h-4 w-4" />
+                Ajustes
               </Button>
             </>
           )}
-          {seleccion?.estado === 'Autorizada' && estadoVersion === 'Confirmada' && (
-            <Button variant="outline" size="sm" onClick={() => setModalCancelar(true)}>
-              <Undo2 className="mr-2 h-4 w-4" />
-              Solicitar cambio
+        </div>
+      )}
+
+      {!loading && rutasVisibles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-lg border bg-card px-4 py-2.5 shadow-sm">
+          <span className="inline-flex items-center gap-2 text-sm">
+            <Users className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <span className="font-semibold tabular-nums">{resumenEquipos.length}</span>
+            <span className="text-muted-foreground">
+              {resumenEquipos.length === 1 ? 'equipo' : 'equipos'}
+            </span>
+          </span>
+          <span className="inline-flex items-center gap-2 text-sm">
+            <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <span className="font-semibold tabular-nums">
+              {planificadas}/{totalHospitales}
+            </span>
+            <span className="text-muted-foreground">planificadas</span>
+          </span>
+          <span
+            className={cn(
+              'inline-flex items-center gap-2 text-sm',
+              sinPlanificarTotal > 0 && 'text-amber-600 dark:text-amber-400'
+            )}
+          >
+            <AlertCircle className="h-4 w-4" aria-hidden="true" />
+            <span className="font-semibold tabular-nums">{sinPlanificarTotal}</span>
+            <span className={sinPlanificarTotal > 0 ? undefined : 'text-muted-foreground'}>
+              sin planificar
+            </span>
+          </span>
+          {advertenciasTotales > 0 && (
+            <span className="inline-flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
+              <span className="font-semibold tabular-nums">{advertenciasTotales}</span>
+              <span>advertencias</span>
+            </span>
+          )}
+        </div>
+      )}
+
+      {(seleccion?.estado === 'Cerrada' || rutasVisibles.length > 0) && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex-1" />
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 bg-card"
+            onClick={() => fetchTodo(version)}
+            disabled={loading}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCcw className="h-4 w-4" />
+            )}
+            Actualizar
+          </Button>
+          {rutasVisibles.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 bg-card"
+              onClick={() => setModalImprimir(true)}
+            >
+              <Printer className="h-4 w-4" />
+              Imprimir
             </Button>
           )}
-          {versionInfoActual && !versionInfoActual.esFinal && !versionInfoActual.esEditable && (
-            <>
-              <span className="self-center rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                En autorización · {versionInfoActual.pasoNombre ?? 'pendiente de firma'}
+          {seleccion?.estado === 'Cerrada' && estadoVersion !== 'Cerrada' && (
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-100 py-1 pl-3 pr-1 dark:border-slate-700 dark:bg-slate-800/60">
+              <span className="text-xs font-medium text-muted-foreground">
+                Criterio de reparto
               </span>
-              {hasFirma === false && <SignatureAlert />}
-            </>
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      className="text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      aria-label="Cómo funciona el criterio de reparto"
+                    >
+                      <Info className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    Cómo reparte el sistema las visitas al generar la propuesta. Siempre es una
+                    sugerencia: puedes mover visitas después.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <Select
+                value={estrategia}
+                onValueChange={(v) => setEstrategia(v as EstrategiaReparto)}
+              >
+                <SelectTrigger
+                  className="h-7 w-[210px] bg-card text-xs"
+                  aria-label="Criterio de reparto"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ciudad">Ciudades juntas (una ciudad por día)</SelectItem>
+                  <SelectItem value="centroide">Compacto (por distancia al centroide)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 bg-card"
+                disabled={guardando}
+                onClick={onClickRegenerar}
+              >
+                {guardando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {hayDraft ? 'Regenerar propuesta' : 'Generar propuesta'}
+              </Button>
+            </div>
+          )}
+          {seleccion?.estado === 'Cerrada' && estadoVersion === 'Cerrada' && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 bg-card"
+              onClick={() => setModalCancelar(true)}
+            >
+              <Undo2 className="h-4 w-4" />
+              Solicitar cambio
+            </Button>
           )}
           {accionEnviarRutas && (
             <Button
               size="sm"
               disabled={guardando}
               onClick={() => abrirFirmaRutas(accionEnviarRutas)}
-              className="font-semibold"
+              className="gap-1.5 font-semibold"
             >
-              <Gavel className="mr-2 h-4 w-4" />
+              <Gavel className="h-4 w-4" />
               Enviar a autorización
             </Button>
           )}
-          {accionesFirmaRutas.map((accion) => (
-            <Button
-              key={accion.idAccion}
-              size="sm"
-              variant={accion.tipoAccionCodigo === 'DEVOLVER' ? 'outline' : 'default'}
-              disabled={guardando}
-              className={accion.tipoAccionCodigo === 'DEVOLVER' ? '' : 'font-semibold'}
-              onClick={() => abrirFirmaRutas(accion)}
-            >
-              {accion.tipoAccionCodigo === 'DEVOLVER'
-                ? 'Devolver a Draft'
-                : (accion.tipoAccionNombre ?? 'Firmar')}
-            </Button>
-          ))}
         </div>
       )}
 
@@ -894,41 +1168,39 @@ export default function RutasPage() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : rutasVisibles.length === 0 ? (
-        <div className="rounded-lg border bg-card p-8 text-center">
-          {seleccion?.estado === 'Autorizada' ? (
-            <>
-              <p className="text-sm font-medium">
-                No hay una propuesta de rutas para esta selección.
-              </p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                La selección está autorizada y contiene {totalHospitales}{' '}
-                hospital{totalHospitales === 1 ? '' : 'es'}. Genera una propuesta inicial para
-                comenzar a calendarizar las visitas.{alertasAccion.cantidad > 0 && ' Atención:'}
-                {alertasAccion.cantidad > 0 && (
-                  <>
-                    {' '}
-                    {alertasAccion.cantidad} hospital(es) no tienen región o equipo asignado y
-                    quedarán sin planificar hasta que los corrijas en Reparto.
-                  </>
+        <div className="rounded-lg border bg-card shadow-sm">
+          <EmptyState
+            icon={<Route className="h-10 w-10" />}
+            title={
+              seleccion?.estado === 'Cerrada'
+                ? 'Sin propuesta de rutas'
+                : 'Esta selección aún no tiene rutas'
+            }
+            className="py-10"
+          />
+          <p className="mx-auto -mt-3 max-w-md px-6 text-center text-sm text-muted-foreground">
+            {seleccion?.estado === 'Cerrada'
+              ? `La selección está autorizada con ${totalHospitales} hospital${
+                  totalHospitales === 1 ? '' : 'es'
+                }. Genera la propuesta inicial para calendarizar las visitas.`
+              : 'Autoriza la selección (doble firma GV + GG) en el paso Autorización para poder planificar rutas.'}
+          </p>
+          <div className="flex justify-center pb-8 pt-4">
+            {seleccion?.estado === 'Cerrada' ? (
+              <Button disabled={guardando} onClick={onClickRegenerar} className="gap-1.5">
+                {guardando ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
                 )}
-              </p>
-              <Button className="mt-4" disabled={guardando} onClick={onClickRegenerar}>
-                <Sparkles className="mr-2 h-4 w-4" />
                 Generar propuesta
               </Button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium">Esta selección aún no tiene rutas.</p>
-              <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-                Autoriza la selección (doble firma GV + GG) en el paso Autorización para poder
-                planificar rutas.
-              </p>
-              <Button variant="outline" className="mt-4" onClick={() => navigate('/educacion-medica/seleccion')}>
+            ) : (
+              <Button variant="outline" onClick={() => navigate('/educacion-medica/seleccion')}>
                 Ir a Selección Mensual
               </Button>
-            </>
-          )}
+            )}
+          </div>
         </div>
       ) : (
         <DndContext
@@ -951,28 +1223,55 @@ export default function RutasPage() {
 
             {equipoActivo && (
               <div className="min-w-0 space-y-4">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <p className="text-base font-semibold">{equipoActivo.nombre}</p>
+              <div className="rounded-lg border bg-card px-3 py-2 shadow-sm">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <p className="text-sm font-semibold">{equipoActivo.nombre}</p>
                   <span className="text-xs text-muted-foreground">{equipoActivo.integrantes}</span>
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  {equipoActivo.totalVisitas} planificadas · {equipoActivo.sinPlanificar} sin
-                  planificar ·{' '}
-                  <span
-                    className={
-                      equipoActivo.foraneos > maxViajesForaneos ? 'font-semibold text-destructive' : ''
-                    }
-                  >
-                    Viajes foráneos {equipoActivo.foraneos}/{maxViajesForaneos}
+                <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="font-semibold tabular-nums text-foreground">
+                      {equipoActivo.totalVisitas}
+                    </span>
+                    planificadas
                   </span>
-                </p>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1',
+                      equipoActivo.sinPlanificar > 0
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    <AlertCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="font-semibold tabular-nums">{equipoActivo.sinPlanificar}</span>
+                    sin planificar
+                  </span>
+                  <span
+                    className={cn(
+                      'inline-flex items-center gap-1',
+                      equipoActivo.foraneos > maxViajesForaneos
+                        ? 'font-semibold text-destructive'
+                        : 'text-muted-foreground'
+                    )}
+                  >
+                    <Plane className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span className="font-semibold tabular-nums">
+                      {equipoActivo.foraneos}/{maxViajesForaneos}
+                    </span>
+                    viajes foráneos
+                    {equipoActivo.foraneos > maxViajesForaneos && (
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                    )}
+                  </span>
+                </div>
               </div>
 
               <SinPlanificarPanel
                 items={sinPlanificarPara(equipoActivo.idEquipo)}
                 errores={erroresAgregar}
-                editable={editable}
+                editable={arrastrable}
                 dragActivo={dragPayload}
               />
 
@@ -994,11 +1293,23 @@ export default function RutasPage() {
                         dias={dias}
                         maxVisitasDia={maxVisitasDia}
                         maxVisitasSemana={maxVisitasSemana}
-                        editable={editable}
+                        editable={arrastrable}
+                        modoAjuste={ajusteActivo}
                         dragActivo={dragPayload}
                         ubicacionPorVisita={ubicacionPorVisita}
-                        onRetornar={(visita) => void quitarVisita(visita)}
+                        onRetornar={(visita) => {
+                          if (ajusteActivo) {
+                            solicitarMotivo(
+                              'Quitar visita (ajuste post-cierre)',
+                              'La visita se da de baja de la ruta con motivo auditado (BAJA_VISITA).',
+                              (motivo) => quitarVisita(visita, motivo)
+                            );
+                          } else {
+                            void quitarVisita(visita);
+                          }
+                        }}
                         onVerMapa={abrirMapaDia}
+                        onEditarHoras={(visita) => setHorasVisita(visita)}
                       />
                     ))}
                   </div>
@@ -1010,8 +1321,8 @@ export default function RutasPage() {
 
           <DragOverlay dropAnimation={null}>
             {dragPayload && overlayNombre ? (
-              <div className="flex items-center gap-2 rounded-md border bg-background px-2 py-1.5 text-sm shadow-lg ring-1 ring-primary/40">
-                <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+              <div className="flex items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-sm shadow-lg ring-1 ring-blue-300 dark:ring-blue-800">
+                <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{overlayNombre}</div>
                   {overlayUbicacion && (
@@ -1082,18 +1393,57 @@ export default function RutasPage() {
           </div>
         }
       >
-        <div className="space-y-2">
+        <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Las rutas confirmadas pasarán a Cancelada y podrás generar una nueva propuesta. Queda
             huella por versiones.
           </p>
-          <Input
-            placeholder="Motivo del cambio..."
-            value={motivoCancelar}
-            onChange={(e) => setMotivoCancelar(e.target.value)}
-          />
+          <div className="space-y-1.5">
+            <Label htmlFor="motivo-cancelar-rutas">Motivo del cambio</Label>
+            <Input
+              id="motivo-cancelar-rutas"
+              placeholder="Describe brevemente el motivo..."
+              value={motivoCancelar}
+              onChange={(e) => setMotivoCancelar(e.target.value)}
+            />
+          </div>
         </div>
       </Modal>
+
+      {versionInfoActual && (
+        <DocumentoFirmaModal
+          open={modalFirma}
+          onClose={() => setModalFirma(false)}
+          documento={`Rutas v${versionInfoActual.version}`}
+          estadoTexto={
+            versionInfoActual.estadoNombre ??
+            (versionInfoActual.estado || 'Sin estado')
+          }
+          pasoNombre={versionInfoActual.pasoNombre}
+          tipo="rutas"
+          idEntidad={versionInfoActual.idRutaVersion}
+          idPasoActual={versionInfoActual.idPasoActual}
+          acciones={accionesFirmaRutas}
+          hasFirma={hasFirma ?? undefined}
+          guardando={guardando}
+          onConfirmar={(accion, comentario, datosAdicionales) =>
+            firmarVersionRutas(accion, comentario, datosAdicionales)
+          }
+        />
+      )}
+
+      {versionInfoActual && (
+        <DocumentoHistorialModal
+          open={modalHistorial}
+          onClose={() => setModalHistorial(false)}
+          documento={`Rutas v${versionInfoActual.version}`}
+          estadoTexto={versionInfoActual.estadoNombre ?? versionInfoActual.estado ?? 'Sin estado'}
+          tipo="rutas"
+          idEntidad={versionInfoActual.idRutaVersion}
+          idWorkflow={versionInfoActual.idWorkflow}
+          idPasoActual={versionInfoActual.idPasoActual}
+        />
+      )}
 
       <WorkflowAccionModal
         open={accionFirmaRutas !== null}
@@ -1109,6 +1459,51 @@ export default function RutasPage() {
         onConfirmar={(comentario, datosAdicionales) => {
           if (accionFirmaRutas) void firmarVersionRutas(accionFirmaRutas, comentario, datosAdicionales);
         }}
+      />
+
+      {/* Modo ajuste post-cierre (ADR-00010) y visita extraordinaria (ADR-00011) */}
+      <MotivoDialog
+        open={accionMotivo !== null}
+        onClose={() => setAccionMotivo(null)}
+        titulo={accionMotivo?.titulo ?? ''}
+        descripcion={accionMotivo?.descripcion}
+        guardando={guardandoMotivo}
+        onConfirmar={async (motivo) => {
+          if (!accionMotivo) return;
+          setGuardandoMotivo(true);
+          try {
+            await accionMotivo.ejecutar(motivo);
+            setAccionMotivo(null);
+          } finally {
+            setGuardandoMotivo(false);
+          }
+        }}
+      />
+
+      <VisitaExtraordinariaModal
+        open={extraordinariaOpen}
+        onClose={() => setExtraordinariaOpen(false)}
+        idSeleccionMensual={idSeleccionMensual}
+        onCreated={(avisos) => {
+          if (avisos.length > 0) setAvisosBackend(avisos);
+          void fetchTodo(version);
+        }}
+      />
+
+      <AjustesRutasModal
+        open={ajustesOpen}
+        onClose={() => setAjustesOpen(false)}
+        idRutaVersion={versionInfoActual?.idRutaVersion ?? null}
+        version={version}
+      />
+
+      <HorasVisitaModal
+        open={horasVisita !== null}
+        onClose={() => setHorasVisita(null)}
+        visita={horasVisita}
+        requiereMotivo={ajusteActivo}
+        guardando={guardando}
+        onGuardar={(horas, motivo) => guardarHorasVisita(horas, motivo)}
       />
     </div>
   );
