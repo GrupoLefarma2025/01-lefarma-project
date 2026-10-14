@@ -48,7 +48,7 @@ GO
     /* --- Backfill: rellenar codigo_proceso/url_button en las 2 filas existentes con los valores de Dev --- */
     UPDATE p SET p.codigo_proceso = d.codigo_proceso, p.url_button = d.url_button
     FROM Lefarma.config.workflow_canal_templates p
-    INNER JOIN LefarmaDev.config.workflow_canal_templates d ON d.id_template = p.id_template
+    INNER JOIN LefarmaDev.coneig.workflow_canal_templates d ON d.id_template = p.id_template
     WHERE p.codigo_proceso IS NULL AND d.codigo_proceso IS NOT NULL;
 
     IF NOT EXISTS (SELECT 1 FROM Lefarma.sys.indexes WHERE name = 'UX_workflow_canal_templates_canal_proceso'
