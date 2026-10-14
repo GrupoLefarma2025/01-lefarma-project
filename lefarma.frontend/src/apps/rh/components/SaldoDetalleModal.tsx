@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { CalendarDays, History, Loader2, Pencil } from 'lucide-react';
+import { CalendarDays, ChevronDown, ChevronUp, History, Loader2, Pencil } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -120,6 +120,7 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<AjusteForm>({ ajustados: '', vencidos: '', compensados: '', motivo: '' });
   const [idSaldoActivo, setIdSaldoActivo] = useState<number | null>(saldo?.idSaldo ?? null);
+  const [mostrarTodosAjustes, setMostrarTodosAjustes] = useState(false);
 
   const idSaldoProp = saldo?.idSaldo;
 
@@ -141,9 +142,11 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
       setDetalle(null);
       setEditando(false);
       setIdSaldoActivo(null);
+      setMostrarTodosAjustes(false);
       return;
     }
     setEditando(false);
+    setMostrarTodosAjustes(false);
     setIdSaldoActivo(idSaldoProp);
   }, [idSaldoProp]);
 
@@ -158,6 +161,7 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
   const cambiarAnio = (id: number) => {
     if (id === idSaldoActivo) return;
     setEditando(false);
+    setMostrarTodosAjustes(false);
     setIdSaldoActivo(id);
   };
 
@@ -249,6 +253,11 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
 
   const solicitudesCerradas = detalle?.solicitudes.filter((s) => !s.enTramite) ?? [];
   const solicitudesEnTramite = detalle?.solicitudes.filter((s) => s.enTramite) ?? [];
+
+  const historialAjustesOrdenado = detalle ? [...detalle.historialAjustes].reverse() : [];
+  const historialAjustesVisibles = mostrarTodosAjustes
+    ? historialAjustesOrdenado
+    : historialAjustesOrdenado.slice(0, 2);
 
   const footer = detalle ? (
     editando ? (
@@ -435,13 +444,63 @@ export function SaldoDetalleModal({ saldo, onClose, onUpdated }: SaldoDetalleMod
             </Card>
           </div>
 
-          {detalle.fechaModificacion && (
-            <div className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Último ajuste:</span>{' '}
-              {formatearFecha(detalle.fechaModificacion)}
-              {detalle.ajustadoPor ? ` por ${detalle.ajustadoPor}` : ''}
-              {detalle.motivoAjuste ? ` — ${detalle.motivoAjuste}` : ''}
-            </div>
+          {historialAjustesVisibles.length > 0 ? (
+            <section className="space-y-3">
+              <h4 className="flex items-center gap-2 text-sm font-semibold">
+                <History className="h-4 w-4" />
+                Historial de ajustes
+              </h4>
+              <div className="space-y-2">
+                {historialAjustesVisibles.map((ajuste, idx) => (
+                  <div
+                    key={`${ajuste.fecha}-${idx}`}
+                    className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground"
+                  >
+                    <div>
+                      <span className="font-medium text-foreground">
+                        {formatearFecha(ajuste.fecha)}
+                      </span>
+                      {ajuste.usuarioNombre ? ` por ${ajuste.usuarioNombre}` : ''}
+                    </div>
+                    <p className="mt-1 text-foreground">{ajuste.motivo}</p>
+                    <p className="mt-1">
+                      Ajustados: {formatearNumero(ajuste.diasAjustados)} · Vencidos:{' '}
+                      {formatearNumero(ajuste.diasVencidos)} · Compensados:{' '}
+                      {formatearNumero(ajuste.diasCompensados)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+              {detalle.historialAjustes.length > 2 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => setMostrarTodosAjustes((prev) => !prev)}
+                >
+                  {mostrarTodosAjustes ? (
+                    <>
+                      <ChevronUp className="mr-1 h-3 w-3" />
+                      Ver menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="mr-1 h-3 w-3" />
+                      Ver {detalle.historialAjustes.length - 2} más
+                    </>
+                  )}
+                </Button>
+              )}
+            </section>
+          ) : (
+            detalle.fechaModificacion && (
+              <div className="rounded-md border bg-muted/50 p-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">Último ajuste:</span>{' '}
+                {formatearFecha(detalle.fechaModificacion)}
+                {detalle.ajustadoPor ? ` por ${detalle.ajustadoPor}` : ''}
+              </div>
+            )
           )}
 
           {detalle.historial.length > 1 && (

@@ -364,7 +364,7 @@ export function FirmaUploadCard() {
             >
               <ImagePlus className="mb-2 h-8 w-8 text-muted-foreground" />
               <p className="text-sm font-medium text-muted-foreground">
-                Arrastra tu firma aquí o haz clic para seleccionar
+                Haz clic para seleccionar tu firma
               </p>
               <p className="text-xs text-muted-foreground/70">
                 Sube una imagen o dibuja tu firma

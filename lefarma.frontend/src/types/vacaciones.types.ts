@@ -101,6 +101,16 @@ export interface SaldoVacacionesHistorial {
   diasPendientes: number;
 }
 
+export interface SaldoAjusteHistorial {
+  fecha: string;
+  idUsuario: number;
+  usuarioNombre?: string;
+  motivo: string;
+  diasAjustados: number;
+  diasVencidos: number;
+  diasCompensados: number;
+}
+
 export interface SaldoVacacionesDetalle {
   idSaldo: number;
   idUsuario: number;
@@ -124,11 +134,11 @@ export interface SaldoVacacionesDetalle {
   diasPendientes: number;
   fechaModificacion?: string;
   ajustadoPor?: string;
-  motivoAjuste?: string;
   diasEnTramite: number;
   diasPendientesProyectado: number;
   solicitudes: SolicitudVacacionesDetalle[];
   historial: SaldoVacacionesHistorial[];
+  historialAjustes: SaldoAjusteHistorial[];
 }
 
 export interface SaldoVacacionesAjusteRequest {

@@ -75,11 +75,22 @@ namespace Lefarma.API.Features.Rh.Vacaciones.DTOs
         public decimal DiasPendientes { get; set; }
         public DateTime? FechaModificacion { get; set; }
         public string? AjustadoPor { get; set; }
-        public string? MotivoAjuste { get; set; }
         public int DiasEnTramite { get; set; }
         public decimal DiasPendientesProyectado { get; set; }
         public List<SolicitudVacacionesDetalleDto> Solicitudes { get; set; } = new();
         public List<SaldoVacacionesHistorialDto> Historial { get; set; } = new();
+        public List<SaldoVacacionesAjusteHistorialDto> HistorialAjustes { get; set; } = new();
+    }
+
+    public class SaldoVacacionesAjusteHistorialDto
+    {
+        public DateTime Fecha { get; set; }
+        public int IdUsuario { get; set; }
+        public string? UsuarioNombre { get; set; }
+        public string Motivo { get; set; } = string.Empty;
+        public decimal DiasAjustados { get; set; }
+        public decimal DiasVencidos { get; set; }
+        public decimal DiasCompensados { get; set; }
     }
 
     public class SaldoVacacionesHistorialDto

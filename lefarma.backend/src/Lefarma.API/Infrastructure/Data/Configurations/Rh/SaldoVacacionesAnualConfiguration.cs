@@ -25,7 +25,7 @@ namespace Lefarma.API.Infrastructure.Data.Configurations.Rh
             builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion").HasDefaultValueSql("GETDATE()");
             builder.Property(e => e.IdUsuarioModificacion).HasColumnName("id_usuario_modificacion");
             builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
-            builder.Property(e => e.MotivoAjuste).HasColumnName("motivo_ajuste").HasMaxLength(300).IsRequired(false);
+            builder.Property(e => e.HistorialAjustes).HasColumnName("historial_ajustes").HasColumnType("nvarchar(max)").IsRequired(false);
 
             builder.HasIndex(e => new { e.IdEmpresa, e.Anio }).HasDatabaseName("IX_saldos_vacaciones_empresa_anio");
         }

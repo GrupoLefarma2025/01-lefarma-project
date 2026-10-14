@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Asistencias;
 using Lefarma.API.Domain.Entities.Auth;
@@ -48,6 +49,12 @@ public class VacacionesServiceTests
             asistencias,
             asokam,
             Mock.Of<IWideEventAccessor>());
+
+    private static List<SaldoVacacionesAjusteHistorialDto> LeerHistorial(SaldoVacacionesAnual saldo)
+        => JsonSerializer.Deserialize<List<SaldoVacacionesAjusteHistorialDto>>(
+               saldo.HistorialAjustes ?? "[]",
+               new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })
+           ?? new List<SaldoVacacionesAjusteHistorialDto>();
 
     private static SaldoVacacionesAnual SeedSaldo(
         ApplicationDbContext context, int idUsuario = 1, int anio = 2026)
@@ -108,7 +115,46 @@ public class VacacionesServiceTests
         actualizado.DiasCompensados.Should().Be(2m);
         actualizado.IdUsuarioModificacion.Should().Be(99);
         actualizado.FechaModificacion.Should().NotBeNull();
-        actualizado.MotivoAjuste.Should().Be("Corrección RH");
+
+        var historial = LeerHistorial(actualizado);
+        historial.Should().ContainSingle();
+        historial[0].Motivo.Should().Be("Corrección RH");
+        historial[0].IdUsuario.Should().Be(99);
+        historial[0].DiasAjustados.Should().Be(3m);
+        historial[0].DiasVencidos.Should().Be(1m);
+        historial[0].DiasCompensados.Should().Be(2m);
+    }
+
+    [Fact]
+    public async Task AjustarSaldo_AcumulaEntradasEnHistorial()
+    {
+        var context = CreateAppContext();
+        var saldo = SeedSaldo(context);
+        var service = CreateService(context, CreateAsistenciasContext(), CreateAsokamContext());
+
+        var primero = await service.AjustarSaldoAsync(saldo.IdSaldo, new SaldoVacacionesAjusteRequest
+        {
+            DiasAjustados = 3m,
+            Motivo = "Primer ajuste"
+        }, idUsuario: 99);
+        var segundo = await service.AjustarSaldoAsync(saldo.IdSaldo, new SaldoVacacionesAjusteRequest
+        {
+            DiasVencidos = 1m,
+            Motivo = "Segundo ajuste"
+        }, idUsuario: 100);
+
+        primero.IsError.Should().BeFalse();
+        segundo.IsError.Should().BeFalse();
+
+        var actualizado = await context.SaldosVacacionesAnuales.FindAsync(saldo.IdSaldo);
+        var historial = LeerHistorial(actualizado!);
+        historial.Should().HaveCount(2);
+        historial[0].Motivo.Should().Be("Primer ajuste");
+        historial[0].DiasAjustados.Should().Be(3m);
+        historial[1].Motivo.Should().Be("Segundo ajuste");
+        historial[1].IdUsuario.Should().Be(100);
+        historial[1].DiasVencidos.Should().Be(1m);
+        historial[1].DiasAjustados.Should().Be(3m);
     }
 
     [Fact]
@@ -219,7 +265,6 @@ public class VacacionesServiceTests
         var saldo = SeedSaldo(context, idUsuario: 7);
         saldo.IdUsuarioModificacion = 99;
         saldo.FechaModificacion = new DateTime(2026, 2, 1);
-        saldo.MotivoAjuste = "Ajuste previo";
         context.SaveChanges();
 
         var asokam = CreateAsokamContext();
@@ -453,5 +498,61 @@ public class VacacionesServiceTests
 
         result.IsError.Should().BeTrue();
         result.FirstError.Code.Should().Be("SaldoVacacionesAnual.NotFound");
+    }
+
+    [Fact]
+    public async Task ObtenerDetalle_IncluyeHistorialAjustesConNombreDeUsuario()
+    {
+        var context = CreateAppContext();
+        var saldo = SeedSaldo(context, idUsuario: 7);
+        saldo.HistorialAjustes = JsonSerializer.Serialize(new List<SaldoVacacionesAjusteHistorialDto>
+        {
+            new()
+            {
+                Fecha = new DateTime(2026, 3, 1, 10, 30, 0),
+                IdUsuario = 99,
+                Motivo = "Corrección RH",
+                DiasAjustados = 3m,
+                DiasVencidos = 1m,
+                DiasCompensados = 2m
+            }
+        }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+        context.SaveChanges();
+
+        var asokam = CreateAsokamContext();
+        asokam.Usuarios.Add(new Usuario
+        {
+            IdUsuario = 99,
+            Correo = "rh@test.com",
+            NombreCompleto = "RH Admin"
+        });
+        asokam.SaveChanges();
+
+        var service = CreateService(context, CreateAsistenciasContext(), asokam);
+
+        var result = await service.ObtenerDetalleSaldoAsync(saldo.IdSaldo);
+
+        result.IsError.Should().BeFalse();
+        var detalle = result.Value;
+        detalle.HistorialAjustes.Should().ContainSingle();
+        detalle.HistorialAjustes[0].Motivo.Should().Be("Corrección RH");
+        detalle.HistorialAjustes[0].UsuarioNombre.Should().Be("RH Admin");
+        detalle.HistorialAjustes[0].DiasAjustados.Should().Be(3m);
+    }
+
+    [Fact]
+    public async Task ObtenerDetalle_HistorialAjustesJsonInvalido_DevuelveListaVacia()
+    {
+        var context = CreateAppContext();
+        var saldo = SeedSaldo(context, idUsuario: 7);
+        saldo.HistorialAjustes = "{json-corrupto";
+        context.SaveChanges();
+
+        var service = CreateService(context, CreateAsistenciasContext(), CreateAsokamContext());
+
+        var result = await service.ObtenerDetalleSaldoAsync(saldo.IdSaldo);
+
+        result.IsError.Should().BeFalse();
+        result.Value.HistorialAjustes.Should().BeEmpty();
     }
 }

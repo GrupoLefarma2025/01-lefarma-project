@@ -16,6 +16,6 @@ namespace Lefarma.API.Domain.Entities.Rh
         public DateTime FechaCreacion { get; set; }
         public int? IdUsuarioModificacion { get; set; }
         public DateTime? FechaModificacion { get; set; }
-        public string? MotivoAjuste { get; set; }
+        public string? HistorialAjustes { get; set; }
     }
 }
