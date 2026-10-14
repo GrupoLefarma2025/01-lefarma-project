@@ -34,7 +34,7 @@ export default function TinyMceEditor({ initialContent, onChange, height }: Tiny
       style={{ height: editorHeight }}
     >
       <Editor
-        apiKey='1y98o7v8qkqc9big87lvk4ekuo85bc6xrxzgue0jlmv5ip57'
+        apiKey={import.meta.env.VITE_TINYMCE_API_KEY}
         onInit={(_, editor) => {
           editorRef.current = editor;
         }}

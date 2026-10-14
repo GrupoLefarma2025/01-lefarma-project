@@ -1,0 +1,102 @@
+{
+  "task": "task-10 — Importador de la cotización de viajes (JSON del agente pi) + selección + envío en el wizard de viáticos",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    "lefarma.frontend/src/apps/viaticos/services/solicitudes.api.ts",
+    "lefarma.frontend/src/apps/viaticos/schemas/cotizacionViajes.esquema.ts",
+    "lefarma.frontend/src/apps/viaticos/types/cotizacion.types.ts",
+    "lefarma.frontend/src/apps/viaticos/types/solicitud.types.ts",
+    "lefarma.frontend/src/apps/viaticos/components/analizadorCotizacion.ts",
+    "lefarma.frontend/src/apps/viaticos/components/ImportarCotizacion.tsx",
+    "lefarma.frontend/src/apps/viaticos/components/ImportarCotizacion.test.tsx",
+    ".omo/evidence/task-10-viaticos-wizard-ruta-pi-busqueda.json"
+  ],
+  "not_touched": [
+    "lefarma.frontend/src/apps/viaticos/components/validadorCotizacion.ts",
+    "lefarma.frontend/src/apps/viaticos/components/cotizacionSchema.test.ts",
+    "lefarma.frontend/src/apps/viaticos/test/fixtures/cotizacion-ejemplo.json",
+    "lefarma.docs/viaticos/schemas/cotizacion-viajes.schema.json",
+    "lefarma.docs/viaticos/prompts/busqueda-viaticos.md",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx",
+    "lefarma.frontend/src/apps/educacion-medica/**",
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+    "odd/tasks/costos-ruta-formulario.md",
+    "pruebas de gastos/"
+  ],
+  "what_was_built": {
+    "solicitudes.api.ts": "Cliente HTTP: crear (POST /viaticos/solicitudes), misSolicitudes (GET /mis), detalle (GET /{id}) y guardarOpciones (PUT /{id}/opciones con body { cotizacion: { opciones } }). Sigue el patron de costosRuta.api.ts / municipios.api.ts.",
+    "cotizacionViajes.esquema.ts": "Copia ejecutable del schema oficial (el navegador no puede leer lefarma.docs en runtime). Solo omite anotaciones ($schema/$id/title/description/format) que el validador no evalua; un test falla si deja de coincidir con el oficial.",
+    "analizadorCotizacion.ts": "analizarCotizacion(texto): parsea, valida contra el esquema y mapea a FilaCotizacion[] sin mutar nada; devuelve errores legibles si algo falla. opcionesParaEnvio(filas): body del PUT preservando url_compra y capturas[] completas. textoPrecio: null se muestra como estimado, nunca como 0.",
+    "ImportarCotizacion.tsx": "Textarea + 'Cargar cotización' (valida y no muta si falla), tabla con link de compra y capturas, nota visible de cobertura_declarada y transportistas_no_encontrados, checkbox de selección por opción y 'Enviar solicitud' (crea el borrador si no hay solicitudId) que deja el estado en 'enviada'."
+  },
+  "tests": {
+    "command": "cd lefarma.frontend && npx vitest run src/apps/viaticos --reporter=basic",
+    "exit_code": 0,
+    "exit_code_note": "exit 0 a las 09:34:47 (todos los archivos presentes en ese momento). Ver concurrent_worker_conflict: la corrida mas reciente da exit 1 por archivos de otro worker, no por estos cambios.",
+    "output": [
+      " \u2713 src/apps/viaticos/pages/costos/costosRutaEjemplos.test.ts (4 tests) 24ms",
+      " \u2713 src/apps/viaticos/pages/costos/costosRutaForm.test.ts (33 tests) 38ms",
+      " \u2713 src/apps/viaticos/components/cotizacionSchema.test.ts (5 tests) 19ms",
+      " \u2713 src/apps/viaticos/test/fixtures/octubre2026.test.ts (4 tests) 17ms",
+      " \u2713 src/apps/viaticos/pages/costos/CostosViaticosPrint.test.tsx (7 tests) 770ms",
+      " \u2713 src/apps/viaticos/components/ImportarCotizacion.test.tsx (10 tests) 1192ms",
+      " \u2713 src/apps/viaticos/components/PuntoMapaPicker.test.tsx (8 tests) 2043ms",
+      " \u2713 src/apps/viaticos/components/SelectorRutaModal.test.tsx (9 tests) 1353ms",
+      " \u2713 src/apps/viaticos/pages/costos/ViaticosPage.test.tsx (21 tests) 9421ms",
+      "",
+      " Test Files  9 passed (9)",
+      "      Tests  101 passed (101)",
+      "   Start at  09:34:47",
+      "   Duration  15.89s"
+    ],
+    "baseline_before_task": "8 files / 91 tests passed (exit 0)",
+    "new_tests": [
+      "carga una fila por opcion conservando url_compra y todas las capturas (3 filas; href y los 2 src de captura, incluido el data URI base64, intactos)",
+      "muestra cobertura_declarada y transportistas_no_encontrados",
+      "un JSON sin url_compra muestra el error y no muta las filas ya cargadas",
+      "un JSON mal formado muestra un error legible sin cargar filas",
+      "Enviar solicitud marca las elegidas, conserva el resto y deja el estado en enviada",
+      "sin solicitud previa crea el borrador y luego envia las opciones",
+      "no deja enviar sin seleccionar al menos una opcion",
+      "el precio estimado se marca como tal y no como 0",
+      "el error del backend se muestra sin perder la tabla cargada",
+      "el esquema que usa el importador es identico al contrato oficial de lefarma.docs"
+    ]
+  },
+  "build": {
+    "command": "cd lefarma.frontend && npm run build",
+    "exit_code": 0,
+    "output_tail": "\u2713 built in 27.24s",
+    "typecheck": "npx tsc \u2192 exit 0",
+    "note": "Build y tsc ejecutados a las 09:37-09:41 con estos archivos ya presentes; el codigo de este task compila."
+  },
+  "concurrent_worker_conflict": {
+    "status": "OPEN - ajeno a este task, no se toco nada",
+    "detalle": "Entre las 09:39 y las 09:40 otro worker escribio TablaOpciones.tsx, TablaHoteles.tsx, celdasCotizacion.tsx y tablasCotizacion.test.tsx y modifico ViaticosPage.tsx. La corrida mas reciente del comando de aceptacion da exit 1 (6 tests):",
+    "corrida_mas_reciente": {
+      "command": "cd lefarma.frontend && npx vitest run src/apps/viaticos --reporter=basic",
+      "exit_code": 1,
+      "own_file": "ImportarCotizacion.test.tsx (10 tests) \u2192 \u2713 891ms, todos verdes",
+      "fallos": [
+        "tablasCotizacion.test.tsx (archivo nuevo del otro worker): 5 tests fallos por 'found multiple elements' en sus propias tablas",
+        "ViaticosPage.test.tsx: 1 test fallo - 'Unable to find an element with the text: Hoteles propuestos' (la tabla de hoteles la reemplazo el otro worker)"
+      ],
+      "archivos_que_no_toque": [
+        "lefarma.frontend/src/apps/viaticos/components/tablasCotizacion.test.tsx",
+        "lefarma.frontend/src/apps/viaticos/components/TablaOpciones.tsx",
+        "lefarma.frontend/src/apps/viaticos/components/TablaHoteles.tsx",
+        "lefarma.frontend/src/apps/viaticos/components/celdasCotizacion.tsx",
+        "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx"
+      ]
+    }
+  },
+  "risks": [
+    "Duplicacion de UI con TablaOpciones.tsx / celdasCotizacion.tsx, creados por otro worker (09:38-09:39) sobre CostosRutaOferta. No se reutilizaron: CostosRutaOferta exige semantica del motor de costos (aTiempo, llegaTarde, noTomable, cumpleTodos) que una opcion cotizada NO trae, y mapearla obligaria a inventar datos. Pendiente de unificar por el owner del wizard.",
+    "El esquema se duplica como constante TS porque el navegador no puede leer lefarma.docs en runtime; el test de equivalencia lo ata al archivo oficial, pero hay que re-ejecutarlo si el schema cambia.",
+    "Enviar esta deshabilitado mientras no haya ninguna opcion seleccionada (guarda de UI); no bloquea el flujo valido.",
+    "El backend reemplaza el juego completo de opciones en cada PUT: se envian TODAS las cotizadas con fue_elegida, no solo las elegidas.",
+    "No se integro ImportarCotizacion en ninguna pagina: el wiring del wizard queda para quien tenga ViaticosPage.tsx (prohibido tocarlo en esta tarea).",
+    "El nombre del modulo puro es analizadorCotizacion.ts y no importarCotizacion.ts: en Windows el filesystem no distingue mayusculas y Vite resolvia el import al .tsx del componente (exports undefined)."
+  ],
+  "git": "Sin commit, sin git add, sin push. git diff --cached vacío. Solo comandos de lectura (status/diff) y mv/rm de los archivos nuevos."
+}

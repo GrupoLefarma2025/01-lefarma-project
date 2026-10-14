@@ -1,0 +1,112 @@
+{
+  "task": "task-17 (parte de docs) — ADR de reconciliacion de busqueda/cotizacion de viaticos + fixture de regresion octubre 2026",
+  "branch": "feature/costos-ruta-demo",
+  "adr_numbering": {
+    "requested": "00004_busqueda-cotizacion-viaticos",
+    "delivered": "00007_busqueda-cotizacion-viaticos",
+    "reason": "ADR-00004 ya existia y estaba Accepted (reparto-y-planificacion-rutas). Crear 00004 duplicaria el numero y 'Superseded by ADR-00004' en el 00003 seria ambiguo. Escalado al supervisor; aprobado Opcion A (usar 00007).",
+    "approved_by": "supervisor via contact_supervisor(reason=need_decision)"
+  },
+  "changed_files": [
+    {
+      "path": "lefarma.docs/educacion-medica/decisiones/00007_busqueda-cotizacion-viaticos.md",
+      "change": "nuevo"
+    },
+    {
+      "path": "lefarma.docs/educacion-medica/decisiones/00003_estimador-viaticos-catalogo.md",
+      "change": "1 linea: 'Proposed' -> 'Superseded by ADR-00007'"
+    },
+    {
+      "path": "lefarma.docs/educacion-medica/tareas/00007_busqueda-cotizacion-viaticos.md",
+      "change": "nuevo"
+    },
+    {
+      "path": "lefarma.frontend/src/apps/viaticos/test/fixtures/octubre2026.ts",
+      "change": "nuevo"
+    },
+    {
+      "path": "lefarma.frontend/src/apps/viaticos/test/fixtures/octubre2026.test.ts",
+      "change": "nuevo"
+    }
+  ],
+  "not_touched": {
+    "pruebas de gastos/": "solo lectura del .md de octubre; ningun .xlsx abierto; git status no muestra cambios",
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json": "no tocado",
+    "odd/tasks/costos-ruta-formulario.md": "no tocado",
+    "ViaticosPage.tsx": "no tocado (lo tiene otro worker)"
+  },
+  "fixture": {
+    "viajes": 20,
+    "totales_markdown": {
+      "autobus": 16481,
+      "avion": 137630,
+      "hospedaje": 52896,
+      "comida": 25100,
+      "taxi": 44250,
+      "total": 276357
+    },
+    "validacion": "las 20 filas suman exactamente su columna Total y la suma por categoria iguala la fila de totales del markdown",
+    "corroboracion_independiente": "los 20 renglones parseados coinciden uno a uno con los valores ya validados en src/apps/viaticos/pages/costos/costosRutaEjemplos.ts"
+  },
+  "tests": [
+    {
+      "command": "npx tsc --noEmit",
+      "cwd": "lefarma.frontend",
+      "result": "passed",
+      "output": "tsc_exit=0 (sin salida)"
+    },
+    {
+      "command": "npx vitest run src/apps/viaticos/test/fixtures/octubre2026.test.ts",
+      "cwd": "lefarma.frontend",
+      "result": "passed",
+      "output": "RUN  v3.2.6 | ✓ src/apps/viaticos/test/fixtures/octubre2026.test.ts (4 tests) 18ms | Test Files  1 passed (1) | Tests  4 passed (4)"
+    },
+    {
+      "command": "npx vitest run src/apps/viaticos",
+      "cwd": "lefarma.frontend",
+      "result": "passed",
+      "output": "Test Files  8 passed (8) | Tests  91 passed (91) | Duration 20.69s"
+    }
+  ],
+  "manual_qa": {
+    "grep_status_line": {
+      "command": "grep -n \"Superseded by ADR-00007\" 00003_estimador-viaticos-catalogo.md",
+      "output": "11:Superseded by ADR-00007",
+      "exit": 0
+    },
+    "grep_exact_count": {
+      "command": "grep -c \"Superseded by ADR-00007\" ...",
+      "output": "1"
+    },
+    "grep_wrong_number_00004": {
+      "command": "grep -n \"Superseded by ADR-00004\" 00003...",
+      "output": "",
+      "exit": 1
+    },
+    "git_diff_stat_00003": {
+      "command": "git diff --stat -- lefarma.docs/educacion-medica/decisiones/00003_estimador-viaticos-catalogo.md",
+      "output": " .../educacion-medica/decisiones/00003_estimador-viaticos-catalogo.md | 2 +-\n 1 file changed, 1 insertion(+), 1 deletion(-)"
+    },
+    "git_diff_00003_unified": {
+      "output": "@@ -8,7 +8,7 @@\n ## Status\n \n-Proposed\n+Superseded by ADR-00007\n \n ## Índice"
+    },
+    "pruebas_de_gastos_status": {
+      "command": "git status --short -- \"pruebas de gastos/\"",
+      "output": "?? \"pruebas de gastos/\"",
+      "nota": "directorio untracked: ya estaba asi antes de esta tarea (nunca versionado). No se modifico ningun archivo dentro."
+    }
+  },
+  "risks": [
+    "Matriz de roles 'quien ve que' sigue PENDIENTE por decision del usuario (solo superadmin). El ADR lo registra como pendiente y no inventa jerarquia; la seccion Permisos esta marcada como provisional.",
+    "El contrato de oferta (CostosRutaOferta/CostosRutaCompra) NO tiene campo 'captura': la evidencia se apoya hoy en comprar.url. Se documento como B1.1b/B2.1b pendientes de decision, no se modifico el contrato porque otro worker lo esta tocando.",
+    "La numeracion 00007 se eligio por ser el siguiente libre; si otro worker creo un 00007 en paralelo habria colision (verificar antes de mergear).",
+    "El ADR 00003 quedo byte-identico salvo la linea de Status; su texto original sigue diciendo 'Proposed'-era y la regla de 'nunca dependencia en runtime' se preserva literalmente en el 00007.",
+    "El fixture congela importes de un concentrado ya autorizado; es dato de regresion, no una fuente de verdad para capturas futuras."
+  ],
+  "git_safety": {
+    "commits": 0,
+    "git_add": 0,
+    "push": 0,
+    "reset_checkout_restore_stash_clean": 0
+  }
+}

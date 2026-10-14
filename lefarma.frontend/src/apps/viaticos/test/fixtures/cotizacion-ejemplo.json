@@ -1,0 +1,60 @@
+{
+  "version": "1.0.0",
+  "consulta": {
+    "origen": "Ciudad de Mexico, CDMX",
+    "destino": "Guadalajara, Jalisco",
+    "fecha_salida": "2026-11-10",
+    "fecha_regreso": "2026-11-12",
+    "personas": 2
+  },
+  "cobertura_declarada": "Consulta realizada el 2026-10-07 sobre el corredor Ciudad de Mexico - Guadalajara para 2 personas. Se revisaron los sitios publicos de venta en linea de Volaris y Viva Aerobus para vuelos y se capturo una opcion de hospedaje en el destino. Los precios corresponden a los publicados en el momento de la consulta y no incluyen equipaje documentado ni servicios adicionales.",
+  "transportistas_no_encontrados": [
+    "Aeromexico: el sitio de venta no publico resultados para las fechas consultadas durante esta busqueda.",
+    "ETN Turistar: no se localizaron corridas publicadas del corredor para las fechas consultadas."
+  ],
+  "opciones": [
+    {
+      "transportista": "Volaris",
+      "modo": "avion",
+      "salida": "2026-11-10T06:05:00-06:00",
+      "llegada": "2026-11-10T07:35:00-06:00",
+      "precio": 2450.5,
+      "moneda": "MXN",
+      "url_compra": "https://www.volaris.com/vuelos/ciudad-de-mexico/guadalajara",
+      "capturas": [
+        "https://example.com/capturas/volaris-cdmx-gdl-2026-10-07.png",
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+      ],
+      "fuente": "volaris.com",
+      "consultado_en": "2026-10-07T17:42:00-06:00"
+    },
+    {
+      "transportista": "Viva Aerobus",
+      "modo": "avion",
+      "salida": "2026-11-10T13:20:00-06:00",
+      "llegada": "2026-11-10T14:55:00-06:00",
+      "precio": 1899,
+      "moneda": "MXN",
+      "url_compra": "https://www.vivaaerobus.com/es-mx/vuelos/ciudad-de-mexico/guadalajara",
+      "capturas": [
+        "https://example.com/capturas/vivaaerobus-cdmx-gdl-2026-10-07.png"
+      ],
+      "fuente": "vivaaerobus.com",
+      "consultado_en": "2026-10-07T17:48:00-06:00"
+    },
+    {
+      "transportista": "Hotel Morales",
+      "modo": "hotel",
+      "salida": "2026-11-10T15:00:00-06:00",
+      "llegada": "2026-11-12T12:00:00-06:00",
+      "precio": 3180,
+      "moneda": "MXN",
+      "url_compra": "https://www.hotelmorales.com/reservaciones",
+      "capturas": [
+        "https://example.com/capturas/hotel-morales-2026-10-07.png"
+      ],
+      "fuente": "hotelmorales.com",
+      "consultado_en": "2026-10-07T17:55:00-06:00"
+    }
+  ]
+}

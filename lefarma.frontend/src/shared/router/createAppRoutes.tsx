@@ -23,6 +23,7 @@ const APP_LOGIN_NAMES: Record<string, string> = {
   cxp: 'Cuentas por Pagar',
   rh: 'Recursos Humanos',
   'educacion-medica': 'Educación Médica',
+  viaticos: 'Viáticos',
 };
 
 /**

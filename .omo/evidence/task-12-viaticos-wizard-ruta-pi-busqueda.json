@@ -1,0 +1,111 @@
+{
+  "task_id": "st_01a113cc",
+  "task_number": 12,
+  "task_summary": "SQL script 0003 con esquema de viaticos (solicitudes + opciones + ajustes + eventos)",
+  "branch": "feature/costos-ruta-demo",
+  "repo_root": "P:/Trabajo/01-lefarma-project",
+  "artifacts_created": [
+    {
+      "path": "lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql",
+      "sha256": "7a166b473d9b7d9b3bb05e8a8763df8b70294bd9774c005bd1f845aa0b6f1d40",
+      "bytes": 13178,
+      "kind": "applied",
+      "notes": "Unico archivo creado bajo lefarma.database/viaticos/. Estilo del 0002 (idempotente, IF NOT EXISTS, PRINT). 4 CREATE TABLE viaticos.* + 5 CREATE INDEX."
+    },
+    {
+      "path": ".omo/evidence/task-12-sha256.txt",
+      "sha256": "computed_at_write_time",
+      "kind": "evidence",
+      "notes": "Hash SHA-256 del archivo .sql para trazabilidad."
+    },
+    {
+      "path": ".omo/evidence/task-12-viaticos-wizard-ruta-pi-busqueda.json",
+      "sha256": "computed_at_write_time",
+      "kind": "evidence",
+      "notes": "DoneClaim JSON de esta tarea (este archivo)."
+    }
+  ],
+  "tables_created": [
+    {
+      "name": "viaticos.solicitudes",
+      "kind": "master",
+      "pk": "id_solicitud IDENTITY",
+      "audit_cols": [
+        "activo",
+        "fecha_creacion",
+        "fecha_modificacion"
+      ],
+      "check_constraints": [
+        "CK_solicitudes_estado (5 valores)",
+        "CK_solicitudes_periodo_formato (yyyy-MM)"
+      ]
+    },
+    {
+      "name": "viaticos.solicitud_opciones",
+      "kind": "child",
+      "pk": "id_opcion IDENTITY",
+      "fk_to_master": "FK_solicitud_opciones_solicitud ON DELETE CASCADE",
+      "check_constraints": [
+        "CK_solicitud_opciones_tipo ('vuelo','hotel')"
+      ]
+    },
+    {
+      "name": "viaticos.solicitud_ajustes",
+      "kind": "child",
+      "pk": "id_ajuste IDENTITY",
+      "fk_to_master": "FK_solicitud_ajustes_solicitud ON DELETE CASCADE",
+      "fk_to_options": "FK_solicitud_ajustes_opcion ON DELETE CASCADE (NULLABLE)",
+      "notable": "motivo NVARCHAR(1000) NOT NULL sin DEFAULT (obligatorio)"
+    },
+    {
+      "name": "viaticos.solicitud_eventos",
+      "kind": "child",
+      "pk": "id_evento IDENTITY",
+      "fk_to_master": "FK_solicitud_eventos_solicitud ON DELETE CASCADE",
+      "notable": "fecha_creacion DATETIME2 NOT NULL DEFAULT SYSDATETIME()"
+    }
+  ],
+  "indices_created": [
+    "UQ_solicitudes_usuario_periodo_estado (UNIQUE: id_usuario_solicitante, periodo, estado)",
+    "IX_solicitudes_periodo_estado (periodo, estado) INCLUDE id_usuario_solicitante, gerencia",
+    "IX_solicitud_opciones_solicitud",
+    "IX_solicitud_ajustes_solicitud",
+    "IX_solicitud_eventos_solicitud"
+  ],
+  "rule_documentation": {
+    "rule": "Si solicitudes.estado = 'autorizada_con_ajustes' debe existir >=1 fila en solicitud_ajustes",
+    "implementation": "No se materializa con trigger ni CHECK cross-table. La valida el backend en el endpoint de transicion. Documentada inline (comentario lineas 30-37 del .sql)."
+  },
+  "verification": {
+    "grep_create_table_viaticos_dot_count": 4,
+    "grep_create_table_viaticos_dot_expected": 4,
+    "grep_create_table_viaticos_dot_pass": true,
+    "grep_codigo_underscore_count": 0,
+    "grep_codigo_underscore_expected": 0,
+    "grep_codigo_underscore_pass": true,
+    "motivo_not_null_no_default": true,
+    "motivo_definition_line": "motivo                     NVARCHAR(1000) NOT NULL,               -- obligatorio: el admin explica el por que",
+    "activo_bit_only_on_master": true,
+    "activo_bit_count": 1,
+    "dotnet_build_exit_code": 0,
+    "dotnet_build_errors": 0,
+    "dotnet_build_warnings_pre_existing": 34,
+    "dotnet_build_pass": true,
+    "no_db_applied": true,
+    "no_sqlcmd_or_invoke_sqlcmd": true
+  },
+  "guards_hard": {
+    "no_git_commit": true,
+    "no_git_add": true,
+    "no_git_push": true,
+    "no_pr": true,
+    "appsettings_development_json_untouched": true,
+    "odd_tasks_costos_ruta_formulario_md_untouched": true,
+    "pruebas_de_gastos_untouched": true,
+    "script_not_applied_to_any_database": true
+  },
+  "state_after": {
+    "git_status_untracked_only_in": ".omo/evidence/, lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql",
+    "note": "Los otros archivos modificados/untracked del git status (AprobacionesController.cs, AuthorizationConstants.cs, ClaimsPrincipalExtensions.cs, PermisosEndpointTests.cs, PermisosHelperTests.cs, captura-viaticos.mjs, costos-ruta-formulario.md, pruebas de gastos/, etc.) son de OTRAS tareas o pre-existentes; esta solo sENA hace tarea 12 solo toco el archivo:"
+  }
+}

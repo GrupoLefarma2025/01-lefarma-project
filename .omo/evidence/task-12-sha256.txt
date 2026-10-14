@@ -1,0 +1,4 @@
+SHA-256: 7a166b473d9b7d9b3bb05e8a8763df8b70294bd9774c005bd1f845aa0b6f1d40
+File: lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql
+Bytes: 13178
+Generated: 2026-10-07 (task-12, feature/costos-ruta-demo)

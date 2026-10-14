@@ -29,7 +29,7 @@ export function EmailTemplateEditor({
     <div className="space-y-2">
       <div className="min-h-0 rounded-md border border-input">
         <Editor
-          apiKey="naoqo9ubluclcuqki7418vngqoy62wb8v6l09jcx7k9gwppm"
+          apiKey={import.meta.env.VITE_TINYMCE_API_KEY}
           onInit={(_, editor) => {
             editorRef.current = editor;
           }}

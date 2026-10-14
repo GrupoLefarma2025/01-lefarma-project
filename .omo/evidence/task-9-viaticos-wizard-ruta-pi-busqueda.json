@@ -1,0 +1,95 @@
+{
+  "task": "task-9-viaticos-wizard-ruta-pi-busqueda",
+  "scope": "Tests HTTP de SolicitudesController (POST /solicitudes, GET /solicitudes/mis, GET /solicitudes/{id}, PUT /solicitudes/{id}/opciones)",
+  "status": "done",
+  "controller_modified": false,
+  "controller_modification_reason": "Ningún testegyó un bug real en SolicitudesController.cs. Todas las reglas duras (id del token, periodo del servidor, validacion url_compra/fuente, precio null solo con fuente estimada, ownership 403) ya se cumplian. El archivo del controller NO fue tocado.",
+  "changed_files": [
+    "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/SolicitudesControllerTests.cs"
+  ],
+  "files_not_touched_respected": [
+    "lefarma.backend/appsettings.Development.json",
+    "odd/tasks/costos-ruta-formulario.md",
+    "pruebas de gastos/",
+    "educacion-medica",
+    "CalculoCostosRuta.cs",
+    "SQL (no se ejecuto nada contra ningun servidor)"
+  ],
+  "test_harness": {
+    "pattern": "TestServer in-memory + ApplicationDbContext sobre EF Core InMemory + TestAuthHandler compartido de PermisosEndpointTests (cabeceras X-Test-UserId / X-Test-Permissions)",
+    "database": "EF Core InMemory, nombre unico por test (SolicitudesCtrl-{Guid}) — sin DB real, sin SQL, sin orden-dependencia",
+    "no_sql_executed": true
+  },
+  "required_cases": {
+    "1_post_sin_token_401": "Post_SinToken_Retorna401",
+    "2_post_sin_permiso_403": "Post_ConTokenSinPermisoSolicitar_Retorna403",
+    "3_post_id_del_token_no_del_body": [
+      "Post_ConPermisoSolicitar_Retorna201YGuardaElIdDelToken",
+      "Post_IgnoraIdUsuarioSolicitanteDelBody_UsaElDelToken"
+    ],
+    "4_get_ajena_sin_ver_todos_403": "GetDetalle_DeSolicitudAjenaSinVerTodos_Retorna403",
+    "5_get_mis_solo_del_usuario": "GetMis_DevuelveSoloLasDelUsuarioAutenticado",
+    "6_put_sin_url_compra_400": "PutOpciones_OpcionSinUrlCompra_Retorna400NominandoElCampo",
+    "7_put_sin_fuente_400": "PutOpciones_OpcionSinFuente_Retorna400",
+    "8_put_precio_null_fuente_estimado_200": "PutOpciones_PrecioNullConFuenteEstimado_Retorna200"
+  },
+  "extra_cases": [
+    "GetMis_SinToken_Retorna401",
+    "GetDetalle_ConPermisoVerTodos_Retorna200AunqueSeaAjena",
+    "GetDetalle_Propio_Retorna200ConEventosYOpciones",
+    "PutOpciones_PrecioNullConFuenteNoEstimado_Retorna400",
+    "PutOpciones_DeSolicitudAjenaSinVerTodos_Retorna403"
+  ],
+  "tests": {
+    "filtered": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter FullyQualifiedName~Solicitudes",
+      "exit_code": 0,
+      "output_literal": "Correctas! - Con error:     0, Superado:    39, Omitido:     0, Total:    39, Duración: 9 s - Lefarma.UnitTests.dll (net10.0)"
+    },
+    "filtered_exact_class": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --no-build --filter FullyQualifiedName~SolicitudesControllerTests",
+      "exit_code": 0,
+      "output_literal": "Correctas! - Con error:     0, Superado:    14, Omitido:     0, Total:    14, Duración: 7 s - Lefarma.UnitTests.dll (net10.0)",
+      "note": "Los 39 del filtro ~Solicitudes incluyen tests RH de SolicitudesPersonal; los 14 son los de esta clase."
+    },
+    "build": {
+      "command": "dotnet build lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+      "exit_code": 0
+    },
+    "full_suite": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --no-build",
+      "exit_code": 0,
+      "output_literal": "Correctas! - Con error:     0, Superado:   349, Omitido:     0, Total:   349, Duración: 13 s - Lefarma.UnitTests.dll (net10.0)",
+      "regressions": 0
+    }
+  },
+  "manual_qa": {
+    "method": "Test HTTP real con TestServer + EF InMemory (mismo harness de los tests), volcado de status y body literales. El archivo temporal ManualQaDump.cs se elimino tras capturar la evidencia.",
+    "post_sin_token": {
+      "status": "401 Unauthorized",
+      "body": "(vacio —challenge de autenticacion)"
+    },
+    "post_sin_permiso": {
+      "request": "X-Test-UserId: 90210, X-Test-Permissions: viaticos.ver_todos (sin viaticos.solicitar)",
+      "status": "403 Forbidden",
+      "body": "(vacio — Forbid())"
+    },
+    "post_valido": {
+      "request": "X-Test-UserId: 90210, X-Test-Permissions: viaticos.solicitar, body con id_usuario_solicitante=111 (intento de suplantacion)",
+      "status": "201 Created",
+      "body": "{\"success\":true,\"message\":\"Solicitud creada en borrador.\",\"data\":{\"id_solicitud\":2,\"id_usuario_solicitante\":90210,\"periodo\":\"2026-10\",\"gerencia\":\"Operaciones\",\"estado\":\"borrador\",\"activo\":true,\"fecha_creacion\":\"2026-10-07T15:25:46.5567396Z\",\"fecha_modificacion\":\"2026-10-07T15:25:46.5567396Z\",\"datos\":{\"paso\":1,\"transporte\":\"avion\"},\"opciones\":[],\"eventos\":[]},\"errors\":null}",
+      "db_check": "fila id_solicitud=2 -> id_usuario_solicitante EN BD = 90210 (el 111 del body fue ignorado)"
+    },
+    "put_sin_url_compra": {
+      "request": "PUT /api/viaticos/solicitudes/1/opciones con opcion {tipo,linea,fuente,precio} sin url_compra",
+      "status": "400 BadRequest",
+      "body": "{\"success\":false,\"message\":\"opciones[0].url_compra es obligatorio.\",\"data\":null,\"errors\":null}"
+    }
+  },
+  "risks": [
+    "El harness usa TestServer + WebHostBuilder (obsoletos en .NET 8+, ASPDEPR004/ASPDEPR008) suprimidos con pragma, mismo criterio que PermisosEndpointTests.cs. No es codigo de produccion.",
+    "El deserializado de los DTO de test replica los JsonPropertyName de SolicitudDtos.cs. Si la API cambia su naming policy (hoy snake_case), estos tipos hay que actualizarlos.",
+    "Durante una corrida intermedia se observaron 4 fallos en AprobacionesControllerTests.cs (otro worker, usaba Database.GetDbConnection() sobre InMemory). Se resolvieron en paralelo y la corrida final queda 349/349 en verde; no corresponden a este archivo.",
+    "SolicitudesController usa ApplicationDbContext completo sobre InMemory: si otra dependencia del contexto se agrega y requiere proveedor relacional, este harness habria que ajustarlo."
+  ]
+}

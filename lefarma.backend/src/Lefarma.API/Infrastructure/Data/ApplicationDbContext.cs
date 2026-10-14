@@ -2,6 +2,7 @@ using Lefarma.API.Domain.Entities.Auth;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
+using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Domain.Entities.Logging;
 using Lefarma.API.Domain.Entities.Notifications;
 using Lefarma.API.Domain.Entities.Operaciones;
@@ -77,6 +78,7 @@ public class ApplicationDbContext : DbContext
         public DbSet<HospitalExtension> HospitalesExtension { get; set; }
         public DbSet<RegionCatalogo> RegionesCat { get; set; }
         public DbSet<RegionEstado> RegionesEstados { get; set; }
+        public DbSet<Municipio> Municipios { get; set; }
         public DbSet<TipoGerencia> TiposGerencia { get; set; }
         public DbSet<ParametroAnestesia> ParametrosAnestesia { get; set; }
         public DbSet<EquipoPareo> EquiposPareo { get; set; }
@@ -146,6 +148,12 @@ public class ApplicationDbContext : DbContext
         public DbSet<HelpModule> HelpModules { get; set; }
         public DbSet<HelpArticle> HelpArticles { get; set; }
         public DbSet<HelpImage> HelpImages { get; set; }
+
+        // DbSets - Viáticos (wizard de solicitudes)
+        public DbSet<Solicitud> Solicitudes { get; set; }
+        public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
+        public DbSet<SolicitudAjuste> SolicitudAjustes { get; set; }
+        public DbSet<SolicitudEvento> SolicitudEventos { get; set; }
 
         // DbSets - Archivos
         public DbSet<Archivo> Archivos { get; set; }

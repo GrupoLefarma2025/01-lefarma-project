@@ -250,6 +250,27 @@ These are committed for convenience in local development. Never use them for pro
 - JWT secret: `tu-clave-secreta-super-segura-de-al-menos-32-caracteres-aqui`
 - SMTP password: `Aut0r1z5c10n3s$$001`
 
+## Versionado y publicación (regla del usuario, 05-oct-2026)
+
+Cuando el usuario pida publicar cambios, el agente sube la versión ANTES de desplegar, según el destino:
+
+- Develop / pruebas → `VERSION-STAGING` (formato `<base>-rc.N`).
+- Productivo → `VERSION` (semver `X.Y.Z`).
+
+Clasificación del cambio (la decide el agente y la declara antes de publicar):
+
+- **Simple** (fix, ajuste o refactor sin funcionalidad nueva): productivo sube PATCH (`1.2.0 → 1.2.1`); staging mantiene la base y sube `rc.N+1`.
+- **Mayor** (módulo o funcionalidad nueva, p. ej. viáticos): productivo sube MINOR (`1.2.0 → 1.3.0`); staging toma la base nueva con `-rc.1`.
+- **Rompiente** (rompe API, contratos o esquema de BD): productivo sube MAJOR (`1.3.0 → 2.0.0`); staging toma la base nueva con `-rc.1`.
+
+Mecánica:
+
+- El bump se commitea SOLO (work-unit, mensaje en español) antes del deploy.
+- Si el usuario indica una versión explícita, esa manda y no se clasifica.
+- Sin petición de publicación no se toca `VERSION` ni `VERSION-STAGING`.
+- Publicar en ambos ambientes: cada archivo sube según su propio destino y clasificación.
+- No contradice la skill `lefarma-deploy` («no incrementar VERSION o VERSION-STAGING por cuenta propia»): el bump solo ocurre dentro de una petición explícita de publicar.
+
 ## Restrictions
 
 - Los mensajes de commit se redactan SIEMPRE en español, sin importar que la instrucción se haya dado en inglés. Por ejemplo, en lugar de «feat: point updater at production SISCO server», escribe el mensaje en español.

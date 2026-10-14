@@ -9,6 +9,7 @@ import { PerfilConfig } from '@/pages/configuracion/PerfilConfig';
 import { CxpRoutes } from '@/apps/cxp/CxpRoutes';
 import { RhRoutes } from '@/apps/rh/RhRoutes';
 import { EducacionMedicaRoutes } from '@/apps/educacion-medica/EducacionMedicaRoutes';
+import { ViaticosRoutes } from '@/apps/viaticos/ViaticosRoutes';
 import BaseAppLogin from './BaseAppLogin';
 
 /**
@@ -116,6 +117,16 @@ export function BaseAppRoutes() {
       */}
       <Route path="educacion-medica" element={<Outlet />}>
         {EducacionMedicaRoutes({ variant: 'subtree', loginPath: '/educacion-medica/login' })}
+      </Route>
+
+      {/*
+        Viáticos subtree — mirrors the Educación Médica subtree mount. The
+        wrapper renders an <Outlet/> for the subtree children produced by the
+        reusable ViaticosRoutes module. Viáticos login uses the 2-step global
+        flow (no context-selection step).
+      */}
+      <Route path="viaticos" element={<Outlet />}>
+        {ViaticosRoutes({ variant: 'subtree', loginPath: '/viaticos/login' })}
       </Route>
     </Routes>
   );

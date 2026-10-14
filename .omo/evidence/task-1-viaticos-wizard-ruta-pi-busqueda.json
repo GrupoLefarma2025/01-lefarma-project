@@ -1,0 +1,110 @@
+{
+  "task": "todo 1: Permisos viaticos.* y contexto del solicitante",
+  "branch": "feature/costos-ruta-demo",
+  "changed_files": [
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Shared/Constants/AuthorizationConstants.cs",
+      "change": "modified",
+      "summary": "Anadida clase anidada Permissions.Viaticos con 4 codigos: Solicitar, VerTodos, Autorizar, Ajustar."
+    },
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Shared/Authorization/ClaimsPrincipalExtensions.cs",
+      "change": "created",
+      "summary": "Helpers estaticos: ClaimsPrincipalExtensions.TienePermiso(string) y GetUserId(). Mismo patron que el AprobacionesController privado previo."
+    },
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Features/EducacionMedica/AprobacionesController.cs",
+      "change": "modified",
+      "summary": "Eliminados metodos privados GetUserId/TienePermiso. Reemplazados por User.GetUserId() y User.TienePermiso(...) via ClaimsPrincipalExtensions. Misma semantica."
+    },
+    {
+      "path": "lefarma.database/viaticos/0003_20261007-0000_viaticos_permisos.sql",
+      "change": "created",
+      "summary": "Script idempotente: inserta los 4 codigos viaticos.* en Asokam.app.Permisos con IF NOT EXISTS por CodigoPermiso. Sigue el estilo del script 0002 del modulo (cabecera -- 0003_..., -- Descripcion:, -- Crea:, -- Uso:). NO se aplica a ninguna DB."
+    },
+    {
+      "path": "lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+      "change": "modified",
+      "summary": "Anadida referencia a Microsoft.AspNetCore.Mvc.Testing 10.0.2 para habilitar el smoke test HTTP con TestServer."
+    },
+    {
+      "path": "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosHelperTests.cs",
+      "change": "created",
+      "summary": "5 tests xUnit: TienePermiso con claim -> true; sin claim -> false; principal anonimo -> false; GetUserId con NameIdentifier -> id; sin NameIdentifier -> 0."
+    },
+    {
+      "path": "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosEndpointTests.cs",
+      "change": "created",
+      "summary": "3 tests HTTP smoke con TestServer + AuthenticationHandler propio: 200 con claim viaticos.autorizar, 403 sin el claim, 401 sin autenticar. WebHostBuilder deprecado en .NET 8+ => suprimido con #pragma ASPDEPR004/ASPDEPR008 (justificado en comentario)."
+    }
+  ],
+  "tests": {
+    "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter \"FullyQualifiedName~Permisos\" --logger \"console;verbosity=normal\"",
+    "exit_code": 0,
+    "result_literal": "Pruebas totales: 8\n     Correcto: 8\n Tiempo total: 1.2918 Segundos\nLa serie de pruebas se ejecutó correctamente.\n\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosHelperTests.GetUserId_SinNameIdentifier_RetornaCero [20 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosHelperTests.TienePermiso_ConClaim_RetornaTrue [1 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosHelperTests.TienePermiso_PrincipalSinAutenticar_RetornaFalse [< 1 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosHelperTests.TienePermiso_SinClaim_RetornaFalse [< 1 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosHelperTests.GetUserId_ConNameIdentifierValido_RetornaId [< 1 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosEndpointTests.Ping_ConClaimViaticosAutorizar_Retorna200YUserId [210 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosEndpointTests.Ping_SinClaimViaticosAutorizar_Retorna403 [27 ms]\n  Correctas Lefarma.UnitTests.Features.Viaticos.PermisosEndpointTests.Ping_SinCabecerasDeAuth_Retorna401 [9 ms]",
+    "build_command": "dotnet build lefarma.backend/src/Lefarma.API/Lefarma.API.csproj -c Debug",
+    "build_exit_code": 0,
+    "build_warnings": 0,
+    "build_errors": 0
+  },
+  "manual_qa": {
+    "approach": "Mini aplicacion ASP.NET Core en memoria (TestServer + WebHostBuilder) con AuthenticationHandler propio que emite los claims leyendo las cabeceras X-Test-UserId y X-Test-Permissions (CSV). El unico endpoint GET /permisos-test/ping?permiso=... invoca ctx.User.TienePermiso(permiso) (helper nuevo) y devuelve 200/403 manual; [Authorize] produce 401 si no hay autenticacion. Sin tocar Program.cs, sin levantar Lefarma.API ni sus DBs.",
+    "evidence_tests": [
+      {
+        "name": "Ping_ConClaimViaticosAutorizar_Retorna200YUserId",
+        "headers_enviadas": ["X-Test-UserId: 4242", "X-Test-Permissions: viaticos.autorizar,viaticos.ver_todos"],
+        "url": "GET /permisos-test/ping?permiso=viaticos.autorizar",
+        "status_esperado": 200,
+        "status_real": "OK (200)",
+        "cuerpo_contiene": ["\"userId\":4242", "\"hasPermission\":true"]
+      },
+      {
+        "name": "Ping_SinClaimViaticosAutorizar_Retorna403",
+        "headers_enviadas": ["X-Test-UserId: 9000", "X-Test-Permissions: viaticos.solicitar"],
+        "url": "GET /permisos-test/ping?permiso=viaticos.autorizar",
+        "status_esperado": 403,
+        "status_real": "Forbidden (403)"
+      },
+      {
+        "name": "Ping_SinCabecerasDeAuth_Retorna401",
+        "headers_enviadas": "(sin X-Test-*)",
+        "url": "GET /permisos-test/ping?permiso=viaticos.autorizar",
+        "status_esperado": 401,
+        "status_real": "Unauthorized (401)"
+      }
+    ],
+    "raw_dotnet_test_output_tail": "Pruebas totales: 8\n     Correcto: 8\n Tiempo total: 1.2918 Segundos"
+  },
+  "dirty_worktree_check": {
+    "user_protected_paths": {
+      "lefarma.backend/src/Lefarma.API/appsettings.Development.json": {
+        "status_at_start": "tracked, unmodified",
+        "status_at_end": "M (modified by user/another worker, NOT by this task; this task made zero changes to it)",
+        "verified_clean_change_by_me": true,
+        "verification": "git diff --stat lefarma.backend/src/Lefarma.API/appsettings.Development.json shows 1 insertion/1 deletion owned by user/another worker; no edits performed by this worker."
+      },
+      "odd/tasks/costos-ruta-formulario.md": {
+        "status_at_start": "?? (untracked)",
+        "status_at_end": "?? (untracked)",
+        "verified_clean_change_by_me": true
+      },
+      "pruebas de gastos/": {
+        "status_at_start": "?? (untracked)",
+        "status_at_end": "?? (untracked)",
+        "verified_clean_change_by_me": true
+      }
+    },
+    "git_commands_used_in_scope": ["git status --short", "git diff --stat"]
+  },
+  "cleanup": {
+    "no_commit_made": true,
+    "no_git_add_added": true,
+    "no_push_performed": true,
+    "no_pr_created": true
+  },
+  "risks": [
+    "Test del controller AprobacionesController: aunque el helper se extrajo y la firma es identica (ClaimTypes.NameIdentifier + claim 'permission'), no se agregaron tests dedicados para AprobacionesController porque quedo fuera del scope declarado. Reutiliza los tests del helper (PermisosHelperTests) + PermisosEndpointTests como cobertura del camino compartido.",
+    "WebHostBuilder/TestServer deprecados en .NET 8+ (ASPDEPR004/ASPDEPR008): suprimidos con #pragma en un solo archivo. Si en el futuro se quiere migrar a WebApplicationFactory<TEntryPoint>, hay que exponer un entry point o un host factory valido en el assembly de tests; no se hizo aqui para no contaminar el alcance.",
+    "Scripts SQL del modulo viaticos ya tenian dos archivos previos (0002 + otro 0003 de schema-solicitudes creado por otra tarea de la misma ola). El nuevo 0003 convive con el existente; si el orden de aplicacion es alfabetico podria haber confusion con el sufijo .lefarma del otro. Por convencion del modulo el orden de ejecucion debe respetar el numero+timestamp del nombre, no el orden alfabetico."
+  ]
+}

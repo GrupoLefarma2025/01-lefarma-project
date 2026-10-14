@@ -1,0 +1,63 @@
+{
+  "task": "5 — Tablas comparables de vuelos/buses y hoteles con fuente, link de compra y captura",
+  "branch": "feature/costos-ruta-demo",
+  "done": true,
+  "changed_files": [
+    "lefarma.frontend/src/apps/viaticos/components/TablaOpciones.tsx (NUEVO — tabla de transporte: Transportista, Modo, Salida, Llegada, Precio, Fuente, Captura, Comprar, Elegir)",
+    "lefarma.frontend/src/apps/viaticos/components/TablaHoteles.tsx (NUEVO — tabla de hoteles: Lugar, Ciudad, Check-in, Check-out, Noches, Precio, Fuente, Captura, Reservar)",
+    "lefarma.frontend/src/apps/viaticos/components/celdasCotizacion.tsx (NUEVO — CeldaFuente y CeldaCaptura compartidas por ambas tablas; la regla estimado-vs-cotizado vive en un solo lugar)",
+    "lefarma.frontend/src/apps/viaticos/components/tablasCotizacion.test.tsx (NUEVO — 7 tests)",
+    "lefarma.frontend/src/apps/viaticos/pages/costos/ViaticosPage.tsx (MODIFICADO — solo el bloque de resultados en :623-637; se reemplazan los dos `<ul>` por `<TablaOpciones>`/`<TablaHoteles>`)",
+    "lefarma.frontend/src/apps/viaticos/types/costosRuta.types.ts (MODIFICADO — `rutaCaptura?` y `capturas?` opcionales en CostosRutaOferta y CostosRutaHotel)"
+  ],
+  "not_touched": [
+    "lefarma.backend/** (nada del backend)",
+    "lefarma.frontend/src/apps/viaticos/components/validadorCotizacion.ts (leido, no duplicado: sus tipos son de JSON Schema, no de UI)",
+    "lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+    "odd/tasks/costos-ruta-formulario.md",
+    "pruebas de gastos/",
+    "educacion-medica",
+    "formulario, print y ejemplos de ViaticosPage.tsx (solo se toco el bloque 621-637)",
+    "package.json / package-lock.json (sin dependencias npm nuevas; se reutilizan table.tsx, badge.tsx, button.tsx y tooltip.tsx)",
+    "Sin commit, sin git add, sin push, sin PR. Nada en staging."
+  ],
+  "requisitos_duros": {
+    "link_de_compra_por_fila": "La columna Comprar/Reservar es `<Button asChild><a href={url} target=\"_blank\" rel=\"noreferrer\">`. Test: 2 filas con URL -> 4 enlaces, todos con href truthy + target=_blank + rel=noreferrer.",
+    "captura_por_fila": "CeldaCaptura: thumbnail `<img>` dentro de un `<a target=\"_blank\">` que abre la imagen completa. Sin rutaCaptura ni capturas -> texto 'Sin captura', nunca una <img> rota (test explicito).",
+    "estimado_nunca_como_real": "CeldaFuente: estimado -> Badge `secondary` con texto 'Estimado' + linea 'Estimado por fórmula · sin proveedor de precios' + la fuente cruda del backend debajo. Cotizado -> Badge `outline` con texto 'Cotizado' + la fuente tal cual. El literal 'estimado' NUNCA renderiza el badge 'Cotizado' (test). La fuente cruda nunca se oculta en ninguno de los dos casos.",
+    "sin_url_nunca_link_roto": "Sin `comprar.url` (o `hotel.link`) se renderiza un `<button disabled>` con Tooltip de Radix y el motivo tambien en `sr-only`, porque un boton disabled no dispara hover. Cero `<a>` en esa fila (test)."
+  },
+  "tests": {
+    "new_file": "lefarma.frontend/src/apps/viaticos/components/tablasCotizacion.test.tsx",
+    "new_test_names": [
+      "TablaOpciones > distingue visualmente un estimado de una cotizacion real",
+      "TablaOpciones > da un <a href> real a cada fila que trae URL y thumbnail cuando hay captura",
+      "TablaOpciones > deshabilita el boton de compra y explica el motivo cuando la opcion no trae URL",
+      "TablaOpciones > muestra placeholder de captura, no una imagen rota, cuando no hay ruta_captura",
+      "TablaOpciones > expone un boton Elegir por fila y resalta la elegida",
+      "TablaHoteles > lista cada hotel con link de reservacion y sin presentarlo como cotizacion real",
+      "TablaHoteles > deshabilita Reservar con explicacion cuando el hotel no trae link"
+    ],
+    "command_new_only": "cd lefarma.frontend && npx vitest run src/apps/viaticos/components/tablasCotizacion.test.tsx --reporter=verbose",
+    "output_new_only": " ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaOpciones > distingue visualmente un estimado de una cotizacion real 163ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaOpciones > da un <a href> real a cada fila que trae URL y thumbnail cuando hay captura 178ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaOpciones > deshabilita el boton de compra y explica el motivo cuando la opcion no trae URL 104ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaOpciones > muestra placeholder de captura, no una imagen rota, cuando no hay ruta_captura 71ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaOpciones > expone un boton Elegir por fila y resalta la elegida 74ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaHoteles > lista cada hotel con link de reservacion y sin presentarlo como cotizacion real 41ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx > TablaHoteles > deshabilita Reservar con explicacion cuando el hotel no trae link 38ms\n\n Test Files  1 passed (1)\n      Tests  7 passed (7)",
+    "command_full_module": "cd lefarma.frontend && npx vitest run src/apps/viaticos --reporter=basic",
+    "output_full_module": " ✓ src/apps/viaticos/components/cotizacionSchema.test.ts (5 tests) 12ms\n ✓ src/apps/viaticos/pages/costos/costosRutaEjemplos.test.ts (4 tests) 19ms\n ✓ src/apps/viaticos/test/fixtures/octubre2026.test.ts (4 tests) 12ms\n ✓ src/apps/viaticos/pages/costos/costosRutaForm.test.ts (33 tests) 27ms\n ✓ src/apps/viaticos/pages/costos/CostosViaticosPrint.test.tsx (7 tests) 686ms\n ✓ src/apps/viaticos/components/tablasCotizacion.test.tsx (7 tests) 479ms\n ✓ src/apps/viaticos/components/ImportarCotizacion.test.tsx (10 tests) 999ms\n ✓ src/apps/viaticos/components/SelectorRutaModal.test.tsx (9 tests) 1316ms\n ✓ src/apps/viaticos/components/PuntoMapaPicker.test.tsx (8 tests) 1915ms\n ✓ src/apps/viaticos/pages/costos/ViaticosPage.test.tsx (21 tests) 7923ms\n\n Test Files  10 passed (10)\n      Tests  108 passed (108)\n   Start at  09:43:24\n   Duration  12.42s",
+    "tests_exit_code": 0,
+    "regressions": "Ninguna. 108/108 verdes, incluidos los 21 preexistentes de ViaticosPage.test.tsx.",
+    "nota_de_titulo": "El unico test preexistente que rompio al cambiar copy fue ViaticosPage.test.tsx:134 (`screen.getByText('Hoteles propuestos')`). Se resolvio conservando ese texto como titulo por defecto de TablaHoteles en vez de editar el test preexistente."
+  },
+  "build": {
+    "command": "cd lefarma.frontend && npm run build",
+    "exit_code": 0,
+    "output_tail": "dist/assets/index-9W9TT-1G.js                       4,393.54 kB │ gzip: 1,250.17 kB\n\n(!) Some chunks are larger than 2500 kB after minification. Consider:\n- Using dynamic import() to code-split the application\n- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks\n- Adjust chunkSizeWarningLimit.\n✓ built in 29.53s"
+  },
+  "risks": [
+    "RIESGO PRINCIPAL, NO RESUELTO POR DISEÑO: el boton `Elegir` renderiza deshabilitado porque `ViaticosPage.tsx` no le pasa `onElegir`. El plan de T5 pide que fije `seleccion[persona][tipo][tramo] = id`, pero ese estado pertenece a T10 (importador + seleccion + envio) y cablearlo aqui habria significado tocar estado de la pagina fuera del bloque 621-637, que el brief prohibe. El componente ya expone la props `onElegir` y `opcionElegidaId` con el resaltado (`data-state=selected` + `aria-pressed`), asi que T10 solo tiene que pasar dos props. NO se presento como seleccion funcional.",
+    "La columna `Precio` de hoteles muestra el campo `motivo` completo porque `CostosRutaHotel` no tiene campo `precio`: el backend (CalculoCostosRuta.cs:872-890) mete la tarifa dentro del texto del motivo. Es fiel a la fuente, pero no es un importe desglosado; si el usuario espera una columna numerica, hace falta agregar `precio` al DTO del backend.",
+    "`estimado` en la tabla de hoteles es una constante `true` porque hoy el backend solo emite hoteles de tarifa tabulador u Overpass, nunca una tarifa reservada. Esta documentado en un comentario con la razon y con el cambio required cuando el backend empiece a devolver cotizaciones reales. Si alguien lo cambia sin tocar el backend, la columna Fuente empieza a mentir en la direccion prohibida.",
+    "Se agregararon dos campos OPCIONALES (`rutaCaptura?`, `capturas?`) a `CostosRutaOferta` y `CostosRutaHotel`. Ningun DTO del backend los emite todavia, asi que en la practica la columna Captura siempre cae al placeholder 'Sin captura' contra el backend actual. El nombre `rutaCaptura` (camelCase) se eligio por convencion del archivo de tipos; la columna de BD es `ruta_captura` (snake_case) y el JSON de pi usa `capturas[]` (array). El componente acepta ambas: `capturas?.[0] ?? rutaCaptura`.",
+    "El `slice(0, 8)` por tramo que traia el `<ul>` original se conservo tal cual en el cableado. Es una limitacion heredada: con mas de 8 opciones por tramo las demas siguen sin mostrarse y no hay indicador de que se truncaron.",
+    "`Volaris` como transportista en los fixtures de test es un nombre inventado para el test; el fixture real `cotizacion-ejemplo.json` de pi no se toco.",
+    "Conteo de suite Subject a paralelismo: `ImportarCotizacion.test.tsx` (10 tests, T10) aparecio durante esta sesion y esta incluido en el 108. Vuelve a correr `npx vitest run src/apps/viaticos` antes de mergear por si T10 sigue dejando archivos a medias."
+  ]
+}

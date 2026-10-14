@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Shared.Authorization;
 using Lefarma.API.Shared.Constants;
@@ -33,7 +32,7 @@ public class AprobacionesController : ControllerBase
     public async Task<IActionResult> GetDocumentos([FromQuery] string? filtro, CancellationToken ct)
     {
         var filtroNormalizado = (filtro ?? AprobacionesService.FiltroPendientes).Trim().ToLowerInvariant();
-        if (filtroNormalizado == AprobacionesService.FiltroTodos && !TienePermiso(Permissions.EducacionMedica.BandejaVerTodos))
+        if (filtroNormalizado == AprobacionesService.FiltroTodos && !User.TienePermiso(Permissions.EducacionMedica.BandejaVerTodos))
         {
             return StatusCode(403, new ApiResponse<object>
             {
@@ -43,7 +42,7 @@ public class AprobacionesController : ControllerBase
             });
         }
 
-        var documentos = await _service.GetDocumentosAsync(GetUserId(), filtro, ct);
+        var documentos = await _service.GetDocumentosAsync(User.GetUserId(), filtro, ct);
         return Ok(new ApiResponse<List<PendienteAprobacionDto>>
         {
             Success = true,
@@ -51,10 +50,4 @@ public class AprobacionesController : ControllerBase
             Data = documentos
         });
     }
-
-    private int GetUserId() =>
-        int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
-
-    private bool TienePermiso(string permiso) =>
-        User.Claims.Any(c => c.Type == "permission" && c.Value == permiso);
 }

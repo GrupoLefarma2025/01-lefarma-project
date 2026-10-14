@@ -1,0 +1,15 @@
+#costos-viaticos-print { display: none; }
+#costos-viaticos-print.costos-print-preview { display: block; padding: 20px; background: white; color: black; }
+.costos-report { font: 10px Arial, sans-serif; color: black; background: white; padding: 8px; }
+.costos-report h2 { font-size: 12px; }
+@media print {
+  @page costos-concentrado { size: A4 landscape; margin: 10mm; }
+  @page costos-solicitud { size: A4 portrait; margin: 10mm; }
+  body.costos-print-active > *:not(#costos-viaticos-print) { display: none !important; }
+  body.costos-print-active #costos-viaticos-print { display: block !important; padding: 0; }
+  body.costos-print-active .costos-report { font-size: 9px; print-color-adjust: exact; }
+  .costos-report-concentrado { page: costos-concentrado; }
+  .costos-report-solicitud { page: costos-solicitud; }
+  .costos-report thead { display: table-header-group; }
+  .costos-report tr, .costos-report footer { break-inside: avoid; }
+}

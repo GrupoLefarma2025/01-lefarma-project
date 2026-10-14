@@ -8,7 +8,7 @@ resumen: ADR para el estimador de viáticos foráneos del módulo Educación Mé
 
 ## Status
 
-Proposed
+Superseded by ADR-00007
 
 ## Índice
 

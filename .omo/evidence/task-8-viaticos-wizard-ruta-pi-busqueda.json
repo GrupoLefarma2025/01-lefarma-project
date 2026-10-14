@@ -1,0 +1,78 @@
+{
+  "task": "task-8-viaticos-wizard-ruta-pi-busqueda",
+  "title": "T8 - Capturas de viaticos (Playwright) en verde + correccion de ruta del PNG",
+  "branch": "feature/costos-ruta-demo",
+  "root_cause": "El C0DIGO estaba mal, no los tests. captura-viaticos.mjs devuelve `archivo` RELATIVO a `public/` (p.ej. 'capturas/viaticos/foo.png'), pero CapturasService lo resolvia con Path.Combine(_sourceCapturasDir, archivo) donde _sourceCapturasDir ya era <frontendRoot>/public/capturas/viaticos. Eso duplicaba el segmento -> src = .../public/capturas/viaticos/capturas/viaticos/foo.png -> File.Exists false -> el servicio marcaba ok=false con 'png no encontrado tras captura'. Fallaba SalidaParseable_ReescribeRutaDelPng_AlPublicPath. Los otros 6 tests de la clase nunca llegaron a correr por un bloqueo de compilacion ajeno (ver blocked_by).",
+  "changed_files": [
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Features/Viaticos/CapturasService.cs",
+      "change": "_sourceCapturasDir (<frontendRoot>/public/capturas/viaticos) -> _publicRoot (<frontendRoot>/public). La resolucion del PNG usa Path.GetFullPath(Path.Combine(_publicRoot, archivo)) y se valida que la ruta resuelta siga dentro de public/ (contiene StringComparison.Ordinal) para rechazar rutas con '..' o absolutas. Logica de timeout/kill (120s, Kill(entireProcessTree:true), WaitForExitAsync) NO se toco."
+    },
+    {
+      "path": "lefarma.backend/src/Lefarma.API/Program.cs",
+      "change": "Bug real de arranque detectado por el Manual QA: app.UseStaticFiles con PhysicalFileProvider sobre wwwroot/media/capturas-viaticos lanzaba DirectoryNotFoundException al arrancar, porque CapturasService es un singleton de resolucion perezosa y solo creaba ese directorio en su constructor (primera peticion). Se agrega Directory.CreateDirectory(capturasDir) antes de registrar el StaticFileOptions."
+    },
+    {
+      "path": "lefarma.backend/tests/Lefarma.IntegrationTests/Viaticos/CapturasManualQa.cs",
+      "change": "NUEVO. Harness de QA manual con WebApplicationFactory<Program>: (1) POST de 2 URLs publicas, imprime respuesta literal y verifica el PNG en disco; (2) POST a httpbin.org/delay/60 con HardTimeoutSeconds=2 para forzar el kill del arbol de procesos y contar huerfanos ms-playwright antes/despues."
+    }
+  ],
+  "unchanged_but_verified": [
+    "lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/CapturasServiceTests.cs - los 7 tests NO se modificaron. El codigo era incorrecto; se corrigio el codigo."
+  ],
+  "tests": {
+    "filtered": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj --filter \"FullyQualifiedName~Capturas\"",
+      "exit_code": 0,
+      "output": "Correctas! - Con error:     0, Superado:     7, Omitido:     0, Total:     7, Duraci\u00f3n: 219 ms - Lefarma.UnitTests.dll (net10.0)"
+    },
+    "full_suite": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+      "exit_code": 0,
+      "output": "Correctas! - Con error:     0, Superado:   349, Omitido:     0, Total:   349, Duraci\u00f3n: 9 s - Lefarma.UnitTests.dll (net10.0)",
+      "note": "El baseline indicado en el encargo era 327 tests; la suite ahora tiene 349 porque otros workers anadieron PermisosHelperTests, SolicitudesControllerTests y AprobacionesControllerTests en paralelo. 0 fallos."
+    },
+    "integration_qa": {
+      "command": "dotnet test lefarma.backend/tests/Lefarma.IntegrationTests/Lefarma.IntegrationTests.csproj --filter \"FullyQualifiedName~CapturasManualQa\"",
+      "exit_code": 0,
+      "output": "Correctas Lefarma.Tests.Viaticos.CapturasManualQa.Script_colgado_por_timeout_responde_200_sin_dejar_huerfanos [6 s] / Correctas Lefarma.Tests.Viaticos.CapturasManualQa.Post_de_2_urls_publicas_devuelve_200_y_png_en_disco [4 s]"
+    }
+  },
+  "manual_qa": {
+    "post_2_urls_publicas": {
+      "request": "POST /api/viaticos/capturas {\"urls\":[{\"url\":\"https://example.com/\",\"nombre\":\"qa-example\"},{\"url\":\"https://www.iana.org/help/example-domains\",\"nombre\":\"qa-iana\"}]}",
+      "status_literal": "===QA_STATUS=== 200 OK",
+      "body_literal": "{\"success\":true,\"message\":\"Capturas procesadas.\",\"data\":[{\"url\":\"https://example.com/\",\"ok\":true,\"archivo\":\"capturas-viaticos/qa-example.png\",\"error\":\"WARN: lista blanca de dominios vacia; poblar antes de pasar a produccion\"},{\"url\":\"https://www.iana.org/help/example-domains\",\"ok\":true,\"archivo\":\"capturas-viaticos/qa-iana.png\",\"error\":\"WARN: lista blanca de dominios vacia; poblar antes de pasar a produccion\"}],\"errors\":null}",
+      "test_path_literal": "qa-example.png -> Test-Path=True bytes=37024\nqa-iana.png -> Test-Path=True bytes=115070",
+      "test_path_command": "Get-ChildItem 'lefarma.backend/src/Lefarma.API/wwwroot/media/capturas-viaticos' -Filter *.png | ForEach-Object { '{0} -> Test-Path={1} bytes={2}' -f $_.Name, (Test-Path $_.FullName), $_.Length }",
+      "png_dir": "lefarma.backend/src/Lefarma.API/wwwroot/media/capturas-viaticos"
+    },
+    "script_colgado_sin_huerfanos": {
+      "scenario": "HardTimeoutSeconds=2 contra https://httpbin.org/delay/60 (se queda colgado 60s).",
+      "status_literal": "===QA_HANG_STATUS=== 200 OK",
+      "body_literal": "{\"success\":true,\"message\":\"Capturas procesadas.\",\"data\":[{\"url\":\"https://httpbin.org/delay/60\",\"ok\":false,\"archivo\":null,\"error\":\"timeout del proceso (2s); posibles capturas colgadas liberadas\"}],\"errors\":null}",
+      "orphan_check_literal": "===QA_HANG_ORPHANS=== antes=0 despues=0",
+      "orphan_check_command": "Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'ms-playwright' -and $_.Name -notmatch '^(bash|powershell|pwsh|conhost)' } | Measure-Object | Select-Object -ExpandProperty Count",
+      "orphan_check_result": "0"
+    },
+    "orphan_check_caveat": "El comando literal del encargo (Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'ms-playwright' } | Measure-Object) devuelve Count: 3 porque el PROPIO comando de deteccion lleva 'ms-playwright' en su CommandLine y se cuenta a si mismo (2x bash.exe + 1x powershell.exe). Ejecutado desde un .ps1 para que la linea de comandos no se auto-referencie, los unicos que quedan son los 2 wrappers bash.exe: 0 procesos reales de Playwright. Los 29 chrome.exe / 58 node.exe / 10 node_repl.exe que si existen en la maquina son el Chrome del usuario (C:\\Program Files\\Google\\Chrome) y tooling del entorno, NO playwright (creados 05/10, muy antes de esta sesion)."
+  },
+  "cleanup": {
+    "git": "CERO commits, CERO git add, CERO push, CERO PR. Ningun archivo staged (git diff --cached vacio). NO se uso git reset / checkout -- / restore / stash / clean.",
+    "archivos_prohibidos": "NO tocados: lefarma.backend/src/Lefarma.API/appsettings.Development.json, odd/tasks/costos-ruta-formulario.md, pruebas de gastos/, educacion-medica, CalculoCostosRuta.cs.",
+    "sql": "NO se aplico ningun script SQL.",
+    "procesos": "0 procesos huerfanos de ms-playwright. Todos los dotnet test/webapp factory se ejecutaron en primer plano y terminaron solos; no se dejo ningun servidor vivo.",
+    "artefactos_en_disco": "2 PNG de QA en lefarma.backend/src/Lefarma.API/wwwroot/media/capturas-viaticos/ (qa-example.png, qa-iana.png). Esa ruta esta en .gitignore (linea 84: lefarma.backend/src/Lefarma.API/wwwroot/media/), asi que no ensucia el repo. Son artefactos de QA reproducibles."
+  },
+  "blocked_by": {
+    "que": "Al arrancar, tests/Lefarma.UnitTests/Features/Viaticos/SolicitudesControllerTests.cs (otro worker) no compilaba: error CS0246 en SolicitudesController por falta de 'using Lefarma.API.Features.Viaticos;'.",
+    "cuando": "Detectado 09:23. El archivo fue modificado a las 09:19:26 mientras yo ya estaba corriendo: otro worker lo estaba escribiendo en ese instante.",
+    "resolucion": "NO lo toque (no es de mi scope). Se解决的 solo cuando el otro worker cerro el archivo; a las 09:25 la suite ya compilaba con 0 errores. Ninguna accion mia fue necesaria.",
+    "impacto": "Bloqueo temporal del criterio de aceptacion #2, no un fallo propio. Tambien se observaron 4 fallos transitorios en AprobacionesControllerTests (InMemory vs metodos relacionales de EF) que el otro worker corrigio; la corrida final da 349/349."
+  },
+  "risks": [
+    "WhitelistDomains viene vacia en appsettings.json, asi que en este entorno el script captura CUALQUIER URL y solo devuelve un aviso en `error`. Para producion hay que poblarla (el script trae avianca.com / latam.com / aerolineas.gov.co comentados). No se cambio la configuracion porque appsettings.Development.json esta en la lista de archivos prohibidos.",
+    "CapturasManualQa.cs depende de red real y arranca Chromium: tarda ~30s y es flaky en CI offline. Por eso esta marcado como QA manual en el docstring del archivo, no como prueba de regresion.",
+    "La verificacion de contencion de ruta (src dentro de public/) es nueva y no tiene test dedicado. Cubre traversal de path via '../' en la salida del script; el script real ya sanea el nombre, asi que es defensa en profundidad."
+  ]
+}

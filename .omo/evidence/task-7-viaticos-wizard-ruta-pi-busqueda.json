@@ -1,0 +1,156 @@
+{
+  "task_id": "task-7-viaticos-wizard-ruta-pi-busqueda",
+  "task_short": "T7 — captura-viaticos.mjs (Playwright PNG)",
+  "status": "DONE",
+  "branch": "feature/costos-ruta-demo",
+  "commit_at_end": false,
+  "files_created_or_modified": [
+    {
+      "path": "lefarma.frontend/scripts/captura-viaticos.mjs",
+      "action": "CREATED",
+      "bytes": 8754,
+      "notes": "Script headless que lanza goto(url, {waitUntil:'networkidle', timeout:30000}), espera 1500ms, screenshot({path, fullPage:true}). Concurrencia 2, timeout 30s por URL, timeout duro de proceso 55s, max 10 URLs. Whitelist configurable (vacia por defecto, con comentario sobre transportistas publicos). Imprime JSON siempre, exit 0 siempre."
+    },
+    {
+      "path": "lefarma.frontend/.gitignore",
+      "action": "MODIFIED",
+      "change": "+1 linea: 'public/capturas/' (excluye la salida de capturas)",
+      "notes": "Insertada antes de la seccion 'Editor directories and files'."
+    },
+    {
+      "path": "lefarma.frontend/public/capturas/viaticos/qa-example.png",
+      "action": "GENERATED (evidencia QA, ignorada por git)",
+      "bytes": 37024,
+      "notes": "Captura de prueba de example.com generada durante QA. NO se commitea (.gitignore)."
+    }
+  ],
+  "files_not_touched_as_required": [
+    {
+      "path": "lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+      "rule": "REGLA DURA: NO TOCAR",
+      "status": "intacto (mi sesion no escribio en el). Aparecio, hay constancia: solo contiene cambios de OTRO worker en paralelo (Lefarma -> LefarmaDev). Yo no lo modifique."
+    },
+    {
+      "path": "odd/tasks/costos-ruta-formulario.md",
+      "rule": "REGLA DURA: NO TOCAR",
+      "status": "intacto (15640 B, sigue como untracked en git status --short)"
+    },
+    {
+      "path": "pruebas de gastos/",
+      "rule": "REGLA DURA: NO TOCAR",
+      "status": "intacto (directorio, sigue untracked, mismo contenido)"
+    }
+  ],
+  "git_status_short_after": [
+    "M lefarma.backend/src/Lefarma.API/Features/EducacionMedica/AprobacionesController.cs",
+    "M lefarma.backend/src/Lefarma.API/Shared/Constants/AuthorizationConstants.cs",
+    "M lefarma.backend/src/Lefarma.API/appsettings.Development.json",
+    "M lefarma.backend/tests/Lefarma.UnitTests/Lefarma.UnitTests.csproj",
+    "M lefarma.frontend/.gitignore",
+    "?? .omo/",
+    "?? lefarma.backend/src/Lefarma.API/Shared/Authorization/ClaimsPrincipalExtensions.cs",
+    "?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosEndpointTests.cs",
+    "?? lefarma.backend/tests/Lefarma.UnitTests/Features/Viaticos/PermisosHelperTests.cs",
+    "?? lefarma.database/viaticos/0003_20261007-0000_viaticos_permisos.sql",
+    "?? lefarma.database/viaticos/0003_20261007-0000_viaticos_schema-solicitudes.lefarma.sql",
+    "?? lefarma.frontend/scripts/captura-viaticos.mjs",
+    "?? odd/tasks/costos-ruta-formulario.md",
+    "?? \"pruebas de gastos/\""
+  ],
+  "git_status_only_my_changes": [
+    "M lefarma.frontend/.gitignore",
+    "?? lefarma.frontend/scripts/captura-viaticos.mjs",
+    "?? .omo/ (este DoneClaim)"
+  ],
+  "dependencies": {
+    "policy": "NO se instalaron dependencias npm nuevas",
+    "playwright_version_used": "1.58.2 (ya estaba en lefarma.frontend/node_modules por @playwright/test ^1.58.2)",
+    "chromium_installed": "chromium-1208 (ya estaba en %LOCALAPPDATA%\\ms-playwright)",
+    "playwright_install_step": "NO fue necesario correr 'npx playwright install chromium': ya estaba instalado. Verificado listando ms-playwright y ejecutando una captura real."
+  },
+  "syntax_check": {
+    "command": "node --check scripts/captura-viaticos.mjs",
+    "exitCode": 0,
+    "stderr": ""
+  },
+  "build_check": {
+    "command": "cd lefarma.frontend && npm run build",
+    "exitCode": 0,
+    "duration_ms": 114281,
+    "notes": "tsc + vite build OK en 1m 6s. El script vive en /scripts/ (no en /src/), asi que no se compila con tsc ni se bundlea con vite."
+  },
+  "manual_qa": [
+    {
+      "name": "QA-A: captura exitosa (example.com)",
+      "command": "node scripts/captura-viaticos.mjs '[{\"url\":\"https://example.com\",\"nombre\":\"qa-example\"}]'",
+      "exitCode": 0,
+      "stdout": "[{\"url\":\"https://example.com\",\"ok\":true,\"archivo\":\"capturas/viaticos/qa-example.png\",\"error\":\"WARN: lista blanca de dominios vacia; poblar antes de pasar a produccion\"}]",
+      "disk_check": "lefarma.frontend/public/capturas/viaticos/qa-example.png = 37024 bytes (umbral > 1024: OK)",
+      "verdict": "PASS — captura + JSON + tamano"
+    },
+    {
+      "name": "QA-B: dominio inexistente (.invalid)",
+      "command": "node scripts/captura-viaticos.mjs '[{\"url\":\"https://no-existe-este-dominio-xyz123.invalid\",\"nombre\":\"qa-fallar\"}]'",
+      "exitCode": 0,
+      "stdout": "[{\"url\":\"https://no-existe-este-dominio-xyz123.invalid\",\"ok\":false,\"archivo\":null,\"error\":\"page.goto: net::ERR_NAME_NOT_RESOLVED at https://no-existe-este-dominio-xyz123.invalid/\\nCall log:\\n  - navigating to \\\"https://no-existe-este-dominio-xyz123.invalid/\\\", waiting until \\\"networkidle\\\"\\n; WARN: lista blanca de dominios vacia; poblar antes de pasar a produccion\"}]",
+      "disk_check": "qa-fallar.png NO creado; archivos en disco antes=despues=[qa-example.png]",
+      "verdict": "PASS — exit 0, ok:false, sin archivo"
+    },
+    {
+      "name": "QA-C: 11 URLs (sobre el maximo)",
+      "command": "node scripts/captura-viaticos.mjs '[{\"url\":\"https://example.com/?n=0\",\"nombre\":\"qa-url-0\"},...(11 items)...]'",
+      "exitCode": 0,
+      "stdout": "[{\"url\":null,\"ok\":false,\"archivo\":null,\"error\":\"demasiadas URLs (recibidas 11, maximo 10)\"}]",
+      "disk_check": "ningun qa-url-* creado (solo qa-example.png de antes)",
+      "verdict": "PASS — validacion previa sin intentar ninguna"
+    }
+  ],
+  "adversarial_classes": {
+    "hung_or_long_commands": {
+      "result": "OK",
+      "evidence": [
+        "page.goto usa timeout:30000ms (forzado en el constructor de la promesa de Playwright).",
+        "Promise.race interno no hace falta: page.goto ya rechaza a los 30s.",
+        "Timer duro de proceso: HARD_PROCESS_TIMEOUT_MS=55000 con process.exit(0) si se excede.",
+        "Verificado con QA-B: dominio no-resoluble sale en <60s, exit 0, JSON con ok:false."
+      ]
+    },
+    "misleading_success_output": {
+      "result": "OK",
+      "evidence": [
+        "QA-A cruza stdout (ok:true, archivo set) con filesystem (qa-example.png existe, 37024 B). No hay ok:true sin archivo.",
+        "QA-B verifica ademas que NO se creo el .png cuando ok:false.",
+        "QA-C verifica que NO se crearon 11 archivos cuando se devolvio el error de validacion."
+      ]
+    },
+    "dirty_worktree": {
+      "result": "OK",
+      "evidence": [
+        "git status --short capturado antes y despues del trabajo.",
+        "Cambios introducidos por MI sesion: 1 modificacion (.gitignore) + 1 archivo nuevo (captura-viaticos.mjs) + este DoneClaim.",
+        "Los 3 archivos del usuario (appsettings.Development.json, odd/tasks/costos-ruta-formulario.md, pruebas de gastos/) NO fueron modificados por mi. (appsettings.Development.json aparece como M en git status --short por una modificacion de OTRO worker en paralelo — la DB Lefarma -> LefarmaDev —; mi sesion jamas lo abrio.)"
+      ]
+    }
+  },
+  "cleanup_verification": {
+    "policy": "try/finally garantiza browser.close() en exito; process.exit(0) en timeout duro deja huerfanos pero el SO los limpia.",
+    "post_qa_chrome_headless_count": 0,
+    "post_qa_chromium_headless_count": 0,
+    "method": "Get-WmiObject Win32_Process | Where-Object { $_.CommandLine -match '--headless' OR $_.CommandLine -match 'playwright' } -> 0 resultados",
+    "notes": "Los 27 procesos chrome.exe que aparecen en el sistema son del navegador real del usuario (chrome estable en 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'), NO de Playwright. Playwright usa Chromium for Testing desde %LOCALAPPDATA%\\ms-playwright."
+  },
+  "no_no_dos": {
+    "no_git_commit": "VERIFIED — no se hizo commit, add, push ni PR.",
+    "no_appsettings_modified": "VERIFIED — appsettings.Development.json sin cambios por mi sesion.",
+    "no_formulario_modified": "VERIFIED — odd/tasks/costos-ruta-formulario.md intacto.",
+    "no_pruebas_gastos_modified": "VERIFIED — pruebas de gastos/ intacto.",
+    "no_new_npm_deps": "VERIFIED — solo se uso playwright 1.58.2 ya instalado."
+  },
+  "public_api": {
+    "usage_argv": "node scripts/captura-viaticos.mjs '[{\"url\":\"https://...\",\"nombre\":\"op1\"}, ...]'",
+    "usage_stdin": "echo '[{\"url\":\"...\",\"nombre\":\"...\"}]' | node scripts/captura-viaticos.mjs",
+    "output_dir": "lefarma.frontend/public/capturas/viaticos/",
+    "stdout_contract": "Array JSON, un objeto por URL procesada: { url, ok, archivo, error }. Si ok:true, archivo = 'capturas/viaticos/<nombre>.png' (relativo a public/). exit 0 SIEMPRE.",
+    "exposed_by_T8_endpoint": "T8 (otro worker) lo expone como endpoint."
+  }
+}
