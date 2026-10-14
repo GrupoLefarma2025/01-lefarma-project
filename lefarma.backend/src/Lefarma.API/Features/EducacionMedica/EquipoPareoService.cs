@@ -114,7 +114,7 @@ public class EquipoPareoService : IEquipoPareoService
             foreach (var ruta in rutasDeSeleccion)
             {
                 var totalVisitas = (await _rutaRepository.GetVisitasAsync(ruta.IdRuta, ct)).Count;
-                if (ruta.Estado == Ruta.EstadoConfirmada)
+                if (ruta.Estado == Ruta.EstadoCerrada)
                 {
                     totalVisitasConfirmadas += totalVisitas;
                 }
@@ -295,7 +295,10 @@ public class EquipoPareoService : IEquipoPareoService
         foreach (var region in regiones)
         {
             var seleccion = selecciones.GetValueOrDefault(region.IdSeleccionMensual);
-            if (seleccion is null || seleccion.Estado == SeleccionMensual.EstadoCerrada)
+            if (seleccion is null
+                || seleccion.Estado is SeleccionMensual.EstadoCerrada
+                    or SeleccionMensual.EstadoCancelada
+                    or SeleccionMensual.EstadoRechazada)
             {
                 continue;
             }

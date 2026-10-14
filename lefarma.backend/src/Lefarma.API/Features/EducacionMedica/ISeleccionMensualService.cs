@@ -71,6 +71,4 @@ public interface ISeleccionMensualService
     Task<ErrorOr<IEnumerable<Lefarma.API.Features.Config.Workflows.DTOs.HistorialWorkflowItemResponse>>> GetHistorialAsync(
         int idSeleccionMensual,
         CancellationToken ct = default);
-
-    Task<DTOs.SeleccionMensualDto> CerrarAsync(int idSeleccionMensual, int idUsuario, CancellationToken ct = default);
 }

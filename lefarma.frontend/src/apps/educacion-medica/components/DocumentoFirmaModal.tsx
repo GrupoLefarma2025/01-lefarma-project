@@ -23,14 +23,19 @@ interface DocumentoFirmaModalProps {
     accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => void | Promise<void>;
+  ) => boolean | Promise<boolean>;
 }
 
 /**
  * Modal de firma de un documento de Educación Médica: lista las acciones
  * disponibles del paso actual y abre el formulario dinámico (WorkflowAccionModal)
- * al elegir una. Compartido por la Bandeja de Autorizaciones y el listado de
- * Selecciones Mensuales (mismo endpoint, mismas validaciones).
+ * al elegir una. Compartido por la Bandeja de Autorizaciones, el listado de
+ * Selecciones Mensuales y la planificación de Rutas (mismo endpoint, mismas
+ * validaciones).
+ *
+ * Patrón RH: al confirmar una acción solo se cierra el formulario; la lista de
+ * acciones queda abierta y se refresca con las acciones restantes. `onConfirmar`
+ * devuelve `true` cuando la acción se aplicó.
  */
 export function DocumentoFirmaModal({
   open,
@@ -48,11 +53,11 @@ export function DocumentoFirmaModal({
 }: DocumentoFirmaModalProps) {
   const [accionPendiente, setAccionPendiente] = useState<AccionWorkflow | null>(null);
 
-  // Al abrir se parte siempre de la lista de acciones (sin acción elegida).
+  // En cada transición del modal se parte de la lista de acciones (sin acción elegida).
   const [aperturaAnterior, setAperturaAnterior] = useState(false);
   if (open !== aperturaAnterior) {
     setAperturaAnterior(open);
-    if (open) setAccionPendiente(null);
+    setAccionPendiente(null);
   }
 
   const entidad = ENTIDAD_ARCHIVOS[tipo];
@@ -104,10 +109,10 @@ export function DocumentoFirmaModal({
         entidadId={idEntidad}
         carpetaAdjuntos={entidad.carpeta}
         idPasoActual={idPasoActual}
-        onConfirmar={(comentario, datosAdicionales) => {
-          if (accionPendiente) {
-            void onConfirmar(accionPendiente, comentario, datosAdicionales);
-          }
+        onConfirmar={async (comentario, datosAdicionales) => {
+          if (!accionPendiente) return;
+          const ok = await onConfirmar(accionPendiente, comentario, datosAdicionales);
+          if (ok) setAccionPendiente(null);
         }}
       />
     </>

@@ -1,6 +1,8 @@
 using System.Security.Claims;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
+using Lefarma.API.Shared.Authorization;
+using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,6 +14,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/config-ranking")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.ConfiguracionGestionar)]
 public class ConfigRankingController : ControllerBase
 {
     private readonly IConfigRankingService _service;

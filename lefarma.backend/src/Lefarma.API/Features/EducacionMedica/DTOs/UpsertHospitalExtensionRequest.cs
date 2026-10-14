@@ -8,4 +8,8 @@ public class UpsertHospitalExtensionRequest
     public bool? ConSia { get; set; }
     public int? NumeroQuirofanos { get; set; }
     public bool? EsZonaMetropolitana { get; set; }
+    /// <summary>Clasificación del contacto (curación manual del catálogo).</summary>
+    public bool? EsAlmacen { get; set; }
+    public bool? EsFarmacia { get; set; }
+    public bool? EsSedeTaller { get; set; }
 }

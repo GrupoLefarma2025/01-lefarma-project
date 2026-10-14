@@ -12,6 +12,13 @@ public class HospitalFilterParams
     public bool? Activo { get; set; }
 
     /// <summary>
+    /// Clasificación del contacto por sede: "sedes" = solo es_sede_taller = 1 (excluye
+    /// logísticos 0, conserva NULL); "logisticos" = solo 0; "sin-clasificar" = solo NULL
+    /// (con extensión). null = sin filtro. Los pickers operativos (Selección/ranking) usan "sedes".
+    /// </summary>
+    public string? FiltroSede { get; set; }
+
+    /// <summary>
     /// true = solo hospitales con coordenadas validas (latitud/longitud no nulas
     /// y no ambas en 0); false = solo los que no tienen. null = sin filtro.
     /// </summary>

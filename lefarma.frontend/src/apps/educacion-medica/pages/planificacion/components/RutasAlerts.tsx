@@ -44,19 +44,22 @@ export function RutasAlerts({
   return (
     <div className="space-y-2">
       {hayAccion && (
-        <Alert variant="destructive" className="border-amber-300 bg-amber-50 text-amber-900">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertTitle className="text-amber-900">
+        <Alert
+          variant="destructive"
+          className="border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="text-amber-900 dark:text-amber-200">
             {sinAsignacion.cantidad > 0
               ? `${sinAsignacion.cantidad} hospital${sinAsignacion.cantidad === 1 ? '' : 'es'} requiere${sinAsignacion.cantidad === 1 ? '' : 'n'} atención`
               : 'Hospitales requieren atención'}
           </AlertTitle>
-          <AlertDescription className="space-y-2 text-amber-800">
+          <AlertDescription className="space-y-2 text-amber-800 dark:text-amber-300">
             {sinAsignacion.cantidad > 0 && (
               <p>
                 No tienen región o equipo asignado y no pueden planificarse correctamente
                 {sinAsignacion.nombres.length > 0 && (
-                  <span className="text-amber-700">
+                  <span className="text-amber-700 dark:text-amber-400">
                     {' '}
                     ({sinAsignacion.nombres.slice(0, 5).join(', ')}
                     {sinAsignacion.nombres.length > 5 ? ', …' : ''})
@@ -71,20 +74,25 @@ export function RutasAlerts({
             <Button
               variant="outline"
               size="sm"
-              className="mt-1 border-amber-400 text-amber-900 hover:bg-amber-100"
+              className="mt-1 gap-1.5 border-amber-400 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:text-amber-200 dark:hover:bg-amber-950/50"
               onClick={onIrASeleccion}
             >
               Ir a Selección Mensual
-              <ArrowRight className="ml-2 h-3.5 w-3.5" />
+              <ArrowRight className="h-3.5 w-3.5" />
             </Button>
           </AlertDescription>
         </Alert>
       )}
 
       {todasAdvertencias.map((aviso) => (
-        <Alert key={aviso} className="border-amber-200 bg-amber-50/60">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-amber-800">{aviso}</AlertDescription>
+        <Alert
+          key={aviso}
+          className="border-amber-200 bg-amber-50/60 dark:border-amber-900/50 dark:bg-amber-950/20"
+        >
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-amber-800 dark:text-amber-300">
+            {aviso}
+          </AlertDescription>
         </Alert>
       ))}
 

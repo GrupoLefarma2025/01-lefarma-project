@@ -1,7 +1,7 @@
 ---
 fecha_creacion: 2026-09-12 13:00
-fecha_modificacion: 2026-09-12 13:00
-resumen: Integración del motor genérico de workflow del sistema (config.workflows) a la autorización de la Selección mensual y las Rutas de Educación Médica — dos workflows con código propio (EDUCACION_MEDICA_SELECCION / EDUCACION_MEDICA_RUTAS) resueltos directo por código, firma digital exigida, cadena GG→GV en la selección y GV→CA→DC en las rutas, la versión de rutas como entidad autorizable (rutas_versiones) y la Bandeja de Autorizaciones funcional.
+fecha_modificacion: 2026-10-08 12:00
+resumen: Integración del motor genérico de workflow del sistema (config.workflows) a la autorización de la Selección mensual y las Rutas de Educación Médica — workflows por fase y gerencia (EDUCACION_MEDICA_SELECCION / EDUCACION_MEDICA_RUTAS / EDUCACION_MEDICA_MATRIZ) resueltos por mappings TIPO_GERENCIA, firma digital exigida, patrón único Creada → firmas → Cerrada/Rechazada/Cancelada (el penúltimo paso cierra o rechaza), la versión de rutas como entidad autorizable (rutas_versiones) y la Bandeja de Autorizaciones funcional.
 ---
 
 # 00006 — Workflow de autorización: Selección mensual y Rutas
@@ -19,6 +19,18 @@ Proposed
 > **Revisión 2026-09-12 (entidades y huella en el motor)** — Se precisan las entidades que entran al motor: `SeleccionMensual` (existente) y `RutaVersion` (nueva, tabla `rutas_versiones`), ambas con `id_workflow`/`id_paso_actual`/`id_estado`. Se agregan las mejoras de modelo de las decisiones 16–18 (FK `rutas.id_ruta_version`, navegación `EstadoWorkflow`, `fecha_confirmacion` en la versión, impl explícita de `IdUsuarioCreador`) y se documenta la huella real en código compartido (decisión 19): **un solo método del motor**.
 
 > **Revisión 2026-09-15 (workflow por gerencia + mappings)** — Diseño final acordado: **4 workflows lineales** (selección/rutas × IMSS/Descentralizado) con el **mismo código base por fase** (`EDUCACION_MEDICA_SELECCION` / `EDUCACION_MEDICA_RUTAS`) y **mappings por scope `TIPO_GERENCIA`** (1 = IMSS, 2 = Descentralizado) configurados en el admin de workflows. **Se eliminan las condiciones `IdTipoGerencia`** (las cadenas son lineales). Los **mappings son obligatorios**: sin ellos, el fallback por código compartido puede elegir la variante equivocada. Manual en el frontend: los 4 mappings + los participantes por paso.
+
+> **Revisión 2026-10-08 — patrón único de pasos y acciones (Creada + Cerrada/Rechazada/Cancelada).** Por acuerdo con el usuario, los flujos de EM siguen **el mismo patrón de pasos y acciones que OC y Solicitudes de Personal** (ya conocido por los usuarios), aplicado a **Selección, Rutas y Matriz de talleres**:
+>
+> - **Paso inicial `Creada`** (estado CREADA) en los tres procesos — reemplaza `Borrador` (selección), `Draft (en captura)` (rutas) y `Concentración` (matriz). Es el único paso editable.
+> - **Tres pasos finales SIEMPRE presentes**: `Cerrada` (CERRADA), `Rechazada` (RECHAZADA) y `Cancelada` (CANCELADA). **`Cerrada` equivale a "autorizada por completo"**; el paso/estado `Autorizada` y el estado `Confirmada` de rutas **desaparecen** (al estar cerrada se interpreta como autorizada/confirmada).
+> - **El penúltimo paso de firma es quien cierra o rechaza**: Selección → Firma GV (`CERRAR → Cerrada` / `RECHAZAR → Rechazada`); Rutas y Matriz → Autorización DC (`CERRAR` / `RECHAZAR`). El cierre lo ejecuta el participante de ese paso (mismo participante que firmaba la autorización); ya no existe el endpoint suelto `POST /cerrar`.
+> - **`CANCELAR` está disponible desde cualquier paso excepto el penúltimo** (y desde luego nunca en Cerrada/Rechazada/Cancelada). La ejecuta el creador y **no exige firma digital** (sí comentario).
+> - **`RECHAZAR`** (comentario obligatorio, reemplaza conceptualmente la decisión 9 "sin rechazo terminal") está disponible en los pasos intermedios de firma y en el penúltimo: es la no-aceptación definitiva, en paralelo a `DEVOLVER` (corrección, regresa a `Creada`).
+> - **Validación de equipos al cerrar (servicio)**: `CERRAR` solo procede si **todas las regiones de la selección tienen equipo de pareo**; si falta alguna, el servicio responde con el mensaje y no cierra. En rutas el cierre conserva la validación de **cobertura 100%** (`CERRAR` dispara `ValidarCoberturaVersionAsync`). `ENVIAR` a revisión también exige todas las regiones con equipo (antes: "mínimo 1 zona").
+> - **Estados de dominio**: selección `Creada | EnRevision | Cerrada | Rechazada | Cancelada`; rutas `Creada | Cerrada | Rechazada | Cancelada | Archivada`. CHECKs y defaults actualizados; renombres de datos `Borrador→Creada`, `Autorizada→Cerrada`, `Draft→Creada`, `Confirmada→Cerrada`.
+> - **Aplicación**: script `0018` reescrito (secciones 1–5: tipos de acción `CERRAR`/`RECHAZAR` por proceso, estados, flujos de los 6 workflows, migración de estados y backfill). Se re-ejecuta sobre LefarmaDev tras borrar los workflows EM; los **mappings y participantes se recrean en el admin** (el script los limpia, como antes).
+> - **Supersede parcialmente**: decisión 4 (cierre administrativo fuera del workflow), decisión 9 (sin rechazo terminal), decisión 11 (nomenclatura de estados) y decisión 12 (la confirmación final de DC ahora es `CERRAR`). El resto del ADR sigue vigente (motor, entidad `rutas_versiones`, firmas digitales, quién firma no edita, bandeja).
 
 ## Índice
 
@@ -43,16 +55,29 @@ La autorización de la **Selección mensual** y de las **Rutas** deja de ser có
 ```
 Workflows (elegidos por mapping TIPO_GERENCIA):
   ├─ EDUCACION_MEDICA_SELECCION · "Selección mensual - IMSS" | "- Descentralizado"
-  │    Borrador ─[ENVIAR] → Firma Gerencia General (firma digital)
-  │      → Firma Gerente de Ventas (condición por gerencia) → Autorizada → habilita Rutas
-  │    DEVOLVER (comentario) → Borrador
+  │    Creada ─[ENVIAR] → Firma Gerencia General (firma digital)
+  │      → Firma Gerente de Ventas (participante del GV de la gerencia)
+  │         ├─[CERRAR]   → Cerrada   (autorizada por completo; valida equipos en todas las regiones)
+  │         └─[RECHAZAR] → Rechazada
+  │    DEVOLVER (comentario) → Creada;  CANCELAR (creador) desde Creada y GG → Cancelada
   │
-  └─ EDUCACION_MEDICA_RUTAS · "Rutas - IMSS" | "- Descentralizado"
-       Draft ─[ENVIAR A AUTORIZACIÓN] → Firma Gerente de Ventas (condición por gerencia)
-         → Revisión Coordinador Administrativo (costos) → Autorización Dirección Corporativa
-         → Confirmada → publica asignaciones
-       DEVOLVER (comentario) → Draft;   CANCELAR → Cancelada (libera regenerar)
+  ├─ EDUCACION_MEDICA_RUTAS · "Rutas - IMSS" | "- Descentralizado"
+  │    Creada ─[ENVIAR] → Firma Gerente de Ventas
+  │      → Revisión Coordinador Administrativo (costos)
+  │      → Autorización Dirección Corporativa
+  │         ├─[CERRAR]   → Cerrada   (publica asignaciones; valida cobertura 100%)
+  │         └─[RECHAZAR] → Rechazada
+  │    DEVOLVER (comentario) → Creada;  CANCELAR (creador) desde Creada/GV/CA → Cancelada
+  │
+  └─ EDUCACION_MEDICA_MATRIZ · "Matriz de talleres - IMSS" | "- Descentralizado"
+       Creada ─[ENVIAR] → Firma Gerente de Ventas → Registro de costos AEM
+         → Revisión de costos CA → Autorización DC
+            ├─[CERRAR]   → Cerrada   (talleres pasan a Autorizado)
+            └─[RECHAZAR] → Rechazada
+       DEVOLVER (comentario) → paso anterior definido;  CANCELAR (creador) excepto en DC → Cancelada
 ```
+
+Reglas transversales del patrón: **quien cierra es el participante del penúltimo paso**; **CANCELAR en todos los pasos excepto el penúltimo**; **RECHAZADA/CANCELADA nunca se cancelan ni se rechazan de nuevo**; los tres finales existen siempre en la configuración.
 
 2. **La gerencia se resuelve con un workflow por variante (mappings de scope `TIPO_GERENCIA`)**, no con condiciones: cuatro workflows lineales (selección/rutas × IMSS/Descentralizado) con el mismo código base por fase; el servicio resuelve el workflow por el mapping según `IdTipoGerencia` de la entidad (la selección lo tiene; la versión de rutas lo denormaliza al generarse). Cada variante tiene **como participante al GV de esa gerencia**, así que la validación de quién firma la hace el motor. *Los mappings son obligatorios.*
 

@@ -326,8 +326,17 @@ public class SolicitudPersonalFirmasService : BaseService, ISolicitudPersonalFir
 
             var idUsuarioSolicitante = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
 
-            var diasQueDescuentan = await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
-                _context, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
+            var fechasDetalle = await _context.SolicitudesPersonalDetalle
+                .AsNoTracking()
+                .Where(d => d.IdSolicitud == solicitud.IdSolicitud)
+                .Select(d => d.Fecha)
+                .ToListAsync();
+
+            var diasQueDescuentan = fechasDetalle.Count > 0
+                ? await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
+                    _context, solicitud.IdEmpresa, fechasDetalle)
+                : await SolicitudPersonalService.ContarDiasQueConsumenSaldoAsync(
+                    _context, solicitud.IdEmpresa, solicitud.FechaInicio.Value, solicitud.FechaFin.Value);
 
             if (diasQueDescuentan == 0)
                 return true;

@@ -6,6 +6,9 @@ using Lefarma.API.Features.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Features.EducacionMedica.Services;
 using Lefarma.API.Features.Profile;
+using Lefarma.API.Services.Identity;
+using Lefarma.API.Shared.Constants;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 
@@ -122,7 +125,7 @@ public class RutasServiceTests
         public Task<List<Ruta>> GetConfirmadasPorEquiposAsync(IEnumerable<int> idsEquipos, CancellationToken cancellationToken = default)
         {
             var ids = idsEquipos.ToHashSet();
-            return Task.FromResult(Rutas.Where(r => r.Estado == Ruta.EstadoConfirmada && ids.Contains(r.IdEquipo)).ToList());
+            return Task.FromResult(Rutas.Where(r => r.Estado == Ruta.EstadoCerrada && ids.Contains(r.IdEquipo)).ToList());
         }
 
         public Task<List<Ruta>> GetByEquipoAsync(int idEquipo, CancellationToken cancellationToken = default)
@@ -216,7 +219,8 @@ public class RutasServiceTests
             _parametroMock.Object, NullLogger<RutasService>.Instance,
             workflow.Engine, workflow.CreateResolverMock().Object, workflow.WorkflowRepo,
             new Mock<Lefarma.API.Features.Config.Workflows.IWorkflowQueryService>().Object,
-            profileService.Object, workflow.JefeResolverMock.Object, workflow.Asokam);
+            profileService.Object, workflow.JefeResolverMock.Object, workflow.Asokam,
+            workflow.Context, new UserPermissionService(workflow.Asokam, new MemoryCache(new MemoryCacheOptions())));
     }
 
     private SeleccionMensual SeedSeleccionAutorizada(int cantidadHospitales, bool conRegionSegunda = false)
@@ -228,7 +232,7 @@ public class RutasServiceTests
             FechaInicioVigencia = new DateOnly(2026, 9, 1),
             FechaFinVigencia = new DateOnly(2026, 10, 15),
             IdTipoGerencia = 1,
-            Estado = SeleccionMensual.EstadoAutorizada,
+            Estado = SeleccionMensual.EstadoCerrada,
             Activo = true,
         };
         _seleccionRepo.Selecciones.Add(seleccion);
@@ -462,14 +466,14 @@ public class RutasServiceTests
             IdSeleccionMensual = 1,
             IdEquipo = EquipoId,
             Version = 1,
-            Estado = Ruta.EstadoDraft,
+            Estado = Ruta.EstadoCreada,
         });
 
         var service = CreateService();
         var resultado = await service.GenerarAsync(1, idUsuario: 99);
 
         resultado.Version.Should().Be(2);
-        resultado.Rutas.Should().OnlyContain(r => r.Version == 2 && r.Estado == Ruta.EstadoDraft);
+        resultado.Rutas.Should().OnlyContain(r => r.Version == 2 && r.Estado == Ruta.EstadoCreada);
         _rutaRepo.Rutas.First(r => r.IdRuta == 1).Estado.Should().Be(Ruta.EstadoArchivada);
         resultado.Avisos.Should().Contain(a => a.Contains("archivada"));
     }
@@ -478,7 +482,7 @@ public class RutasServiceTests
     public async Task GenerarAsync_SinSeleccionAutorizada_Debe_Lanzar()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 2);
-        _seleccionRepo.Selecciones.Single().Estado = SeleccionMensual.EstadoBorrador;
+        _seleccionRepo.Selecciones.Single().Estado = SeleccionMensual.EstadoCreada;
 
         var service = CreateService();
         var act = () => service.GenerarAsync(1, idUsuario: 99);
@@ -496,7 +500,7 @@ public class RutasServiceTests
             IdSeleccionMensual = 1,
             IdEquipo = EquipoId,
             Version = 1,
-            Estado = Ruta.EstadoConfirmada,
+            Estado = Ruta.EstadoCerrada,
         });
 
         var service = CreateService();
@@ -555,15 +559,16 @@ public class RutasServiceTests
         var service = CreateService();
         await service.GenerarAsync(1, idUsuario: 99);
         // Simula una versión ya confirmada (el flujo de confirmación se cubre en FirmarVersionAsync_*)
-        foreach (var r in _rutaRepo.Rutas) r.Estado = Ruta.EstadoConfirmada;
+        foreach (var r in _rutaRepo.Rutas) r.Estado = Ruta.EstadoCerrada;
 
         var ruta = _rutaRepo.Rutas.Single();
         var visita = _rutaRepo.Visitas.First();
 
+        // En Cerrada el movimiento es ajuste post-cierre (ADR-00010): sin permiso debe lanzar.
         var act = () => service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita,
-            new MoverVisitaRequest { FechaVisita = new DateOnly(2026, 9, 3), Orden = 1 }, idUsuario: 99);
+            new MoverVisitaRequest { FechaVisita = new DateOnly(2026, 9, 3), Orden = 1, Motivo = "Reagenda" }, idUsuario: 99);
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Draft*");
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*permiso*ajustar*");
     }
 
     [Fact]
@@ -574,12 +579,12 @@ public class RutasServiceTests
         var ruta1 = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
-            Estado = Ruta.EstadoDraft, Nombre = "Ruta A",
+            Estado = Ruta.EstadoCreada, Nombre = "Ruta A",
         });
         var ruta2 = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
-            Estado = Ruta.EstadoDraft, Nombre = "Ruta B",
+            Estado = Ruta.EstadoCreada, Nombre = "Ruta B",
         });
 
         await _rutaRepo.AddVisitaAsync(new RutaVisita
@@ -607,7 +612,7 @@ public class RutasServiceTests
         var ruta = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
-            Estado = Ruta.EstadoDraft, Nombre = "Ruta A",
+            Estado = Ruta.EstadoCreada, Nombre = "Ruta A",
         });
 
         var service = CreateService();
@@ -632,7 +637,7 @@ public class RutasServiceTests
         var ruta = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
-            Estado = Ruta.EstadoDraft, Nombre = "Ruta A",
+            Estado = Ruta.EstadoCreada, Nombre = "Ruta A",
         });
 
         var service = CreateService();
@@ -658,7 +663,7 @@ public class RutasServiceTests
         var ruta = await _rutaRepo.CreateAsync(new Ruta
         {
             IdSeleccionMensual = 1, IdEquipo = EquipoId, Version = 1,
-            Estado = Ruta.EstadoDraft, Nombre = "Ruta A",
+            Estado = Ruta.EstadoCreada, Nombre = "Ruta A",
         });
 
         var service = CreateService();
@@ -710,10 +715,10 @@ public class RutasServiceTests
 
         // Dirección Corporativa: confirma y publica
         var dto = await service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcAutorizar"] }, idUsuario: 50);
+            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcCerrar"] }, idUsuario: 50);
 
-        dto.Estado.Should().Be(RutaVersion.EstadoConfirmada);
-        _rutaRepo.Rutas.Should().OnlyContain(r => r.Estado == Ruta.EstadoConfirmada);
+        dto.Estado.Should().Be(RutaVersion.EstadoCerrada);
+        _rutaRepo.Rutas.Should().OnlyContain(r => r.Estado == Ruta.EstadoCerrada);
         _rutaRepo.Rutas.Should().OnlyContain(r => r.FechaConfirmacion != null);
 
         var asignacionesEv = await service.GetAsignacionesAsync(IdEv);
@@ -722,6 +727,131 @@ public class RutasServiceTests
 
         var asignacionesOtro = await service.GetAsignacionesAsync(999);
         asignacionesOtro.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetAsignacionesAsync_Debe_ResolverEstadoCiudadEInstitucion()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 1);
+        var hospitalSeleccion = _seleccionRepo.Hospitales.Single();
+        hospitalSeleccion.EntidadFederativa = "19";
+        hospitalSeleccion.CiudadMunicipio = "Monterrey";
+
+        _workflow.Asokam.GenEstados.Add(new GenEstado { CodigoEstado = 19, NombreEstado = "Nuevo León" });
+        await _workflow.Asokam.SaveChangesAsync();
+
+        // El hospital de la visita pertenece a la institución padre 900 (IMSS).
+        _hospitalMock
+            .Setup(r => r.GetByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<int> ids, CancellationToken _) =>
+                (ids.Contains(900) ? [900] : ids).Select(id => new Hospital
+                {
+                    CodigoContacto = id,
+                    NombreContacto = id == 900 ? "IMSS" : $"Hospital {id}",
+                    CodigoContactoPrincipal = id == 900 ? null : 900,
+                    Calle = id == 900 ? null : "Av. Reforma 1",
+                    Colonia = id == 900 ? null : "Centro",
+                    Cp = id == 900 ? null : "64000",
+                    Email = id == 900 ? null : "hospital@imss.mx",
+                }).ToList());
+
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+            Nombre = "Ruta A",
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            FechaVisita = new DateOnly(2026, 9, 1),
+            Orden = 1,
+        });
+
+        var service = CreateService();
+        var asignaciones = await service.GetAsignacionesAsync(IdEv);
+
+        asignaciones.Should().HaveCount(1);
+        asignaciones[0].NombreHospital.Should().Be("Hospital 101");
+        asignaciones[0].NombreRegion.Should().Be("Región 01");
+        asignaciones[0].EntidadFederativa.Should().Be("Nuevo León");
+        asignaciones[0].CiudadMunicipio.Should().Be("Monterrey");
+        asignaciones[0].Institucion.Should().Be("IMSS");
+        asignaciones[0].Latitud.Should().Be(19.430m);
+        asignaciones[0].Longitud.Should().Be(-99.130m);
+        asignaciones[0].Calle.Should().Be("Av. Reforma 1");
+        asignaciones[0].Colonia.Should().Be("Centro");
+        asignaciones[0].CodigoPostal.Should().Be("64000");
+        asignaciones[0].Email.Should().Be("hospital@imss.mx");
+    }
+
+    [Fact]
+    public async Task GetAsignacionesAsync_SeleccionVencida_Debe_Excluir()
+    {
+        var seleccion = SeedSeleccionAutorizada(cantidadHospitales: 1);
+        seleccion.FechaInicioVigencia = new DateOnly(2025, 9, 1);
+        seleccion.FechaFinVigencia = new DateOnly(2025, 10, 15);
+
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+            Nombre = "Ruta A",
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            FechaVisita = new DateOnly(2025, 9, 10),
+            Orden = 1,
+        });
+
+        var service = CreateService();
+        var asignaciones = await service.GetAsignacionesAsync(IdEv);
+
+        asignaciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetAsignacionesAsync_SeleccionProxima_Debe_Incluir()
+    {
+        // La vigencia puede empezar en los próximos días: la planeación recién autorizada es la que se trabaja.
+        var seleccion = SeedSeleccionAutorizada(cantidadHospitales: 1);
+        seleccion.FechaInicioVigencia = new DateOnly(2026, 11, 1);
+        seleccion.FechaFinVigencia = new DateOnly(2026, 12, 31);
+
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+            Nombre = "Ruta A",
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            FechaVisita = new DateOnly(2026, 11, 2),
+            Orden = 1,
+        });
+
+        var service = CreateService();
+        var asignaciones = await service.GetAsignacionesAsync(IdEv);
+
+        asignaciones.Should().HaveCount(1);
+        asignaciones[0].FechaVisita.Should().Be(new DateOnly(2026, 11, 2));
     }
 
     [Fact]
@@ -735,13 +865,13 @@ public class RutasServiceTests
 
         // Quitar una visita deja cobertura incompleta (se hace antes de mover el paso: Draft es editable)
         var ruta = generado.Rutas.Single();
-        await service.QuitarVisitaAsync(ruta.IdRuta, ruta.Visitas.Last().IdRutaVisita, idUsuario: 99);
+        await service.QuitarVisitaAsync(ruta.IdRuta, ruta.Visitas.Last().IdRutaVisita, motivo: null, idUsuario: 99);
 
         // La versión llega al paso de Dirección Corporativa
         version.IdPasoActual = _workflow.PasosRutas["Dc"];
 
         var act = () => service.FirmarVersionAsync(version.IdRutaVersion,
-            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcAutorizar"] }, idUsuario: 50);
+            new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["DcCerrar"] }, idUsuario: 50);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Cobertura incompleta*");
     }
@@ -761,7 +891,7 @@ public class RutasServiceTests
         await service.FirmarVersionAsync(version.IdRutaVersion,
             new FirmarWorkflowRequest { IdAccion = _workflow.AccionesRutas["GvImssDevolver"], Comentario = "Ajustar la semana 2" }, idUsuario: 20);
 
-        version.Estado.Should().Be(RutaVersion.EstadoDraft);
+        version.Estado.Should().Be(RutaVersion.EstadoCreada);
         version.IdPasoActual.Should().Be(_workflow.PasosRutas["Draft"]);
     }
 
@@ -794,7 +924,7 @@ public class RutasServiceTests
 
         var regeneradas = await service.GenerarAsync(1, idUsuario: 99);
         regeneradas.Version.Should().Be(2);
-        regeneradas.Rutas.Should().OnlyContain(r => r.Estado == Ruta.EstadoDraft);
+        regeneradas.Rutas.Should().OnlyContain(r => r.Estado == Ruta.EstadoCreada);
     }
 
     [Fact]
@@ -844,5 +974,284 @@ public class RutasServiceTests
 
         resultado.Rutas.Should().BeEmpty();
         resultado.Avisos.Should().Contain(a => a.Contains("sin ruta"));
+    }
+
+    // ----- Ajustes post-cierre (ADR-00010) y visitas extraordinarias (ADR-00011) -----
+
+    private const int IdCem = 800;
+
+    private static DateOnly ProximoLunes()
+    {
+        var fecha = DateOnly.FromDateTime(DateTime.Today);
+        while (fecha.DayOfWeek != DayOfWeek.Monday)
+        {
+            fecha = fecha.AddDays(1);
+        }
+
+        return fecha;
+    }
+
+    private (Ruta Ruta, RutaVisita Visita) SembrarRutaCerradaConVisita()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 2);
+        var ruta = new Ruta
+        {
+            IdRuta = 10,
+            IdSeleccionMensual = 1,
+            IdEquipo = EquipoId,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+            Nombre = "Ruta 1",
+        };
+        _rutaRepo.Rutas.Add(ruta);
+        var visita = new RutaVisita
+        {
+            IdRutaVisita = 100,
+            IdRuta = 10,
+            IdSeleccionHospital = 1,
+            IdHospital = 101,
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-5),
+            Orden = 1,
+        };
+        _rutaRepo.Visitas.Add(visita);
+        return (ruta, visita);
+    }
+
+    [Fact]
+    public async Task MoverVisita_EnCerrada_ConPermisoYMotivo_Debe_AplicarYAuditar()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var dto = await service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new MoverVisitaRequest
+        {
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-4),
+            Orden = 1,
+            Motivo = "Reagenda con el hospital",
+        }, IdCem);
+
+        dto.FechaVisita.Should().Be(DateOnly.FromDateTime(DateTime.Today).AddDays(-4));
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.EntidadTipo.Should().Be(AjustePostCierre.EntidadRutaVisita);
+        ajuste.IdEntidad.Should().Be(visita.IdRutaVisita);
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionMoverVisita);
+        ajuste.Motivo.Should().Be("Reagenda con el hospital");
+    }
+
+    [Fact]
+    public async Task MoverVisita_EnCerrada_SinMotivo_Debe_Fallar()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var act = () => service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new MoverVisitaRequest
+        {
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-4),
+            Orden = 1,
+        }, IdCem);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*motivo*obligatorio*");
+    }
+
+    [Fact]
+    public async Task MoverVisita_EnCerrada_FueraDeLimite_Debe_Fallar()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        visita.FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-60);
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var act = () => service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new MoverVisitaRequest
+        {
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-4),
+            Orden = 1,
+            Motivo = "Intento tardío",
+        }, IdCem);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*límite de 45 días*");
+    }
+
+    [Fact]
+    public async Task MoverVisita_EnCerrada_ExcedeCapacidad_Debe_AvisarSinBloquear()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        // El día destino ya tiene 3 visitas (tope 3/día): en ajuste se permite con aviso.
+        var destino = DateOnly.FromDateTime(DateTime.Today).AddDays(-3);
+        _rutaRepo.Visitas.AddRange(
+            new RutaVisita { IdRutaVisita = 101, IdRuta = ruta.IdRuta, IdSeleccionHospital = 2, IdHospital = 102, FechaVisita = destino, Orden = 2 },
+            new RutaVisita { IdRutaVisita = 102, IdRuta = ruta.IdRuta, IdSeleccionHospital = 3, IdHospital = 103, FechaVisita = destino, Orden = 3 },
+            new RutaVisita { IdRutaVisita = 103, IdRuta = ruta.IdRuta, IdSeleccionHospital = 4, IdHospital = 104, FechaVisita = destino, Orden = 4 });
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var dto = await service.MoverVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new MoverVisitaRequest
+        {
+            FechaVisita = destino,
+            Orden = 1,
+            Motivo = "Reagenda urgente",
+        }, IdCem);
+
+        dto.FechaVisita.Should().Be(destino);
+        dto.Avisos.Should().Contain(a => a.Contains("máximo de 3"));
+    }
+
+    [Fact]
+    public async Task EditarHoras_EnCerrada_ConPermisoYMotivo_Debe_AuditarEditarHoras()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var dto = await service.EditarHorasVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, new EditarHorasVisitaRequest
+        {
+            HoraSalida = new TimeOnly(8, 0),
+            HoraLlegada = new TimeOnly(10, 30),
+            Motivo = "Cambió la agenda",
+        }, IdCem);
+
+        dto.HoraSalida.Should().Be(new TimeOnly(8, 0));
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionEditarHoras);
+        ajuste.ValoresDespues.Should().Contain("08:00");
+    }
+
+    [Fact]
+    public async Task QuitarVisita_EnCerrada_ConPermisoYMotivo_Debe_AuditarBaja()
+    {
+        var (ruta, visita) = SembrarRutaCerradaConVisita();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        await service.QuitarVisitaAsync(ruta.IdRuta, visita.IdRutaVisita, "El hospital canceló", IdCem);
+
+        _rutaRepo.Visitas.Should().BeEmpty();
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionBajaVisita);
+        ajuste.ValoresAntes.Should().Contain("idSeleccionHospital");
+    }
+
+    [Fact]
+    public async Task AgregarVisita_EnCerrada_ConPermisoYMotivo_Debe_AuditarAlta()
+    {
+        var (ruta, _) = SembrarRutaCerradaConVisita();
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var dto = await service.AgregarVisitaAsync(ruta.IdRuta, new AgregarVisitaRequest
+        {
+            IdSeleccionHospital = 2,
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today).AddDays(-2),
+            Orden = 1,
+            Motivo = "Hospital recuperado",
+        }, IdCem);
+
+        dto.IdSeleccionHospital.Should().Be(2);
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionAltaVisita);
+    }
+
+    [Fact]
+    public async Task CancelarAsync_Debe_PersistirMotivoEnAjustesPostCierre()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 2);
+        var service = CreateService();
+        await service.GenerarAsync(1, idUsuario: 99);
+        var version = _rutaRepo.Versiones.Single();
+
+        await service.CancelarAsync(1, new CancelarRutasRequest { Motivo = "Hospital no puede recibirnos" }, idUsuario: 99);
+
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.EntidadTipo.Should().Be(AjustePostCierre.EntidadRutaVersion);
+        ajuste.IdEntidad.Should().Be(version.IdRutaVersion);
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionCancelarVersion);
+        ajuste.Motivo.Should().Be("Hospital no puede recibirnos");
+        ajuste.ValoresAntes.Should().Contain("Creada");
+        ajuste.ValoresDespues.Should().Contain("Cancelada");
+    }
+
+    [Fact]
+    public async Task AgregarVisitaExtraordinaria_ConPermiso_Debe_CrearRutaSiNoExisteYAuditar()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 2);
+        _rutaRepo.Versiones.Add(new RutaVersion
+        {
+            IdRutaVersion = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            Estado = RutaVersion.EstadoCerrada,
+        });
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var dto = await service.AgregarVisitaExtraordinariaAsync(1, new VisitaExtraordinariaRequest
+        {
+            IdEquipo = EquipoId,
+            IdHospital = 999,
+            FechaVisita = ProximoLunes(),
+            Motivo = "Imprevisto en hospital fuera de la selección",
+        }, IdCem);
+
+        dto.EsExtraordinaria.Should().BeTrue();
+        dto.IdSeleccionHospital.Should().BeNull();
+        dto.IdHospital.Should().Be(999);
+
+        var ruta = _rutaRepo.Rutas.Should().ContainSingle().Subject;
+        ruta.IdEquipo.Should().Be(EquipoId);
+        ruta.Estado.Should().Be(Ruta.EstadoCerrada);
+
+        var ajuste = _workflow.Context.AjustesPostCierre.Single();
+        ajuste.Accion.Should().Be(AjustePostCierre.AccionAltaVisita);
+        ajuste.ValoresDespues.Should().Contain("esExtraordinaria");
+    }
+
+    [Fact]
+    public async Task AgregarVisitaExtraordinaria_SinPermiso_Debe_Fallar()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 2);
+        _rutaRepo.Versiones.Add(new RutaVersion
+        {
+            IdRutaVersion = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            Estado = RutaVersion.EstadoCerrada,
+        });
+        var service = CreateService();
+
+        var act = () => service.AgregarVisitaExtraordinariaAsync(1, new VisitaExtraordinariaRequest
+        {
+            IdEquipo = EquipoId,
+            IdHospital = 999,
+            FechaVisita = ProximoLunes(),
+            Motivo = "Imprevisto",
+        }, IdCem);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*permiso*ajustar*");
+    }
+
+    [Fact]
+    public async Task AgregarVisitaExtraordinaria_VersionNoCerrada_Debe_Fallar()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 2);
+        _rutaRepo.Versiones.Add(new RutaVersion
+        {
+            IdRutaVersion = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            Estado = RutaVersion.EstadoCreada,
+        });
+        _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.RutasAjustar);
+        var service = CreateService();
+
+        var act = () => service.AgregarVisitaExtraordinariaAsync(1, new VisitaExtraordinariaRequest
+        {
+            IdEquipo = EquipoId,
+            IdHospital = 999,
+            FechaVisita = ProximoLunes(),
+            Motivo = "Imprevisto",
+        }, IdCem);
+
+        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Cerrada*");
     }
 }

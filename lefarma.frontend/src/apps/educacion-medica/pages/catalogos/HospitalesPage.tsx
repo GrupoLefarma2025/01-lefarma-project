@@ -3,6 +3,7 @@ import type { PaginationState } from '@tanstack/react-table';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
 import {
@@ -26,7 +27,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Search, Pencil, Loader2, RotateCcw, Map, MapPin, Sparkles } from 'lucide-react';
+import { Search, Pencil, Loader2, RotateCcw, Map, MapPin, Sparkles, RefreshCw } from 'lucide-react';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -56,6 +57,9 @@ const extensionSchema = z.object({
   idRegion: z.string().optional(),
   conSia: z.boolean().optional(),
   numeroQuirofanos: z.string().optional(),
+  esAlmacen: z.boolean().optional(),
+  esFarmacia: z.boolean().optional(),
+  esSedeTaller: z.boolean().optional(),
 });
 
 type ExtensionFormValues = z.infer<typeof extensionSchema>;
@@ -74,6 +78,17 @@ const MODO_OPTIONS = [
   { value: MODO_OTRAS, label: 'Otras' },
 ];
 
+const FILTRO_SEDE_SEDES = 'sedes';
+const FILTRO_SEDE_LOGISTICOS = 'logisticos';
+const FILTRO_SEDE_SIN_CLASIFICAR = 'sin-clasificar';
+
+const FILTRO_SEDE_OPTIONS = [
+  { value: NONE_VALUE, label: 'Todas' },
+  { value: FILTRO_SEDE_SEDES, label: 'Solo sedes de taller' },
+  { value: FILTRO_SEDE_LOGISTICOS, label: 'Solo logísticos (almacén/farmacia)' },
+  { value: FILTRO_SEDE_SIN_CLASIFICAR, label: 'Sin clasificar' },
+];
+
 interface Filters {
   search: string;
   modoInstitucion: string;
@@ -83,6 +98,7 @@ interface Filters {
   numeroQuirofanosMin: string;
   anestesiasTotalesMin: string;
   activo: string;
+  filtroSede: string;
 }
 
 const initialFilters: Filters = {
@@ -94,6 +110,7 @@ const initialFilters: Filters = {
   numeroQuirofanosMin: '',
   anestesiasTotalesMin: '',
   activo: 'true',
+  filtroSede: NONE_VALUE,
 };
 
 const PAGE_SIZE = 20;
@@ -120,6 +137,7 @@ export default function HospitalesPage() {
   const [zonas, setRegiones] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sincronizando, setSincronizando] = useState(false);
   const [filters, setFilters] = useState<Filters>(initialFilters);
   const [busquedaServer, setBusquedaServer] = useState('');
   const [totalCount, setTotalCount] = useState(0);
@@ -144,6 +162,9 @@ export default function HospitalesPage() {
       idRegion: NONE_VALUE,
       conSia: false,
       numeroQuirofanos: '',
+      esAlmacen: false,
+      esFarmacia: false,
+      esSedeTaller: true,
     },
   });
 
@@ -197,6 +218,7 @@ export default function HospitalesPage() {
         if (!isNaN(v) && v >= 0) params.anestesiasTotalesMin = v;
       }
       if (filters.activo !== NONE_VALUE) params.activo = filters.activo === 'true';
+      if (filters.filtroSede !== NONE_VALUE) params.filtroSede = filters.filtroSede;
       return params;
     },
     [filters, busquedaServer]
@@ -223,6 +245,7 @@ export default function HospitalesPage() {
       if (!isNaN(v) && v >= 0) params.anestesiasTotalesMin = v;
     }
     if (filters.activo !== NONE_VALUE) params.activo = filters.activo === 'true';
+    if (filters.filtroSede !== NONE_VALUE) params.filtroSede = filters.filtroSede;
     return params;
   }, [filters, busquedaServer]);
 
@@ -254,9 +277,36 @@ export default function HospitalesPage() {
 
   // Cargar catálogos al montar.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- carga inicial; los setState ocurren tras el await
     fetchTiposGerencia();
     fetchRegiones();
   }, []);
+
+  // Sincroniza extensiones: solo crea las faltantes, nunca modifica las existentes.
+  const sincronizarExtensiones = async () => {
+    const confirmado = window.confirm(
+      'Se crearán las extensiones faltantes de los hospitales del catálogo (activos, sin Privado/Distribuidor).\n\nLas extensiones existentes NO se insertan ni actualizan. ¿Continuar?'
+    );
+    if (!confirmado) return;
+
+    setSincronizando(true);
+    try {
+      const response = await educacionMedicaApi.hospitales.sincronizar();
+      if (response.data.success && response.data.data) {
+        const { creadas, yaExistian } = response.data.data;
+        toast.success(
+          `Sincronización completada: ${creadas} extensión(es) creada(s), ${yaExistian} ya existían.`
+        );
+        void buscar(pagination.pageIndex, pagination.pageSize);
+      } else {
+        toast.error(response.data.message ?? 'No se pudo sincronizar');
+      }
+    } catch (error: unknown) {
+      toast.error(toApiError(error).message ?? 'No se pudo sincronizar');
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   // Debounce solo para el campo de búsqueda.
   useEffect(() => {
@@ -270,6 +320,7 @@ export default function HospitalesPage() {
 
   // Disparar búsqueda cuando cambie la página o los filtros ya estén debounced.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- los setState ocurren tras el await
     buscar(pagination.pageIndex, pagination.pageSize);
   }, [pagination, buscar]);
 
@@ -281,6 +332,7 @@ export default function HospitalesPage() {
   }, [filters]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset de página al cambiar filtros
     setPagination((prev) =>
       prev.pageIndex === 0 ? prev : { ...prev, pageIndex: 0 }
     );
@@ -311,6 +363,9 @@ export default function HospitalesPage() {
       numeroQuirofanos: hospital.extension?.numeroQuirofanos
         ? String(hospital.extension.numeroQuirofanos)
         : '',
+      esAlmacen: hospital.extension?.esAlmacen ?? false,
+      esFarmacia: hospital.extension?.esFarmacia ?? false,
+      esSedeTaller: hospital.extension?.esSedeTaller ?? true,
     });
     setIsOpen(true);
   }, [form]);
@@ -401,6 +456,9 @@ export default function HospitalesPage() {
       numeroQuirofanos,
       // Se preserva la clasificación vigente hasta agregar el control en el formulario
       esZonaMetropolitana: selectedHospital.extension?.esZonaMetropolitana ?? null,
+      esAlmacen: values.esAlmacen ?? false,
+      esFarmacia: values.esFarmacia ?? false,
+      esSedeTaller: values.esSedeTaller ?? true,
     };
 
     setSaving(true);
@@ -450,6 +508,34 @@ export default function HospitalesPage() {
         id: 'region',
         header: 'Región',
         cell: ({ row }) => row.original.extension?.regionNombre ?? '-',
+      },
+      {
+        id: 'clasificacion',
+        header: 'Clasificación',
+        cell: ({ row }) => {
+          const ext = row.original.extension;
+          if (!ext) return '-';
+          const etiquetas: string[] = [];
+          if (ext.esAlmacen) etiquetas.push('Almacén');
+          if (ext.esFarmacia) etiquetas.push('Farmacia');
+          if (ext.esSedeTaller === true) etiquetas.push('Sede');
+          if (etiquetas.length === 0) {
+            return <span className="text-xs text-muted-foreground">Sin clasificar</span>;
+          }
+          return (
+            <div className="flex flex-wrap gap-1">
+              {etiquetas.map((etiqueta) => (
+                <Badge
+                  key={etiqueta}
+                  variant={etiqueta === 'Sede' ? 'default' : 'outline'}
+                  className="text-[10px]"
+                >
+                  {etiqueta}
+                </Badge>
+              ))}
+            </div>
+          );
+        },
       },
       {
         id: 'sia',
@@ -615,6 +701,25 @@ export default function HospitalesPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">Clasificación</label>
+              <Select
+                value={filters.filtroSede}
+                onValueChange={(v) => setFilter('filtroSede', v)}
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue placeholder="Todas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {FILTRO_SEDE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -657,6 +762,20 @@ export default function HospitalesPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={sincronizarExtensiones}
+              disabled={loading || sincronizando}
+              title="Crea las extensiones faltantes; no modifica las existentes"
+            >
+              {sincronizando ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+              )}
+              Sincronizar
+            </Button>
             <Button variant="outline" size="sm" onClick={limpiar} disabled={loading}>
               <RotateCcw className="mr-1.5 h-4 w-4" />
               Limpiar filtros
@@ -953,6 +1072,64 @@ export default function HospitalesPage() {
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="esSedeTaller"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value ?? true}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel>
+                        Es sede de taller (seleccionable en Selección Mensual y ranking)
+                      </FormLabel>
+                    </div>
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="esAlmacen"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Es almacén (contacto logístico)</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="esFarmacia"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Es farmacia (contacto logístico)</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
 
             <div className="space-y-3">

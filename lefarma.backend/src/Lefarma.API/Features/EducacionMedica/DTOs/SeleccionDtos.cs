@@ -17,6 +17,8 @@ public class SeleccionMensualDto
     public DateTime? FirmaGgFecha { get; set; }
     public int TotalHospitales { get; set; }
     public int TotalRegiones { get; set; }
+    /// <summary>Existe al menos una propuesta de rutas (cualquier versión) para esta selección; habilita el acceso directo a Planificación de rutas.</summary>
+    public bool TieneRutas { get; set; }
 
     /// <summary>Fecha de creación del registro (columna Fecha del listado).</summary>
     public DateTime FechaCreacion { get; set; }
@@ -51,8 +53,15 @@ public class SeleccionHospitalDto
     public decimal? LongitudSnapshot { get; set; }
     public int? IdRegion { get; set; }
     public string? NombreRegion { get; set; }
+    /// <summary>Equipo de pareo de la región del hospital (solo lectura; se asigna a nivel región).</summary>
+    public int? IdEquipo { get; set; }
+    public string? NombreEjecutivo { get; set; }
+    public string? NombreEspecialista { get; set; }
     public decimal? ScoreSugerencia { get; set; }
-    public string Origen { get; set; } = "Manual";
+    /// <summary>Origen de la asignación de región en la agrupación: null = región de catálogo (o alta manual) | "GPS" = fallback por centroide.</summary>
+    public string? Origen { get; set; }
+    /// <summary>Cómo se agregó el hospital a la selección: "Manual" | "Sugerencia" (derivado de id_ranking_ejecucion).</summary>
+    public string? TipoAlta { get; set; }
 }
 
 public class SeleccionRegionDto

@@ -57,6 +57,8 @@ public class SeleccionMensualRepository : ISeleccionMensualRepository
             .AsNoTracking()
             .AnyAsync(s => s.Activo
                 && s.Estado != SeleccionMensual.EstadoCerrada
+                && s.Estado != SeleccionMensual.EstadoCancelada
+                && s.Estado != SeleccionMensual.EstadoRechazada
                 && (idTipoGerencia == null || s.IdTipoGerencia == idTipoGerencia)
                 && s.FechaInicioVigencia <= fechaFinVigencia
                 && s.FechaFinVigencia >= fechaInicioVigencia, cancellationToken);
@@ -74,6 +76,8 @@ public class SeleccionMensualRepository : ISeleccionMensualRepository
             .Where(s => s.Activo
                 && s.IdSeleccionMensual != idSeleccionMensual
                 && s.Estado != SeleccionMensual.EstadoCerrada
+                && s.Estado != SeleccionMensual.EstadoCancelada
+                && s.Estado != SeleccionMensual.EstadoRechazada
                 && (idTipoGerencia == null || s.IdTipoGerencia != idTipoGerencia)
                 && s.FechaInicioVigencia.HasValue
                 && s.FechaFinVigencia.HasValue

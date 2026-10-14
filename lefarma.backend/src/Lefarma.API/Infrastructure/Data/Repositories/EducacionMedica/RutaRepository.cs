@@ -58,7 +58,7 @@ public class RutaRepository : IRutaRepository
 
         return await _context.Rutas
             .AsNoTracking()
-            .Where(r => r.Estado == Ruta.EstadoConfirmada && ids.Contains(r.IdEquipo))
+            .Where(r => r.Estado == Ruta.EstadoCerrada && ids.Contains(r.IdEquipo))
             .OrderBy(r => r.IdSeleccionMensual)
             .ThenBy(r => r.IdEquipo)
             .ToListAsync(cancellationToken);
@@ -70,6 +70,7 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
+            .Include(v => v.EstadoWorkflow)
             .FirstOrDefaultAsync(v => v.IdSeleccionMensual == idSeleccionMensual && v.Version == version, cancellationToken);
     }
 
@@ -78,6 +79,7 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
+            .Include(v => v.EstadoWorkflow)
             .FirstOrDefaultAsync(v => v.IdRutaVersion == idRutaVersion, cancellationToken);
     }
 
@@ -86,6 +88,7 @@ public class RutaRepository : IRutaRepository
         CancellationToken cancellationToken = default)
     {
         return await _context.RutasVersiones
+            .Include(v => v.EstadoWorkflow)
             .Where(v => v.IdSeleccionMensual == idSeleccionMensual)
             .OrderByDescending(v => v.Version)
             .FirstOrDefaultAsync(cancellationToken);

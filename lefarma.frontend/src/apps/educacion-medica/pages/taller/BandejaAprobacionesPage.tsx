@@ -23,6 +23,8 @@ import type { WorkflowEstado } from '@/types/workflow.types';
 import { SignatureAlert } from '@/components/common/SignatureAlert';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import type {
+  ConcentracionEquipo,
+  MatrizTalleresDetalle,
   PendienteAprobacion,
   Ruta,
   RutaVersionDto,
@@ -33,6 +35,7 @@ import { BandejaTable } from '@/apps/educacion-medica/components/BandejaTable';
 import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
+import { etiquetaEstadoDominio } from '@/apps/educacion-medica/components/seleccionUtils';
 
 const PERMISO_VER_TODOS = 'educacion_medica.aprobaciones.puede_ver_todos';
 
@@ -51,7 +54,7 @@ const formatearFecha = (fecha?: string | null) => {
 
 interface FiltrosBandeja {
   busqueda: string;
-  tipo: 'todos' | 'seleccion' | 'rutas';
+  tipo: 'todos' | 'seleccion' | 'rutas' | 'matriz';
   idEstado: string; // 'all' | idEstado
   etapa: string; // 'all' | pasoNombre
   fechaDesde: string;
@@ -102,29 +105,37 @@ export default function BandejaAprobacionesPage() {
   const [versionInfo, setVersionInfo] = useState<RutaVersionDto | null>(null);
   const [rutasVersion, setRutasVersion] = useState<Ruta[]>([]);
   const [totalHospitalesSeleccion, setTotalHospitalesSeleccion] = useState<number | null>(null);
+  const [matrizDetalle, setMatrizDetalle] = useState<MatrizTalleresDetalle | null>(null);
+  const [matrizEquipos, setMatrizEquipos] = useState<ConcentracionEquipo[]>([]);
 
   const draftFilters = draftFiltersByTab[tab];
   const appliedFilters = appliedFiltersByTab[tab];
   const loadingCurrentTab = tab === 'pendientes' ? loadingPendientes : loadingTodos;
   const documentosTab = tab === 'pendientes' ? dataPendientes : dataTodos;
 
-  const fetchTab = useCallback(async (targetTab: 'pendientes' | 'todos') => {
-    const setLoading = targetTab === 'pendientes' ? setLoadingPendientes : setLoadingTodos;
-    const setData = targetTab === 'pendientes' ? setDataPendientes : setDataTodos;
-    setLoading(true);
-    try {
-      const res = await educacionMedicaApi.aprobaciones.getDocumentos(targetTab);
-      if (res.data.success) {
-        setData(res.data.data ?? []);
-      } else {
+  const fetchTab = useCallback(
+    async (targetTab: 'pendientes' | 'todos'): Promise<PendienteAprobacion[] | null> => {
+      const setLoading = targetTab === 'pendientes' ? setLoadingPendientes : setLoadingTodos;
+      const setData = targetTab === 'pendientes' ? setDataPendientes : setDataTodos;
+      setLoading(true);
+      try {
+        const res = await educacionMedicaApi.aprobaciones.getDocumentos(targetTab);
+        if (res.data.success) {
+          const data = res.data.data ?? [];
+          setData(data);
+          return data;
+        }
         toast.error(res.data.message ?? 'No se pudieron cargar los documentos');
+        return null;
+      } catch (error: unknown) {
+        toast.error(toApiError(error).message ?? 'No se pudieron cargar los documentos');
+        return null;
+      } finally {
+        setLoading(false);
       }
-    } catch (error: unknown) {
-      toast.error(toApiError(error).message ?? 'No se pudieron cargar los documentos');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -218,11 +229,20 @@ export default function BandejaAprobacionesPage() {
     setVersionInfo(null);
     setRutasVersion([]);
     setTotalHospitalesSeleccion(null);
+    setMatrizDetalle(null);
+    setMatrizEquipos([]);
 
     try {
       if (item.tipo === 'seleccion') {
         const detRes = await educacionMedicaApi.seleccionesMensuales.getById(item.idEntidad);
         if (detRes.data.success) setSeleccionDetalle(detRes.data.data ?? null);
+      } else if (item.tipo === 'matriz') {
+        const [detRes, concRes] = await Promise.all([
+          educacionMedicaApi.matricesTalleres.getById(item.idEntidad),
+          educacionMedicaApi.matricesTalleres.concentracion(item.idEntidad),
+        ]);
+        if (detRes.data.success) setMatrizDetalle(detRes.data.data ?? null);
+        if (concRes.data.success) setMatrizEquipos(concRes.data.data ?? []);
       } else {
         const verRes = await educacionMedicaApi.rutas.version(
           item.idSeleccionMensual,
@@ -266,8 +286,8 @@ export default function BandejaAprobacionesPage() {
     accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => {
-    if (!seleccionado) return;
+  ): Promise<boolean> => {
+    if (!seleccionado) return false;
     setGuardando(true);
     try {
       const payload = {
@@ -278,19 +298,28 @@ export default function BandejaAprobacionesPage() {
       const res =
         seleccionado.tipo === 'seleccion'
           ? await educacionMedicaApi.seleccionesMensuales.firmar(seleccionado.idEntidad, payload)
-          : await educacionMedicaApi.rutas.firmarVersion(seleccionado.idEntidad, payload);
+          : seleccionado.tipo === 'matriz'
+            ? await educacionMedicaApi.matricesTalleres.firmar(seleccionado.idEntidad, payload)
+            : await educacionMedicaApi.rutas.firmarVersion(seleccionado.idEntidad, payload);
 
       if (res.data.success) {
         toast.success(res.data.message ?? 'Acción registrada.');
-        toggleModal('firma', false);
-        setSeleccionado(null);
-        await fetchTab('pendientes');
-        if (puedeVerTodos) await fetchTab('todos');
-      } else {
-        toast.error(res.data.message ?? 'No se pudo aplicar la acción');
+        // Patrón RH: se cierra solo el formulario y la lista de acciones queda
+        // abierta, refrescada con las acciones restantes del documento.
+        const pendientes = await fetchTab('pendientes');
+        const todos = puedeVerTodos ? await fetchTab('todos') : null;
+        const actualizado = [...(pendientes ?? []), ...(todos ?? [])].find(
+          (d) => d.tipo === seleccionado.tipo && d.idEntidad === seleccionado.idEntidad
+        );
+        setSeleccionado(actualizado ?? { ...seleccionado, acciones: [] });
+        return true;
       }
+
+      toast.error(res.data.message ?? 'No se pudo aplicar la acción');
+      return false;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -312,6 +341,10 @@ export default function BandejaAprobacionesPage() {
       navigate(`/educacion-medica/seleccion/${item.idSeleccionMensual}/rutas`);
       return;
     }
+    if (item.tipo === 'matriz') {
+      navigate(`/educacion-medica/talleres?idMatriz=${item.idEntidad}`);
+      return;
+    }
     navigate(`/educacion-medica/seleccion?idSeleccion=${item.idEntidad}`);
   };
 
@@ -321,7 +354,12 @@ export default function BandejaAprobacionesPage() {
   );
   const hospitalesPlanificados = useMemo(() => {
     const ids = new Set<number>();
-    rutasVersion.forEach((r) => r.visitas.forEach((v) => ids.add(v.idSeleccionHospital)));
+    rutasVersion.forEach((r) =>
+      r.visitas.forEach((v) => {
+        // Las visitas extraordinarias no cubren hospitales de la selección (ADR-00011).
+        if (v.idSeleccionHospital != null) ids.add(v.idSeleccionHospital);
+      })
+    );
     return ids.size;
   }, [rutasVersion]);
 
@@ -404,6 +442,7 @@ export default function BandejaAprobacionesPage() {
                   <SelectItem value="todos">Todos los tipos</SelectItem>
                   <SelectItem value="seleccion">Selección mensual</SelectItem>
                   <SelectItem value="rutas">Rutas</SelectItem>
+                  <SelectItem value="matriz">Matriz de talleres</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -569,7 +608,7 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Estado</p>
-                    <p>{seleccionDetalle.estado}</p>
+                    <p>{seleccionDetalle.estadoNombre ?? etiquetaEstadoDominio(seleccionDetalle.estado) ?? '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Hospitales</p>
@@ -606,7 +645,7 @@ export default function BandejaAprobacionesPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Estado</p>
-                    <p>{versionInfo.estado}</p>
+                    <p>{versionInfo.estadoNombre ?? etiquetaEstadoDominio(versionInfo.estado) ?? '—'}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Equipos</p>
@@ -630,6 +669,48 @@ export default function BandejaAprobacionesPage() {
                   No se pudo cargar la información de la versión.
                 </p>
               )}
+              {seleccionado.tipo === 'matriz' && matrizDetalle && (
+                <div className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
+                  <div>
+                    <p className="text-xs text-muted-foreground">Gerencia</p>
+                    <p>{matrizDetalle.gerencia ?? `Gerencia ${matrizDetalle.idTipoGerencia}`}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Periodo</p>
+                    <p>{matrizDetalle.periodo.slice(0, 7).split('-').reverse().join('/')}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Paso actual</p>
+                    <p>{matrizDetalle.pasoNombre ?? '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Talleres</p>
+                    <p>{matrizDetalle.totalTalleres}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Costo total</p>
+                    <p>
+                      {matrizDetalle.costoTotal.toLocaleString('es-MX', {
+                        style: 'currency',
+                        currency: 'MXN',
+                      })}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Equipos</p>
+                    <p>
+                      {matrizEquipos.length} ·{' '}
+                      {matrizEquipos.filter((e) => e.esBloqueado).length} bloqueadas /{' '}
+                      {matrizEquipos.filter((e) => !e.esBloqueado).length} en captura
+                    </p>
+                  </div>
+                </div>
+              )}
+              {seleccionado.tipo === 'matriz' && !matrizDetalle && !cargandoDetalle && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  No se pudo cargar la información de la matriz.
+                </p>
+              )}
             </section>
           </div>
         ) : null}
@@ -645,7 +726,7 @@ export default function BandejaAprobacionesPage() {
               setSeleccionado(null);
             }}
             documento={seleccionado.documento}
-            estadoTexto={seleccionado.estadoNombre ?? seleccionado.estado ?? '—'}
+            estadoTexto={seleccionado.estadoNombre ?? etiquetaEstadoDominio(seleccionado.estado) ?? '—'}
             pasoNombre={seleccionado.pasoNombre}
             tipo={seleccionado.tipo}
             idEntidad={seleccionado.idEntidad}
@@ -674,7 +755,7 @@ export default function BandejaAprobacionesPage() {
               setSeleccionado(null);
             }}
             documento={seleccionado.documento}
-            estadoTexto={seleccionado.estadoNombre ?? seleccionado.estado ?? '—'}
+            estadoTexto={seleccionado.estadoNombre ?? etiquetaEstadoDominio(seleccionado.estado) ?? '—'}
             tipo={seleccionado.tipo}
             idEntidad={seleccionado.idEntidad}
             idWorkflow={seleccionado.idWorkflow}

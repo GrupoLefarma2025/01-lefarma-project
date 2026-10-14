@@ -211,9 +211,10 @@ function RegionItem({
           </div>
 
           <div className="space-y-1">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_48px_84px_32px] items-center gap-2 text-xs font-medium text-muted-foreground">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,150px)_48px_96px_32px] items-center gap-2 text-xs font-medium text-muted-foreground">
               <span>Hospital</span>
               <span>Ubicación</span>
+              <span>Equipo</span>
               <span>Score</span>
               <span>Origen</span>
               <span />
@@ -221,7 +222,7 @@ function RegionItem({
             {hospitales.map((hospital) => (
               <div
                 key={hospital.idSeleccionHospital}
-                className="grid grid-cols-[minmax(0,1fr)_minmax(0,150px)_48px_84px_32px] items-center gap-2 border-t py-1.5 text-xs"
+                className="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)_minmax(0,150px)_48px_96px_32px] items-center gap-2 border-t py-1.5 text-xs"
                 onMouseEnter={() => onHoverHospital(hospital.idSeleccionHospital)}
                 onMouseLeave={() => onHoverHospital(null)}
               >
@@ -230,6 +231,18 @@ function RegionItem({
                 </span>
                 <span className="truncate text-muted-foreground">
                   {ubicacionHospital(hospital)}
+                </span>
+                <span
+                  className="truncate text-muted-foreground"
+                  title={
+                    hospital.nombreEjecutivo || hospital.nombreEspecialista
+                      ? `${hospital.nombreEjecutivo ?? '—'} (EV) + ${hospital.nombreEspecialista ?? '—'} (EP)`
+                      : undefined
+                  }
+                >
+                  {hospital.nombreEjecutivo || hospital.nombreEspecialista
+                    ? `${hospital.nombreEjecutivo ?? '—'} + ${hospital.nombreEspecialista ?? '—'}`
+                    : '—'}
                 </span>
                 <span>
                   {hospital.scoreSugerencia != null ? (
@@ -240,13 +253,21 @@ function RegionItem({
                     '—'
                   )}
                 </span>
-                <span>
+                <span className="flex items-center gap-1">
                   <Badge
-                    variant={hospital.origen === 'Sugerencia' ? 'default' : 'outline'}
+                    variant={hospital.tipoAlta === 'Sugerencia' ? 'default' : 'outline'}
                     className="text-xs"
                   >
-                    {hospital.origen ?? 'Manual'}
+                    {hospital.tipoAlta ?? 'Manual'}
                   </Badge>
+                  {hospital.origen === 'GPS' && (
+                    <span
+                      className="text-[10px] text-muted-foreground"
+                      title="Región asignada por GPS (centroide más cercano)"
+                    >
+                      GPS
+                    </span>
+                  )}
                 </span>
                 <span>
                   <Button

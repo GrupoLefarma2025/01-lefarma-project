@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } fro
 import { isAxiosError } from 'axios';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Modal } from '@/components/ui/modal';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { WorkflowAccionModal } from '@/components/workflows/WorkflowAccionModal';
-import { WorkflowAccionesPanel } from '@/components/workflows/WorkflowAccionesPanel';
 import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -60,6 +58,7 @@ import { RegionesPanel } from '@/apps/educacion-medica/components/RegionesPanel'
 import { ResumenSeleccionModal } from '@/apps/educacion-medica/components/ResumenSeleccionModal';
 import { SeleccionesTable } from '@/apps/educacion-medica/components/SeleccionesTable';
 import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/DocumentoFirmaModal';
+import { DocumentoHeaderCard } from '@/apps/educacion-medica/components/DocumentoHeaderCard';
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
 import {
@@ -72,17 +71,6 @@ const HospitalesMap = lazy(() =>
     default: m.HospitalesMap,
   }))
 );
-
-const ESTADO_VARIANTS: Record<string, 'default' | 'secondary' | 'outline' | 'destructive'> = {
-  Borrador: 'secondary',
-  EnRevision: 'outline',
-  Autorizada: 'default',
-  Cerrada: 'destructive',
-};
-
-function VarianteEstado({ estado }: { estado: string }) {
-  return <Badge variant={ESTADO_VARIANTS[estado] ?? 'outline'}>{estado}</Badge>;
-}
 
 interface FiltrosSelecciones {
   busqueda: string;
@@ -117,7 +105,7 @@ export default function SeleccionMensualPage() {
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [accionesWorkflow, setAccionesWorkflow] = useState<AccionDisponible[]>([]);
-  const [accionFirma, setAccionFirma] = useState<AccionWorkflow | null>(null);
+  const [modalFirma, setModalFirma] = useState(false);
 
   // Listado: filtros (cliente) + estados del workflow
   const [workflowEstados, setWorkflowEstados] = useState<WorkflowEstado[]>([]);
@@ -146,6 +134,7 @@ export default function SeleccionMensualPage() {
   const [cargandoHospitales, setCargandoHospitales] = useState(false);
   const [hospitalElegidoId, setHospitalElegidoId] = useState<number | null>(null);
   const [productoPromocionar, setProductoPromocionar] = useState('');
+  const [observacionesHospital, setObservacionesHospital] = useState('');
 
   const [regionDividir, setRegionDividir] = useState<SeleccionRegion | null>(null);
   const [motivoDivision, setMotivoDivision] = useState('');
@@ -189,17 +178,20 @@ export default function SeleccionMensualPage() {
     setRegionesAbiertas(abiertas);
   };
 
-  const fetchSelecciones = useCallback(async () => {
+  const fetchSelecciones = useCallback(async (): Promise<SeleccionMensual[] | null> => {
     setLoading(true);
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.getAll();
       if (response.data.success) {
-        setSelecciones(response.data.data ?? []);
-      } else {
-        toast.error(response.data.message ?? 'Error al cargar selecciones');
+        const data = response.data.data ?? [];
+        setSelecciones(data);
+        return data;
       }
+      toast.error(response.data.message ?? 'Error al cargar selecciones');
+      return null;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'Error al cargar selecciones');
+      return null;
     } finally {
       setLoading(false);
     }
@@ -397,8 +389,8 @@ export default function SeleccionMensualPage() {
     accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => {
-    if (!documentoLista) return;
+  ): Promise<boolean> => {
+    if (!documentoLista) return false;
     setGuardando(true);
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.firmar(
@@ -411,13 +403,21 @@ export default function SeleccionMensualPage() {
       );
       if (response.data.success) {
         toast.success(response.data.message || 'Acción aplicada.');
-        cerrarModalLista();
-        await fetchSelecciones();
-      } else {
-        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+        // Patrón RH: se cierra solo el formulario; la lista de acciones queda
+        // abierta, refrescada con las acciones restantes del documento.
+        const lista = await fetchSelecciones();
+        const actualizado = lista?.find(
+          (s) => s.idSeleccionMensual === documentoLista.idSeleccionMensual
+        );
+        setDocumentoLista(actualizado ?? { ...documentoLista, acciones: [] });
+        return true;
       }
+
+      toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+      return false;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+      return false;
     } finally {
       setGuardando(false);
     }
@@ -469,7 +469,7 @@ export default function SeleccionMensualPage() {
         talleresObjetivoMes: Number(nuevoObjetivo) || null,
       });
       if (response.data.success && response.data.data) {
-        toast.success('Selección creada en Borrador.');
+        toast.success('Selección creada.');
         setModalNueva(false);
         abrirSeleccion(response.data.data.idSeleccionMensual);
         await fetchSelecciones();
@@ -489,6 +489,7 @@ export default function SeleccionMensualPage() {
     setHospitalesGerencia([]);
     setHospitalElegidoId(null);
     setProductoPromocionar('');
+    setObservacionesHospital('');
     setModalHospital(true);
   };
 
@@ -502,6 +503,8 @@ export default function SeleccionMensualPage() {
         const response = await educacionMedicaApi.hospitales.getAll({
           idTipoGerencia: idGerencia,
           tieneCoordenadas: true,
+          // Excluye contactos logísticos (almacenes/farmacias): solo sedes de taller.
+          filtroSede: 'sedes',
           page,
           pageSize: 100,
         });
@@ -537,11 +540,15 @@ export default function SeleccionMensualPage() {
         detalle.idSeleccionMensual,
         {
           idHospital: hospitalElegidoId,
-          productoAPromocionar: productoPromocionar || null,
+          productoAPromocionar: productoPromocionar.trim() || null,
+          observaciones: observacionesHospital.trim() || null,
         }
       );
       if (response.data.success) {
         toast.success('Hospital agregado a la selección.');
+        setHospitalElegidoId(null);
+        setProductoPromocionar('');
+        setObservacionesHospital('');
         await refrescar();
       } else {
         toast.error(response.data.message ?? 'Error al agregar el hospital');
@@ -723,7 +730,10 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  const aplicarRanking = async (hospitales: import('@/apps/educacion-medica/types/educacionMedica.types').RankingHospitalItem[]) => {
+  const aplicarRanking = async (
+    hospitales: import('@/apps/educacion-medica/types/educacionMedica.types').RankingHospitalItem[],
+    productos: Record<number, string>
+  ) => {
     if (!detalle || !rankingEjecucion) return;
     setGuardando(true);
     try {
@@ -733,7 +743,7 @@ export default function SeleccionMensualPage() {
           idRankingEjecucion: rankingEjecucion.idRankingEjecucion,
           hospitales: hospitales.map((h) => ({
             idHospital: h.idHospital,
-            productoAPromocionar: null,
+            productoAPromocionar: (productos[h.idHospital] ?? '').trim() || null,
           })),
         }
       );
@@ -752,15 +762,13 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  const accionEstado = async (accion: 'enviarRevision' | 'cerrar') => {
+  const accionEstado = async () => {
     if (!detalle) return;
     setGuardando(true);
     try {
-      const api = educacionMedicaApi.seleccionesMensuales;
-      const response =
-        accion === 'enviarRevision'
-          ? await api.enviarRevision(detalle.idSeleccionMensual)
-          : await api.cerrar(detalle.idSeleccionMensual);
+      const response = await educacionMedicaApi.seleccionesMensuales.enviarRevision(
+        detalle.idSeleccionMensual
+      );
 
       if (response.data.success) {
         toast.success(response.data.message || 'Acción aplicada.');
@@ -804,8 +812,8 @@ export default function SeleccionMensualPage() {
     accion: AccionWorkflow,
     comentario?: string,
     datosAdicionales?: Record<string, unknown> | null
-  ) => {
-    if (!detalle) return;
+  ): Promise<boolean> => {
+    if (!detalle) return false;
     setGuardando(true);
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.firmar(
@@ -815,24 +823,20 @@ export default function SeleccionMensualPage() {
 
       if (response.data.success) {
         toast.success(response.data.message || 'Acción aplicada.');
-        setAccionFirma(null);
+        // Patrón RH: se cierra solo el formulario; la lista de acciones queda
+        // abierta y se refresca (el detalle recarga las acciones del paso actual).
         await refrescar();
-      } else {
-        toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+        return true;
       }
+
+      toast.error(response.data.message ?? 'No se pudo aplicar la acción');
+      return false;
     } catch (error: unknown) {
       toast.error(toApiError(error).message ?? 'No se pudo aplicar la acción');
+      return false;
     } finally {
       setGuardando(false);
     }
-  };
-
-  const abrirFirma = (accion: AccionWorkflow) => {
-    if (hasFirma === false) {
-      toast.error('No tienes firma digital registrada. Cárgala en Configuración > Perfil.');
-      return;
-    }
-    setAccionFirma(accion);
   };
 
   const hospitalesPorRegion = useMemo(() => {
@@ -904,7 +908,7 @@ export default function SeleccionMensualPage() {
     return codigos.length > 0 ? codigos : undefined;
   }, [regionExpandidaId, hospitalesPorRegion]);
 
-  const editable = detalle?.estado === 'Borrador';
+  const editable = detalle?.estado === 'Creada';
 
   // ── Modo lista ─────────────────────────────────────────────────────────────
   if (seleccionId === null) {
@@ -1012,6 +1016,7 @@ export default function SeleccionMensualPage() {
           subtitle="Todas las selecciones creadas, en cualquier estado"
           onVer={(s) => abrirSeleccion(s.idSeleccionMensual)}
           onEditar={(s) => abrirSeleccion(s.idSeleccionMensual)}
+          onRutas={(s) => navigate(`/educacion-medica/seleccion/${s.idSeleccionMensual}/rutas`)}
           onFirma={abrirFirmaLista}
           onHistorial={abrirHistorialLista}
           onArchivos={abrirArchivosLista}
@@ -1170,24 +1175,6 @@ export default function SeleccionMensualPage() {
     );
   }
 
-  const estadoTexto = detalle.estadoNombre ?? detalle.estado;
-  const estadoColor = detalle.estadoColor;
-  const badgeEstado =
-    estadoColor != null ? (
-      <span
-        className="inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold"
-        style={{
-          borderColor: estadoColor,
-          color: estadoColor,
-          backgroundColor: estadoColor + '15',
-        }}
-      >
-        {estadoTexto}
-      </span>
-    ) : (
-      <VarianteEstado estado={detalle.estado} />
-    );
-
   return (
     <div className="space-y-4">
       <Button
@@ -1200,29 +1187,21 @@ export default function SeleccionMensualPage() {
         Volver a selecciones
       </Button>
 
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle className="text-base">
-              Selección {formatearPeriodoSeleccion(detalle.fechaSeleccion)}
-            </CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {detalle.tipoGerencia ?? 'Sin gerencia'} · Selección #{detalle.idSeleccionMensual}
-            </p>
-          </div>
-          {badgeEstado}
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {detalle.estado === 'EnRevision' && (
-            <WorkflowAccionesPanel
-              acciones={accionesWorkflowActual}
-              onAccionClick={abrirFirma}
-              isSubmitting={guardando}
-              hasFirma={hasFirma ?? undefined}
-              vacioTexto="Esperando firmas: primero Gerencia General y luego el Gerente de Ventas de la gerencia."
-            />
-          )}
+      <DocumentoHeaderCard
+        titulo={`Selección ${formatearPeriodoSeleccion(detalle.fechaSeleccion)}`}
+        pasoNombre={detalle.pasoActualNombre}
+        estadoNombre={detalle.estadoNombre}
+        estadoColor={detalle.estadoColor}
+        estadoFallback={detalle.estado}
+        detalle={`${detalle.tipoGerencia ?? 'Sin gerencia'} · Selección #${detalle.idSeleccionMensual}`}
+        showFirmar={accionesWorkflowActual.length > 0}
+        onFirmar={() => setModalFirma(true)}
+        firmando={guardando}
+        firmarDeshabilitado={hasFirma === false}
+      />
 
+      <Card>
+        <CardContent className="space-y-4 pt-6">
           <div className="grid gap-4 text-sm sm:grid-cols-4">
             <div>
               <p className="text-muted-foreground">Vigencia</p>
@@ -1250,36 +1229,26 @@ export default function SeleccionMensualPage() {
               <Printer className="mr-2 h-4 w-4" />
               Resumen
             </Button>
-            {detalle.estado === 'Borrador' && (
+            {detalle.estado === 'Creada' && (
               <Button
                 size="sm"
                 disabled={guardando}
-                onClick={() => accionEstado('enviarRevision')}
+                onClick={accionEstado}
               >
                 <UserCheck className="mr-2 h-4 w-4" />
                 Enviar a autorización
               </Button>
             )}
-            {detalle.estado === 'Autorizada' && (
-              <>
-                <Button
-                  size="sm"
-                  onClick={() =>
-                    navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
-                  }
-                >
-                  <RouteIcon className="mr-2 h-4 w-4" />
-                  Planificar rutas
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={guardando}
-                  onClick={() => accionEstado('cerrar')}
-                >
-                  Cerrar selección
-                </Button>
-              </>
+            {detalle.estado === 'Cerrada' && (
+              <Button
+                size="sm"
+                onClick={() =>
+                  navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
+                }
+              >
+                <RouteIcon className="mr-2 h-4 w-4" />
+                Planificar rutas
+              </Button>
             )}
             {editable && (
               <>
@@ -1502,6 +1471,15 @@ export default function SeleccionMensualPage() {
               onChange={(e) => setProductoPromocionar(e.target.value)}
             />
           </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Observaciones (opcional)</label>
+            <Textarea
+              value={observacionesHospital}
+              onChange={(e) => setObservacionesHospital(e.target.value)}
+              rows={2}
+            />
+          </div>
         </div>
       </Modal>
 
@@ -1542,19 +1520,21 @@ export default function SeleccionMensualPage() {
         equipos={equipos}
       />
 
-      <WorkflowAccionModal
-        open={accionFirma !== null}
-        onClose={() => setAccionFirma(null)}
-        accion={accionFirma}
-        tituloEntidad={`Selección mensual ${formatearFecha(detalle.fechaSeleccion)}`}
+      <DocumentoFirmaModal
+        open={modalFirma}
+        onClose={() => setModalFirma(false)}
+        documento={`Selección ${formatearPeriodoSeleccion(detalle.fechaSeleccion)}`}
+        estadoTexto={detalle.estadoNombre ?? detalle.estado}
+        pasoNombre={detalle.pasoActualNombre}
+        tipo="seleccion"
+        idEntidad={detalle.idSeleccionMensual}
+        idPasoActual={detalle.idPasoActual}
+        acciones={accionesWorkflowActual}
         hasFirma={hasFirma ?? undefined}
         guardando={guardando}
-        entidadTipo="SeleccionMensual"
-        entidadId={detalle.idSeleccionMensual}
-        carpetaAdjuntos="educacion-medica-selecciones"
-        onConfirmar={(comentario, datosAdicionales) => {
-          if (accionFirma) void ejecutarAccionWorkflow(accionFirma, comentario, datosAdicionales);
-        }}
+        onConfirmar={(accion, comentario, datosAdicionales) =>
+          ejecutarAccionWorkflow(accion, comentario, datosAdicionales)
+        }
       />
 
       <RankingModal

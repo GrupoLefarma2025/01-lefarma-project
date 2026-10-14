@@ -11,10 +11,12 @@ interface SemanaRutaProps {
   maxVisitasDia: number;
   maxVisitasSemana: number;
   editable: boolean;
+  modoAjuste?: boolean;
   dragActivo: DragPayload | null;
   ubicacionPorVisita: (visita: RutaVisita) => string | null;
   onRetornar: (visita: RutaVisita) => void;
   onVerMapa: (fecha: string, visitas: RutaVisita[]) => void;
+  onEditarHoras?: (visita: RutaVisita) => void;
 }
 
 export function SemanaRuta({
@@ -24,10 +26,12 @@ export function SemanaRuta({
   maxVisitasDia,
   maxVisitasSemana,
   editable,
+  modoAjuste,
   dragActivo,
   ubicacionPorVisita,
   onRetornar,
   onVerMapa,
+  onEditarHoras,
 }: SemanaRutaProps) {
   const total = dias.reduce((acc, d) => acc + d.visitas.length, 0);
   const nivel = nivelCarga(total, maxVisitasSemana);
@@ -36,7 +40,7 @@ export function SemanaRuta({
   return (
     <section className="space-y-2">
       <div
-        className="flex items-center justify-between rounded-md bg-muted/50 px-3 py-1.5"
+        className="flex items-center justify-between rounded-md border border-slate-300 bg-slate-200 px-3 py-1.5 dark:border-slate-700 dark:bg-slate-800"
         title={`Semana ISO ${semana} (${rango}). Muestra las visitas calendarizadas de este equipo en esa semana contra el máximo de ${maxVisitasSemana} visitas/semana.`}
       >
         <p className="text-xs font-semibold uppercase tracking-wide">
@@ -49,18 +53,24 @@ export function SemanaRuta({
             nivel === 'excedido'
               ? 'text-destructive font-semibold'
               : nivel === 'lleno'
-                ? 'text-emerald-700'
+                ? 'text-emerald-700 dark:text-emerald-300'
                 : 'text-muted-foreground'
           )}
         >
           {total}/{maxVisitasSemana} visitas de la semana
           {nivel === 'lleno' && (
-            <Badge variant="outline" className="ml-1 border-emerald-300 text-[9px] text-emerald-700">
+            <Badge
+              variant="outline"
+              className="ml-1 border-emerald-300 text-[10px] font-medium text-emerald-700 dark:border-emerald-800 dark:text-emerald-300"
+            >
               Completa
             </Badge>
           )}
           {nivel === 'excedido' && (
-            <Badge variant="outline" className="ml-1 border-red-300 text-[9px] text-destructive">
+            <Badge
+              variant="outline"
+              className="ml-1 border-red-300 text-[10px] font-medium text-destructive dark:border-red-900"
+            >
               Excedida
             </Badge>
           )}
@@ -75,10 +85,12 @@ export function SemanaRuta({
             visitas={dia.visitas}
             maxVisitasDia={maxVisitasDia}
             editable={editable}
+            modoAjuste={modoAjuste}
             dragActivo={dragActivo}
             ubicacionPorVisita={ubicacionPorVisita}
             onRetornar={onRetornar}
             onVerMapa={onVerMapa}
+            onEditarHoras={onEditarHoras}
           />
         ))}
       </div>

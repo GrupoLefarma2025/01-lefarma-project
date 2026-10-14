@@ -19,4 +19,10 @@ public class HospitalExtensionDto
     public decimal? AnestesiasSubdurales { get; set; }
     public decimal? AnestesiasMixtasObesos { get; set; }
     public decimal? AnestesiasMixtasNoObesos { get; set; }
+    /// <summary>Contacto logístico tipo almacén (no sede de taller).</summary>
+    public bool? EsAlmacen { get; set; }
+    /// <summary>Contacto logístico tipo farmacia.</summary>
+    public bool? EsFarmacia { get; set; }
+    /// <summary>1 = sede de taller seleccionable; 0 = contacto logístico; NULL = sin clasificar.</summary>
+    public bool? EsSedeTaller { get; set; }
 }

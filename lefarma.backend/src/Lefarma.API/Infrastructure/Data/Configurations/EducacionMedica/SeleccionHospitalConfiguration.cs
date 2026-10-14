@@ -17,7 +17,6 @@ public class SeleccionHospitalConfiguration : IEntityTypeConfiguration<Seleccion
         builder.Property(e => e.Region).HasColumnName("region").HasMaxLength(60);
         builder.Property(e => e.EntidadFederativa).HasColumnName("entidad_federativa").HasMaxLength(60);
         builder.Property(e => e.CiudadMunicipio).HasColumnName("ciudad_municipio").HasMaxLength(120);
-        builder.Property(e => e.IdEjecutivo).HasColumnName("id_ejecutivo");
         builder.Property(e => e.ProductoAPromocionar).HasColumnName("producto_a_promocionar").HasMaxLength(150);
         builder.Property(e => e.Observaciones).HasColumnName("observaciones").HasMaxLength(300);
         builder.Property(e => e.LatitudSnapshot).HasColumnName("latitud_snapshot").HasPrecision(10, 7);

@@ -12,6 +12,7 @@ namespace Lefarma.API.Features.EducacionMedica;
 [Route("api/educacion-medica/aprobaciones")]
 [EndpointGroupName("EducacionMedica")]
 [Authorize]
+[HasPermission(Permissions.EducacionMedica.HubVerModulo)]
 public class AprobacionesController : ControllerBase
 {
     private readonly IAprobacionesService _service;

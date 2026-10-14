@@ -20,13 +20,28 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
+    /// <summary>Edición de horas de la visita: normal en Creada; ajuste auditado en Cerrada (ADR-00010).</summary>
+    Task<DTOs.RutaVisitaDto> EditarHorasVisitaAsync(
+        int idRuta,
+        int idRutaVisita,
+        DTOs.EditarHorasVisitaRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
     Task<DTOs.RutaVisitaDto> AgregarVisitaAsync(
         int idRuta,
         DTOs.AgregarVisitaRequest request,
         int idUsuario,
         CancellationToken ct = default);
 
-    Task QuitarVisitaAsync(int idRuta, int idRutaVisita, int idUsuario, CancellationToken ct = default);
+    /// <summary>Alta de visita extraordinaria (hospital del catálogo fuera de la selección; ADR-00011).</summary>
+    Task<DTOs.RutaVisitaDto> AgregarVisitaExtraordinariaAsync(
+        int idSeleccionMensual,
+        DTOs.VisitaExtraordinariaRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
+    Task QuitarVisitaAsync(int idRuta, int idRutaVisita, string? motivo, int idUsuario, CancellationToken ct = default);
 
     /// <summary>Estado de autorización de la versión de rutas (paso actual y acciones disponibles para el usuario).</summary>
     Task<DTOs.RutaVersionDto?> GetVersionInfoAsync(
@@ -54,4 +69,7 @@ public interface IRutasService
         CancellationToken ct = default);
 
     Task<List<DTOs.AsignacionDto>> GetAsignacionesAsync(int idUsuario, CancellationToken ct = default);
+
+    /// <summary>Hospitales de la selección del equipo con ruta Cerrada (captura asistida; ADR-00011).</summary>
+    Task<List<DTOs.HospitalElegibleDto>> GetHospitalesElegiblesAsync(int idEquipo, CancellationToken ct = default);
 }
