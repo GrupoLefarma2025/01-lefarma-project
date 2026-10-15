@@ -429,8 +429,8 @@ export function FirmaUploadCard() {
 
       {/* Dialog de confirmación final: doble validación con vista previa antes de guardar */}
       <Dialog open={confirmDialogOpen} onOpenChange={handleConfirmOpenChange}>
-        <DialogContent className="max-w-sm overflow-hidden">
-          <DialogHeader className="shrink-0">
+        <DialogContent className="flex max-w-sm flex-col gap-0 overflow-y-auto p-0">
+          <DialogHeader className="sticky top-0 z-10 shrink-0 border-b bg-background px-6 py-4">
             <DialogTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5" />
               Confirma tu firma
@@ -439,7 +439,7 @@ export function FirmaUploadCard() {
               Recursos Humanos comprobará tu firma contra tu INE antes de activarla.
             </DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+          <div className="space-y-4 px-6 py-4">
             {pendingFirmaUrl && (
               <div className="flex justify-center rounded-lg border bg-white p-4">
                 <img
@@ -489,6 +489,9 @@ export function FirmaUploadCard() {
                 <p className="text-sm font-medium text-muted-foreground">
                   Adjunta una foto de tu INE
                 </p>
+                <p className="text-xs font-medium text-primary">
+                  Da clic aquí para elegir la foto
+                </p>
                 <p className="text-xs text-muted-foreground/70">PNG o JPG — máximo 5 MB</p>
               </button>
             )}
@@ -502,7 +505,7 @@ export function FirmaUploadCard() {
               {' '}Mientras esté en comprobación no podrás cerrar solicitudes personales.
             </p>
           </div>
-          <div className="flex shrink-0 justify-end gap-2">
+          <div className="sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t bg-background px-6 py-4">
             <Button
               type="button"
               variant="outline"

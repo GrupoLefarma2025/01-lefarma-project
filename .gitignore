@@ -122,3 +122,5 @@ tmp/
 /publish/
 
 .fake
+lefarma.backend/src/Lefarma.API/appsettings.Development.json
+lefarma.frontend/pnpm-lock.yaml
