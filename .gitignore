@@ -121,4 +121,7 @@ tmp/
 # Release zip output (multiappcli.ps1 build:qa)
 /publish/
 
+.fake
+lefarma.backend/src/Lefarma.API/appsettings.Development.json
+lefarma.frontend/pnpm-lock.yaml
 .fake.lefarma-dev/

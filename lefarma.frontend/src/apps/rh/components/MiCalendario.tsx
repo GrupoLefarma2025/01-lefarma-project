@@ -620,7 +620,7 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
 
   // Vista móvil: días con contenido (solicitudes, incidencia u hoy) en orden cronológico.
   const diasAgenda = useMemo(
-    () => dias.filter((d) => d.eventos.length > 0 || d.incidencia || d.esHoy),
+    () => dias.filter((d) => d.esActual && (d.eventos.length > 0 || d.incidencia || d.esHoy)),
     [dias]
   );
   const hoyLocal = useMemo(() => toLocalMidnight(new Date()), []);
@@ -746,6 +746,15 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
             <>
               <div className="mt-2 hidden grid-cols-7 gap-px rounded-lg border bg-border sm:grid">
               {dias.map((dia, idx) => {
+                if (!dia.esActual) {
+                  return (
+                    <div
+                      key={idx}
+                      className="min-h-[100px] bg-muted/20 dark:bg-muted/10 sm:min-h-[120px]"
+                    />
+                  );
+                }
+
                 const hoyLocal = toLocalMidnight(new Date());
                 const isPast = dia.fecha < hoyLocal;
 

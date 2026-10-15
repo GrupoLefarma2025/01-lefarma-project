@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using CsvHelper;
 using CsvHelper.Configuration;
 using ErrorOr;
@@ -38,6 +39,27 @@ namespace Lefarma.API.Features.Rh.Vacaciones
         }
 
         protected override string EntityName => "DiasHabiles";
+
+        private static readonly JsonSerializerOptions HistorialJsonOptions = new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
+
+        private static List<SaldoVacacionesAjusteHistorialDto> DeserializarHistorialAjustes(string? json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return new List<SaldoVacacionesAjusteHistorialDto>();
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<SaldoVacacionesAjusteHistorialDto>>(json, HistorialJsonOptions)
+                    ?? new List<SaldoVacacionesAjusteHistorialDto>();
+            }
+            catch (JsonException)
+            {
+                return new List<SaldoVacacionesAjusteHistorialDto>();
+            }
+        }
 
         public async Task<ErrorOr<List<DiaHabilResponse>>> ObtenerDiasHabilesAsync(DiaHabilRequest request)
         {
@@ -407,6 +429,23 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                         .FirstOrDefaultAsync();
                 }
 
+                var historialAjustes = DeserializarHistorialAjustes(saldo.HistorialAjustes);
+                if (historialAjustes.Count > 0)
+                {
+                    var idsAjuste = historialAjustes.Select(h => h.IdUsuario).Distinct().ToList();
+                    var nombresAjuste = await _asokamContext.Usuarios
+                        .AsNoTracking()
+                        .Where(u => idsAjuste.Contains(u.IdUsuario))
+                        .Select(u => new { u.IdUsuario, u.NombreCompleto })
+                        .ToListAsync();
+                    var nombrePorId = nombresAjuste.ToDictionary(u => u.IdUsuario, u => u.NombreCompleto);
+                    foreach (var entrada in historialAjustes)
+                    {
+                        if (nombrePorId.TryGetValue(entrada.IdUsuario, out var nombreAjuste))
+                            entrada.UsuarioNombre = nombreAjuste;
+                    }
+                }
+
                 var estados = await _context.WorkflowEstados
                     .AsNoTracking()
                     .Select(e => new { e.IdEstado, e.Codigo, e.Nombre })
@@ -503,11 +542,11 @@ namespace Lefarma.API.Features.Rh.Vacaciones
                     DiasPendientes = saldo.DiasPendientes,
                     FechaModificacion = saldo.FechaModificacion,
                     AjustadoPor = ajustadoPor,
-                    MotivoAjuste = saldo.MotivoAjuste,
                     DiasEnTramite = diasEnTramite,
                     DiasPendientesProyectado = saldo.DiasPendientes - diasEnTramite,
                     Solicitudes = solicitudesDetalle,
-                    Historial = historial
+                    Historial = historial,
+                    HistorialAjustes = historialAjustes
                 };
             }
             catch (Exception ex)
@@ -558,7 +597,18 @@ namespace Lefarma.API.Features.Rh.Vacaciones
 
                 saldo.IdUsuarioModificacion = idUsuario;
                 saldo.FechaModificacion = DateTime.Now;
-                saldo.MotivoAjuste = motivo;
+
+                var historial = DeserializarHistorialAjustes(saldo.HistorialAjustes);
+                historial.Add(new SaldoVacacionesAjusteHistorialDto
+                {
+                    Fecha = saldo.FechaModificacion.Value,
+                    IdUsuario = idUsuario,
+                    Motivo = motivo!,
+                    DiasAjustados = saldo.DiasAjustados,
+                    DiasVencidos = saldo.DiasVencidos,
+                    DiasCompensados = saldo.DiasCompensados
+                });
+                saldo.HistorialAjustes = JsonSerializer.Serialize(historial, HistorialJsonOptions);
 
                 await _context.SaveChangesAsync();
 
