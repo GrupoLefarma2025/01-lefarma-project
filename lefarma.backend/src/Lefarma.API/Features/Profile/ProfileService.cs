@@ -409,6 +409,103 @@ public class ProfileService : BaseService, IProfileService
         }
     }
 
+    public async Task<ErrorOr<bool>> HasFirmaLegacyAsync(int userId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var tieneFirma = await _appContext.UsuariosDetalle
+                .AsNoTracking()
+                .AnyAsync(ud => ud.IdUsuario == userId && !string.IsNullOrEmpty(ud.FirmaPath), cancellationToken);
+
+            return tieneFirma;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "HasFirmaLegacy", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("verificar la firma legacy");
+        }
+    }
+
+    public async Task<ErrorOr<string>> UploadSignatureLegacyAsync(int userId, IFormFile file, string fileName, string contentType, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var extension = Path.GetExtension(fileName).ToLowerInvariant();
+            if (extension != ".png" && extension != ".jpg" && extension != ".jpeg")
+                return CommonErrors.Validation("Firma.Extension", "Solo se permiten archivos PNG, JPG o JPEG");
+
+            if (file.Length > 2 * 1024 * 1024)
+                return CommonErrors.Validation("Firma.Tamaño", "El archivo no puede exceder 2 MB");
+
+            var detalle = await EnsureUsuarioDetalleAsync(userId, cancellationToken);
+
+            // Reemplazo libre legacy: borra el archivo anterior de firma_path (si existe).
+            // Solo se toca la columna firma_path; firma_control y firma_path_cifrada no se usan aquí.
+            if (!string.IsNullOrEmpty(detalle.FirmaPath))
+            {
+                var oldPhysicalPath = Path.Combine(
+                    _archivosSettings.Value.BasePath,
+                    detalle.FirmaPath.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+                if (File.Exists(oldPhysicalPath))
+                    File.Delete(oldPhysicalPath);
+            }
+
+            const string firmasFolder = "firmas_usuarios";
+            var directoryPath = Path.Combine(_archivosSettings.Value.BasePath, firmasFolder);
+            Directory.CreateDirectory(directoryPath);
+
+            var newFileName = $"{userId}{extension}";
+            var fullPath = Path.Combine(directoryPath, newFileName);
+            await using (var stream = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+            {
+                await file.CopyToAsync(stream, cancellationToken);
+            }
+
+            var relativePath = $"{firmasFolder}/{newFileName}";
+            detalle.FirmaPath = relativePath;
+            detalle.FechaModificacion = DateTime.Now;
+            await _appContext.SaveChangesAsync(cancellationToken);
+
+            EnrichWideEvent(action: "UploadSignatureLegacy", entityId: userId, nombre: newFileName);
+            return relativePath;
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "UploadSignatureLegacy", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("subir la firma legacy");
+        }
+    }
+
+    public async Task<ErrorOr<string>> DeleteSignatureLegacyAsync(int userId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var detalle = await _appContext.UsuariosDetalle
+                .FirstOrDefaultAsync(ud => ud.IdUsuario == userId, cancellationToken);
+
+            if (detalle == null || string.IsNullOrEmpty(detalle.FirmaPath))
+                return CommonErrors.NotFound("Firma");
+
+            var oldPhysicalPath = Path.Combine(
+                _archivosSettings.Value.BasePath,
+                detalle.FirmaPath.Replace('/', Path.DirectorySeparatorChar).TrimStart(Path.DirectorySeparatorChar));
+            if (File.Exists(oldPhysicalPath))
+                File.Delete(oldPhysicalPath);
+
+            detalle.FirmaPath = null;
+            detalle.FechaModificacion = DateTime.Now;
+            await _appContext.SaveChangesAsync(cancellationToken);
+
+            EnrichWideEvent(action: "DeleteSignatureLegacy", entityId: userId);
+            return "Firma legacy eliminada";
+        }
+        catch (Exception ex)
+        {
+            EnrichWideEvent(action: "DeleteSignatureLegacy", entityId: userId, exception: ex);
+            return CommonErrors.DatabaseError("eliminar la firma legacy");
+        }
+    }
+
     public async Task<ErrorOr<bool>> SolicitarCambioFirmaAsync(int userId, CancellationToken cancellationToken = default)
     {
         try

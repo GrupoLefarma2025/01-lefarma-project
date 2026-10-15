@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+﻿import { useState, type ReactNode } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { User, Palette, Server, type LucideIcon } from 'lucide-react';
 import { UIConfig } from './UIConfig';
@@ -41,7 +41,7 @@ const tabs: TabItem[] = [
   },
 ];
 
-export default function ConfiguracionGeneral() {
+export default function ConfiguracionGeneral({ firmaCard }: { firmaCard?: ReactNode }) {
   usePageTitle('Configuración', 'Personaliza tu experiencia y configura el sistema');
   const [activeTab, setActiveTab] = useState('perfil');
 
@@ -84,7 +84,7 @@ export default function ConfiguracionGeneral() {
       <Card>
         <CardContent className="p-6">
           <div>
-            {activeTab === 'perfil' && <PerfilConfig />}
+            {activeTab === 'perfil' && <PerfilConfig firmaCard={firmaCard} />}
             {activeTab === 'ui' && <UIConfig />}
             {activeTab === 'sistema' && <SistemaConfig />}
           </div>

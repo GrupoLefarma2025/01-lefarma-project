@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+﻿import { useEffect, useState, type ReactNode } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -48,7 +48,7 @@ const perfilSchema = z.object({
 
 type PerfilFormValues = z.infer<typeof perfilSchema>;
 
-export function PerfilConfig() {
+export function PerfilConfig({ firmaCard }: { firmaCard?: ReactNode }) {
   usePageTitle('Mi Perfil', 'Configuración de tu perfil y notificaciones');
   const { user, fetchProfileSignature } = useAuthStore();
   const [loading, setLoading] = useState(true);
@@ -170,7 +170,7 @@ export function PerfilConfig() {
       <form onSubmit={form.handleSubmit(handleSave)} className="space-y-6">
 
         {/* Firma Digital */}
-        <FirmaUploadCard />
+        {firmaCard ?? <FirmaUploadCard />}
 
         {/* Contacto */}
         <Card>

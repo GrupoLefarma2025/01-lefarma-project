@@ -32,7 +32,7 @@ export interface HeaderProps {
 }
 
 export const Header = ({ showContext = false, configPath }: HeaderProps = {}) => {
-  const { user, empresa, sucursal, area, hasFirma, logout } = useAuthStore();
+  const { user, empresa, sucursal, area, hasFirma, hasFirmaLegacy, logout } = useAuthStore();
   const { title, subtitle } = usePageStore();
   const { ui, setTema } = useConfigStore();
   const navigate = useNavigate();
@@ -63,8 +63,14 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
     }
   };
 
+  // Solo CxP (showContext) cuenta la firma legacy: el aviso "Sin firma digital"
+  // sale únicamente si no hay firma RH ni legacy. Otras apps no cambian.
+  const sinFirma = showContext
+    ? hasFirma === false && hasFirmaLegacy === false
+    : hasFirma === false;
+
   return (
-    <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${hasFirma === false ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
+    <header className={`h-16 bg-card relative flex items-center justify-between px-4 sm:px-6 ${sinFirma ? 'border-b-2 border-amber-400 dark:border-amber-500' : 'border-b border-border'}`}>
       {/* Left side: Toggle + Location Info (hidden on mobile) */}
       <div className="flex items-center gap-4">
         <SidebarTrigger />
@@ -94,7 +100,7 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
           )}
         </div>
         )}
-        {hasFirma === false && (
+        {sinFirma && (
           <div className="hidden md:flex items-center gap-1.5 rounded-full border border-amber-400 dark:border-amber-500/60 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-xs text-amber-700 dark:text-amber-400">
             <PenLine className="h-3 w-3" />
             <span>Sin firma digital</span>
@@ -184,13 +190,13 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
               )}
               <div className="flex items-center gap-2">
                 <PenLine className="h-3 w-3" />
-                {hasFirma === true ? (
-                  <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
-                ) : hasFirma === false ? (
+                {sinFirma ? (
                   <span className="text-amber-600 dark:text-amber-400 flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" />
                     Sin firma digital
                   </span>
+                ) : hasFirma === true || hasFirmaLegacy === true ? (
+                  <span className="text-emerald-600 dark:text-emerald-400">Firma digital cargada</span>
                 ) : (
                   <span>Verificando firma...</span>
                 )}

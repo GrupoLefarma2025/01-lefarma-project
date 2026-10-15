@@ -35,6 +35,23 @@ public interface IProfileService
     Task<ErrorOr<string>> DeleteSignatureAsync(int userId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Verifica si el usuario tiene firma legacy CXP (columna firma_path).
+    /// Contrato exclusivo de la versión CXP; no toca firma_control ni firma_path_cifrada.
+    /// </summary>
+    Task<ErrorOr<bool>> HasFirmaLegacyAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sube/reemplaza la firma legacy CXP (firma_path, reemplazo libre sin RH).
+    /// Guarda en BasePath/firmas_usuarios/{id}.{ext} y actualiza solo la columna firma_path.
+    /// </summary>
+    Task<ErrorOr<string>> UploadSignatureLegacyAsync(int userId, IFormFile file, string fileName, string contentType, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Elimina la firma legacy CXP (columna firma_path). No toca el sistema RH.
+    /// </summary>
+    Task<ErrorOr<string>> DeleteSignatureLegacyAsync(int userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Solicita a RH un cambio de firma. Solo una solicitud pendiente por usuario;
     /// notifica in-app y por correo a los usuarios con permiso de habilitar cambios.
     /// </summary>

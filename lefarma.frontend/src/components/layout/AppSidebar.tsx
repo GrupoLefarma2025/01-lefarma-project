@@ -53,9 +53,14 @@ export interface AppSidebarProps {
 
 export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSidebarProps) {
   usePermissionVersion(); // subscribe — re-render when permissions change
-  const { user, logout, hasFirma } = useAuthStore();
+  const { user, logout, hasFirma, hasFirmaLegacy } = useAuthStore();
   const { state } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  // Solo CxP cuenta la firma legacy para el aviso; otras apps no cambian.
+  const esCxp = brandPath.startsWith('/cxp');
+  const sinFirma = esCxp
+    ? hasFirma === false && hasFirmaLegacy === false
+    : hasFirma === false;
 
   const handleLogout = async () => {
     await logout();
@@ -137,7 +142,7 @@ export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSide
     <>
       <span className="relative">
         <User className="h-4 w-4" />
-        {hasFirma === false && (
+        {sinFirma && (
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

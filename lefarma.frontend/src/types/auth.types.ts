@@ -121,6 +121,11 @@ export interface AuthState {
   area: Area | null;
 
   hasFirma: boolean | null;
+  /**
+   * Firma legacy CxP (columna firma_path). Solo CxP la usa para el aviso
+   * "Sin firma digital"; el resto de apps solo mira hasFirma (RH).
+   */
+  hasFirmaLegacy: boolean | null;
   /** La firma del usuario está en comprobación por RH (remisión sin resolver). */
   firmaEnComprobacion: boolean | null;
   puedeSeleccionarEmpresas: boolean;
