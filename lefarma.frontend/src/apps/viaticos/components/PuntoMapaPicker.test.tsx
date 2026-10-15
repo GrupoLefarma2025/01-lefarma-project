@@ -148,4 +148,13 @@ describe('selector de punto en mapa', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Agregar' }));
     expect(onAgregar).toHaveBeenCalledTimes(1);
   });
+
+  it('ocultarMapa esconde el mapa pero conserva la búsqueda', async () => {
+    const { rerender } = render(<PuntoMapaPicker value={null} onChange={vi.fn()} />);
+    await screen.findByLabelText('Estado');
+    expect(screen.getByTestId('mapa')).toBeInTheDocument();
+    rerender(<PuntoMapaPicker value={null} onChange={vi.fn()} ocultarMapa />);
+    expect(screen.queryByTestId('mapa')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar dirección (OpenStreetMap)')).toBeInTheDocument();
+  });
 });

@@ -1,7 +1,4 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "theme": "catppuccin",
-  "plugin": [
-    ".opencode/plugins/graphify.js"
-  ]
+  "theme": "catppuccin"
 }

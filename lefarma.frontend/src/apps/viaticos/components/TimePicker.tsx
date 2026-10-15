@@ -1,12 +1,9 @@
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { useState } from 'react';
+import { Check, Clock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ColumnasTiempo, partirHoraMinuto, formatoHora12h } from './ColumnasTiempo';
 
 export interface TimePickerProps {
   id: string;
@@ -17,89 +14,60 @@ export interface TimePickerProps {
   className?: string;
 }
 
-const HORAS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'));
-const MINUTOS = Array.from({ length: 60 }, (_, m) => String(m).padStart(2, '0'));
-
-function partir(value: string): { hora: string; minuto: string } {
-  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
-  return match ? { hora: match[1], minuto: match[2] } : { hora: '', minuto: '' };
-}
-
 /**
- * Selector visual de hora y minutos sobre Radix Select: operable con teclado,
- * sin apariencia de control nativo del navegador. El formato de 24 horas es
- * PROVISIONAL y se declara en la interfaz hasta que el negocio lo apruebe.
+ * Reloj propio sobre el Popover de shadcn (mismo patrón que el DatePicker):
+ * display grande + las columnas de hora compartidas. Elegir una opción
+ * completa la hora (la parte faltante es 00) y cierra, igual que el
+ * calendario cierra al elegir día. Se muestra en 12 horas (AM/PM); el valor
+ * se guarda en 24 horas.
  */
 export function TimePicker({ id, value, onChange, disabled, error, className }: TimePickerProps) {
-  const { hora, minuto } = partir(value);
+  const [open, setOpen] = useState(false);
+  const { hora, minuto } = partirHoraMinuto(value);
   const errorId = error ? `${id}-error` : undefined;
+  const hintId = `${id}-ayuda`;
 
-  function cambiar(nuevaHora: string, nuevoMinuto: string) {
-    if (nuevaHora && nuevoMinuto) onChange(`${nuevaHora}:${nuevoMinuto}`);
+  function elegir(parte: 'hora' | 'minuto', valor: string) {
+    const h = parte === 'hora' ? valor : hora;
+    const m = parte === 'minuto' ? valor : minuto;
+    if (h && m) onChange(`${h}:${m}`);
+    else if (h) onChange(`${h}:00`);
+    else if (m) onChange(`00:${m}`);
+    setOpen(false);
   }
 
   return (
     <div className={cn('space-y-1', className)}>
-      <div className="flex gap-2" role="group" aria-labelledby={`${id}-etiqueta`}>
-        <span id={`${id}-etiqueta`} className="sr-only">
-          Hora en formato de 24 horas
-        </span>
-        <div className="flex-1 space-y-1">
-          <Label htmlFor={`${id}-hora`} className="text-xs text-muted-foreground">
-            Hora
-          </Label>
-          <Select
-            value={hora || undefined}
-            onValueChange={(h) => cambiar(h, minuto || '00')}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            variant="outline"
             disabled={disabled}
+            aria-describedby={error ? `${hintId} ${errorId}` : hintId}
+            className={cn('h-10 w-full justify-start text-left font-normal', !hora && !minuto && 'text-muted-foreground')}
           >
-            <SelectTrigger id={`${id}-hora`} aria-describedby={errorId} className="h-10">
-              <SelectValue placeholder="--">
-                {hora ? <span aria-hidden={false}>{hora}</span> : undefined}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {HORAS.map((h) => (
-                <SelectItem key={h} value={h}>
-                  {h}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex-1 space-y-1">
-          <Label htmlFor={`${id}-minuto`} className="text-xs text-muted-foreground">
-            Minutos
-          </Label>
-          <Select
-            value={minuto || undefined}
-            onValueChange={(m) => cambiar(hora || '00', m)}
-            disabled={disabled}
-          >
-            <SelectTrigger id={`${id}-minuto`} aria-describedby={errorId} className="h-10">
-              <SelectValue placeholder="--">
-                {minuto ? <span>{minuto}</span> : undefined}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {MINUTOS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground" aria-hidden={false}>
-        {hora && minuto ? (
-          <>
-            Seleccionado: <strong>{`${hora}:${minuto}`}</strong>
-          </>
-        ) : (
-          'Sin hora seleccionada.'
-        )}{' '}
-        Formato de 24 horas (provisional, sujeto a revisión).
+            <Clock className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+            {hora || minuto ? formatoHora12h(`${hora || '00'}:${minuto || '00'}`) : '--:--'}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-60 p-3" align="start">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p aria-live="polite" className="text-2xl font-semibold tabular-nums tracking-tight">
+                {hora && minuto ? formatoHora12h(`${hora}:${minuto}`) : '--:--'}
+              </p>
+              <Button type="button" size="sm" onClick={() => setOpen(false)} aria-label="Listo, cerrar">
+                <Check className="h-4 w-4" aria-hidden />
+                Listo
+              </Button>
+            </div>
+            <ColumnasTiempo hora={hora} minuto={minuto} onOpcion={elegir} />
+          </div>
+        </PopoverContent>
+      </Popover>
+      <p id={hintId} className="text-xs text-muted-foreground">
+        Hora en formato de 12 horas (AM/PM).
       </p>
       {error ? (
         <p id={errorId} role="alert" className="text-xs text-destructive">

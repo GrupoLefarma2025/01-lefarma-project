@@ -23,6 +23,8 @@ export interface PuntoMapaPickerProps {
   /** Confirma el punto (el padre decide qué hacer). */
   onAgregar?: () => void;
   disabled?: boolean;
+  /** Oculta el mapa y su pie (el padre muestra su propio mapa compartido). */
+  ocultarMapa?: boolean;
 }
 
 const CENTRO_MEXICO: [number, number] = [23.6345, -102.5528];
@@ -61,7 +63,7 @@ function ManejadorClick({ onPunto }: { onPunto: (lat: number, lng: number) => vo
   return null;
 }
 
-export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoMapaPickerProps) {
+export function PuntoMapaPicker({ value, onChange, onAgregar, disabled, ocultarMapa }: PuntoMapaPickerProps) {
   const [texto, setTexto] = useState('');
   const [resultados, setResultados] = useState<PuntoSeleccion[]>([]);
   const [buscando, setBuscando] = useState(false);
@@ -301,6 +303,8 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoM
         {errorCatalogos ? <p role="alert" className="mt-2 text-xs text-destructive">{errorCatalogos}</p> : null}
       </details>
 
+      {ocultarMapa ? null : (
+      <>
       <MapContainer ref={mapRef} center={centro ?? CENTRO_MEXICO} zoom={centro ? ZOOM_PUNTO : ZOOM_MEXICO}
         scrollWheelZoom className="isolate h-64 w-full rounded-md">
         <TileLayer
@@ -337,6 +341,8 @@ export function PuntoMapaPicker({ value, onChange, onAgregar, disabled }: PuntoM
           </Button>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }

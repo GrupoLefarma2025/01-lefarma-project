@@ -3,9 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { UserRound } from 'lucide-react';
 import { Label } from '@/components/ui/label';
-import { SelectorModo } from '../../components/SelectorModo';
+import { cn } from '@/lib/utils';
+import { CheckboxAnimado } from '../../components/CheckboxAnimado';
+import { SwitchTab } from '../../components/SwitchTab';
 import { WizardStepper } from '../../components/WizardStepper';
+import '../../components/wizard-motion.css';
 import { Badge } from '@/components/ui/badge';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
@@ -19,7 +24,7 @@ import type { UsuarioCatalogo } from '@/apps/educacion-medica/types/educacionMed
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
 import { costosRutaApi } from '../../services/costosRuta.api';
 import { solicitudesApi } from '../../services/solicitudes.api';
-import type { CostosRutaOferta } from '../../types/costosRuta.types';
+import type { CostosRutaOferta, PuntoSeleccion } from '../../types/costosRuta.types';
 import type { CrearSolicitudPayload, OpcionCotizacion } from '../../types/solicitud.types';
 import type {
   AcompananteV2,
@@ -37,25 +42,25 @@ import {
   sugerirOrigenInicial,
 } from '../../services/solicitudWizard.adapter';
 import { PuntoMapaPicker } from '../../components/PuntoMapaPicker';
+import { MapaPunto } from '../../components/MapaPunto';
 import { TablaOpciones } from '../../components/TablaOpciones';
 import { TablaHoteles } from '../../components/TablaHoteles';
 import { DatePicker } from '@/components/ui/date-picker';
+import { DateTimePicker } from '../../components/DateTimePicker';
 import { TimePicker } from '../../components/TimePicker';
 import { VIATICOS_FIXTURES_ACTIVOS, rellenarConFixture } from '../../test/fixtures/solicitudV2.fixture';
 
 const PASOS = [
   { id: 1, titulo: 'Persona' },
-  { id: 2, titulo: 'Transporte y viaje compartido' },
-  { id: 3, titulo: 'Origen' },
-  { id: 4, titulo: 'Destinos' },
-  { id: 5, titulo: 'Regreso' },
-  { id: 6, titulo: 'Viáticos y revisión' },
+  { id: 2, titulo: 'Motivo' },
+  { id: 3, titulo: 'Transporte' },
+  { id: 4, titulo: 'Origen' },
+  { id: 5, titulo: 'Destinos' },
+  { id: 6, titulo: 'Regreso' },
+  { id: 7, titulo: 'Viáticos' },
 ] as const;
 
 type PasoId = (typeof PASOS)[number]['id'];
-
-/** Jornada registrada: el asistente la reutiliza, no la vuelve a pedir. */
-const JORNADA_REGISTRADA = '08:00–18:30';
 
 function mxn(n: number): string {
   return `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN`;
@@ -98,6 +103,12 @@ export function SolicitudPage() {
   const idSesion = useAuthStore((s) => s.user?.id);
 
   const [paso, setPaso] = useState<PasoId>(1);
+  // Paso más lejano alcanzado: al volver atrás, lo visitado se sigue viendo
+  // hecho y se puede saltar adelante de nuevo sin revalidar todo.
+  const [maxPaso, setMaxPaso] = useState<PasoId>(1);
+  useEffect(() => {
+    setMaxPaso((m) => (paso > m ? paso : m));
+  }, [paso]);
   const [persona, setPersona] = useState<PasoPersonaV2>({ modo: 'mia', empleadoId: null, nombre: '', motivo: '' });
   const [transporte, setTransporte] = useState<PasoTransporteV2>({ modo: 'solicitado', compartir: false, acompanantes: [] });
   const [origen, setOrigen] = useState<OrigenV2>({ tipo: 'sucursal', sucursalId: null, punto: null, fechaSalida: '', horaSalida: '' });
@@ -189,6 +200,17 @@ export function SolicitudPage() {
     () => sucursales.map((s) => ({ id: s.idSucursal, label: s.nombre, description: s.ciudad })),
     [sucursales],
   );
+  // Punto de la sucursal elegida para pintarlo en el mapa (solo lectura:
+  // no se escribe al estado; el payload usa el modo activo).
+  const sucursalOrigen = sucursales.find((s) => s.idSucursal === origen.sucursalId) ?? null;
+  const puntoSucursal: PuntoSeleccion | null =
+    sucursalOrigen &&
+    Number.isFinite(sucursalOrigen.latitud) &&
+    Number.isFinite(sucursalOrigen.longitud) &&
+    !(sucursalOrigen.latitud === 0 && sucursalOrigen.longitud === 0)
+      ? { nombre: sucursalOrigen.nombre, latitud: sucursalOrigen.latitud, longitud: sucursalOrigen.longitud }
+      : null;
+  const puntoMapaOrigen = origen.tipo === 'sucursal' ? puntoSucursal : origen.punto;
 
   function elegirEmpleado(id: number | null) {
     const empleado = empleados.find((e) => e.idUsuario === id) ?? null;
@@ -342,10 +364,11 @@ export function SolicitudPage() {
   function pasoValido(id: PasoId): boolean {
     if (id === 1) {
       if (persona.modo === 'otra' && persona.empleadoId === null) return false;
-      return persona.nombre.trim() !== '' && persona.motivo.trim() !== '';
+      return persona.nombre.trim() !== '';
     }
-    if (id === 2) return true;
-    if (id === 3) {
+    if (id === 2) return persona.motivo.trim() !== '';
+    if (id === 3) return true;
+    if (id === 4) {
       const { request } = adaptarTramoACostosRuta({
         nombreViajero: persona.nombre || 'viajero',
         modoTransporte: transporte.modo,
@@ -355,8 +378,8 @@ export function SolicitudPage() {
       });
       return request !== null;
     }
-    if (id === 4) return puedeTerminar;
-    if (id === 5) {
+    if (id === 5) return puedeTerminar;
+    if (id === 6) {
       if (!retorno.necesario) return true;
       return retorno.saleFecha !== '' && retorno.saleHora !== '' && retorno.llegadaRequeridaFecha !== '' && retorno.llegadaRequeridaHora !== '';
     }
@@ -486,12 +509,20 @@ export function SolicitudPage() {
       {VIATICOS_FIXTURES_ACTIVOS ? <IndicadorDatosPrueba /> : null}
       <Card>
         <CardHeader>
-          <CardTitle>Solicitud de viáticos</CardTitle>
-          <CardDescription>
-            Crea tu solicitud paso a paso: persona, transporte, origen, destinos con comparación por tramo,
-            regreso y revisión. Calcula cada tramo antes de continuar; el envío ocurre solo al final.
-          </CardDescription>
+          <CardTitle className="tracking-tight">Solicitud de viáticos</CardTitle>
         </CardHeader>
+        {/* Identidad de quien solicita: visible arriba del wizard en todos los pasos. */}
+        <div className="border-b px-6 pb-4">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
+            <UserRound className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+            <span className="text-muted-foreground">Persona que solicita el viaje:</span>
+            <strong className="font-semibold text-primary">{persona.nombre || '—'}</strong>
+            <span className="text-muted-foreground">
+              {' · '}
+              {persona.modo === 'mia' ? 'Para mí' : 'Para alguien más'}
+            </span>
+          </p>
+        </div>
         <CardContent className="space-y-4">
           {VIATICOS_FIXTURES_ACTIVOS ? (
             <div>
@@ -501,33 +532,56 @@ export function SolicitudPage() {
             </div>
           ) : null}
 
-          <nav aria-label="Avance de la solicitud" className="space-y-3">
-            <WizardStepper pasos={PASOS.map(({ id, titulo }) => ({ id, titulo }))} actual={paso} />
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" disabled={paso === 1} onClick={() => setPaso((p) => (p - 1) as PasoId)}>
-                Atrás
-              </Button>
-              <Button type="button" disabled={paso === PASOS.length || !pasoValido(paso)} onClick={() => setPaso((p) => (p + 1) as PasoId)}>
-                Siguiente
-              </Button>
-            </div>
+          <nav aria-label="Avance de la solicitud" className="sticky top-0 z-10 -mx-6 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:py-2.5">
+            <WizardStepper
+              pasos={PASOS.map(({ id, titulo }) => ({ id, titulo }))}
+              actual={paso}
+              alcanzado={maxPaso}
+              onSelect={(id) => setPaso(id as PasoId)}
+            />
           </nav>
 
+          {/* `key={paso}`: cada paso monta fresco y corre la entrada una vez. */}
+          <div key={paso} className="wizard-paso">
           {paso === 1 ? (
             <section data-testid="paso-1" className="space-y-4">
-              <h2 className="font-semibold">Persona viajera</h2>
-              <SelectorModo
-                ariaLabel="Persona viajera"
-                value={persona.modo}
-                onChange={(id) => {
-                  if (id === 'mia') setPersona((p) => ({ ...p, modo: 'mia', empleadoId: null, nombre: nombreSesion ?? p.nombre }));
-                  else setPersona((p) => ({ ...p, modo: 'otra', empleadoId: null, nombre: '' }));
-                }}
-                options={[
-                  { id: 'mia', titulo: 'Para mí' },
-                  { id: 'otra', titulo: 'Para alguien más' },
-                ]}
-              />
+              <h2 className="font-semibold">Persona que solicita el viaje</h2>
+              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto" role="radiogroup" aria-label="Persona que solicita el viaje">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={persona.modo === 'mia'}
+                  aria-label="Para mí"
+                  onClick={() => setPersona((p) => ({ ...p, modo: 'mia', empleadoId: null, nombre: nombreSesion ?? p.nombre }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    persona.modo === 'mia'
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">🧍</span>
+                  <span className="font-semibold text-base">Para mí</span>
+                  <span className="text-xs text-muted-foreground">Yo soy quien viaja.</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={persona.modo === 'otra'}
+                  aria-label="Para alguien más"
+                  onClick={() => setPersona((p) => ({ ...p, modo: 'otra', empleadoId: null, nombre: '' }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    persona.modo === 'otra'
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">👥</span>
+                  <span className="font-semibold text-base">Para alguien más</span>
+                  <span className="text-xs text-muted-foreground">Capturo el viaje de otro empleado.</span>
+                </button>
+              </div>
               {persona.modo === 'otra' ? (
                 <div className="space-y-1">
                   <Label>Empleado que viaja</Label>
@@ -536,33 +590,77 @@ export function SolicitudPage() {
                   {errorEmp ? <p role="alert" className="text-xs text-destructive">{errorEmp}</p> : null}
                 </div>
               ) : null}
-              <div className="space-y-1">
-                <p className="text-sm">Persona viajera: <strong>{persona.nombre || '—'}</strong></p>
-                <p className="text-xs text-muted-foreground">Se reutiliza la identidad conocida; no se vuelve a pedir el nombre. Jornada registrada: {JORNADA_REGISTRADA} (no se vuelve a pedir).</p>
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="motivo-viaje">Motivo del viaje</Label>
-                <Input id="motivo-viaje" value={persona.motivo} onChange={(e) => setPersona((p) => ({ ...p, motivo: e.target.value }))} placeholder="Ej. Visita de seguimiento a la zona" />
-              </div>
             </section>
           ) : null}
 
           {paso === 2 ? (
             <section data-testid="paso-2" className="space-y-4">
-              <h2 className="font-semibold">Transporte y viaje compartido</h2>
-              <SelectorModo
-                ariaLabel="Modo de transporte"
-                value={transporte.modo}
-                onChange={(id) => setTransporte((t) => ({ ...t, modo: id as 'propio' | 'solicitado' }))}
-                options={[
-                  { id: 'propio', titulo: 'Carro propio', descripcion: 'Siempre usa gasolina Magna, sin elección premium. Verás distancia y costo de combustible por tramo; las casetas se conservan.' },
-                  { id: 'solicitado', titulo: 'Solicitar transporte', descripcion: 'Compararás avión, autobús y carro por cada tramo antes de continuar.' },
-                ]}
-              />
-              <div className="flex items-center gap-2">
-                <Checkbox id="compartir-viaje" checked={transporte.compartir} onCheckedChange={(v) => setTransporte((t) => ({ ...t, compartir: v === true }))} />
-                <Label htmlFor="compartir-viaje">Compartir viaje</Label>
+              <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-background to-background p-5 space-y-3 shadow-sm">
+                <div className="flex items-start gap-3">
+                  <span className="text-3xl" aria-hidden="true">✈️</span>
+                  <div className="space-y-0.5">
+                    <h2 className="font-semibold text-base">Motivo del viaje</h2>
+                  </div>
+                </div>
+                <Label htmlFor="motivo-viaje" className="sr-only">Motivo del viaje</Label>
+                <Textarea
+                  id="motivo-viaje"
+                  value={persona.motivo}
+                  onChange={(e) => setPersona((p) => ({ ...p, motivo: e.target.value }))}
+                  placeholder="Ej. Visita de seguimiento a la zona, capacitación a personal, supervisión de sucursal, comisión de trabajo…"
+                  rows={4}
+                  className="resize-none bg-background/90 border-primary/20 focus-visible:ring-primary/40"
+                />
               </div>
+            </section>
+          ) : null}
+
+          {paso === 3 ? (
+            <section data-testid="paso-3" className="space-y-4">
+              <h2 className="font-semibold">Transporte y viaje compartido</h2>
+              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto" role="radiogroup" aria-label="Modo de transporte">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={transporte.modo === 'propio'}
+                  aria-label="Carro propio"
+                  onClick={() => setTransporte((t) => ({ ...t, modo: 'propio' }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    transporte.modo === 'propio'
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">🚗</span>
+                  <span className="font-semibold text-base">Carro propio</span>
+                  <span className="text-xs text-muted-foreground">Siempre usa gasolina Magna. Verás distancia y costo de combustible por tramo; las casetas se conservan.</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={transporte.modo === 'solicitado'}
+                  aria-label="Solicitar transporte"
+                  onClick={() => setTransporte((t) => ({ ...t, modo: 'solicitado' }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    transporte.modo === 'solicitado'
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">🚌</span>
+                  <span className="font-semibold text-base">Solicitar transporte</span>
+                  <span className="text-xs text-muted-foreground">Se calcula por cada tramo antes de continuar.</span>
+                </button>
+              </div>
+              <CheckboxAnimado
+                id="compartir-viaje"
+                checked={transporte.compartir}
+                onCheckedChange={(v) => setTransporte((t) => ({ ...t, compartir: v }))}
+              >
+                Compartir viaje
+              </CheckboxAnimado>
               {transporte.compartir ? (
                 <div className="space-y-2">
                   <Label>Agregar acompañante (empleado o compañero)</Label>
@@ -586,12 +684,23 @@ export function SolicitudPage() {
             </section>
           ) : null}
 
-          {paso === 3 ? (
-            <section data-testid="paso-3" className="space-y-4">
+          {paso === 4 ? (
+            <section data-testid="paso-4" className="space-y-4">
               <h2 className="font-semibold">Origen del viaje</h2>
               {cargandoSuc ? <p role="status">Cargando sucursales…</p> : null}
               {errorSuc ? <p role="alert">No se pudieron cargar las sucursales: {errorSuc}</p> : null}
-              <SelectorModo
+              <div className="space-y-1">
+                <Label htmlFor="origen-fechahora">Fecha y hora de salida del origen</Label>
+                <DateTimePicker
+                  id="origen-fechahora"
+                  fecha={origen.fechaSalida}
+                  hora={origen.horaSalida}
+                  onFecha={(f) => { setOrigen((o) => ({ ...o, fechaSalida: f })); marcarRecalculo(0); }}
+                  onHora={(h) => { setOrigen((o) => ({ ...o, horaSalida: h })); marcarRecalculo(0); }}
+                  placeholder="Elige fecha y hora de salida"
+                />
+              </div>
+              <SwitchTab
                 ariaLabel="Tipo de origen"
                 value={origen.tipo}
                 onChange={(id) => {
@@ -599,8 +708,8 @@ export function SolicitudPage() {
                   else setOrigen((o) => ({ ...o, tipo: 'mapa' }));
                 }}
                 options={[
-                  { id: 'sucursal', titulo: 'Sucursal' },
-                  { id: 'mapa', titulo: 'Buscar dirección en el mapa' },
+                  { id: 'sucursal', titulo: 'Buscar por sucursal' },
+                  { id: 'mapa', titulo: 'Buscar por dirección' },
                 ]}
               />
               {origen.tipo === 'sucursal' ? (
@@ -609,24 +718,30 @@ export function SolicitudPage() {
                   <CatalogoSearchSelect items={sucursalItems} value={origen.sucursalId} disabled={cargandoSuc || !!errorSuc} placeholder="Selecciona la sucursal de salida" onChange={(id) => { setOrigen((o) => ({ ...o, sucursalId: id })); marcarRecalculo(0); }} />
                 </div>
               ) : (
-                <PuntoMapaPicker value={origen.punto} onChange={(punto) => { setOrigen((o) => ({ ...o, punto })); marcarRecalculo(0); }} />
+                <PuntoMapaPicker ocultarMapa value={origen.punto} onChange={(punto) => { setOrigen((o) => ({ ...o, punto })); marcarRecalculo(0); }} />
               )}
               <p className="text-xs text-muted-foreground">Puedes salir desde una sucursal o desde cualquier dirección del mapa, incluido tu domicilio.</p>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Fecha de salida del origen</Label>
-                  <DatePicker value={origen.fechaSalida || null} onChange={(f) => { setOrigen((o) => ({ ...o, fechaSalida: f ?? '' })); marcarRecalculo(0); }} placeholder="Elige la fecha de salida" />
-                </div>
-                <div className="space-y-1">
-                  <Label>Hora de salida del origen</Label>
-                  <TimePicker id="origen-hora" value={origen.horaSalida} onChange={(h) => { setOrigen((o) => ({ ...o, horaSalida: h })); marcarRecalculo(0); }} />
-                </div>
-              </div>
+              {/* El mapa queda fuera de las tabs y refleja lo elegido en ambas. */}
+              <MapaPunto
+                punto={puntoMapaOrigen}
+                interactivo={origen.tipo === 'mapa'}
+                onPunto={(latitud, longitud) => {
+                  setOrigen((o) => ({
+                    ...o,
+                    punto: { nombre: o.punto?.nombre?.trim() || 'Punto seleccionado en mapa', latitud, longitud },
+                  }));
+                  marcarRecalculo(0);
+                }}
+                onMover={(latitud, longitud) => {
+                  setOrigen((o) => (o.punto ? { ...o, punto: { ...o.punto, latitud, longitud } } : o));
+                  marcarRecalculo(0);
+                }}
+              />
             </section>
           ) : null}
 
-          {paso === 4 ? (
-            <section data-testid="paso-4" className="space-y-4">
+          {paso === 5 ? (
+            <section data-testid="paso-5" className="space-y-4">
               <h2 className="font-semibold">Destinos ({destinos.length})</h2>
               <div className="flex flex-wrap gap-2" role="tablist" aria-label="Destinos del viaje">
                 {destinos.map((d, i) => (
@@ -658,7 +773,7 @@ export function SolicitudPage() {
                 <Button type="button" variant="outline" disabled={!puedeTerminar} onClick={agregarDestino}>
                   Agregar otro destino
                 </Button>
-                <Button type="button" disabled={!puedeTerminar} onClick={() => setPaso(5)}>
+                <Button type="button" disabled={!puedeTerminar} onClick={() => setPaso(6)}>
                   Terminar
                 </Button>
               </div>
@@ -670,18 +785,45 @@ export function SolicitudPage() {
             </section>
           ) : null}
 
-          {paso === 5 ? (
-            <section data-testid="paso-5" className="space-y-4">
+          {paso === 6 ? (
+            <section data-testid="paso-6" className="space-y-4">
               <h2 className="font-semibold">Regreso</h2>
-              <SelectorModo
-                ariaLabel="¿Necesitas regreso?"
-                value={retorno.necesario ? 'con' : 'sin'}
-                onChange={(id) => setRetorno((r) => ({ ...r, necesario: id === 'con' }))}
-                options={[
-                  { id: 'sin', titulo: 'Sin regreso' },
-                  { id: 'con', titulo: 'Necesito regreso' },
-                ]}
-              />
+              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto" role="radiogroup" aria-label="¿Necesitas regreso?">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={!retorno.necesario}
+                  aria-label="Sin regreso"
+                  onClick={() => setRetorno((r) => ({ ...r, necesario: false }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    !retorno.necesario
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">🏁</span>
+                  <span className="font-semibold text-base">Sin regreso</span>
+                  <span className="text-xs text-muted-foreground">El viaje termina en el último destino.</span>
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={retorno.necesario}
+                  aria-label="Necesito regreso"
+                  onClick={() => setRetorno((r) => ({ ...r, necesario: true }))}
+                  className={cn(
+                    'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
+                    retorno.necesario
+                      ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
+                      : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
+                  )}
+                >
+                  <span className="text-4xl" aria-hidden="true">🔙</span>
+                  <span className="font-semibold text-base">Necesito regreso</span>
+                  <span className="text-xs text-muted-foreground">Captura la salida y la llegada requerida de vuelta.</span>
+                </button>
+              </div>
               {retorno.necesario ? (
                 <>
                   <p className="text-xs text-muted-foreground">Contrato provisional: salida y llegada requerida por separado (una sola «fecha de regreso» sigue sin definirse).</p>
@@ -691,7 +833,7 @@ export function SolicitudPage() {
                       <DatePicker value={retorno.saleFecha || null} onChange={(f) => setRetorno((r) => ({ ...r, saleFecha: f ?? '' }))} placeholder="Elige la fecha de salida" />
                     </div>
                     <div className="space-y-1">
-                      <Label>Hora de salida del regreso</Label>
+                      <Label htmlFor="retorno-sale">Hora de salida del regreso</Label>
                       <TimePicker id="retorno-sale" value={retorno.saleHora} onChange={(h) => setRetorno((r) => ({ ...r, saleHora: h }))} />
                     </div>
                     <div className="space-y-1">
@@ -699,7 +841,7 @@ export function SolicitudPage() {
                       <DatePicker value={retorno.llegadaRequeridaFecha || null} onChange={(f) => setRetorno((r) => ({ ...r, llegadaRequeridaFecha: f ?? '' }))} placeholder="Elige la fecha requerida" />
                     </div>
                     <div className="space-y-1">
-                      <Label>Hora en que debes estar de vuelta</Label>
+                      <Label htmlFor="retorno-llega">Hora en que debes estar de vuelta</Label>
                       <TimePicker id="retorno-llega" value={retorno.llegadaRequeridaHora} onChange={(h) => setRetorno((r) => ({ ...r, llegadaRequeridaHora: h }))} />
                     </div>
                   </div>
@@ -709,8 +851,8 @@ export function SolicitudPage() {
             </section>
           ) : null}
 
-          {paso === 6 ? (
-            <section data-testid="paso-6" className="space-y-4">
+          {paso === 7 ? (
+            <section data-testid="paso-7" className="space-y-4">
               <h2 className="font-semibold">Viáticos y revisión</h2>
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="space-y-1">
@@ -791,7 +933,16 @@ export function SolicitudPage() {
               </Card>
             </section>
           ) : null}
-        </CardContent>
+          </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="outline" disabled={paso === 1} onClick={() => setPaso((p) => (p - 1) as PasoId)} className="active:scale-[0.97]">
+            Atrás
+          </Button>
+          <Button type="button" disabled={paso === PASOS.length || !pasoValido(paso)} onClick={() => setPaso((p) => (p + 1) as PasoId)} className="active:scale-[0.97]">
+            Siguiente
+          </Button>
+        </div>
+      </CardContent>
       </Card>
     </div>
   );
@@ -830,7 +981,7 @@ function DestinoEditor(props: {
           <DatePicker value={destino.debeEstarFecha || null} onChange={(f) => props.onCambiar({ debeEstarFecha: f ?? '' })} placeholder="Elige la fecha requerida" />
         </div>
         <div className="space-y-1">
-          <Label>Hora en que debes estar ahí (límite, no llegada programada)</Label>
+          <Label htmlFor={`dest-${destino.id}-debe`}>Hora en que debes estar ahí (límite, no llegada programada)</Label>
           <TimePicker id={`dest-${destino.id}-debe`} value={destino.debeEstarHora} onChange={(h) => props.onCambiar({ debeEstarHora: h })} />
         </div>
         <div className="space-y-1">
@@ -838,7 +989,7 @@ function DestinoEditor(props: {
           <DatePicker value={destino.saleFecha || null} onChange={(f) => props.onCambiar({ saleFecha: f ?? '' })} placeholder="Elige la fecha de salida" />
         </div>
         <div className="space-y-1">
-          <Label>Hora de salida de ese destino</Label>
+          <Label htmlFor={`dest-${destino.id}-sale`}>Hora de salida de ese destino</Label>
           <TimePicker id={`dest-${destino.id}-sale`} value={destino.saleHora} onChange={(h) => props.onCambiar({ saleHora: h })} />
         </div>
       </div>

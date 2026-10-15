@@ -27,6 +27,11 @@ vi.mock('../../components/PuntoMapaPicker', () => ({
     </button>
   ),
 }));
+vi.mock('../../components/MapaPunto', () => ({
+  MapaPunto: ({ punto }: { punto: { nombre: string; latitud: number; longitud: number } | null }) => (
+    <div>{punto ? `MAPA:${punto.nombre},${punto.latitud},${punto.longitud}` : 'MAPA_VACIO'}</div>
+  ),
+}));
 vi.mock('@/apps/educacion-medica/components/CatalogoSearchSelect', () => ({
   CatalogoSearchSelect: ({ items, value, onChange, placeholder }: {
     items: CatalogoItem[]; value: number | null; onChange: (v: number | null) => void; placeholder?: string;
@@ -48,6 +53,16 @@ vi.mock('@/components/ui/date-picker', () => ({
 vi.mock('../../components/TimePicker', () => ({
   TimePicker: ({ id, value, onChange }: { id: string; value: string; onChange: (v: string) => void }) => (
     <input aria-label={id} value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}));
+vi.mock('../../components/DateTimePicker', () => ({
+  DateTimePicker: ({ id, fecha, hora, onFecha, onHora }: {
+    id: string; fecha: string; hora: string; onFecha: (v: string) => void; onHora: (v: string) => void;
+  }) => (
+    <>
+      <input aria-label={`${id}-fecha`} value={fecha} onChange={(e) => onFecha(e.target.value)} />
+      <input aria-label={`${id}-hora`} value={hora} onChange={(e) => onHora(e.target.value)} />
+    </>
   ),
 }));
 vi.mock('../../components/TablaHoteles', () => ({ TablaHoteles: () => <div>HOTELES_MARK</div> }));
@@ -98,24 +113,27 @@ beforeEach(() => {
   mocks.guardar.mockResolvedValue({ data: { success: true, data: { id_solicitud: 42 } } });
 });
 
-async function irAlPaso(ndestino: 2 | 3 | 4, modo: 'propio' | 'solicitado' = 'solicitado') {
+async function irAlPaso(ndestino: 3 | 4 | 5, modo: 'propio' | 'solicitado' = 'solicitado') {
   const usuario = userEvent.setup();
   render(<SolicitudPage />);
   await waitFor(() => expect(screen.queryByText('Cargando sucursales…')).not.toBeInTheDocument());
-  fireEvent.change(screen.getByLabelText('Motivo del viaje'), { target: { value: 'Visita de zona' } });
+  // Paso 1 (persona) ya viene resuelto con la identidad de sesión.
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-2')).toBeInTheDocument();
-  if (ndestino === 2) return;
-  // Las tabs de Radix necesitan foco real: userEvent, no fireEvent.
-  await usuario.click(screen.getByRole('radio', { name: modo === 'propio' ? 'Carro propio' : 'Solicitar transporte' }));
+  fireEvent.change(screen.getByLabelText('Motivo del viaje'), { target: { value: 'Visita de zona' } });
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-3')).toBeInTheDocument();
   if (ndestino === 3) return;
-  fireEvent.change(screen.getByLabelText('Selecciona la sucursal de salida'), { target: { value: '1' } });
-  fireEvent.change(screen.getByLabelText('Elige la fecha de salida'), { target: { value: '2026-11-10' } });
-  fireEvent.change(screen.getByLabelText('origen-hora'), { target: { value: '06:00' } });
+  // Las tabs de Radix necesitan foco real: userEvent, no fireEvent.
+  await usuario.click(screen.getByRole('radio', { name: modo === 'propio' ? 'Carro propio' : 'Solicitar transporte' }));
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-4')).toBeInTheDocument();
+  if (ndestino === 4) return;
+  fireEvent.change(screen.getByLabelText('Selecciona la sucursal de salida'), { target: { value: '1' } });
+  fireEvent.change(screen.getByLabelText('origen-fechahora-fecha'), { target: { value: '2026-11-10' } });
+  fireEvent.change(screen.getByLabelText('origen-fechahora-hora'), { target: { value: '06:00' } });
+  fireEvent.click(siguiente());
+  expect(await screen.findByTestId('paso-5')).toBeInTheDocument();
 }
 
 function completarDestino() {
@@ -127,24 +145,32 @@ function completarDestino() {
 }
 
 describe('SolicitudPage', () => {
-  it('respeta el orden persona → transporte → origen y pide empleado para alguien más', async () => {
+  it('respeta el orden persona → motivo → transporte y pide empleado para alguien más', async () => {
     const usuario = userEvent.setup();
     render(<SolicitudPage />);
     await waitFor(() => expect(screen.queryByText('Cargando sucursales…')).not.toBeInTheDocument());
-    expect(siguiente()).toBeDisabled();
+    // "Para mí" ya trae la identidad de sesión: el paso 1 avanza solo.
+    expect(siguiente()).not.toBeDisabled();
     await usuario.click(screen.getByRole('radio', { name: 'Para alguien más' }));
+    expect(siguiente()).toBeDisabled();
     expect(screen.getByLabelText('Buscar y seleccionar empleado')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText('Buscar y seleccionar empleado')).not.toBeDisabled());
     await waitFor(() => expect(screen.getByRole('option', { name: 'Otra Persona' })).toBeInTheDocument());
     await usuario.selectOptions(screen.getByLabelText('Buscar y seleccionar empleado'), '9');
-    expect(screen.getByText(/Persona viajera:/).textContent).toContain('Otra Persona');
-    expect(screen.getByText(/no se vuelve a pedir el nombre/)).toBeInTheDocument();
+    expect(screen.getByText(/Persona que solicita el viaje:/).parentElement).toHaveTextContent('Otra Persona');
+    expect(siguiente()).not.toBeDisabled();
+    // El motivo es su propio paso y no deja avanzar sin capturarse.
+    fireEvent.click(siguiente());
+    expect(await screen.findByTestId('paso-2')).toBeInTheDocument();
+    // La identidad de quien solicita sigue visible arriba del wizard.
+    expect(screen.getByText(/Persona que solicita el viaje:/).parentElement).toHaveTextContent('Otra Persona');
+    expect(siguiente()).toBeDisabled();
     fireEvent.change(screen.getByLabelText('Motivo del viaje'), { target: { value: 'Cobertura' } });
     expect(siguiente()).not.toBeDisabled();
   });
 
   it('carro propio usa Magna fija y muestra distancia sin tarjetas de modo', async () => {
-    await irAlPaso(4, 'propio');
+    await irAlPaso(5, 'propio');
     completarDestino();
     fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
     await waitFor(() => expect(mocks.calcular).toHaveBeenCalledTimes(1));
@@ -159,7 +185,7 @@ describe('SolicitudPage', () => {
   });
 
   it('transporte solicitado exige elegir opción y ofrece hospedaje con nombres reales', async () => {
-    await irAlPaso(4, 'solicitado');
+    await irAlPaso(5, 'solicitado');
     completarDestino();
     expect(screen.getByRole('button', { name: 'Calcular este tramo' })).not.toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
@@ -177,17 +203,17 @@ describe('SolicitudPage', () => {
   });
 
   it('terminar abre el regreso y el envío ocurre una sola vez al final', async () => {
-    await irAlPaso(4, 'solicitado');
+    await irAlPaso(5, 'solicitado');
     completarDestino();
     fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
     await waitFor(() => expect(mocks.calcular).toHaveBeenCalledTimes(1));
     fireEvent.click(await screen.findByRole('button', { name: /Elegir Vuelo X/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Terminar' }));
-    expect(await screen.findByTestId('paso-5')).toBeInTheDocument();
+    expect(await screen.findByTestId('paso-6')).toBeInTheDocument();
     // Sin regreso por defecto; el rango se deriva.
     expect(screen.getByText(/Rango del viaje.*2026-11-10 al 2026-11-10/)).toBeInTheDocument();
     fireEvent.click(siguiente());
-    expect(await screen.findByTestId('paso-6')).toBeInTheDocument();
+    expect(await screen.findByTestId('paso-7')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText('Comidas (MXN, monto abierto)'), { target: { value: '1200' } });
     expect(screen.getByText(/Total:/)).toHaveTextContent('3,200');
     const calcularAntes = mocks.calcular.mock.calls.length;
@@ -197,5 +223,44 @@ describe('SolicitudPage', () => {
     expect(mocks.crear.mock.calls[0][0].datos.version).toBe('solicitud-v2');
     expect(mocks.guardar).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/Solicitud 42 enviada/)).toBeInTheDocument();
+  });
+
+  it('volver a un paso superado desde el stepper conserva lo capturado', async () => {
+    await irAlPaso(4, 'solicitado');
+    // Desde Origen (4) se puede pulsar el punto 2 para corregir el motivo.
+    fireEvent.click(screen.getByRole('button', { name: 'Volver al paso 2: Motivo' }));
+    expect(await screen.findByTestId('paso-2')).toBeInTheDocument();
+    expect(screen.getByLabelText('Motivo del viaje')).toHaveValue('Visita de zona');
+    fireEvent.change(screen.getByLabelText('Motivo del viaje'), { target: { value: 'Visita de zona corregida' } });
+    fireEvent.click(siguiente());
+    expect(await screen.findByTestId('paso-3')).toBeInTheDocument();
+    // El modo de transporte elegido antes sigue intacto.
+    expect(screen.getByRole('radio', { name: 'Solicitar transporte' })).toHaveAttribute('aria-checked', 'true');
+    // Volver hasta el 1 no borra lo visitado: se puede saltar al 4 de un clic.
+    fireEvent.click(screen.getByRole('button', { name: 'Volver al paso 1: Persona' }));
+    expect(await screen.findByTestId('paso-1')).toBeInTheDocument();
+    expect(screen.getByTestId('indicador-paso-3')).toHaveTextContent(/completado/i);
+    // El 4 es donde te quedaste: número punteado, no palomita.
+    expect(screen.getByTestId('indicador-paso-4')).toHaveTextContent(/donde te quedaste/i);
+    fireEvent.click(screen.getByRole('button', { name: 'Ir al paso 4: Origen' }));
+    expect(await screen.findByTestId('paso-4')).toBeInTheDocument();
+  });
+
+  it('el mapa refleja la sucursal elegida por coordenadas', async () => {
+    await irAlPaso(4, 'solicitado');
+    expect(screen.getByText('MAPA_VACIO')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Selecciona la sucursal de salida'), { target: { value: '1' } });
+    expect(screen.getByText('MAPA:Matriz,19.43,-99.13')).toBeInTheDocument();
+  });
+
+  it('el mapa queda fuera de las tabs y refleja el punto buscado', async () => {
+    const usuario = userEvent.setup();
+    await irAlPaso(4, 'solicitado');
+    await usuario.click(screen.getByRole('radio', { name: 'Buscar por dirección' }));
+    // La búsqueda queda en el panel; el mapa compartido sigue debajo.
+    expect(screen.getByRole('button', { name: 'Fijar punto de prueba' })).toBeInTheDocument();
+    expect(screen.getByText('MAPA_VACIO')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    expect(screen.getByText('MAPA:Punto de prueba,19.5,-99.5')).toBeInTheDocument();
   });
 });

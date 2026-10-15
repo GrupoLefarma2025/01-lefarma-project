@@ -15,19 +15,33 @@
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("dev", "stop", "restart", "install", "build", "build:qa", "build:dev", "publish", "publish:qa", "sql")]
+    [ValidateSet("dev", "dev:bg", "dev:quiet", "dev:hidden", "stop", "restart", "restart:bg", "install", "build", "build:qa", "build:dev", "publish", "publish:qa", "sql")]
     [string]$Command = "dev",
+
+    # Modo invisible para dev/restart: lanza procesos ocultos con logs en .lefarma-dev
+    [switch]$Background,
 
     # Args extra passthrough (para `sql` que necesita sub-comando + flags).
     [Parameter(Position = 1, ValueFromRemainingArguments = $true)]
     [string[]]$SqlArgs = @()
 )
 
+if ($Command -in @("dev:bg", "dev:quiet", "dev:hidden")) {
+    $Command = "dev"
+    $Background = $true
+}
+if ($Command -in @("restart:bg", "restart:quiet", "restart:hidden")) {
+    $Command = "restart"
+    $Background = $true
+}
+
 $ErrorActionPreference = "Stop"
 $Root = $PSScriptRoot
 $Backend = Join-Path $Root "lefarma.backend\src\Lefarma.API"
 $Frontend = Join-Path $Root "lefarma.frontend"
 $ReleaseDir = Join-Path $Root "release"
+$DevDir = Join-Path $Root ".lefarma-dev"
+$DevPidFile = Join-Path $DevDir "pids.json"
 
 # Deploy por SSH (publish / publish:qa)
 $SshUser = "artricenter\carlos.guzman"
@@ -48,6 +62,143 @@ function Stop-PortProcess([int]$Port) {
     else {
         Write-Host "Puerto $port : libre" -ForegroundColor DarkGray
     }
+}
+
+function Stop-SavedDevProcesses {
+    if (Test-Path -LiteralPath $DevPidFile) {
+        try {
+            $pids = Get-Content -LiteralPath $DevPidFile -Raw | ConvertFrom-Json
+            foreach ($pid in $pids) {
+                if ($pid) {
+                    & taskkill /PID $pid /T /F 2>$null | Out-Null
+                }
+            }
+        }
+        catch { }
+        Remove-Item -LiteralPath $DevPidFile -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Save-DevPids([object[]]$Pids) {
+    New-Item -ItemType Directory -Path $DevDir -Force | Out-Null
+    $Pids | ConvertTo-Json | Set-Content -LiteralPath $DevPidFile -Encoding UTF8
+}
+
+function Start-DevProcess {
+    param(
+        [string]$Name,
+        [ConsoleColor]$Color,
+        [string]$FileName,
+        [string[]]$Arguments,
+        [string]$WorkingDirectory
+    )
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FileName
+    $psi.Arguments = ($Arguments -join ' ')
+    $psi.WorkingDirectory = $WorkingDirectory
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+    $proc.EnableRaisingEvents = $true
+
+    $null = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -SourceIdentifier "$Name-stdout" -MessageData @{ Name = $Name; Color = $Color } -Action {
+        $m = $Event.MessageData
+        $d = $Event.SourceEventArgs.Data
+        if ($null -ne $d) {
+            Write-Host "[$($m.Name)] $d" -ForegroundColor $m.Color
+        }
+    }
+
+    $null = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -SourceIdentifier "$Name-stderr" -MessageData @{ Name = $Name; Color = 'Red' } -Action {
+        $m = $Event.MessageData
+        $d = $Event.SourceEventArgs.Data
+        if ($null -ne $d) {
+            Write-Host "[$($m.Name) ERR] $d" -ForegroundColor $m.Color
+        }
+    }
+
+    $proc.Start() | Out-Null
+    $proc.BeginOutputReadLine()
+    $proc.BeginErrorReadLine()
+
+    return $proc
+}
+
+function Stop-DevProcess {
+    param($Process, [string]$Name)
+
+    foreach ($sid in @("$Name-stdout", "$Name-stderr")) {
+        Unregister-Event -SourceIdentifier $sid -ErrorAction SilentlyContinue
+    }
+    if ($null -ne $Process -and -not $Process.HasExited) {
+        & taskkill /PID $Process.Id /T /F 2>$null | Out-Null
+        try { $Process.WaitForExit(5000) | Out-Null } catch { }
+    }
+}
+
+function Invoke-DevForeground {
+    Stop-SavedDevProcesses
+    Stop-PortProcess 5174
+    Stop-PortProcess 5173
+
+    $dotnet = (Get-Command dotnet.exe -ErrorAction SilentlyContinue).Source
+    if (-not $dotnet) { $dotnet = "dotnet.exe" }
+    $npm = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
+    if (-not $npm) { $npm = "npm.cmd" }
+
+    Write-Host "Lefarma dev — backend :5174 | frontend :5173 (misma terminal; Ctrl+C para detener)" -ForegroundColor Cyan
+
+    $backendProc = Start-DevProcess -Name "backend" -Color Cyan -FileName $dotnet -Arguments @("watch", "run", "--launch-profile", "http") -WorkingDirectory $Backend
+    Start-Sleep -Seconds 2
+    $frontendProc = Start-DevProcess -Name "frontend" -Color Green -FileName $npm -Arguments @("run", "dev") -WorkingDirectory $Frontend
+
+    Save-DevPids @($backendProc.Id, $frontendProc.Id)
+
+    try {
+        while ($true) {
+            if ($backendProc.HasExited -and $frontendProc.HasExited) { break }
+            Start-Sleep -Milliseconds 500
+        }
+    }
+    finally {
+        Write-Host ""
+        Write-Host "Stopping dev processes..." -ForegroundColor Yellow
+        Stop-DevProcess -Process $backendProc -Name "backend"
+        Stop-DevProcess -Process $frontendProc -Name "frontend"
+        Stop-SavedDevProcesses
+        Stop-PortProcess 5174
+        Stop-PortProcess 5173
+        Write-Host "Stopped." -ForegroundColor Green
+    }
+}
+
+function Invoke-DevBackground {
+    Stop-SavedDevProcesses
+    Stop-PortProcess 5174
+    Stop-PortProcess 5173
+
+    New-Item -ItemType Directory -Path $DevDir -Force | Out-Null
+    $backendLog = Join-Path $DevDir "backend.log"
+    $frontendLog = Join-Path $DevDir "frontend.log"
+    "Lefarma dev iniciado $(Get-Date -Format o)" | Set-Content -LiteralPath $backendLog -Encoding UTF8
+    "Lefarma dev iniciado $(Get-Date -Format o)" | Set-Content -LiteralPath $frontendLog -Encoding UTF8
+
+    $backendProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$Backend`" && dotnet watch run --launch-profile http > `"$backendLog`" 2>&1" -WindowStyle Hidden -PassThru
+    Start-Sleep -Seconds 2
+    $frontendProc = Start-Process -FilePath "cmd.exe" -ArgumentList "/c cd /d `"$Frontend`" && npm run dev > `"$frontendLog`" 2>&1" -WindowStyle Hidden -PassThru
+
+    Save-DevPids @($backendProc.Id, $frontendProc.Id)
+
+    Write-Host "Lefarma dev (background/oculto) — backend :5174 | frontend :5173" -ForegroundColor Cyan
+    Write-Host "Backend PID $($backendProc.Id)  log: $backendLog" -ForegroundColor DarkGray
+    Write-Host "Frontend PID $($frontendProc.Id) log: $frontendLog" -ForegroundColor DarkGray
+    Write-Host "Ver logs: Get-Content -Path `"$backendLog`" -Wait   (o `"$frontendLog`")" -ForegroundColor DarkGray
+    Write-Host "Detener:  .\multiappcli.ps1 stop" -ForegroundColor Green
 }
 
 function Invoke-DeployBuild([string]$NpmScript, [string]$ZipName, [string]$VersionFile) {
@@ -122,46 +273,29 @@ Write-Host "Deploy OK -> $target"
 
 switch ($Command) {
     "dev" {
-        Write-Host "Lefarma dev — backend :5174 | frontend :5173" -ForegroundColor Cyan
-        Stop-PortProcess 5174
-        Stop-PortProcess 5173
-
-        $bat = Join-Path $env:TEMP "lefarma-dev.bat"
-        $batch = @"
-@echo off
-start "Lefarma Backend" cmd /k "cd /d "$Backend" && title Lefarma Backend :5174 && dotnet watch run --launch-profile http"
-timeout /t 2 /nobreak >nul
-start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :5173 && npm run dev"
-"@
-        $batch | Out-File $bat -Encoding ASCII
-        & $bat
-        Remove-Item $bat -ErrorAction SilentlyContinue
-        Write-Host "Started. Close the terminal windows to stop." -ForegroundColor Green
+        if ($Background) {
+            Invoke-DevBackground
+        }
+        else {
+            Invoke-DevForeground
+        }
     }
 
     "stop" {
         Write-Host "Stopping dev processes..." -ForegroundColor Yellow
+        Stop-SavedDevProcesses
         Stop-PortProcess 5174
         Stop-PortProcess 5173
         Write-Host "Stopped." -ForegroundColor Green
     }
 
     "restart" {
-        Stop-PortProcess 5174
-        Stop-PortProcess 5173
-        Write-Host "Restarting dev — backend :5174 | frontend :5173" -ForegroundColor Cyan
-
-        $bat = Join-Path $env:TEMP "lefarma-dev.bat"
-        $batch = @"
-@echo off
-start "Lefarma Backend" cmd /k "cd /d "$Backend" && title Lefarma Backend :5174 && dotnet watch run --launch-profile http"
-timeout /t 2 /nobreak >nul
-start "Lefarma Frontend" cmd /k "cd /d "$Frontend" && title Lefarma Frontend :5173 && npm run dev"
-"@
-        $batch | Out-File $bat -Encoding ASCII
-        & $bat
-        Remove-Item $bat -ErrorAction SilentlyContinue
-        Write-Host "Restarted." -ForegroundColor Green
+        if ($Background) {
+            Invoke-DevBackground
+        }
+        else {
+            Invoke-DevForeground
+        }
     }
 
     "install" {
