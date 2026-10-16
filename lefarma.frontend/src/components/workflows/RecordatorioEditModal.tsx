@@ -47,7 +47,30 @@ interface RecordatorioEditModalProps {
   onSave: (saved: RecordatorioRecord, isNew: boolean) => Promise<void>;
 }
 
-const REC_VARS = ['{{NombreResponsable}}', '{{CantidadPendientes}}', '{{DiasEspera}}', '{{ListadoPendientes}}', '{{Folios}}', '{{Folio}}', '{{Total}}'];
+const REC_VARS_OC = ['{{NombreResponsable}}', '{{CantidadPendientes}}', '{{DiasEspera}}', '{{ListadoPendientes}}', '{{Folios}}', '{{Folio}}', '{{Total}}'];
+const REC_VARS_SP = ['{{NombreResponsable}}', '{{CantidadPendientes}}', '{{DiasEspera}}', '{{ListadoPendientes}}', '{{Folios}}', '{{Folio}}', '{{Detalle}}'];
+
+const LISTADO_ROW_OC = `<tr>\n  <td>{{Folio}}</td>\n  <td>{{Proveedor}}</td>\n  <td style="text-align:right">{{Total}}</td>\n  <td style="color:#6b7280">{{DiasEspera}} días</td>\n</tr>`;
+const LISTADO_ROW_SP = `<tr>\n  <td>{{Folio}}</td>\n  <td>{{Detalle}}</td>\n  <td style="color:#6b7280">{{DiasEspera}} días</td>\n</tr>`;
+
+const CANAL_DEFAULTS_SP: Record<string, { asunto: string; cuerpo: string }> = {
+  email: {
+    asunto: '',
+    cuerpo: '<p>Hola <strong>{{NombreResponsable}}</strong>,</p>\n<p>Tienes <strong>{{CantidadPendientes}}</strong> solicitud(es) pendiente(s) de revisión. La más antigua lleva <strong>{{DiasEspera}}</strong> días esperando.</p>\n{{ListadoPendientes}}'
+  },
+  in_app: {
+    asunto: '',
+    cuerpo: 'Tienes {{CantidadPendientes}} solicitud(es) pendiente(s): {{Folios}}'
+  },
+  whatsapp: {
+    asunto: '',
+    cuerpo: '⏰ *Recordatorio de solicitudes*\nHola {{NombreResponsable}}, tienes {{CantidadPendientes}} solicitud(es) pendiente(s):\n{{Folios}}'
+  },
+  telegram: {
+    asunto: '',
+    cuerpo: '⏰ <b>Recordatorio</b>\nHola {{NombreResponsable}}, tienes <b>{{CantidadPendientes}}</b> solicitud(es) pendiente(s):\n{{Folios}}'
+  }
+};
 
 const EMPTY_REC: RecordatorioRecord = {
   nombre: '',
@@ -76,7 +99,9 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<RecordatorioRecord>(EMPTY_REC);
 
-  const pasos = workflow.pasos;
+  const pasos = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
+  const esSolicitudPersonal = workflow.codigoProceso === 'SOLICITUD_PERSONAL';
+  const bodyVars = esSolicitudPersonal ? REC_VARS_SP : REC_VARS_OC;
 
   useEffect(() => {
     if (recordatorio) {
@@ -173,7 +198,7 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
             >
               <option value="">Todos los pasos</option>
               {pasos.map((p: WorkflowPaso) => (
-                <option key={p.idPaso} value={p.idPaso}>{p.nombrePaso}</option>
+                <option key={p.idPaso} value={p.idPaso}>[{p.orden}] {p.nombrePaso}{!p.activo ? ' (inactivo)' : ''}</option>
               ))}
             </select>
           </div>
@@ -230,21 +255,25 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Condiciones de activación</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="rec-minord">Mín. órdenes pendientes</Label>
+              <Label htmlFor="rec-minord">{esSolicitudPersonal ? 'Mín. solicitudes pendientes' : 'Mín. órdenes pendientes'}</Label>
               <Input id="rec-minord" type="number" min={1} value={formData.minOrdenesPendientes ?? ''} onChange={e => set('minOrdenesPendientes', e.target.value)} placeholder="Sin mínimo" />
             </div>
             <div>
               <Label htmlFor="rec-mindias">Mín. días en paso</Label>
               <Input id="rec-mindias" type="number" min={1} value={formData.minDiasEnPaso ?? ''} onChange={e => set('minDiasEnPaso', e.target.value)} placeholder="Sin mínimo" />
             </div>
-            <div>
-              <Label htmlFor="rec-montmin">Monto mínimo</Label>
-              <Input id="rec-montmin" type="number" min={0} value={formData.montoMinimo ?? ''} onChange={e => set('montoMinimo', e.target.value)} placeholder="Sin límite" />
-            </div>
-            <div>
-              <Label htmlFor="rec-montmax">Monto máximo</Label>
-              <Input id="rec-montmax" type="number" min={0} value={formData.montoMaximo ?? ''} onChange={e => set('montoMaximo', e.target.value)} placeholder="Sin límite" />
-            </div>
+            {!esSolicitudPersonal && (
+              <>
+                <div>
+                  <Label htmlFor="rec-montmin">Monto mínimo</Label>
+                  <Input id="rec-montmin" type="number" min={0} value={formData.montoMinimo ?? ''} onChange={e => set('montoMinimo', e.target.value)} placeholder="Sin límite" />
+                </div>
+                <div>
+                  <Label htmlFor="rec-montmax">Monto máximo</Label>
+                  <Input id="rec-montmax" type="number" min={0} value={formData.montoMaximo ?? ''} onChange={e => set('montoMaximo', e.target.value)} placeholder="Sin límite" />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -296,10 +325,12 @@ export function RecordatorioEditModal({ workflow, recordatorio, open, setOpen, o
           enviarEmail={formData.enviarEmail}
           enviarWhatsapp={formData.enviarWhatsapp}
           enviarTelegram={formData.enviarTelegram}
-          bodyVars={REC_VARS}
+          bodyVars={bodyVars}
+          canalDefaults={esSolicitudPersonal ? CANAL_DEFAULTS_SP : undefined}
           tablaVarName="{{ListadoPendientes}}"
           showListadoRowHtml={true}
-          listadoRowHtmlExample={`<tr>\n  <td>{{Folio}}</td>\n  <td>{{Proveedor}}</td>\n  <td style="text-align:right">{{Total}}</td>\n  <td style="color:#6b7280">{{DiasEspera}} días</td>\n</tr>`}
+          listadoRowHtmlVars={esSolicitudPersonal ? ['{{Folio}}', '{{Detalle}}', '{{DiasEspera}}'] : undefined}
+          listadoRowHtmlExample={esSolicitudPersonal ? LISTADO_ROW_SP : LISTADO_ROW_OC}
           onChange={(canales) => set('canales', canales)}
         />
 

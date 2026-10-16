@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { API } from '@/shared/api/apiClient';
@@ -50,9 +51,10 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
         activo: accion.activo ?? true
       });
     } else {
+      const primerPaso = [...workflow.pasos].sort((a, b) => a.orden - b.orden)[0];
       setFormData({
         idTipoAccion: tiposAccionList[0]?.idTipoAccion ?? 0,
-        idPasoOrigen: workflow.pasos[0]?.idPaso || 0,
+        idPasoOrigen: primerPaso?.idPaso || 0,
         idPasoDestino: 0,
         enviaConcentrado: false,
         activo: true
@@ -102,6 +104,7 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
   };
 
   const tiposAccion = tiposAccionList;
+  const pasosOrdenados = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
 
   return (
     <Modal
@@ -165,13 +168,18 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
               <SelectValue placeholder="Selecciona el paso de origen" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
+              {pasosOrdenados.map((paso: WorkflowPaso) => (
                 <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                       {paso.orden}
                     </span>
                     <span>{paso.nombrePaso}</span>
+                    {!paso.activo && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Inactivo
+                      </Badge>
+                    )}
                   </div>
                 </SelectItem>
               ))}
@@ -195,13 +203,18 @@ export function ActionEditModal({ workflow, accion, open, setOpen, onSave }: Act
               <SelectValue placeholder="Selecciona el paso destino" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
+              {pasosOrdenados.map((paso: WorkflowPaso) => (
                 <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                       {paso.orden}
                     </span>
                     <span>{paso.nombrePaso}</span>
+                    {!paso.activo && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Inactivo
+                      </Badge>
+                    )}
                   </div>
                 </SelectItem>
               ))}

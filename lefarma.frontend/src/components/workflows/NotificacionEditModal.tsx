@@ -64,10 +64,61 @@ const EMPTY_FORM: NotificacionFormState = {
   canales: [],
 };
 
+// Variables que el dispatcher siempre resuelve (WorkflowNotificationDispatcher)
+const VARS_SISTEMA = [
+  '{{Folio}}',
+  '{{Solicitante}}',
+  '{{NombreCreador}}',
+  '{{NombreSiguiente}}',
+  '{{NombreAnterior}}',
+  '{{Accion}}',
+  '{{Comentario}}',
+];
+
+const VARS_POR_PROCESO: Record<string, string[]> = {
+  ORDEN_COMPRA: ['{{Folio}}', '{{Total}}', '{{Proveedor}}', '{{Comentario}}', '{{Accion}}', '{{NombreAnterior}}', '{{NombreSiguiente}}', '{{Solicitante}}', '{{Partidas}}'],
+  SOLICITUD_PERSONAL: [
+    ...VARS_SISTEMA,
+    '{{TipoSolicitud}}',
+    '{{Categoria}}',
+    '{{Motivo}}',
+    '{{FechaInicio}}',
+    '{{FechaFin}}',
+    '{{DiasSolicitados}}',
+    '{{LugarComision}}',
+  ],
+};
+
+const CANAL_DEFAULTS_SP: Record<string, { asunto: string; cuerpo: string }> = {
+  email: {
+    asunto: '',
+    cuerpo: '<p>Hola <strong>{{NombreSiguiente}}</strong>,</p>\n<p>La solicitud <strong>{{Folio}}</strong> ({{TipoSolicitud}}) de <strong>{{Solicitante}}</strong> requiere tu atención.</p>\n<p><strong>Motivo:</strong> {{Motivo}}<br><strong>Fechas:</strong> {{FechaInicio}} al {{FechaFin}}</p>\n{{Comentario}}'
+  },
+  in_app: {
+    asunto: '',
+    cuerpo: '{{TipoSolicitud}} {{Folio}} de {{Solicitante}}'
+  },
+  whatsapp: {
+    asunto: '',
+    cuerpo: '🔔 *Solicitud {{Folio}}*: {{TipoSolicitud}} de {{Solicitante}}.'
+  },
+  telegram: {
+    asunto: '',
+    cuerpo: '🔔 <b>Solicitud {{Folio}}</b>: {{TipoSolicitud}} de {{Solicitante}}.'
+  }
+};
+
 export function NotificacionEditModal({ workflow, notificacion, open, setOpen, onSave }: NotificacionEditModalProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [tiposNotificacion, setTiposNotificacion] = useState<WorkflowTipoNotificacionCatalogo[]>([]);
   const [formData, setFormData] = useState<NotificacionFormState>(EMPTY_FORM);
+
+  const esOrdenCompra = workflow.codigoProceso === 'ORDEN_COMPRA';
+  const esSolicitudPersonal = workflow.codigoProceso === 'SOLICITUD_PERSONAL';
+  const bodyVars = VARS_POR_PROCESO[workflow.codigoProceso] ?? VARS_SISTEMA;
+  const terminoEntidad = esOrdenCompra ? 'la orden' : esSolicitudPersonal ? 'la solicitud' : 'el registro';
+  const getIdTipo = (t: WorkflowTipoNotificacionCatalogo) => t.idTipo ?? t.idTipoNotificacion;
+  const tipoSeleccionado = tiposNotificacion.find((t) => getIdTipo(t) === formData.idTipoNotificacion);
 
   // Cargar tipos de notificación la primera vez
   useEffect(() => {
@@ -90,7 +141,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
       });
     } else {
       // Encontrar la primera acción disponible
-      const primeraAccion = workflow.pasos.flatMap((p: WorkflowPaso) => p.acciones || [])[0];
+      const primeraAccion = [...workflow.pasos].sort((a, b) => a.orden - b.orden).flatMap((p: WorkflowPaso) => p.acciones || [])[0];
       setFormData({
         ...EMPTY_FORM,
         idAccion: primeraAccion?.idAccion || 0,
@@ -131,7 +182,9 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
     }
   };
 
-  const todasLasAcciones = workflow.pasos.flatMap((p: WorkflowPaso) => {
+  const pasosOrdenados = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
+
+  const todasLasAcciones = pasosOrdenados.flatMap((p: WorkflowPaso) => {
     const paso = p;
     return (p.acciones || []).map((a: WorkflowAccion) => ({ ...a, paso }));
   });
@@ -173,12 +226,17 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
               {todasLasAcciones.map(({ idAccion, tipoAccionNombre, tipoAccionCodigo, paso }) => (
                 <SelectItem key={idAccion} value={idAccion.toString()}>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">{paso.nombrePaso}</span>
+                    <span className="text-xs text-muted-foreground">[{paso.orden}] {paso.nombrePaso}</span>
                     <span className="text-muted-foreground">·</span>
                     <span>{tipoAccionNombre}</span>
                     <Badge variant="outline" className="text-xs">
                       {tipoAccionCodigo}
                     </Badge>
+                    {!paso.activo && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Paso inactivo
+                      </Badge>
+                    )}
                   </div>
                 </SelectItem>
               ))}
@@ -202,9 +260,9 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="0">Genérica (cualquier destino)</SelectItem>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
+              {pasosOrdenados.map((paso: WorkflowPaso) => (
                 <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
-                  [{paso.orden}] {paso.nombrePaso}
+                  [{paso.orden}] {paso.nombrePaso}{!paso.activo ? ' (inactivo)' : ''}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -223,18 +281,15 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
             <SelectTrigger>
               <SelectValue>
                 {formData.idTipoNotificacion && formData.idTipoNotificacion > 0 ? (
-                  (() => {
-                    const tipo = tiposNotificacion.find((t) => t.idTipo === formData.idTipoNotificacion);
-                    return tipo ? (
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="inline-block w-3 h-3 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: tipo.colorTema }}
-                        />
-                        <span>{tipo.icono} {tipo.nombre}</span>
-                      </span>
-                    ) : 'Sin tipo';
-                  })()
+                  tipoSeleccionado ? (
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: tipoSeleccionado.colorTema }}
+                      />
+                      <span>{tipoSeleccionado.icono} {tipoSeleccionado.nombre}</span>
+                    </span>
+                  ) : 'Sin tipo'
                 ) : (
                   <span className="text-muted-foreground">Sin tipo asignado</span>
                 )}
@@ -245,7 +300,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
                 <span className="text-muted-foreground">Sin tipo asignado</span>
               </SelectItem>
               {tiposNotificacion.map((tipo) => (
-                <SelectItem key={tipo.idTipo} value={(tipo.idTipo ?? 0).toString()}>
+                <SelectItem key={getIdTipo(tipo)} value={(getIdTipo(tipo) ?? 0).toString()}>
                   <span className="flex items-center gap-2">
                     <span
                       className="inline-block w-3 h-3 rounded-full flex-shrink-0"
@@ -355,7 +410,7 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Creador: quien inició la orden • Siguiente: quien recibirá la orden • Firmante: quien acaba de ejecutar la acción • Autorizadores previos: todos los que autorizaron pasos anteriores de esta orden
+            Creador: quien inició {terminoEntidad} • Siguiente: quien recibirá {terminoEntidad} • Firmante: quien acaba de ejecutar la acción • Autorizadores previos: todos los que autorizaron pasos anteriores de {terminoEntidad}
           </p>
         </div>
 
@@ -365,10 +420,11 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           enviarEmail={formData.enviarEmail}
           enviarWhatsapp={formData.enviarWhatsapp}
           enviarTelegram={formData.enviarTelegram}
-          tipoNotificacion={tiposNotificacion.find((t) => t.idTipoNotificacion === formData.idTipoNotificacion)?.codigoTipo}
-          bodyVars={['{{Folio}}', '{{Total}}', '{{Proveedor}}', '{{Comentario}}', '{{Accion}}', '{{NombreAnterior}}', '{{NombreSiguiente}}', '{{Solicitante}}', '{{Partidas}}']}
-          tablaVarName={formData.incluirPartidas ? '{{Partidas}}' : undefined}
-          showListadoRowHtml={!!formData.incluirPartidas}
+          tipoNotificacion={tipoSeleccionado?.codigo ?? tipoSeleccionado?.codigoTipo}
+          canalDefaults={esSolicitudPersonal ? CANAL_DEFAULTS_SP : undefined}
+          bodyVars={bodyVars}
+          tablaVarName={esOrdenCompra && formData.incluirPartidas ? '{{Partidas}}' : undefined}
+          showListadoRowHtml={esOrdenCompra && !!formData.incluirPartidas}
           listadoRowHtmlLabel="Avanzado: fila HTML de partidas"
           listadoRowHtmlVars={['{{NumeroPartida}}', '{{Descripcion}}', '{{Cantidad}}', '{{PrecioUnitario}}', '{{Total}}']}
           listadoRowHtmlPlaceholder="Dejar vacío para usar la tabla por defecto"
@@ -376,22 +432,24 @@ export function NotificacionEditModal({ workflow, notificacion, open, setOpen, o
           onChange={(canales) => setFormData((prev) => ({ ...prev, canales }))}
         />
 
-        {/* Opciones adicionales */}
-        <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
-          <div className="flex items-center gap-2">
-            <Info className="h-4 w-4 shrink-0" />
+        {/* Opciones adicionales (solo órdenes de compra: parten del catálogo de partidas) */}
+        {esOrdenCompra && (
+          <div className="p-3 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300">
             <div className="flex items-center gap-2">
-              <Checkbox
-                id="incluirPartidas"
-                checked={formData.incluirPartidas}
-                onCheckedChange={(checked) => setFormData(prev => ({ ...prev, incluirPartidas: !!checked }))}
-              />
-              <Label htmlFor="incluirPartidas" className="cursor-pointer text-xs font-medium">
-                Incluir tabla de partidas de la orden en la notificación — activa <code className="bg-blue-500/10 px-1 rounded">{'{{Partidas}}'}</code> y la sección de fila HTML
-              </Label>
+              <Info className="h-4 w-4 shrink-0" />
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="incluirPartidas"
+                  checked={formData.incluirPartidas}
+                  onCheckedChange={(checked) => setFormData(prev => ({ ...prev, incluirPartidas: !!checked }))}
+                />
+                <Label htmlFor="incluirPartidas" className="cursor-pointer text-xs font-medium">
+                  Incluir tabla de partidas de la orden en la notificación — activa <code className="bg-blue-500/10 px-1 rounded">{'{{Partidas}}'}</code> y la sección de fila HTML
+                </Label>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Activo */}
         <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-muted/30">

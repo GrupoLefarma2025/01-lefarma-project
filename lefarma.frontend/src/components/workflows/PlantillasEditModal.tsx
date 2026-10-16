@@ -49,6 +49,8 @@ interface PlantillasEditModalProps {
   /** Nombre de variable (p. ej. '{{Partidas}}') — cuando se establece, muestra un toggle por canal que inserta/elimina la variable de la plantilla del cuerpo */
   tablaVarName?: string;
   tipoNotificacion?: string;
+  /** Textos por defecto al crear un canal nuevo. Default: CANAL_DEFAULTS (orientado a recordatorios de OC). */
+  canalDefaults?: Record<string, { asunto: string; cuerpo: string }>;
   onChange: (canales: WorkflowNotificacionCanal[]) => void;
 }
 
@@ -65,6 +67,7 @@ export function PlantillasEditModal({
   bodyVars,
   tablaVarName,
   tipoNotificacion,
+  canalDefaults,
   onChange
 }: PlantillasEditModalProps) {
   const canalesActivos = [
@@ -82,8 +85,8 @@ export function PlantillasEditModal({
   const getCanalData = (codigo: string): WorkflowNotificacionCanal =>
     canales.find((c) => c.codigoCanal === codigo) ?? {
       codigoCanal: codigo,
-      asuntoTemplate: CANAL_DEFAULTS[codigo]?.asunto ?? '',
-      cuerpoTemplate: CANAL_DEFAULTS[codigo]?.cuerpo ?? '',
+      asuntoTemplate: (canalDefaults ?? CANAL_DEFAULTS)[codigo]?.asunto ?? '',
+      cuerpoTemplate: (canalDefaults ?? CANAL_DEFAULTS)[codigo]?.cuerpo ?? '',
       listadoRowHtml: '',
       activo: true
     };

@@ -516,10 +516,12 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         {
             var url = template.UrlButton.Replace("{IdEntidad}", "", StringComparison.OrdinalIgnoreCase);
             layout = layout.Replace("{{UrlOrden}}", url, StringComparison.OrdinalIgnoreCase);
+            layout = layout.Replace("{{UrlEntidad}}", url, StringComparison.OrdinalIgnoreCase);
         }
         else
         {
             layout = layout.Replace("{{UrlOrden}}", "", StringComparison.OrdinalIgnoreCase);
+            layout = layout.Replace("{{UrlEntidad}}", "", StringComparison.OrdinalIgnoreCase);
         }
 
         return layout;

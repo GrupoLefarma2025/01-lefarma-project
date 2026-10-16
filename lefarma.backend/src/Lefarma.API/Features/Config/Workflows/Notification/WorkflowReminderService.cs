@@ -207,6 +207,7 @@ namespace Lefarma.API.Features.Config.Workflows.Notification
                         ["Folio"] = entities.Count == 1 ? entities[0].Folio : folios,
                         ["Total"] = entities.Count == 1 && entities[0].MontoTotal.HasValue ? FormatearMonto(entities[0]) : "",
                         ["UrlOrden"] = urlEntidad,
+                        ["UrlEntidad"] = urlEntidad,
                         ["ColorTema"] = "#d97706",
                         ["Icono"] = "⏰",
                         ["Asunto"] = canalInAppTemplate?.AsuntoTemplate ?? canalEmailTemplate?.AsuntoTemplate ?? "Recordatorio",

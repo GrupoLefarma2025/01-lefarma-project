@@ -18,6 +18,7 @@ export interface WorkflowUsuarioCatalogo {
 export interface WorkflowTipoNotificacionCatalogo {
   idTipoNotificacion: number;
   idTipo?: number;
+  codigo?: string;
   codigoTipo?: string;
   nombre: string;
   descripcion?: string;
