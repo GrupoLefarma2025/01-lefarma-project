@@ -15,6 +15,18 @@ public class Solicitud
     public string Gerencia { get; set; } = string.Empty;
     public string Estado { get; set; } = "borrador";
     public string DatosJson { get; set; } = "{}";
+    /// <summary>Folio legible del viaje: VIA-{SamAccountName del viajero}-{id}.</summary>
+    public string? Folio { get; set; }
+    /// <summary>Nombre de la persona que solicita el viaje.</summary>
+    public string? PersonaSolicitante { get; set; }
+    /// <summary>Nombre de la persona que viaja.</summary>
+    public string? PersonaViajera { get; set; }
+    /// <summary>Sistema que originó la solicitud: 'viaticos' o 'educacion_medica'.</summary>
+    public string SistemaOrigen { get; set; } = "viaticos";
+    /// <summary>Usuario que creó el registro (auditoría; puede diferir del solicitante en integraciones).</summary>
+    public int IdUsuarioCreacion { get; set; }
+    /// <summary>Puntos/destinos a visitar, contados al crear la solicitud.</summary>
+    public int NumPuntos { get; set; }
     public bool Activo { get; set; } = true;
     public DateTime FechaCreacion { get; set; }
     public DateTime FechaModificacion { get; set; }

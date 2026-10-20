@@ -17,6 +17,13 @@ public class CrearSolicitudRequest
     [JsonPropertyName("gerencia")]
     public string? Gerencia { get; set; }
 
+    /// <summary>
+    /// Sistema que originó la solicitud: <c>viaticos</c> (valor por defecto)
+    /// o <c>educacion_medica</c>. Se valida contra una lista permitida.
+    /// </summary>
+    [JsonPropertyName("sistema_origen")]
+    public string? SistemaOrigen { get; set; }
+
     [JsonPropertyName("datos")]
     public JsonElement Datos { get; set; }
 }
@@ -55,6 +62,27 @@ public class SolicitudDto
 
     [JsonPropertyName("estado")]
     public string Estado { get; set; } = string.Empty;
+
+    [JsonPropertyName("folio")]
+    public string? Folio { get; set; }
+
+    [JsonPropertyName("persona_solicitante")]
+    public string? PersonaSolicitante { get; set; }
+
+    [JsonPropertyName("persona_viajera")]
+    public string? PersonaViajera { get; set; }
+
+    [JsonPropertyName("sistema_origen")]
+    public string SistemaOrigen { get; set; } = "viaticos";
+
+    [JsonPropertyName("id_usuario_creacion")]
+    public int IdUsuarioCreacion { get; set; }
+
+    [JsonPropertyName("num_puntos")]
+    public int NumPuntos { get; set; }
+
+    [JsonPropertyName("nombre_creador")]
+    public string? NombreCreador { get; set; }
 
     [JsonPropertyName("activo")]
     public bool Activo { get; set; }

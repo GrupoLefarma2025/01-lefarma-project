@@ -3,6 +3,9 @@ export interface PuntoSeleccion {
   nombre: string;
   latitud: number;
   longitud: number;
+  /** Estado/municipio de la dirección elegida, cuando se conocen (búsqueda). */
+  estado?: string;
+  municipio?: string;
 }
 
 export interface CostosRutaOpciones {
@@ -102,11 +105,15 @@ export interface CostosRutaPropuestaTramo {
 
 export interface CostosRutaHotel {
   lugar: string;
+  nombre?: string;
   ciudad: string;
   checkIn: string;
   checkOut: string;
   noches: number;
   habitaciones: number;
+  distanciaKm?: number;
+  precioNoche?: number;
+  precioTotal?: number;
   motivo: string;
   fuente: string;
   link: string;

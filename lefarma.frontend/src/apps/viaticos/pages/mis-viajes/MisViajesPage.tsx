@@ -1,17 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, Pencil, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { DataTable, type ColumnDef } from '@/components/ui/data-table';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
-import { estadoTexto, VARIANTE_POR_ESTADO } from '../../types/aprobaciones.types';
+import { estadoTexto } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
+import { ResumenViaje } from '../../components/ResumenViaje';
+import { CalculosViajeModal } from '../../components/CalculosViajeModal';
+import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
 import {
   ETIQUETA_PERIODO,
   clasificarRelacion,
@@ -19,6 +27,7 @@ import {
   leerDatosViaje,
   rangoDelFiltro,
   type FiltroPeriodo,
+  type ResumenViaje as ResumenDatos,
   type TipoViaje,
 } from './viajes.helpers';
 
@@ -29,8 +38,87 @@ const TIPOS_VIAJE: { id: TipoViaje | 'todos'; etiqueta: string }[] = [
   { id: 'sin-clasificar', etiqueta: 'Sin clasificar' },
 ];
 
+interface FilaViaje {
+  solicitud: Solicitud;
+  resumen: ResumenDatos;
+}
+
+function nombreCreadorDe(solicitud: Solicitud, miId?: number, miNombre?: string): string {
+  const nombre = solicitud.nombre_creador?.trim();
+  if (nombre) return nombre;
+  const idCreador = solicitud.id_usuario_creacion ?? solicitud.id_usuario_solicitante;
+  if (miId !== undefined && idCreador === miId && miNombre?.trim()) return miNombre;
+  return `Usuario #${idCreador}`;
+}
+
+/** Fecha larga al estilo de la bandeja de CxP: "23 de octubre de 2026". */
+function fechaLarga(fecha: string): string {
+  if (!fecha) return '—';
+  const d = new Date(fecha);
+  return Number.isNaN(d.getTime())
+    ? fecha
+    : d.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+/** Mismo lenguaje de color por estado que la bandeja de órdenes de CxP. */
+const COLOR_POR_ESTADO: Record<string, string> = {
+  borrador: '#64748b',
+  enviada: '#2563eb',
+  autorizada: '#16a34a',
+  autorizada_con_ajustes: '#d97706',
+  rechazada: '#dc2626',
+};
+
+function colorEstado(estado: string): string {
+  return COLOR_POR_ESTADO[estado] ?? '#64748b';
+}
+
+function comoObjeto(v: unknown): Record<string, unknown> | null {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+/** Personas del viaje: la persona viajera + acompañantes. */
+function personasInvolucradas(solicitud: Solicitud): number {
+  const datos = comoObjeto(solicitud.datos);
+  const transporte = comoObjeto(datos?.transporte);
+  const acompanantes = Array.isArray(transporte?.acompanantes) ? transporte!.acompanantes.length : 0;
+  return 1 + acompanantes;
+}
+
+function tipoTransporte(solicitud: Solicitud): string {
+  const datos = comoObjeto(solicitud.datos);
+  const transporte = comoObjeto(datos?.transporte);
+  return transporte?.modo === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
+}
+
+/** Costo conocido del viaje: total del snapshot o comidas + extras + opciones elegidas. */
+function costoViaje(solicitud: Solicitud): number | null {
+  const datos = comoObjeto(solicitud.datos);
+  const totalSnapshot = Number(datos?.total);
+  if (Number.isFinite(totalSnapshot) && totalSnapshot > 0) return totalSnapshot;
+
+  const gastos = comoObjeto(datos?.gastos);
+  const comidas = Number(gastos?.comidas) || 0;
+  const extras = (Array.isArray(gastos?.extras) ? gastos!.extras : []).reduce<number>((suma, extra) => {
+    const obj = comoObjeto(extra);
+    const monto = obj ? Number(obj.monto) : Number(extra);
+    return suma + (Number.isFinite(monto) ? monto : 0);
+  }, 0);
+  const elegidas = solicitud.opciones
+    .filter((opcion) => opcion.fue_elegida)
+    .reduce((suma, opcion) => suma + (opcion.precio ?? 0), 0);
+
+  const total = comidas + extras + elegidas;
+  return total > 0 ? total : null;
+}
+
+function mxn(n: number): string {
+  return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' });
+}
+
 export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   usePageTitle('Mis viajes', 'Viáticos');
+  const navigate = useNavigate();
   const miId = useAuthStore((s) => s.user?.id);
   const miNombre = useAuthStore((s) => s.user?.nombre);
 
@@ -44,30 +132,37 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   const [viendoId, setViendoId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
   const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [procesandoId, setProcesandoId] = useState<number | null>(null);
+  const [calculo, setCalculo] = useState<Solicitud | null>(null);
+
+  const cargarSolicitudes = useCallback(async () => {
+    setCargando(true);
+    setError(null);
+    try {
+      const res = await solicitudesApi.misSolicitudes();
+      if (res.data.success) setSolicitudes(res.data.data ?? []);
+      else setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
+    } catch (falla: unknown) {
+      setError(toApiError(falla).message || 'No se pudieron cargar tus viajes.');
+    } finally {
+      setCargando(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let cancelado = false;
-    void (async () => {
-      try {
-        const res = await solicitudesApi.misSolicitudes();
-        if (cancelado) return;
-        if (res.data.success) setSolicitudes(res.data.data ?? []);
-        else setError(res.data.message ?? 'No se pudieron cargar tus viajes.');
-      } catch (falla: unknown) {
-        if (!cancelado) setError(toApiError(falla).message || 'No se pudieron cargar tus viajes.');
-      } finally {
-        if (!cancelado) setCargando(false);
-      }
-    })();
-    return () => { cancelado = true; };
-  }, []);
+    void cargarSolicitudes();
+  }, [cargarSolicitudes]);
 
   // Referencia «hoy» en hora local; el rango siempre se muestra.
   const rango = rangoDelFiltro(periodo, hoy, desde, hasta);
 
-  const filas = useMemo(
+  const filas = useMemo<FilaViaje[]>(
     () =>
-      solicitudes
+      [...solicitudes]
+        // El último creado primero (la API ya ordena; se refuerza aquí).
+        .sort((a, b) =>
+          b.fecha_creacion.localeCompare(a.fecha_creacion) || b.id_solicitud - a.id_solicitud,
+        )
         .map((s) => ({ solicitud: s, resumen: leerDatosViaje(s.datos) }))
         .filter(({ resumen }) => (tipo === 'todos' ? true : resumen.tipoViaje === tipo))
         .filter(({ solicitud }) => enRango(solicitud.fecha_creacion, rango)),
@@ -75,7 +170,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     [solicitudes, tipo, periodo, desde, hasta],
   );
 
-  async function verDetalle(id: number) {
+  const verDetalle = useCallback(async (id: number) => {
     setViendoId(id);
     setDetalle(null);
     setCargandoDetalle(true);
@@ -88,19 +183,243 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
     } finally {
       setCargandoDetalle(false);
     }
-  }
+  }, []);
+
+  const eliminarBorrador = useCallback(async (solicitud: Solicitud) => {
+    const etiqueta = solicitud.folio ?? `#${solicitud.id_solicitud}`;
+    if (!window.confirm(`¿Eliminar el borrador ${etiqueta}?`)) return;
+    setProcesandoId(solicitud.id_solicitud);
+    try {
+      const res = await solicitudesApi.eliminar(solicitud.id_solicitud);
+      if (!res.data.success) {
+        toast.error(res.data.message ?? 'No se pudo eliminar el borrador.');
+        return;
+      }
+      toast.success(`Borrador ${etiqueta} eliminado.`);
+      await cargarSolicitudes();
+    } catch (falla: unknown) {
+      toast.error(toApiError(falla).message || 'No se pudo eliminar el borrador.');
+    } finally {
+      setProcesandoId(null);
+    }
+  }, [cargarSolicitudes]);
+
+  const columnas = useMemo<ColumnDef<FilaViaje>[]>(
+    () => [
+      {
+        id: 'viaje',
+        header: 'Viaje',
+        accessorFn: (fila) => fila.solicitud.folio ?? fila.solicitud.id_solicitud,
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-medium">{row.original.solicitud.folio ?? `#${row.original.solicitud.id_solicitud}`}</span>
+            <span className="text-xs text-muted-foreground">{fechaLarga(row.original.solicitud.fecha_creacion)}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'destino',
+        header: 'Destino',
+        accessorFn: (fila) => fila.resumen.destino ?? '',
+        cell: ({ row }) => {
+          const distintivos = clasificarRelacion(row.original.solicitud, row.original.resumen, miId, miNombre);
+          return (
+            <div className="flex flex-col gap-1">
+              <span className="font-medium">{row.original.resumen.destino ?? 'Destino por confirmar'}</span>
+              {distintivos.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {distintivos.map((d) => (
+                    <Badge key={d.clave} variant="outline" className="text-[10px]">{d.texto}</Badge>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: 'lugares',
+        header: () => <div className="text-center">Lugares a visitar</div>,
+        accessorFn: (fila) => fila.solicitud.num_puntos ?? contarPuntos(fila.solicitud.datos),
+        cell: ({ getValue }) => (
+          <div className="text-center">
+            <span className="text-sm font-medium">{getValue<number>()}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'transporte',
+        header: 'Transporte',
+        accessorFn: (fila) => tipoTransporte(fila.solicitud),
+        cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
+      },
+      {
+        id: 'personas',
+        header: () => <div className="text-center">Personas involucradas</div>,
+        accessorFn: (fila) => personasInvolucradas(fila.solicitud),
+        cell: ({ getValue }) => (
+          <div className="text-center">
+            <span className="text-sm font-medium">{getValue<number>()}</span>
+          </div>
+        ),
+      },
+      {
+        id: 'costo',
+        header: 'Costo del viaje',
+        accessorFn: (fila) => costoViaje(fila.solicitud) ?? 0,
+        cell: ({ row }) => {
+          const costo = costoViaje(row.original.solicitud);
+          return <span className="text-sm font-medium">{costo !== null ? mxn(costo) : '—'}</span>;
+        },
+      },
+      {
+        id: 'solicitante',
+        header: 'Solicitante',
+        accessorFn: (fila) => `${fila.solicitud.persona_solicitante ?? ''} ${fila.solicitud.persona_viajera ?? ''}`.trim(),
+        cell: ({ row }) => {
+          const solicitante = row.original.solicitud.persona_solicitante?.trim()
+            || nombreCreadorDe(row.original.solicitud, miId, miNombre);
+          const viajero = row.original.solicitud.persona_viajera?.trim() || solicitante;
+          if (solicitante === viajero) {
+            return <Badge variant="secondary" className="font-normal">{solicitante}</Badge>;
+          }
+          return (
+            <div className="flex flex-col gap-0.5 text-xs">
+              <span>
+                <span className="text-muted-foreground">Creador: </span>
+                <span className="font-medium">{solicitante}</span>
+              </span>
+              <span>
+                <span className="text-muted-foreground">Viajero: </span>
+                <span className="font-medium">{viajero}</span>
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'creadaPor',
+        header: 'Creada por',
+        accessorFn: (fila) => nombreCreadorDe(fila.solicitud, miId, miNombre),
+        cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
+      },
+      {
+        id: 'estado',
+        header: 'Estado',
+        accessorFn: (fila) => estadoTexto(fila.solicitud.estado),
+        cell: ({ row }) => {
+          const estado = row.original.solicitud.estado;
+          const color = colorEstado(estado);
+          return (
+            <span
+              className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors"
+              style={{ borderColor: color, color, backgroundColor: `${color}15` }}
+            >
+              {estadoTexto(estado)}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'acciones',
+        header: () => <div className="text-right">Acción</div>,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const solicitud = row.original.solicitud;
+          const esBorrador = solicitud.estado === 'borrador';
+          const procesando = procesandoId === solicitud.id_solicitud;
+          return (
+            <TooltipProvider delayDuration={150}>
+              <div className="flex flex-wrap justify-end gap-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Ver detalle"
+                      onClick={(evento) => {
+                        evento.stopPropagation();
+                        void verDetalle(solicitud.id_solicitud);
+                      }}
+                    >
+                      <Eye className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Ver detalle</TooltipContent>
+                </Tooltip>
+
+                {esBorrador ? (
+                  <>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="Editar"
+                          onClick={(evento) => {
+                            evento.stopPropagation();
+                            navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`);
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Editar</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          aria-label="Eliminar"
+                          disabled={procesando}
+                          onClick={(evento) => {
+                            evento.stopPropagation();
+                            void eliminarBorrador(solicitud);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Eliminar</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          size="icon"
+                          aria-label="Enviar a concentrado"
+                          disabled={procesando}
+                          onClick={(evento) => {
+                            evento.stopPropagation();
+                            setCalculo(solicitud);
+                          }}
+                        >
+                          <Send className="h-4 w-4" aria-hidden />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Enviar a concentrado</TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : null}
+              </div>
+            </TooltipProvider>
+          );
+        },
+      },
+    ],
+    [miId, miNombre, verDetalle, eliminarBorrador, navigate, procesandoId],
+  );
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Mis viajes</CardTitle>
-          <CardDescription>
-            Tus solicitudes, las que creaste para otra persona, las que pidieron para ti y las que compartieron contigo.
-            Cada viaje aparece una sola vez. El filtrado aquí es visual, no es autorización.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3 pt-6">
           <div className="grid gap-3 md:grid-cols-4">
             <div className="space-y-1">
               <Label htmlFor="filtro-periodo">Periodo</Label>
@@ -131,64 +450,136 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
               </>
             ) : null}
           </div>
-          <p data-testid="rango-visible" className="text-xs text-muted-foreground">
-            {rango
-              ? `Mostrando por fecha de creación (provisional): ${rango.inicio} al ${rango.fin}.`
-              : 'Sin filtro de periodo: se muestran todos tus viajes.'}
-          </p>
-
-          {cargando ? <p role="status">Cargando tus viajes…</p> : null}
-          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-          {!cargando && !error && filas.length === 0 ? <p role="status">No hay viajes para este filtro.</p> : null}
-
-          <ul className="space-y-2">
-            {filas.map(({ solicitud, resumen }) => (
-              <li key={solicitud.id_solicitud} data-testid={`viaje-${solicitud.id_solicitud}`} className="rounded-md border p-3">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">Viaje {solicitud.id_solicitud} · {resumen.destino ?? 'Destino por confirmar'}</span>
-                  <Badge variant={VARIANTE_POR_ESTADO[solicitud.estado] ?? 'secondary'}>{estadoTexto(solicitud.estado)}</Badge>
-                  {clasificarRelacion(solicitud, resumen, miId, miNombre).map((d) => (
-                    <Badge key={d.clave} variant="outline">{d.texto}</Badge>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">Creada el {solicitud.fecha_creacion.slice(0, 10)} · Periodo {solicitud.periodo}</p>
-                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => verDetalle(solicitud.id_solicitud)}>
-                  Ver detalle
-                </Button>
-              </li>
-            ))}
-          </ul>
-
-          {viendoId !== null ? (
-            <div data-testid="detalle-viaje" className="space-y-2 rounded-md border p-3">
-              {cargandoDetalle ? <p role="status">Cargando detalle…</p> : null}
-              {detalle ? <DetalleViaje solicitud={detalle} /> : null}
-              <Button type="button" variant="outline" size="sm" onClick={() => { setViendoId(null); setDetalle(null); }}>
-                Cerrar detalle
-              </Button>
-            </div>
+          {rango ? (
+            <p data-testid="rango-visible" className="text-xs text-muted-foreground">
+              Mostrando por fecha de creación (provisional): {rango.inicio} al {rango.fin}.
+            </p>
           ) : null}
         </CardContent>
       </Card>
+
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+
+      <DataTable
+        columns={columnas}
+        data={filas}
+        title="Mis viajes"
+        subtitle={`Total: ${filas.length}`}
+        pagination
+        pageSize={10}
+        height={460}
+        loading={cargando}
+        showRefreshButton
+        onRefresh={() => { void cargarSolicitudes(); }}
+        filterConfig={{
+          tableId: 'mis-viajes-v4',
+          searchableColumns: ['destino', 'estado'],
+          defaultSearchColumns: ['destino'],
+          defaultVisibleColumns: ['viaje', 'destino', 'transporte', 'lugares', 'personas', 'costo', 'solicitante', 'estado', 'acciones'],
+        }}
+        rowTestId={(fila) => `viaje-${fila.solicitud.id_solicitud}`}
+        onRowClick={(fila) => { void verDetalle(fila.solicitud.id_solicitud); }}
+      />
+
+      <CalculosViajeModal
+        solicitud={calculo}
+        open={calculo !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setCalculo(null);
+        }}
+        onEnviado={() => {
+          void cargarSolicitudes();
+          navigate('/viaticos/concentrado');
+        }}
+      />
+
+      <Dialog
+        open={viendoId !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) {
+            setViendoId(null);
+            setDetalle(null);
+          }
+        }}
+      >
+        <DialogContent data-testid="detalle-viaje" className="sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detalle del viaje {detalle?.folio ?? (viendoId !== null ? `#${viendoId}` : '')}</DialogTitle>
+            <DialogDescription>Resumen capturado en la solicitud y, si existe, la cotización.</DialogDescription>
+          </DialogHeader>
+          {cargandoDetalle ? <p role="status">Cargando detalle…</p> : null}
+          {detalle ? <VistaDetalle solicitud={detalle} /> : null}
+          <DialogFooter className="gap-2">
+            {detalle?.estado === 'borrador' ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => {
+                  const id = detalle.id_solicitud;
+                  setViendoId(null);
+                  setDetalle(null);
+                  navigate(`/viaticos/solicitud/${id}`);
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" aria-hidden /> Editar
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setViendoId(null);
+                setDetalle(null);
+              }}
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
-function DetalleViaje({ solicitud }: { solicitud: Solicitud }) {
-  const resumen = leerDatosViaje(solicitud.datos);
+/** Detalle del viaje: el mismo resumen del paso 7 y, si hay, la cotización. */
+function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
+  const resumen = resumenDesdeDatos(solicitud.datos);
+  if (!resumen) return <DetalleViajeLegado solicitud={solicitud} />;
+  return (
+    <div className="space-y-4">
+      <ResumenViaje {...resumen} />
+      {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+    </div>
+  );
+}
+
+function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   const total = totalDeOpcionesElegidas(solicitud.opciones);
   const elegidas = solicitud.opciones.filter((o) => o.fue_elegida);
   const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
   return (
     <div className="space-y-2 text-sm">
-      <p><strong>Itinerario:</strong> {resumen.destino ?? 'Destino por confirmar'}</p>
-      <p><strong>Participantes:</strong> {resumen.beneficiarioNombre ?? 'Por confirmar'}</p>
-      <p><strong>Estado:</strong> {estadoTexto(solicitud.estado)}</p>
       <p><strong>Transporte y hospedaje elegidos:</strong> {elegidas.length === 0 ? 'Sin opciones elegidas.' : elegidas.map((o) => o.linea).join(' · ')}</p>
       {descartadas.length > 0 ? (
         <p className="text-muted-foreground"><strong>Alternativas descartadas:</strong> {descartadas.map((o) => o.linea).join(' · ')}</p>
       ) : null}
       <p><strong>Desglose:</strong> {textoTotalElegidas(total)}</p>
+    </div>
+  );
+}
+
+/** Fallback para solicitudes del flujo anterior (datos que no son `solicitud-v2`). */
+function DetalleViajeLegado({ solicitud }: { solicitud: Solicitud }) {
+  const resumen = leerDatosViaje(solicitud.datos);
+  return (
+    <div className="space-y-2 text-sm">
+      <p><strong>Itinerario:</strong> {resumen.destino ?? 'Destino por confirmar'}</p>
+      <p><strong>Participantes:</strong> {resumen.beneficiarioNombre ?? 'Por confirmar'}</p>
+      <p><strong>Estado:</strong> {estadoTexto(solicitud.estado)}</p>
+      <DetalleOpciones solicitud={solicitud} />
     </div>
   );
 }

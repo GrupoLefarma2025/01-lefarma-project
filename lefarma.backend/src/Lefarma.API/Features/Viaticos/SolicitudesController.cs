@@ -1,3 +1,5 @@
+using System.Data;
+using System.Globalization;
 using System.Text.Json;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Features.Viaticos.DTOs;
@@ -59,12 +61,30 @@ public class SolicitudesController : ControllerBase
     /// </summary>
     public const string EstadoEnviada = "enviada";
 
+    /// <summary>Sistema de origen por defecto (wizard de viáticos).</summary>
+    public const string SistemaOrigenViaticos = "viaticos";
+
+    /// <summary>Sistema de origen para las solicitudes creadas desde Educación Médica.</summary>
+    public const string SistemaOrigenEducacionMedica = "educacion_medica";
+
+    /// <summary>Valores aceptados en <c>sistema_origen</c>.</summary>
+    private static readonly string[] SistemasOrigenValidos =
+    {
+        SistemaOrigenViaticos,
+        SistemaOrigenEducacionMedica,
+    };
+
     private readonly ApplicationDbContext _context;
+    private readonly AsokamDbContext _asokamContext;
     private readonly ILogger<SolicitudesController> _logger;
 
-    public SolicitudesController(ApplicationDbContext context, ILogger<SolicitudesController> logger)
+    public SolicitudesController(
+        ApplicationDbContext context,
+        AsokamDbContext asokamContext,
+        ILogger<SolicitudesController> logger)
     {
         _context = context;
+        _asokamContext = asokamContext;
         _logger = logger;
     }
 
@@ -110,12 +130,41 @@ public class SolicitudesController : ControllerBase
         var ahora = DateTime.UtcNow;
         var gerencia = string.IsNullOrWhiteSpace(request.Gerencia) ? GerenciaPorDefecto : request.Gerencia.Trim();
 
+        var sistemaOrigen = string.IsNullOrWhiteSpace(request.SistemaOrigen)
+            ? SistemaOrigenViaticos
+            : request.SistemaOrigen.Trim().ToLowerInvariant();
+        if (!SistemasOrigenValidos.Contains(sistemaOrigen))
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"sistema_origen inválido. Valores permitidos: {string.Join(", ", SistemasOrigenValidos)}."
+            });
+        }
+
+        var numPuntos = ContarDestinos(request.Datos);
+        var personaSnapshot = LeerPersonaDelSnapshot(request.Datos);
+        var personas = await ResolverPersonasAsync(userId, personaSnapshot, ct);
+
+        // El folio se calcula ANTES del INSERT (consecutivo de la secuencia +
+        // SamAccountName del viajero), asi la fila nace con folio y no hay
+        // UPDATE posterior dependiente del IDENTITY.
+        var numeroFolio = await SiguienteNumeroFolioAsync(ct);
+        var samFolio = personas.SamViajero.Length > 40 ? personas.SamViajero[..40] : personas.SamViajero;
+        var folio = $"VIA-{samFolio}-{numeroFolio:D4}";
+
         var solicitud = new Solicitud
         {
             IdUsuarioSolicitante = userId,
+            IdUsuarioCreacion = userId,
+            SistemaOrigen = sistemaOrigen,
+            NumPuntos = numPuntos,
+            PersonaSolicitante = personas.Solicitante,
+            PersonaViajera = personas.Viajero,
             Periodo = ahora.ToString("yyyy-MM"),
             Gerencia = gerencia,
             Estado = EstadoBorrador,
+            Folio = folio,
             DatosJson = request.Datos.ValueKind == JsonValueKind.Undefined || request.Datos.ValueKind == JsonValueKind.Null
                 ? "{}"
                 : request.Datos.GetRawText(),
@@ -124,17 +173,26 @@ public class SolicitudesController : ControllerBase
             FechaModificacion = ahora,
         };
 
-        _context.Solicitudes.Add(solicitud);
-        await _context.SaveChangesAsync(ct);
-
-        _context.SolicitudEventos.Add(new SolicitudEvento
+        // El evento viaja por la navegacion: EF inserta solicitud + evento en la
+        // MISMA transaccion y resuelve id_solicitud con el id generado.
+        solicitud.Eventos.Add(new SolicitudEvento
         {
-            IdSolicitud = solicitud.IdSolicitud,
             Tipo = "creada",
-            PayloadJson = JsonSerializer.Serialize(new { estado = solicitud.Estado, gerencia }),
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                estado = solicitud.Estado,
+                gerencia,
+                sistema_origen = sistemaOrigen,
+                num_puntos = numPuntos,
+                folio,
+                persona_solicitante = solicitud.PersonaSolicitante,
+                persona_viajera = solicitud.PersonaViajera,
+            }),
             IdUsuario = userId,
             FechaCreacion = ahora,
         });
+
+        _context.Solicitudes.Add(solicitud);
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation("Solicitud viaticos {Id} creada por usuario {UserId} (periodo {Periodo}).",
@@ -172,11 +230,28 @@ public class SolicitudesController : ControllerBase
 
         var rows = await _context.Solicitudes
             .AsNoTracking()
+            .Include(s => s.Opciones)
             .Where(s => s.IdUsuarioSolicitante == userId && s.Activo)
             .OrderByDescending(s => s.FechaCreacion)
             .ToListAsync(ct);
 
-        var data = rows.Select(s => MapearDto(s, opciones: false, eventos: false)).ToList();
+        // Un solo query al directorio para resolver el nombre del creador de
+        // todas las filas (evita N+1). Un usuario dado de baja cae al
+        // fallback "Usuario #{id}".
+        var idsCreadores = rows.Select(s => s.IdUsuarioCreacion).Distinct().ToList();
+        var directorio = await _asokamContext.Usuarios
+            .AsNoTracking()
+            .Where(u => u.EsActivo && idsCreadores.Contains(u.IdUsuario))
+            .Select(u => new { u.IdUsuario, u.NombreCompleto })
+            .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
+
+        var data = rows
+            .Select(s => MapearDto(
+                s,
+                opciones: true,
+                eventos: false,
+                nombreCreador: NombreDesdeDirectorio(directorio, s.IdUsuarioCreacion)))
+            .ToList();
         return Ok(new ApiResponse<List<SolicitudDto>>
         {
             Success = true,
@@ -231,7 +306,7 @@ public class SolicitudesController : ControllerBase
             return Forbid();
         }
 
-        var dto = MapearDto(solicitud, opciones: true, eventos: true);
+        var dto = MapearDto(solicitud, opciones: true, eventos: true, nombreCreador: await NombreCreadorAsync(solicitud.IdUsuarioCreacion, ct));
         return Ok(new ApiResponse<SolicitudDto>
         {
             Success = true,
@@ -477,7 +552,7 @@ public class SolicitudesController : ControllerBase
             .AsNoTracking()
             .FirstAsync(s => s.IdSolicitud == id, ct);
 
-        var dto = MapearDto(recargada, opciones: true, eventos: true);
+        var dto = MapearDto(recargada, opciones: true, eventos: true, nombreCreador: await NombreCreadorAsync(recargada.IdUsuarioCreacion, ct));
         return Ok(new ApiResponse<SolicitudDto>
         {
             Success = true,
@@ -487,9 +562,183 @@ public class SolicitudesController : ControllerBase
     }
 
     // ----------------------------------------------------------------
+    // PUT /api/viaticos/solicitudes/{id}  (solo borrador)
+    // ----------------------------------------------------------------
+    [HttpPut("solicitudes/{id:int}")]
+    [SwaggerOperation(
+        Summary = "Actualizar un borrador de viáticos",
+        Description = "Reemplaza el snapshot del wizard de una solicitud en estado 'borrador' del usuario autenticado. " +
+                      "No cambia el folio ni el sistema de origen.")]
+    [SwaggerResponse(200, "Borrador actualizado", typeof(ApiResponse<SolicitudDto>))]
+    [SwaggerResponse(403, "No es el dueño o sin permiso")]
+    [SwaggerResponse(404, "No existe o está eliminada")]
+    [SwaggerResponse(409, "La solicitud ya no está en borrador")]
+    public async Task<IActionResult> Actualizar(
+        [FromRoute] int id,
+        [FromBody] CrearSolicitudRequest? request,
+        CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
+        {
+            return Forbid();
+        }
+        if (request is null)
+        {
+            return BadRequest(new ApiResponse<object> { Success = false, Message = "Body requerido." });
+        }
+
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Token sin id de usuario válido." });
+        }
+
+        var (solicitud, error) = await ObtenerBorradorPropioAsync(id, userId, ct);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var ahora = DateTime.UtcNow;
+        var personaSnapshot = LeerPersonaDelSnapshot(request.Datos);
+        var personas = await ResolverPersonasAsync(userId, personaSnapshot, ct);
+        var numPuntos = ContarDestinos(request.Datos);
+
+        solicitud!.DatosJson = request.Datos.ValueKind == JsonValueKind.Undefined || request.Datos.ValueKind == JsonValueKind.Null
+            ? "{}"
+            : request.Datos.GetRawText();
+        solicitud.PersonaSolicitante = personas.Solicitante;
+        solicitud.PersonaViajera = personas.Viajero;
+        solicitud.NumPuntos = numPuntos;
+        if (!string.IsNullOrWhiteSpace(request.Gerencia))
+        {
+            solicitud.Gerencia = request.Gerencia.Trim();
+        }
+        solicitud.FechaModificacion = ahora;
+
+        _context.SolicitudEventos.Add(new SolicitudEvento
+        {
+            IdSolicitud = id,
+            Tipo = "actualizada",
+            PayloadJson = JsonSerializer.Serialize(new { folio = solicitud.Folio, num_puntos = numPuntos }),
+            IdUsuario = userId,
+            FechaCreacion = ahora,
+        });
+        await _context.SaveChangesAsync(ct);
+
+        var dto = MapearDto(solicitud, opciones: false, eventos: false);
+        return Ok(new ApiResponse<SolicitudDto>
+        {
+            Success = true,
+            Message = "Borrador actualizado.",
+            Data = dto
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // DELETE /api/viaticos/solicitudes/{id}  (soft delete, solo borrador)
+    // ----------------------------------------------------------------
+    [HttpDelete("solicitudes/{id:int}")]
+    [SwaggerOperation(
+        Summary = "Eliminar (soft) un borrador de viáticos",
+        Description = "Marca activo = 0. Solo el dueño y solo si la solicitud está en 'borrador'.")]
+    [SwaggerResponse(200, "Solicitud eliminada")]
+    [SwaggerResponse(403, "No es el dueño o sin permiso")]
+    [SwaggerResponse(404, "No existe o ya está eliminada")]
+    [SwaggerResponse(409, "La solicitud ya no está en borrador")]
+    public async Task<IActionResult> Eliminar([FromRoute] int id, CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
+        {
+            return Forbid();
+        }
+
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Token sin id de usuario válido." });
+        }
+
+        var (solicitud, error) = await ObtenerBorradorPropioAsync(id, userId, ct);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var ahora = DateTime.UtcNow;
+        solicitud!.Activo = false;
+        solicitud.FechaModificacion = ahora;
+
+        _context.SolicitudEventos.Add(new SolicitudEvento
+        {
+            IdSolicitud = id,
+            Tipo = "eliminada",
+            PayloadJson = JsonSerializer.Serialize(new { estado_anterior = EstadoBorrador, folio = solicitud.Folio }),
+            IdUsuario = userId,
+            FechaCreacion = ahora,
+        });
+        await _context.SaveChangesAsync(ct);
+
+        return Ok(new ApiResponse<object> { Success = true, Message = "Solicitud eliminada." });
+    }
+
+    // ----------------------------------------------------------------
+    // POST /api/viaticos/solicitudes/{id}/enviar  (borrador -> enviada)
+    // ----------------------------------------------------------------
+    [HttpPost("solicitudes/{id:int}/enviar")]
+    [SwaggerOperation(
+        Summary = "Enviar un borrador a concentrado",
+        Description = "Transiciona 'borrador' -> 'enviada'. Solo el dueño.")]
+    [SwaggerResponse(200, "Solicitud enviada", typeof(ApiResponse<SolicitudDto>))]
+    [SwaggerResponse(403, "No es el dueño o sin permiso")]
+    [SwaggerResponse(404, "No existe o está eliminada")]
+    [SwaggerResponse(409, "La solicitud ya no está en borrador")]
+    public async Task<IActionResult> Enviar([FromRoute] int id, CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
+        {
+            return Forbid();
+        }
+
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object> { Success = false, Message = "Token sin id de usuario válido." });
+        }
+
+        var (solicitud, error) = await ObtenerBorradorPropioAsync(id, userId, ct);
+        if (error is not null)
+        {
+            return error;
+        }
+
+        var ahora = DateTime.UtcNow;
+        solicitud!.Estado = EstadoEnviada;
+        solicitud.FechaModificacion = ahora;
+
+        _context.SolicitudEventos.Add(new SolicitudEvento
+        {
+            IdSolicitud = id,
+            Tipo = EstadoEnviada,
+            PayloadJson = JsonSerializer.Serialize(new { estado_anterior = EstadoBorrador, estado = EstadoEnviada, folio = solicitud.Folio }),
+            IdUsuario = userId,
+            FechaCreacion = ahora,
+        });
+        await _context.SaveChangesAsync(ct);
+
+        var dto = MapearDto(solicitud, opciones: true, eventos: false);
+        return Ok(new ApiResponse<SolicitudDto>
+        {
+            Success = true,
+            Message = "Solicitud enviada a concentrado.",
+            Data = dto
+        });
+    }
+
+    // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
-    private static SolicitudDto MapearDto(Solicitud s, bool opciones, bool eventos)
+    private static SolicitudDto MapearDto(Solicitud s, bool opciones, bool eventos, string? nombreCreador = null)
     {
         JsonElement? datos = null;
         if (!string.IsNullOrWhiteSpace(s.DatosJson))
@@ -512,6 +761,13 @@ public class SolicitudesController : ControllerBase
             Periodo = s.Periodo,
             Gerencia = s.Gerencia,
             Estado = s.Estado,
+            Folio = s.Folio,
+            PersonaSolicitante = s.PersonaSolicitante,
+            PersonaViajera = s.PersonaViajera,
+            SistemaOrigen = s.SistemaOrigen,
+            IdUsuarioCreacion = s.IdUsuarioCreacion,
+            NumPuntos = s.NumPuntos,
+            NombreCreador = nombreCreador,
             Activo = s.Activo,
             FechaCreacion = s.FechaCreacion,
             FechaModificacion = s.FechaModificacion,
@@ -545,6 +801,191 @@ public class SolicitudesController : ControllerBase
                     }).ToList()
                 : new List<SolicitudEventoDto>(),
         };
+    }
+
+    /// <summary>
+    /// Carga una solicitud activa del usuario y valida que siga en borrador.
+    /// Devuelve el error HTTP listo para retornar cuando no cumple.
+    /// </summary>
+    private async Task<(Solicitud? Solicitud, IActionResult? Error)> ObtenerBorradorPropioAsync(
+        int id,
+        int userId,
+        CancellationToken ct)
+    {
+        var solicitud = await _context.Solicitudes
+            .Include(s => s.Opciones)
+            .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Activo, ct);
+
+        if (solicitud is null)
+        {
+            return (null, NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solicitud no encontrada."
+            }));
+        }
+        if (solicitud.IdUsuarioSolicitante != userId)
+        {
+            return (null, Forbid());
+        }
+        if (solicitud.Estado != EstadoBorrador)
+        {
+            return (null, Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Solo se pueden modificar solicitudes en borrador."
+            }));
+        }
+        return (solicitud, null);
+    }
+
+    /// <summary>Cuenta los destinos/puntos del snapshot JSON (array `destinos`).</summary>
+    private static int ContarDestinos(JsonElement datos)
+    {
+        if (datos.ValueKind != JsonValueKind.Object
+            || !datos.TryGetProperty("destinos", out var destinos)
+            || destinos.ValueKind != JsonValueKind.Array)
+        {
+            return 0;
+        }
+        return destinos.GetArrayLength();
+    }
+
+    /// <summary>
+    /// Siguiente consecutivo del folio del viaje. En SQL Server sale de
+    /// <c>[viaticos].[seq_folio_viaje]</c> (<c>NEXT VALUE FOR</c>, sin bloqueos),
+    /// de modo que el folio se conoce antes del INSERT y la fila nace completa.
+    /// Los proveedores no relacionales (EF InMemory en las pruebas) no tienen
+    /// secuencias: ahi se toma el siguiente numero libre del propio folio.
+    /// </summary>
+    private async Task<int> SiguienteNumeroFolioAsync(CancellationToken ct)
+    {
+        if (!_context.Database.IsSqlServer())
+        {
+            var folios = await _context.Solicitudes
+                .AsNoTracking()
+                .Where(s => s.Folio != null && s.Folio != string.Empty)
+                .Select(s => s.Folio)
+                .ToListAsync(ct);
+
+            return folios
+                .Select(f => f is not null && int.TryParse(f[(f.LastIndexOf('-') + 1)..], out var numero) ? numero : 0)
+                .DefaultIfEmpty(0)
+                .Max() + 1;
+        }
+
+        var conexion = _context.Database.GetDbConnection();
+        var abrir = conexion.State != ConnectionState.Open;
+        if (abrir)
+        {
+            await conexion.OpenAsync(ct);
+        }
+
+        try
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = "SELECT NEXT VALUE FOR [viaticos].[seq_folio_viaje];";
+            var valor = await comando.ExecuteScalarAsync(ct);
+            return Convert.ToInt32(valor, CultureInfo.InvariantCulture);
+        }
+        finally
+        {
+            if (abrir)
+            {
+                await conexion.CloseAsync();
+            }
+        }
+    }
+
+    /// <summary>Lee la persona del snapshot del wizard (modo, empleado y nombre).</summary>
+    private static (bool EsOtra, int EmpleadoId, string? Nombre) LeerPersonaDelSnapshot(JsonElement datos)
+    {
+        if (datos.ValueKind != JsonValueKind.Object
+            || !datos.TryGetProperty("persona", out var persona)
+            || persona.ValueKind != JsonValueKind.Object)
+        {
+            return (false, 0, null);
+        }
+
+        var modo = persona.TryGetProperty("modo", out var modoEl) && modoEl.ValueKind == JsonValueKind.String
+            ? modoEl.GetString()
+            : null;
+        var nombre = persona.TryGetProperty("nombre", out var nombreEl) && nombreEl.ValueKind == JsonValueKind.String
+            ? nombreEl.GetString()?.Trim()
+            : null;
+        var empleadoId = persona.TryGetProperty("empleadoId", out var empleadoEl)
+            && empleadoEl.ValueKind == JsonValueKind.Number
+            && empleadoEl.TryGetInt32(out var id)
+                ? id
+                : 0;
+
+        return (modo == "otra", empleadoId, string.IsNullOrWhiteSpace(nombre) ? null : nombre);
+    }
+
+    /// <summary>
+    /// Resuelve el nombre del solicitante y del viajero contra el directorio de
+    /// Asokam (app.Usuarios) y el SamAccountName del viajero para el folio.
+    /// Si el directorio no responde, usa el nombre del snapshot y el id.
+    /// </summary>
+    private async Task<(string Solicitante, string Viajero, string SamViajero)> ResolverPersonasAsync(
+        int userId,
+        (bool EsOtra, int EmpleadoId, string? Nombre) persona,
+        CancellationToken ct)
+    {
+        var idViajero = persona.EsOtra && persona.EmpleadoId > 0 ? persona.EmpleadoId : userId;
+        var solicitante = !persona.EsOtra && persona.Nombre is not null ? persona.Nombre : $"Usuario #{userId}";
+        var viajero = persona.Nombre ?? solicitante;
+        var sam = idViajero.ToString();
+
+        try
+        {
+            var ids = new[] { userId, idViajero }.Distinct().ToList();
+            var directorio = await _asokamContext.Usuarios
+                .AsNoTracking()
+                .Where(u => ids.Contains(u.IdUsuario))
+                .Select(u => new { u.IdUsuario, u.NombreCompleto, u.SamAccountName })
+                .ToDictionaryAsync(u => u.IdUsuario, u => u, ct);
+
+            if (directorio.TryGetValue(userId, out var infoSolicitante)
+                && !string.IsNullOrWhiteSpace(infoSolicitante.NombreCompleto))
+            {
+                solicitante = infoSolicitante.NombreCompleto.Trim();
+            }
+
+            if (directorio.TryGetValue(idViajero, out var infoViajero))
+            {
+                if (!string.IsNullOrWhiteSpace(infoViajero.NombreCompleto))
+                {
+                    viajero = infoViajero.NombreCompleto.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(infoViajero.SamAccountName))
+                {
+                    sam = infoViajero.SamAccountName.Trim();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "No se pudieron resolver los nombres de las personas para la solicitud de viáticos.");
+        }
+
+        return (solicitante, viajero, sam);
+    }
+
+    private static string NombreDesdeDirectorio(IReadOnlyDictionary<int, string?> directorio, int idUsuario)
+        => directorio.TryGetValue(idUsuario, out var nombre) && !string.IsNullOrWhiteSpace(nombre)
+            ? nombre.Trim()
+            : $"Usuario #{idUsuario}";
+
+    /// <summary>Nombre visible del creador; cae al fallback "Usuario #{id}".</summary>
+    private async Task<string> NombreCreadorAsync(int idUsuario, CancellationToken ct)
+    {
+        var nombre = await _asokamContext.Usuarios
+            .AsNoTracking()
+            .Where(u => u.IdUsuario == idUsuario && u.EsActivo)
+            .Select(u => u.NombreCompleto)
+            .FirstOrDefaultAsync(ct);
+        return string.IsNullOrWhiteSpace(nombre) ? $"Usuario #{idUsuario}" : nombre.Trim();
     }
 
     /// <summary>

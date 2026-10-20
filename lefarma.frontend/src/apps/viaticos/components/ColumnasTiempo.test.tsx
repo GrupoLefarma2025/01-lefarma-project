@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { formatoHora12h, partirHoraMinuto } from './ColumnasTiempo';
+import { render, screen, within } from '@testing-library/react';
+import { ColumnasTiempo, formatoHora12h, partirHoraMinuto } from './ColumnasTiempo';
 
 describe('formatoHora12h', () => {
   it('medianoche es 12:00 AM', () => {
@@ -33,5 +34,24 @@ describe('partirHoraMinuto', () => {
   it('lo inválido queda sin elegir', () => {
     expect(partirHoraMinuto('')).toEqual({ hora: '', minuto: '' });
     expect(partirHoraMinuto('6:30')).toEqual({ hora: '', minuto: '' });
+  });
+});
+
+describe('ColumnasTiempo', () => {
+  it('con un mínimo bloquea horas anteriores y, en esa hora, minutos anteriores', () => {
+    render(<ColumnasTiempo hora="16" minuto="" onOpcion={() => {}} minimo={{ hora: '16', minuto: '35' }} />);
+    const grupoHora = screen.getByRole('group', { name: 'Hora' });
+    expect(within(grupoHora).getByRole('button', { name: '15' })).toBeDisabled();
+    expect(within(grupoHora).getByRole('button', { name: '16' })).not.toBeDisabled();
+    const grupoMinutos = screen.getByRole('group', { name: 'Minutos' });
+    expect(within(grupoMinutos).getByRole('button', { name: '34' })).toBeDisabled();
+    expect(within(grupoMinutos).getByRole('button', { name: '35' })).not.toBeDisabled();
+  });
+
+  it('sin mínimo todo es elegible', () => {
+    render(<ColumnasTiempo hora="" minuto="" onOpcion={() => {}} />);
+    const grupoHora = screen.getByRole('group', { name: 'Hora' });
+    expect(within(grupoHora).getByRole('button', { name: '00' })).not.toBeDisabled();
+    expect(within(grupoHora).getByRole('button', { name: '23' })).not.toBeDisabled();
   });
 });

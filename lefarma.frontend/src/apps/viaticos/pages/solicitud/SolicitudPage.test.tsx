@@ -2,18 +2,17 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SolicitudPage } from './SolicitudPage';
-import type { CostosRutaOferta, CostosRutaResponse } from '../../types/costosRuta.types';
 import type { CatalogoItem } from '@/apps/educacion-medica/components/CatalogoSearchSelect';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), usuarios: vi.fn(), calcular: vi.fn(), crear: vi.fn(), guardar: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), usuarios: vi.fn(), crear: vi.fn(), guardar: vi.fn(), navigate: vi.fn() }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get } }));
 vi.mock('@/apps/educacion-medica/services/educacionMedica.api', () => ({
   educacionMedicaApi: { usuarios: { getAll: mocks.usuarios } },
 }));
-vi.mock('../../services/costosRuta.api', () => ({ costosRutaApi: { calcular: mocks.calcular } }));
 vi.mock('../../services/solicitudes.api', () => ({
   solicitudesApi: { crear: mocks.crear, guardarOpciones: mocks.guardar, misSolicitudes: vi.fn(), detalle: vi.fn() },
 }));
+vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate, useParams: () => ({}) }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 vi.mock('@/shared/auth/authStore', () => ({
@@ -21,8 +20,11 @@ vi.mock('@/shared/auth/authStore', () => ({
     selector({ user: { id: 7, nombre: 'Persona Actual' } }),
 }));
 vi.mock('../../components/PuntoMapaPicker', () => ({
-  PuntoMapaPicker: ({ onChange }: { onChange: (p: { nombre: string; latitud: number; longitud: number }) => void }) => (
-    <button type="button" onClick={() => onChange({ nombre: 'Punto de prueba', latitud: 19.5, longitud: -99.5 })}>
+  PuntoMapaPicker: ({ onChange }: { onChange: (p: { nombre: string; latitud: number; longitud: number; municipio?: string; estado?: string }) => void }) => (
+    <button
+      type="button"
+      onClick={() => onChange({ nombre: 'Punto de prueba', latitud: 19.5, longitud: -99.5, municipio: 'Toluca', estado: 'México' })}
+    >
       Fijar punto de prueba
     </button>
   ),
@@ -72,43 +74,23 @@ vi.mock('../../test/fixtures/solicitudV2.fixture', () => ({
   rellenarConFixture: () => { throw new Error('no fixtures in test'); },
 }));
 
-const ofertaAvion = (id: string, linea: string, costo: number): CostosRutaOferta => ({
-  id, modo: 'avion', linea, servicio: '', persona: 'Persona Actual', tramo: 0, de: 'O', a: 'D',
-  salidaTxt: '10/11 06:00', llegadaTxt: '10/11 08:00', duracion: '2 h', puertaAPuertaH: 4,
-  precioTxt: `$${costo} MXN`, porPersona: true, costoGrupo: costo, costoPorPersona: costo,
-  aTiempo: true, llegaTarde: false, minutosTarde: 0, noTomable: false, badge: '', nota: '',
-  fuente: 'aerolinea.test', estimado: false,
-  comprar: { url: 'https://compra.test/x', sitio: 'compra', accion: 'Comprar', objetivo: '', fecha: '' },
-});
-
-const RESPUESTA: CostosRutaResponse = {
-  resultados: [{
-    nombre: 'Persona Actual', gasolina: 'magna', propuesta: { razones: [], lugares: [] },
-    tramos: [{ from: 'O', to: 'D', km: 100, opciones: [ofertaAvion('of1', 'Vuelo X', 2000), ofertaAvion('of2', 'Vuelo Y', 3500)] }],
-    rutaArmada: {
-      tramos: [{ de: 'O', a: 'D', km: 100, litros: 8.33, gasolina: { magna: { precioL: 24, costo: 200, fuente: 'x' }, premium: { precioL: 26, costo: 216, fuente: 'x' } }, casetas: { costo: 150, fuente: 'x' }, subtotalMagna: 350, subtotalPremium: 366 }],
-      totales: { km: 100, litros: 8.33, casetas: 150, subtotalMagna: 350, subtotalPremium: 366 },
-    },
-    hotelesPropuestos: [],
-    incumplimientos: [],
-  }],
-  propuestas: [], categorias: {}, recomendaciones: [], compartidos: [],
-};
-
-const SUCURSALES_URL = '/catalogos/Sucursales';
-const sucursal = { idSucursal: 1, idEmpresa: 1, nombre: 'Matriz', ciudad: 'CDMX', latitud: 19.43, longitud: -99.13, activo: true, numeroEmpleados: 0, fechaCreacion: '2026-01-01' };
 const empleados = [{ idUsuario: 9, nombreCompleto: 'Otra Persona', correo: 'otra@test' }];
 
 const siguiente = () => screen.getByRole('button', { name: 'Siguiente' });
 
+/** Fechas dinámicas: los pickers bloquean días pasados, así que siempre van al futuro. */
+function enDias(offset: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+}
+const FECHA_DESTINO = enDias(30);
+
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.get.mockImplementation((url: string) => {
-    if (url === SUCURSALES_URL) return Promise.resolve({ data: { success: true, data: [sucursal] } });
-    return Promise.reject(new Error(`Unexpected URL: ${url}`));
-  });
+  localStorage.clear();
   mocks.usuarios.mockResolvedValue({ data: { success: true, data: empleados } });
-  mocks.calcular.mockResolvedValue({ data: { success: true, data: RESPUESTA } });
   mocks.crear.mockResolvedValue({ data: { success: true, data: { id_solicitud: 42 } } });
   mocks.guardar.mockResolvedValue({ data: { success: true, data: { id_solicitud: 42 } } });
 });
@@ -116,8 +98,8 @@ beforeEach(() => {
 async function irAlPaso(ndestino: 3 | 4 | 5, modo: 'propio' | 'solicitado' = 'solicitado') {
   const usuario = userEvent.setup();
   render(<SolicitudPage />);
-  await waitFor(() => expect(screen.queryByText('Cargando sucursales…')).not.toBeInTheDocument());
   // Paso 1 (persona) ya viene resuelto con la identidad de sesión.
+  await waitFor(() => expect(siguiente()).not.toBeDisabled());
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-2')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Motivo del viaje'), { target: { value: 'Visita de zona' } });
@@ -129,8 +111,9 @@ async function irAlPaso(ndestino: 3 | 4 | 5, modo: 'propio' | 'solicitado' = 'so
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-4')).toBeInTheDocument();
   if (ndestino === 4) return;
-  fireEvent.change(screen.getByLabelText('Selecciona la sucursal de salida'), { target: { value: '1' } });
-  fireEvent.change(screen.getByLabelText('origen-fechahora-fecha'), { target: { value: '2026-11-10' } });
+  // El origen se fija desde el buscador de dirección (única vía).
+  fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+  fireEvent.change(screen.getByLabelText('origen-fechahora-fecha'), { target: { value: FECHA_DESTINO } });
   fireEvent.change(screen.getByLabelText('origen-fechahora-hora'), { target: { value: '06:00' } });
   fireEvent.click(siguiente());
   expect(await screen.findByTestId('paso-5')).toBeInTheDocument();
@@ -138,19 +121,26 @@ async function irAlPaso(ndestino: 3 | 4 | 5, modo: 'propio' | 'solicitado' = 'so
 
 function completarDestino() {
   fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
-  fireEvent.change(screen.getByLabelText('Elige la fecha requerida'), { target: { value: '2026-11-10' } });
-  fireEvent.change(screen.getByLabelText(/-debe$/), { target: { value: '12:00' } });
-  fireEvent.change(screen.getByLabelText('Elige la fecha de salida'), { target: { value: '2026-11-10' } });
-  fireEvent.change(screen.getByLabelText(/-sale$/), { target: { value: '18:00' } });
+  fireEvent.change(screen.getByLabelText(/-debe-fecha$/), { target: { value: FECHA_DESTINO } });
+  fireEvent.change(screen.getByLabelText(/-debe-hora$/), { target: { value: '12:00' } });
+  fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: FECHA_DESTINO } });
+  fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '18:00' } });
+}
+
+/** Destinos → Regreso (al origen por defecto) → Viáticos, donde se cotiza. */
+async function irAViaticos() {
+  fireEvent.click(siguiente());
+  expect(await screen.findByTestId('paso-6')).toBeInTheDocument();
+  fireEvent.click(siguiente());
+  expect(await screen.findByTestId('paso-7')).toBeInTheDocument();
 }
 
 describe('SolicitudPage', () => {
   it('respeta el orden persona → motivo → transporte y pide empleado para alguien más', async () => {
     const usuario = userEvent.setup();
     render(<SolicitudPage />);
-    await waitFor(() => expect(screen.queryByText('Cargando sucursales…')).not.toBeInTheDocument());
     // "Para mí" ya trae la identidad de sesión: el paso 1 avanza solo.
-    expect(siguiente()).not.toBeDisabled();
+    await waitFor(() => expect(siguiente()).not.toBeDisabled());
     await usuario.click(screen.getByRole('radio', { name: 'Para alguien más' }));
     expect(siguiente()).toBeDisabled();
     expect(screen.getByLabelText('Buscar y seleccionar empleado')).toBeInTheDocument();
@@ -169,60 +159,92 @@ describe('SolicitudPage', () => {
     expect(siguiente()).not.toBeDisabled();
   });
 
-  it('carro propio usa Magna fija y muestra distancia sin tarjetas de modo', async () => {
+  it('carro propio: el resumen muestra solo "Carro propio" y guarda el borrador', async () => {
     await irAlPaso(5, 'propio');
     completarDestino();
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
-    await waitFor(() => expect(mocks.calcular).toHaveBeenCalledTimes(1));
-    const request = mocks.calcular.mock.calls[0][0];
-    expect(request.personas[0].carro_propio).toBe(true);
-    expect(request.personas[0].gasolina).toBe('magna');
-    expect(await screen.findByText(/Carro propio \(Magna\)/)).toBeInTheDocument();
-    // Sin tarjetas de elección de modo y con casetas conservadas.
-    expect(screen.queryByRole('button', { name: /Elegir Vuelo/ })).not.toBeInTheDocument();
-    expect(screen.getByText(/casetas/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Agregar otro destino' })).not.toBeDisabled();
+    await irAViaticos();
+    expect(mocks.crear).not.toHaveBeenCalled();
+    expect(screen.getByRole('heading', { name: 'Resumen del viaje' })).toBeInTheDocument();
+    expect(screen.getByText('Carro propio')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+    await waitFor(() => expect(mocks.crear).toHaveBeenCalledTimes(1));
+    const payload = mocks.crear.mock.calls[0][0];
+    expect(payload.datos.version).toBe('solicitud-v2');
+    expect(payload.datos.destinos).toHaveLength(1);
+    // Guardar borrador NO envía la cotización.
+    expect(mocks.guardar).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));
   });
 
-  it('transporte solicitado exige elegir opción y ofrece hospedaje con nombres reales', async () => {
+  it('transporte solicitado: el resumen lo nombra "Solicitud de transporte" y guarda el borrador', async () => {
     await irAlPaso(5, 'solicitado');
     completarDestino();
-    expect(screen.getByRole('button', { name: 'Calcular este tramo' })).not.toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
-    await waitFor(() => expect(mocks.calcular).toHaveBeenCalledTimes(1));
-    expect(await screen.findByRole('button', { name: /Elegir Vuelo X/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Agregar otro destino' })).toBeDisabled();
-    fireEvent.click(screen.getByRole('button', { name: /Elegir Vuelo X/ }));
-    expect(screen.getByRole('button', { name: 'Agregar otro destino' })).not.toBeDisabled();
-    // Hospedaje cerca de: nombres reales del punto previo y del destino actual.
-    fireEvent.click(screen.getByLabelText('Necesito hospedaje'));
-    const zona = screen.getByLabelText('Hospedaje cerca de') as HTMLSelectElement;
-    const opciones = Array.from(zona.options).map((o) => o.text);
-    expect(opciones).toContain('Matriz');
-    expect(opciones).toContain('Punto de prueba');
+    expect(siguiente()).not.toBeDisabled();
+    await irAViaticos();
+    expect(screen.getByText('Solicitud de transporte')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+    await waitFor(() => expect(mocks.crear).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));
   });
 
-  it('terminar abre el regreso y el envío ocurre una sola vez al final', async () => {
+  it('la salida del destino es opcional', async () => {
+    await irAlPaso(5, 'solicitado');
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    fireEvent.change(screen.getByLabelText(/-debe-fecha$/), { target: { value: FECHA_DESTINO } });
+    fireEvent.change(screen.getByLabelText(/-debe-hora$/), { target: { value: '12:00' } });
+    expect(screen.getByText('Hora de salida del destino (opcional)')).toBeInTheDocument();
+    expect(siguiente()).not.toBeDisabled();
+  });
+
+  it('la llegada no puede ser antes de la salida del origen ni la salida antes de la llegada', async () => {
+    await irAlPaso(5, 'solicitado');
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    fireEvent.change(screen.getByLabelText(/-sale-fecha$/), { target: { value: FECHA_DESTINO } });
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '18:00' } });
+    // Llegada ANTES de la salida del origen (origen: FECHA_DESTINO 06:00).
+    fireEvent.change(screen.getByLabelText(/-debe-fecha$/), { target: { value: enDias(29) } });
+    fireEvent.change(screen.getByLabelText(/-debe-hora$/), { target: { value: '12:00' } });
+    expect(screen.getByText('La llegada no puede ser antes de la salida del origen.')).toBeInTheDocument();
+    expect(siguiente()).toBeDisabled();
+    // Corregida la llegada; ahora la salida quedaría antes de la llegada.
+    fireEvent.change(screen.getByLabelText(/-debe-fecha$/), { target: { value: FECHA_DESTINO } });
+    fireEvent.change(screen.getByLabelText(/-debe-hora$/), { target: { value: '20:00' } });
+    expect(screen.getByText('La salida no puede ser antes de la llegada al destino.')).toBeInTheDocument();
+    expect(siguiente()).toBeDisabled();
+    // Todo en orden: el destino habilita el avance.
+    fireEvent.change(screen.getByLabelText(/-sale-hora$/), { target: { value: '22:00' } });
+    expect(siguiente()).not.toBeDisabled();
+  });
+
+  it('el resumen guarda el borrador y navega a Mis viajes', async () => {
     await irAlPaso(5, 'solicitado');
     completarDestino();
-    fireEvent.click(screen.getByRole('button', { name: 'Calcular este tramo' }));
-    await waitFor(() => expect(mocks.calcular).toHaveBeenCalledTimes(1));
-    fireEvent.click(await screen.findByRole('button', { name: /Elegir Vuelo X/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'Terminar' }));
+    await irAViaticos();
+    expect(screen.getByRole('heading', { name: 'Resumen del viaje' })).toBeInTheDocument();
+    expect(screen.queryByTestId('paso-8')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Guardar borrador' }));
+    await waitFor(() => expect(mocks.crear).toHaveBeenCalledTimes(1));
+    expect(mocks.crear.mock.calls[0][0].datos.version).toBe('solicitud-v2');
+    expect(mocks.guardar).not.toHaveBeenCalled();
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));
+  });
+
+  it('el regreso permite origen u otro punto sin pedir fecha', async () => {
+    const usuario = userEvent.setup();
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    fireEvent.click(siguiente());
     expect(await screen.findByTestId('paso-6')).toBeInTheDocument();
-    // Sin regreso por defecto; el rango se deriva.
-    expect(screen.getByText(/Rango del viaje.*2026-11-10 al 2026-11-10/)).toBeInTheDocument();
+    // Por defecto vuelve al mismo punto de origen: ya avanza sin fecha.
+    expect(siguiente()).not.toBeDisabled();
+    // La otra opción arranca con el punto de origen y se puede ajustar en el mapa.
+    await usuario.click(screen.getByRole('radio', { name: 'Seleccionar un punto de regreso en el mapa' }));
+    expect(siguiente()).not.toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    expect(siguiente()).not.toBeDisabled();
     fireEvent.click(siguiente());
     expect(await screen.findByTestId('paso-7')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Comidas (MXN, monto abierto)'), { target: { value: '1200' } });
-    expect(screen.getByText(/Total:/)).toHaveTextContent('3,200');
-    const calcularAntes = mocks.calcular.mock.calls.length;
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar solicitud' }));
-    await waitFor(() => expect(mocks.crear).toHaveBeenCalledTimes(1));
-    expect(mocks.calcular.mock.calls.length).toBe(calcularAntes);
-    expect(mocks.crear.mock.calls[0][0].datos.version).toBe('solicitud-v2');
-    expect(mocks.guardar).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Solicitud 42 enviada/)).toBeInTheDocument();
+    expect(screen.getByTestId('resumen-regreso')).toHaveTextContent('Toluca, México');
   });
 
   it('volver a un paso superado desde el stepper conserva lo capturado', async () => {
@@ -246,18 +268,52 @@ describe('SolicitudPage', () => {
     expect(await screen.findByTestId('paso-4')).toBeInTheDocument();
   });
 
-  it('el mapa refleja la sucursal elegida por coordenadas', async () => {
-    await irAlPaso(4, 'solicitado');
-    expect(screen.getByText('MAPA_VACIO')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Selecciona la sucursal de salida'), { target: { value: '1' } });
-    expect(screen.getByText('MAPA:Matriz,19.43,-99.13')).toBeInTheDocument();
+  it('la tab del destino muestra municipio y estado cuando se conocen', async () => {
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    expect(screen.getByRole('tab', { name: /^1\. Toluca, México/ })).toBeInTheDocument();
   });
 
-  it('el mapa queda fuera de las tabs y refleja el punto buscado', async () => {
+  it('doble clic en la pestaña del destino permite renombrarla', async () => {
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    const tab = screen.getByRole('tab', { name: /^1\. Toluca, México/ });
+    fireEvent.doubleClick(tab);
+    const input = screen.getByLabelText('Nombre de la pestaña del destino 1');
+    expect(input).toHaveValue('Toluca, México');
+    fireEvent.change(input, { target: { value: 'Casa de mi mamá' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(screen.getByRole('tab', { name: /^1\. Casa de mi mamá/ })).toBeInTheDocument();
+    // La cabecera del destino usa el mismo nombre propio.
+    expect(screen.getByText(/Destino 1: Casa de mi mamá/)).toBeInTheDocument();
+  });
+
+  it('la pestaña del segundo destino también muestra el punto al fijarlo', async () => {
+    await irAlPaso(5, 'solicitado');
+    completarDestino();
+    fireEvent.click(screen.getByRole('button', { name: 'Agregar otro destino' }));
+    expect(screen.getByRole('tab', { name: /^2\. Sin destino/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    expect(screen.getByRole('tab', { name: /^2\. Toluca, México/ })).toBeInTheDocument();
+  });
+
+  it('el origen avanza solo con el punto: la fecha de salida es opcional', async () => {
     const usuario = userEvent.setup();
     await irAlPaso(4, 'solicitado');
-    await usuario.click(screen.getByRole('radio', { name: 'Buscar por dirección' }));
-    // La búsqueda queda en el panel; el mapa compartido sigue debajo.
+    // Sin punto no avanza y el botón explica qué falta.
+    expect(siguiente()).toBeDisabled();
+    await usuario.hover(siguiente().parentElement as HTMLElement);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Marca el punto de salida en el mapa.');
+    fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));
+    // Con el punto basta: fecha y hora de salida se quedan vacías.
+    expect(siguiente()).not.toBeDisabled();
+    fireEvent.click(siguiente());
+    expect(await screen.findByTestId('paso-5')).toBeInTheDocument();
+  });
+
+  it('el buscador de dirección queda en el panel y el mapa compartido debajo', async () => {
+    await irAlPaso(4, 'solicitado');
+    // La búsqueda de dirección queda en el panel; el mapa compartido sigue debajo.
     expect(screen.getByRole('button', { name: 'Fijar punto de prueba' })).toBeInTheDocument();
     expect(screen.getByText('MAPA_VACIO')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Fijar punto de prueba' }));

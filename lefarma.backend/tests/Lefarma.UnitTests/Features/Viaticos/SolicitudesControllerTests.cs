@@ -708,6 +708,10 @@ public class SolicitudesControllerTests
                     services.AddLogging();
                     services.AddRouting();
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(_dbName));
+                    // El controller resuelve el directorio de Asokam; sin este
+                    // registro la activacion del controller falla (500) y todos
+                    // los tests HTTP de esta clase quedan rojos.
+                    services.AddDbContext<AsokamDbContext>(o => o.UseInMemoryDatabase($"{_dbName}-asokam"));
                     services.AddAuthentication(PermisosEndpointTests.TestAuthHandler.NombreEsquema)
                         .AddScheme<AuthenticationSchemeOptions, PermisosEndpointTests.TestAuthHandler>(
                             PermisosEndpointTests.TestAuthHandler.NombreEsquema, _ => { });

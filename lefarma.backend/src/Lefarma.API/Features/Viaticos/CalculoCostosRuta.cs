@@ -16,7 +16,7 @@ namespace Lefarma.API.Features.Viaticos;
 
 public record RutaCarretera(double Km, double Horas, string Fuente);
 public record PreciosGasolina(double Magna, double Premium, string Fuente);
-public record HotelCercano(string Nombre, double DistKm);
+public record HotelCercano(string Nombre, double DistKm, string Fuente = "OpenStreetMap/Overpass");
 public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota);
 public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
 
@@ -64,6 +64,13 @@ public static class CalculoCostosRuta
     private const string FuenteTabuladorHotel = "seed tabulador SHCP";
 
     private const double CasetaPorKm = 1.4;
+    // Instancias de Overpass: la pública se cae o se satura seguido, se prueban en orden.
+    private static readonly string[] OverpassInstancias =
+    [
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+    ];
     private const double ComidaDiaEstandar = 600;
     private const int BufferMin = 30;
     private const double SnapKm = 25.0;
@@ -212,36 +219,107 @@ public static class CalculoCostosRuta
     public static async Task<List<HotelCercano>> BuscarHotelesCercanosAsync(HttpClient http, IMemoryCache cache,
         double lat, double lon, CancellationToken ct)
     {
-        var key = $"costos-hoteles:{Math.Round(lat, 3)},{Math.Round(lon, 3)}";
+        var key = $"costos-hoteles-v5:{Math.Round(lat, 3)},{Math.Round(lon, 3)}";
         if (cache.TryGetValue(key, out List<HotelCercano>? cached) && cached is not null)
             return cached;
+
+        // Nominatim responde rápido y trae el nombre del hotel; Overpass queda como respaldo.
+        var porNominatim = await BuscarHotelesNominatimAsync(http, lat, lon, ct);
+        if (porNominatim.Count > 0)
+        {
+            cache.Set(key, porNominatim, TimeSpan.FromHours(6));
+            return porNominatim;
+        }
+
+        var q = $"[out:json][timeout:10];(nwr(around:5000,{lat},{lon})[\"tourism\"=\"hotel\"];);out center 8;";
+        // Overpass público se cae o se satura seguido: se prueban instancias alternas.
+        foreach (var instancia in OverpassInstancias)
+        {
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(8));
+                var t = cts.Token;
+                var url = instancia + "?data=" + Uri.EscapeDataString(q);
+                using var res = await http.GetAsync(url, t);
+                if (!res.IsSuccessStatusCode) continue;
+                using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+                var out_ = new List<HotelCercano>();
+                foreach (var el in doc.RootElement.GetProperty("elements").EnumerateArray())
+                {
+                    var hlat = Coordenada(el, "lat");
+                    var hlon = Coordenada(el, "lon");
+                    if (double.IsNaN(hlat) || double.IsNaN(hlon))
+                    {
+                        if (!el.TryGetProperty("center", out var center)) continue;
+                        hlat = Coordenada(center, "lat");
+                        hlon = Coordenada(center, "lon");
+                        if (double.IsNaN(hlat) || double.IsNaN(hlon)) continue;
+                    }
+                    var nombre = el.TryGetProperty("tags", out var tags) && tags.TryGetProperty("name", out var nm)
+                        ? nm.GetString() ?? "Hotel" : "Hotel";
+                    out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Overpass"));
+                }
+                var ordered = out_.OrderBy(h => h.DistKm).Take(5).ToList();
+                cache.Set(key, ordered, TimeSpan.FromHours(6));
+                return ordered;
+            }
+            catch
+            {
+                // intenta la siguiente instancia
+            }
+        }
+        return [];
+    }
+
+    /// <summary>Hoteles cercanos vía Nominatim (rápido); devuelve nombre y distancia al punto.</summary>
+    private static async Task<List<HotelCercano>> BuscarHotelesNominatimAsync(HttpClient http,
+        double lat, double lon, CancellationToken ct)
+    {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(12));
+            cts.CancelAfter(TimeSpan.FromSeconds(6));
             var t = cts.Token;
-            var q = $"[out:json][timeout:12];(node(around:9000,{lat},{lon})[\"tourism\"=\"hotel\"];);out 8;";
-            using var res = await http.PostAsync("https://overpass-api.de/api/interpreter",
-                new StringContent("data=" + Uri.EscapeDataString(q), Encoding.UTF8, "application/x-www-form-urlencoded"), t);
-            res.EnsureSuccessStatusCode();
+            var dLat = 0.05;
+            var dLon = 0.05;
+            var viewbox = $"{lon - dLon},{lat + dLat},{lon + dLon},{lat - dLat}";
+            var url = $"https://nominatim.openstreetmap.org/search?q=hotel&format=jsonv2&limit=10" +
+                      $"&countrycodes=mx&viewbox={viewbox}&bounded=1&addressdetails=0";
+            using var res = await http.GetAsync(url, t);
+            if (!res.IsSuccessStatusCode) return [];
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
             var out_ = new List<HotelCercano>();
-            foreach (var el in doc.RootElement.GetProperty("elements").EnumerateArray())
+            foreach (var el in doc.RootElement.EnumerateArray())
             {
-                var hlat = el.GetProperty("lat").GetDouble();
-                var hlon = el.GetProperty("lon").GetDouble();
-                var nombre = el.TryGetProperty("tags", out var tags) && tags.TryGetProperty("name", out var nm)
-                    ? nm.GetString() ?? "Hotel" : "Hotel";
-                out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon)));
+                var esHotel = (el.TryGetProperty("type", out var tEl) && tEl.GetString() == "hotel")
+                    || (el.TryGetProperty("category", out var cEl) && cEl.GetString() == "hotel");
+                if (!esHotel) continue;
+                // Nominatim devuelve lat/lon como texto.
+                var hlat = Coordenada(el, "lat");
+                var hlon = Coordenada(el, "lon");
+                if (double.IsNaN(hlat) || double.IsNaN(hlon)) continue;
+                var nombre = el.TryGetProperty("name", out var nEl) && !string.IsNullOrWhiteSpace(nEl.GetString())
+                    ? nEl.GetString()!
+                    : el.TryGetProperty("display_name", out var dEl) ? dEl.GetString() ?? "Hotel" : "Hotel";
+                out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Nominatim"));
             }
-            var ordered = out_.OrderBy(h => h.DistKm).Take(5).ToList();
-            cache.Set(key, ordered, TimeSpan.FromHours(6));
-            return ordered;
+            return out_.OrderBy(h => h.DistKm).Take(5).ToList();
         }
         catch
         {
             return [];
         }
+    }
+
+    /// <summary>Lee una coordenada que puede venir como número o como texto (jsonv2 de Nominatim).</summary>
+    private static double Coordenada(JsonElement el, string propiedad)
+    {
+        if (!el.TryGetProperty(propiedad, out var v)) return double.NaN;
+        if (v.ValueKind == JsonValueKind.Number) return v.GetDouble();
+        return double.TryParse(v.GetString(), System.Globalization.CultureInfo.InvariantCulture, out var d)
+            ? d
+            : double.NaN;
     }
 
     public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
@@ -876,24 +954,32 @@ public static class CalculoCostosRuta
                 continue;
             }
             var (key, _) = SnapCiudad(nl.Lat, nl.Lon);
-            var ciudad = key is not null ? Ciudades[key].Nombre : nl.Nombre;
+            var ciudad = key is not null
+                ? Ciudades[key].Nombre
+                : nl.Nombre.StartsWith("Hotel cerca de ", StringComparison.OrdinalIgnoreCase)
+                    ? nl.Nombre["Hotel cerca de ".Length..]
+                    : nl.Nombre;
             var tarifa = Viaticos.GetValueOrDefault(key ?? "CDMX", (600, 2000)).HospedajeNoche;
             var ci = llegada.Date.ToString("yyyy-MM-dd");
             var co = nl.Salida.Value.Date.ToString("yyyy-MM-dd");
             var link = (string n) => $"https://www.booking.com/searchresults.es.html?ss={Uri.EscapeDataString(n)}&checkin={ci}&checkout={co}&group_adults=1&no_rooms=1";
             propuestos.Add(new CostosRutaHotel
             {
-                Lugar = nl.Nombre, Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
-                Motivo = $"pernocte {noches} noche(s) × 1 hab · tarifa tabulador ~${tarifa:F0}/noche",
+                Lugar = nl.Nombre, Nombre = $"Hotel en {ciudad} (referencia)",
+                Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
+                DistanciaKm = 0, PrecioNoche = tarifa, PrecioTotal = tarifa * noches,
+                Motivo = $"Tarifa tabulador · {noches} noche(s) × 1 hab",
                 Fuente = FuenteTabuladorHotel, Link = link(ciudad),
             });
             var reales = await BuscarHotelesCercanosAsync(http, cache, nl.Lat, nl.Lon, ct);
             foreach (var h in reales.Take(5))
                 propuestos.Add(new CostosRutaHotel
                 {
-                    Lugar = nl.Nombre, Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
-                    Motivo = $"{h.Nombre} a {h.DistKm:F1} km de {nl.Nombre} · precio estimado con tarifa tabulador",
-                    Fuente = reales.Count > 0 ? "OpenStreetMap/Overpass" : $"{FuenteTabuladorHotel} (Overpass no respondió)",
+                    Lugar = nl.Nombre, Nombre = h.Nombre,
+                    Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
+                    DistanciaKm = h.DistKm, PrecioNoche = tarifa, PrecioTotal = tarifa * noches,
+                    Motivo = "Precio estimado con tarifa tabulador",
+                    Fuente = reales.Count > 0 ? reales[0].Fuente : $"{FuenteTabuladorHotel} (no se encontró hotel cercano)",
                     Link = link(h.Nombre),
                 });
         }

@@ -4,19 +4,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SelectorRutaModal } from './SelectorRutaModal';
 import type { PuntoSeleccion } from '../types/costosRuta.types';
 
-const api = vi.hoisted(() => ({ getEstadosCatalogo: vi.fn() }));
-const municipiosApi = vi.hoisted(() => ({ getMunicipios: vi.fn() }));
 const geo = vi.hoisted(() => ({
   polylinea: vi.fn(),
   clics: [] as Array<(evento: { latlng: { lat: number; lng: number } }) => void>,
   setView: vi.fn(),
-}));
-
-vi.mock('@/apps/educacion-medica/services/educacionMedica.api', () => ({
-  educacionMedicaApi: { regiones: { getEstadosCatalogo: api.getEstadosCatalogo } },
-}));
-vi.mock('../services/municipios.api', () => ({
-  municipiosApi: { getMunicipios: municipiosApi.getMunicipios },
 }));
 
 // jsdom no renderiza Leaflet: se sustituyen las primitivas por nodos planos,
@@ -28,6 +19,7 @@ vi.mock('react-leaflet', async () => {
     MapContainer: ({ children, className }: { children?: ReactNode; className?: string }) =>
       React.createElement('div', { 'data-testid': 'mapa', className }, children),
     TileLayer: () => null,
+    ZoomControl: () => null,
     // El icono es HTML (L.divIcon): se inyecta para poder leer el número del badge.
     Marker: ({ icon }: { icon?: { html?: string } }) =>
       React.createElement('div', {
@@ -45,6 +37,9 @@ vi.mock('react-leaflet', async () => {
     }) => {
       React.useEffect(() => {
         if (handlers?.click) geo.clics.push(handlers.click);
+        // El mock registra el primer handler a propósito; no debe re-registrar
+        // en cada render (los tests leen geo.clics).
+        // eslint-disable-next-line react-hooks/exhaustive-deps
       }, []);
       return mapa;
     },
@@ -100,15 +95,6 @@ beforeEach(() => {
   geo.clics.length = 0;
   geo.setView.mockClear();
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ success: true, data: [] }) }));
-  api.getEstadosCatalogo.mockResolvedValue({
-    data: {
-      success: true,
-      data: [{ codigoEstado: 15, nombreEstado: 'México', idRegion: null, nombreRegion: null }],
-    },
-  });
-  municipiosApi.getMunicipios.mockResolvedValue({
-    data: { success: true, data: [{ idMunicipio: 101, codigoEstado: 15, nombreMunicipio: 'Toluca' }] },
-  });
 });
 
 describe('SelectorRutaModal', () => {
@@ -130,7 +116,7 @@ describe('SelectorRutaModal', () => {
     // altura vive solo en el wrapper exterior, el mapa se mide en 0 de alto.
     const seccion = screen.getByText('Ruta en el mapa').closest('section')!;
     const contenedor = seccion.querySelector('[data-testid="mapa"]')!;
-    expect(contenedor.className).toMatch(/\bh-\d+\b/);
+    expect(contenedor.className).toMatch(/\bh-(?:\d+|\[[^\]]+\])/);
   });
 
   it('un clic en el mapa inserta el punto N+1 y no reemplaza el punto 1', async () => {
@@ -146,6 +132,14 @@ describe('SelectorRutaModal', () => {
     expect(screen.getByTestId('punto-0')).toHaveTextContent('Origen');
     expect(screen.getByTestId('punto-1')).toHaveTextContent('Punto 2');
     expect(numerosMarcador()).toEqual(['1', '2']);
+  });
+
+  it('ignora un clic fuera de México', async () => {
+    montar({ puntos: [punto('Origen', 19.1, -99.1)] });
+    await waitFor(() => expect(geo.polylinea).toHaveBeenCalled());
+    clicEnMapa(29.76, -95.37); // Houston
+    expect(posicionesPolylinea()).toHaveLength(1);
+    expect(screen.queryByTestId('punto-1')).not.toBeInTheDocument();
   });
 
   it('Subir reordena la secuencia y redibuja la polylinea', async () => {
@@ -196,18 +190,12 @@ describe('SelectorRutaModal', () => {
     expect(onChange).toHaveBeenCalledWith([TRES[0], TRES[2], TRES[1]]);
   });
 
-  it('las dos vías de búsqueda están visibles y ninguna está deshabilitada', async () => {
+  it('ofrece un solo buscador de direcciones, sin pestañas ni cascada', async () => {
     montar();
-    const global = screen.getByRole('tab', { name: 'Buscador global' });
-    const cascada = screen.getByRole('tab', { name: 'Por estado y municipio' });
-    expect(global).toBeEnabled();
-    expect(cascada).toBeEnabled();
-
-    // La cascada es opcional: se puede usar igual que el buscador global.
-    await screen.findByLabelText('Buscar dirección (OpenStreetMap)');
-    fireEvent.click(cascada);
-    expect(await screen.findByLabelText('Estado')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Buscador global' })).toBeEnabled();
+    await waitFor(() => expect(geo.polylinea).toHaveBeenCalled());
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Dirección guiada/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Buscar dirección (OpenStreetMap)')).toBeInTheDocument();
   });
 
   it('la lista de puntos es navegable por teclado', async () => {
