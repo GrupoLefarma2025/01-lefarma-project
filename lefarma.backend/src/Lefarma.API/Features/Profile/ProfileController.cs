@@ -194,6 +194,98 @@ public class ProfileController : ControllerBase
     }
 
     /// <summary>
+    /// Contrato legacy exclusivo de CxP: verifica la firma de la columna firma_path.
+    /// No usa firma_control ni firma_path_cifrada.
+    /// </summary>
+    [HttpGet("firma-legacy/check")]
+    [SwaggerOperation(Summary = "Legacy CxP: verificar si el usuario tiene firma (firma_path)")]
+    [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> CheckSignatureLegacy(CancellationToken cancellationToken = default)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuario no autenticado"
+            });
+
+        var result = await _profileService.HasFirmaLegacyAsync(userId.Value, cancellationToken);
+        return result.ToActionResult(this, tieneFirma => Ok(new ApiResponse<bool>
+        {
+            Success = true,
+            Data = tieneFirma
+        }));
+    }
+
+    /// <summary>
+    /// Contrato legacy exclusivo de CxP: sube/reemplaza la firma de la columna firma_path
+    /// (reemplazo libre, sin INE ni comprobación de RH).
+    /// </summary>
+    [HttpPost("firma-legacy")]
+    [SwaggerOperation(Summary = "Legacy CxP: subir firma digital (firma_path)")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<IActionResult> UploadSignatureLegacy(
+        IFormFile file,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuario no autenticado"
+            });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "No se seleccionó ningún archivo"
+            });
+
+        var result = await _profileService.UploadSignatureLegacyAsync(userId.Value, file, file.FileName, file.ContentType, cancellationToken);
+        return result.ToActionResult(this, url => Ok(new ApiResponse<string>
+        {
+            Success = true,
+            Data = url,
+            Message = "Firma legacy guardada exitosamente"
+        }));
+    }
+
+    /// <summary>
+    /// Contrato legacy exclusivo de CxP: elimina la firma de la columna firma_path.
+    /// </summary>
+    [HttpDelete("firma-legacy")]
+    [SwaggerOperation(Summary = "Legacy CxP: eliminar firma digital (firma_path)")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteSignatureLegacy(
+        CancellationToken cancellationToken = default)
+    {
+        var userId = GetAuthenticatedUserId();
+        if (userId == null)
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Usuario no autenticado"
+            });
+
+        var result = await _profileService.DeleteSignatureLegacyAsync(userId.Value, cancellationToken);
+        return result.ToActionResult(this, url => Ok(new ApiResponse<string>
+        {
+            Success = true,
+            Data = url,
+            Message = "Firma legacy eliminada exitosamente"
+        }));
+    }
+
+    /// <summary>
     /// Extrae el ID del usuario autenticado desde los claims del JWT
     /// </summary>
     private int? GetAuthenticatedUserId()

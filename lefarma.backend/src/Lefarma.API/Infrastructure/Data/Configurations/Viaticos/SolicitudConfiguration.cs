@@ -26,6 +26,12 @@ public class SolicitudConfiguration : IEntityTypeConfiguration<Solicitud>
         builder.Property(e => e.Gerencia).HasColumnName("gerencia").HasMaxLength(150).IsRequired();
         builder.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(30).IsRequired();
         builder.Property(e => e.DatosJson).HasColumnName("datos_json").IsRequired();
+        builder.Property(e => e.Folio).HasColumnName("folio").HasMaxLength(60);
+        builder.Property(e => e.PersonaSolicitante).HasColumnName("persona_solicitante").HasMaxLength(512);
+        builder.Property(e => e.PersonaViajera).HasColumnName("persona_viajera").HasMaxLength(512);
+        builder.Property(e => e.SistemaOrigen).HasColumnName("sistema_origen").HasMaxLength(30).IsRequired();
+        builder.Property(e => e.IdUsuarioCreacion).HasColumnName("id_usuario_creacion");
+        builder.Property(e => e.NumPuntos).HasColumnName("num_puntos");
         builder.Property(e => e.Activo).HasColumnName("activo");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");

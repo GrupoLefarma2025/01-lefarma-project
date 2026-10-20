@@ -125,3 +125,6 @@ tmp/
 lefarma.backend/src/Lefarma.API/appsettings.Development.json
 lefarma.frontend/pnpm-lock.yaml
 .fake.lefarma-dev/
+
+# PIDs locales de desarrollo (multiappcli.ps1)
+pids.json

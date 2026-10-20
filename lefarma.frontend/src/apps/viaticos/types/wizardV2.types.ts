@@ -4,8 +4,8 @@ import type { CostosRutaHotel, CostosRutaOferta, PuntoSeleccion } from './costos
  * Modelo del asistente nuevo de solicitud de viáticos (wizard v2).
  *
  * Contratos PROVISIONALES pendientes de decisión de negocio (fase posterior):
- * - `RetornoV2` usa dos campos separados (salida y llegada requerida) porque el
- *   significado de una sola «fecha de regreso» sigue sin resolverse.
+ * - `RetornoV2` solo pide la hora de vuelta (llegada requerida) y a dónde se
+ *   vuelve (origen u otro punto): la salida del regreso no se captura.
  * - El rango total del viaje se DERIVA de la cronología (`rangoDelViaje`), no se
  *   captura como primer paso.
  * - `quincena`, «activo» y la fecha que filtran día/semana/mes se documentan en
@@ -45,8 +45,6 @@ export interface PasoTransporteV2 {
 // ---- Paso 3: origen ----------------------------------------------------------
 
 export interface OrigenV2 {
-  tipo: 'sucursal' | 'mapa';
-  sucursalId: number | null;
   punto: PuntoSeleccion | null;
   fechaSalida: string;
   horaSalida: string;
@@ -83,6 +81,8 @@ export interface CotizacionTramoV2 {
 export interface DestinoV2 {
   id: string;
   punto: PuntoSeleccion | null;
+  /** Nombre propio de la pestaña; vacío usa municipio/estado o el nombre del punto. */
+  etiqueta?: string;
   debeEstarFecha: string;
   debeEstarHora: string;
   saleFecha: string;
@@ -93,12 +93,16 @@ export interface DestinoV2 {
 
 // ---- Paso 5: retorno -----------------------------------------------------------
 
+/** A dónde se vuelve: al punto de origen o a otro punto del mapa. */
+export type DestinoRetornoV2 = 'origen' | 'otro';
+
 export interface RetornoV2 {
   necesario: boolean;
-  saleFecha: string;
-  saleHora: string;
   llegadaRequeridaFecha: string;
   llegadaRequeridaHora: string;
+  destino: DestinoRetornoV2;
+  /** Solo cuando `destino` es 'otro'. */
+  punto: PuntoSeleccion | null;
 }
 
 // ---- Paso 6: gastos --------------------------------------------------------------

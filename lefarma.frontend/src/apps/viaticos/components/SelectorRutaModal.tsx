@@ -4,8 +4,9 @@ import L from 'leaflet';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Modal } from '@/components/ui/modal';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { toast } from 'sonner';
 import type { PuntoSeleccion } from '../types/costosRuta.types';
+import { dentroDeMexico } from '../services/ubicacionMexico';
 import { PuntoMapaPicker } from './PuntoMapaPicker';
 
 export interface SelectorRutaModalProps {
@@ -268,6 +269,10 @@ export function SelectorRutaModal({
 
   const agregarClic = useCallback(
     (lat: number, lng: number) => {
+      if (!dentroDeMexico(lat, lng)) {
+        toast.error('Solo puedes fijar puntos dentro de México.');
+        return;
+      }
       const punto: PuntoSeleccion = {
         nombre: `Punto ${borrador.length + 1}`,
         latitud: lat,
@@ -327,7 +332,7 @@ export function SelectorRutaModal({
               center={centroInicial}
               zoom={borrador.length > 0 ? ZOOM_SECUENCIA : ZOOM_MEXICO}
               scrollWheelZoom
-              className="h-72 w-full"
+              className="h-[36rem] w-full"
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -380,18 +385,7 @@ export function SelectorRutaModal({
           </div>
         </section>
 
-        <Tabs defaultValue="global" className="flex flex-col">
-          <TabsList>
-            <TabsTrigger value="global">Buscador global</TabsTrigger>
-            <TabsTrigger value="cascada">Por estado y municipio</TabsTrigger>
-          </TabsList>
-          <TabsContent value="global">
-            {picker('Buscador global', 'Escribe la dirección completa y el país, sin cascada obligatoria.')}
-          </TabsContent>
-          <TabsContent value="cascada">
-            {picker('Por estado y municipio', 'Elige estado, municipio y calle; es opcional, no es un paso previo.')}
-          </TabsContent>
-        </Tabs>
+        {picker('Buscar dirección', 'Escribe la dirección (calle y número, colonia o ciudad) y elige un resultado de la lista.')}
       </div>
     </Modal>
   );

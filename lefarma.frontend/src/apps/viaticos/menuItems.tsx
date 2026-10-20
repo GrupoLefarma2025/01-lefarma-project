@@ -1,4 +1,4 @@
-import { ClipboardCheck, Luggage, Plane } from 'lucide-react';
+import { ClipboardCheck, Luggage, Plane, Settings } from 'lucide-react';
 import type { SidebarMenuItemConfig } from '@/components/layout/sidebar-types';
 
 export const viaticosMenuItems: SidebarMenuItemConfig[] = [
@@ -20,5 +20,10 @@ export const viaticosMenuItems: SidebarMenuItemConfig[] = [
     icon: ClipboardCheck,
     path: '/viaticos/concentrado',
     permission: { require: 'viaticos.ver_todos' },
+  },
+  {
+    title: 'Configuración de viáticos',
+    icon: Settings,
+    path: '/viaticos/configuracion',
   },
 ];

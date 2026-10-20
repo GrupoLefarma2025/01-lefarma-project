@@ -69,6 +69,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   areas: [],
   area: null,
   hasFirma: null,
+  hasFirmaLegacy: null,
   firmaEnComprobacion: null,
   puedeSeleccionarEmpresas: false,
   usuarioDetalle: null,
@@ -309,8 +310,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
       await get().fetchProfileSignature();
 
-      const { hasFirma } = get();
-      if (hasFirma === false) {
+      const { hasFirma, hasFirmaLegacy } = get();
+      if (hasFirma === false && hasFirmaLegacy === false) {
         toast.warning('No has cargado tu firma digital', {
           description: 'Ve a Configuración para subir tu firma y poder autorizar documentos.',
           duration: 6000,
@@ -355,6 +356,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       sucursales: [],
       areas: [],
       hasFirma: null,
+      hasFirmaLegacy: null,
       firmaEnComprobacion: null,
       puedeSeleccionarEmpresas: false,
       usuarioDetalle: null,
@@ -436,13 +438,13 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (profileInflight) return profileInflight;
     profileInflight = (async () => {
       try {
-        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+        const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
         const detalle = response.data.data?.detalle;
         const firmaCifrada = detalle?.firmaPathCifrada;
         const puedeSeleccionar = response.data.data?.puedeSeleccionarEmpresas ?? false;
-        set({ hasFirma: !!firmaCifrada, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
+        set({ hasFirma: !!firmaCifrada, hasFirmaLegacy: !!detalle?.firmaPath, firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false, puedeSeleccionarEmpresas: puedeSeleccionar });
       } catch {
-        set({ hasFirma: false });
+        set({ hasFirma: false, hasFirmaLegacy: false });
       } finally {
         profileInflight = null;
       }
@@ -457,7 +459,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   loadProfile: async () => {
     try {
-      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
+      const response = await API.get<ApiResponse<{ puedeSeleccionarEmpresas: boolean; detalle?: { idEmpresa?: number; idSucursal?: number; idArea?: number; firmaPath?: string; firmaPathCifrada?: string; firmaEnComprobacion?: boolean } }>>('/profile');
       const data = response.data.data;
       const detalle = data?.detalle;
       set({
@@ -470,11 +472,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
           : null,
         puedeSeleccionarEmpresas: data?.puedeSeleccionarEmpresas ?? false,
         hasFirma: detalle ? !!detalle.firmaPathCifrada : false,
+        hasFirmaLegacy: detalle ? !!detalle.firmaPath : false,
         firmaEnComprobacion: detalle?.firmaEnComprobacion ?? false,
         profileError: null,
       });
     } catch {
-      set({ hasFirma: false, profileError: PROFILE_LOAD_ERROR });
+      set({ hasFirma: false, hasFirmaLegacy: false, profileError: PROFILE_LOAD_ERROR });
     }
   },
 
@@ -513,6 +516,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         sucursales: [],
         areas: [],
         hasFirma: null,
+        hasFirmaLegacy: null,
         firmaEnComprobacion: null,
         puedeSeleccionarEmpresas: false,
       });

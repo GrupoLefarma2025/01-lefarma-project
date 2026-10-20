@@ -84,6 +84,8 @@ export interface DataTableProps<TData> {
   onExport?: () => void;
   onRefresh?: () => void;
   onRowClick?: (row: TData) => void;
+  /** data-testid opcional por fila (pruebas y anclas). */
+  rowTestId?: (row: TData) => string;
   isRowSelected?: (row: TData) => boolean;
 
   // Row selection
@@ -154,6 +156,7 @@ export function DataTable<TData>({
   onExport,
   onRefresh,
   onRowClick,
+  rowTestId,
   isRowSelected,
   filterConfig,
   enableRowSelection = false,
@@ -254,6 +257,7 @@ export function DataTable<TData>({
     tableId: filterConfig?.tableId || '',
     allColumns: columns,
     defaultSearchColumns: filterConfig?.defaultSearchColumns,
+    defaultVisibleColumns: filterConfig?.defaultVisibleColumns,
     columnFilterConfigs: filterConfig?.columnFilterConfigs,
   });
 
@@ -316,6 +320,9 @@ export function DataTable<TData>({
     }));
   }, [activeFilters]);
 
+  // TanStack Table expone funciones que el React Compiler no puede memoizar
+  // de forma segura; la tabla sigue siendo la fuente de verdad de su estado.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns: displayColumns,
@@ -559,6 +566,7 @@ export function DataTable<TData>({
                       return (
                         <TableRow
                           key={row.id}
+                          data-testid={rowTestId ? rowTestId(row.original) : undefined}
                           data-state={row.getIsSelected() ? 'selected' : undefined}
                           className={cn(
                             'text-sm',

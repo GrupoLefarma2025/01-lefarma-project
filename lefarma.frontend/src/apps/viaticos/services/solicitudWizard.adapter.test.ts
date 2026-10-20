@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Sucursal } from '@/types/catalogo.types';
 import {
   adaptarTramoACostosRuta,
   esOfertaVuelo,
@@ -9,22 +8,8 @@ import {
 } from './solicitudWizard.adapter';
 import type { DestinoV2, OrigenV2 } from '../types/wizardV2.types';
 
-const sucursal = (id: number, nombre: string): Sucursal => ({
-  idSucursal: id,
-  idEmpresa: 1,
-  nombre,
-  ciudad: 'Ciudad de México',
-  latitud: 19.43,
-  longitud: -99.13,
-  activo: true,
-  numeroEmpleados: 0,
-  fechaCreacion: '2026-01-01',
-});
-
 const origen: OrigenV2 = {
-  tipo: 'sucursal',
-  sucursalId: 1,
-  punto: null,
+  punto: { nombre: 'Origen', latitud: 19.43, longitud: -99.13 },
   fechaSalida: '2026-11-10',
   horaSalida: '06:00',
 };
@@ -48,7 +33,6 @@ describe('adaptarTramoACostosRuta (frontera con el algoritmo legacy)', () => {
       modoTransporte: 'propio',
       origen,
       destino: destino(),
-      sucursales: [sucursal(1, 'Matriz')],
     });
     expect(errors).toEqual([]);
     expect(request).not.toBeNull();
@@ -60,26 +44,75 @@ describe('adaptarTramoACostosRuta (frontera con el algoritmo legacy)', () => {
     expect(request!.personas[0].lugares[0].fecha_salida).toBe('2026-11-10');
   });
 
+  it('usa la jornada 07:00-18:30 por defecto y respeta la configurada', () => {
+    const porDefecto = adaptarTramoACostosRuta({
+      nombreViajero: 'Persona Viajera',
+      modoTransporte: 'solicitado',
+      origen,
+      destino: destino(),
+    });
+    expect(porDefecto.request!.personas[0].trabajo.hora_entrada).toBe('07:00');
+    expect(porDefecto.request!.personas[0].trabajo.hora_salida).toBe('18:30');
+    const configurada = adaptarTramoACostosRuta({
+      nombreViajero: 'Persona Viajera',
+      modoTransporte: 'solicitado',
+      origen,
+      destino: destino(),
+      jornada: { horaEntrada: '08:00', horaSalida: '17:00' },
+    });
+    expect(configurada.request!.personas[0].trabajo.hora_entrada).toBe('08:00');
+    expect(configurada.request!.personas[0].trabajo.hora_salida).toBe('17:00');
+  });
+
   it('marca carro_propio falso en modo transporte solicitado', () => {
     const { request, errors } = adaptarTramoACostosRuta({
       nombreViajero: 'Persona Viajera',
       modoTransporte: 'solicitado',
       origen,
       destino: destino(),
-      sucursales: [sucursal(1, 'Matriz')],
     });
     expect(errors).toEqual([]);
     expect(request!.personas[0].carro_propio).toBe(false);
     expect(request!.personas[0].gasolina).toBe('magna');
   });
 
+  it('omite la salida del origen cuando no se captura (el motor la calcula)', () => {
+    const { request, errors } = adaptarTramoACostosRuta({
+      nombreViajero: 'Persona Viajera',
+      modoTransporte: 'solicitado',
+      origen: { ...origen, fechaSalida: '', horaSalida: '' },
+      destino: destino(),
+    });
+    expect(errors).toEqual([]);
+    expect(request).not.toBeNull();
+    expect(request!.personas[0].lugares[0].fecha_salida).toBeUndefined();
+    expect(request!.personas[0].lugares[0].hora_salida).toBeUndefined();
+  });
+
+  it('rechaza una salida del origen incompleta (fecha sin hora o al revés)', () => {
+    const soloFecha = adaptarTramoACostosRuta({
+      nombreViajero: 'Persona Viajera',
+      modoTransporte: 'solicitado',
+      origen: { ...origen, horaSalida: '' },
+      destino: destino(),
+    });
+    expect(soloFecha.request).toBeNull();
+    expect(soloFecha.errors.join(' ')).toContain('fecha Y hora');
+    const soloHora = adaptarTramoACostosRuta({
+      nombreViajero: 'Persona Viajera',
+      modoTransporte: 'solicitado',
+      origen: { ...origen, fechaSalida: '' },
+      destino: destino(),
+    });
+    expect(soloHora.request).toBeNull();
+  });
+
   it('reporta error sin coordenadas válidas en vez de inventarlas', () => {
     const { request, errors } = adaptarTramoACostosRuta({
       nombreViajero: 'Persona Viajera',
       modoTransporte: 'solicitado',
-      origen: { ...origen, sucursalId: 99 },
+      origen: { ...origen, punto: { nombre: 'Sin coordenadas', latitud: 0, longitud: 0 } },
       destino: destino(),
-      sucursales: [sucursal(1, 'Matriz')],
     });
     expect(request).toBeNull();
     expect(errors.length).toBeGreaterThan(0);
@@ -91,7 +124,6 @@ describe('adaptarTramoACostosRuta (frontera con el algoritmo legacy)', () => {
       modoTransporte: 'solicitado',
       origen,
       destino: destino(),
-      sucursales: [sucursal(1, 'Matriz')],
     });
     const conHotel = adaptarTramoACostosRuta({
       nombreViajero: 'V',
@@ -100,7 +132,6 @@ describe('adaptarTramoACostosRuta (frontera con el algoritmo legacy)', () => {
       destino: destino({
         hospedaje: { necesario: true, zona: 'actual', fechaEntrada: '2026-11-10', fechaSalida: '2026-11-11', hotel: null },
       }),
-      sucursales: [sucursal(1, 'Matriz')],
     });
     expect(sinHotel.request!.opciones.calcularHoteles).toBe(false);
     expect(conHotel.request!.opciones.calcularHoteles).toBe(true);
@@ -112,10 +143,10 @@ describe('rangoDelViaje (derivado de la cronología, no capturado)', () => {
     expect(
       rangoDelViaje(origen, [destino(), destino({ id: 'd2', debeEstarFecha: '2026-11-12', saleFecha: '2026-11-12' })], {
         necesario: true,
-        saleFecha: '2026-11-13',
-        saleHora: '08:00',
         llegadaRequeridaFecha: '2026-11-13',
         llegadaRequeridaHora: '14:00',
+        destino: 'origen',
+        punto: null,
       }),
     ).toEqual({ inicio: '2026-11-10', fin: '2026-11-13' });
   });
@@ -124,10 +155,10 @@ describe('rangoDelViaje (derivado de la cronología, no capturado)', () => {
     expect(
       rangoDelViaje(origen, [destino()], {
         necesario: false,
-        saleFecha: '',
-        saleHora: '',
         llegadaRequeridaFecha: '',
         llegadaRequeridaHora: '',
+        destino: 'origen',
+        punto: null,
       }),
     ).toEqual({ inicio: '2026-11-10', fin: '2026-11-10' });
   });

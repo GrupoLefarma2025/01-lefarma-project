@@ -8,6 +8,12 @@ export interface ColumnasTiempoProps {
   hora: string;
   minuto: string;
   onOpcion: (parte: 'hora' | 'minuto', valor: string) => void;
+  /**
+   * Hora mínima elegible (por ejemplo, la hora actual cuando la fecha es
+   * hoy). Deshabilita horas anteriores a `hora` y, cuando la hora elegida es
+   * esa misma, los minutos anteriores a `minuto`.
+   */
+  minimo?: { hora: string; minuto: string } | null;
 }
 
 /** Parte 'HH:mm' en hora/minuto; lo inválido o vacío queda sin elegir. */
@@ -32,7 +38,7 @@ export function formatoHora12h(value: string): string {
  * animado: respuesta instantánea y sin mareo). La decisión de qué hacer con
  * la opción (completar, cerrar, etc.) es del padre vía `onOpcion`.
  */
-export function ColumnasTiempo({ hora, minuto, onOpcion }: ColumnasTiempoProps) {
+export function ColumnasTiempo({ hora, minuto, onOpcion, minimo }: ColumnasTiempoProps) {
   const columnaHora = useRef<HTMLDivElement>(null);
   const columnaMinutos = useRef<HTMLDivElement>(null);
 
@@ -44,6 +50,12 @@ export function ColumnasTiempo({ hora, minuto, onOpcion }: ColumnasTiempoProps) 
     return () => cancelAnimationFrame(t);
   }, []);
 
+  function bloqueada(parte: 'hora' | 'minuto', opcion: string): boolean {
+    if (!minimo) return false;
+    if (parte === 'hora') return opcion < minimo.hora;
+    return hora === minimo.hora && opcion < minimo.minuto;
+  }
+
   function columna(opciones: string[], elegido: string, ref: React.RefObject<HTMLDivElement | null>, grupo: string, parte: 'hora' | 'minuto') {
     return (
       <div role="group" aria-label={grupo} className="min-w-0 flex-1">
@@ -52,17 +64,20 @@ export function ColumnasTiempo({ hora, minuto, onOpcion }: ColumnasTiempoProps) 
           <div aria-hidden className="h-[72px] shrink-0" />
           {opciones.map((opcion) => {
             const activo = opcion === elegido;
+            const sinSalida = bloqueada(parte, opcion);
             return (
               <button
                 key={opcion}
                 type="button"
                 data-activo={activo}
+                disabled={sinSalida}
                 onClick={() => onOpcion(parte, opcion)}
                 className={cn(
                   'flex w-full snap-center items-center justify-center rounded-md py-1.5 text-sm tabular-nums transition-colors duration-100 active:scale-95',
                   activo
                     ? 'bg-primary font-semibold text-primary-foreground'
                     : 'text-foreground hover:bg-muted',
+                  sinSalida && 'cursor-not-allowed opacity-40 hover:bg-transparent',
                 )}
               >
                 {opcion}

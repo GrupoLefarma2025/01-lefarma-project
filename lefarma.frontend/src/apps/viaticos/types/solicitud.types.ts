@@ -51,11 +51,27 @@ export interface Solicitud {
   datos: unknown;
   opciones: SolicitudOpcion[];
   eventos: SolicitudEvento[];
+  /** Sistema que originó la solicitud ('viaticos' | 'educacion_medica'). */
+  sistema_origen?: string | null;
+  /** Folio legible del viaje (VIA-{sam}-{id}). */
+  folio?: string | null;
+  /** Nombre de quien solicita el viaje. */
+  persona_solicitante?: string | null;
+  /** Nombre de quien viaja. */
+  persona_viajera?: string | null;
+  /** Usuario que creó el registro (puede diferir del solicitante en integraciones). */
+  id_usuario_creacion?: number;
+  /** Número de puntos/destinos a visitar (snapshot al crear). */
+  num_puntos?: number;
+  /** Nombre del creador resuelto por el backend. */
+  nombre_creador?: string | null;
 }
 
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */
 export interface CrearSolicitudPayload {
   gerencia?: string;
+  /** Sistema de origen; el backend usa 'viaticos' cuando se omite. */
+  sistema_origen?: string;
   datos: Record<string, unknown>;
 }
 

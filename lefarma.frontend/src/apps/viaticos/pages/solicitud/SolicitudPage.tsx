@@ -1,31 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { folderTabClassName } from '@/components/ui/folder-tab';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { UserRound } from 'lucide-react';
+import { Info, Plus, UserRound } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { CheckboxAnimado } from '../../components/CheckboxAnimado';
-import { SwitchTab } from '../../components/SwitchTab';
 import { WizardStepper } from '../../components/WizardStepper';
 import '../../components/wizard-motion.css';
-import { Badge } from '@/components/ui/badge';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
-import { API } from '@/shared/api/apiClient';
 import { useAuthStore } from '@/shared/auth/authStore';
-import type { ApiResponse } from '@/types/api.types';
-import type { Sucursal } from '@/types/catalogo.types';
 import { CatalogoSearchSelect } from '@/apps/educacion-medica/components/CatalogoSearchSelect';
 import type { UsuarioCatalogo } from '@/apps/educacion-medica/types/educacionMedica.types';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
-import { costosRutaApi } from '../../services/costosRuta.api';
 import { solicitudesApi } from '../../services/solicitudes.api';
-import type { CostosRutaOferta, PuntoSeleccion } from '../../types/costosRuta.types';
-import type { CrearSolicitudPayload, OpcionCotizacion } from '../../types/solicitud.types';
+import { geocodificarReversa } from '../../services/geocodificar.api';
+import { hidratarSolicitud } from '../../services/solicitudDraft';
+import type { CrearSolicitudPayload } from '../../types/solicitud.types';
 import type {
   AcompananteV2,
   DestinoV2,
@@ -34,20 +31,16 @@ import type {
   PasoTransporteV2,
   RetornoV2,
 } from '../../types/wizardV2.types';
+import { adaptarTramoACostosRuta, rangoDelViaje } from '../../services/solicitudWizard.adapter';
 import {
-  adaptarTramoACostosRuta,
-  esOfertaVuelo,
-  MONEDA_PERMITIDA,
-  rangoDelViaje,
-  sugerirOrigenInicial,
-} from '../../services/solicitudWizard.adapter';
+  CONFIG_VIATICOS_STORAGE_KEY,
+  leerConfigViaticos,
+  type ConfigViaticos,
+} from '../../services/configViaticos';
 import { PuntoMapaPicker } from '../../components/PuntoMapaPicker';
 import { MapaPunto } from '../../components/MapaPunto';
-import { TablaOpciones } from '../../components/TablaOpciones';
-import { TablaHoteles } from '../../components/TablaHoteles';
-import { DatePicker } from '@/components/ui/date-picker';
+import { ResumenViaje } from '../../components/ResumenViaje';
 import { DateTimePicker } from '../../components/DateTimePicker';
-import { TimePicker } from '../../components/TimePicker';
 import { VIATICOS_FIXTURES_ACTIVOS, rellenarConFixture } from '../../test/fixtures/solicitudV2.fixture';
 
 const PASOS = [
@@ -57,13 +50,25 @@ const PASOS = [
   { id: 4, titulo: 'Origen' },
   { id: 5, titulo: 'Destinos' },
   { id: 6, titulo: 'Regreso' },
-  { id: 7, titulo: 'Viáticos' },
+  { id: 7, titulo: 'Resumen' },
 ] as const;
 
 type PasoId = (typeof PASOS)[number]['id'];
 
-function mxn(n: number): string {
-  return `$${n.toLocaleString('es-MX', { maximumFractionDigits: 0 })} MXN`;
+const PULSO_AGREGAR_CSS = `
+@keyframes agregar-pulso {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+}
+.agregar-pulso { animation: agregar-pulso 0.9s ease-in-out 2; }
+@media (prefers-reduced-motion: reduce) { .agregar-pulso { animation: none; } }
+`;
+
+/** Momento actual en hora local con el formato de los pickers (yyyy-MM-ddTHH:mm). */
+function ahoraLocal(): string {
+  const d = new Date();
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}T${dos(d.getHours())}:${dos(d.getMinutes())}`;
 }
 
 let secuenciaDestino = 1;
@@ -89,16 +94,84 @@ function IndicadorDatosPrueba() {
   );
 }
 
-function nombrePuntoPrevio(origen: OrigenV2, destinos: DestinoV2[], indice: number, sucursales: Sucursal[]): string {
-  if (indice === 0) {
-    if (origen.punto) return origen.punto.nombre;
-    return sucursales.find((s) => s.idSucursal === origen.sucursalId)?.nombre ?? 'Origen';
+/** Pestaña del destino: nombre propio; si no, municipio/estado o el nombre del punto. */
+function etiquetaDestino(destino: DestinoV2): string {
+  const personalizada = destino.etiqueta?.trim();
+  if (personalizada) return personalizada;
+  const punto = destino.punto;
+  if (!punto) return 'Sin destino';
+  const partes = [punto.municipio, punto.estado].filter(
+    (valor): valor is string => typeof valor === 'string' && valor.trim() !== '',
+  );
+  return partes.length > 0 ? partes.join(', ') : punto.nombre;
+}
+
+
+function minutosDeHora(hora: string): number | null {
+  const [h, m] = hora.split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null;
+}
+
+interface ComidaCalculo {
+  completos: number;
+  medios: number;
+  monto: number;
+}
+
+/**
+ * Comida por día del viaje: día completo salvo que el primer día empiece
+ * después de mediodía, el último termine antes de las 14:00 o el viaje de un
+ * solo día dure menos de 6 horas. Se cuentan todos los días del rango.
+ */
+function calcularComidas(
+  rango: { inicio: string | null; fin: string | null },
+  origen: OrigenV2,
+  destinos: DestinoV2[],
+  retorno: RetornoV2,
+  config: ConfigViaticos,
+): ComidaCalculo {
+  const valorMedia = Number(config.comidaMedia) || 0;
+  const valorCompleta = Number(config.comidaCompleta) || 0;
+  const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+  if (!rango.inicio || !rango.fin || !esFecha(rango.inicio) || !esFecha(rango.fin) || rango.inicio > rango.fin) {
+    return { completos: 0, medios: 0, monto: 0 };
   }
-  return destinos[indice - 1].punto?.nombre ?? `Destino ${indice}`;
+  const horaInicio = origen.fechaSalida === rango.inicio
+    ? origen.horaSalida
+    : destinos.find((d) => d.debeEstarFecha === rango.inicio)?.debeEstarHora ?? '';
+  const horaFin = retorno.llegadaRequeridaFecha === rango.fin
+    ? retorno.llegadaRequeridaHora
+    : [...destinos].reverse().find((d) => d.saleFecha === rango.fin)?.saleHora ?? '';
+  const inicioMin = minutosDeHora(horaInicio);
+  const finMin = minutosDeHora(horaFin);
+  let completos = 0;
+  let medios = 0;
+  const dos = (n: number) => String(n).padStart(2, '0');
+  const cursor = new Date(`${rango.inicio}T12:00:00`);
+  const fin = new Date(`${rango.fin}T12:00:00`);
+  while (cursor <= fin) {
+    const dia = `${cursor.getFullYear()}-${dos(cursor.getMonth() + 1)}-${dos(cursor.getDate())}`;
+    if (rango.inicio === rango.fin) {
+      const medio = (inicioMin !== null && inicioMin >= 12 * 60)
+        || (finMin !== null && finMin <= 14 * 60)
+        || (inicioMin !== null && finMin !== null && finMin - inicioMin < 6 * 60);
+      if (medio) medios += 1; else completos += 1;
+    } else if (dia === rango.inicio) {
+      if (inicioMin !== null && inicioMin >= 12 * 60) medios += 1; else completos += 1;
+    } else if (dia === rango.fin) {
+      if (finMin !== null && finMin <= 14 * 60) medios += 1; else completos += 1;
+    } else {
+      completos += 1;
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return { completos, medios, monto: completos * valorCompleta + medios * valorMedia };
 }
 
 export function SolicitudPage() {
   usePageTitle('Solicitud de viáticos', 'Viáticos');
+  const navigate = useNavigate();
+  const { id: idParam } = useParams();
   const nombreSesion = useAuthStore((s) => s.user?.nombre);
   const idSesion = useAuthStore((s) => s.user?.id);
 
@@ -109,47 +182,112 @@ export function SolicitudPage() {
   useEffect(() => {
     setMaxPaso((m) => (paso > m ? paso : m));
   }, [paso]);
+  // Cada cambio de paso (Siguiente, Atrás o stepper) regresa al inicio del wizard.
+  const inicioPasoRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const scroller = inicioPasoRef.current?.closest('main');
+    if (scroller) {
+      scroller.scrollTop = 0;
+    } else {
+      inicioPasoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [paso]);
+
   const [persona, setPersona] = useState<PasoPersonaV2>({ modo: 'mia', empleadoId: null, nombre: '', motivo: '' });
   const [transporte, setTransporte] = useState<PasoTransporteV2>({ modo: 'solicitado', compartir: false, acompanantes: [] });
-  const [origen, setOrigen] = useState<OrigenV2>({ tipo: 'sucursal', sucursalId: null, punto: null, fechaSalida: '', horaSalida: '' });
+  const [origen, setOrigen] = useState<OrigenV2>({ punto: null, fechaSalida: '', horaSalida: '' });
   const [destinos, setDestinos] = useState<DestinoV2[]>(() => [nuevoDestino()]);
   const [indiceActual, setIndiceActual] = useState(0);
-  const [retorno, setRetorno] = useState<RetornoV2>({ necesario: false, saleFecha: '', saleHora: '', llegadaRequeridaFecha: '', llegadaRequeridaHora: '' });
-  const [comidas, setComidas] = useState('');
-  const [extras, setExtras] = useState<{ id: string; concepto: string; monto: string }[]>([]);
-  const [calculando, setCalculando] = useState(false);
-  const [errorTramo, setErrorTramo] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [solicitudId, setSolicitudId] = useState<number | null>(null);
-
-  const [sucursales, setSucursales] = useState<Sucursal[]>([]);
-  const [cargandoSuc, setCargandoSuc] = useState(true);
-  const [errorSuc, setErrorSuc] = useState('');
-  const [empleados, setEmpleados] = useState<UsuarioCatalogo[]>([]);
-  const [cargandoEmp, setCargandoEmp] = useState(false);
-  const [errorEmp, setErrorEmp] = useState('');
-  const origenSugerido = useRef(false);
-
-  // Catálogo de sucursales.
+  const [pulsarAgregar, setPulsarAgregar] = useState(false);
+  const [configViaticos, setConfigViaticos] = useState<ConfigViaticos>(leerConfigViaticos);
+  // La configuración de comidas/horario se edita en /viaticos/configuracion;
+  // si cambia en otra pestaña, se refleja aquí y se invalidan los tramos.
   useEffect(() => {
+    const alCambiarConfig = (evento: StorageEvent) => {
+      if (evento.key !== CONFIG_VIATICOS_STORAGE_KEY) return;
+      const siguiente = leerConfigViaticos();
+      const horasCambiaron = siguiente.horaEntrada !== configViaticos.horaEntrada
+        || siguiente.horaSalida !== configViaticos.horaSalida;
+      setConfigViaticos(siguiente);
+      if (horasCambiaron) {
+        setDestinos((actual) =>
+          actual.map((d) => (d.cotizacion ? { ...d, cotizacion: { ...d.cotizacion, necesitaRecalculo: true } } : d)),
+        );
+      }
+    };
+    window.addEventListener('storage', alCambiarConfig);
+    return () => window.removeEventListener('storage', alCambiarConfig);
+  }, [configViaticos.horaEntrada, configViaticos.horaSalida]);
+  // Pestaña en edición (doble clic) y borrador del nombre propio.
+  const [renombrando, setRenombrando] = useState<number | null>(null);
+  const [textoRenombre, setTextoRenombre] = useState('');
+  const cancelarRenombreRef = useRef(false);
+  const [retorno, setRetorno] = useState<RetornoV2>({ necesario: true, llegadaRequeridaFecha: '', llegadaRequeridaHora: '', destino: 'origen', punto: null });
+  const [enviando, setEnviando] = useState(false);
+  const [solicitudEditando, setSolicitudEditando] = useState<{ id: number; folio: string | null } | null>(null);
+  const [cargandoBorrador, setCargandoBorrador] = useState(false);
+
+  // Edición de un borrador: /viaticos/solicitud/:id hidrata el wizard desde el
+  // snapshot guardado. Solo se permite si sigue en borrador y es del usuario.
+  useEffect(() => {
+    const id = Number(idParam);
+    if (!Number.isFinite(id) || id <= 0) return;
+
     let cancelado = false;
+    setCargandoBorrador(true);
     void (async () => {
       try {
-        const res = await API.get<ApiResponse<Sucursal[]>>('/catalogos/Sucursales');
+        const res = await solicitudesApi.detalle(id);
         if (cancelado) return;
-        if (!res.data.success) {
-          setErrorSuc(res.data.message || 'No se pudieron cargar las sucursales.');
+        if (!res.data.success || !res.data.data) {
+          toast.error(res.data.message ?? 'No se pudo cargar el borrador.');
+          navigate('/viaticos/mis-viajes');
           return;
         }
-        setSucursales((res.data.data || []).filter((s) => s.activo));
+        if (res.data.data.estado !== 'borrador') {
+          toast.error('Solo se pueden editar solicitudes en borrador.');
+          navigate('/viaticos/mis-viajes');
+          return;
+        }
+        const datos = hidratarSolicitud(res.data.data.datos);
+        if (!datos) {
+          toast.error('El borrador no tiene un formato reconocible.');
+          navigate('/viaticos/mis-viajes');
+          return;
+        }
+        setPersona(datos.persona);
+        setTransporte(datos.transporte);
+        setOrigen(datos.origen);
+        setDestinos(datos.destinos);
+        setRetorno(datos.retorno);
+        setIndiceActual(0);
+        setSolicitudEditando({ id: res.data.data.id_solicitud, folio: res.data.data.folio ?? null });
       } catch (falla: unknown) {
-        if (!cancelado) setErrorSuc(toApiError(falla).message || 'No se pudieron cargar las sucursales.');
+        toast.error(toApiError(falla).message || 'No se pudo cargar el borrador.');
+        navigate('/viaticos/mis-viajes');
       } finally {
-        if (!cancelado) setCargandoSuc(false);
+        if (!cancelado) setCargandoBorrador(false);
       }
     })();
     return () => { cancelado = true; };
+  }, [idParam, navigate]);
+
+  // Alto real de la barra de pasos (sticky): la barra de búsqueda del mapa se
+  // pega justo debajo en vez de encimársele.
+  const navRef = useRef<HTMLElement | null>(null);
+  const [altoNav, setAltoNav] = useState(56);
+  useEffect(() => {
+    const nav = navRef.current;
+    if (!nav) return;
+    const medir = () => setAltoNav(nav.offsetHeight || 56);
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
   }, []);
+
+  const [empleados, setEmpleados] = useState<UsuarioCatalogo[]>([]);
+  const [cargandoEmp, setCargandoEmp] = useState(false);
+  const [errorEmp, setErrorEmp] = useState('');
 
   // "Para mí" toma el nombre de la sesión; no se vuelve a pedir.
   useEffect(() => {
@@ -157,14 +295,6 @@ export function SolicitudPage() {
       setPersona((p) => ({ ...p, nombre: nombreSesion }));
     }
   }, [nombreSesion, persona.modo, persona.nombre]);
-
-  // Preselección de Antonio Maura solo con coordenadas válidas reales.
-  useEffect(() => {
-    if (origenSugerido.current || cargandoSuc || sucursales.length === 0) return;
-    origenSugerido.current = true;
-    const sugerida = sugerirOrigenInicial(sucursales);
-    if (sugerida !== null) setOrigen((o) => ({ ...o, sucursalId: sugerida }));
-  }, [cargandoSuc, sucursales]);
 
   // Empleados solo cuando hacen falta (para alguien más o compartir viaje).
   const necesitaEmpleados = persona.modo === 'otra' || transporte.compartir;
@@ -196,21 +326,6 @@ export function SolicitudPage() {
     () => empleados.map((e) => ({ id: e.idUsuario, label: e.nombreCompleto, description: e.correo })),
     [empleados],
   );
-  const sucursalItems = useMemo(
-    () => sucursales.map((s) => ({ id: s.idSucursal, label: s.nombre, description: s.ciudad })),
-    [sucursales],
-  );
-  // Punto de la sucursal elegida para pintarlo en el mapa (solo lectura:
-  // no se escribe al estado; el payload usa el modo activo).
-  const sucursalOrigen = sucursales.find((s) => s.idSucursal === origen.sucursalId) ?? null;
-  const puntoSucursal: PuntoSeleccion | null =
-    sucursalOrigen &&
-    Number.isFinite(sucursalOrigen.latitud) &&
-    Number.isFinite(sucursalOrigen.longitud) &&
-    !(sucursalOrigen.latitud === 0 && sucursalOrigen.longitud === 0)
-      ? { nombre: sucursalOrigen.nombre, latitud: sucursalOrigen.latitud, longitud: sucursalOrigen.longitud }
-      : null;
-  const puntoMapaOrigen = origen.tipo === 'sucursal' ? puntoSucursal : origen.punto;
 
   function elegirEmpleado(id: number | null) {
     const empleado = empleados.find((e) => e.idUsuario === id) ?? null;
@@ -239,128 +354,86 @@ export function SolicitudPage() {
     );
   }
 
-  function actualizarDestino(indice: number, cambio: Partial<DestinoV2>, invalida = true) {
-    setDestinos((actual) => actual.map((d, i) => (i === indice ? { ...d, ...cambio } : d)));
-    if (invalida) marcarRecalculo(indice);
+  function actualizarDestino(id: string, cambio: Partial<DestinoV2>, invalida = true) {
+    const indice = destinos.findIndex((d) => d.id === id);
+    setDestinos((actual) => actual.map((d) => (d.id === id ? { ...d, ...cambio } : d)));
+    if (invalida && indice >= 0) marcarRecalculo(indice);
   }
 
   const destinoActual = destinos[indiceActual];
-  const tramoListo = useMemo(() => {
-    if (!destinoActual?.punto) return false;
-    const { request } = adaptarTramoACostosRuta({
-      nombreViajero: persona.nombre || 'viajero',
-      modoTransporte: transporte.modo,
-      origen,
-      destino: destinoActual,
-      sucursales,
-    });
-    return request !== null;
-  }, [destinoActual, persona.nombre, transporte.modo, origen, sucursales]);
 
-  async function calcularTramo(indice: number) {
-    const destino = destinos[indice];
-    if (!destino) return;
-    const { request, errors } = adaptarTramoACostosRuta({
-      nombreViajero: persona.nombre,
-      modoTransporte: transporte.modo,
-      origen,
-      destino,
-      sucursales,
-    });
-    if (!request) {
-      setErrorTramo(errors.join(' '));
-      return;
-    }
-    setCalculando(true);
-    setErrorTramo(null);
-    try {
-      const res = await costosRutaApi.calcular(request);
-      if (!res.data.success || !res.data.data) {
-        setErrorTramo(res.data.message ?? 'No se pudo calcular el tramo.');
-        return;
-      }
-      const respuesta = res.data.data;
-      const tramo = respuesta.resultados[0];
-      setDestinos((actual) =>
-        actual.map((d, i) =>
-          i === indice
-            ? {
-                ...d,
-                cotizacion: {
-                  ofertas: tramo?.tramos[0]?.opciones ?? [],
-                  rutaArmada: tramo
-                    ? {
-                        tramos: tramo.rutaArmada.tramos.map((t) => ({ de: t.de, a: t.a, km: t.km, litros: t.litros, casetas: t.casetas.costo, subtotalMagna: t.subtotalMagna })),
-                        totales: { km: tramo.rutaArmada.totales.km, litros: tramo.rutaArmada.totales.litros, casetas: tramo.rutaArmada.totales.casetas, subtotalMagna: tramo.rutaArmada.totales.subtotalMagna },
-                      }
-                    : null,
-                  hoteles: tramo?.hotelesPropuestos ?? [],
-                  cotizadoEn: new Date().toISOString(),
-                  necesitaRecalculo: false,
-                  elegidaId: null,
-                  equipajeDocumentado: false,
-                },
-              }
-            : d,
-        ),
-      );
-      toast.success('Tramo calculado. Elige una opción para continuar.');
-    } catch (falla: unknown) {
-      setErrorTramo(toApiError(falla).message || 'No se pudo calcular el tramo.');
-    } finally {
-      setCalculando(false);
-    }
+  /** Un destino está listo con punto y llegada; la salida es opcional. */
+  function destinoCompleto(d: DestinoV2): boolean {
+    if (!d.punto || !d.debeEstarFecha || !d.debeEstarHora) return false;
+    const llegada = `${d.debeEstarFecha}T${d.debeEstarHora}`;
+    if (origen.fechaSalida && origen.horaSalida && llegada < `${origen.fechaSalida}T${origen.horaSalida}`) return false;
+    return !(d.saleFecha && d.saleHora && `${d.saleFecha}T${d.saleHora}` < llegada);
   }
 
-  function elegirOferta(indice: number, oferta: CostosRutaOferta) {
-    setDestinos((actual) =>
-      actual.map((d, i) =>
-        i === indice && d.cotizacion
-          ? { ...d, cotizacion: { ...d.cotizacion, elegidaId: d.cotizacion.elegidaId === oferta.id ? null : oferta.id, equipajeDocumentado: false } }
-          : d,
-      ),
-    );
-  }
+  const puedeAvanzar = destinos.length > 0 && destinos.every(destinoCompleto);
 
-  /** Un tramo queda cerrado cuando está cotizado, vigente y con elección (salvo carro propio o tramo sin ofertas). */
-  function tramoCerrado(d: DestinoV2): boolean {
-    const c = d.cotizacion;
-    if (!c || c.necesitaRecalculo) return false;
-    if (transporte.modo === 'propio') return true;
-    if (c.ofertas.length === 0) return true;
-    return c.elegidaId !== null;
-  }
-
-  const puedeTerminar = destinos.length > 0 && destinos.every(tramoCerrado);
+  // Pulso breve del tab Agregar cuando ya se puede agregar otro destino.
+  useEffect(() => {
+    if (paso !== 5 || !puedeAvanzar) return;
+    setPulsarAgregar(true);
+    const id = window.setTimeout(() => setPulsarAgregar(false), 2000);
+    return () => window.clearTimeout(id);
+  }, [paso, puedeAvanzar]);
 
   function agregarDestino() {
-    if (!puedeTerminar) return;
+    if (!puedeAvanzar) return;
     setDestinos((actual) => [...actual, nuevoDestino()]);
     setIndiceActual(destinos.length);
-    setErrorTramo(null);
   }
 
-  function quitarDestino(indice: number) {
-    if (destinos.length === 1) return;
-    setDestinos((actual) => {
-      const resto = actual.filter((_, i) => i !== indice);
-      return resto.map((d, i) => (i >= indice && d.cotizacion ? { ...d, cotizacion: { ...d.cotizacion, necesitaRecalculo: true } } : d));
-    });
-    setIndiceActual((i) => Math.max(0, Math.min(i, destinos.length - 2)));
+  /** Doble clic en una pestaña: edita su nombre propio sin invalidar la cotización. */
+  function abrirRenombre(indice: number) {
+    const destino = destinos[indice];
+    if (!destino) return;
+    cancelarRenombreRef.current = false;
+    setRenombrando(indice);
+    setTextoRenombre(etiquetaDestino(destino));
   }
 
-  function moverDestino(indice: number, offset: -1 | 1) {
-    const j = indice + offset;
-    if (j < 0 || j >= destinos.length) return;
-    setDestinos((actual) => {
-      const copia = [...actual];
-      [copia[indice], copia[j]] = [copia[j], copia[indice]];
-      return copia.map((d, i) => (i >= Math.min(indice, j) && d.cotizacion ? { ...d, cotizacion: { ...d.cotizacion, necesitaRecalculo: true } } : d));
-    });
-    setIndiceActual(j);
+  function cancelarRenombre() {
+    cancelarRenombreRef.current = true;
+    setRenombrando(null);
+    setTextoRenombre('');
+  }
+
+  function confirmarRenombre(indice: number) {
+    // El blur que dispara Escape no debe guardar: lo cancela el ref.
+    if (cancelarRenombreRef.current) {
+      cancelarRenombreRef.current = false;
+      return;
+    }
+    const destino = destinos[indice];
+    if (destino) actualizarDestino(destino.id, { etiqueta: textoRenombre.trim() }, false);
+    setRenombrando(null);
+    setTextoRenombre('');
   }
 
   // ---- validaciones por paso ----
+  /**
+   * Motivo visible sobre «Siguiente» cuando el paso 4 no puede avanzar. La
+   * fecha de salida es opcional (el motor la calcula); el punto de salida no.
+   */
+  function motivoPaso4(): string | null {
+    if (paso !== 4) return null;
+    const punto = origen.punto;
+    if (!punto || !punto.nombre.trim()) return 'Marca el punto de salida en el mapa.';
+    if (!Number.isFinite(punto.latitud) || !Number.isFinite(punto.longitud) || (punto.latitud === 0 && punto.longitud === 0)) {
+      return 'El punto de salida no tiene coordenadas válidas.';
+    }
+    if (Boolean(origen.fechaSalida) !== Boolean(origen.horaSalida)) {
+      return 'Completa la hora de salida o deja la fecha vacía.';
+    }
+    if (origen.fechaSalida && origen.horaSalida && `${origen.fechaSalida}T${origen.horaSalida}` < ahoraLocal()) {
+      return 'La fecha y hora de salida ya pasaron.';
+    }
+    return null;
+  }
+
   function pasoValido(id: PasoId): boolean {
     if (id === 1) {
       if (persona.modo === 'otra' && persona.empleadoId === null) return false;
@@ -369,92 +442,40 @@ export function SolicitudPage() {
     if (id === 2) return persona.motivo.trim() !== '';
     if (id === 3) return true;
     if (id === 4) {
+      // La salida del origen no puede quedar en el pasado (mismo límite que el picker).
+      if (origen.fechaSalida && origen.horaSalida && `${origen.fechaSalida}T${origen.horaSalida}` < ahoraLocal()) return false;
       const { request } = adaptarTramoACostosRuta({
         nombreViajero: persona.nombre || 'viajero',
         modoTransporte: transporte.modo,
         origen,
         destino: { ...nuevoDestino(), punto: { nombre: 'x', latitud: 19.5, longitud: -99.5 }, debeEstarFecha: '2026-11-10', debeEstarHora: '12:00', saleFecha: '2026-11-10', saleHora: '18:00' },
-        sucursales,
       });
       return request !== null;
     }
-    if (id === 5) return puedeTerminar;
+    if (id === 5) return puedeAvanzar;
     if (id === 6) {
-      if (!retorno.necesario) return true;
-      return retorno.saleFecha !== '' && retorno.saleHora !== '' && retorno.llegadaRequeridaFecha !== '' && retorno.llegadaRequeridaHora !== '';
+      return retorno.destino === 'origen' || retorno.punto !== null;
     }
     return true;
   }
 
   const rango = rangoDelViaje(origen, destinos, retorno);
+  const { inicio: rangoInicio, fin: rangoFin } = rango;
 
-  // ---- revisión ----
-  const elegidas = destinos.flatMap((d, i) =>
-    d.cotizacion?.ofertas.filter((o) => o.id === d.cotizacion!.elegidaId).map((o) => ({ destino: i, oferta: o })) ?? [],
+  const comidasCalculadas = useMemo(
+    () => calcularComidas({ inicio: rangoInicio, fin: rangoFin }, origen, destinos, retorno, configViaticos),
+    [rangoInicio, rangoFin, origen, destinos, retorno, configViaticos],
   );
-  const totalTransporte = elegidas.reduce((s, e) => s + e.oferta.costoGrupo, 0);
-  const montoComidas = comidas.trim() === '' ? null : Number(comidas.replace(/[$\s,]/g, ''));
-  const totalExtras = extras.reduce((s, x) => s + (Number(String(x.monto).replace(/[$\s,]/g, '')) || 0), 0);
-  // Las ofertas del motor llegan sin moneda separada: el prototipo las trata
-  // como MXN y nunca mezcla monedas (ver MONEDA_PERMITIDA).
-  const totalEstimado = elegidas.length > 0 ? totalTransporte : null;
+  const montoComidas = comidasCalculadas.monto;
 
-  function construirOpciones(): { opciones: OpcionCotizacion[]; advertencias: string[] } {
-    const opciones: OpcionCotizacion[] = [];
-    const advertencias: string[] = [];
-    for (const { oferta } of elegidas) {
-      if (!oferta.comprar?.url) {
-        advertencias.push(`«${oferta.linea}» no trae enlace de compra y no puede enviarse como cotización; queda guardada en los datos del viaje.`);
-        continue;
-      }
-      opciones.push({
-        tipo: oferta.modo,
-        linea: oferta.linea,
-        precio: oferta.costoGrupo,
-        moneda: MONEDA_PERMITIDA,
-        url_compra: oferta.comprar.url,
-        fuente: oferta.fuente,
-        fue_elegida: true,
-        ruta_captura: oferta.capturas?.[0] ?? oferta.rutaCaptura ?? null,
-        capturas: oferta.capturas ?? (oferta.rutaCaptura ? [oferta.rutaCaptura] : []),
-      });
-    }
-    for (const d of destinos) {
-      const hotel = d.hospedaje.hotel;
-      if (!hotel) continue;
-      if (!hotel.link) {
-        advertencias.push(`El hotel «${hotel.lugar}» no trae enlace de reservación; queda guardado en los datos del viaje.`);
-        continue;
-      }
-      opciones.push({
-        tipo: 'hotel',
-        linea: `${hotel.lugar} (${hotel.checkIn} al ${hotel.checkOut})`,
-        precio: null,
-        moneda: MONEDA_PERMITIDA,
-        url_compra: hotel.link,
-        fuente: hotel.fuente.includes('estimad') ? hotel.fuente : `${hotel.fuente} (estimado)`,
-        fue_elegida: true,
-        ruta_captura: hotel.capturas?.[0] ?? hotel.rutaCaptura ?? null,
-        capturas: hotel.capturas ?? (hotel.rutaCaptura ? [hotel.rutaCaptura] : []),
-      });
-    }
-    return { opciones, advertencias };
-  }
-
-  async function enviarSolicitud() {
-    if (enviando || solicitudId !== null) return;
-    const { opciones, advertencias } = construirOpciones();
-    if (elegidas.length > 0 && opciones.length === 0) {
-      toast.error('Ninguna opción elegida puede enviarse como cotización (sin enlace de compra).');
-      return;
-    }
-    advertencias.forEach((a) => toast.warning(a));
-    const datos = {
+  function construirDatos() {
+    return {
       version: 'solicitud-v2',
       persona,
       transporte,
       origen,
       destinos: destinos.map((d) => ({
+        etiqueta: d.etiqueta ?? null,
         punto: d.punto,
         debeEstarFecha: d.debeEstarFecha,
         debeEstarHora: d.debeEstarHora,
@@ -466,28 +487,34 @@ export function SolicitudPage() {
         equipajeDocumentado: d.cotizacion?.equipajeDocumentado ?? false,
       })),
       retorno,
-      gastos: { comidas: montoComidas, extras: extras.map((e) => ({ concepto: e.concepto, monto: Number(String(e.monto).replace(/[$\s,]/g, '')) || null })) },
+      gastos: { comidas: montoComidas, extras: [] },
       rango,
     };
-    const payload: CrearSolicitudPayload = { datos };
+  }
+
+  async function guardarBorrador() {
+    if (enviando) return;
+    const payload: CrearSolicitudPayload = { datos: construirDatos() };
     setEnviando(true);
     try {
-      const creada = await solicitudesApi.crear(payload);
-      if (!creada.data.success || !creada.data.data) {
-        toast.error(creada.data.message ?? 'No se pudo crear la solicitud.');
-        return;
+      if (solicitudEditando) {
+        const actualizada = await solicitudesApi.actualizar(solicitudEditando.id, payload);
+        if (!actualizada.data.success) {
+          toast.error(actualizada.data.message ?? 'No se pudo actualizar el borrador.');
+          return;
+        }
+        toast.success(`Borrador ${actualizada.data.data?.folio ?? solicitudEditando.folio ?? ''} actualizado.`);
+      } else {
+        const creada = await solicitudesApi.crear(payload);
+        if (!creada.data.success || !creada.data.data) {
+          toast.error(creada.data.message ?? 'No se pudo guardar el borrador.');
+          return;
+        }
+        toast.success(`Solicitud ${creada.data.data.folio ?? creada.data.data.id_solicitud} guardada como borrador.`);
       }
-      const id = creada.data.data.id_solicitud;
-      // Guardar la cotización ES el envío (contrato legacy: borrador → enviada).
-      const guardada = await solicitudesApi.guardarOpciones(id, opciones);
-      if (!guardada.data.success) {
-        toast.error(guardada.data.message ?? 'Se creó el borrador, pero no se pudo enviar la cotización.');
-        return;
-      }
-      setSolicitudId(id);
-      toast.success(`Solicitud ${id} enviada.`);
+      navigate('/viaticos/mis-viajes');
     } catch (falla: unknown) {
-      toast.error(toApiError(falla).message || 'No se pudo enviar la solicitud.');
+      toast.error(toApiError(falla).message || 'No se pudo guardar el borrador.');
     } finally {
       setEnviando(false);
     }
@@ -503,17 +530,30 @@ export function SolicitudPage() {
   }
 
   const acompanantesDisponibles: AcompananteV2[] = transporte.acompanantes;
+  const motivoSiguiente = motivoPaso4();
+
+  if (cargandoBorrador) {
+    return (
+      <div className="mx-auto max-w-6xl p-6">
+        <p role="status" className="text-sm text-muted-foreground">Cargando borrador…</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div ref={inicioPasoRef} className="mx-auto max-w-6xl space-y-4">
       {VIATICOS_FIXTURES_ACTIVOS ? <IndicadorDatosPrueba /> : null}
       <Card>
         <CardHeader>
-          <CardTitle className="tracking-tight">Solicitud de viáticos</CardTitle>
+          <CardTitle className="tracking-tight">
+            {solicitudEditando
+              ? `Editar solicitud${solicitudEditando.folio ? ` ${solicitudEditando.folio}` : ''}`
+              : 'Solicitud de viáticos'}
+          </CardTitle>
         </CardHeader>
         {/* Identidad de quien solicita: visible arriba del wizard en todos los pasos. */}
         <div className="border-b px-6 pb-4">
-          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm">
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
             <UserRound className="h-4 w-4 shrink-0 text-primary" aria-hidden />
             <span className="text-muted-foreground">Persona que solicita el viaje:</span>
             <strong className="font-semibold text-primary">{persona.nombre || '—'}</strong>
@@ -532,7 +572,7 @@ export function SolicitudPage() {
             </div>
           ) : null}
 
-          <nav aria-label="Avance de la solicitud" className="sticky top-0 z-10 -mx-6 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:py-2.5">
+          <nav ref={navRef} aria-label="Avance de la solicitud" className="sticky top-0 z-20 -mx-6 border-b bg-background/95 px-6 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:py-2.5">
             <WizardStepper
               pasos={PASOS.map(({ id, titulo }) => ({ id, titulo }))}
               actual={paso}
@@ -634,7 +674,7 @@ export function SolicitudPage() {
                 >
                   <span className="text-4xl" aria-hidden="true">🚗</span>
                   <span className="font-semibold text-base">Carro propio</span>
-                  <span className="text-xs text-muted-foreground">Siempre usa gasolina Magna. Verás distancia y costo de combustible por tramo; las casetas se conservan.</span>
+                  <span className="text-xs text-muted-foreground">Verás distancia y costo de combustible por tramo; las casetas se conservan.</span>
                 </button>
                 <button
                   type="button"
@@ -686,11 +726,11 @@ export function SolicitudPage() {
 
           {paso === 4 ? (
             <section data-testid="paso-4" className="space-y-4">
-              <h2 className="font-semibold">Origen del viaje</h2>
-              {cargandoSuc ? <p role="status">Cargando sucursales…</p> : null}
-              {errorSuc ? <p role="alert">No se pudieron cargar las sucursales: {errorSuc}</p> : null}
-              <div className="space-y-1">
-                <Label htmlFor="origen-fechahora">Fecha y hora de salida del origen</Label>
+              <h2 className="text-lg font-semibold tracking-tight">Origen del viaje</h2>
+              <div className="space-y-1.5 rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <Label htmlFor="origen-fechahora" className="text-base font-semibold">
+                  Fecha y hora de salida del origen (opcional)
+                </Label>
                 <DateTimePicker
                   id="origen-fechahora"
                   fecha={origen.fechaSalida}
@@ -700,247 +740,251 @@ export function SolicitudPage() {
                   placeholder="Elige fecha y hora de salida"
                 />
               </div>
-              <SwitchTab
-                ariaLabel="Tipo de origen"
-                value={origen.tipo}
-                onChange={(id) => {
-                  if (id === 'sucursal') { setOrigen((o) => ({ ...o, tipo: 'sucursal', punto: null })); marcarRecalculo(0); }
-                  else setOrigen((o) => ({ ...o, tipo: 'mapa' }));
-                }}
-                options={[
-                  { id: 'sucursal', titulo: 'Buscar por sucursal' },
-                  { id: 'mapa', titulo: 'Buscar por dirección' },
-                ]}
-              />
-              {origen.tipo === 'sucursal' ? (
-                <div className="space-y-1">
-                  <Label>Origen</Label>
-                  <CatalogoSearchSelect items={sucursalItems} value={origen.sucursalId} disabled={cargandoSuc || !!errorSuc} placeholder="Selecciona la sucursal de salida" onChange={(id) => { setOrigen((o) => ({ ...o, sucursalId: id })); marcarRecalculo(0); }} />
-                </div>
-              ) : (
-                <PuntoMapaPicker ocultarMapa value={origen.punto} onChange={(punto) => { setOrigen((o) => ({ ...o, punto })); marcarRecalculo(0); }} />
-              )}
-              <p className="text-xs text-muted-foreground">Puedes salir desde una sucursal o desde cualquier dirección del mapa, incluido tu domicilio.</p>
-              {/* El mapa queda fuera de las tabs y refleja lo elegido en ambas. */}
-              <MapaPunto
-                punto={puntoMapaOrigen}
-                interactivo={origen.tipo === 'mapa'}
-                onPunto={(latitud, longitud) => {
-                  setOrigen((o) => ({
-                    ...o,
-                    punto: { nombre: o.punto?.nombre?.trim() || 'Punto seleccionado en mapa', latitud, longitud },
-                  }));
-                  marcarRecalculo(0);
-                }}
-                onMover={(latitud, longitud) => {
-                  setOrigen((o) => (o.punto ? { ...o, punto: { ...o.punto, latitud, longitud } } : o));
-                  marcarRecalculo(0);
-                }}
-              />
+              {/* Mapa compartido con la búsqueda flotando dentro: refleja y permite fijar el punto de salida. */}
+              <div className="relative">
+                <MapaPunto
+                  punto={origen.punto}
+                  interactivo
+                  pie="Puedes salir desde cualquier dirección del mapa, incluido tu domicilio. Clic para fijar el pin · Ctrl para mover el mapa · Clic derecho abre el menú."
+                  onQuitar={() => {
+                    setOrigen((o) => (o.punto ? { ...o, punto: null } : o));
+                    marcarRecalculo(0);
+                  }}
+                  onPunto={(latitud, longitud) => {
+                    setOrigen((o) => ({
+                      ...o,
+                      punto: { nombre: o.punto?.nombre?.trim() || 'Punto seleccionado en mapa', latitud, longitud },
+                    }));
+                    marcarRecalculo(0);
+                    // Completa estado/municipio con geocodificación inversa; solo
+                    // aplica si el pin no se movió mientras respondía.
+                    void geocodificarReversa(latitud, longitud).then((resuelto) => {
+                      if (!resuelto) return;
+                      setOrigen((o) =>
+                        o.punto && o.punto.latitud === latitud && o.punto.longitud === longitud
+                          ? { ...o, punto: resuelto }
+                          : o,
+                      );
+                    });
+                  }}
+                  onMover={(latitud, longitud) => {
+                    setOrigen((o) =>
+                      o.punto
+                        ? { ...o, punto: { ...o.punto, latitud, longitud, estado: undefined, municipio: undefined } }
+                        : o,
+                    );
+                    marcarRecalculo(0);
+                    void geocodificarReversa(latitud, longitud).then((resuelto) => {
+                      if (!resuelto) return;
+                      setOrigen((o) =>
+                        o.punto && o.punto.latitud === latitud && o.punto.longitud === longitud
+                          ? { ...o, punto: resuelto }
+                          : o,
+                      );
+                    });
+                  }}
+                />
+                <PuntoMapaPicker flotante ocultarMapa value={origen.punto} onChange={(punto) => {
+                  // La geocodificación inversa solo cambia el nombre/estado: si
+                  // las coordenadas no se movieron, no hay nada que recalcular.
+                  const mismoPunto = origen.punto?.latitud === punto?.latitud && origen.punto?.longitud === punto?.longitud;
+                  setOrigen((o) => ({ ...o, punto }));
+                  if (!mismoPunto) marcarRecalculo(0);
+                }} />
+              </div>
             </section>
           ) : null}
 
           {paso === 5 ? (
             <section data-testid="paso-5" className="space-y-4">
-              <h2 className="font-semibold">Destinos ({destinos.length})</h2>
-              <div className="flex flex-wrap gap-2" role="tablist" aria-label="Destinos del viaje">
-                {destinos.map((d, i) => (
-                  <Button key={d.id} type="button" size="sm" variant={i === indiceActual ? 'default' : 'outline'} onClick={() => setIndiceActual(i)}>
-                    {i + 1}. {d.punto?.nombre ?? 'Sin destino'}
-                    {d.cotizacion?.necesitaRecalculo ? ' · recalcula' : ''}
+              <style>{PULSO_AGREGAR_CSS}</style>
+              <div className="flex items-center gap-1.5">
+                <h2 className="font-semibold">Destinos ({destinos.length})</h2>
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Cómo cambiar el nombre de los destinos"
+                        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      >
+                        <Info className="h-4 w-4" aria-hidden />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Doble clic en una pestaña para cambiar el nombre.</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div>
+                <div className="flex flex-wrap items-end gap-1">
+                  <div role="tablist" aria-label="Destinos del viaje" className="flex flex-wrap items-end gap-1">
+                    {destinos.map((d, i) =>
+                      renombrando === i ? (
+                        <div key={d.id} role="presentation" className="inline-flex">
+                          <Input
+                            autoFocus
+                            aria-label={`Nombre de la pestaña del destino ${i + 1}`}
+                            value={textoRenombre}
+                            onChange={(e) => setTextoRenombre(e.target.value)}
+                            onBlur={() => confirmarRenombre(i)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                confirmarRenombre(i);
+                              } else if (e.key === 'Escape') {
+                                e.preventDefault();
+                                cancelarRenombre();
+                              }
+                            }}
+                            className="h-9 w-56 rounded-t-lg rounded-b-none border-b-0 border-border bg-card"
+                          />
+                        </div>
+                      ) : (
+                        <Button
+                          key={d.id}
+                          type="button"
+                          role="tab"
+                          aria-selected={i === indiceActual}
+                          variant="ghost"
+                          title="Doble clic para renombrar la pestaña"
+                          onClick={() => setIndiceActual(i)}
+                          onDoubleClick={() => abrirRenombre(i)}
+                          className={folderTabClassName(i === indiceActual)}
+                        >
+                          {i + 1}. {etiquetaDestino(d)}
+                          {d.cotizacion?.necesitaRecalculo ? ' · recalcula' : ''}
+                        </Button>
+                      ),
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    aria-label="Agregar otro destino"
+                    onClick={agregarDestino}
+                    disabled={!puedeAvanzar}
+                    className={cn(
+                      'relative h-9 rounded-t-lg rounded-b-none border border-b-0 border-primary bg-primary px-3 text-sm text-primary-foreground shadow-md shadow-primary/25 hover:bg-primary/90',
+                      pulsarAgregar && 'agregar-pulso',
+                    )}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden /> Agregar
                   </Button>
-                ))}
+                </div>
+                {destinoActual ? (
+                  <DestinoEditor
+                    key={destinoActual.id}
+                    destino={destinoActual}
+                    indice={indiceActual}
+                    salidaOrigen={{ fecha: origen.fechaSalida, hora: origen.horaSalida }}
+                    stickyTop={altoNav}
+                    onCambiar={(cambio, invalida) => actualizarDestino(destinoActual.id, cambio, invalida ?? true)}
+                  />
+                ) : null}
               </div>
-              {destinoActual ? (
-                <DestinoEditor
-                  destino={destinoActual}
-                  indice={indiceActual}
-                  total={destinos.length}
-                  modoTransporte={transporte.modo}
-                  nombrePrevio={nombrePuntoPrevio(origen, destinos, indiceActual, sucursales)}
-                  calculando={calculando}
-                  errorTramo={errorTramo}
-                  tramoListo={tramoListo}
-                  onCambiar={(cambio, invalida) => actualizarDestino(indiceActual, cambio, invalida ?? true)}
-                  onCalcular={() => calcularTramo(indiceActual)}
-                  onElegir={(oferta) => elegirOferta(indiceActual, oferta)}
-                  onEquipaje={(v) => setDestinos((actual) => actual.map((d, i) => (i === indiceActual && d.cotizacion ? { ...d, cotizacion: { ...d.cotizacion, equipajeDocumentado: v } } : d)))}
-                  onQuitar={() => quitarDestino(indiceActual)}
-                  onMover={(off) => moverDestino(indiceActual, off)}
-                />
-              ) : null}
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" disabled={!puedeTerminar} onClick={agregarDestino}>
-                  Agregar otro destino
-                </Button>
-                <Button type="button" disabled={!puedeTerminar} onClick={() => setPaso(6)}>
-                  Terminar
-                </Button>
-              </div>
-              {!puedeTerminar ? (
-                <p className="text-xs text-muted-foreground">Elige una opción en cada tramo calculado (o calcula el tramo) antes de agregar otro destino o terminar.</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Terminar cierra la captura de destinos y abre el regreso; no envía la solicitud.</p>
-              )}
             </section>
           ) : null}
 
           {paso === 6 ? (
             <section data-testid="paso-6" className="space-y-4">
               <h2 className="font-semibold">Regreso</h2>
-              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto" role="radiogroup" aria-label="¿Necesitas regreso?">
+              <p className="text-xs text-muted-foreground">El regreso siempre forma parte del viaje: elige únicamente a dónde regresas.</p>
+              <div className="grid gap-4 sm:grid-cols-2 max-w-2xl mx-auto" role="radiogroup" aria-label="Punto de regreso">
                 <button
                   type="button"
                   role="radio"
-                  aria-checked={!retorno.necesario}
-                  aria-label="Sin regreso"
-                  onClick={() => setRetorno((r) => ({ ...r, necesario: false }))}
+                  aria-checked={retorno.destino === 'origen'}
+                  aria-label="Regresar al mismo punto de origen"
+                  onClick={() => setRetorno((r) => ({ ...r, destino: 'origen', punto: null }))}
                   className={cn(
                     'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
-                    !retorno.necesario
+                    retorno.destino === 'origen'
                       ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
                       : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
                   )}
                 >
-                  <span className="text-4xl" aria-hidden="true">🏁</span>
-                  <span className="font-semibold text-base">Sin regreso</span>
-                  <span className="text-xs text-muted-foreground">El viaje termina en el último destino.</span>
+                  <span className="text-4xl" aria-hidden="true">🏠</span>
+                  <span className="font-semibold text-base">Regresar al mismo punto de origen</span>
+                  <span className="text-xs text-muted-foreground">Vuelves a {origen.punto?.nombre ?? 'el origen del viaje'}.</span>
                 </button>
                 <button
                   type="button"
                   role="radio"
-                  aria-checked={retorno.necesario}
-                  aria-label="Necesito regreso"
-                  onClick={() => setRetorno((r) => ({ ...r, necesario: true }))}
+                  aria-checked={retorno.destino === 'otro'}
+                  aria-label="Seleccionar un punto de regreso en el mapa"
+                  onClick={() => setRetorno((r) => ({ ...r, destino: 'otro', punto: r.punto ?? origen.punto }))}
                   className={cn(
                     'flex flex-col items-center gap-2 rounded-2xl border-2 p-6 text-center transition-[transform,box-shadow,border-color,background-color] duration-150 ease-out active:scale-[0.97]',
-                    retorno.necesario
+                    retorno.destino === 'otro'
                       ? 'border-primary bg-primary/10 shadow-md scale-[1.01]'
                       : 'border-border bg-background hover:border-primary/40 hover:bg-primary/5'
                   )}
                 >
-                  <span className="text-4xl" aria-hidden="true">🔙</span>
-                  <span className="font-semibold text-base">Necesito regreso</span>
-                  <span className="text-xs text-muted-foreground">Captura la salida y la llegada requerida de vuelta.</span>
+                  <span className="text-4xl" aria-hidden="true">📍</span>
+                  <span className="font-semibold text-base">Seleccionar un punto de regreso en el mapa</span>
+                  <span className="text-xs text-muted-foreground">Buscas o marcas otro punto de regreso.</span>
                 </button>
               </div>
-              {retorno.necesario ? (
-                <>
-                  <p className="text-xs text-muted-foreground">Contrato provisional: salida y llegada requerida por separado (una sola «fecha de regreso» sigue sin definirse).</p>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <div className="space-y-1">
-                      <Label>Fecha de salida del regreso</Label>
-                      <DatePicker value={retorno.saleFecha || null} onChange={(f) => setRetorno((r) => ({ ...r, saleFecha: f ?? '' }))} placeholder="Elige la fecha de salida" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="retorno-sale">Hora de salida del regreso</Label>
-                      <TimePicker id="retorno-sale" value={retorno.saleHora} onChange={(h) => setRetorno((r) => ({ ...r, saleHora: h }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Fecha en que debes estar de vuelta</Label>
-                      <DatePicker value={retorno.llegadaRequeridaFecha || null} onChange={(f) => setRetorno((r) => ({ ...r, llegadaRequeridaFecha: f ?? '' }))} placeholder="Elige la fecha requerida" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="retorno-llega">Hora en que debes estar de vuelta</Label>
-                      <TimePicker id="retorno-llega" value={retorno.llegadaRequeridaHora} onChange={(h) => setRetorno((r) => ({ ...r, llegadaRequeridaHora: h }))} />
-                    </div>
-                  </div>
-                </>
+              {retorno.destino === 'origen' && !origen.punto ? (
+                <p role="alert" className="text-sm text-destructive">El origen no tiene un punto marcado. Vuelve al paso Origen para corregirlo.</p>
               ) : null}
-              <p className="text-sm text-muted-foreground">Rango del viaje (derivado): {rango.inicio ?? '—'} al {rango.fin ?? '—'}.</p>
+              {retorno.destino === 'otro' ? (
+                <div className="space-y-1">
+                  <Label>Punto de regreso (busca o marca en el mapa)</Label>
+                  <PuntoMapaPicker value={retorno.punto} onChange={(punto) => setRetorno((r) => ({ ...r, punto }))} flotante stickyTop={altoNav} />
+                </div>
+              ) : null}
             </section>
           ) : null}
 
           {paso === 7 ? (
             <section data-testid="paso-7" className="space-y-4">
-              <h2 className="font-semibold">Viáticos y revisión</h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="monto-comidas">Comidas (MXN, monto abierto)</Label>
-                  <Input id="monto-comidas" inputMode="decimal" value={comidas} onChange={(e) => setComidas(e.target.value)} placeholder="Ej. 1200" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Otros viáticos (MXN, montos abiertos, sin catálogo fijo)</Label>
-                {extras.length === 0 ? <p className="text-xs text-muted-foreground">Sin otros viáticos.</p> : null}
-                {extras.map((x) => (
-                  <div key={x.id} className="flex flex-wrap items-center gap-2">
-                    <Input aria-label="Concepto" value={x.concepto} onChange={(e) => setExtras((a) => a.map((y) => (y.id === x.id ? { ...y, concepto: e.target.value } : y)))} placeholder="Concepto" className="max-w-56" />
-                    <Input aria-label="Monto en MXN" inputMode="decimal" value={x.monto} onChange={(e) => setExtras((a) => a.map((y) => (y.id === x.id ? { ...y, monto: e.target.value } : y)))} placeholder="Monto" className="max-w-40" />
-                    <Button type="button" variant="outline" size="sm" onClick={() => setExtras((a) => a.filter((y) => y.id !== x.id))}>
-                      Quitar
-                    </Button>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => setExtras((a) => [...a, { id: `x-${Date.now()}`, concepto: '', monto: '' }])}>
-                  Agregar otro viático
-                </Button>
-              </div>
-
+              <h2 className="font-semibold">Resumen del viaje</h2>
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-base">Revisión del itinerario</CardTitle>
-                  <CardDescription>
-                    {persona.nombre} · {transporte.modo === 'propio' ? 'Carro propio (Magna)' : 'Transporte solicitado'}
-                    {transporte.compartir && acompanantesDisponibles.length > 0 ? ` · Compartido con ${acompanantesDisponibles.map((a) => a.nombreCompleto).join(', ')}` : ''}
-                    {' · '}Rango: {rango.inicio ?? '—'} al {rango.fin ?? '—'}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                  {transporte.modo === 'propio' ? (
-                    <p className="text-muted-foreground">Usas tu carro durante todo el recorrido; cada tramo parte del punto anterior (el vehículo no se teletransporta).</p>
-                  ) : null}
-                  <ol className="list-decimal space-y-1 pl-5">
-                    {destinos.map((d, i) => (
-                      <li key={d.id}>
-                        {nombrePuntoPrevio(origen, destinos, i, sucursales)} → {d.punto?.nombre ?? '—'} · estar ahí: {d.debeEstarFecha} {d.debeEstarHora} · sale: {d.saleFecha} {d.saleHora}
-                        {d.cotizacion?.elegidaId ? (
-                          <> · elegida: {d.cotizacion.ofertas.find((o) => o.id === d.cotizacion!.elegidaId)?.linea ?? d.cotizacion.elegidaId}</>
-                        ) : transporte.modo === 'propio' ? (
-                          <> · carro propio: {d.cotizacion?.rutaArmada ? mxn(d.cotizacion.rutaArmada.totales.subtotalMagna) : 'sin cálculo'}</>
-                        ) : (
-                          <> · sin cotización registrada</>
-                        )}
-                        {d.hospedaje.necesario ? <> · hotel: {d.hospedaje.hotel?.lugar ?? 'sin elegir'} ({d.hospedaje.fechaEntrada} al {d.hospedaje.fechaSalida})</> : null}
-                      </li>
-                    ))}
-                  </ol>
-                  {retorno.necesario ? (
-                    <p>Regreso: sale {retorno.saleFecha} {retorno.saleHora} · estar de vuelta: {retorno.llegadaRequeridaFecha} {retorno.llegadaRequeridaHora}.</p>
-                  ) : (
-                    <p>Sin regreso.</p>
-                  )}
-                  <p>
-                    Desglose: transporte {totalEstimado !== null ? mxn(totalTransporte) : 'no sumable'}
-                    {' · '}comidas {montoComidas !== null && Number.isFinite(montoComidas) ? mxn(montoComidas) : '—'}
-                    {' · '}otros {extras.length > 0 ? mxn(totalExtras) : '—'} (MXN; nunca se mezclan monedas).
-                  </p>
-                  <p className="font-semibold">
-                    Total:{' '}
-                    {totalEstimado !== null && montoComidas !== null && Number.isFinite(montoComidas)
-                      ? mxn(totalTransporte + montoComidas + totalExtras)
-                      : 'no sumable todavía (falta elegir o hay datos sin precio)'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">Fechas en hora local del navegador. Zonas horarias de viaje pendientes de definir.</p>
-                  {solicitudId === null ? (
-                    <Button type="button" disabled={enviando || !puedeTerminar} onClick={enviarSolicitud}>
-                      {enviando ? 'Enviando…' : 'Enviar solicitud'}
-                    </Button>
-                  ) : (
-                    <p role="status" className="font-semibold">Solicitud {solicitudId} enviada. Calcular un tramo nunca envía; solo este botón envía.</p>
-                  )}
+                <CardContent className="pt-6">
+                  <ResumenViaje
+                    motivo={persona.motivo}
+                    modoTransporte={transporte.modo}
+                    compartido={transporte.compartir}
+                    acompanantes={transporte.acompanantes.map((a) => a.nombreCompleto)}
+                    origen={origen}
+                    destinos={destinos}
+                    retorno={retorno}
+                    rango={rango}
+                  />
                 </CardContent>
               </Card>
             </section>
           ) : null}
+
           </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="outline" disabled={paso === 1} onClick={() => setPaso((p) => (p - 1) as PasoId)} className="active:scale-[0.97]">
             Atrás
           </Button>
-          <Button type="button" disabled={paso === PASOS.length || !pasoValido(paso)} onClick={() => setPaso((p) => (p + 1) as PasoId)} className="active:scale-[0.97]">
-            Siguiente
-          </Button>
+          {motivoSiguiente ? (
+            <TooltipProvider delayDuration={150}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* El botón deshabilitado no recibe hover; el envoltorio sí. */}
+                  <span tabIndex={0} className="inline-flex cursor-not-allowed">
+                    <Button type="button" disabled onClick={() => setPaso((p) => (p + 1) as PasoId)} className="active:scale-[0.97]">
+                      Siguiente
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>{motivoSiguiente}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : paso === PASOS.length ? (
+            <Button type="button" disabled={enviando || !pasoValido(paso)} onClick={guardarBorrador} className="active:scale-[0.97]">
+              {enviando ? 'Guardando…' : solicitudEditando ? 'Guardar cambios' : 'Guardar borrador'}
+            </Button>
+          ) : (
+            <Button type="button" disabled={!pasoValido(paso)} onClick={() => setPaso((p) => (p + 1) as PasoId)} className="active:scale-[0.97]">
+              Siguiente
+            </Button>
+          )}
         </div>
       </CardContent>
       </Card>
@@ -951,166 +995,61 @@ export function SolicitudPage() {
 function DestinoEditor(props: {
   destino: DestinoV2;
   indice: number;
-  total: number;
-  modoTransporte: 'propio' | 'solicitado';
-  nombrePrevio: string;
-  calculando: boolean;
-  errorTramo: string | null;
-  tramoListo: boolean;
+  salidaOrigen: { fecha: string; hora: string };
+  stickyTop: number;
   onCambiar: (cambio: Partial<DestinoV2>, invalida?: boolean) => void;
-  onCalcular: () => void;
-  onElegir: (oferta: CostosRutaOferta) => void;
-  onEquipaje: (v: boolean) => void;
-  onQuitar: () => void;
-  onMover: (off: -1 | 1) => void;
 }) {
-  const { destino, indice, total, modoTransporte, nombrePrevio } = props;
-  const cot = destino.cotizacion;
-  const elegida = cot?.ofertas.find((o) => o.id === cot.elegidaId) ?? null;
+  const { destino, indice } = props;
+  const llegadaTxt = destino.debeEstarFecha && destino.debeEstarHora ? `${destino.debeEstarFecha}T${destino.debeEstarHora}` : '';
+  const salidaTxt = destino.saleFecha && destino.saleHora ? `${destino.saleFecha}T${destino.saleHora}` : '';
+  const salidaOrigenTxt = props.salidaOrigen.fecha && props.salidaOrigen.hora ? `${props.salidaOrigen.fecha}T${props.salidaOrigen.hora}` : '';
+  const llegadaAntesDelOrigen = Boolean(salidaOrigenTxt && llegadaTxt && llegadaTxt < salidaOrigenTxt);
+  const salidaAntesDeLlegada = Boolean(llegadaTxt && salidaTxt && salidaTxt < llegadaTxt);
 
   return (
-    <div role="group" aria-label={`Destino ${indice + 1}`} className="space-y-3 rounded-md border p-4">
-      <p className="font-medium">Destino {indice + 1}: cualquier lugar, no solo hospitales</p>
-      <div className="space-y-1">
-        <Label>Destino (busca y elige un resultado con coordenadas)</Label>
-        <PuntoMapaPicker value={destino.punto} onChange={(punto) => props.onCambiar({ punto })} />
+    <div role="group" aria-label={`Destino ${indice + 1}`} className="space-y-3 rounded-b-md border bg-card p-4 shadow-[0_12px_30px_rgba(15,23,42,0.25)]">
+      <div className="space-y-0.5">
+        <p className="font-medium">Destino {indice + 1}: {etiquetaDestino(destino)}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div className="space-y-1">
-          <Label>Fecha en que debes estar ahí</Label>
-          <DatePicker value={destino.debeEstarFecha || null} onChange={(f) => props.onCambiar({ debeEstarFecha: f ?? '' })} placeholder="Elige la fecha requerida" />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`dest-${destino.id}-debe`}>Hora en que debes estar ahí (límite, no llegada programada)</Label>
-          <TimePicker id={`dest-${destino.id}-debe`} value={destino.debeEstarHora} onChange={(h) => props.onCambiar({ debeEstarHora: h })} />
-        </div>
-        <div className="space-y-1">
-          <Label>Fecha de salida de ese destino</Label>
-          <DatePicker value={destino.saleFecha || null} onChange={(f) => props.onCambiar({ saleFecha: f ?? '' })} placeholder="Elige la fecha de salida" />
-        </div>
-        <div className="space-y-1">
-          <Label htmlFor={`dest-${destino.id}-sale`}>Hora de salida de ese destino</Label>
-          <TimePicker id={`dest-${destino.id}-sale`} value={destino.saleHora} onChange={(h) => props.onCambiar({ saleHora: h })} />
-        </div>
-      </div>
-
-      <div className="space-y-2 rounded-md bg-muted/30 p-3">
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id={`hotel-${destino.id}`}
-            checked={destino.hospedaje.necesario}
-            onCheckedChange={(v) => props.onCambiar({ hospedaje: { ...destino.hospedaje, necesario: v === true } })}
+          <Label htmlFor={`dest-${destino.id}-debe`}>Hora de llegada al destino</Label>
+          <DateTimePicker
+            id={`dest-${destino.id}-debe`}
+            fecha={destino.debeEstarFecha}
+            hora={destino.debeEstarHora}
+            desde={props.salidaOrigen.fecha && props.salidaOrigen.hora ? props.salidaOrigen : null}
+            onFecha={(f) => props.onCambiar({ debeEstarFecha: f })}
+            onHora={(h) => props.onCambiar({ debeEstarHora: h })}
+            placeholder="Elige fecha y hora requerida"
           />
-          <Label htmlFor={`hotel-${destino.id}`}>Necesito hospedaje</Label>
+          {llegadaAntesDelOrigen ? <p role="alert" className="text-xs text-destructive">La llegada no puede ser antes de la salida del origen.</p> : null}
         </div>
-        {destino.hospedaje.necesario ? (
-          <>
-            <div className="space-y-1">
-              <Label htmlFor={`zona-${destino.id}`}>Hospedaje cerca de</Label>
-              <select
-                id={`zona-${destino.id}`}
-                className="h-9 w-full rounded-md border bg-background px-3"
-                value={destino.hospedaje.zona}
-                onChange={(e) => props.onCambiar({ hospedaje: { ...destino.hospedaje, zona: e.target.value as 'anterior' | 'actual' } })}
-              >
-                <option value="anterior">{nombrePrevio}</option>
-                <option value="actual">{destino.punto?.nombre ?? `Destino ${indice + 1}`}</option>
-              </select>
-              <p className="text-xs text-muted-foreground">La zona orienta la búsqueda; si el hospedaje va antes o después de la visita lo decide la cronología.</p>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="space-y-1">
-                <Label>Entrada al hotel</Label>
-                <DatePicker value={destino.hospedaje.fechaEntrada || null} onChange={(f) => props.onCambiar({ hospedaje: { ...destino.hospedaje, fechaEntrada: f ?? '' } })} placeholder="Elige la entrada" />
-              </div>
-              <div className="space-y-1">
-                <Label>Salida del hotel</Label>
-                <DatePicker value={destino.hospedaje.fechaSalida || null} onChange={(f) => props.onCambiar({ hospedaje: { ...destino.hospedaje, fechaSalida: f ?? '' } })} placeholder="Elige la salida" />
-              </div>
-            </div>
-            {cot && cot.hoteles.length > 0 ? (
-              <>
-                <TablaHoteles hoteles={cot.hoteles} />
-                <div className="space-y-1">
-                  <Label htmlFor={`hotel-elegido-${destino.id}`}>Hotel elegido (punto de la ruta)</Label>
-                  <select
-                    id={`hotel-elegido-${destino.id}`}
-                    className="h-9 w-full rounded-md border bg-background px-3"
-                    value={destino.hospedaje.hotel ? `${destino.hospedaje.hotel.lugar} en ${destino.hospedaje.hotel.ciudad}` : ''}
-                    onChange={(e) => {
-                      const hotel = cot.hoteles.find((h) => `${h.lugar} en ${h.ciudad}` === e.target.value) ?? null;
-                      props.onCambiar({ hospedaje: { ...destino.hospedaje, hotel } }, false);
-                    }}
-                  >
-                    <option value="">Sin elegir</option>
-                    {cot.hoteles.map((h) => (
-                      <option key={`${h.lugar}-${h.ciudad}`} value={`${h.lugar} en ${h.ciudad}`}>
-                        {h.lugar} en {h.ciudad} · {h.noches} noche(s)
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-muted-foreground">Tarifa de tabulador (estimación, no cotización con disponibilidad en vivo).</p>
-                </div>
-              </>
-            ) : null}
-          </>
-        ) : null}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" disabled={!props.tramoListo || props.calculando} onClick={props.onCalcular}>
-          {props.calculando ? 'Calculando…' : 'Calcular este tramo'}
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={indice === 0} onClick={() => props.onMover(-1)}>
-          Subir destino
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={indice === total - 1} onClick={() => props.onMover(1)}>
-          Bajar destino
-        </Button>
-        <Button type="button" variant="outline" size="sm" disabled={total === 1} onClick={props.onQuitar}>
-          Eliminar destino
-        </Button>
-      </div>
-      {props.errorTramo ? <p role="alert" className="text-sm text-destructive">{props.errorTramo}</p> : null}
-
-      {cot ? (
-        <div className="space-y-2">
-          <div className="text-xs text-muted-foreground">
-            Cotizado el {new Date(cot.cotizadoEn).toLocaleString('es-MX')}.
-            {cot.necesitaRecalculo ? <Badge variant="destructive" className="ml-2">Necesita recálculo: algo cambió aguas arriba</Badge> : null}
-          </div>
-          {modoTransporte === 'propio' && cot.rutaArmada ? (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Carro propio (Magna) · {cot.rutaArmada.totales.km} km</CardTitle>
-                <CardDescription>
-                  {cot.rutaArmada.totales.litros} L · Combustible {mxn(cot.rutaArmada.totales.subtotalMagna - cot.rutaArmada.totales.casetas)} + casetas {mxn(cot.rutaArmada.totales.casetas)} = {mxn(cot.rutaArmada.totales.subtotalMagna)}
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          ) : null}
-          {modoTransporte === 'solicitado' ? (
-            cot.ofertas.length === 0 ? (
-              <p role="status" className="text-sm">Sin opciones de transporte para este tramo. Puedes continuar; el tramo queda marcado sin cotización.</p>
-            ) : (
-              <>
-                <TablaOpciones
-                  titulo={`Opciones del tramo ${indice + 1}`}
-                  ofertas={cot.ofertas.slice(0, 8)}
-                  opcionElegidaId={cot.elegidaId}
-                  onElegir={props.onElegir}
-                />
-                {elegida && esOfertaVuelo(elegida) ? (
-                  <div className="flex items-center gap-2">
-                    <Checkbox id={`equipaje-${destino.id}`} checked={cot.equipajeDocumentado} onCheckedChange={(v) => props.onEquipaje(v === true)} />
-                    <Label htmlFor={`equipaje-${destino.id}`}>Viajo con equipaje documentado (no cambia el precio cotizado)</Label>
-                  </div>
-                ) : null}
-              </>
-            )
-          ) : null}
+        <div className="space-y-1">
+          <Label htmlFor={`dest-${destino.id}-sale`}>Hora de salida del destino (opcional)</Label>
+          <DateTimePicker
+            id={`dest-${destino.id}-sale`}
+            fecha={destino.saleFecha}
+            hora={destino.saleHora}
+            desde={destino.debeEstarFecha && destino.debeEstarHora ? { fecha: destino.debeEstarFecha, hora: destino.debeEstarHora } : null}
+            onFecha={(f) => props.onCambiar({ saleFecha: f })}
+            onHora={(h) => props.onCambiar({ saleHora: h })}
+            placeholder="Elige fecha y hora de salida"
+          />
+          {salidaAntesDeLlegada ? <p role="alert" className="text-xs text-destructive">La salida no puede ser antes de la llegada al destino.</p> : null}
         </div>
-      ) : null}
+      </div>
+      <PuntoMapaPicker
+        value={destino.punto}
+        onChange={(punto) => {
+          // La geocodificación inversa solo cambia el nombre/estado: si las
+          // coordenadas no se movieron, no se invalida la cotización.
+          const mismoPunto = destino.punto?.latitud === punto?.latitud && destino.punto?.longitud === punto?.longitud;
+          props.onCambiar({ punto }, !mismoPunto);
+        }}
+        flotante
+        stickyTop={props.stickyTop}
+      />
     </div>
   );
 }

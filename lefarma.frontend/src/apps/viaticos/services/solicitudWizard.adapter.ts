@@ -1,4 +1,3 @@
-import type { Sucursal } from '@/types/catalogo.types';
 import type {
   CostosRutaLugarInput,
   CostosRutaRequest,
@@ -22,7 +21,7 @@ export const MONEDA_PERMITIDA = 'MXN';
 
 /** Jornada por defecto: no se vuelve a pedir en el asistente nuevo. */
 const TRABAJO_POR_DEFECTO = {
-  hora_entrada: '08:00',
+  hora_entrada: '07:00',
   hora_salida: '18:30',
   primer_dia_laboral: 1,
   ultimo_dia_laboral: 5,
@@ -33,7 +32,8 @@ export interface AdaptarTramoArgs {
   modoTransporte: ModoTransporteV2;
   origen: OrigenV2;
   destino: DestinoV2;
-  sucursales: Sucursal[];
+  /** Horario laboral con el que el motor sugiere transporte. */
+  jornada?: { horaEntrada: string; horaSalida: string };
 }
 
 export interface AdaptarTramoSalida {
@@ -44,29 +44,17 @@ export interface AdaptarTramoSalida {
 const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const esHora = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 
-function lugarOrigen(origen: OrigenV2, sucursales: Sucursal[], errors: string[]): CostosRutaLugarInput | null {
-  if (origen.tipo === 'mapa' || origen.punto) {
-    const punto = origen.punto;
-    if (!punto || !punto.nombre.trim()) {
-      errors.push('Origen: selecciona un punto del mapa con nombre.');
-      return null;
-    }
-    if (!Number.isFinite(punto.latitud) || !Number.isFinite(punto.longitud) || (punto.latitud === 0 && punto.longitud === 0)) {
-      errors.push(`Origen: el punto «${punto.nombre}» no tiene coordenadas válidas.`);
-      return null;
-    }
-    return { orden: 1, tipo: 'salida', nombre: punto.nombre.trim(), latitud: punto.latitud, longitud: punto.longitud };
-  }
-  const sucursal = sucursales.filter((s) => s.activo).find((s) => s.idSucursal === origen.sucursalId);
-  if (!sucursal) {
-    errors.push('Origen: selecciona una sucursal activa del catálogo.');
+function lugarOrigen(origen: OrigenV2, errors: string[]): CostosRutaLugarInput | null {
+  const punto = origen.punto;
+  if (!punto || !punto.nombre.trim()) {
+    errors.push('Origen: selecciona un punto del mapa con nombre.');
     return null;
   }
-  if (!Number.isFinite(sucursal.latitud) || !Number.isFinite(sucursal.longitud) || (sucursal.latitud === 0 && sucursal.longitud === 0)) {
-    errors.push(`Origen: «${sucursal.nombre}» no tiene coordenadas válidas en el catálogo. Corrige el catálogo antes de calcular.`);
+  if (!Number.isFinite(punto.latitud) || !Number.isFinite(punto.longitud) || (punto.latitud === 0 && punto.longitud === 0)) {
+    errors.push(`Origen: el punto «${punto.nombre}» no tiene coordenadas válidas.`);
     return null;
   }
-  return { orden: 1, tipo: 'salida', nombre: sucursal.nombre, latitud: sucursal.latitud, longitud: sucursal.longitud };
+  return { orden: 1, tipo: 'salida', nombre: punto.nombre.trim(), latitud: punto.latitud, longitud: punto.longitud };
 }
 
 /**
@@ -78,13 +66,18 @@ export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSal
   const nombre = args.nombreViajero.trim();
   if (!nombre) errors.push('Persona: falta el nombre de la persona viajera.');
 
-  const salida = lugarOrigen(args.origen, args.sucursales, errors);
+  const salida = lugarOrigen(args.origen, errors);
   if (salida) {
-    if (!esFecha(args.origen.fechaSalida) || !esHora(args.origen.horaSalida)) {
-      errors.push('Origen: indica fecha y hora de salida válidas.');
-    } else {
-      salida.fecha_salida = args.origen.fechaSalida;
-      salida.hora_salida = args.origen.horaSalida;
+    // La salida del origen es opcional: el motor la deriva de la llegada al
+    // primer destino. Va completa o no va; una fecha suelta la rechaza.
+    const { fechaSalida, horaSalida } = args.origen;
+    if (fechaSalida || horaSalida) {
+      if (!esFecha(fechaSalida) || !esHora(horaSalida)) {
+        errors.push('Origen: manda fecha Y hora de salida, o déjalas vacías para que se calcule.');
+      } else {
+        salida.fecha_salida = fechaSalida;
+        salida.hora_salida = horaSalida;
+      }
     }
   }
 
@@ -137,7 +130,12 @@ export function adaptarTramoACostosRuta(args: AdaptarTramoArgs): AdaptarTramoSal
           // lo pone el proveedor, así que Magna es solo el valor del contrato.
           gasolina: 'magna',
           draft: false,
-          trabajo: { ...TRABAJO_POR_DEFECTO },
+          trabajo: {
+            ...TRABAJO_POR_DEFECTO,
+            ...(args.jornada
+              ? { hora_entrada: args.jornada.horaEntrada, hora_salida: args.jornada.horaSalida }
+              : {}),
+          },
           lugares: [salida, taller],
         },
       ],
@@ -163,7 +161,6 @@ export function rangoDelViaje(
     }
   }
   if (retorno.necesario) {
-    if (esFecha(retorno.saleFecha)) fechas.push(retorno.saleFecha);
     if (esFecha(retorno.llegadaRequeridaFecha)) fechas.push(retorno.llegadaRequeridaFecha);
   }
   if (fechas.length === 0) return { inicio: null, fin: null };
@@ -179,18 +176,4 @@ export function hayMonedaMezclada(opciones: { moneda: string | null }[]): boolea
 /** Solo el avión pregunta por equipaje documentado. */
 export function esOfertaVuelo(oferta: { modo: string }): boolean {
   return oferta.modo === 'avion';
-}
-
-/**
- * Preselección de origen: solo cuando el catálogo real trae «Antonio Maura»
- * con coordenadas válidas. Nunca se fabrican identificadores ni coordenadas.
- */
-export function sugerirOrigenInicial(sucursales: Sucursal[]): number | null {
-  const candidata = sucursales
-    .filter((s) => s.activo)
-    .find((s) => s.nombre.trim().toLocaleLowerCase('es-MX') === 'antonio maura');
-  if (!candidata) return null;
-  if (!Number.isFinite(candidata.latitud) || !Number.isFinite(candidata.longitud)) return null;
-  if (candidata.latitud === 0 && candidata.longitud === 0) return null;
-  return candidata.idSucursal;
 }

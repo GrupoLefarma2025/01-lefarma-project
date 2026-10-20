@@ -274,72 +274,38 @@ test.describe('F3 — QA manual del flujo de viáticos', () => {
     });
 
     // ------------------------------------------------------------------
-    // Paso 4 — los DOS buscadores del modal
+    // Paso 4 — buscador de direcciones del modal
     // ------------------------------------------------------------------
-    let cascadaOk = true;
-    await registrar(page, 4, 'Probar los dos buscadores (global y cascada)', async () => {
+    await registrar(page, 4, 'Buscar una dirección y agregarla a la ruta', async () => {
       const modal = page.getByRole('dialog');
 
-      // --- 4a. Buscador global (pestaña por defecto) ---
-      await modal.getByRole('tab', { name: 'Buscador global' }).click();
-      const global = modal.locator('#punto-busqueda-global');
-      await expect(global).toBeVisible();
-      await global.fill('Hospital General de Mexico');
-      const listaResultados = modal.getByRole('list', { name: 'Resultados de direcciones' });
+      const buscador = modal.locator('#punto-busqueda-global');
+      await expect(buscador).toBeVisible();
+      await buscador.fill('Hospital General de Mexico');
+      const listaResultados = modal.getByRole('listbox', { name: 'Resultados de direcciones' });
       await expect(listaResultados).toBeVisible({ timeout: 60_000 });
-      const encontrados = await listaResultados.locator('button').count();
+      const encontrados = await listaResultados.getByRole('option').count();
       if (encontrados < 1) {
+        const avisos = [
+          ...(await modal.getByRole('alert').allInnerTexts()),
+          ...(await modal.getByRole('status').allInnerTexts()),
+        ];
         throw new Error(
-          'El buscador global no devolvió resultados. Mensaje en pantalla: ' +
-            ((await modal.getByRole('alert').allInnerTexts()).join(' | ') || '(sin alerta)'),
+          'El buscador de direcciones no devolvió resultados. Mensaje en pantalla: ' +
+            (avisos.join(' | ') || '(sin aviso)'),
         );
       }
-      await listaResultados.locator('button').first().click();
-      await expect(global).toHaveValue('');
+
+      await listaResultados.getByRole('option').first().click();
+      // Estilo Google: el recuadro queda con el nombre del lugar elegido y el panel se cierra solo.
+      await expect(buscador).toHaveValue(/Hospital General/);
+      await expect(listaResultados).toBeHidden();
       const agregar = modal.getByRole('button', { name: 'Agregar a la ruta' });
       await expect(agregar).toBeEnabled();
       await agregar.click();
 
-      // --- 4b. Buscador en cascada (estado / municipio / calle) ---
-      await modal.getByRole('tab', { name: 'Por estado y municipio' }).click();
-      await expect(modal.getByRole('combobox', { name: 'Estado' })).toBeVisible();
-      await modal.locator('details summary', { hasText: 'Dirección guiada' }).click();
-
-      const estado = modal.getByRole('combobox', { name: 'Estado' });
-      await expect(estado).toBeEnabled({ timeout: 30_000 });
-      await estado.selectOption({ label: 'Ciudad de México' });
-
-      const municipio = modal.getByRole('combobox', { name: 'Municipio' });
-      await expect(municipio).toBeEnabled({ timeout: 30_000 });
-      const conMunicipios = (await municipio.locator('option').allInnerTexts()).filter(
-        o => o.trim() !== '' && !/selecciona un municipio/i.test(o),
-      );
-      if (conMunicipios.length === 0) {
-        cascadaOk = false;
-        const alertas = await modal.getByRole('alert').allInnerTexts();
-        throw new Error(
-          'BLOQUEADO (entorno, no producto): el buscador en cascada no puede completarse. ' +
-            'El desplegable «Municipio» llega vacío porque GET /api/viaticos/municipios?codigoEstado=… ' +
-            "responde HTTP 500 «Invalid object name 'viaticos.municipios_cat'»: falta aplicar la " +
-            `migración 0002. Alertas en pantalla: ${alertas.join(' | ') || '(ninguna)'}. ` +
-            `El buscador global (4a) SÍ funcionó: ${encontrados} resultado(s).`,
-        );
-      }
-
-      await municipio.selectOption({ index: 1 });
-      await modal.getByPlaceholder('Ej. Av. Reforma 123').fill('Av. Insurgentes Sur 123');
-      await modal.getByRole('button', { name: 'Buscar en el mapa' }).click();
-      await expect(modal.getByRole('list', { name: 'Resultados de direcciones' })).toBeVisible({
-        timeout: 60_000,
-      });
-      return (
-        `Ambos buscadores respondieron. Global: ${encontrados} resultado(s). ` +
-        `Cascada: ${conMunicipios.length} municipio(s) disponibles y búsqueda guiada resuelta.`
-      );
+      return `El buscador devolvió ${encontrados} resultado(s) y el punto se agregó a la ruta.`;
     });
-    if (!cascadaOk) {
-      resultados[resultados.length - 1].veredicto = 'bloqueado';
-    }
 
     // Confirmar la secuencia del modal (si sigue abierto).
     if (await page.getByRole('dialog').isVisible().catch(() => false)) {

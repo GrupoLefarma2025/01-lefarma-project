@@ -42,8 +42,6 @@ export function rellenarConFixture(): {
       motivo: DATOS_PRUEBA_SOLICITUD.persona.motivo,
     },
     origen: {
-      tipo: 'mapa',
-      sucursalId: null,
       punto: { ...origenPunto },
       fechaSalida: DATOS_PRUEBA_SOLICITUD.origen.fechaSalida,
       horaSalida: DATOS_PRUEBA_SOLICITUD.origen.horaSalida,

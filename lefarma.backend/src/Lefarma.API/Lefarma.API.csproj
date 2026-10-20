@@ -8,6 +8,16 @@
     <AppVersion Condition="'$(AppVersion)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildProjectDirectory)\..\..\..\VERSION').Trim())</AppVersion>
   </PropertyGroup>
 
+  <!-- dotnet watch (.NET 10): logs y media subida en runtime cambian mientras
+       la app corre. Si el watcher los detecta (sobre todo archivos NUEVOS en
+       wwwroot), Hot Reload truena con
+       "Unexpected true - HotReloadMSBuildWorkspace.cs line 158".
+       Se excluyen solo durante el build de diseño de dotnet watch, para no
+       afectar el publish normal. -->
+  <PropertyGroup Condition="'$(DotNetWatchBuild)' == 'true'">
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/logs/**;**/wwwroot/media/**</DefaultItemExcludes>
+  </PropertyGroup>
+
   <ItemGroup>
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>AppVersion</_Parameter1>

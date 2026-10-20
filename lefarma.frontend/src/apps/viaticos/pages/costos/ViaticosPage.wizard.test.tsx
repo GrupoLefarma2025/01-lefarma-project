@@ -29,6 +29,7 @@ vi.mock('react-leaflet', async () => {
   return {
     MapContainer: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
     TileLayer: () => null,
+    ZoomControl: () => null,
     Marker: () => null,
     Popup: ({ children }: { children?: React.ReactNode }) => React.createElement('span', null, children),
     Polyline: () => null,

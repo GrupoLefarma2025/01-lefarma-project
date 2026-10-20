@@ -126,6 +126,20 @@ builder.Services.AddHttpClient("nominatim", c =>
     c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
     c.Timeout = TimeSpan.FromSeconds(12);
 });
+builder.Services.AddHttpClient("photon", c =>
+{
+    // Photon (komoot): refuerzo tolerante de Nominatim para búsquedas con
+    // palabras incompletas; misma fuente OSM y User-Agent identificable.
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
+    c.Timeout = TimeSpan.FromSeconds(12);
+});
+builder.Services.AddHttpClient("enlaces", c =>
+{
+    // Resolución de ligas cortas de mapas: las redirecciones se siguen a mano
+    // validando cada salto, por eso AllowAutoRedirect = false.
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
+    c.Timeout = TimeSpan.FromSeconds(8);
+}).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false });
 
 // DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

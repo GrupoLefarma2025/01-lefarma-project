@@ -33,6 +33,7 @@ public class CostosRutaController : ControllerBase
         try
         {
             var client = _http.CreateClient();
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("GrupoLefarmaViaticos/1.0 (soporte@lefarma.com)");
             var resultado = await CalculoCostosRuta.CalcularAsync(request, client, _cache, ct);
             return Ok(new ApiResponse<CostosRutaResponse>
             {

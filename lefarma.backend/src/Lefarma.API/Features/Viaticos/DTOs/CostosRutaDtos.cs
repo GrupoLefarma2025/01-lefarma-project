@@ -204,11 +204,15 @@ public class CostosRutaPropuestaTramo
 public class CostosRutaHotel
 {
     public string Lugar { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
     public string Ciudad { get; set; } = string.Empty;
     public string CheckIn { get; set; } = string.Empty;
     public string CheckOut { get; set; } = string.Empty;
     public int Noches { get; set; }
     public int Habitaciones { get; set; }
+    public double DistanciaKm { get; set; }
+    public double PrecioNoche { get; set; }
+    public double PrecioTotal { get; set; }
     public string Motivo { get; set; } = string.Empty;
     public string Fuente { get; set; } = string.Empty;
     public string Link { get; set; } = string.Empty;

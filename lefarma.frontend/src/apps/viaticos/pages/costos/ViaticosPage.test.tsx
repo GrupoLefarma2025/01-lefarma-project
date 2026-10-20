@@ -201,7 +201,8 @@ describe('hospital working-day form', () => {
     expect(screen.getByRole('button', { name: 'Agregar persona (9/9)' })).toBeDisabled();
     expect(screen.getAllByRole('button', { name: 'Duplicar itinerario para otra persona' })).toHaveLength(9);
     for (const button of screen.getAllByRole('button', { name: 'Duplicar itinerario para otra persona' })) expect(button).toBeDisabled();
-  });
+    // Con la suite completa en paralelo, las 9 personas superan los 5 s por defecto.
+  }, 15000);
 
   it('visibly blocks overlapping full days, missing stops and inverted hours', async () => {
     await prepare();

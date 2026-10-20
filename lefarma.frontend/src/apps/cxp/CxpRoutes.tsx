@@ -27,6 +27,7 @@ import EstatusOrdenList from '@/pages/catalogos/generales/EstatusOrden/EstatusOr
 import RegimenesFiscalesList from '@/pages/catalogos/generales/RegimenesFiscales/RegimenesFiscalesList';
 import ProveedoresList from '@/pages/catalogos/generales/Proveedores/ProveedoresList';
 import ConfiguracionGeneral from '@/pages/configuracion/ConfiguracionGeneral';
+import { CxpFirmaLegacyCard } from '@/apps/cxp/components/CxpFirmaLegacyCard';
 import { WorkflowsList, WorkflowDiagram } from '@/pages/workflows';
 import AutorizacionesOC from '@/pages/ordenes/AutorizacionesOC';
 import CrearOrdenCompra from '@/pages/ordenes/CrearOrdenCompra';
@@ -205,7 +206,8 @@ export function CxpRoutes({ variant, loginPath }: SubtreeRoutesProps) {
         />
         <Route path="workflows/:id/diagram" element={<WorkflowDiagram />} />
 
-        <Route path="configuracion" element={<ConfiguracionGeneral />} />
+        {/* Solo CxP usa la tarjeta legacy (firma_path); el resto mantiene FirmaUploadCard por defecto. */}
+        <Route path="configuracion" element={<ConfiguracionGeneral firmaCard={<CxpFirmaLegacyCard />} />} />
         <Route path="ordenes/editar/:id" element={<CrearOrdenCompra />} />
         <Route path="ordenes/crear" element={<CrearOrdenCompra />} />
         <Route path="ordenes/autorizaciones" element={<AutorizacionesOC />} />
