@@ -21,6 +21,7 @@ import { estadoTexto } from '../../types/aprobaciones.types';
 import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
+import { ModoTransporteBadge } from '../../components/ModoTransporteBadge';
 import { RutaViajeTimeline, type NodoRutaTimeline } from '../../components/RutaViajeTimeline';
 import {
   BotonVerMapa,
@@ -95,10 +96,14 @@ function personasInvolucradas(solicitud: Solicitud): number {
   return 1 + acompanantes;
 }
 
-function tipoTransporte(solicitud: Solicitud): string {
+function modoTransporte(solicitud: Solicitud): 'propio' | 'solicitado' {
   const datos = comoObjeto(solicitud.datos);
   const transporte = comoObjeto(datos?.transporte);
-  return transporte?.modo === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
+  return transporte?.modo === 'propio' ? 'propio' : 'solicitado';
+}
+
+function tipoTransporte(solicitud: Solicitud): string {
+  return modoTransporte(solicitud) === 'propio' ? 'Carro propio' : 'Solicitud de transporte';
 }
 
 /** Costo conocido del viaje: total del snapshot o comidas + extras + opciones elegidas. */
@@ -261,7 +266,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
         id: 'transporte',
         header: 'Transporte',
         accessorFn: (fila) => tipoTransporte(fila.solicitud),
-        cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
+        cell: ({ row }) => <ModoTransporteBadge modo={modoTransporte(row.original.solicitud)} />,
       },
       {
         id: 'personas',

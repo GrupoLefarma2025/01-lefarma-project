@@ -55,7 +55,7 @@ export function ResumenRutaModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] w-[95vw] max-w-4xl overflow-y-auto">
+      <DialogContent className="max-h-[92vh] w-[90vw] max-w-[90vw] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Resumen reconstruido</DialogTitle>
           <DialogDescription>
@@ -66,7 +66,7 @@ export function ResumenRutaModal({
 
         <div className="space-y-3">
           {puntos.length > 0 ? (
-            <RutaMapa puntos={puntos} segmentos={segmentos} />
+            <RutaMapa puntos={puntos} segmentos={segmentos} alto={480} />
           ) : (
             <p className="text-sm text-muted-foreground">Todavía no hay puntos para trazar.</p>
           )}

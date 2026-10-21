@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import type { PuntoSeleccion } from '../types/costosRuta.types';
 import type { ResumenDestino, ResumenViajeDatos } from '../services/resumenViaje';
 import { RutaViajeTimeline } from './RutaViajeTimeline';
+import { ModoTransporteBadge } from './ModoTransporteBadge';
 
 interface NodoRuta {
   id: string;
@@ -167,7 +168,9 @@ export function ResumenViaje({ motivo, modoTransporte, compartido, acompanantes,
         </div>
         <div className="rounded-lg border bg-card p-3 shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
           <dt className="text-xs text-muted-foreground">Transporte</dt>
-          <dd className="font-medium">{modoTransporte === 'propio' ? 'Carro propio' : 'Solicitud de transporte'}</dd>
+          <dd className="font-medium">
+            <ModoTransporteBadge modo={modoTransporte === 'propio' ? 'propio' : 'solicitado'} />
+          </dd>
           {compartido || acompanantes.length > 0 ? (
             <p className="mt-1 text-xs text-muted-foreground">
               Compartido{acompanantes.length > 0 ? ` con ${acompanantes.join(', ')}` : ''}
