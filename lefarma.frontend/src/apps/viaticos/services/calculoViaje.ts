@@ -142,6 +142,9 @@ export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
             detalles: (Array.isArray(n.detalles) ? n.detalles : [])
               .map((d) => texto(d))
               .filter((d): d is string => d !== null),
+            chips: (Array.isArray(n.chips) ? n.chips : [])
+              .map((c) => texto(c))
+              .filter((c): c is string => c !== null),
           })),
         segmentos: (Array.isArray(rutaBruta.segmentos) ? rutaBruta.segmentos : [])
           .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)

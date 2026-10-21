@@ -13,6 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { folderTabTriggerClassName } from '@/components/ui/folder-tab';
 import { usePageTitle } from '@/hooks/usePageTitle';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
@@ -522,7 +523,7 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           }
         }}
       >
-        <DialogContent data-testid="detalle-viaje" className="sm:max-w-3xl">
+        <DialogContent data-testid="detalle-viaje" className="w-[90vw] max-w-[1400px]">
           <DialogHeader>
             <DialogTitle>Detalle del viaje {detalle?.folio ?? (viendoId !== null ? `#${viendoId}` : '')}</DialogTitle>
             <DialogDescription>Resumen capturado en la solicitud y, si existe, la cotización.</DialogDescription>
@@ -569,13 +570,31 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
  * cadena completa (origen, terminal, vuelo o autobús, hotel, regreso); los
  * viejos solo traen los tramos y se arma un diagrama mínimo con ellos.
  */
+/** Chips de un tramo: km, tiempos y horarios, sin repetir vacíos. */
+function chipsDeTramo(tramo: CalculoViaje['tramos'][number]): string[] {
+  return [
+    tramo.km != null ? `${tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km` : '',
+    tramo.duracion ?? '',
+    tramo.duracion_con_margen ? `${tramo.duracion_con_margen} con margen` : '',
+  ].filter((chip) => chip !== '');
+}
+
 function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
   if (calculo.ruta?.nodos?.length) {
-    return calculo.ruta.nodos.map((nodo, i) => ({
-      id: `ruta-${i}`,
-      titulo: nodo.titulo,
-      detalles: nodo.detalles,
-    }));
+    return calculo.ruta.nodos.map((nodo, i) => {
+      // Los cálculos viejos no guardaron chips: se toman del tramo que
+      // corresponde a la parada numerada ("1. Destino" -> tramo 1).
+      const numero = /^(\d+)\./.exec(nodo.titulo.trim());
+      const tramo = numero ? calculo.tramos[Number(numero[1]) - 1] : undefined;
+      return {
+        id: `ruta-${i}`,
+        titulo: nodo.titulo,
+        detalles: nodo.detalles,
+        chips: nodo.chips && nodo.chips.length > 0
+          ? nodo.chips
+          : tramo ? chipsDeTramo(tramo) : undefined,
+      };
+    });
   }
   const primera = calculo.tramos[0];
   return [
@@ -584,11 +603,11 @@ function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
       id: `tramo-${i}`,
       titulo: `${i + 1}. ${tramo.a}`,
       detalles: [
-        `${tramo.duracion ?? '—'} de recorrido${tramo.km != null ? ` · ${tramo.km} km` : ''}`,
         [tramo.salida_fecha, tramo.salida_hora, 'a', tramo.llegada_fecha, tramo.llegada_hora]
           .filter(Boolean)
           .join(' '),
       ].filter((linea) => linea.trim() !== ''),
+      chips: chipsDeTramo(tramo),
     })),
   ];
 }
@@ -659,7 +678,6 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | null>(null);
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
-  const hoteles = (calculo?.ruta?.puntos ?? []).filter((p) => p.tipo === 'hotel');
 
   if (!resumen) return <DetalleViajeLegado solicitud={solicitud} />;
 
@@ -695,28 +713,41 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="calculada" className="space-y-4">
-        <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="font-semibold">Ruta del viaje</h3>
-            {mapaCalculado.puntos.length > 0 ? (
-              <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                Calculada sin coordenadas: vuelve a calcular para ver el mapa.
-              </span>
-            )}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-semibold">Ruta del viaje</h3>
+              {mapaCalculado.puntos.length > 0 ? (
+                <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Calculada sin coordenadas: vuelve a calcular para ver el mapa.
+                </span>
+              )}
+            </div>
+            <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
           </div>
-          <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
-          {hoteles.length > 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              Hospedaje: {hoteles.map((h) => h.nombre).join(' · ')}
-            </p>
-          ) : null}
+
+          <div className="space-y-3">
+            {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+            <CasetasRuta calculo={calculo} />
+            {calculo.generado_en ? (
+              <p className="text-xs text-muted-foreground">
+                Calculada el {new Date(calculo.generado_en).toLocaleString('es-MX').replace(/\.$/, '')}.
+              </p>
+            ) : null}
+          </div>
         </div>
-        <RutaCalculada calculo={calculo} />
-        {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
       </TabsContent>
-      <TabsContent value="inicial">{propuesta}</TabsContent>
+      <TabsContent value="inicial" className="space-y-4">
+        {propuesta}
+        <div>
+          <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+            Tramos del itinerario · distancia por carretera, tiempos y casetas
+          </h3>
+          <RutaCalculada calculo={calculo} />
+        </div>
+      </TabsContent>
       <TabsContent value="autorizada">
         <p className="text-sm text-muted-foreground">
           La ruta autorizada aparece aquí cuando el concentrado la modifique al autorizar el viaje.
@@ -760,51 +791,75 @@ function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
             {calculo.horas_total} con margen
           </Badge>
         ) : null}
-        <Badge variant="secondary" className="font-normal">
-          {calculo.modo_transporte === 'propio' ? 'Carro propio' : 'Transporte solicitado'}
-        </Badge>
+        <ModoTransporteBadge modo={calculo.modo_transporte === 'propio' ? 'propio' : 'solicitado'} />
       </div>
       <ol className="space-y-2">
-        {calculo.tramos.map((tramo, i) => (
-          <li key={`${tramo.de}-${tramo.a}-${i}`} className="rounded-md border p-3 text-sm">
-            <p className="font-medium">{i + 1}. {tramo.de} → {tramo.a}</p>
-            <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
-              {tramo.km != null ? (
-                <Badge variant="outline" className="font-normal">
-                  {tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
-                </Badge>
+        {calculo.tramos.map((tramo, i) => {
+          const noAlcanza = tramo.alcanza === false;
+          return (
+            <li
+              key={`${tramo.de}-${tramo.a}-${i}`}
+              className={cn(
+                'rounded-md border p-3 text-sm',
+                noAlcanza && 'border-destructive/40 bg-destructive/5',
+              )}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                {/* La alerta va primero: es lo único que exige acción. */}
+                {noAlcanza ? <Badge variant="destructive" className="font-normal">No alcanza la hora</Badge> : null}
+                <p className="font-medium">{i + 1}. {tramo.de} → {tramo.a}</p>
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+                {tramo.km != null ? (
+                  <Badge variant="outline" className="font-normal">
+                    {tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
+                  </Badge>
+                ) : null}
+                {tramo.duracion ? <Badge variant="outline" className="font-normal">{tramo.duracion}</Badge> : null}
+                {tramo.duracion_con_margen ? (
+                  <Badge
+                    variant="outline"
+                    className="font-normal text-muted-foreground"
+                    title="Tiempo de recorrido más el margen para no llegar justo al límite"
+                  >
+                    {tramo.duracion_con_margen} con margen
+                  </Badge>
+                ) : null}
+                {tramo.salida_hora ? (
+                  <Badge variant="outline" className="font-normal">
+                    Salida {horaAmPm(tramo.salida_hora) ?? tramo.salida_hora}
+                  </Badge>
+                ) : null}
+                {tramo.llegada_hora ? (
+                  <Badge variant="outline" className="font-normal">
+                    Llegada {horaAmPm(tramo.llegada_hora) ?? tramo.llegada_hora}
+                  </Badge>
+                ) : null}
+              </div>
+              {tramo.casetas.length > 0 ? (
+                <details className="mt-2 text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    Casetas ({tramo.casetas.length}
+                    {tramo.casetas.some((c) => c.costo != null)
+                      ? ` · ${mxn(tramo.casetas.reduce((suma, c) => suma + (c.costo ?? 0), 0))}`
+                      : ''}
+                    )
+                  </summary>
+                  <ul className="mt-1 space-y-0.5 text-muted-foreground">
+                    {tramo.casetas.map((caseta, j) => (
+                      <li key={`${caseta.nombre}-${j}`}>
+                        {caseta.nombre} · km {caseta.km}
+                        {caseta.costo != null ? ` · ${mxn(caseta.costo)}` : ''}
+                        {caseta.direccion ? ` · ${caseta.direccion}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               ) : null}
-              {tramo.duracion ? <Badge variant="outline" className="font-normal">{tramo.duracion}</Badge> : null}
-              {tramo.duracion_con_margen ? (
-                <Badge variant="secondary" className="font-normal">{tramo.duracion_con_margen} con margen</Badge>
-              ) : null}
-              {tramo.salida_hora ? (
-                <Badge variant="outline" className="font-normal">
-                  Salida {horaAmPm(tramo.salida_hora) ?? tramo.salida_hora}
-                </Badge>
-              ) : null}
-              {tramo.llegada_hora ? (
-                <Badge variant="outline" className="font-normal">
-                  Llegada {horaAmPm(tramo.llegada_hora) ?? tramo.llegada_hora}
-                </Badge>
-              ) : null}
-              {tramo.alcanza === false ? (
-                <Badge variant="destructive" className="font-normal">No alcanza la hora</Badge>
-              ) : null}
-            </div>
-            {tramo.casetas.length > 0 ? (
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Casetas: {tramo.casetas.map((caseta) => `${caseta.nombre} (km ${caseta.km})`).join(' · ')}
-              </p>
-            ) : null}
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ol>
-      {calculo.generado_en ? (
-        <p className="text-xs text-muted-foreground">
-          Calculada el {new Date(calculo.generado_en).toLocaleString('es-MX')}.
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -815,11 +870,55 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
   return (
     <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
-      <p><strong>Transporte y hospedaje elegidos:</strong> {elegidas.length === 0 ? 'Sin opciones elegidas.' : elegidas.map((o) => o.linea).join(' · ')}</p>
+      <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
+      <p>{elegidas.length === 0 ? 'Sin opciones elegidas.' : elegidas.map((o) => o.linea).join(' · ')}</p>
+      <div className="border-t pt-2">
+        <p className="text-xs text-muted-foreground">Desglose</p>
+        <p className="text-2xl font-semibold tracking-tight">{textoTotalElegidas(total)}</p>
+      </div>
       {descartadas.length > 0 ? (
-        <p className="text-muted-foreground"><strong>Alternativas descartadas:</strong> {descartadas.map((o) => o.linea).join(' · ')}</p>
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">
+            Alternativas descartadas ({descartadas.length})
+          </summary>
+          <p className="mt-1 text-muted-foreground">{descartadas.map((o) => o.linea).join(' · ')}</p>
+        </details>
       ) : null}
-      <p><strong>Desglose:</strong> {textoTotalElegidas(total)}</p>
+    </div>
+  );
+}
+
+/**
+ * Casetas de toda la ruta en una tarjeta plegable: el total a la vista y la
+ * lista de plazas solo si se pide.
+ */
+function CasetasRuta({ calculo }: { calculo: CalculoViaje }) {
+  const conCasetas = calculo.tramos.filter((t) => t.casetas.length > 0);
+  if (conCasetas.length === 0) return null;
+  const plazas = conCasetas.flatMap((t) => t.casetas);
+  const total = plazas.reduce((suma, caseta) => suma + (caseta.costo ?? 0), 0);
+  const hayCosto = plazas.some((caseta) => caseta.costo != null);
+
+  return (
+    <div className="rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
+      <p className="text-xs text-muted-foreground">Casetas de la ruta</p>
+      <p className="text-lg font-semibold">
+        {plazas.length} plaza{plazas.length === 1 ? '' : 's'}
+        {hayCosto ? ` · ${mxn(total)}` : ''}
+      </p>
+      <details className="mt-1 text-xs">
+        <summary className="cursor-pointer text-muted-foreground">Ver plazas</summary>
+        <ul className="mt-1 space-y-0.5 text-muted-foreground">
+          {conCasetas.map((tramo, i) => (
+            <li key={`${tramo.de}-${tramo.a}-${i}`}>
+              <span className="font-medium text-foreground">{tramo.de} → {tramo.a}:</span>{' '}
+              {tramo.casetas
+                .map((caseta) => `${caseta.nombre} (km ${caseta.km}${caseta.costo != null ? `, ${mxn(caseta.costo)}` : ''})`)
+                .join(' · ')}
+            </li>
+          ))}
+        </ul>
+      </details>
     </div>
   );
 }

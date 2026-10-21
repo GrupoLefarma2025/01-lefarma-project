@@ -125,7 +125,7 @@ export interface ParadaCalculada {
 /** Ruta calculada completa: paradas del mapa y nodos del diagrama. */
 export interface RutaCalculadaGuardada {
   puntos: ParadaCalculada[];
-  nodos: { titulo: string; detalles: string[] }[];
+  nodos: { titulo: string; detalles: string[]; chips?: string[] }[];
   /** Trazado por tipo de tramo, para pintar el mapa igual que se revisó. */
   segmentos?: { tipo: 'taxi' | 'transporte' | 'carretera'; puntos: [number, number][] }[];
 }

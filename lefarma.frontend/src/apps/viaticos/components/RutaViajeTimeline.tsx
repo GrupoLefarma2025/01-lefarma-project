@@ -4,6 +4,8 @@ export interface NodoRutaTimeline {
   id: string;
   titulo: string;
   detalles: ReactNode[];
+  /** Etiquetas cortas del tramo (km, tiempo, horarios) que van bajo el título. */
+  chips?: string[];
   testId?: string;
 }
 
@@ -154,6 +156,18 @@ export function RutaViajeTimeline({ nodos }: { nodos: NodoRutaTimeline[] }) {
               <span className="ruta-punto-relleno absolute inset-0 rounded-full bg-primary" />
             </span>
             <p className="font-medium">{nodo.titulo}</p>
+            {nodo.chips && nodo.chips.length > 0 ? (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {nodo.chips.map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            ) : null}
             {nodo.detalles.map((linea, idx) => (
               <p key={idx} data-testid={idx === 0 ? nodo.testId : undefined} className="text-xs text-muted-foreground">
                 {linea}

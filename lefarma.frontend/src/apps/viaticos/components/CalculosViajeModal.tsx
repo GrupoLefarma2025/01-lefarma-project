@@ -258,6 +258,7 @@ export function CalculosViajeModal({
       nombre: string,
       tipo: PuntoRutaResumen['tipo'],
       detalle?: string,
+      chips?: string[],
     ) => {
       const clave = `${lat.toFixed(4)},${lng.toFixed(4)}`;
       // Los marcadores del mapa no se repiten, pero el diagrama sí: un viaje
@@ -282,6 +283,7 @@ export function CalculosViajeModal({
           ...(detalle ? [detalle] : []),
           `${nombre} · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
         ],
+        chips,
       });
     };
     const agregarSegmento = (
@@ -316,6 +318,14 @@ export function CalculosViajeModal({
       const terminalOrigen = oferta?.terminalOrigen ?? null;
       const terminalDestino = oferta?.terminalDestino ?? null;
       const transporteLargo = oferta?.modo === 'bus' || oferta?.modo === 'avion';
+      // Chips del tramo: lo que el revisor necesita ver sin abrir nada.
+      const kmTramo = resultados[indice]?.resultados[0]?.rutaArmada.totales.km;
+      const chipsTramo = [
+        kmTramo != null ? `${kmTramo.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km` : '',
+        oferta?.duracion ?? '',
+        tramo.desde.fecha && tramo.desde.hora ? `Salida ${horaAmPm(tramo.desde.hora) ?? tramo.desde.hora}` : '',
+        tramo.hasta.fecha && tramo.hasta.hora ? `Llegada ${horaAmPm(tramo.hasta.hora) ?? tramo.hasta.hora}` : '',
+      ].filter((chip) => chip !== '');
       // El taxi total de la oferta cubre las dos puntas: se reparte a la mitad
       // para no prometer un minuto exacto en cada tramo.
       const minutosTaxiPunta = oferta?.minutosTaxi && oferta.minutosTaxi > 0
@@ -355,6 +365,7 @@ export function CalculosViajeModal({
           tDestino
             ? `En taxi desde ${terminalDestino!.nombre}${minutosTaxiPunta ? ` · ~${minutosTaxiPunta} min` : ''}`
             : `${detalleLargo} hasta ${nombreHasta}`,
+          chipsTramo,
         );
       } else {
         // Sin terminal: auto propio, renta o taxi de punta a punta.
@@ -369,6 +380,7 @@ export function CalculosViajeModal({
           destinoNombre,
           conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto',
           `En carretera desde ${tramo.desde.nombre}${oferta ? ` · ${oferta.linea}` : ''}${conHotel ? ' · duerme ahí' : ''}`,
+          chipsTramo,
         );
       }
     });
@@ -513,6 +525,7 @@ export function CalculosViajeModal({
           nodos: cadenaResumen.nodos.map((n) => ({
             titulo: n.titulo,
             detalles: n.detalles.map((d) => String(d)),
+            chips: n.chips ?? [],
           })),
           segmentos: cadenaResumen.segmentos.map((s) => ({
             tipo: s.tipo,
