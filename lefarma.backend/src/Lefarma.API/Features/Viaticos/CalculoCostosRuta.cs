@@ -502,6 +502,12 @@ public static class CalculoCostosRuta
                 incumplimientos.Add("Con tu horario, algún tramo no tiene alternativa viable (todas llegan tarde o salen antes de que puedas tomarlas).");
 
             var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, http, cache, ct, incumplimientos);
+            // Minutos del taxi a la terminal por tramo: se estima con la distancia
+            // de cada extremo al centro de su ciudad (la misma que costea el taxi)
+            // a la velocidad urbana configurada.
+            var minutosTaxiPorTramo = tramos
+                .Select((_, ti) => ti + 1 < prop.Count ? MinutosTaxiTerminal(prop[ti], prop[ti + 1]) : 0)
+                .ToList();
             var resultado = new CostosRutaResultado
             {
                 Nombre = norm.Nombre,
@@ -510,7 +516,7 @@ public static class CalculoCostosRuta
                 Tramos = tramos.Select((t, ti) => new CostosRutaTramo
                 {
                     From = t.From, To = t.To, Km = Math.Round(t.Km, 1),
-                    Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To)).ToList(),
+                    Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To, minutosTaxiPorTramo[ti])).ToList(),
                 }).ToList(),
                 RutaArmada = RutaArmada(prop, tramos, precios),
                 HotelesPropuestos = hoteles,
@@ -522,7 +528,7 @@ public static class CalculoCostosRuta
             foreach (var (t, ti) in tramos.Select((t, ti) => (t, ti)))
                 foreach (var (o, oi) in t.Opciones.Select((o, oi) => (o, oi)))
                 {
-                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To);
+                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To, minutosTaxiPorTramo[ti]);
                     resp.Categorias[CatDeModo[o.Modo]].Add(of);
                 }
             foreach (var h in hoteles)
@@ -1221,6 +1227,31 @@ public static class CalculoCostosRuta
         return pool.MinBy(o => 0.5 * (o.CostoGrupo - cs.Min()) / rc + 0.5 * (o.PuertaH - ts.Min()) / rt);
     }
 
+    /// <summary>
+    /// Minutos estimados del traslado en taxi a la terminal (bus o avión): la
+    /// distancia de cada extremo al centro de su ciudad — la misma que usa el
+    /// costo del taxi — a la velocidad urbana de <c>costos.taxi_km_h</c>.
+    /// Vale 0 cuando el punto ya está dentro de la ciudad (≤ 3 km) o no se
+    /// reconoce, para no inventar un traslado que no existe.
+    /// </summary>
+    private static int MinutosTaxiTerminal(LugarNorm a, LugarNorm b)
+    {
+        var km = 0.0;
+        foreach (var s in new[] { a, b })
+        {
+            var (key, _) = SnapCiudad(s.Lat, s.Lon);
+            if (key is null) continue;
+            var c = Ciudades[key];
+            var d = HaversineKm(s.Lat, s.Lon, c.Lat, c.Lon);
+            if (d <= 3) continue;
+            km += d;
+        }
+        if (km <= 0) return 0;
+        var velocidad = ConfiguracionViaticos.Double("costos.taxi_km_h", 25);
+        if (velocidad <= 0) velocidad = 25;
+        return (int)Math.Round(km / velocidad * 60);
+    }
+
     private static double MillaExtra(LugarNorm a, LugarNorm b)
     {
         double extra = 0;
@@ -1284,7 +1315,7 @@ public static class CalculoCostosRuta
         return armada;
     }
 
-    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a)
+    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a, int minutosTaxi = 0)
     {
         var mid = (o.Lo + o.Hi) / 2;
         // El tiempo puerta a puerta ya incluye los minutos de antes/después
@@ -1305,6 +1336,7 @@ public static class CalculoCostosRuta
             PuertaAPuertaH = Math.Round(o.PuertaH, 2),
             MinutosAntes = minutosAntes,
             MinutosDespues = minutosDespues,
+            MinutosTaxi = o.Modo is "bus" or "avion" ? minutosTaxi : 0,
             PrecioTxt = o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total",
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),

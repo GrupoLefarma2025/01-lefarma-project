@@ -185,12 +185,12 @@ describe('TablaOpciones', () => {
     expect(within(fila('Uber')).getByText('Taxi')).toBeInTheDocument();
   });
 
-  it('muestra el tiempo total y, en vuelos, el tiempo de aeropuerto y maletas', () => {
+  it('explica el tiempo total: viaje + estar antes + taxi a la terminal', () => {
     render(
       <TablaOpciones
         titulo="Tramo 1"
         ofertas={[
-          oferta({ id: 'bus', linea: 'ETN', modo: 'bus', duracion: '10h 43m', minutosAntes: 30 }),
+          oferta({ id: 'bus', linea: 'ETN', modo: 'bus', duracion: '10h 43m', minutosAntes: 30, minutosTaxi: 20 }),
           oferta({
             id: 'avion',
             linea: 'Volaris',
@@ -198,16 +198,29 @@ describe('TablaOpciones', () => {
             duracion: '3h 38m',
             minutosAntes: 120,
             minutosDespues: 30,
+            minutosTaxi: 40,
           }),
         ]}
       />,
     );
 
-    expect(within(fila('ETN')).getByText('10h 43m')).toBeInTheDocument();
+    // La columna declara qué suma el total.
+    expect(screen.getByRole('button', { name: /qué incluye el tiempo total/i })).toBeInTheDocument();
+
+    // Bus: 10h 13m de viaje + 30 min antes + 20 min de taxi = 11h 03m.
+    const etn = fila('ETN');
+    expect(within(etn).getByText('11h 03m')).toBeInTheDocument();
+    expect(within(etn).getByText(/10 h 13 min de viaje/)).toBeInTheDocument();
+    expect(within(etn).getByText(/30 min antes/)).toBeInTheDocument();
+    expect(within(etn).getByText(/20 min de taxi/)).toBeInTheDocument();
+
+    // Avión: 1h 08m de viaje + 2 h antes + 30 min de maletas + 40 min de taxi.
     const vuelo = fila('Volaris');
-    expect(within(vuelo).getByText('3h 38m')).toBeInTheDocument();
-    expect(within(vuelo).getByText('2 h en el aeropuerto')).toBeInTheDocument();
-    expect(within(vuelo).getByText('30 min para maletas')).toBeInTheDocument();
+    expect(within(vuelo).getByText('4h 18m')).toBeInTheDocument();
+    expect(within(vuelo).getByText(/1 h 8 min de viaje/)).toBeInTheDocument();
+    expect(within(vuelo).getByText(/2 h antes/)).toBeInTheDocument();
+    expect(within(vuelo).getByText(/30 min de maletas/)).toBeInTheDocument();
+    expect(within(vuelo).getByText(/40 min de taxi/)).toBeInTheDocument();
   });
 
   it('expone un boton Elegir por fila y resalta la elegida', () => {

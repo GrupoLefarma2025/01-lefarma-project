@@ -50,6 +50,7 @@ INSERT INTO @semilla (clave, valor, descripcion) VALUES
     ('costos.comida_dia', '600', 'Costo de comida por dia de viaje (MXN)'),
     ('costos.rendimiento_km_l', '12', 'Rendimiento del vehiculo (km por litro)'),
     ('costos.caseta_por_km', '1.4', 'Costo estimado de caseta por km (MXN)'),
+    ('costos.taxi_km_h', '25', 'Velocidad urbana promedio del taxi a la terminal (km/h)'),
     -- Hospedaje por ciudad (tarifa tabulador por noche)
     ('costos.hospedaje_noche.CDMX', '3533', 'Hospedaje por noche en Ciudad de Mexico'),
     ('costos.hospedaje_noche.GDL', '2006', 'Hospedaje por noche en Guadalajara'),

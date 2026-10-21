@@ -169,6 +169,13 @@ public class CostosRutaOferta
     public int MinutosAntes { get; set; }
     /// <summary>Minutos después de la llegada (bajar del avión y recoger maletas).</summary>
     public int MinutosDespues { get; set; }
+    /// <summary>
+    /// Minutos estimados del traslado en taxi a la terminal (bus o avión): la
+    /// distancia de cada extremo al centro de su ciudad, a la velocidad urbana
+    /// configurada. Es 0 cuando el punto ya está en la ciudad o no se reconoce.
+    /// El "Tiempo total" del concentrado lo suma al viaje y al abordaje.
+    /// </summary>
+    public int MinutosTaxi { get; set; }
     public string PrecioTxt { get; set; } = string.Empty;
     public bool PorPersona { get; set; }
     public double PrecioDesde { get; set; }

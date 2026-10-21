@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Info } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -49,6 +50,42 @@ function minutosTexto(minutos: number): string {
     .join(' ');
 }
 
+/** "10h 43m" (formato del motor) -> 643 minutos; `null` si no trae el formato. */
+function minutosDeDuracion(duracion: string): number | null {
+  const partes = duracion.match(/(\d+)\s*h\s*(\d+)\s*m/i);
+  if (!partes) return null;
+  return Number(partes[1]) * 60 + Number(partes[2]);
+}
+
+/** Minutos como "10h 43m", el mismo formato que usa el motor. */
+function duracionHm(minutos: number): string {
+  return `${Math.floor(minutos / 60)}h ${String(minutos % 60).padStart(2, '0')}m`;
+}
+
+/**
+ * Qué significa la columna. El usuario pidió que quede explícito que el total
+ * no es solo el viaje: suma lo que hay que estar ahí antes y el taxi a la
+ * terminal que estima el motor.
+ */
+const AYUDA_TIEMPO_TOTAL =
+  'Tiempo total = lo que dura el viaje + lo que hay que estar ahí antes (abordaje en la terminal o el aeropuerto) + el traslado en taxi a la terminal. En vuelos también cuenta bajar y recoger maletas.';
+
+/**
+ * Desglose del tiempo total de una oferta. `duracion` es puerta a puerta (ya
+ * trae el abordaje), así que el viaje puro es la diferencia; el taxi a la
+ * terminal lo estima el motor y se suma aparte.
+ */
+function desgloseTiempo(oferta: CostosRutaOferta): { total: number; viaje: number; antes: number; despues: number; taxi: number } | null {
+  const puertaAPuerta = minutosDeDuracion(oferta.duracion)
+    ?? (oferta.puertaAPuertaH != null ? Math.round(oferta.puertaAPuertaH * 60) : null);
+  if (puertaAPuerta === null) return null;
+  const antes = oferta.minutosAntes ?? 0;
+  const despues = oferta.minutosDespues ?? 0;
+  const taxi = oferta.minutosTaxi ?? 0;
+  const viaje = Math.max(0, puertaAPuerta - antes - despues);
+  return { total: viaje + antes + despues + taxi, viaje, antes, despues, taxi };
+}
+
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
   return (
     <div className="space-y-2">
@@ -60,7 +97,25 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
             <TableHead>Modo</TableHead>
             <TableHead>Salida</TableHead>
             <TableHead>Llegada</TableHead>
-            <TableHead>Tiempo total</TableHead>
+            <TableHead>
+              <span className="inline-flex items-center gap-1">
+                Tiempo total
+                <TooltipProvider delayDuration={150}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        aria-label="Qué incluye el tiempo total"
+                        className="text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        <Info className="h-3.5 w-3.5" aria-hidden />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{AYUDA_TIEMPO_TOTAL}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </span>
+            </TableHead>
             <TableHead>Precio</TableHead>
             <TableHead>Fuente</TableHead>
             <TableHead>Captura</TableHead>
@@ -86,13 +141,22 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                 <TableCell>{o.salidaTxt}</TableCell>
                 <TableCell>{o.llegadaTxt}</TableCell>
                 <TableCell>
-                  <div>{o.duracion}</div>
-                  {o.modo === 'avion' && (o.minutosAntes || o.minutosDespues) ? (
-                    <div className="text-xs text-muted-foreground">
-                      {o.minutosAntes ? <div>{minutosTexto(o.minutosAntes)} en el aeropuerto</div> : null}
-                      {o.minutosDespues ? <div>{minutosTexto(o.minutosDespues)} para maletas</div> : null}
-                    </div>
-                  ) : null}
+                  {(() => {
+                    const d = desgloseTiempo(o);
+                    if (!d) return <div>{o.duracion}</div>;
+                    const partes = [
+                      `${minutosTexto(d.viaje)} de viaje`,
+                      d.antes > 0 ? `${minutosTexto(d.antes)} antes` : '',
+                      d.despues > 0 ? `${minutosTexto(d.despues)} de maletas` : '',
+                      d.taxi > 0 ? `${minutosTexto(d.taxi)} de taxi` : '',
+                    ].filter(Boolean);
+                    return (
+                      <>
+                        <div>{duracionHm(d.total)}</div>
+                        <div className="text-xs text-muted-foreground">{partes.join(' + ')}</div>
+                      </>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell>
                   <div>{o.precioTxt}</div>

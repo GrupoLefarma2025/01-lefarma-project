@@ -84,6 +84,8 @@ export interface CostosRutaOferta {
   minutosAntes?: number;
   /** Minutos después de la llegada (bajar del avión y recoger maletas). */
   minutosDespues?: number;
+  /** Minutos estimados del taxi a la terminal (bus o avión). */
+  minutosTaxi?: number;
   precioTxt: string;
   porPersona: boolean;
   costoGrupo: number;
