@@ -543,6 +543,7 @@ public class SolicitudesController : ControllerBase
         }
 
         solicitud.FechaModificacion = ahora;
+        AplicarCalculo(solicitud, request.Calculo);
         await _context.SaveChangesAsync(ct);
 
         // Recargar con las nuevas opciones para responder con el detalle completo.
@@ -693,7 +694,7 @@ public class SolicitudesController : ControllerBase
     [SwaggerResponse(403, "No es el dueño o sin permiso")]
     [SwaggerResponse(404, "No existe o está eliminada")]
     [SwaggerResponse(409, "La solicitud ya no está en borrador")]
-    public async Task<IActionResult> Enviar([FromRoute] int id, CancellationToken ct)
+    public async Task<IActionResult> Enviar([FromRoute] int id, [FromBody] EnviarSolicitudRequest? request, CancellationToken ct)
     {
         if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
         {
@@ -715,6 +716,7 @@ public class SolicitudesController : ControllerBase
         var ahora = DateTime.UtcNow;
         solicitud!.Estado = EstadoEnviada;
         solicitud.FechaModificacion = ahora;
+        AplicarCalculo(solicitud, request?.Calculo);
 
         _context.SolicitudEventos.Add(new SolicitudEvento
         {
@@ -724,6 +726,9 @@ public class SolicitudesController : ControllerBase
             IdUsuario = userId,
             FechaCreacion = ahora,
         });
+        // Nota: la regla de "una solicitud enviada por usuario y periodo" se
+        // relajo en la base de datos (script 0012) para permitir varias
+        // solicitudes enviadas; por eso aqui no se bloquea el envio.
         await _context.SaveChangesAsync(ct);
 
         var dto = MapearDto(solicitud, opciones: true, eventos: false);
@@ -738,6 +743,40 @@ public class SolicitudesController : ControllerBase
     // ----------------------------------------------------------------
     // Helpers
     // ----------------------------------------------------------------
+
+    /// <summary>
+    /// Guarda el cálculo de la ruta (el que se hizo al enviar) dentro del
+    /// snapshot, en <c>datos.calculo</c>. Reemplaza el cálculo anterior: la
+    /// última ruta calculada es la que manda.
+    /// </summary>
+    private static void AplicarCalculo(Solicitud solicitud, JsonElement? calculo)
+    {
+        if (calculo is null || calculo.Value.ValueKind != JsonValueKind.Object) return;
+        try
+        {
+            var baseJson = string.IsNullOrWhiteSpace(solicitud.DatosJson) ? "{}" : solicitud.DatosJson;
+            using var doc = JsonDocument.Parse(baseJson);
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.NameEquals("calculo")) continue;
+                    prop.WriteTo(writer);
+                }
+                writer.WritePropertyName("calculo");
+                calculo.Value.WriteTo(writer);
+                writer.WriteEndObject();
+            }
+            solicitud.DatosJson = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            solicitud.DatosJson = JsonSerializer.Serialize(new { calculo = calculo.Value });
+        }
+    }
+
     private static SolicitudDto MapearDto(Solicitud s, bool opciones, bool eventos, string? nombreCreador = null)
     {
         JsonElement? datos = null;

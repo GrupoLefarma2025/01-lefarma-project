@@ -1,6 +1,220 @@
-import type { CostosRutaLugarInput, CostosRutaRequest, PuntoSeleccion } from '../types/costosRuta.types';
-import type { Solicitud } from '../types/solicitud.types';
+import type { CostosRutaLugarInput, CostosRutaRequest, CostosRutaResponse, PuntoSeleccion } from '../types/costosRuta.types';
+import type { CalculoViaje, Solicitud } from '../types/solicitud.types';
 import { hidratarSolicitud } from './solicitudDraft';
+import { casetasDeRuta } from './casetasRuta';
+
+/** Margen que se suma al tiempo de recorrido para no llegar justo al límite. */
+export const MARGEN_CARRO = 0.1;
+
+export interface SalidaAproximada {
+  fecha: string;
+  hora: string;
+  minutos: number;
+}
+
+export function duracionTexto(minutos: number): string {
+  return `${Math.floor(minutos / 60)}h ${String(minutos % 60).padStart(2, '0')}m`;
+}
+
+/** Fecha con el nombre completo del día ("Miércoles, 21/10/2026"). */
+export function fechaCorta(fecha: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null;
+  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const texto = new Date(anio, mes - 1, dia).toLocaleDateString('es-MX', {
+    weekday: 'long',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  return texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+/** Hora en 12 h con AM/PM ("11:07 AM"). */
+export function horaAmPm(hora: string): string | null {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return null;
+  const [hh, mm] = hora.split(':').map(Number);
+  const sufijo = hh < 12 ? 'AM' : 'PM';
+  return `${hh % 12 || 12}:${String(mm).padStart(2, '0')} ${sufijo}`;
+}
+
+/** Minutos del recorrido con el margen aplicado. */
+export function minutosConMargen(duracion: string): number | null {
+  const partes = duracion.match(/(\d+)h\s*(\d+)m/);
+  if (!partes) return null;
+  return Math.ceil((Number(partes[1]) * 60 + Number(partes[2])) * (1 + MARGEN_CARRO));
+}
+
+export function sumarMinutos(fecha: string, hora: string, minutos: number): { fecha: string; hora: string } | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return null;
+  const d = new Date(`${fecha}T${hora}:00`);
+  if (Number.isNaN(d.getTime())) return null;
+  d.setMinutes(d.getMinutes() + minutos);
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return {
+    fecha: `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`,
+    hora: `${dos(d.getHours())}:${dos(d.getMinutes())}`,
+  };
+}
+
+/** Hora límite de salida para llegar a `fecha`/`hora` con el recorrido dado. */
+export function salidaAproximada(fecha: string, hora: string, duracion: string): SalidaAproximada | null {
+  const minutos = minutosConMargen(duracion);
+  if (minutos === null || !/^\d{4}-\d{2}-\d{2}$/.test(fecha) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(hora)) return null;
+  const llegada = new Date(`${fecha}T${hora}:00`);
+  if (Number.isNaN(llegada.getTime())) return null;
+  const salida = new Date(llegada.getTime() - minutos * 60_000);
+  const dos = (n: number) => String(n).padStart(2, '0');
+  return {
+    fecha: `${salida.getFullYear()}-${dos(salida.getMonth() + 1)}-${dos(salida.getDate())}`,
+    hora: `${dos(salida.getHours())}:${dos(salida.getMinutes())}`,
+    minutos,
+  };
+}
+
+function separarIso(iso: string | null | undefined): { fecha: string | null; hora: string | null } {
+  if (!iso) return { fecha: null, hora: null };
+  const [fecha, hora] = iso.split('T');
+  return { fecha: fecha ?? null, hora: hora ? hora.slice(0, 5) : null };
+}
+
+/**
+ * Lee el cálculo de la ruta guardado en `datos.calculo` (se escribe al
+ * enviar). Devuelve `null` si la solicitud todavía no tiene cálculo.
+ */
+export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
+  const raiz = typeof datos === 'object' && datos !== null && !Array.isArray(datos)
+    ? (datos as Record<string, unknown>)
+    : null;
+  const bruto = raiz && typeof raiz.calculo === 'object' && raiz.calculo !== null && !Array.isArray(raiz.calculo)
+    ? (raiz.calculo as Record<string, unknown>)
+    : null;
+  if (!bruto || !Array.isArray(bruto.tramos)) return null;
+
+  const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() !== '' ? v : null);
+  const numero = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+  const tramos = bruto.tramos
+    .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null)
+    .map((t) => ({
+      de: texto(t.de) ?? 'Origen',
+      a: texto(t.a) ?? 'Destino',
+      km: numero(t.km),
+      duracion: texto(t.duracion),
+      duracion_con_margen: texto(t.duracion_con_margen),
+      salida_fecha: texto(t.salida_fecha),
+      salida_hora: texto(t.salida_hora),
+      llegada_fecha: texto(t.llegada_fecha),
+      llegada_hora: texto(t.llegada_hora),
+      alcanza: typeof t.alcanza === 'boolean' ? t.alcanza : null,
+      casetas: (Array.isArray(t.casetas) ? t.casetas : [])
+        .filter((c): c is Record<string, unknown> => typeof c === 'object' && c !== null)
+        .map((c) => ({
+          nombre: texto(c.nombre) ?? 'Caseta',
+          km: numero(c.km) ?? 0,
+          direccion: texto(c.direccion) ?? '',
+          costo: numero(c.costo),
+        })),
+    }));
+
+  return {
+    generado_en: texto(bruto.generado_en) ?? '',
+    margen: numero(bruto.margen) ?? 0,
+    modo_transporte: bruto.modo_transporte === 'propio' ? 'propio' : 'solicitado',
+    km_total: numero(bruto.km_total),
+    horas_total: texto(bruto.horas_total),
+    tramos,
+  };
+}
+
+/**
+ * Resumen de la ruta calculada por tramo: kilómetros, tiempos (con y sin
+ * margen), hora de salida/llegada y las casetas de referencia. Es la ruta que
+ * manda después del envío (se guarda en `datos.calculo`).
+ */
+export function construirCalculo(
+  tramos: TramoViaje[],
+  resultados: Record<number, CostosRutaResponse>,
+  modoTransporte: 'propio' | 'solicitado',
+): CalculoViaje {
+  const calculados = tramos.map((tramo, indice) => {
+    const respuesta = resultados[indice];
+    const persona = respuesta?.resultados[0];
+    const opciones = persona?.tramos.flatMap((t) => t.opciones) ?? [];
+    // En carro se toma la misma oferta que usa la ruta armada (la de cuota si
+    // su costo coincide), para que km y tiempo cuadren con lo que se ve.
+    const totalRuta = persona?.rutaArmada.totales.subtotalMagna ?? null;
+    const ofertaAuto =
+      opciones.find((o) => o.modo === 'auto' && totalRuta !== null && Math.abs(o.costoGrupo - totalRuta) < 1) ??
+      opciones.find((o) => o.modo === 'auto');
+    const oferta = ofertaAuto ?? opciones[0];
+    const km = persona?.rutaArmada.totales.km ?? persona?.tramos[0]?.km ?? null;
+    const duracion = oferta?.duracion ?? null;
+    const minutos = duracion ? minutosConMargen(duracion) : null;
+
+    const salidaDesde = tramo.desde.fecha && tramo.desde.hora
+      ? { fecha: tramo.desde.fecha, hora: tramo.desde.hora }
+      : null;
+    const llegadaEstimada = salidaDesde && minutos !== null
+      ? sumarMinutos(salidaDesde.fecha, salidaDesde.hora, minutos)
+      : null;
+    const limiteSalida = tramo.hasta.fecha && tramo.hasta.hora && duracion
+      ? salidaAproximada(tramo.hasta.fecha, tramo.hasta.hora, duracion)
+      : null;
+
+    const esCarro = modoTransporte === 'propio' && ofertaAuto !== undefined;
+    const salida = esCarro
+      ? (salidaDesde ?? (limiteSalida ? { fecha: limiteSalida.fecha, hora: limiteSalida.hora } : null))
+      : separarIso(oferta?.salida);
+    const llegada = esCarro
+      ? (llegadaEstimada ?? separarIso(oferta?.llegada))
+      : separarIso(oferta?.llegada);
+    const alcanza = esCarro
+      ? llegada !== null && tramo.hasta.fecha && tramo.hasta.hora
+        ? `${llegada.fecha}T${llegada.hora}` <= `${tramo.hasta.fecha}T${tramo.hasta.hora}`
+        : null
+      : (oferta?.aTiempo ?? null);
+
+    const casetasMotor = (persona?.casetas ?? [])
+      .filter(
+        (c) => c.deMunicipio === tramo.desde.punto.municipio && c.aMunicipio === tramo.hasta.punto.municipio,
+      )
+      .map((c) => ({
+        nombre: c.nombre,
+        km: c.km,
+        direccion: c.direccion || c.carretera,
+        costo: c.tarifa,
+      }));
+
+    return {
+      de: tramo.desde.nombre,
+      a: tramo.hasta.nombre,
+      km,
+      duracion,
+      duracion_con_margen: minutos !== null ? duracionTexto(minutos) : null,
+      salida_fecha: salida?.fecha ?? null,
+      salida_hora: salida?.hora ?? null,
+      llegada_fecha: llegada?.fecha ?? null,
+      llegada_hora: llegada?.hora ?? null,
+      alcanza,
+      casetas: casetasMotor.length > 0 ? casetasMotor : casetasDeRuta(tramo.desde.nombre, tramo.hasta.nombre),
+    };
+  });
+
+  const kmTotal = calculados.reduce((suma, t) => suma + (t.km ?? 0), 0);
+  const minutosTotal = calculados.reduce(
+    (suma, t) => suma + (t.duracion_con_margen ? minutosConMargen(t.duracion ?? '') ?? 0 : 0),
+    0,
+  );
+
+  return {
+    generado_en: new Date().toISOString(),
+    margen: MARGEN_CARRO,
+    modo_transporte: modoTransporte,
+    km_total: calculados.some((t) => t.km !== null) ? Math.round(kmTotal * 10) / 10 : null,
+    horas_total: minutosTotal > 0 ? duracionTexto(minutosTotal) : null,
+    tramos: calculados,
+  };
+}
 
 const esFecha = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
 const esHora = (v: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(v);
@@ -142,6 +356,8 @@ export function construirRequestTramo(solicitud: Solicitud, tramo: TramoViaje): 
     nombre: tramo.desde.nombre,
     latitud: tramo.desde.punto.latitud,
     longitud: tramo.desde.punto.longitud,
+    municipio: tramo.desde.punto.municipio,
+    estado: tramo.desde.punto.estado,
   };
   if (esFecha(tramo.desde.fecha) && esHora(tramo.desde.hora)) {
     salida.fecha_salida = tramo.desde.fecha;
@@ -157,6 +373,8 @@ export function construirRequestTramo(solicitud: Solicitud, tramo: TramoViaje): 
         nombre: tramo.hasta.nombre,
         latitud: tramo.hasta.punto.latitud,
         longitud: tramo.hasta.punto.longitud,
+        municipio: tramo.hasta.punto.municipio,
+        estado: tramo.hasta.punto.estado,
         fecha_limite_llegada: tramo.hasta.fecha,
         hora_limite_llegada: tramo.hasta.hora,
       },
@@ -171,6 +389,8 @@ export function construirRequestTramo(solicitud: Solicitud, tramo: TramoViaje): 
       nombre: tramo.hasta.nombre,
       latitud: tramo.hasta.punto.latitud,
       longitud: tramo.hasta.punto.longitud,
+      municipio: tramo.hasta.punto.municipio,
+      estado: tramo.hasta.punto.estado,
       fecha_inicio_actividad: tramo.hasta.fecha,
       hora_inicio_actividad: tramo.hasta.hora,
     },
@@ -194,6 +414,8 @@ export function construirRequestHotel(solicitud: Solicitud, tramo: TramoViaje): 
       nombre: tramo.desde.nombre,
       latitud: tramo.desde.punto.latitud,
       longitud: tramo.desde.punto.longitud,
+      municipio: tramo.desde.punto.municipio,
+      estado: tramo.desde.punto.estado,
       fecha_salida: diaPrevio,
       hora_salida: '18:00',
     },
@@ -203,6 +425,8 @@ export function construirRequestHotel(solicitud: Solicitud, tramo: TramoViaje): 
       nombre: `Hotel cerca de ${tramo.hasta.nombre}`,
       latitud: tramo.hasta.punto.latitud,
       longitud: tramo.hasta.punto.longitud,
+      municipio: tramo.hasta.punto.municipio,
+      estado: tramo.hasta.punto.estado,
       fecha_llegada: diaPrevio,
       hora_llegada: '20:00',
       fecha_salida: limite?.fecha ?? diaDestino,
@@ -214,6 +438,8 @@ export function construirRequestHotel(solicitud: Solicitud, tramo: TramoViaje): 
       nombre: tramo.hasta.nombre,
       latitud: tramo.hasta.punto.latitud,
       longitud: tramo.hasta.punto.longitud,
+      municipio: tramo.hasta.punto.municipio,
+      estado: tramo.hasta.punto.estado,
       fecha_inicio_actividad: tramo.hasta.fecha,
       hora_inicio_actividad: tramo.hasta.hora,
     },
@@ -240,6 +466,8 @@ export function construirRequestHotelRegreso(
       nombre: tramo.desde.nombre,
       latitud: tramo.desde.punto.latitud,
       longitud: tramo.desde.punto.longitud,
+      municipio: tramo.desde.punto.municipio,
+      estado: tramo.desde.punto.estado,
       fecha_salida: diaHotel,
       hora_salida: tramo.desde.hora,
     },
@@ -249,6 +477,8 @@ export function construirRequestHotelRegreso(
       nombre: `Hotel cerca de ${tramo.desde.nombre}`,
       latitud: tramo.desde.punto.latitud,
       longitud: tramo.desde.punto.longitud,
+      municipio: tramo.desde.punto.municipio,
+      estado: tramo.desde.punto.estado,
       fecha_llegada: checkIn?.fecha ?? diaHotel,
       hora_llegada: checkIn?.hora ?? '20:00',
       fecha_salida: diaSiguiente,
@@ -260,6 +490,8 @@ export function construirRequestHotelRegreso(
       nombre: tramo.hasta.nombre,
       latitud: tramo.hasta.punto.latitud,
       longitud: tramo.hasta.punto.longitud,
+      municipio: tramo.hasta.punto.municipio,
+      estado: tramo.hasta.punto.estado,
       fecha_limite_llegada: diaSiguiente,
       hora_limite_llegada: '18:30',
     },

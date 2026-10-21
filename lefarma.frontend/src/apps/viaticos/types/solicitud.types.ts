@@ -67,6 +67,46 @@ export interface Solicitud {
   nombre_creador?: string | null;
 }
 
+/** Caseta de referencia que aparece en un tramo del cálculo de ruta. */
+export interface CasetaCalculada {
+  nombre: string;
+  km: number;
+  direccion: string;
+  costo: number | null;
+}
+
+/** Tramo de la ruta calculada (la que manda tras el envío). */
+export interface TramoCalculado {
+  de: string;
+  a: string;
+  km: number | null;
+  /** Tiempo de recorrido sin margen ("8h 35m"). */
+  duracion: string | null;
+  /** Tiempo de recorrido con el margen aplicado ("9h 27m"). */
+  duracion_con_margen: string | null;
+  salida_fecha: string | null;
+  salida_hora: string | null;
+  llegada_fecha: string | null;
+  llegada_hora: string | null;
+  /** Si la llegada estimada cumple la hora requerida del tramo. */
+  alcanza: boolean | null;
+  casetas: CasetaCalculada[];
+}
+
+/**
+ * Cálculo de la ruta hecho al enviar la solicitud. Se guarda en
+ * `datos.calculo` del snapshot y es la ruta que manda (la propuesta del
+ * wizard queda como referencia).
+ */
+export interface CalculoViaje {
+  generado_en: string;
+  margen: number;
+  modo_transporte: 'propio' | 'solicitado';
+  km_total: number | null;
+  horas_total: string | null;
+  tramos: TramoCalculado[];
+}
+
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */
 export interface CrearSolicitudPayload {
   gerencia?: string;

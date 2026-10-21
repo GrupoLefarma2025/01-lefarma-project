@@ -1,6 +1,7 @@
 import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import type {
+  CalculoViaje,
   CrearSolicitudPayload,
   OpcionCotizacion,
   Solicitud,
@@ -22,10 +23,12 @@ export const solicitudesApi = {
   /** DELETE /viaticos/solicitudes/{id}: soft delete de un borrador. */
   eliminar: (id: number) => API.delete<ApiResponse<object>>(`${BASE}/${id}`),
   /** POST /viaticos/solicitudes/{id}/enviar: borrador -> concentrado. */
-  enviar: (id: number) => API.post<ApiResponse<Solicitud>>(`${BASE}/${id}/enviar`, {}),
+  enviar: (id: number, calculo?: CalculoViaje) =>
+    API.post<ApiResponse<Solicitud>>(`${BASE}/${id}/enviar`, calculo ? { calculo } : {}),
   /** PUT /viaticos/solicitudes/{id}/opciones: persiste la cotización elegida. */
-  guardarOpciones: (id: number, opciones: OpcionCotizacion[]) =>
+  guardarOpciones: (id: number, opciones: OpcionCotizacion[], calculo?: CalculoViaje) =>
     API.put<ApiResponse<Solicitud>>(`${BASE}/${id}/opciones`, {
       cotizacion: { opciones },
+      ...(calculo ? { calculo } : {}),
     }),
 };
