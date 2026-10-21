@@ -941,7 +941,11 @@ public class RutasService : IRutasService
         };
     }
 
-    public async Task<List<AsignacionDto>> GetAsignacionesAsync(int idUsuario, CancellationToken ct = default)
+    public async Task<List<AsignacionDto>> GetAsignacionesAsync(
+        int idUsuario,
+        DateOnly? desde = null,
+        DateOnly? hasta = null,
+        CancellationToken ct = default)
     {
         var equipos = await _equipoRepository.GetAllAsync(null, ct);
         var idsEquipos = equipos
@@ -1036,6 +1040,16 @@ public class RutasService : IRutasService
         {
             foreach (var visita in visitasPorRuta[ruta.IdRuta])
             {
+                if (desde.HasValue && visita.FechaVisita < desde.Value)
+                {
+                    continue;
+                }
+
+                if (hasta.HasValue && visita.FechaVisita > hasta.Value)
+                {
+                    continue;
+                }
+
                 var hospital = visita.IdSeleccionHospital.HasValue
                     ? hospitalesSeleccion.GetValueOrDefault(visita.IdSeleccionHospital.Value)
                     : null;
@@ -1052,6 +1066,8 @@ public class RutasService : IRutasService
                     IdSeleccionHospital = visita.IdSeleccionHospital,
                     FechaVisita = visita.FechaVisita,
                     Orden = visita.Orden,
+                    HoraSalida = visita.HoraSalida,
+                    HoraLlegada = visita.HoraLlegada,
                     IdHospital = idHospital,
                     NombreHospital = idHospital.HasValue
                         ? nombresHospitales.GetValueOrDefault(idHospital.Value, $"Hospital {idHospital}")

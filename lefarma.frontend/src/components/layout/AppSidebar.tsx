@@ -49,12 +49,14 @@ export interface AppSidebarProps {
   brandPath: string;
   /** Enlace opcional de configuración de usuario en el pie (p. ej. "/cxp/configuracion"). */
   configPath?: string;
+  /** Abre el manual de ayuda del módulo, si está registrado en el menú. */
+  onOpenHelp?: () => void;
 }
 
-export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSidebarProps) {
+export function AppSidebar({ items, brandTitle, brandPath, configPath, onOpenHelp }: AppSidebarProps) {
   usePermissionVersion(); // subscribe — re-render when permissions change
   const { user, logout, hasFirma, hasFirmaLegacy } = useAuthStore();
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const isCollapsed = state === 'collapsed';
   // Solo CxP cuenta la firma legacy para el aviso; otras apps no cambian.
   const esCxp = brandPath.startsWith('/cxp');
@@ -194,6 +196,23 @@ export function AppSidebar({ items, brandTitle, brandPath, configPath }: AppSide
               }
 
               if (!hasPermission(item.permission)) return null;
+
+              if ('helpPdf' in item) {
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      tooltip={item.title}
+                      onClick={() => {
+                        if (isMobile) setOpenMobile(false);
+                        onOpenHelp?.();
+                      }}
+                    >
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              }
 
               return (
                 <SidebarMenuItem key={item.title}>

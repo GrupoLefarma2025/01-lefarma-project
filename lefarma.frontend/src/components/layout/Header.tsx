@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Building2, MapPin, Layers, User, LogOut, Sun, Moon, Monitor, PenLine, AlertTriangle } from 'lucide-react';
+import { Building2, MapPin, Layers, User, LogOut, Sun, Moon, Monitor, PenLine, AlertTriangle, HelpCircle } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useState } from 'react';
 import CambiarUbicacionModal from './CambiarUbicacionModal';
@@ -29,9 +29,13 @@ export interface HeaderProps {
   showContext?: boolean;
   /** Configuración page path (e.g. "/cxp/configuracion"). Omit to hide. */
   configPath?: string;
+  /** Muestra el botón del manual de ayuda cuando el módulo tiene PDF. */
+  showHelp?: boolean;
+  /** Abre el manual de ayuda del módulo. */
+  onOpenHelp?: () => void;
 }
 
-export const Header = ({ showContext = false, configPath }: HeaderProps = {}) => {
+export const Header = ({ showContext = false, configPath, showHelp = false, onOpenHelp }: HeaderProps = {}) => {
   const { user, empresa, sucursal, area, hasFirma, hasFirmaLegacy, logout } = useAuthStore();
   const { title, subtitle } = usePageStore();
   const { ui, setTema } = useConfigStore();
@@ -120,6 +124,19 @@ export const Header = ({ showContext = false, configPath }: HeaderProps = {}) =>
 
    {/* Lado derecho: Tema + Notificaciones + Menú de usuario */}
       <div className="flex items-center gap-2">
+        {showHelp && onOpenHelp && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9"
+            onClick={onOpenHelp}
+            title="Manual de ayuda"
+            aria-label="Abrir manual de ayuda"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </Button>
+        )}
+
         {/* Theme Dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

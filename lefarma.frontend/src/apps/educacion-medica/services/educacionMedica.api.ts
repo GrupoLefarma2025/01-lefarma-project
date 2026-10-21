@@ -60,6 +60,7 @@ import type {
   ConfigRanking,
   UpsertConfigRankingRequest,
   MisTalleresResponse,
+  DashboardResumen,
   Taller,
   CrearTallerRequest,
   ActualizarTallerRequest,
@@ -418,8 +419,13 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<HospitalElegible[]>>(`${BASE}/talleres/hospitales-elegibles`, {
         params: { idEquipo },
       }),
-    asignaciones: () =>
-      API.get<ApiResponse<Asignacion[]>>(`${BASE}/talleres/asignaciones`),
+    asignaciones: (desde?: string, hasta?: string) =>
+      API.get<ApiResponse<Asignacion[]>>(`${BASE}/talleres/asignaciones`, {
+        params: {
+          ...(desde ? { desde } : {}),
+          ...(hasta ? { hasta } : {}),
+        },
+      }),
   },
   ajustes: {
     listar: (entidadTipo: AjustePostCierre['entidadTipo'], idEntidad: number) =>
@@ -431,6 +437,12 @@ export const educacionMedicaApi = {
     getDocumentos: (filtro: 'pendientes' | 'mios' | 'todos' = 'pendientes') =>
       API.get<ApiResponse<PendienteAprobacion[]>>(`${BASE}/aprobaciones/documentos`, {
         params: { filtro },
+      }),
+  },
+  dashboard: {
+    get: (periodo?: string) =>
+      API.get<ApiResponse<DashboardResumen>>(`${BASE}/dashboard`, {
+        params: periodo ? { periodo } : undefined,
       }),
   },
   talleres: {

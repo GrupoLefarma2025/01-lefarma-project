@@ -154,6 +154,10 @@ public class AsignacionDto
     public int? IdSeleccionHospital { get; set; }
     public DateOnly FechaVisita { get; set; }
     public int Orden { get; set; }
+    /// <summary>Hora de salida planeada de la visita (ADR-00013: agenda personal).</summary>
+    public TimeOnly? HoraSalida { get; set; }
+    /// <summary>Hora de llegada planeada de la visita (ADR-00013: agenda personal).</summary>
+    public TimeOnly? HoraLlegada { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
     public string? NombreRegion { get; set; }

@@ -566,6 +566,10 @@ export interface Asignacion {
   idSeleccionHospital: number | null;
   fechaVisita: string;
   orden: number;
+  /** Hora de salida planeada (ADR-00013); null si la ruta no la capturó. */
+  horaSalida?: string | null;
+  /** Hora de llegada planeada (ADR-00013); null si la ruta no la capturó. */
+  horaLlegada?: string | null;
   idHospital: number | null;
   nombreHospital: string | null;
   nombreRegion: string | null;
@@ -916,6 +920,17 @@ export interface MisTalleresResponse {
   /** Paso actual del workflow de la matriz general. */
   pasoActualMatrizGeneral: string | null;
   talleres: Taller[];
+}
+
+/** Resumen agregado del dashboard (ADR-00012, Fase 2): una sola llamada. */
+export interface DashboardResumen {
+  periodo: string;
+  misTalleres: MisTalleresResponse | null;
+  asignaciones: Asignacion[];
+  pendientes: PendienteAprobacion[];
+  matrices: MatrizGeneralResumen[];
+  talleresPeriodo: Taller[];
+  solicitudes: Taller[];
 }
 
 /** Recurso capturado por el equipo (sin costos; los costos los registra el AEM). */

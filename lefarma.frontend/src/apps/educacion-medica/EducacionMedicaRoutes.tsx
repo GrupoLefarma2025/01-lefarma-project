@@ -5,7 +5,7 @@ import { createAppRoutes } from '@/shared/router/createAppRoutes';
 import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { educacionMedicaMenuItems } from './menuItems';
 
-import { EducacionMedicaDashboard } from './pages/EducacionMedicaDashboard';
+import { EducacionMedicaDashboard } from './pages/dashboard/EducacionMedicaDashboard';
 import Perfil from '@/pages/Perfil';
 import HospitalesPage from './pages/catalogos/HospitalesPage';
 import ProductosPage from './pages/catalogos/ProductosPage';
@@ -17,7 +17,7 @@ import ConfigRankingPage from './pages/catalogos/ConfigRankingPage';
 import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
 import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
 import RutasPage from './pages/planificacion/RutasPage';
-import CalendarioPage from './pages/planificacion/CalendarioPage';
+import MiPlaneacionPage from './pages/planificacion/MiPlaneacionPage';
 import MatrizTalleresPage from './pages/taller/MatrizTalleresPage';
 import MisTalleresPage from './pages/taller/MisTalleresPage';
 import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
@@ -162,9 +162,9 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         <Route
           path="calendario"
           element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
-              <CalendarioPage />
-            </PermissionGuard>
+          <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
+            <MiPlaneacionPage />
+          </PermissionGuard>
           }
         />
         <Route

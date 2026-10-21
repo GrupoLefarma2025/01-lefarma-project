@@ -117,7 +117,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.seleccionesVer },
       },
       {
-        title: 'Calendario',
+        title: 'Mi planeación',
         icon: Calendar,
         path: '/educacion-medica/calendario',
         permission: { require: PERMISOS.talleresVer },

@@ -298,12 +298,26 @@ public class RutasController : ControllerBase
     [HttpGet("talleres/asignaciones")]
     [HasPermission(Permissions.EducacionMedica.TalleresCapturar)]
     [SwaggerOperation(
-        Summary = "Asignación del ejecutivo (mis hospitales del mes)",
-        Description = "Retorna las visitas confirmadas de los equipos del usuario autenticado (EV o EP), en selecciones vigentes o próximas (excluye las vencidas).")]
+        Summary = "Asignación del ejecutivo (mis hospitales del mes / mi planeación)",
+        Description = "Retorna las visitas confirmadas de los equipos del usuario autenticado (EV o EP), en selecciones vigentes o próximas (excluye las vencidas). "
+            + "Acepta filtros opcionales 'desde' y 'hasta' (fechas inclusivas) para la vista semanal.")]
     [SwaggerResponse(200, "Asignaciones obtenidas", typeof(ApiResponse<List<AsignacionDto>>))]
-    public async Task<IActionResult> GetAsignaciones(CancellationToken ct)
+    [SwaggerResponse(400, "Rango de fechas inválido")]
+    public async Task<IActionResult> GetAsignaciones(
+        [FromQuery] DateOnly? desde,
+        [FromQuery] DateOnly? hasta,
+        CancellationToken ct)
     {
-        var asignaciones = await _service.GetAsignacionesAsync(GetUserId(), ct);
+        if (desde.HasValue && hasta.HasValue && desde.Value > hasta.Value)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "El rango de fechas es inválido: 'desde' no puede ser mayor que 'hasta'."
+            });
+        }
+
+        var asignaciones = await _service.GetAsignacionesAsync(GetUserId(), desde, hasta, ct);
         return Ok(new ApiResponse<List<AsignacionDto>>
         {
             Success = true,
