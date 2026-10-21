@@ -105,6 +105,27 @@ export interface CalculoViaje {
   km_total: number | null;
   horas_total: string | null;
   tramos: TramoCalculado[];
+  /**
+   * Cadena completa tal como se revisó antes de enviar: paradas con su punto
+   * (origen, terminal, hotel, regreso) y su detalle. Es lo que pinta el
+   * diagrama de "Ruta calculada" en el detalle del viaje.
+   */
+  ruta?: RutaCalculadaGuardada | null;
+}
+
+/** Parada de la ruta calculada, con su coordenada y el detalle de cómo se llega. */
+export interface ParadaCalculada {
+  lat: number;
+  lng: number;
+  nombre: string;
+  tipo: 'origen' | 'punto' | 'hotel' | 'regreso' | 'terminal';
+  detalle?: string;
+}
+
+/** Ruta calculada completa: paradas del mapa y nodos del diagrama. */
+export interface RutaCalculadaGuardada {
+  puntos: ParadaCalculada[];
+  nodos: { titulo: string; detalles: string[] }[];
 }
 
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */

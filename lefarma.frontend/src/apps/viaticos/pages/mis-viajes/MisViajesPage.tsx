@@ -20,6 +20,7 @@ import { estadoTexto } from '../../types/aprobaciones.types';
 import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
+import { RutaViajeTimeline, type NodoRutaTimeline } from '../../components/RutaViajeTimeline';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
 import { horaAmPm, leerCalculoDesdeDatos } from '../../services/calculoViaje';
@@ -539,8 +540,38 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
 }
 
 /**
+ * Paradas del diagrama para la ruta calculada. Los cálculos nuevos traen la
+ * cadena completa (origen, terminal, vuelo o autobús, hotel, regreso); los
+ * viejos solo traen los tramos y se arma un diagrama mínimo con ellos.
+ */
+function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
+  if (calculo.ruta?.nodos?.length) {
+    return calculo.ruta.nodos.map((nodo, i) => ({
+      id: `ruta-${i}`,
+      titulo: nodo.titulo,
+      detalles: nodo.detalles,
+    }));
+  }
+  const primera = calculo.tramos[0];
+  return [
+    { id: 'origen', titulo: 'Origen', detalles: [primera?.de ?? '—'] },
+    ...calculo.tramos.map((tramo, i) => ({
+      id: `tramo-${i}`,
+      titulo: `${i + 1}. ${tramo.a}`,
+      detalles: [
+        `${tramo.duracion ?? '—'} de recorrido${tramo.km != null ? ` · ${tramo.km} km` : ''}`,
+        [tramo.salida_fecha, tramo.salida_hora, 'a', tramo.llegada_fecha, tramo.llegada_hora]
+          .filter(Boolean)
+          .join(' '),
+      ].filter((linea) => linea.trim() !== ''),
+    })),
+  ];
+}
+
+/**
  * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
- * otra pestaña, la propuesta original del wizard.
+ * otra pestaña, la propuesta original del wizard. La tercera pestaña queda
+ * reservada para la ruta que se autorice en el concentrado.
  */
 function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
@@ -569,13 +600,25 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
     <Tabs defaultValue="calculada" className="space-y-4">
       <TabsList>
         <TabsTrigger value="calculada">Ruta calculada</TabsTrigger>
-        <TabsTrigger value="propuesta">Ruta propuesta</TabsTrigger>
+        <TabsTrigger value="inicial">Viaje inicial</TabsTrigger>
+        <TabsTrigger value="autorizada" disabled>
+          Ruta autorizada
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="calculada" className="space-y-4">
+        <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
+          <h3 className="mb-3 font-semibold">Ruta del viaje</h3>
+          <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
+        </div>
         <RutaCalculada calculo={calculo} />
         {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
       </TabsContent>
-      <TabsContent value="propuesta">{propuesta}</TabsContent>
+      <TabsContent value="inicial">{propuesta}</TabsContent>
+      <TabsContent value="autorizada">
+        <p className="text-sm text-muted-foreground">
+          La ruta autorizada aparece aquí cuando el concentrado la modifique al autorizar el viaje.
+        </p>
+      </TabsContent>
     </Tabs>
   );
 }

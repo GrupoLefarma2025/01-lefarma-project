@@ -224,11 +224,14 @@ describe('MisViajesPage', () => {
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
     // La ruta calculada es la pestaña activa: es la que manda tras el envío.
     expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Ruta propuesta' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Viaje inicial' })).toBeInTheDocument();
+    // La ruta autorizada se habilita cuando el concentrado la modifique.
+    expect(screen.getByRole('tab', { name: 'Ruta autorizada' })).toBeDisabled();
+    expect(screen.getByTestId('diagrama-ruta-calculada')).toBeInTheDocument();
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Tultepec');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('489.3 km');
     // La propuesta original sigue disponible en su pestaña.
-    await usuario.click(screen.getByRole('tab', { name: 'Ruta propuesta' }));
+    await usuario.click(screen.getByRole('tab', { name: 'Viaje inicial' }));
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Propuesta original del wizard');
   });
 });

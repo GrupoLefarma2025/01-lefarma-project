@@ -38,7 +38,7 @@ import { casetasDeRuta } from '../services/casetasRuta';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
 import type { CostosRutaResponse } from '../types/costosRuta.types';
-import type { OpcionCotizacion, Solicitud } from '../types/solicitud.types';
+import type { CalculoViaje, OpcionCotizacion, Solicitud } from '../types/solicitud.types';
 
 function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
@@ -477,8 +477,25 @@ export function CalculosViajeModal({
     setEnviando(true);
     try {
       // La ruta calculada se guarda con la solicitud: es la que manda después
-      // del envío (la propuesta del wizard queda como referencia).
-      const calculo = construirCalculo(tramos, resultados, esCarro ? 'propio' : 'solicitado');
+      // del envío (la propuesta del wizard queda como referencia). Se incluye
+      // la cadena revisada (terminales, hoteles y taxis) para que el detalle
+      // pueda mostrar la evolución sin recalcular.
+      const calculo: CalculoViaje = {
+        ...construirCalculo(tramos, resultados, esCarro ? 'propio' : 'solicitado'),
+        ruta: {
+          puntos: cadenaResumen.puntos.map((p) => ({
+            lat: p.lat,
+            lng: p.lng,
+            nombre: p.nombre,
+            tipo: p.tipo,
+            detalle: p.detalle,
+          })),
+          nodos: cadenaResumen.nodos.map((n) => ({
+            titulo: n.titulo,
+            detalles: n.detalles.map((d) => String(d)),
+          })),
+        },
+      };
       const res = opciones.length > 0
         ? await solicitudesApi.guardarOpciones(solicitud.id_solicitud, opciones, calculo)
         : await solicitudesApi.enviar(solicitud.id_solicitud, calculo);

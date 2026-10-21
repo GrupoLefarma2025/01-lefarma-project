@@ -1,5 +1,5 @@
 import type { CostosRutaLugarInput, CostosRutaRequest, CostosRutaResponse, PuntoSeleccion } from '../types/costosRuta.types';
-import type { CalculoViaje, Solicitud } from '../types/solicitud.types';
+import type { CalculoViaje, ParadaCalculada, Solicitud } from '../types/solicitud.types';
 import { hidratarSolicitud } from './solicitudDraft';
 import { casetasDeRuta } from './casetasRuta';
 
@@ -116,6 +116,36 @@ export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
         })),
     }));
 
+  const rutaBruta = typeof bruto.ruta === 'object' && bruto.ruta !== null && !Array.isArray(bruto.ruta)
+    ? (bruto.ruta as Record<string, unknown>)
+    : null;
+  const tiposPunto = new Set(['origen', 'punto', 'hotel', 'regreso', 'terminal']);
+  const ruta = rutaBruta
+    ? {
+        puntos: (Array.isArray(rutaBruta.puntos) ? rutaBruta.puntos : [])
+          .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+          .map((p) => {
+            const tipo = texto(p.tipo) ?? 'punto';
+            return {
+              lat: numero(p.lat) ?? 0,
+              lng: numero(p.lng) ?? 0,
+              nombre: texto(p.nombre) ?? 'Punto',
+              tipo: (tiposPunto.has(tipo) ? tipo : 'punto') as ParadaCalculada['tipo'],
+              detalle: texto(p.detalle) ?? undefined,
+            };
+          })
+          .filter((p) => p.lat !== 0 || p.lng !== 0),
+        nodos: (Array.isArray(rutaBruta.nodos) ? rutaBruta.nodos : [])
+          .filter((n): n is Record<string, unknown> => typeof n === 'object' && n !== null)
+          .map((n) => ({
+            titulo: texto(n.titulo) ?? 'Parada',
+            detalles: (Array.isArray(n.detalles) ? n.detalles : [])
+              .map((d) => texto(d))
+              .filter((d): d is string => d !== null),
+          })),
+      }
+    : null;
+
   return {
     generado_en: texto(bruto.generado_en) ?? '',
     margen: numero(bruto.margen) ?? 0,
@@ -123,6 +153,7 @@ export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
     km_total: numero(bruto.km_total),
     horas_total: texto(bruto.horas_total),
     tramos,
+    ruta,
   };
 }
 
