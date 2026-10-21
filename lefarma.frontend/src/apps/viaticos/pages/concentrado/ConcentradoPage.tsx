@@ -435,6 +435,14 @@ export function ConcentradoPage() {
               {fechaCorta(rango.fin)}.
             </p>
           ) : null}
+          {visibles.length < filas.length ? (
+            <p data-testid="aviso-recorte" className="text-xs text-muted-foreground">
+              {visibles.length} de {filas.length} solicitudes visibles
+              {definicion !== 'todas'
+                ? ' · las autorizadas y rechazadas se ven eligiendo «Todas» en Definición de «activo».'
+                : ' · el resto queda fuera por el tipo de viaje.'}
+            </p>
+          ) : null}
           {filtroFecha === 'personalizado' && !rango ? (
             <p className="text-xs text-muted-foreground">Elige la fecha inicial y la final para aplicar el rango.</p>
           ) : null}
