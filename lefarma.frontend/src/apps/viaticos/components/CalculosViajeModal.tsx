@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { TablaOpciones } from './TablaOpciones';
 import { ResumenRutaModal, type PuntoRutaResumen, type SegmentoRuta } from './ResumenRutaModal';
+import type { NodoRutaTimeline } from './RutaViajeTimeline';
 import {
   MARGEN_CARRO,
   construirCalculo,
@@ -222,19 +223,48 @@ export function CalculosViajeModal({
   /**
    * Cadena completa del resumen: origen → terminal → vuelo/bus → terminal →
    * hotel o punto → … → regreso. Si la oferta elegida no usa terminal (auto o
-   * renta) se dibuja la carretera. Es lo que se ve en el mapa y en la lista.
+   * renta) se dibuja la carretera. Alimenta el mapa y el diagrama de ruta, que
+   * usa el mismo diseño que el resumen del viaje.
    */
   const cadenaResumen = useMemo(() => {
     const puntos: PuntoRutaResumen[] = [];
     const segmentos: SegmentoRuta[] = [];
-    const textos: string[] = [];
+    const nodos: NodoRutaTimeline[] = [];
     const vistos = new Set<string>();
+    let ultimaClave = '';
+    let paradas = 0;
 
-    const agregarPunto = (lat: number, lng: number, nombre: string, tipo: PuntoRutaResumen['tipo']) => {
+    const agregarPunto = (
+      lat: number,
+      lng: number,
+      nombre: string,
+      tipo: PuntoRutaResumen['tipo'],
+      detalle?: string,
+    ) => {
       const clave = `${lat.toFixed(4)},${lng.toFixed(4)}`;
-      if (vistos.has(clave)) return;
-      vistos.add(clave);
-      puntos.push({ lat, lng, nombre, tipo });
+      // Los marcadores del mapa no se repiten, pero el diagrama sí: un viaje
+      // redondo vuelve al origen y el regreso tiene que verse como parada.
+      if (!vistos.has(clave)) {
+        vistos.add(clave);
+        puntos.push({ lat, lng, nombre, tipo });
+      }
+      if (clave === ultimaClave) return;
+      ultimaClave = clave;
+      const titulo = tipo === 'origen'
+        ? 'Origen'
+        : tipo === 'regreso'
+          ? 'Regreso'
+          : tipo === 'punto'
+            ? `${++paradas}. ${nombre}`
+            : nombre;
+      nodos.push({
+        id: `${clave}-${tipo}-${nodos.length}`,
+        titulo,
+        detalles: [
+          ...(detalle ? [detalle] : []),
+          `${nombre} · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+        ],
+      });
     };
     const agregarSegmento = (
       tipo: SegmentoRuta['tipo'],
@@ -268,6 +298,11 @@ export function CalculosViajeModal({
       const terminalOrigen = oferta?.terminalOrigen ?? null;
       const terminalDestino = oferta?.terminalDestino ?? null;
       const transporteLargo = oferta?.modo === 'bus' || oferta?.modo === 'avion';
+      // El taxi total de la oferta cubre las dos puntas: se reparte a la mitad
+      // para no prometer un minuto exacto en cada tramo.
+      const minutosTaxiPunta = oferta?.minutosTaxi && oferta.minutosTaxi > 0
+        ? Math.max(1, Math.round(oferta.minutosTaxi / 2))
+        : null;
 
       if (oferta && transporteLargo) {
         // Cadena del viaje largo: taxi a la terminal, vuelo/autobús y taxi al
@@ -276,25 +311,33 @@ export function CalculosViajeModal({
         const tOrigen: [number, number] | null = terminalOrigen ? [terminalOrigen.latitud, terminalOrigen.longitud] : null;
         const tDestino: [number, number] | null = terminalDestino ? [terminalDestino.latitud, terminalDestino.longitud] : null;
         if (tOrigen) {
-          agregarPunto(tOrigen[0], tOrigen[1], terminalOrigen!.nombre, 'terminal');
+          agregarPunto(
+            tOrigen[0],
+            tOrigen[1],
+            terminalOrigen!.nombre,
+            'terminal',
+            `En taxi desde ${tramo.desde.nombre}${minutosTaxiPunta ? ` · ~${minutosTaxiPunta} min` : ''}`,
+          );
           agregarSegmento('taxi', origen, tOrigen, `Taxi a ${terminalOrigen!.nombre}`);
-          textos.push(`Taxi: ${tramo.desde.nombre} → ${terminalOrigen!.nombre}`);
-        }
-        if (tDestino) {
-          agregarPunto(tDestino[0], tDestino[1], terminalDestino!.nombre, 'terminal');
         }
         const desdeLargo = tOrigen ?? origen;
         const hastaLargo = tDestino ?? destino;
         agregarSegmento('transporte', desdeLargo, hastaLargo, `${oferta.linea} · ${oferta.modo === 'avion' ? 'vuelo' : 'autobús'}`);
-        const nombreDesde = terminalOrigen?.nombre ?? tramo.desde.nombre;
+        const detalleLargo = `${oferta.modo === 'avion' ? 'Vuelo' : 'Autobús'} ${oferta.linea} · ${oferta.salidaTxt} a ${oferta.llegadaTxt}`;
         const nombreHasta = terminalDestino?.nombre ?? destinoNombre;
-        textos.push(
-          `${oferta.modo === 'avion' ? 'Vuelo' : 'Autobús'} ${oferta.linea}: ${nombreDesde} → ${nombreHasta} (${oferta.salidaTxt} a ${oferta.llegadaTxt})`,
-        );
         if (tDestino) {
+          agregarPunto(tDestino[0], tDestino[1], terminalDestino!.nombre, 'terminal', detalleLargo);
           agregarSegmento('taxi', tDestino, destino, `Taxi a ${destinoNombre}`);
-          textos.push(`Taxi: ${terminalDestino!.nombre} → ${destinoNombre}${conHotel ? ' (hotel)' : ''}`);
         }
+        agregarPunto(
+          destino[0],
+          destino[1],
+          destinoNombre,
+          conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto',
+          tDestino
+            ? `En taxi desde ${terminalDestino!.nombre}${minutosTaxiPunta ? ` · ~${minutosTaxiPunta} min` : ''}`
+            : `${detalleLargo} hasta ${nombreHasta}`,
+        );
       } else {
         // Sin terminal: auto propio, renta o taxi de punta a punta.
         const fuente = conHotel ? hotelResultados[indice] : resultados[indice];
@@ -302,20 +345,22 @@ export function CalculosViajeModal({
           .flatMap((t) => (t.grafica ?? []).map((p) => [p[0], p[1]] as [number, number]));
         if (grafica.length > 1) segmentos.push({ tipo: 'carretera', puntos: grafica });
         else agregarSegmento('carretera', origen, destino);
-        textos.push(
-          `${tramo.desde.nombre} → ${destinoNombre}${oferta ? ` (${oferta.linea})` : ''}${conHotel ? ' · duerme ahí' : ''}`,
+        agregarPunto(
+          destino[0],
+          destino[1],
+          destinoNombre,
+          conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto',
+          `En carretera desde ${tramo.desde.nombre}${oferta ? ` · ${oferta.linea}` : ''}${conHotel ? ' · duerme ahí' : ''}`,
         );
       }
-
-      agregarPunto(destino[0], destino[1], destinoNombre, conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto');
     });
 
-    return { puntos, segmentos, textos };
+    return { puntos, segmentos, nodos };
   }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo, seleccion]);
 
 
   useEffect(() => {
-    if (!buscandoEste) {
+    if (!buscandoEste && buscando !== -1) {
       setProgreso(0);
       return;
     }
@@ -324,7 +369,7 @@ export function CalculosViajeModal({
       setProgreso((p) => Math.min(90, p + 3));
     }, 300);
     return () => window.clearInterval(id);
-  }, [buscandoEste]);
+  }, [buscandoEste, buscando]);
 
   const llegadaRegreso = tramo?.esRegreso ? propuesta?.llegadaFinal ?? '' : '';
   const diaMes = llegadaRegreso.split(' ')[0] ?? '';
@@ -704,7 +749,23 @@ export function CalculosViajeModal({
                         : `Dormir cerca de ${tramo.hasta.nombre} y continuar al día siguiente`}
                     </label>
                     {usarHotelDelPaso ? (
-                      buscando === -1 ? <p className="text-xs">Buscando hoteles…</p> : hotelDelPaso ? (
+                      buscando === -1 ? (
+                        <div
+                          role="status"
+                          aria-live="polite"
+                          className="flex flex-col items-center gap-4 rounded-lg border bg-muted/20 p-4 sm:flex-row"
+                        >
+                          <RutaLoader className="h-28 w-28 shrink-0" />
+                          <div className="w-full flex-1 space-y-2 text-center sm:text-left">
+                            <p className="text-sm font-medium">Buscando hoteles…</p>
+                            <Progress value={progreso} className="h-1.5" />
+                            <p className="text-xs text-muted-foreground">
+                              Buscando hospedaje cerca de{' '}
+                              {tramo.esRegreso ? tramo.desde.nombre : tramo.hasta.nombre}.
+                            </p>
+                          </div>
+                        </div>
+                      ) : hotelDelPaso ? (
                         <div className="space-y-1">
                           {hotelesDelPaso.map((hotel) => (
                             <label key={claveHotel(hotel)} className="flex cursor-pointer items-start gap-2 rounded border bg-white p-2 text-xs">
@@ -774,7 +835,7 @@ export function CalculosViajeModal({
           onOpenChange={setResumenAbierto}
           puntos={cadenaResumen.puntos}
           segmentos={cadenaResumen.segmentos}
-          tramosTexto={cadenaResumen.textos}
+          nodos={cadenaResumen.nodos}
           onEnviar={() => { void enviar(); }}
           enviando={enviando}
         />

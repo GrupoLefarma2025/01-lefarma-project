@@ -3,6 +3,7 @@ import { Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { RutaViajeTimeline, type NodoRutaTimeline } from './RutaViajeTimeline';
 
 export type TipoPuntoRuta = 'origen' | 'punto' | 'hotel' | 'regreso' | 'terminal';
 
@@ -60,8 +61,8 @@ interface ResumenRutaModalProps {
   puntos: PuntoRutaResumen[];
   /** Trazado completo de la ruta, tramo por tramo (taxi / vuelo / carretera). */
   segmentos: SegmentoRuta[];
-  /** Texto del tramo reconstructido (origen → terminal → vuelo → hotel...). */
-  tramosTexto: string[];
+  /** Paradas de la ruta en orden, con su detalle (llegada, transporte, hora). */
+  nodos: NodoRutaTimeline[];
   onEnviar: () => void;
   enviando: boolean;
 }
@@ -79,7 +80,7 @@ export function ResumenRutaModal({
   onOpenChange,
   puntos,
   segmentos,
-  tramosTexto,
+  nodos,
   onEnviar,
   enviando,
 }: ResumenRutaModalProps) {
@@ -148,14 +149,10 @@ export function ResumenRutaModal({
             <p className="text-sm text-muted-foreground">Todavía no hay puntos para trazar.</p>
           )}
 
-          <ul className="space-y-1 text-sm">
-            {tramosTexto.map((linea, i) => (
-              <li key={`${linea}-${i}`} className="flex items-start gap-2">
-                <span className="text-xs text-muted-foreground">{i + 1}.</span>
-                <span>{linea}</span>
-              </li>
-            ))}
-          </ul>
+          <div data-testid="resumen-ruta-diagrama" className="rounded-lg border bg-card p-4">
+            <h3 className="mb-3 font-semibold">Ruta del viaje</h3>
+            <RutaViajeTimeline nodos={nodos} />
+          </div>
 
           {tiposSegmento.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
