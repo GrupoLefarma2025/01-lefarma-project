@@ -325,6 +325,76 @@ public class AprobacionesControllerTests
     }
 
     [Fact]
+    public async Task Bandeja_LeeElRangoDelViajeDelSnapshotV2YDeLosDestinos()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5650;
+        // solicitud-v2: el rango explicito manda sobre los dias de cada destino.
+        var wizard = ctx.SembrarSolicitud(
+            8650, "enviada",
+            """{"version":"solicitud-v2","rango":{"inicio":"2026-10-18","fin":"2026-10-22"},"destinos":[{"debeEstarFecha":"2026-10-19"}]}""");
+        // Sin rango: el viaje va del dia menor al mayor de los destinos.
+        var soloDestinos = ctx.SembrarSolicitud(
+            8651, "enviada",
+            """{"version":"solicitud-v2","destinos":[{"debeEstarFecha":"2026-10-21"},{"debeEstarFecha":"2026-10-22"}]}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        var filaRango = envelope.Data!.Single(x => x.IdSolicitud == wizard);
+        filaRango.FechaSalida.Should().Be("2026-10-18");
+        filaRango.FechaRegreso.Should().Be("2026-10-22");
+        filaRango.Fecha.Should().Be("18/10/2026 AL 22/10/2026");
+
+        var filaDestinos = envelope.Data!.Single(x => x.IdSolicitud == soloDestinos);
+        filaDestinos.FechaSalida.Should().Be("2026-10-21");
+        filaDestinos.FechaRegreso.Should().Be("2026-10-22");
+    }
+
+    [Fact]
+    public async Task Bandeja_ExponeFolioYLosDestinosDelSnapshotV2()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5670;
+        // solicitud-v2: origen y destinos son objetos con `punto`; se publican
+        // como ciudad, no como direccion completa.
+        var multiPunto = ctx.SembrarSolicitud(
+            8670, "enviada",
+            """
+            {"version":"solicitud-v2",
+             "origen":{"punto":{"nombre":"Calle 1, Pátzcuaro, Michoacán","municipio":"Pátzcuaro"}},
+             "destinos":[
+               {"punto":{"nombre":"Avenida 2, Chihuahua","municipio":"Chihuahua"}},
+               {"punto":{"nombre":"Calle 3, Juárez","municipio":"Juárez"}},
+               {"punto":{"nombre":"Avenida 2, Chihuahua","municipio":"Chihuahua"}}
+             ]}
+            """,
+            folio: "VIA-BLEDESMA-42");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        var fila = envelope!.Data!.Single(x => x.IdSolicitud == multiPunto);
+
+        fila.Folio.Should().Be("VIA-BLEDESMA-42");
+        fila.Origen.Should().Be("Pátzcuaro");
+        // Los puntos se unen con " - " y el repetido no se pinta dos veces.
+        fila.Destino.Should().Be("Chihuahua - Juárez");
+    }
+
+    [Fact]
     public async Task Bandeja_SinOrigenNiFechaOMalformado_DevuelveNullSinLanzar()
     {
         using var ctx = new TestContext();
@@ -540,10 +610,15 @@ public class AprobacionesControllerTests
     /// <see cref="TestServer"/> con el <see cref="AprobacionesController"/> real,
     /// <see cref="ApplicationDbContext"/> sobre InMemory (nombre unico por test) y
     /// el <c>TestAuthHandler</c> compartido.
+    ///
+    /// <see cref="AsokamDbContext"/> tambien va sobre InMemory pero con su PROPIA
+    /// base: el directorio de usuarios (<c>app.Usuarios</c>) vive en la BD Asokam,
+    /// no en la de Lefarma, igual que en el servidor real.
     /// </summary>
     private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"AprobacionesCtrl-{Guid.NewGuid():N}";
+        private readonly string _asokamDbName = $"AprobacionesCtrl-Asokam-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
 
         public TestContext()
@@ -564,6 +639,7 @@ public class AprobacionesControllerTests
                     services.AddLogging();
                     services.AddRouting();
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(_dbName));
+                    services.AddDbContext<AsokamDbContext>(o => o.UseInMemoryDatabase(_asokamDbName));
                     services.AddAuthentication(PermisosEndpointTests.TestAuthHandler.NombreEsquema)
                         .AddScheme<AuthenticationSchemeOptions, PermisosEndpointTests.TestAuthHandler>(
                             PermisosEndpointTests.TestAuthHandler.NombreEsquema, _ => { });
@@ -586,7 +662,7 @@ public class AprobacionesControllerTests
         public int SembrarSolicitud(int duenoId, string estado)
             => SembrarSolicitud(duenoId, estado, """{"total":1000}""");
 
-        public int SembrarSolicitud(int duenoId, string estado, string? datosJson)
+        public int SembrarSolicitud(int duenoId, string estado, string? datosJson, string? folio = null)
         {
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -598,6 +674,7 @@ public class AprobacionesControllerTests
                 Gerencia = "Operaciones",
                 Estado = estado,
                 DatosJson = datosJson!,
+                Folio = folio,
                 Activo = true,
                 FechaCreacion = ahora,
                 FechaModificacion = ahora,
@@ -610,7 +687,7 @@ public class AprobacionesControllerTests
         public void SembrarUsuario(int idUsuario, string nombreCompleto, bool esActivo)
         {
             using var scope = Servidor.Host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<AsokamDbContext>();
             db.Usuarios.Add(new Usuario
             {
                 IdUsuario = idUsuario,
@@ -666,6 +743,9 @@ public class AprobacionesControllerTests
         [JsonPropertyName("id_solicitud")]
         public int IdSolicitud { get; set; }
 
+        [JsonPropertyName("folio")]
+        public string? Folio { get; set; }
+
         [JsonPropertyName("id_usuario_solicitante")]
         public int IdUsuarioSolicitante { get; set; }
 
@@ -683,6 +763,12 @@ public class AprobacionesControllerTests
 
         [JsonPropertyName("fecha")]
         public string? Fecha { get; set; }
+
+        [JsonPropertyName("fecha_salida")]
+        public string? FechaSalida { get; set; }
+
+        [JsonPropertyName("fecha_regreso")]
+        public string? FechaRegreso { get; set; }
 
         [JsonPropertyName("autobus")]
         public decimal? Autobus { get; set; }

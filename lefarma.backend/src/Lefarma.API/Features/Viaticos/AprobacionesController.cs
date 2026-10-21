@@ -33,10 +33,12 @@ namespace Lefarma.API.Features.Viaticos;
 public class AprobacionesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly AsokamDbContext _asokamContext;
 
-    public AprobacionesController(ApplicationDbContext context)
+    public AprobacionesController(ApplicationDbContext context, AsokamDbContext asokamContext)
     {
         _context = context;
+        _asokamContext = asokamContext;
     }
 
     [HttpGet("solicitudes")]
@@ -86,6 +88,7 @@ public class AprobacionesController : ControllerBase
             .Select(s => new
             {
                 s.IdSolicitud,
+                s.Folio,
                 s.IdUsuarioSolicitante,
                 s.Periodo,
                 s.Gerencia,
@@ -99,12 +102,17 @@ public class AprobacionesController : ControllerBase
         // todos los solicitantes de la pagina (evita N+1). Se filtra por
         // EsActivo: un usuario dado de baja no debe exponer su nombre en la
         // bandeja del admin; en ese caso cae al fallback "Usuario #{id}".
+        //
+        // El directorio NO vive en la BD de Lefarma: `app.Usuarios` esta en la
+        // BD Asokam (igual que en SolicitudesController). Consultarlo con
+        // ApplicationDbContext revienta con "Invalid object name 'app.Usuarios'"
+        // y la bandeja entera responde 500.
         var idsSolicitantes = filas
             .Select(f => f.IdUsuarioSolicitante)
             .Distinct()
             .ToList();
 
-        var directorio = await _context.Usuarios
+        var directorio = await _asokamContext.Usuarios
             .AsNoTracking()
             .Where(u => u.EsActivo && idsSolicitantes.Contains(u.IdUsuario))
             .Select(u => new { u.IdUsuario, u.NombreCompleto })
@@ -116,9 +124,11 @@ public class AprobacionesController : ControllerBase
             // mismo lector tolerante (null si falta, no es numerica o el JSON
             // no parsea).
             var datos = ParsearDatosJson(f.DatosJson);
+            var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
             return new SolicitudBandejaDto
             {
                 IdSolicitud = f.IdSolicitud,
+                Folio = f.Folio,
                 IdUsuarioSolicitante = f.IdUsuarioSolicitante,
                 NombreSolicitante = directorio.TryGetValue(f.IdUsuarioSolicitante, out var nombre)
                     && !string.IsNullOrWhiteSpace(nombre)
@@ -127,9 +137,11 @@ public class AprobacionesController : ControllerBase
                 Periodo = f.Periodo,
                 Gerencia = f.Gerencia,
                 Estado = f.Estado,
-                Destino = LeerTextoDesdeJson(datos, "destino"),
-                Origen = LeerTextoDesdeJson(datos, "origen"),
-                Fecha = LeerFechaViajeDesdeJson(datos),
+                Destino = LeerDestinosDesdeJson(datos),
+                Origen = LeerOrigenDesdeJson(datos),
+                Fecha = ComponerRangoFecha(fechaSalida, fechaRegreso),
+                FechaSalida = fechaSalida,
+                FechaRegreso = fechaRegreso,
                 Autobus = LeerDecimal(datos, "autobus"),
                 Avion = LeerDecimal(datos, "avion"),
                 Gasolina = LeerDecimal(datos, "gasolina"),
@@ -531,26 +543,107 @@ public class AprobacionesController : ControllerBase
     }
 
     /// <summary>
-    /// Rango de fechas del viaje (<c>$.fecha_salida</c> y
-    /// <c>$.fecha_regreso</c>) para la columna "Fecha" del concentrado
+    /// <summary>
+    /// Origen de la ruta. El snapshot actual (<c>solicitud-v2</c>) lo guarda
+    /// como objeto (<c>$.origen.punto</c>); el flujo anterior lo guardaba como
+    /// texto en <c>$.origen</c>. Se lee la ciudad del punto
+    /// (<c>municipio</c>, y si falta <c>nombre</c>) porque el concentrado
+    /// FOR-008 imprime la ciudad, no la direccion completa. Devuelve
+    /// <c>null</c> —nunca lanza— cuando no hay origen legible.
+    /// </summary>
+    private static string? LeerOrigenDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is not { } raiz)
+        {
+            return null;
+        }
+
+        var texto = LeerTextoDesdeJson(raiz, "origen");
+        if (texto is not null)
+        {
+            return texto;
+        }
+
+        return raiz.TryGetProperty("origen", out var origen) && origen.ValueKind == JsonValueKind.Object
+            ? LeerPunto(origen)
+            : null;
+    }
+
+    /// <summary>
+    /// Destinos de la ruta en una sola linea, como los imprime el FOR-008
+    /// (<c>"CHIHUAHUA-CD.JUAREZ"</c>). El snapshot actual los guarda en
+    /// <c>$.destinos[]</c> (cada uno con su <c>$.punto</c>); el flujo anterior
+    /// usaba un unico texto en <c>$.destino</c>. Los puntos se unen con
+    /// <c>" - "</c> en el orden del itinerario y sin repetir el mismo lugar.
+    /// Devuelve <c>null</c> —nunca lanza— cuando no hay ningun destino legible:
+    /// el concentrado imprime "—", nunca un texto inventado.
+    /// </summary>
+    private static string? LeerDestinosDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is not { } raiz)
+        {
+            return null;
+        }
+
+        var texto = LeerTextoDesdeJson(raiz, "destino");
+        if (texto is not null)
+        {
+            return texto;
+        }
+
+        if (!raiz.TryGetProperty("destinos", out var destinos) || destinos.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var puntos = new List<string>();
+        foreach (var destino in destinos.EnumerateArray())
+        {
+            var punto = LeerPunto(destino);
+            if (punto is not null && !puntos.Contains(punto, StringComparer.OrdinalIgnoreCase))
+            {
+                puntos.Add(punto);
+            }
+        }
+
+        return puntos.Count > 0 ? string.Join(" - ", puntos) : null;
+    }
+
+    /// <summary>
+    /// Ciudad de un punto del itinerario. Acepta tanto el destino completo
+    /// (<c>{"punto":{...}}</c>) como el punto suelto (<c>$.origen.punto</c>).
+    /// Prioriza <c>municipio</c> y cae a <c>nombre</c>: el concentrado imprime
+    /// ciudades, no direcciones.
+    /// </summary>
+    private static string? LeerPunto(JsonElement contenedor)
+    {
+        var punto = contenedor.TryGetProperty("punto", out var anidado) && anidado.ValueKind == JsonValueKind.Object
+            ? anidado
+            : contenedor;
+
+        return LeerTextoDesdeJson(punto, "municipio") ?? LeerTextoDesdeJson(punto, "nombre");
+    }
+
+    /// <summary>
+    /// Rango de fechas del viaje para la columna "Fecha" del concentrado
     /// FOR-008. Se compone con el formato que documenta el componente de
     /// impresion (<c>ConcentradoViaticosPrint.tsx</c>):
     /// <c>"05/10/2026 AL 09/10/2026"</c>. Devuelve <c>null</c> —nunca lanza— si
-    /// no hay ninguna de las dos claves, no son strings o el JSON no parseo: el
+    /// no hay ninguna fecha, no son strings o el JSON no parseo: el
     /// concentrado imprime "—". Un valor que no parsea como fecha ISO se
     /// conserva tal cual, sin perder el dato.
     /// </summary>
-    private static string? LeerFechaViajeDesdeJson(JsonElement? snapshot)
+    private static string? ComponerRangoFecha(string? salida, string? regreso)
     {
-        var salida = FormatearFecha(LeerTextoDesdeJson(snapshot, "fecha_salida"));
-        var regreso = FormatearFecha(LeerTextoDesdeJson(snapshot, "fecha_regreso"));
+        var salidaTexto = FormatearFecha(salida);
+        var regresoTexto = FormatearFecha(regreso);
 
-        return (salida, regreso) switch
+        return (salidaTexto, regresoTexto) switch
         {
             (null, null) => null,
-            (not null, null) => salida,
-            (null, not null) => regreso,
-            _ => $"{salida} AL {regreso}",
+            (not null, null) => salidaTexto,
+            (null, not null) => regresoTexto,
+            _ => $"{salidaTexto} AL {regresoTexto}",
         };
 
         static string? FormatearFecha(string? valor)
@@ -558,5 +651,66 @@ public class AprobacionesController : ControllerBase
                && DateOnly.TryParse(valor, CultureInfo.InvariantCulture, out var fecha)
                 ? fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
                 : valor;
+    }
+
+    /// <summary>
+    /// Fechas reales del viaje en ISO (<c>aaaa-mm-dd</c>), en el orden en que
+    /// las busca:
+    /// <list type="number">
+    ///   <item><c>$.rango.inicio</c>/<c>$.rango.fin</c>: el rango explicito del
+    ///   wizard actual (<c>solicitud-v2</c>), la fuente que manda.</item>
+    ///   <item><c>$.fecha_salida</c>/<c>$.fecha_regreso</c>: snapshots del flujo
+    ///   anterior.</item>
+    ///   <item>Los dias comprometidos de cada destino
+    ///   (<c>$.destinos[].debeEstarFecha</c>, o <c>saleFecha</c>): el menor y el
+    ///   mayor son el viaje completo.</item>
+    /// </list>
+    /// Devuelve <c>(null, null)</c> —nunca lanza— cuando el snapshot no trae
+    /// ninguna fecha legible: el filtro por fecha de viaje no puede afirmar que
+    /// ese viaje caiga en un rango.
+    /// </summary>
+    private static (string? Salida, string? Regreso) LeerRangoViajeDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is { } raiz)
+        {
+            if (raiz.TryGetProperty("rango", out var rango) && rango.ValueKind == JsonValueKind.Object)
+            {
+                var inicio = LeerTextoDesdeJson(rango, "inicio");
+                var fin = LeerTextoDesdeJson(rango, "fin");
+                if (inicio is not null || fin is not null)
+                {
+                    return (inicio, fin);
+                }
+            }
+
+            var salida = LeerTextoDesdeJson(raiz, "fecha_salida");
+            var regreso = LeerTextoDesdeJson(raiz, "fecha_regreso");
+            if (salida is not null || regreso is not null)
+            {
+                return (salida, regreso);
+            }
+
+            if (raiz.TryGetProperty("destinos", out var destinos) && destinos.ValueKind == JsonValueKind.Array)
+            {
+                var dias = new List<string>();
+                foreach (var destino in destinos.EnumerateArray())
+                {
+                    var dia = LeerTextoDesdeJson(destino, "debeEstarFecha")
+                              ?? LeerTextoDesdeJson(destino, "saleFecha");
+                    if (dia is not null)
+                    {
+                        dias.Add(dia);
+                    }
+                }
+
+                if (dias.Count > 0)
+                {
+                    dias.Sort(StringComparer.Ordinal);
+                    return (dias[0], dias[^1]);
+                }
+            }
+        }
+
+        return (null, null);
     }
 }

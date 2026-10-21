@@ -89,6 +89,13 @@ public class SolicitudBandejaDto
     [JsonPropertyName("id_solicitud")]
     public int IdSolicitud { get; set; }
 
+    /// <summary>Folio legible del viaje (<c>VIA-{SamAccountName}-{id}</c>). Es
+    /// la identidad que usa la persona para referirse a su solicitud; el
+    /// concentrado lo imprime en la columna "No." y la tabla lo muestra en
+    /// lugar del id interno. <c>null</c> en solicitudes viejas sin folio.</summary>
+    [JsonPropertyName("folio")]
+    public string? Folio { get; set; }
+
     [JsonPropertyName("id_usuario_solicitante")]
     public int IdUsuarioSolicitante { get; set; }
 
@@ -119,6 +126,18 @@ public class SolicitudBandejaDto
     /// <c>null</c> imprime "—".</summary>
     [JsonPropertyName("fecha")]
     public string? Fecha { get; set; }
+
+    /// <summary>Fecha de salida del snapshot tal como esta guardada (ISO
+    /// <c>aaaa-mm-dd</c>). Existe para que el filtro "fecha de viaje" del
+    /// concentrado compare fechas reales y no parsee el texto ya formateado de
+    /// <see cref="Fecha"/>. <c>null</c> cuando el snapshot no la trae.</summary>
+    [JsonPropertyName("fecha_salida")]
+    public string? FechaSalida { get; set; }
+
+    /// <summary>Fecha de regreso del snapshot tal como esta guardada (ISO
+    /// <c>aaaa-mm-dd</c>). <c>null</c> cuando el snapshot no la trae.</summary>
+    [JsonPropertyName("fecha_regreso")]
+    public string? FechaRegreso { get; set; }
 
     [JsonPropertyName("autobus")]
     public decimal? Autobus { get; set; }

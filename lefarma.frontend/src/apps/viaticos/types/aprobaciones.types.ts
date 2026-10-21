@@ -18,6 +18,8 @@ import type { SolicitudEvento, SolicitudOpcion } from './solicitud.types';
  */
 export interface SolicitudBandeja {
   id_solicitud: number;
+  /** Folio legible (VIA-XXXX-0001); `null` en solicitudes viejas. */
+  folio?: string | null;
   id_usuario_solicitante: number;
   nombre_solicitante: string;
   periodo: string;
@@ -28,6 +30,12 @@ export interface SolicitudBandeja {
   origen?: string | null;
   /** Rango del viaje: "05/10/2026 AL 09/10/2026". */
   fecha?: string | null;
+  /**
+   * Fechas reales del viaje tal como las guarda el snapshot (ISO `aaaa-mm-dd`).
+   * Existen para filtrar por fecha de viaje sin parsear el texto de `fecha`.
+   */
+  fecha_salida?: string | null;
+  fecha_regreso?: string | null;
   autobus?: number | null;
   avion?: number | null;
   gasolina?: number | null;
