@@ -176,4 +176,12 @@ public class SolicitudBandejaDto
     /// hoy tiene que aparecer hoy en el concentrado.</summary>
     [JsonPropertyName("fecha_modificacion")]
     public DateTime FechaModificacion { get; set; }
+
+    /// <summary>
+    /// La solicitud pasó por los cálculos: tiene cotización guardada
+    /// (<c>datos.calculo</c>) u opciones de vuelo/hotel. Es lo que el
+    /// concentrado necesita para autorizar; sin esto no hay nada que revisar.
+    /// </summary>
+    [JsonPropertyName("recalculada")]
+    public bool Recalculada { get; set; }
 }

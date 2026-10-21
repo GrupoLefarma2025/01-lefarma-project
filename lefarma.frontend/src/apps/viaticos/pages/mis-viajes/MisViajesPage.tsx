@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Eye, MoreHorizontal, Pencil, Route, Send, Trash2 } from 'lucide-react';
+import { Clock, Eye, MoreHorizontal, Pencil, Route, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,7 @@ import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
 import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
-import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
+import type { CalculoViaje, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
 import { ModoTransporteBadge } from '../../components/ModoTransporteBadge';
@@ -28,6 +28,7 @@ import {
   BotonVerMapa,
   RutaMapaDialog,
 } from '../../components/RutaMapa';
+import { BoletoViajeDialog, BotonVerBoleto } from '../../components/BoletoViajeDialog';
 import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
@@ -676,6 +677,7 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
   const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | null>(null);
+  const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
 
@@ -731,13 +733,16 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
           <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-semibold">Ruta del viaje</h3>
-              {mapaCalculado.puntos.length > 0 ? (
-                <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
-              ) : (
-                <span className="text-xs text-muted-foreground">
-                  Calculada sin coordenadas: vuelve a calcular para ver el mapa.
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {mapaCalculado.puntos.length > 0 ? (
+                  <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Calculada sin coordenadas: vuelve a calcular para ver el mapa.
+                  </span>
+                )}
+                <BotonVerBoleto onClick={() => setBoletoAbierto(true)} />
+              </div>
             </div>
             <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
           </div>
@@ -783,6 +788,12 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
         descripcion="Origen, destinos y regreso capturados en el wizard, sin hoteles ni terminales."
         puntos={mapaInicial.puntos}
         segmentos={mapaInicial.segmentos}
+      />
+      <BoletoViajeDialog
+        abierto={boletoAbierto}
+        onOpenChange={setBoletoAbierto}
+        titulo="Boletos del viaje"
+        opciones={solicitud.opciones.filter((o) => o.fue_elegida)}
       />
     </Tabs>
   );
@@ -882,33 +893,87 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   const total = totalDeOpcionesElegidas(solicitud.opciones);
   const elegidas = solicitud.opciones.filter((o) => o.fue_elegida);
   const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
+  const [boleto, setBoleto] = useState<SolicitudOpcion | null>(null);
+
+  /** Botón de boleto de un renglón: abre solo esa opción. */
+  const botonBoleto = (opcion: SolicitudOpcion) => (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0"
+            aria-label={`Ver boleto de ${opcion.linea}`}
+            onClick={() => setBoleto(opcion)}
+          >
+            <Ticket className="h-3.5 w-3.5" aria-hidden />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Ver boleto, URL y captura</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
   return (
     <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
       <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
-      <ul className="space-y-0.5">
-        {elegidas.length === 0 ? <li>Sin opciones elegidas.</li> : null}
-        {elegidas.map((o) => (
-          <li key={o.id_opcion}>
-            {o.linea} · <span className="font-medium">{precioTexto(o)}</span>
-          </li>
-        ))}
-      </ul>
-      <div className="border-t pt-2">
-        <p className="text-xs text-muted-foreground">Desglose</p>
-        <p className="text-2xl font-semibold tracking-tight">{textoTotalElegidas(total)}</p>
-      </div>
+      {elegidas.length === 0 ? (
+        <p>Sin opciones elegidas.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <tbody>
+            {elegidas.map((opcion) => (
+              <tr key={opcion.id_opcion} className="border-b border-border/60 last:border-0">
+                <td className="py-1 pr-3 align-top">{opcion.linea}</td>
+                <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
+                  {precioTexto(opcion)}
+                </td>
+                <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td className="pt-2 align-bottom text-xs text-muted-foreground">Desglose</td>
+              <td className="pt-1 text-right text-2xl font-semibold tracking-tight tabular-nums">
+                {textoTotalElegidas(total)}
+              </td>
+              <td />
+            </tr>
+          </tfoot>
+        </table>
+      )}
       {descartadas.length > 0 ? (
         <details className="text-xs">
           <summary className="cursor-pointer text-muted-foreground">
             Alternativas descartadas ({descartadas.length})
           </summary>
-          <ul className="mt-1 space-y-0.5 text-muted-foreground">
-            {descartadas.map((o) => (
-              <li key={o.id_opcion}>{o.linea} · {precioTexto(o)}</li>
-            ))}
-          </ul>
+          <table className="mt-1 w-full text-xs text-muted-foreground">
+            <tbody>
+              {descartadas.map((opcion) => (
+                <tr key={opcion.id_opcion}>
+                  <td className="py-0.5 pr-3 align-top">{opcion.linea}</td>
+                  <td className="whitespace-nowrap py-0.5 text-right align-top tabular-nums">
+                    {precioTexto(opcion)}
+                  </td>
+                  <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </details>
       ) : null}
+
+      <BoletoViajeDialog
+        abierto={boleto !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setBoleto(null);
+        }}
+        titulo={`Boleto · ${boleto?.linea ?? ''}`}
+        opciones={boleto ? [boleto] : []}
+      />
     </div>
   );
 }

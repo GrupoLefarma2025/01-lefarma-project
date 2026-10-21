@@ -48,6 +48,11 @@ export interface SolicitudBandeja {
   fecha_creacion: string;
   /** Última modificación: con ella se filtra "última actualización". */
   fecha_modificacion?: string | null;
+  /**
+   * La solicitud pasó por los cálculos: trae cotización (casetas, vuelos,
+   * hoteles). Es lo que el concentrado necesita para autorizar.
+   */
+  recalculada?: boolean;
 }
 
 /**

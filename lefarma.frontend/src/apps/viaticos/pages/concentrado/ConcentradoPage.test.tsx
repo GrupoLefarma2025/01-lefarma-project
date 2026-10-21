@@ -42,6 +42,8 @@ const fila: SolicitudBandeja = {
   destino: 'Destino Uno',
   estado: 'enviada',
   total: 2000,
+  // El concentrado revisa las que ya pasaron por los cálculos.
+  recalculada: true,
   // El filtro por defecto es «Hoy» por fecha de creación: la fila tiene que
   // haber nacido hoy para que el concentrado la muestre sin tocar los filtros.
   fecha_creacion: `${HOY}T10:00:00`,

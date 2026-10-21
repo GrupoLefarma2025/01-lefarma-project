@@ -99,6 +99,7 @@ public class AprobacionesController : ControllerBase
                 s.DatosJson,
                 s.FechaCreacion,
                 s.FechaModificacion,
+                TieneOpciones = s.Opciones.Any(),
             })
             .ToListAsync(ct);
 
@@ -157,6 +158,7 @@ public class AprobacionesController : ControllerBase
                 Total = LeerTotalDesdeJson(datos),
                 FechaCreacion = f.FechaCreacion,
                 FechaModificacion = f.FechaModificacion,
+                Recalculada = f.TieneOpciones || TieneCalculo(datos),
             };
         }).ToList();
 
@@ -628,6 +630,16 @@ public class AprobacionesController : ControllerBase
 
         return LeerTextoDesdeJson(punto, "municipio") ?? LeerTextoDesdeJson(punto, "nombre");
     }
+
+    /// <summary>
+    /// ¿El snapshot trae el cálculo de la ruta (<c>datos.calculo</c>)? Es lo que
+    /// guarda el envío desde los cálculos; sin él no hay casetas, hoteles ni
+    /// tiempos que revisar.
+    /// </summary>
+    private static bool TieneCalculo(JsonElement? snapshot)
+        => snapshot is { } raiz
+           && raiz.TryGetProperty("calculo", out var calculo)
+           && calculo.ValueKind == JsonValueKind.Object;
 
     /// <summary>
     /// Rango de fechas del viaje para la columna "Fecha" del concentrado

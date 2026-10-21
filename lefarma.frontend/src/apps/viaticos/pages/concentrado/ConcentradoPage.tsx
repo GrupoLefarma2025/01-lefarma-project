@@ -53,7 +53,6 @@ const DEFINICIONES_ACTIVO: { id: string; etiqueta: string; estados: string[] }[]
   { id: 'enviada-borrador', etiqueta: 'Enviadas + borradores', estados: ['enviada', 'borrador'] },
   { id: 'todas', etiqueta: 'Todas (incluye autorizadas y rechazadas)', estados: [] as string[] },
 ] as const;
-
 type DefinicionActivo = string;
 
 const TIPOS = [
@@ -108,7 +107,7 @@ export function ConcentradoPage() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipo, setTipo] = useState<string>('todos');
-  const [definicion, setDefinicion] = useState<DefinicionActivo>('enviada');
+  const [definicion, setDefinicion] = useState<DefinicionActivo>('todas');
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todas');
   const [campoFecha, setCampoFecha] = useState<CampoFecha>('modificacion');  const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
@@ -146,8 +145,11 @@ export function ConcentradoPage() {
   const hoy = new Date();
   const rango = rangoDeFiltroFecha(filtroFecha, hoy, desde, hasta);
 
+  const [recalculo, setRecalculo] = useState<'con' | 'sin' | 'todos'>('con');
+
   const visibles = filas.filter(
     (f) =>
+      (recalculo === 'todos' || (recalculo === 'con' ? f.recalculada === true : f.recalculada !== true)) &&
       (campoFecha === 'viaje'
         ? viajeEnRango(f, rango)
         : campoFecha === 'creacion'
@@ -330,6 +332,21 @@ export function ConcentradoPage() {
         },
       },
       {
+        id: 'calculo',
+        header: 'Cálculo',
+        accessorFn: (fila) => (fila.recalculada ? 'Con cálculo' : 'Sin cálculo'),
+        cell: ({ row }) =>
+          row.original.recalculada ? (
+            <Badge variant="outline" className="border-emerald-200 bg-emerald-50 font-normal text-emerald-700">
+              Con cálculo
+            </Badge>
+          ) : (
+            <Badge variant="outline" className="font-normal text-muted-foreground">
+              Sin cálculo
+            </Badge>
+          ),
+      },
+      {
         id: 'acciones',
         header: () => <div className="text-right">Acción</div>,
         enableSorting: false,
@@ -416,6 +433,20 @@ export function ConcentradoPage() {
               </select>
             </div>
             <div className="space-y-1">
+              <Label htmlFor="concentrado-recalculo">Recálculo</Label>
+              <select
+                id="concentrado-recalculo"
+                aria-label="Recálculo"
+                className="h-10 w-full rounded-md border bg-background px-3"
+                value={recalculo}
+                onChange={(e) => setRecalculo(e.target.value as 'con' | 'sin' | 'todos')}
+              >
+                <option value="con">Con cálculo (casetas, vuelos y hoteles)</option>
+                <option value="sin">Sin cálculo</option>
+                <option value="todos">Todas</option>
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="concentrado-activo">Definición de «activo»</Label>
               <select
                 id="concentrado-activo"
@@ -438,9 +469,11 @@ export function ConcentradoPage() {
           {visibles.length < filas.length ? (
             <p data-testid="aviso-recorte" className="text-xs text-muted-foreground">
               {visibles.length} de {filas.length} solicitudes visibles
-              {definicion !== 'todas'
-                ? ' · las autorizadas y rechazadas se ven eligiendo «Todas» en Definición de «activo».'
-                : ' · el resto queda fuera por el tipo de viaje.'}
+              {recalculo !== 'todos'
+                ? ' · el concentrado revisa las que ya se recalcularon (con casetas, vuelos y hoteles).'
+                : definicion !== 'todas'
+                  ? ' · las autorizadas y rechazadas se ven eligiendo «Todas» en Definición de «activo».'
+                  : ' · el resto queda fuera por el tipo de viaje.'}
             </p>
           ) : null}
           {filtroFecha === 'personalizado' && !rango ? (
@@ -499,6 +532,7 @@ export function ConcentradoPage() {
             'costo',
             'solicitante',
             'estado',
+            'calculo',
             'acciones',
           ],
         }}
