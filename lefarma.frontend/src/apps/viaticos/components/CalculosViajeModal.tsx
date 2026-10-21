@@ -18,6 +18,7 @@ import { toApiError } from '@/utils/errors';
 import { TablaOpciones } from './TablaOpciones';
 import { ResumenRutaModal, type PuntoRutaResumen, type SegmentoRuta } from './ResumenRutaModal';
 import type { NodoRutaTimeline } from './RutaViajeTimeline';
+import { ModoTransporteBadge } from './ModoTransporteBadge';
 import {
   MARGEN_CARRO,
   construirCalculo,
@@ -53,6 +54,22 @@ function fechaHoraAmPm(valor: string): string {
 function claveHotel(hotel: { lugar: string; nombre?: string; checkIn: string; distanciaKm?: number }): string {
   return `${hotel.nombre ?? hotel.lugar}|${hotel.checkIn}|${hotel.distanciaKm ?? ''}`;
 }
+
+/**
+ * Modo del motor -> tipo que se guarda en `solicitud_opciones.tipo`. El CHECK
+ * de la tabla solo acepta estos valores; guardar el modo crudo ('avion',
+ * 'bus', 'uber') hacía fallar el envío con un error 500.
+ */
+const TIPO_OPCION: Record<string, string> = {
+  avion: 'vuelo',
+  bus: 'autobus',
+  auto: 'auto',
+  renta: 'renta',
+  uber: 'taxi',
+  taxi: 'taxi',
+  publico: 'publico',
+  metro: 'publico',
+};
 
 export function CalculosViajeModal({
   solicitud,
@@ -445,7 +462,9 @@ export function CalculosViajeModal({
       const oferta = resultados[i]?.resultados[0]?.tramos[0]?.opciones.find((o) => o.id === seleccion[i]);
       if (!oferta?.comprar?.url) return;
       opciones.push({
-        tipo: oferta.modo,
+        // El modo del motor (avion, bus, uber...) se guarda con el catálogo que
+        // acepta el CHECK de solicitud_opciones.tipo; si no, el INSERT falla.
+        tipo: TIPO_OPCION[oferta.modo] ?? oferta.modo,
         linea: oferta.linea,
         precio: oferta.costoGrupo,
         moneda: 'MXN',
@@ -523,9 +542,7 @@ export function CalculosViajeModal({
         <DialogHeader>
           <DialogTitle className="flex flex-wrap items-center gap-2">
             <span>Cálculos del viaje {solicitud?.folio ?? (solicitud ? `#${solicitud.id_solicitud}` : '')}</span>
-            <Badge variant={esCarro ? 'secondary' : 'outline'}>
-              {esCarro ? 'Carro propio' : 'Solicitud de transporte'}
-            </Badge>
+            <ModoTransporteBadge modo={esCarro ? 'propio' : 'solicitado'} />
           </DialogTitle>
           <DialogDescription>
             {tramo

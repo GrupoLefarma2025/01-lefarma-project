@@ -116,7 +116,7 @@ BEGIN
         CONSTRAINT FK_solicitud_opciones_solicitud
             FOREIGN KEY (id_solicitud) REFERENCES viaticos.solicitudes (id_solicitud)
             ON DELETE CASCADE,
-        CONSTRAINT CK_solicitud_opciones_tipo CHECK (tipo IN ('vuelo','hotel'))
+        CONSTRAINT CK_solicitud_opciones_tipo CHECK (tipo IN ('vuelo', 'autobus', 'auto', 'renta', 'taxi', 'publico', 'hotel'))
     );
     PRINT 'Tabla [viaticos].[solicitud_opciones] creada.';
 END
