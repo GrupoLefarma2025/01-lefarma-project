@@ -46,6 +46,8 @@ export interface SolicitudBandeja {
   taxi?: number | null;
   total: number | null;
   fecha_creacion: string;
+  /** Última modificación: con ella se filtra "última actualización". */
+  fecha_modificacion?: string | null;
 }
 
 /**

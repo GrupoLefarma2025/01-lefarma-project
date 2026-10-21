@@ -95,6 +95,7 @@ public class AprobacionesController : ControllerBase
                 s.Estado,
                 s.DatosJson,
                 s.FechaCreacion,
+                s.FechaModificacion,
             })
             .ToListAsync(ct);
 
@@ -152,6 +153,7 @@ public class AprobacionesController : ControllerBase
                 Taxi = LeerDecimal(datos, "taxi"),
                 Total = LeerTotalDesdeJson(datos),
                 FechaCreacion = f.FechaCreacion,
+                FechaModificacion = f.FechaModificacion,
             };
         }).ToList();
 

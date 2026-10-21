@@ -14,7 +14,7 @@ export type FiltroFecha =
   | 'personalizado';
 
 /** Campo contra el que se compara el rango elegido. */
-export type CampoFecha = 'creacion' | 'viaje';
+export type CampoFecha = 'creacion' | 'modificacion' | 'viaje';
 
 export const ETIQUETA_FILTRO_FECHA: Record<FiltroFecha, string> = {
   hoy: 'Hoy',
@@ -26,6 +26,7 @@ export const ETIQUETA_FILTRO_FECHA: Record<FiltroFecha, string> = {
 };
 
 export const ETIQUETA_CAMPO_FECHA: Record<CampoFecha, string> = {
+  modificacion: 'Última actualización',
   creacion: 'Fecha de creación',
   viaje: 'Fecha de viaje',
 };
@@ -116,8 +117,22 @@ function diaIso(valor: string | null | undefined): string | null {
  * la hora de creación no la elige el usuario.
  */
 export function creacionEnRango(fila: SolicitudBandeja, rango: RangoFechas | null): boolean {
+  return diaEnRango(fila.fecha_creacion, rango);
+}
+
+/**
+ * ¿La solicitud se tocó dentro del rango? Usa la última modificación, que es
+ * lo que cambia al enviarla: una solicitud creada ayer y enviada hoy aparece
+ * hoy. Sin el dato cae a la fecha de creación.
+ */
+export function modificacionEnRango(fila: SolicitudBandeja, rango: RangoFechas | null): boolean {
+  return diaEnRango(fila.fecha_modificacion ?? fila.fecha_creacion, rango);
+}
+
+/** Día ISO dentro del rango; sin rango no filtra. */
+export function diaEnRango(valor: string | null | undefined, rango: RangoFechas | null): boolean {
   if (!rango) return true;
-  const dia = diaIso(fila.fecha_creacion);
+  const dia = diaIso(valor);
   return dia !== null && dia >= rango.inicio && dia <= rango.fin;
 }
 

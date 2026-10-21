@@ -36,6 +36,7 @@ import {
   ETIQUETA_FILTRO_FECHA,
   creacionEnRango,
   fechaCorta,
+  modificacionEnRango,
   rangoDeFiltroFecha,
   viajeEnRango,
   type CampoFecha,
@@ -111,7 +112,7 @@ export function ConcentradoPage() {
   const [tipo, setTipo] = useState<string>('todos');
   const [definicion, setDefinicion] = useState<DefinicionActivo>('enviada');
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('hoy');
-  const [campoFecha, setCampoFecha] = useState<CampoFecha>('creacion');
+  const [campoFecha, setCampoFecha] = useState<CampoFecha>('modificacion');
   const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [revisandoId, setRevisandoId] = useState<number | null>(null);
@@ -148,7 +149,11 @@ export function ConcentradoPage() {
 
   const visibles = filas.filter(
     (f) =>
-      (campoFecha === 'viaje' ? viajeEnRango(f, rango) : creacionEnRango(f, rango)) &&
+      (campoFecha === 'viaje'
+        ? viajeEnRango(f, rango)
+        : campoFecha === 'creacion'
+          ? creacionEnRango(f, rango)
+          : modificacionEnRango(f, rango)) &&
       (estadosActivos.length === 0 || estadosActivos.includes(f.estado)) &&
       (tipo === 'todos' || tipoDeFila(f) === tipo),
   );

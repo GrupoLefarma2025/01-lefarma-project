@@ -170,4 +170,10 @@ public class SolicitudBandejaDto
 
     [JsonPropertyName("fecha_creacion")]
     public DateTime FechaCreacion { get; set; }
+
+    /// <summary>Ultima modificacion de la solicitud. Es la fecha que manda con
+    /// el filtro "última actualización": una solicitud creada ayer y enviada
+    /// hoy tiene que aparecer hoy en el concentrado.</summary>
+    [JsonPropertyName("fecha_modificacion")]
+    public DateTime FechaModificacion { get; set; }
 }
