@@ -40,33 +40,29 @@ public class AprobacionesControllerTests
     // ---------------- GET /api/viaticos/solicitudes ----------------
 
     [Fact]
-    public async Task Bandeja_SinVerTodos_DevuelveSoloLasPropias()
+    public async Task Bandeja_SinPermisoAutorizar_Retorna403()
     {
         using var ctx = new TestContext();
         const int yoId = 1000;
-        var propiaA = ctx.SembrarSolicitud(yoId, "enviada");
-        var propiaB = ctx.SembrarSolicitud(yoId, "autorizada");
-        var ajena = ctx.SembrarSolicitud(2000, "enviada");
+        ctx.SembrarSolicitud(yoId, "enviada");
+        ctx.SembrarSolicitud(yoId, "autorizada");
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", yoId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+        // Solicitar (y ver_todos) no bastan: la bandeja es la pantalla de
+        // autorizacion y exige viaticos.autorizar.
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
+            string.Join(",", Permissions.Viaticos.Solicitar, Permissions.Viaticos.VerTodos));
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
-        envelope!.Success.Should().BeTrue();
-        envelope.Data.Should().NotBeNull();
-        envelope.Data.Should().HaveCount(2);
-        envelope.Data!.Should().OnlyContain(x => x.IdUsuarioSolicitante == yoId);
-        envelope.Data.Select(x => x.IdSolicitud).Should().BeEquivalentTo(
-            new[] { propiaA, propiaB });
-        envelope.Data.Should().NotContain(x => x.IdSolicitud == ajena);
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain(Permissions.Viaticos.Autorizar);
     }
 
     [Fact]
-    public async Task Bandeja_ConVerTodos_DevuelveTodas()
+    public async Task Bandeja_ConAutorizar_DevuelveTodas()
     {
         using var ctx = new TestContext();
         const int adminId = 5000;
@@ -76,8 +72,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
-            string.Join(",", Permissions.Viaticos.VerTodos, Permissions.Viaticos.Autorizar));
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -108,7 +103,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -137,7 +132,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -163,7 +158,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -194,7 +189,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -230,7 +225,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -274,7 +269,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -305,7 +300,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -340,7 +335,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -380,7 +375,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -410,7 +405,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 

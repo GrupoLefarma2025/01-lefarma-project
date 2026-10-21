@@ -102,7 +102,6 @@ function tipoDeFila(f: SolicitudBandeja): string {
 
 export function ConcentradoPage() {
   usePageTitle('Concentrado de viáticos', 'Viáticos');
-  const veTodos = usePermission({ require: 'viaticos.ver_todos' });
   const puedeAutorizar = usePermission({ require: 'viaticos.autorizar' });
 
   const [filas, setFilas] = useState<SolicitudBandeja[]>([]);
@@ -110,9 +109,8 @@ export function ConcentradoPage() {
   const [error, setError] = useState<string | null>(null);
   const [tipo, setTipo] = useState<string>('todos');
   const [definicion, setDefinicion] = useState<DefinicionActivo>('enviada');
-  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('hoy');
-  const [campoFecha, setCampoFecha] = useState<CampoFecha>('modificacion');
-  const [desde, setDesde] = useState('');
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('todas');
+  const [campoFecha, setCampoFecha] = useState<CampoFecha>('modificacion');  const [desde, setDesde] = useState('');
   const [hasta, setHasta] = useState('');
   const [revisandoId, setRevisandoId] = useState<number | null>(null);
   const [detalle, setDetalle] = useState<Solicitud | null>(null);
@@ -120,6 +118,8 @@ export function ConcentradoPage() {
   const [comentario, setComentario] = useState('');
   const [accionando, setAccionando] = useState(false);
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
+  const [seleccionadas, setSeleccionadas] = useState<SolicitudBandeja[]>([]);
+  const [autorizandoLote, setAutorizandoLote] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -174,8 +174,7 @@ export function ConcentradoPage() {
   }, []);
 
   const cerrarRevision = useCallback(() => {
-    setRevisandoId(null);
-    setDetalle(null);
+    setRevisandoId(null);    setDetalle(null);
   }, []);
 
   async function aprobar() {
@@ -195,8 +194,7 @@ export function ConcentradoPage() {
     }
   }
 
-  async function rechazar() {
-    if (revisandoId === null || accionando || comentario.trim() === '') return;
+  async function rechazar() {    if (revisandoId === null || accionando || comentario.trim() === '') return;
     setAccionando(true);
     try {
       const res = await aprobacionesApi.rechazar(revisandoId, comentario.trim());
@@ -214,6 +212,37 @@ export function ConcentradoPage() {
 
   const filaRevisada = revisandoId !== null ? filas.find((f) => f.id_solicitud === revisandoId) ?? null : null;
   const esAutorizable = filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar;
+
+  /**
+   * Autoriza en conjunto lo seleccionado en la tabla. Va una por una contra el
+   * endpoint que ya valida permiso y estado; si alguna falla se dice cuál, sin
+   * perder las que sí pasaron.
+   */
+  async function autorizarSeleccionadas() {
+    const autorizables = seleccionadas.filter((f) => f.estado === ESTADO_ENVIADA);
+    if (autorizables.length === 0 || autorizandoLote) return;
+    setAutorizandoLote(true);
+    let autorizadas = 0;
+    const fallas: string[] = [];
+    try {
+      for (const fila of autorizables) {
+        const etiqueta = fila.folio ?? `#${fila.id_solicitud}`;
+        try {
+          const res = await aprobacionesApi.autorizar(fila.id_solicitud);
+          if (res.data.success) autorizadas += 1;
+          else fallas.push(`${etiqueta}: ${res.data.message ?? 'no se pudo autorizar'}`);
+        } catch (falla: unknown) {
+          fallas.push(`${etiqueta}: ${toApiError(falla).message}`);
+        }
+      }
+      if (autorizadas > 0) toast.success(`${autorizadas} solicitud(es) autorizadas.`);
+      if (fallas.length > 0) toast.error(fallas.slice(0, 3).join(' · '));
+      setSeleccionadas([]);
+      await cargar();
+    } finally {
+      setAutorizandoLote(false);
+    }
+  }
 
   // Encabezado del documento: el filtro activo y cuántas filas lo componen.
   // La gerencia se toma de las filas visibles solo cuando todas coinciden; si
@@ -409,16 +438,31 @@ export function ConcentradoPage() {
           {filtroFecha === 'personalizado' && !rango ? (
             <p className="text-xs text-muted-foreground">Elige la fecha inicial y la final para aplicar el rango.</p>
           ) : null}
-          {!veTodos ? (
-            <p role="note" className="text-xs text-muted-foreground">
-              Sin el permiso de revisión global solo ves tus propias solicitudes (recorte del servidor):
-              este concentrado no puede mostrar las de todos en producción.
-            </p>
-          ) : null}
         </CardContent>
       </Card>
 
       {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+
+      {seleccionadas.length > 0 ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+          <span className="text-sm">
+            {seleccionadas.length} seleccionada{seleccionadas.length === 1 ? '' : 's'}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setSeleccionadas([])}>
+              Limpiar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={autorizandoLote || !puedeAutorizar}
+              onClick={() => { void autorizarSeleccionadas(); }}
+            >
+              {autorizandoLote ? 'Autorizando…' : 'Autorizar seleccionadas'}
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <DataTable
         columns={columnas}
@@ -452,6 +496,9 @@ export function ConcentradoPage() {
         }}
         rowTestId={(fila) => `concentrado-${fila.id_solicitud}`}
         onRowClick={(fila) => { void revisar(fila.id_solicitud); }}
+        enableRowSelection
+        getRowId={(fila) => String(fila.id_solicitud)}
+        onSelectionChange={setSeleccionadas}
       />
 
       <ConcentradoDocumentoPreview

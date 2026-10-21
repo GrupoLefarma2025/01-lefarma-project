@@ -6,6 +6,7 @@ import type { SolicitudBandeja } from '../../types/aprobaciones.types';
  * captura la persona y no se aplica hasta tener ambas.
  */
 export type FiltroFecha =
+  | 'todas'
   | 'hoy'
   | 'semana'
   | 'quincena'
@@ -17,6 +18,7 @@ export type FiltroFecha =
 export type CampoFecha = 'creacion' | 'modificacion' | 'viaje';
 
 export const ETIQUETA_FILTRO_FECHA: Record<FiltroFecha, string> = {
+  todas: 'Todas',
   hoy: 'Hoy',
   semana: 'Esta semana',
   quincena: 'Esta quincena',
@@ -66,6 +68,11 @@ export function rangoDeFiltroFecha(
   const y = ref.getFullYear();
   const m = ref.getMonth();
 
+  // "Todas" no recorta por fecha: es el default del concentrado para que se
+  // vean todas las enviadas, sin importar cuándo se crearon o se enviaron.
+  if (filtro === 'todas') {
+    return null;
+  }
   if (filtro === 'personalizado') {
     return desde !== '' && hasta !== '' ? { inicio: desde, fin: hasta } : null;
   }

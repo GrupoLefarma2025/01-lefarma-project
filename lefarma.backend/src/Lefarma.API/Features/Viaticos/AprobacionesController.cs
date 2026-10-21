@@ -44,21 +44,29 @@ public class AprobacionesController : ControllerBase
     [HttpGet("solicitudes")]
     [SwaggerOperation(
         Summary = "Bandeja de solicitudes de viaticos",
-        Description = "Lista solicitudes filtradas por periodo, estado y gerencia. Si el usuario no tiene viaticos.ver_todos, se filtran automaticamente a sus propias solicitudes (id_usuario_solicitante = id del JWT).")]
+        Description = "Lista TODAS las solicitudes filtradas por periodo, estado y gerencia. Es la pantalla de autorizacion: requiere el permiso viaticos.autorizar.")]
     [SwaggerResponse(200, "Bandeja obtenida", typeof(ApiResponse<List<SolicitudBandejaDto>>))]
     [SwaggerResponse(401, "Sin token valido.")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
     public async Task<IActionResult> GetSolicitudes(
         [FromQuery] string? periodo,
         [FromQuery] string? estado,
         [FromQuery] string? gerencia,
         CancellationToken ct)
     {
-        var idUsuario = User.GetUserId();
-        var verTodos = User.TienePermiso(Permissions.Viaticos.VerTodos);
+        // La bandeja es la pantalla donde se autoriza: sin el permiso no se
+        // expone. Antes se recortaba a las solicitudes propias, pero eso
+        // dejaba la pantalla abierta a cualquiera por URL.
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para revisar solicitudes de viáticos ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
 
-        // Sin ver_todos NO se rechaza la peticion: se recorta el alcance a
-        // las solicitudes del propio usuario (mismo criterio que aplica
-        // SolicitudesController en GET /solicitudes/{id}).
         var consulta = _context.Solicitudes
             .AsNoTracking()
             .Where(s => s.Activo);
@@ -76,11 +84,6 @@ public class AprobacionesController : ControllerBase
         if (gerencia is not null)
         {
             consulta = consulta.Where(s => s.Gerencia == gerencia);
-        }
-
-        if (!verTodos)
-        {
-            consulta = consulta.Where(s => s.IdUsuarioSolicitante == idUsuario);
         }
 
         var filas = await consulta

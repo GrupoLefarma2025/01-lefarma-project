@@ -118,10 +118,13 @@ describe('ConcentradoPage', () => {
     expect(screen.getByText(/sin endpoint compatible/i)).toBeInTheDocument();
   });
 
-  it('sin ver_todos declara el recorte a solicitudes propias', async () => {
-    flags.verTodos = false;
+  it('entra mostrando todas las enviadas, sin recortar por fecha', async () => {
     render(<ConcentradoPage />);
-    await waitFor(() => expect(screen.getByText(/solo ves tus propias solicitudes/i)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    // El filtro por defecto es "Todas": la fecha no recorta nada.
+    expect(screen.getByLabelText(/periodo/i)).toHaveValue('todas');
+    expect(screen.queryByTestId('rango-visible')).not.toBeInTheDocument();
   });
 
   it('por fecha de viaje incluye el viaje en curso y descarta el que no toca el rango', async () => {
@@ -137,10 +140,11 @@ describe('ConcentradoPage', () => {
     });
     render(<ConcentradoPage />);
 
-    // Por defecto («Hoy» por fecha de creación) ambas fueron creadas hoy.
+    // Con "Todas" no hay recorte: aparecen las dos.
     await waitFor(() => expect(screen.getByTestId('concentrado-7')).toBeInTheDocument());
     expect(screen.getByTestId('concentrado-8')).toBeInTheDocument();
 
+    await usuario.selectOptions(screen.getByLabelText(/periodo/i), 'hoy');
     await usuario.selectOptions(screen.getByLabelText(/buscar por/i), 'viaje');
 
     // El viaje del 7 está en curso hoy; el del 8 empieza en diez días.
