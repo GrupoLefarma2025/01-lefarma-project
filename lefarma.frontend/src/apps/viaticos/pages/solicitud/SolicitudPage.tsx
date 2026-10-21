@@ -261,6 +261,10 @@ export function SolicitudPage() {
         setDestinos(datos.destinos);
         setRetorno(datos.retorno);
         setIndiceActual(0);
+        // Editando un borrador todos los pasos quedan alcanzables: el viajero
+        // puede saltar a cualquiera a corregir lo que necesite, no solo a los
+        // que ya visitó en esta sesión.
+        setMaxPaso(PASOS.length as PasoId);
         setSolicitudEditando({ id: res.data.data.id_solicitud, folio: res.data.data.folio ?? null });
       } catch (falla: unknown) {
         toast.error(toApiError(falla).message || 'No se pudo cargar el borrador.');
