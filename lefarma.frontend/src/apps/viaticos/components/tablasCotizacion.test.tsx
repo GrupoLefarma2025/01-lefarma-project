@@ -167,7 +167,7 @@ describe('TablaOpciones', () => {
     expect(fila('ETN').querySelector('img')).toBeNull();
   });
 
-  it('muestra el modo como badge propio: bus, avion y taxi', () => {
+  it('muestra el modo como badge propio: bus, avion, taxi y transporte público', () => {
     render(
       <TablaOpciones
         titulo="Tramo 1"
@@ -175,6 +175,9 @@ describe('TablaOpciones', () => {
           oferta({ id: 'bus', linea: 'ETN', modo: 'bus' }),
           oferta({ id: 'avion', linea: 'Volaris', modo: 'avion' }),
           oferta({ id: 'taxi', linea: 'Uber', modo: 'uber' }),
+          oferta({ id: 'publico', linea: 'Transporte público (Camión urbano)', modo: 'publico' }),
+          // Cálculos guardados antes del cambio de nombre.
+          oferta({ id: 'legacy', linea: 'Transporte público (Metro)', modo: 'metro' }),
         ]}
       />,
     );
@@ -183,6 +186,11 @@ describe('TablaOpciones', () => {
     expect(within(fila('Volaris')).getByText('Avión')).toBeInTheDocument();
     // Uber es taxi para el viajero: mismo badge.
     expect(within(fila('Uber')).getByText('Taxi')).toBeInTheDocument();
+    // El camión urbano no es metro: el modo es transporte público.
+    const publico = fila('Transporte público (Camión urbano)');
+    expect(within(publico).getByText('Público')).toBeInTheDocument();
+    expect(within(publico).queryByText('metro')).not.toBeInTheDocument();
+    expect(within(fila('Transporte público (Metro)')).getByText('Público')).toBeInTheDocument();
   });
 
   it('explica el tiempo total: viaje + estar antes + taxi a la terminal', () => {

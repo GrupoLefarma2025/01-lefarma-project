@@ -31,6 +31,11 @@ const BADGE_MODO: Record<string, { texto: string; clase: string }> = {
   avion: { texto: 'Avión', clase: 'border-violet-200 bg-violet-50 text-violet-700' },
   taxi: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
   uber: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
+  // Transporte urbano: metro, metrobús, tren ligero o camión. El sistema
+  // concreto va en la línea ("Transporte público (Metro / Metrobús)"), no en
+  // el modo. "metro" es la clave vieja y se pinta igual.
+  publico: { texto: 'Público', clase: 'border-teal-200 bg-teal-50 text-teal-700' },
+  metro: { texto: 'Público', clase: 'border-teal-200 bg-teal-50 text-teal-700' },
 };
 
 function BadgeModo({ modo }: { modo: string }) {

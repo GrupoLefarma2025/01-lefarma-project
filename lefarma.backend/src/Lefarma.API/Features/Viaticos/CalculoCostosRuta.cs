@@ -135,7 +135,11 @@ public static class CalculoCostosRuta
     private static readonly Dictionary<string, string> CatDeModo = new()
     {
         ["avion"] = "aviones", ["bus"] = "autobuses", ["auto"] = "autos",
-        ["renta"] = "renta_autos", ["uber"] = "taxis_uber", ["metro"] = "transporte_publico",
+        ["renta"] = "renta_autos", ["uber"] = "taxis_uber",
+        // "publico" es el transporte urbano (metro, metrobús, tren ligero o
+        // camión). "metro" se conserva porque hay cálculos ya guardados con esa
+        // clave: el modo se llamaba así cuando solo existía CDMX.
+        ["publico"] = "transporte_publico", ["metro"] = "transporte_publico",
     };
 
     private sealed record LugarNorm(int Orden, string Tipo, string Nombre, double Lat, double Lon,
@@ -1003,7 +1007,7 @@ public static class CalculoCostosRuta
         var dur = hrs * 2.2 + 0.3;
         var sal = salidaPrevia ?? deadline.AddHours(-dur).AddMinutes(-BufferMin);
         var arr = sal.AddHours(dur);
-        return new OpCalc("metro", $"Transporte público ({sist})", $"{km:F0} km · tarifa plana", sal, arr, dur + 0.33, 20,
+        return new OpCalc("publico", $"Transporte público ({sist})", $"{km:F0} km · tarifa plana", sal, arr, dur + 0.33, 20,
             tarifa, tarifa * 1.3, tarifa, true, null, null, null, null,
             arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
             "seed transporte público", true, $"tarifa plana ~${tarifa:F0}",
