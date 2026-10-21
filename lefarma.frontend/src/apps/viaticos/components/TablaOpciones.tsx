@@ -24,6 +24,31 @@ export interface TablaOpcionesProps {
 const SIN_URL =
   'Esta opción no trae URL de compra: el cálculo no la trajo y no hay un enlace real al que enviarte. Pide la cotización al proveedor o recalcula cuando exista la fuente.';
 
+/** Modo de transporte como badge: bus, avión y taxi con color propio; el resto neutro. */
+const BADGE_MODO: Record<string, { texto: string; clase: string }> = {
+  bus: { texto: 'Bus', clase: 'border-sky-200 bg-sky-50 text-sky-700' },
+  avion: { texto: 'Avión', clase: 'border-violet-200 bg-violet-50 text-violet-700' },
+  taxi: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
+  uber: { texto: 'Taxi', clase: 'border-amber-200 bg-amber-50 text-amber-800' },
+};
+
+function BadgeModo({ modo }: { modo: string }) {
+  const config = BADGE_MODO[modo.trim().toLowerCase()];
+  if (!config) {
+    return <Badge variant="outline">{modo}</Badge>;
+  }
+  return <Badge variant="outline" className={config.clase}>{config.texto}</Badge>;
+}
+
+/** Minutos como "2 h" / "30 min" / "2 h 30 min". */
+function minutosTexto(minutos: number): string {
+  const horas = Math.floor(minutos / 60);
+  const resto = minutos % 60;
+  return [horas > 0 ? `${horas} h` : '', resto > 0 ? `${resto} min` : '']
+    .filter(Boolean)
+    .join(' ');
+}
+
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
   return (
     <div className="space-y-2">
@@ -35,6 +60,7 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
             <TableHead>Modo</TableHead>
             <TableHead>Salida</TableHead>
             <TableHead>Llegada</TableHead>
+            <TableHead>Tiempo total</TableHead>
             <TableHead>Precio</TableHead>
             <TableHead>Fuente</TableHead>
             <TableHead>Captura</TableHead>
@@ -56,9 +82,18 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                     {!o.aTiempo && <Badge variant="destructive">Tarde</Badge>}
                   </div>
                 </TableCell>
-                <TableCell>{o.modo}</TableCell>
+                <TableCell><BadgeModo modo={o.modo} /></TableCell>
                 <TableCell>{o.salidaTxt}</TableCell>
                 <TableCell>{o.llegadaTxt}</TableCell>
+                <TableCell>
+                  <div>{o.duracion}</div>
+                  {o.modo === 'avion' && (o.minutosAntes || o.minutosDespues) ? (
+                    <div className="text-xs text-muted-foreground">
+                      {o.minutosAntes ? <div>{minutosTexto(o.minutosAntes)} en el aeropuerto</div> : null}
+                      {o.minutosDespues ? <div>{minutosTexto(o.minutosDespues)} para maletas</div> : null}
+                    </div>
+                  ) : null}
+                </TableCell>
                 <TableCell>
                   <div>{o.precioTxt}</div>
                   {o.porPersona === false && (

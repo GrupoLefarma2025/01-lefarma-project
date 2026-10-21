@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Pencil, Send, Trash2 } from 'lucide-react';
+import { Clock, Eye, MoreHorizontal, Pencil, Route, Send, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -8,18 +8,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { DataTable, type ColumnDef } from '@/components/ui/data-table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
 import { estadoTexto } from '../../types/aprobaciones.types';
-import type { Solicitud } from '../../types/solicitud.types';
+import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
+import { horaAmPm, leerCalculoDesdeDatos } from '../../services/calculoViaje';
 import {
   ETIQUETA_PERIODO,
   clasificarRelacion,
@@ -330,83 +333,74 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
           const procesando = procesandoId === solicitud.id_solicitud;
           return (
             <TooltipProvider delayDuration={150}>
-              <div className="flex flex-wrap justify-end gap-1">
-                <Tooltip>
-                  <TooltipTrigger asChild>
+              <div className="flex items-center justify-end gap-1">
+                {esBorrador ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Enviar a concentrado"
+                        disabled={procesando}
+                        onClick={(evento) => {
+                          evento.stopPropagation();
+                          setCalculo(solicitud);
+                        }}
+                      >
+                        <Send className="h-4 w-4" aria-hidden />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Enviar a concentrado</TooltipContent>
+                  </Tooltip>
+                ) : null}
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
                       variant="outline"
                       size="icon"
-                      aria-label="Ver detalle"
-                      onClick={(evento) => {
-                        evento.stopPropagation();
+                      aria-label="Más acciones"
+                      onClick={(evento) => evento.stopPropagation()}
+                    >
+                      <MoreHorizontal className="h-4 w-4" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-44"
+                    onClick={(evento) => evento.stopPropagation()}
+                  >
+                    <DropdownMenuItem
+                      onClick={() => {
                         void verDetalle(solicitud.id_solicitud);
                       }}
                     >
-                      <Eye className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Ver detalle</TooltipContent>
-                </Tooltip>
-
-                {esBorrador ? (
-                  <>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="Editar"
-                          onClick={(evento) => {
-                            evento.stopPropagation();
-                            navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`);
-                          }}
+                      <Eye className="mr-2 h-4 w-4" aria-hidden />
+                      Ver detalle
+                    </DropdownMenuItem>
+                    {esBorrador ? (
+                      <>
+                        <DropdownMenuItem
+                          onClick={() => navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`)}
                         >
-                          <Pencil className="h-4 w-4" aria-hidden />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Editar</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          aria-label="Eliminar"
+                          <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
                           disabled={procesando}
-                          onClick={(evento) => {
-                            evento.stopPropagation();
+                          onClick={() => {
                             void eliminarBorrador(solicitud);
                           }}
                         >
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Eliminar</TooltipContent>
-                    </Tooltip>
-
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          aria-label="Enviar a concentrado"
-                          disabled={procesando}
-                          onClick={(evento) => {
-                            evento.stopPropagation();
-                            setCalculo(solicitud);
-                          }}
-                        >
-                          <Send className="h-4 w-4" aria-hidden />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Enviar a concentrado</TooltipContent>
-                    </Tooltip>
-                  </>
-                ) : null}
+                          <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </>
+                    ) : null}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </TooltipProvider>
           );
@@ -544,14 +538,110 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
   );
 }
 
-/** Detalle del viaje: el mismo resumen del paso 7 y, si hay, la cotización. */
+/**
+ * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
+ * otra pestaña, la propuesta original del wizard.
+ */
 function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
+  const calculo = leerCalculoDesdeDatos(solicitud.datos);
   if (!resumen) return <DetalleViajeLegado solicitud={solicitud} />;
-  return (
+
+  const propuesta = (
     <div className="space-y-4">
       <ResumenViaje {...resumen} />
-      {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+      <p className="text-xs text-muted-foreground">
+        Propuesta original del wizard: origen, destinos y horarios capturados al crear la solicitud.
+      </p>
+    </div>
+  );
+
+  if (!calculo) {
+    return (
+      <div className="space-y-4">
+        {propuesta}
+        {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+      </div>
+    );
+  }
+
+  return (
+    <Tabs defaultValue="calculada" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="calculada">Ruta calculada</TabsTrigger>
+        <TabsTrigger value="propuesta">Ruta propuesta</TabsTrigger>
+      </TabsList>
+      <TabsContent value="calculada" className="space-y-4">
+        <RutaCalculada calculo={calculo} />
+        {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+      </TabsContent>
+      <TabsContent value="propuesta">{propuesta}</TabsContent>
+    </Tabs>
+  );
+}
+
+/** Ruta calculada al enviar: kilómetros, tiempos, salida/llegada y casetas por tramo. */
+function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {calculo.km_total != null ? (
+          <Badge variant="outline" className="gap-1 font-normal">
+            <Route className="h-3 w-3" aria-hidden />
+            {calculo.km_total.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
+          </Badge>
+        ) : null}
+        {calculo.horas_total ? (
+          <Badge variant="outline" className="gap-1 font-normal">
+            <Clock className="h-3 w-3" aria-hidden />
+            {calculo.horas_total} con margen
+          </Badge>
+        ) : null}
+        <Badge variant="secondary" className="font-normal">
+          {calculo.modo_transporte === 'propio' ? 'Carro propio' : 'Transporte solicitado'}
+        </Badge>
+      </div>
+      <ol className="space-y-2">
+        {calculo.tramos.map((tramo, i) => (
+          <li key={`${tramo.de}-${tramo.a}-${i}`} className="rounded-md border p-3 text-sm">
+            <p className="font-medium">{i + 1}. {tramo.de} → {tramo.a}</p>
+            <div className="mt-1.5 flex flex-wrap gap-1.5 text-xs">
+              {tramo.km != null ? (
+                <Badge variant="outline" className="font-normal">
+                  {tramo.km.toLocaleString('es-MX', { maximumFractionDigits: 1 })} km
+                </Badge>
+              ) : null}
+              {tramo.duracion ? <Badge variant="outline" className="font-normal">{tramo.duracion}</Badge> : null}
+              {tramo.duracion_con_margen ? (
+                <Badge variant="secondary" className="font-normal">{tramo.duracion_con_margen} con margen</Badge>
+              ) : null}
+              {tramo.salida_hora ? (
+                <Badge variant="outline" className="font-normal">
+                  Salida {horaAmPm(tramo.salida_hora) ?? tramo.salida_hora}
+                </Badge>
+              ) : null}
+              {tramo.llegada_hora ? (
+                <Badge variant="outline" className="font-normal">
+                  Llegada {horaAmPm(tramo.llegada_hora) ?? tramo.llegada_hora}
+                </Badge>
+              ) : null}
+              {tramo.alcanza === false ? (
+                <Badge variant="destructive" className="font-normal">No alcanza la hora</Badge>
+              ) : null}
+            </div>
+            {tramo.casetas.length > 0 ? (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Casetas: {tramo.casetas.map((caseta) => `${caseta.nombre} (km ${caseta.km})`).join(' · ')}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+      {calculo.generado_en ? (
+        <p className="text-xs text-muted-foreground">
+          Calculada el {new Date(calculo.generado_en).toLocaleString('es-MX')}.
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -167,6 +167,49 @@ describe('TablaOpciones', () => {
     expect(fila('ETN').querySelector('img')).toBeNull();
   });
 
+  it('muestra el modo como badge propio: bus, avion y taxi', () => {
+    render(
+      <TablaOpciones
+        titulo="Tramo 1"
+        ofertas={[
+          oferta({ id: 'bus', linea: 'ETN', modo: 'bus' }),
+          oferta({ id: 'avion', linea: 'Volaris', modo: 'avion' }),
+          oferta({ id: 'taxi', linea: 'Uber', modo: 'uber' }),
+        ]}
+      />,
+    );
+
+    expect(within(fila('ETN')).getByText('Bus')).toBeInTheDocument();
+    expect(within(fila('Volaris')).getByText('Avión')).toBeInTheDocument();
+    // Uber es taxi para el viajero: mismo badge.
+    expect(within(fila('Uber')).getByText('Taxi')).toBeInTheDocument();
+  });
+
+  it('muestra el tiempo total y, en vuelos, el tiempo de aeropuerto y maletas', () => {
+    render(
+      <TablaOpciones
+        titulo="Tramo 1"
+        ofertas={[
+          oferta({ id: 'bus', linea: 'ETN', modo: 'bus', duracion: '10h 43m', minutosAntes: 30 }),
+          oferta({
+            id: 'avion',
+            linea: 'Volaris',
+            modo: 'avion',
+            duracion: '3h 38m',
+            minutosAntes: 120,
+            minutosDespues: 30,
+          }),
+        ]}
+      />,
+    );
+
+    expect(within(fila('ETN')).getByText('10h 43m')).toBeInTheDocument();
+    const vuelo = fila('Volaris');
+    expect(within(vuelo).getByText('3h 38m')).toBeInTheDocument();
+    expect(within(vuelo).getByText('2 h en el aeropuerto')).toBeInTheDocument();
+    expect(within(vuelo).getByText('30 min para maletas')).toBeInTheDocument();
+  });
+
   it('expone un boton Elegir por fila y resalta la elegida', () => {
     render(
       <TablaOpciones

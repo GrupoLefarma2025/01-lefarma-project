@@ -136,14 +136,15 @@ describe('MisViajesPage', () => {
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getAllByTestId(/^viaje-/)).toHaveLength(2));
     const borrador = screen.getByTestId('viaje-1');
-    expect(within(borrador).getByRole('button', { name: /Editar/ })).toBeInTheDocument();
-    expect(within(borrador).getByRole('button', { name: /Eliminar/ })).toBeInTheDocument();
+    // El envío queda visible en la fila; editar y eliminar viven en el menú de tres puntos.
     expect(within(borrador).getByRole('button', { name: /Enviar a concentrado/ })).toBeInTheDocument();
+    expect(within(borrador).queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
+    await usuario.click(within(borrador).getByRole('button', { name: /Más acciones/ }));
+    const editar = await screen.findByRole('menuitem', { name: /Editar/ });
+    expect(screen.getByRole('menuitem', { name: /Eliminar/ })).toBeInTheDocument();
     const enviada = screen.getByTestId('viaje-2');
-    expect(within(enviada).queryByRole('button', { name: /Editar/ })).not.toBeInTheDocument();
-    expect(within(enviada).queryByRole('button', { name: /Eliminar/ })).not.toBeInTheDocument();
     expect(within(enviada).queryByRole('button', { name: /Enviar a concentrado/ })).not.toBeInTheDocument();
-    await usuario.click(within(borrador).getByRole('button', { name: /Editar/ }));
+    await usuario.click(editar);
     expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/solicitud/1');
   });
 
@@ -169,12 +170,65 @@ describe('MisViajesPage', () => {
     });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /ver detalle/i }));
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Más acciones/ }));
+    await usuario.click(await screen.findByRole('menuitem', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Destino Uno'));
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ejemplo');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Compartido con Ana Acompañante');
     // La elegida suma; la descartada se muestra pero no suma.
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Vuelo Y');
     expect(screen.queryAllByTestId('viaje-1')).toHaveLength(1);
+  });
+
+  it('el detalle separa la ruta calculada (la que manda) de la propuesta del wizard', async () => {
+    const usuario = userEvent.setup();
+    const datos = {
+      version: 'solicitud-v2',
+      persona: { modo: 'mia', nombre: 'Persona Actual', motivo: 'Ejemplo' },
+      transporte: { modo: 'propio', compartir: false, acompanantes: [] },
+      origen: { punto: { nombre: 'Ciudad de México', latitud: 19.43, longitud: -99.15 } },
+      destinos: [
+        { punto: { nombre: 'Aguascalientes', latitud: 21.88, longitud: -102.29 }, debeEstarFecha: '2026-11-10', debeEstarHora: '13:11' },
+      ],
+      retorno: { destino: 'origen', punto: null },
+      rango: { inicio: '2026-11-10', fin: '2026-11-10' },
+      calculo: {
+        generado_en: '2026-11-05T12:00:00.000Z',
+        margen: 0.1,
+        modo_transporte: 'propio',
+        km_total: 489.3,
+        horas_total: '6h 44m',
+        tramos: [
+          {
+            de: 'Ciudad de México',
+            a: 'Aguascalientes',
+            km: 489.3,
+            duracion: '6h 07m',
+            duracion_con_margen: '6h 44m',
+            salida_fecha: '2026-11-10',
+            salida_hora: '06:27',
+            llegada_fecha: '2026-11-10',
+            llegada_hora: '12:41',
+            alcanza: true,
+            casetas: [{ nombre: 'Tultepec', km: 46.3, direccion: 'C. Mexiquense · EMex s/n', costo: 59 }],
+          },
+        ],
+      },
+    };
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { datos })] } });
+    mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Más acciones/ }));
+    await usuario.click(await screen.findByRole('menuitem', { name: /Ver detalle/ }));
+    await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
+    // La ruta calculada es la pestaña activa: es la que manda tras el envío.
+    expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Ruta propuesta' })).toBeInTheDocument();
+    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Tultepec');
+    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('489.3 km');
+    // La propuesta original sigue disponible en su pestaña.
+    await usuario.click(screen.getByRole('tab', { name: 'Ruta propuesta' }));
+    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Propuesta original del wizard');
   });
 });
