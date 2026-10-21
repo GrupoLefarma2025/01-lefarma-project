@@ -14,9 +14,8 @@ namespace Lefarma.API.Features.Viaticos;
 // como parámetros; los timeouts por proveedor se aplican por llamada.
 // Conectores: try/catch con fallback a seed y `fuente` siempre declarada.
 
-public record RutaCarretera(double Km, double Horas, string Fuente);
+public record RutaCarretera(double Km, double Horas, string Fuente, List<(double Lat, double Lon)>? Grafica = null);
 public record PreciosGasolina(double Magna, double Premium, string Fuente);
-public record HotelCercano(string Nombre, double DistKm, string Fuente = "OpenStreetMap/Overpass");
 public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota);
 public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
 
@@ -72,6 +71,22 @@ public static class CalculoCostosRuta
         "https://overpass.private.coffee/api/interpreter",
     ];
     private const double ComidaDiaEstandar = 600;
+
+    // ---------- Configuración (tabla viaticos.config_parametros) ----------
+    // Los valores por defecto viven aquí; la tabla de configuración los
+    // sobreescribe sin tocar el código.
+
+    private static double RendimientoEfectivo() => ConfiguracionViaticos.Double("costos.rendimiento_km_l", RendimientoKmL);
+    private static double CasetaPorKmEfectivo() => ConfiguracionViaticos.Double("costos.caseta_por_km", CasetaPorKm);
+    private static double ComidaDiaEfectiva() => (double)ConfiguracionViaticos.Decimal("costos.comida_dia", 600m);
+
+    private static (double Base, double Km) TarifaTaxi(string ciudad)
+    {
+        var (base_, km) = Taxi.GetValueOrDefault(ciudad, (30, 11));
+        return (
+            ConfiguracionViaticos.Double($"costos.taxi_base.{ciudad}", base_),
+            ConfiguracionViaticos.Double($"costos.taxi_km.{ciudad}", km));
+    }
     private const int BufferMin = 30;
     private const double SnapKm = 25.0;
     private const string UberEstimateUrl = "https://www.uber.com/mx/es/price-estimate/";
@@ -90,7 +105,8 @@ public static class CalculoCostosRuta
     };
 
     private sealed record LugarNorm(int Orden, string Tipo, string Nombre, double Lat, double Lon,
-        DateTime? Salida, DateTime? Llegada, DateTime? Deadline, DateTime? Fin, DateTime? FinActividad, bool Propuesto);
+        DateTime? Salida, DateTime? Llegada, DateTime? Deadline, DateTime? Fin, DateTime? FinActividad, bool Propuesto,
+        string Municipio, string Estado);
 
     private sealed record PersonaNorm(string Nombre, bool CarroPropio, string Gasolina, bool Draft,
         TimeOnly HIn, TimeOnly HOut, int DIn, int DOut, List<LugarNorm> Lugares);
@@ -101,7 +117,8 @@ public static class CalculoCostosRuta
         bool Late, bool SaleAntes, int LateMin, string Fuente, bool Estimado, string Nota,
         string Url, string Sitio, string Accion, string Objetivo, string Badge);
 
-    private sealed record TramoCalc(string From, string To, double Km, double Hrs, List<OpCalc> Opciones);
+    private sealed record TramoCalc(string From, string To, double Km, double Hrs, List<OpCalc> Opciones,
+        List<(double Lat, double Lon)>? Grafica = null);
     private sealed record ComparteInfo(int N, string? Conductor);
 
     // ---------- Geo ----------
@@ -162,14 +179,28 @@ public static class CalculoCostosRuta
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(8));
             var t = cts.Token;
-            var url = $"https://router.project-osrm.org/route/v1/driving/{lonO},{latO};{lonD},{latD}?overview=false";
+            var url = $"https://router.project-osrm.org/route/v1/driving/{lonO},{latO};{lonD},{latD}?overview=full&geometries=geojson";
             using var res = await http.GetAsync(url, t);
             res.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
             var route = doc.RootElement.GetProperty("routes")[0];
             var km = route.GetProperty("distance").GetDouble() / 1000.0;
             var hrs = route.GetProperty("duration").GetDouble() / 3600.0;
-            return new RutaCarretera(km, hrs, "OSRM/OpenStreetMap (en vivo)");
+            // Trazado de la carretera (para el mapa): se simplifica a 300 puntos.
+            var grafica = new List<(double Lat, double Lon)>();
+            if (route.TryGetProperty("geometry", out var geo) && geo.TryGetProperty("coordinates", out var coords)
+                && coords.ValueKind == JsonValueKind.Array)
+            {
+                var total = coords.GetArrayLength();
+                var paso = Math.Max(1, total / 300);
+                for (var i = 0; i < total; i++)
+                {
+                    if (i % paso != 0 && i != total - 1) continue;
+                    var par = coords[i];
+                    grafica.Add((par[1].GetDouble(), par[0].GetDouble()));
+                }
+            }
+            return new RutaCarretera(km, hrs, "OSRM/OpenStreetMap (en vivo)", grafica);
         }
         catch
         {
@@ -219,6 +250,10 @@ public static class CalculoCostosRuta
     public static async Task<List<HotelCercano>> BuscarHotelesCercanosAsync(HttpClient http, IMemoryCache cache,
         double lat, double lon, CancellationToken ct)
     {
+        // 1) Google Places (hoteles locales reales) si hay llave configurada.
+        var deGoogle = await GooglePlacesService.BuscarHotelesAsync(http, cache, lat, lon, ct);
+        if (deGoogle is not null && deGoogle.Count > 0) return deGoogle;
+
         var key = $"costos-hoteles-v5:{Math.Round(lat, 3)},{Math.Round(lon, 3)}";
         if (cache.TryGetValue(key, out List<HotelCercano>? cached) && cached is not null)
             return cached;
@@ -258,7 +293,7 @@ public static class CalculoCostosRuta
                     }
                     var nombre = el.TryGetProperty("tags", out var tags) && tags.TryGetProperty("name", out var nm)
                         ? nm.GetString() ?? "Hotel" : "Hotel";
-                    out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Overpass"));
+                    out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Overpass", null, null, null, null, hlat, hlon));
                 }
                 var ordered = out_.OrderBy(h => h.DistKm).Take(5).ToList();
                 cache.Set(key, ordered, TimeSpan.FromHours(6));
@@ -302,7 +337,7 @@ public static class CalculoCostosRuta
                 var nombre = el.TryGetProperty("name", out var nEl) && !string.IsNullOrWhiteSpace(nEl.GetString())
                     ? nEl.GetString()!
                     : el.TryGetProperty("display_name", out var dEl) ? dEl.GetString() ?? "Hotel" : "Hotel";
-                out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Nominatim"));
+                out_.Add(new HotelCercano(nombre, HaversineKm(lat, lon, hlat, hlon), "OpenStreetMap/Nominatim", null, null, null, null, hlat, hlon));
             }
             return out_.OrderBy(h => h.DistKm).Take(5).ToList();
         }
@@ -456,6 +491,10 @@ public static class CalculoCostosRuta
                     ci, !opciones.CalcularViajesIntermedios && intermedio, precios, http, cache, ct));
             }
 
+            var casetas = norm.CarroPropio
+                ? await CasetasAsync(prop, tramos, http, cache, ct)
+                : new List<CostosRutaCaseta>();
+
             var incumplimientos = new List<string>();
             if (opciones.RespetarHorarioLaboral)
                 incumplimientos.AddRange(AvisosLaborales(norm));
@@ -476,6 +515,7 @@ public static class CalculoCostosRuta
                 RutaArmada = RutaArmada(prop, tramos, precios),
                 HotelesPropuestos = hoteles,
                 Incumplimientos = incumplimientos,
+                Casetas = casetas,
             };
             resp.Resultados.Add(resultado);
 
@@ -562,13 +602,15 @@ public static class CalculoCostosRuta
                         throw new ArgumentException($"{q}: manda fecha Y hora de salida, o ninguna (se calcula).");
                     sal = Dt(l.FechaSalida, l.HoraSalida, q + " salida");
                 }
-                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, sal, null, null, null, null, false));
+                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, sal, null, null, null, null, false,
+                    l.Municipio?.Trim() ?? "", l.Estado?.Trim() ?? ""));
             }
             else if (l.Tipo == "hotel")
             {
                 var llegada = DtReq(l.FechaLlegada, l.HoraLlegada, q + " check-in");
                 var salida = DtReq(l.FechaSalida, l.HoraSalida, q + " check-out");
-                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, salida, llegada, llegada, null, null, false));
+                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, salida, llegada, llegada, null, null, false,
+                    l.Municipio?.Trim() ?? "", l.Estado?.Trim() ?? ""));
             }
             else
             {
@@ -597,7 +639,8 @@ public static class CalculoCostosRuta
                     : finAct.AddHours(2);
                 if (!(deadline <= fin && fin <= finAct && finAct <= salida))
                     throw new ArgumentException($"{q}: cadena inválida (llegada <= inicio <= fin <= salida).");
-                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, salida, null, deadline, fin, finAct, false));
+                lugares.Add(new LugarNorm(l.Orden, l.Tipo, nombreL, l.Latitud, l.Longitud, salida, null, deadline, fin, finAct, false,
+                    l.Municipio?.Trim() ?? "", l.Estado?.Trim() ?? ""));
             }
         }
 
@@ -674,13 +717,13 @@ public static class CalculoCostosRuta
             var (key, _) = SnapCiudad(last.Lat, last.Lon);
             var ciudad = key is not null ? Ciudades[key].Nombre : "la zona";
             lugares.Add(new LugarNorm(lugares.Count + 1, "hotel", $"Hotel propuesto — {ciudad}",
-                last.Lat, last.Lon, checkout, checkin, checkin, null, null, true));
+                last.Lat, last.Lon, checkout, checkin, checkin, null, null, true, last.Municipio, last.Estado));
             razones.Add($"Regresar esa noche llegaría {llegada:dd/MM HH:mm} (manejo ~{drive:F1} h), fuera de tu jornada -> hotel en {ciudad}.");
             finUlt = checkout;
         }
         var regresoHora = finUlt.AddHours(drive + 0.5);
         lugares.Add(new LugarNorm(lugares.Count + 1, "punto", $"Regreso — {origen.Nombre}",
-            origen.Lat, origen.Lon, regresoHora, null, regresoHora, regresoHora, regresoHora, true));
+            origen.Lat, origen.Lon, regresoHora, null, regresoHora, regresoHora, regresoHora, true, origen.Municipio, origen.Estado));
         razones.Add($"Regreso propuesto a {origen.Nombre}: {regresoHora:dd/MM HH:mm}.");
         return (lugares, razones);
     }
@@ -733,7 +776,7 @@ public static class CalculoCostosRuta
         var (keyO, _) = SnapCiudad(a.Lat, a.Lon);
         var (keyD, _) = SnapCiudad(b.Lat, b.Lon);
         var cas = Casetas(keyO, keyD, km);
-        var gas = km / RendimientoKmL * precios.Magna;
+        var gas = km / RendimientoEfectivo() * precios.Magna;
         var osm = $"https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route={a.Lat}%2C{a.Lon}%3B{b.Lat}%2C{b.Lon}";
         var opts = new List<OpCalc>();
         var sinAuto = !norm.CarroPropio && comparte?.Conductor is null;
@@ -750,7 +793,7 @@ public static class CalculoCostosRuta
                 var arr = sal.AddHours(dur);
                 var parte = (gas + casetas) / (nSh is > 1 ? nSh.Value : 1);
                 opts.Add(new OpCalc("auto", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, dur, 0,
-                    parte, parte * 1.1, parte, false, km / RendimientoKmL, precios.Magna, casetas, null,
+                    parte, parte * 1.1, parte, false, km / RendimientoEfectivo(), precios.Magna, casetas, null,
                     arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                     $"OSRM + CNE ({srcRuta}; {precios.Fuente})", false,
                     salidaPrevia is not null ? $"casetas + gasolina CNE · sales {sal:dd/MM HH:mm} (tu hora){NotaSh()}" : $"casetas + gasolina CNE · sale {sal:dd/MM HH:mm} para llegar {BufferMin} min antes{NotaSh()}",
@@ -764,7 +807,7 @@ public static class CalculoCostosRuta
             var arr = sal.AddHours(hrs);
             var total = (tarifa + gas + cas.Costo) / (nSh is > 1 ? nSh.Value : 1);
             opts.Add(new OpCalc("renta", nombre + NotaSh(), $"{km:F0} km carretera", sal, arr, hrs, 0,
-                total, total * 1.12, total, false, km / RendimientoKmL, precios.Magna, cas.Costo, tarifa,
+                total, total * 1.12, total, false, km / RendimientoEfectivo(), precios.Magna, cas.Costo, tarifa,
                 arr > deadline, false, arr > deadline ? (int)(arr - deadline).TotalMinutes : 0,
                 "seed renta", true, $"{notaR} · tarifa/día ${tarifa:F0}{NotaSh()}",
                 $"https://www.google.com/search?q=renta de autos {b.Nombre} por día", "Google", "cotizar renta", $"renta en {b.Nombre}", ""));
@@ -837,7 +880,7 @@ public static class CalculoCostosRuta
             opts[iBar] = opts[iBar] with { Badge = iRap == iBar ? "más barato y rápido" : "más barato" };
             if (iRap != iBar) opts[iRap] = opts[iRap] with { Badge = "más rápido" };
         }
-        return new TramoCalc(a.Nombre, b.Nombre, km, hrs, opts.OrderBy(o => o.CostoGrupo).ToList());
+        return new TramoCalc(a.Nombre, b.Nombre, km, hrs, opts.OrderBy(o => o.CostoGrupo).ToList(), ruta?.Grafica);
     }
 
     private static T MejorHorario<T>(List<T> cands, DateTime? salidaPrevia, int overheadMin, DateTime deadline,
@@ -856,7 +899,7 @@ public static class CalculoCostosRuta
         foreach (var par in new[] { $"{keyO}-{keyD}", $"{keyD}-{keyO}" })
             if (CasetasIda.TryGetValue(par, out var v))
                 return (v, $"seed de corredor {par} (estilo CAPUFE)");
-        return (Math.Round(km * CasetaPorKm), "seed ~$1.4/km (estilo CAPUFE)");
+        return (Math.Round(km * CasetaPorKmEfectivo()), "seed ~$1.4/km (estilo CAPUFE)");
     }
 
     private static List<OpCalc> TaxiUber(LugarNorm a, LugarNorm b, double km, double hrs,
@@ -880,21 +923,30 @@ public static class CalculoCostosRuta
         if (ciudad == "CDMX")
         {
             var f = esNoche ? 1.2 : 1.0;
-            Add("Taxi libre CDMX", (8.74 + 4.28 * km) * f, "SEMOVI libre $8.74 + $4.28/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
-            Add("Taxi sitio CDMX", (13.10 + 5.20 * km) * f, "SEMOVI sitio $13.10 + $5.20/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
-            Add("Radio taxi CDMX", (27.30 + 7.36 * km) * f, "SEMOVI radio $27.30 + $7.36/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
+            var libreBase = ConfiguracionViaticos.Double("costos.taxi.cdmx.libre_base", 8.74);
+            var libreKm = ConfiguracionViaticos.Double("costos.taxi.cdmx.libre_km", 4.28);
+            var sitioBase = ConfiguracionViaticos.Double("costos.taxi.cdmx.sitio_base", 13.10);
+            var sitioKm = ConfiguracionViaticos.Double("costos.taxi.cdmx.sitio_km", 5.20);
+            var radioBase = ConfiguracionViaticos.Double("costos.taxi.cdmx.radio_base", 27.30);
+            var radioKm = ConfiguracionViaticos.Double("costos.taxi.cdmx.radio_km", 7.36);
+            Add("Taxi libre CDMX", (libreBase + libreKm * km) * f, $"SEMOVI libre ${libreBase:0.00} + ${libreKm:0.00}/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
+            Add("Taxi sitio CDMX", (sitioBase + sitioKm * km) * f, $"SEMOVI sitio ${sitioBase:0.00} + ${sitioKm:0.00}/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
+            Add("Radio taxi CDMX", (radioBase + radioKm * km) * f, $"SEMOVI radio ${radioBase:0.00} + ${radioKm:0.00}/km", "SEMOVI CDMX (oficial)", osm, "OSRM");
         }
         else if (ciudad == "XAL")
         {
-            if (km <= 8) Add("Taxi Xalapa (perímetro)", 38.5, "perímetro Xalapa $27–$50", "seed Veracruz por perímetros", osm, "OSRM");
-            else Add("Taxi Xalapa (fuera de perímetro)", 50 + 10 * km, "fuera de perímetro → tarifa a convenir; valida con el operador", "seed Veracruz (a convenir)", osm, "OSRM");
+            var perimetro = ConfiguracionViaticos.Double("costos.taxi.xal.perimetro", 38.5);
+            var fueraBase = ConfiguracionViaticos.Double("costos.taxi.xal.fuera_base", 50);
+            var fueraKm = ConfiguracionViaticos.Double("costos.taxi.xal.fuera_km", 10);
+            if (km <= 8) Add("Taxi Xalapa (perímetro)", perimetro, "perímetro Xalapa $27–$50", "seed Veracruz por perímetros", osm, "OSRM");
+            else Add("Taxi Xalapa (fuera de perímetro)", fueraBase + fueraKm * km, "fuera de perímetro → tarifa a convenir; valida con el operador", "seed Veracruz (a convenir)", osm, "OSRM");
         }
         else
         {
-            var (tb, tk) = Taxi.GetValueOrDefault(ciudad, (30, 11));
+            var (tb, tk) = TarifaTaxi(ciudad);
             Add($"Taxi {ciudad}", tb + tk * km, $"seed tarifa base ${tb} + ${tk}/km", "seed taxi", osm, "OSRM");
         }
-        var (bb, bk) = Taxi.GetValueOrDefault(ciudad, (30, 11));
+        var (bb, bk) = TarifaTaxi(ciudad);
         var baseKm = bb + bk * km;
         Add("UberX", baseKm, "uber económico · cotiza en la app", "seed apps", UberEstimateUrl, "Uber");
         Add("Uber Comfort", baseKm * 1.35, "uber confort · cotiza en la app", "seed apps", UberEstimateUrl, "Uber");
@@ -978,9 +1030,13 @@ public static class CalculoCostosRuta
                     Lugar = nl.Nombre, Nombre = h.Nombre,
                     Ciudad = ciudad, CheckIn = ci, CheckOut = co, Noches = noches, Habitaciones = 1,
                     DistanciaKm = h.DistKm, PrecioNoche = tarifa, PrecioTotal = tarifa * noches,
-                    Motivo = "Precio estimado con tarifa tabulador",
-                    Fuente = reales.Count > 0 ? reales[0].Fuente : $"{FuenteTabuladorHotel} (no se encontró hotel cercano)",
-                    Link = link(h.Nombre),
+                    Rating = h.Rating, RatingCount = h.RatingCount, Direccion = h.Direccion,
+                    Latitud = h.Latitud, Longitud = h.Longitud,
+                    Motivo = h.Rating is null
+                        ? "Precio estimado con tarifa tabulador"
+                        : $"Precio estimado con tarifa tabulador · ★{h.Rating:0.0} ({h.RatingCount ?? 0} reseñas)",
+                    Fuente = h.Fuente,
+                    Link = h.Link ?? link(h.Nombre),
                 });
         }
         return propuestos;
@@ -993,6 +1049,68 @@ public static class CalculoCostosRuta
         if (n == 0 && llegada.Hour < 6 && modo is "auto" or "uber" or "renta" && (salida - llegada).TotalHours >= 4)
             n = 1;
         return Math.Max(0, n);
+    }
+
+    /// <summary>
+    /// Casetas de la ruta según la SCT (Rutas Punto a Punto): plaza, km desde
+    /// el origen, carretera y tarifa de automóvil. Se cachea un día porque el
+    /// catálogo oficial cambia poco.
+    /// </summary>
+    private static async Task<List<CostosRutaCaseta>> CasetasAsync(
+        List<LugarNorm> lugares, List<TramoCalc> tramos, HttpClient http, IMemoryCache cache, CancellationToken ct)
+    {
+        var salida = new List<CostosRutaCaseta>();
+        for (var t = 0; t < tramos.Count && t + 1 < lugares.Count; t++)
+        {
+            var origen = lugares[t];
+            var destino = lugares[t + 1];
+            if (string.IsNullOrWhiteSpace(origen.Municipio) || string.IsNullOrWhiteSpace(destino.Municipio))
+                continue;
+
+            var clave = $"casetas-sct:{origen.Municipio}|{origen.Estado}|{destino.Municipio}|{destino.Estado}";
+            ResultadoCasetasRuta? info;
+            if (cache.TryGetValue(clave, out ResultadoCasetasRuta? guardada) && guardada is not null)
+            {
+                info = guardada;
+            }
+            else
+            {
+                try
+                {
+                    info = await CasetasRutaService.ConsultarAsync(
+                        http, origen.Municipio, origen.Estado, destino.Municipio, destino.Estado, ct);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning("SCT: falló la consulta de casetas {Origen} → {Destino}: {Error}",
+                        origen.Municipio, destino.Municipio, ex.Message);
+                    info = null;
+                }
+                if (info is not null) cache.Set(clave, info, TimeSpan.FromHours(24));
+            }
+            if (info is null) continue;
+
+            foreach (var caseta in info.Casetas)
+            {
+                salida.Add(new CostosRutaCaseta
+                {
+                    Tramo = t + 1,
+                    DeMunicipio = origen.Municipio,
+                    AMunicipio = destino.Municipio,
+                    Nombre = caseta.Nombre,
+                    Carretera = caseta.Carretera,
+                    Km = caseta.KmDesdeOrigen,
+                    Tarifa = caseta.TarifaAuto,
+                    Direccion = caseta.Direccion,
+                    Fuente = info.Fuente,
+                });
+            }
+        }
+        return salida;
     }
 
     // ---------- Propuestas (6) ----------
@@ -1011,7 +1129,7 @@ public static class CalculoCostosRuta
         };
         var totalRoadH = tramos.Sum(t => t.Hrs);
         var diasComidas = Math.Max(1, (int)Math.Ceiling(totalRoadH * 2 / 24));
-        var comidas = diasComidas * ComidaDiaEstandar;
+        var comidas = diasComidas * ComidaDiaEfectiva();
         var out_ = new List<CostosRutaPropuesta>();
         foreach (var (clave, titulo, razon, modoPref) in defs)
         {
@@ -1122,7 +1240,9 @@ public static class CalculoCostosRuta
     private static double TarifaHotel(string ciudad)
     {
         var kv = Ciudades.FirstOrDefault(kv => kv.Value.Nombre == ciudad);
-        return Viaticos.GetValueOrDefault(kv.Key ?? "CDMX", (600, 2000)).HospedajeNoche;
+        var clave = kv.Key ?? "CDMX";
+        var porDefecto = Viaticos.GetValueOrDefault(clave, (600, 2000)).HospedajeNoche;
+        return ConfiguracionViaticos.Double($"costos.hospedaje_noche.{clave}", porDefecto);
     }
 
     // ---------- Ruta armada / ofertas ----------
@@ -1150,6 +1270,7 @@ public static class CalculoCostosRuta
                 Casetas = new CostosRutaCasetasDetalle { Costo = cas.Costo, Fuente = cas.Fuente },
                 SubtotalMagna = Math.Round(cm + cas.Costo, 2),
                 SubtotalPremium = Math.Round(cp + cas.Costo, 2),
+                Grafica = t.Grafica?.Select(g => new[] { g.Lat, g.Lon }).ToList(),
             });
         }
         armada.Totales = new CostosRutaRutaTotales
@@ -1166,6 +1287,11 @@ public static class CalculoCostosRuta
     private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a)
     {
         var mid = (o.Lo + o.Hi) / 2;
+        // El tiempo puerta a puerta ya incluye los minutos de antes/después
+        // (aeropuerto, maletas, abordaje); aquí se separan para mostrarlos.
+        var minutosExtra = Math.Max(0, (int)Math.Round(o.PuertaH * 60 - (o.Llegada - o.Salida).TotalMinutes));
+        var minutosAntes = Math.Min(o.OverheadMin, minutosExtra);
+        var minutosDespues = Math.Max(0, minutosExtra - minutosAntes);
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -1177,6 +1303,8 @@ public static class CalculoCostosRuta
             SalidaTxt = o.Salida.ToString("dd/MM HH:mm"), LlegadaTxt = o.Llegada.ToString("dd/MM HH:mm"),
             Duracion = $"{(int)o.PuertaH}h {((int)Math.Round(o.PuertaH % 1 * 60)):D2}m",
             PuertaAPuertaH = Math.Round(o.PuertaH, 2),
+            MinutosAntes = minutosAntes,
+            MinutosDespues = minutosDespues,
             PrecioTxt = o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total",
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
@@ -1236,7 +1364,7 @@ public static class CalculoCostosRuta
                 var clave = $"{a.Nombre}|{b.Nombre}|{string.Join(",", miembros)}";
                 if (!vistos.Add(clave)) continue;
                 var km = HaversineKm(a.Lat, a.Lon, b.Lat, b.Lon) * 1.25;
-                var indiv = km / RendimientoKmL * 23.5 + Math.Round(km * CasetaPorKm);
+                var indiv = km / RendimientoEfectivo() * 23.5 + Math.Round(km * CasetaPorKmEfectivo());
                 var ahorro = Math.Round(indiv * (1 - 1.0 / info.N), 2);
                 out_.Add(new CostosRutaCompartido
                 {

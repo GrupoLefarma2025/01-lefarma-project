@@ -40,6 +40,10 @@ export interface CostosRutaLugarInput {
   nombre: string;
   latitud: number;
   longitud: number;
+  /** Municipio del punto: el motor lo usa para consultar la ruta en la SCT. */
+  municipio?: string;
+  /** Estado del punto (idem). */
+  estado?: string;
   fecha_salida?: string;
   hora_salida?: string;
   fecha_llegada?: string;
@@ -71,8 +75,15 @@ export interface CostosRutaOferta {
   a: string | null;
   salidaTxt: string;
   llegadaTxt: string;
+  /** Salida y llegada en ISO que expone el motor (pueden venir vacías). */
+  salida?: string | null;
+  llegada?: string | null;
   duracion: string;
   puertaAPuertaH: number | null;
+  /** Minutos antes de la salida (aeropuerto/abordaje). */
+  minutosAntes?: number;
+  /** Minutos después de la llegada (bajar del avión y recoger maletas). */
+  minutosDespues?: number;
   precioTxt: string;
   porPersona: boolean;
   costoGrupo: number;
@@ -114,6 +125,13 @@ export interface CostosRutaHotel {
   distanciaKm?: number;
   precioNoche?: number;
   precioTotal?: number;
+  /** Calificación y reseñas (Google Places). */
+  rating?: number | null;
+  ratingCount?: number | null;
+  direccion?: string | null;
+  /** Coordenadas del hotel (para el mapa de la ruta reconstruida). */
+  latitud?: number;
+  longitud?: number;
   motivo: string;
   fuente: string;
   link: string;
@@ -147,6 +165,8 @@ export interface CostosRutaRutaTramo {
   de: string;
   a: string;
   km: number;
+  /** Trazado de la carretera: pares [latitud, longitud]. */
+  grafica?: number[][];
   litros: number;
   gasolina: {
     magna: { precioL: number; costo: number; fuente: string };
@@ -155,6 +175,22 @@ export interface CostosRutaRutaTramo {
   casetas: { costo: number; fuente: string };
   subtotalMagna: number;
   subtotalPremium: number;
+}
+
+export interface CostosRutaCaseta {
+  tramo: number;
+  /** Municipio de origen del tramo (para emparejar con el tramo del viaje). */
+  deMunicipio?: string;
+  /** Municipio de destino del tramo. */
+  aMunicipio?: string;
+  nombre: string;
+  carretera: string;
+  /** Kilómetro desde el origen donde está la plaza (SCT). */
+  km: number;
+  /** Tarifa de automóvil en pesos (SCT). */
+  tarifa: number;
+  direccion: string;
+  fuente: string;
 }
 
 export interface CostosRutaResultado {
@@ -174,6 +210,8 @@ export interface CostosRutaResultado {
   };
   hotelesPropuestos: CostosRutaHotel[];
   incumplimientos: string[];
+  /** Casetas de la ruta según la SCT (plaza, km, carretera y tarifa de auto). */
+  casetas?: CostosRutaCaseta[];
 }
 
 export interface CostosRutaCompartido {
