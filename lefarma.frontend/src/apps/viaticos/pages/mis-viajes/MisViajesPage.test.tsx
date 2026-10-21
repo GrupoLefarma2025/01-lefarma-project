@@ -231,6 +231,7 @@ describe('MisViajesPage', () => {
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('489.3 km');
     // La propuesta original sigue disponible en su pestaña.
     await usuario.click(screen.getByRole('tab', { name: 'Viaje inicial' }));
-    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Propuesta original del wizard');
+    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ruta del viaje');
+    expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Fechas del viaje');
   });
 });

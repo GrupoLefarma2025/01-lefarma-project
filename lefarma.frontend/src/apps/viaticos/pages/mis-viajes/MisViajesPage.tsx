@@ -669,9 +669,6 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
         <BotonVerMapa onClick={() => setMapaAbierto('inicial')} />
       </div>
       <ResumenViaje {...resumen} />
-      <p className="text-xs text-muted-foreground">
-        Propuesta original del wizard: origen, destinos y horarios capturados al crear la solicitud.
-      </p>
     </div>
   );
 
@@ -817,7 +814,7 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   const elegidas = solicitud.opciones.filter((o) => o.fue_elegida);
   const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
   return (
-    <div className="space-y-2 text-sm">
+    <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
       <p><strong>Transporte y hospedaje elegidos:</strong> {elegidas.length === 0 ? 'Sin opciones elegidas.' : elegidas.map((o) => o.linea).join(' · ')}</p>
       {descartadas.length > 0 ? (
         <p className="text-muted-foreground"><strong>Alternativas descartadas:</strong> {descartadas.map((o) => o.linea).join(' · ')}</p>

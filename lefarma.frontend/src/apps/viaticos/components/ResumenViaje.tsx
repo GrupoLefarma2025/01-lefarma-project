@@ -184,7 +184,12 @@ export function ResumenViaje({ motivo, modoTransporte, compartido, acompanantes,
         <RutaViajeTimeline nodos={nodos} />
       </div>
 
-      <p className="text-xs text-muted-foreground">Fechas del viaje: {rango.inicio ?? '—'} al {rango.fin ?? '—'}.</p>
+      <div className="rounded-lg border bg-card p-3 shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
+        <dt className="text-xs text-muted-foreground">Fechas del viaje</dt>
+        <dd className="font-medium">
+          {rango.inicio ?? '—'} al {rango.fin ?? '—'}
+        </dd>
+      </div>
     </div>
   );
 }
