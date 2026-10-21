@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { usePermission } from '@/hooks/usePermission';
 import { toast } from 'sonner';
@@ -306,27 +305,22 @@ export function ConcentradoPage() {
         header: () => <div className="text-right">Acción</div>,
         enableSorting: false,
         cell: ({ row }) => (
-          <TooltipProvider delayDuration={150}>
-            <div className="flex items-center justify-end gap-1">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    aria-label="Revisar"
-                    onClick={(evento) => {
-                      evento.stopPropagation();
-                      void revisar(row.original.id_solicitud);
-                    }}
-                  >
-                    <Eye className="h-4 w-4" aria-hidden />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Revisar</TooltipContent>
-              </Tooltip>
-            </div>
-          </TooltipProvider>
+          <div className="flex items-center justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              aria-label={`Ver detalle ${row.original.folio ?? `#${row.original.id_solicitud}`}`}
+              onClick={(evento) => {
+                evento.stopPropagation();
+                void revisar(row.original.id_solicitud);
+              }}
+            >
+              <Eye className="h-4 w-4" aria-hidden />
+              Ver detalle
+            </Button>
+          </div>
         ),
       },
     ],

@@ -83,7 +83,7 @@ describe('ConcentradoPage', () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /revisar/i }));
+    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
     const revision = screen.getByTestId('revision-solicitud');
     expect(revision).toHaveTextContent('Vuelo Elegido');
@@ -98,7 +98,7 @@ describe('ConcentradoPage', () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /revisar/i }));
+    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
     await usuario.click(screen.getByRole('button', { name: /aprobar la opción elegida/i }));
     expect(mocks.autorizar).toHaveBeenCalledWith(5);
@@ -108,7 +108,7 @@ describe('ConcentradoPage', () => {
     const usuario = userEvent.setup();
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /revisar/i }));
+    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /rechazar/i })).toBeDisabled();
     await usuario.type(screen.getByLabelText(/comentario de revisión/i), 'Falta justificación');
