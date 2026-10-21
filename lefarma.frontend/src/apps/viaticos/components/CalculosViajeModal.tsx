@@ -19,6 +19,7 @@ import { TablaOpciones } from './TablaOpciones';
 import { ResumenRutaModal, type PuntoRutaResumen, type SegmentoRuta } from './ResumenRutaModal';
 import type { NodoRutaTimeline } from './RutaViajeTimeline';
 import { ModoTransporteBadge } from './ModoTransporteBadge';
+import { DireccionTramo } from './DireccionTramo';
 import {
   MARGEN_CARRO,
   construirCalculo,
@@ -564,7 +565,11 @@ export function CalculosViajeModal({
                 onClick={() => setPaso(i)}
                 className={folderTabClassName(i === paso)}
               >
-                {i === 0 ? 'Origen' : t.desde.nombre} → {t.esRegreso ? 'Regreso' : t.hasta.nombre}
+                <DireccionTramo
+                  compacto
+                  desde={i === 0 ? 'Origen' : t.desde.nombre}
+                  hasta={t.esRegreso ? 'Regreso' : t.hasta.nombre}
+                />
               </button>
             ))}
           </div>
@@ -572,7 +577,10 @@ export function CalculosViajeModal({
 
         {tramo ? (
           <section className="space-y-3 rounded-b-lg border p-3">
-            <h3 className="text-sm font-semibold">Tramo {paso + 1}: {tramo.desde.nombre} → {tramo.hasta.nombre}</h3>
+            <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+              <span className="text-muted-foreground">Tramo {paso + 1}:</span>
+              <DireccionTramo desde={tramo.desde.nombre} hasta={tramo.hasta.nombre} />
+            </h3>
 
             <div className="space-y-2 text-sm">
               {tramo.desde.explicita && fechaSalida ? (
