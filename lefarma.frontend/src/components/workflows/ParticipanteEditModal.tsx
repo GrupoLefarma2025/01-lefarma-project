@@ -3,6 +3,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { API } from '@/shared/api/apiClient';
@@ -50,8 +51,9 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
       });
       setTipoAsignacionUI(esJefe ? 'jefe' : participante.idRol ? 'rol' : 'usuario');
     } else {
+      const primerPaso = [...workflow.pasos].sort((a, b) => a.orden - b.orden)[0];
       setFormData({
-        idPaso: workflow.pasos[0]?.idPaso || 0,
+        idPaso: primerPaso?.idPaso || 0,
         idRol: 0,
         idUsuario: 0,
         requiereJefeInmediato: false,
@@ -88,6 +90,8 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
     }
   };
 
+  const pasosOrdenados = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
+
   return (
     <Modal
       id="modal-participante"
@@ -122,13 +126,18 @@ export function ParticipanteEditModal({ workflow, participante, roles, usuarios,
               <SelectValue placeholder="Selecciona el paso" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
+              {pasosOrdenados.map((paso: WorkflowPaso) => (
                 <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                       {paso.orden}
                     </span>
                     <span>{paso.nombrePaso}</span>
+                    {!paso.activo && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Inactivo
+                      </Badge>
+                    )}
                   </div>
                 </SelectItem>
               ))}

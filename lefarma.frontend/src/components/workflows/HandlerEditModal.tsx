@@ -186,7 +186,9 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
       if (handlerKey === 'ProviderAuthorization') return c.tipoControl === 'Validacion';
       return true;
     });
-  const allAcciones = workflow.pasos.flatMap((p: WorkflowPaso) => (p.acciones || []).map((a: WorkflowAccion) => ({ ...a, pasoNombre: p.nombrePaso, pasoOrden: p.orden })));
+  const allAcciones = [...workflow.pasos]
+    .sort((a, b) => a.orden - b.orden)
+    .flatMap((p: WorkflowPaso) => (p.acciones || []).map((a: WorkflowAccion) => ({ ...a, pasoNombre: p.nombrePaso, pasoOrden: p.orden, pasoActivo: p.activo })));
 
   const parseExistingJson = (json: string) => {
     try { return JSON.parse(json); } catch { return null; }
@@ -353,9 +355,9 @@ export function HandlerEditModal({ workflow, accion, handler, open, setOpen, onS
             <Select value={selectedAccionId?.toString() ?? ''} onValueChange={(v) => setSelectedAccionId(Number(v))}>
               <SelectTrigger><SelectValue placeholder="Selecciona una accion..." /></SelectTrigger>
               <SelectContent>
-                {allAcciones.map((a: WorkflowAccion & { pasoNombre: string; pasoOrden: number }) => (
+                {allAcciones.map((a: WorkflowAccion & { pasoNombre: string; pasoOrden: number; pasoActivo: boolean }) => (
                   <SelectItem key={a.idAccion} value={a.idAccion.toString()}>
-                    {a.pasoNombre} — {a.tipoAccionNombre}
+                    [{a.pasoOrden}] {a.pasoNombre} — {a.tipoAccionNombre}{!a.pasoActivo ? ' (inactivo)' : ''}
                   </SelectItem>
                 ))}
               </SelectContent>

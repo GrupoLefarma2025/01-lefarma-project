@@ -68,7 +68,11 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
-    Task<List<DTOs.AsignacionDto>> GetAsignacionesAsync(int idUsuario, CancellationToken ct = default);
+    Task<List<DTOs.AsignacionDto>> GetAsignacionesAsync(
+        int idUsuario,
+        DateOnly? desde = null,
+        DateOnly? hasta = null,
+        CancellationToken ct = default);
 
     /// <summary>Hospitales de la selección del equipo con ruta Cerrada (captura asistida; ADR-00011).</summary>
     Task<List<DTOs.HospitalElegibleDto>> GetHospitalesElegiblesAsync(int idEquipo, CancellationToken ct = default);

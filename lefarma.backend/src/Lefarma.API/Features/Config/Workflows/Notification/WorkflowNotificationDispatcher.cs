@@ -143,6 +143,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
 
             contextoTemplate["Folio"] = folio;
             contextoTemplate["UrlEntidad"] = urlEntidad ?? ""; // {{UrlEntidad}} en template
+            contextoTemplate["UrlOrden"] = urlEntidad ?? "";
             contextoTemplate["Solicitante"] = nombreCreador;
             contextoTemplate["NombreCreador"] = nombreCreador;
             contextoTemplate["NombreSiguiente"] = nombreSiguiente;
@@ -374,7 +375,8 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                 contenido,
                 ctx.GetValueOrDefault("Asunto", ""),
                 ctx.GetValueOrDefault("Folio", ""),
-                ctx.GetValueOrDefault("UrlEntidad", "")
+                ctx.GetValueOrDefault("UrlEntidad", ""),
+                ctx.GetValueOrDefault("ContenidoAdicional", "")
             );
         }
 
@@ -383,9 +385,9 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
     }
 
     
-    private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlEntidad)
+    private static string BuildEmailHtmlFallback(string cuerpo, string asunto, string folio, string urlEntidad, string? contenidoAdicional)
     {
-        return $$$$$"""
+        var template = """
             <!DOCTYPE html>
             <html lang="es">
             <head>
@@ -430,7 +432,7 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
                           <div style="color:#1f2937;font-size:15px;line-height:1.7">
                             {cuerpo}
                           </div>
-                          {{{{ContenidoAdicional}}}}
+                          {{ContenidoAdicional}}
                         </td>
                       </tr>
 
@@ -470,6 +472,13 @@ public class WorkflowNotificationDispatcher : IWorkflowNotificationDispatcher
             </body>
             </html>
             """;
+
+        return template
+            .Replace("{asunto}", asunto)
+            .Replace("{cuerpo}", cuerpo)
+            .Replace("{folio}", folio)
+            .Replace("{urlEntidad}", urlEntidad)
+            .Replace("{{ContenidoAdicional}}", contenidoAdicional ?? "");
     }
 
     internal static string FormatearDinero(decimal value, string? simboloMoneda, bool posicionIzquierda = true)

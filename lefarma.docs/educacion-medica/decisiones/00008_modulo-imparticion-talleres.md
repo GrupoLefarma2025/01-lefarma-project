@@ -36,7 +36,7 @@ Accepted
 > - **Cancelación también por CEM** además de GV/AEM, con motivo, desde `Programado`/`EnCurso`. Ajusta la decisión #4.
 > - **Historial de estados** en tabla hija `taller_estados_historial` — no JSON embebido (eventos discretos consultables: quién, cuándo, origen, motivo). Decisión #12.
 > - **UI con transiciones permitidas**: el select de estados solo ofrece lo válido por rol y estado. Decisión #13.
-> - **Panel de situación del equipo** (decisión #14): KPIs + barra de avance + badges con icono por estado en "Mis talleres" (v1) y reutilización del resumen en el Dashboard de Educación Médica (v2).
+> - **Panel de situación del equipo** (decisión #14): KPIs + barra de avance + badges con icono por estado en "Mis talleres" (v1) y reutilización del resumen en el Dashboard de Educación Médica (v2 implementada — ADR-00012).
 > - **Solicitud de cambio del equipo** (con ADR-00010): con el candado puesto o la matriz fuera de captura, "Mis talleres" ofrece **"Solicitar cambio"**; la resolución vive en la **Matriz General** (pendientes arriba con icono), sin bandeja nueva.
 > - `Elaborado`/`Revisado` quedan como vocabulario legacy sin uso.
 
@@ -80,7 +80,7 @@ Taller: Autorizado ──▶ Programado ──▶ EnCurso ──▶ Realizado
 6. **`taller_aprobaciones` se elimina** (script 0023): el log Elaboró/Revisó/Autorizó por taller es redundante con la bitácora del motor; no hay datos en operación.
 7. **Imprimibles (decisión 7 ✔)**: FOR-007 (acuse de material) y FOR-008 (lista de asistencia) **pre-llenados** con los datos del taller, reutilizando el patrón actualizado de `MatrizPrintDocument`; el papel firmado/escaneado se sigue subiendo como evidencia.
 8. **Estados operativos post-matriz (revisión 2026-10-09)**: al cerrar la matriz (DC `CERRAR`) los talleres pasan **automáticamente a `Programado`**; `EnCurso` lo marca el usuario con **sugerencia** el día del taller; `Realizado` exige ≥1 evidencia y ≥1 asistencia; `Cancelado` (GV/AEM/CEM) exige motivo y aplica desde `Programado`/`EnCurso`. **Cada transición se registra en `taller_estados_historial`** (origen Automático/Manual, motivo, usuario, fecha) y la UI solo ofrece transiciones permitidas por rol/estado.
-9. **Panel de situación del equipo (revisión 2026-10-09)**: "Mis talleres" muestra un panel con KPIs del mes (total, Programados, En curso, Realizados, Cancelados), barra de avance `Realizados/Total` y badges con icono por estado; el modal de estado incluye un **stepper** del taller. La v2 reutiliza el resumen en el Dashboard del módulo (hoy stub). La Matriz General (GV/CEM) muestra el panorama por taller/equipo con las **solicitudes de cambio pendientes arriba** (ADR-00010).
+9. **Panel de situación del equipo (revisión 2026-10-09)**: "Mis talleres" muestra un panel con KPIs del mes (total, Programados, En curso, Realizados, Cancelados), barra de avance `Realizados/Total` y badges con icono por estado; el modal de estado incluye un **stepper** del taller. La v2 reutiliza el resumen en el Dashboard del módulo (implementado en ADR-00012). La Matriz General (GV/CEM) muestra el panorama por taller/equipo con las **solicitudes de cambio pendientes arriba** (ADR-00010).
 
 ## Fases
 
@@ -110,7 +110,7 @@ Taller: Autorizado ──▶ Programado ──▶ EnCurso ──▶ Realizado
 9. **Historial de estados en tabla hija (no JSON embebido)** (revisión 2026-10-09)
    *Por qué:* un historial son **eventos discretos** que se consultan ("cancelaciones con motivo", "quién inició el taller"); un JSON embebido no se indexa ni se filtra sin parsear y se reescribe completo en cada transición. La tabla espeja el patrón de `ajustes_post_cierre` (ADR-00010) y deja `talleres.estado` como estado actual (decisiones 12 y 13 ✔). Si se requieren datos extra, un `datos_json` opcional absorbe el crecimiento sin migrar esquema.
 10. **Panel de situación del equipo** (revisión 2026-10-09)
-    *Por qué:* el equipo EV/EP vive en "Mis talleres" y su adopción depende de ver avance; el área busca que el equipo se motive y venda más, y los datos ya existen en `MisTalleresResponse` (sin backend nuevo en v1). El Dashboard del módulo (hoy stub) reutiliza el mismo resumen en v2 sin duplicar lógica.
+    *Por qué:* el equipo EV/EP vive en "Mis talleres" y su adopción depende de ver avance; el área busca que el equipo se motive y venda más, y los datos ya existen en `MisTalleresResponse` (sin backend nuevo en v1). El Dashboard del módulo (implementado en ADR-00012) reutiliza el mismo resumen en v2 sin duplicar lógica.
 
 **0.9 Decisiones del usuario:**
 
@@ -129,7 +129,7 @@ Taller: Autorizado ──▶ Programado ──▶ EnCurso ──▶ Realizado
 | 11 | ¿Quién cancela tras el cierre? | **GV + AEM + CEM (2026-10-09)**, con motivo, desde `Programado`/`EnCurso` |
 | 12 | ¿Historial de estados? | **Tabla hija `taller_estados_historial` (2026-10-09)**, no JSON embebido: eventos consultables con origen, motivo y usuario |
 | 13 | ¿Select libre de estados? | **Solo transiciones permitidas (2026-10-09)**: la UI ofrece lo válido por rol/estado |
-| 14 | ¿Panel de situación del equipo? | **Sí (2026-10-09)**: v1 en "Mis talleres" (KPIs + barra de avance + badges con icono + stepper); v2 en el Dashboard del módulo |
+| 14 | ¿Panel de situación del equipo? | **Sí (2026-10-09)**: v1 en "Mis talleres" (KPIs + barra de avance + badges con icono + stepper); v2 en el Dashboard del módulo (implementada — ADR-00012) |
 
 **Estado (2026-10-09):** **decisiones #1–#14 resueltas.** Los cambios del 2026-10-08 (permisos/guards del ADR-00009, renombre `Borrador`→`Creada`, nuevo patrón de imprimibles) solo ajustan la implementación (nota de revisión arriba); la revisión 2026-10-09 ajusta los disparadores de estado, agrega el historial y el panel de situación.
 
@@ -196,7 +196,7 @@ Taller: Autorizado ──▶ Programado ──▶ EnCurso ──▶ Realizado
 - `Realizado` alimenta el ranking (`cobertura_taller`) y habilita los indicadores de asistencia.
 - Elimina una tabla muerta (`taller_aprobaciones`) y consolida el registro de firmas en el motor.
 - **Revisión 2026-10-09**: `Programado` automático elimina un paso manual y el historial (`taller_estados_historial`) da trazabilidad operativa completa (quién, cuándo, origen y motivo) sin depender del motor.
-- **Panel de situación** (decisión 14): el equipo ve su avance del mes en "Mis talleres" (KPIs, barra de avance, estados con icono), lo que apoya la adopción y la motivación comercial del área; se reutiliza en el Dashboard en v2 sin lógica nueva.
+- **Panel de situación** (decisión 14): el equipo ve su avance del mes en "Mis talleres" (KPIs, barra de avance, estados con icono), lo que apoya la adopción y la motivación comercial del área; se reutiliza en el Dashboard en v2 sin lógica nueva (implementado — ADR-00012).
 
 **Negativas**
 - La confirmación de material con firma digital agrega 3 columnas y un paso de UI (decisión 2 ✔); es el precio de la fidelidad del FOR-007.

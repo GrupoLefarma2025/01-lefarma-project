@@ -120,6 +120,6 @@ export const rhMenuItems: SidebarMenuItemConfig[] = [
   {
     title: 'Ayuda',
     icon: HelpCircle,
-    path: '/rh/help',
+    helpPdf: 'manuales/manual-modulo-rh.pdf',
   },
 ];

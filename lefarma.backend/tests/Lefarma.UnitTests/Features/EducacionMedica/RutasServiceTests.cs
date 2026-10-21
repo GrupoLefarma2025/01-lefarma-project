@@ -850,12 +850,59 @@ public class RutasServiceTests
         var service = CreateService();
         var asignaciones = await service.GetAsignacionesAsync(IdEv);
 
-        asignaciones.Should().HaveCount(1);
-        asignaciones[0].FechaVisita.Should().Be(new DateOnly(2026, 11, 2));
+    asignaciones.Should().HaveCount(1);
+    asignaciones[0].FechaVisita.Should().Be(new DateOnly(2026, 11, 2));
+}
+
+[Fact]
+public async Task GetAsignacionesAsync_ConRango_Debe_FiltrarYExponerHoras()
+{
+    var hoy = DateOnly.FromDateTime(DateTime.Today);
+    var seleccion = SeedSeleccionAutorizada(cantidadHospitales: 1);
+    seleccion.FechaInicioVigencia = hoy.AddDays(-7);
+    seleccion.FechaFinVigencia = hoy.AddDays(30);
+
+    _rutaRepo.Rutas.Add(new Ruta
+    {
+        IdRuta = 1,
+        IdSeleccionMensual = 1,
+        IdEquipo = EquipoId,
+        Version = 1,
+        Estado = Ruta.EstadoCerrada,
+        Nombre = "Ruta A",
+    });
+
+    void AgregarVisita(int id, DateOnly fecha, TimeOnly salida, TimeOnly llegada)
+    {
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = id,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            FechaVisita = fecha,
+            Orden = id,
+            HoraSalida = salida,
+            HoraLlegada = llegada,
+        });
     }
 
-    [Fact]
-    public async Task FirmarVersionAsync_DcSinCobertura_Debe_Lanzar()
+    AgregarVisita(1, hoy, new TimeOnly(9, 0), new TimeOnly(10, 30));
+    AgregarVisita(2, hoy.AddDays(1), new TimeOnly(11, 0), new TimeOnly(12, 15));
+    AgregarVisita(3, hoy.AddDays(10), new TimeOnly(8, 0), new TimeOnly(9, 0));
+
+    var service = CreateService();
+    var asignaciones = await service.GetAsignacionesAsync(IdEv, hoy, hoy.AddDays(7));
+
+    asignaciones.Should().HaveCount(2);
+    asignaciones.Select(a => a.IdRutaVisita).Should().BeEquivalentTo(new[] { 1, 2 });
+    asignaciones[0].HoraSalida.Should().Be(new TimeOnly(9, 0));
+    asignaciones[0].HoraLlegada.Should().Be(new TimeOnly(10, 30));
+    asignaciones[1].HoraSalida.Should().Be(new TimeOnly(11, 0));
+    asignaciones[1].HoraLlegada.Should().Be(new TimeOnly(12, 15));
+}
+
+[Fact]
+public async Task FirmarVersionAsync_DcSinCobertura_Debe_Lanzar()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 4);
         _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1;

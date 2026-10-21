@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Modal } from '@/components/ui/modal';
 import { API } from '@/shared/api/apiClient';
@@ -48,7 +49,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
       setFormData({ ...condicion, activo: condicion.activo ?? true });
     } else {
       setFormData({
-        idAccion: workflow.pasos[0]?.acciones?.[0]?.idAccion || 0,
+        idAccion: [...workflow.pasos].sort((a, b) => a.orden - b.orden)[0]?.acciones?.[0]?.idAccion || 0,
         campoEvaluacion: '',
         operador: '>',
         valorComparacion: '',
@@ -97,6 +98,8 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
     { value: 'IN', label: 'Está en (IN)' }
   ];
 
+  const pasosOrdenados = [...workflow.pasos].sort((a, b) => a.orden - b.orden);
+
   return (
     <Modal
       id="modal-condicion"
@@ -131,7 +134,7 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
               <SelectValue placeholder="Selecciona la accion" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.flatMap((paso: WorkflowPaso) =>
+              {pasosOrdenados.flatMap((paso: WorkflowPaso) =>
                 (paso.acciones || []).map((accion: WorkflowAccion) => (
                   <SelectItem key={accion.idAccion} value={accion.idAccion.toString()}>
                     <div className="flex items-center gap-2">
@@ -139,6 +142,11 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
                         {paso.orden}
                       </span>
                       <span>{paso.nombrePaso} — {accion.tipoAccionNombre}</span>
+                      {!paso.activo && (
+                        <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                          Inactivo
+                        </Badge>
+                      )}
                     </div>
                   </SelectItem>
                 ))
@@ -223,13 +231,18 @@ export function CondicionEditModal({ workflow, condicion, open, setOpen, onSave 
               <SelectValue placeholder="Selecciona el paso destino" />
             </SelectTrigger>
             <SelectContent>
-              {workflow.pasos.map((paso: WorkflowPaso) => (
+              {pasosOrdenados.map((paso: WorkflowPaso) => (
                 <SelectItem key={paso.idPaso} value={paso.idPaso.toString()}>
                   <div className="flex items-center gap-2">
                     <span className="inline-flex items-center justify-center h-5 w-5 rounded bg-blue-500/10 text-blue-600 text-xs font-bold">
                       {paso.orden}
                     </span>
                     <span>{paso.nombrePaso}</span>
+                    {!paso.activo && (
+                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-700 border-amber-500/30">
+                        Inactivo
+                      </Badge>
+                    )}
                   </div>
                 </SelectItem>
               ))}

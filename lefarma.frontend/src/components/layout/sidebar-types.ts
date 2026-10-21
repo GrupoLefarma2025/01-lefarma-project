@@ -11,9 +11,13 @@ export interface MenuItem extends MenuItemBase {
   path: string;
 }
 
+export interface HelpMenuItem extends MenuItemBase {
+  helpPdf: string;
+}
+
 export interface CollapsibleMenuItem extends MenuItemBase {
   isCollapsible: true;
   items: MenuItem[];
 }
 
-export type SidebarMenuItemConfig = MenuItem | CollapsibleMenuItem;
+export type SidebarMenuItemConfig = MenuItem | HelpMenuItem | CollapsibleMenuItem;
