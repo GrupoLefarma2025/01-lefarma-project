@@ -24,11 +24,11 @@ import {
   ESTADO_ENVIADA,
   estadoTexto,
   importeFormateado,
-  precioTexto,
   type SolicitudBandeja,
 } from '../../types/aprobaciones.types';
 import type { Solicitud } from '../../types/solicitud.types';
 import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
+import { VistaDetalle } from '../mis-viajes/MisViajesPage';
 import { ConcentradoDocumentoPreview } from './ConcentradoDocumentoPreview';
 import {
   ETIQUETA_CAMPO_FECHA,
@@ -515,35 +515,19 @@ export function ConcentradoPage() {
           if (!abierto) cerrarRevision();
         }}
       >
-        <DialogContent data-testid="revision-solicitud" className="sm:max-w-2xl">
+        <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[90vw] max-w-[1400px] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Revisión de la solicitud #{revisandoId}</DialogTitle>
             <DialogDescription>
-              Se autoriza la opción elegida por la persona viajera, nunca un reemplazo elegido en su nombre.
+              Mismo detalle que ve la persona viajera. Se autoriza la opción elegida por ella, nunca un
+              reemplazo elegido en su nombre.
             </DialogDescription>
           </DialogHeader>
 
           {cargandoDetalle ? <p role="status">Cargando revisión…</p> : null}
           {detalle ? (
             <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Registrada en el servidor el {detalle.fecha_creacion.slice(0, 10)}. La hora de cotización
-                original no la expone el servidor: esta foto distingue lo elegido de las alternativas.
-              </p>
-              <ul className="space-y-2">
-                {detalle.opciones.map((o) => (
-                  <li key={o.id_opcion} className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
-                    <span className="font-medium">{o.linea}</span>
-                    <span>{precioTexto(o)}</span>
-                    {o.fue_elegida ? (
-                      <Badge>Elegida por la persona viajera</Badge>
-                    ) : (
-                      <Badge variant="outline">Alternativa descartada</Badge>
-                    )}
-                  </li>
-                ))}
-                {detalle.opciones.length === 0 ? <li className="text-sm">Sin opciones registradas.</li> : null}
-              </ul>
+              <VistaDetalle solicitud={detalle} />
               <div className="space-y-1">
                 <Label htmlFor="comentario-revision">Comentario de revisión</Label>
                 <Input

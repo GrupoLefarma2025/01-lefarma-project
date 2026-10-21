@@ -59,7 +59,19 @@ const detalleOk = {
       activo: true,
       fecha_creacion: '2026-11-04T10:00:00',
       fecha_modificacion: '2026-11-04T11:00:00',
-      datos: {},
+      datos: {
+        version: 'solicitud-v2',
+        persona: { modo: 'mia', nombre: 'Persona Solicitante', motivo: 'Visita' },
+        transporte: { modo: 'solicitado', compartir: false, acompanantes: [] },
+        destinos: [
+          {
+            etiqueta: 'Destino Uno',
+            punto: { nombre: 'Destino Uno', latitud: 19.5, longitud: -99.5 },
+            debeEstarFecha: '2026-11-10',
+            debeEstarHora: '10:00',
+          },
+        ],
+      },
       opciones: [
         { id_opcion: 1, tipo: 'avion', linea: 'Vuelo Elegido', precio: 2000, moneda: 'MXN', url_compra: 'https://x', fuente: 'x', fue_elegida: true, ruta_captura: null },
         { id_opcion: 2, tipo: 'avion', linea: 'Vuelo Alterno', precio: 3500, moneda: 'MXN', url_compra: 'https://y', fuente: 'y', fue_elegida: false, ruta_captura: null },
@@ -86,12 +98,12 @@ describe('ConcentradoPage', () => {
     await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
     const revision = screen.getByTestId('revision-solicitud');
+    // El detalle es el mismo que ve la persona viajera: ruta y desglose.
+    expect(revision).toHaveTextContent('Ruta del viaje');
     expect(revision).toHaveTextContent('Vuelo Elegido');
-    expect(revision).toHaveTextContent('Vuelo Alterno');
     expect(revision).toHaveTextContent(/3,500/);
-    // La revisión autoriza la opción elegida, no un reemplazo.
-    expect(within(revision).getByText('Elegida por la persona viajera')).toBeInTheDocument();
-    expect(within(revision).getByText('Alternativa descartada')).toBeInTheDocument();
+    expect(revision).toHaveTextContent('Desglose');
+    expect(revision).toHaveTextContent(/2,000/);
   });
 
   it('aprobar autoriza la solicitud elegida sin reemplazar la opción', async () => {

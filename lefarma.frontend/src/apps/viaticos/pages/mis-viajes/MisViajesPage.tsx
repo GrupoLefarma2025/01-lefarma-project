@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
-import { estadoTexto } from '../../types/aprobaciones.types';
+import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
 import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
@@ -672,7 +672,7 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
  * otra pestaña, la propuesta original del wizard. La tercera pestaña queda
  * reservada para la ruta que se autorice en el concentrado.
  */
-function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
+export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
   const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | null>(null);
@@ -871,7 +871,14 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   return (
     <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
       <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
-      <p>{elegidas.length === 0 ? 'Sin opciones elegidas.' : elegidas.map((o) => o.linea).join(' · ')}</p>
+      <ul className="space-y-0.5">
+        {elegidas.length === 0 ? <li>Sin opciones elegidas.</li> : null}
+        {elegidas.map((o) => (
+          <li key={o.id_opcion}>
+            {o.linea} · <span className="font-medium">{precioTexto(o)}</span>
+          </li>
+        ))}
+      </ul>
       <div className="border-t pt-2">
         <p className="text-xs text-muted-foreground">Desglose</p>
         <p className="text-2xl font-semibold tracking-tight">{textoTotalElegidas(total)}</p>
@@ -881,7 +888,11 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
           <summary className="cursor-pointer text-muted-foreground">
             Alternativas descartadas ({descartadas.length})
           </summary>
-          <p className="mt-1 text-muted-foreground">{descartadas.map((o) => o.linea).join(' · ')}</p>
+          <ul className="mt-1 space-y-0.5 text-muted-foreground">
+            {descartadas.map((o) => (
+              <li key={o.id_opcion}>{o.linea} · {precioTexto(o)}</li>
+            ))}
+          </ul>
         </details>
       ) : null}
     </div>
