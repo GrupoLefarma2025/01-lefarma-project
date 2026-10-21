@@ -143,6 +143,20 @@ export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
               .map((d) => texto(d))
               .filter((d): d is string => d !== null),
           })),
+        segmentos: (Array.isArray(rutaBruta.segmentos) ? rutaBruta.segmentos : [])
+          .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
+          .map((s) => {
+            const tipo = texto(s.tipo) ?? 'carretera';
+            const puntos = (Array.isArray(s.puntos) ? s.puntos : [])
+              .filter((p): p is unknown[] => Array.isArray(p) && p.length >= 2)
+              .map((p) => [Number(p[0]), Number(p[1])] as [number, number])
+              .filter(([la, ln]) => Number.isFinite(la) && Number.isFinite(ln));
+            return {
+              tipo: (tipo === 'taxi' || tipo === 'transporte' ? tipo : 'carretera') as 'taxi' | 'transporte' | 'carretera',
+              puntos,
+            };
+          })
+          .filter((s) => s.puntos.length > 1),
       }
     : null;
 

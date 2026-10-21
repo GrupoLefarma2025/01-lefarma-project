@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { folderTabTriggerClassName } from '@/components/ui/folder-tab';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
@@ -21,6 +22,11 @@ import type { CalculoViaje, Solicitud } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
 import { RutaViajeTimeline, type NodoRutaTimeline } from '../../components/RutaViajeTimeline';
+import {
+  BotonVerMapa,
+  RutaMapaDialog,
+} from '../../components/RutaMapa';
+import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
 import { horaAmPm, leerCalculoDesdeDatos } from '../../services/calculoViaje';
@@ -356,52 +362,66 @@ export function MisViajesPage({ hoy = new Date() }: { hoy?: Date }) {
                   </Tooltip>
                 ) : null}
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      aria-label="Más acciones"
+                {esBorrador ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Más acciones"
+                        onClick={(evento) => evento.stopPropagation()}
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-44"
                       onClick={(evento) => evento.stopPropagation()}
                     >
-                      <MoreHorizontal className="h-4 w-4" aria-hidden />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    align="end"
-                    className="w-44"
-                    onClick={(evento) => evento.stopPropagation()}
+                      <DropdownMenuItem
+                        onClick={() => {
+                          void verDetalle(solicitud.id_solicitud);
+                        }}
+                      >
+                        <Eye className="mr-2 h-4 w-4" aria-hidden />
+                        Ver detalle
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`)}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" aria-hidden />
+                        Editar
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={procesando}
+                        onClick={() => {
+                          void eliminarBorrador(solicitud);
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" aria-hidden />
+                        Eliminar
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  // Sin acciones extra no hay menú: se muestra el botón completo.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    aria-label={`Ver detalle ${solicitud.folio ?? `#${solicitud.id_solicitud}`}`}
+                    onClick={(evento) => {
+                      evento.stopPropagation();
+                      void verDetalle(solicitud.id_solicitud);
+                    }}
                   >
-                    <DropdownMenuItem
-                      onClick={() => {
-                        void verDetalle(solicitud.id_solicitud);
-                      }}
-                    >
-                      <Eye className="mr-2 h-4 w-4" aria-hidden />
-                      Ver detalle
-                    </DropdownMenuItem>
-                    {esBorrador ? (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => navigate(`/viaticos/solicitud/${solicitud.id_solicitud}`)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" aria-hidden />
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          disabled={procesando}
-                          onClick={() => {
-                            void eliminarBorrador(solicitud);
-                          }}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" aria-hidden />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </>
-                    ) : null}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                    <Eye className="h-4 w-4" aria-hidden />
+                    Ver detalle
+                  </Button>
+                )}
               </div>
             </TooltipProvider>
           );
@@ -569,6 +589,61 @@ function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
 }
 
 /**
+ * Paradas y trazo del mapa para la ruta calculada. Usa la cadena guardada al
+ * enviar; si el cálculo es viejo y no la trae, une las paradas con rectas.
+ */
+function mapaDeCalculo(calculo: CalculoViaje | null): { puntos: PuntoMapa[]; segmentos: SegmentoMapa[] } {
+  const puntos: PuntoMapa[] = (calculo?.ruta?.puntos ?? []).map((p) => ({
+    lat: p.lat,
+    lng: p.lng,
+    nombre: p.nombre,
+    tipo: p.tipo,
+  }));
+  const guardados = calculo?.ruta?.segmentos ?? [];
+  if (guardados.length > 0) return { puntos, segmentos: guardados };
+  const segmentos: SegmentoMapa[] = puntos.slice(1).map((p, i) => ({
+    tipo: 'carretera',
+    puntos: [[puntos[i].lat, puntos[i].lng], [p.lat, p.lng]],
+  }));
+  return { puntos, segmentos };
+}
+
+/** Paradas y trazo del mapa para la propuesta original del wizard. */
+function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>>): {
+  puntos: PuntoMapa[];
+  segmentos: SegmentoMapa[];
+} {
+  type Punto = { latitud: number; longitud: number; nombre: string };
+  const secuencia: [number, number][] = [];
+  const puntos: PuntoMapa[] = [];
+  const vistos = new Set<string>();
+  const agregar = (punto: Punto | null | undefined, tipo: PuntoMapa['tipo'], nombre: string) => {
+    if (!punto) return;
+    const clave = `${punto.latitud.toFixed(4)},${punto.longitud.toFixed(4)}`;
+    secuencia.push([punto.latitud, punto.longitud]);
+    if (vistos.has(clave)) return;
+    vistos.add(clave);
+    puntos.push({ lat: punto.latitud, lng: punto.longitud, nombre, tipo });
+  };
+
+  agregar(resumen.origen.punto, 'origen', 'Origen');
+  resumen.destinos.forEach((destino, i) => {
+    agregar(destino.punto, 'punto', destino.etiqueta?.trim() || destino.punto?.nombre || `Destino ${i + 1}`);
+  });
+  agregar(
+    resumen.retorno.destino === 'origen' ? resumen.origen.punto : resumen.retorno.punto,
+    'regreso',
+    'Regreso',
+  );
+
+  const segmentos: SegmentoMapa[] = secuencia.slice(1).map((p, i) => ({
+    tipo: 'carretera',
+    puntos: [secuencia[i], p],
+  }));
+  return { puntos, segmentos };
+}
+
+/**
  * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
  * otra pestaña, la propuesta original del wizard. La tercera pestaña queda
  * reservada para la ruta que se autorice en el concentrado.
@@ -576,10 +651,18 @@ function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
 function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
+  const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | null>(null);
+  const mapaCalculado = mapaDeCalculo(calculo);
+  const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
+  const hoteles = (calculo?.ruta?.puntos ?? []).filter((p) => p.tipo === 'hotel');
+
   if (!resumen) return <DetalleViajeLegado solicitud={solicitud} />;
 
   const propuesta = (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <BotonVerMapa onClick={() => setMapaAbierto('inicial')} />
+      </div>
       <ResumenViaje {...resumen} />
       <p className="text-xs text-muted-foreground">
         Propuesta original del wizard: origen, destinos y horarios capturados al crear la solicitud.
@@ -598,17 +681,35 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
 
   return (
     <Tabs defaultValue="calculada" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="calculada">Ruta calculada</TabsTrigger>
-        <TabsTrigger value="inicial">Viaje inicial</TabsTrigger>
-        <TabsTrigger value="autorizada" disabled>
+      <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
+        <TabsTrigger value="calculada" className={folderTabTriggerClassName}>
+          Ruta calculada
+        </TabsTrigger>
+        <TabsTrigger value="inicial" className={folderTabTriggerClassName}>
+          Viaje inicial
+        </TabsTrigger>
+        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled>
           Ruta autorizada
         </TabsTrigger>
       </TabsList>
       <TabsContent value="calculada" className="space-y-4">
         <div data-testid="diagrama-ruta-calculada" className="rounded-lg border bg-card p-4">
-          <h3 className="mb-3 font-semibold">Ruta del viaje</h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold">Ruta del viaje</h3>
+            {mapaCalculado.puntos.length > 0 ? (
+              <BotonVerMapa onClick={() => setMapaAbierto('calculada')} />
+            ) : (
+              <span className="text-xs text-muted-foreground">
+                Calculada sin coordenadas: vuelve a calcular para ver el mapa.
+              </span>
+            )}
+          </div>
           <RutaViajeTimeline nodos={nodosDesdeCalculo(calculo)} />
+          {hoteles.length > 0 ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Hospedaje: {hoteles.map((h) => h.nombre).join(' · ')}
+            </p>
+          ) : null}
         </div>
         <RutaCalculada calculo={calculo} />
         {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
@@ -619,6 +720,23 @@ function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
           La ruta autorizada aparece aquí cuando el concentrado la modifique al autorizar el viaje.
         </p>
       </TabsContent>
+
+      <RutaMapaDialog
+        abierto={mapaAbierto === 'calculada'}
+        onOpenChange={(abierto) => setMapaAbierto(abierto ? 'calculada' : null)}
+        titulo="Ruta calculada"
+        descripcion="La ruta que manda: terminales, hotel y taxis. Puedes mover el mapa y hacer zoom."
+        puntos={mapaCalculado.puntos}
+        segmentos={mapaCalculado.segmentos}
+      />
+      <RutaMapaDialog
+        abierto={mapaAbierto === 'inicial'}
+        onOpenChange={(abierto) => setMapaAbierto(abierto ? 'inicial' : null)}
+        titulo="Viaje inicial"
+        descripcion="Origen, destinos y regreso capturados en el wizard, sin hoteles ni terminales."
+        puntos={mapaInicial.puntos}
+        segmentos={mapaInicial.segmentos}
+      />
     </Tabs>
   );
 }

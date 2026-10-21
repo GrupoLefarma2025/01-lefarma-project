@@ -170,8 +170,7 @@ describe('MisViajesPage', () => {
     });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Más acciones/ }));
-    await usuario.click(await screen.findByRole('menuitem', { name: /Ver detalle/ }));
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Destino Uno'));
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ejemplo');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Compartido con Ana Acompañante');
@@ -219,8 +218,8 @@ describe('MisViajesPage', () => {
     mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
     render(<MisViajesPage />);
     await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
-    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Más acciones/ }));
-    await usuario.click(await screen.findByRole('menuitem', { name: /Ver detalle/ }));
+    // Sin acciones extra la fila muestra el botón completo, no un menú de "...".
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
     // La ruta calculada es la pestaña activa: es la que manda tras el envío.
     expect(screen.getByRole('tab', { name: 'Ruta calculada' })).toHaveAttribute('aria-selected', 'true');

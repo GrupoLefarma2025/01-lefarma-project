@@ -494,6 +494,10 @@ export function CalculosViajeModal({
             titulo: n.titulo,
             detalles: n.detalles.map((d) => String(d)),
           })),
+          segmentos: cadenaResumen.segmentos.map((s) => ({
+            tipo: s.tipo,
+            puntos: s.puntos,
+          })),
         },
       };
       const res = opciones.length > 0

@@ -126,6 +126,8 @@ export interface ParadaCalculada {
 export interface RutaCalculadaGuardada {
   puntos: ParadaCalculada[];
   nodos: { titulo: string; detalles: string[] }[];
+  /** Trazado por tipo de tramo, para pintar el mapa igual que se revisó. */
+  segmentos?: { tipo: 'taxi' | 'transporte' | 'carretera'; puntos: [number, number][] }[];
 }
 
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */
