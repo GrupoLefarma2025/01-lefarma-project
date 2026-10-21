@@ -691,10 +691,24 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
   );
 
   if (!calculo) {
+    // Sin cálculo guardado: mismo marco de dos columnas, con lo que haya. El
+    // revisor ve la misma pantalla aunque la solicitud no haya pasado por los
+    // cálculos (o venga del flujo anterior).
     return (
-      <div className="space-y-4">
-        {propuesta}
-        {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="space-y-4">{propuesta}</div>
+        <div className="space-y-3">
+          {solicitud.opciones.length > 0 ? (
+            <DetalleOpciones solicitud={solicitud} />
+          ) : (
+            <div className="rounded-lg border border-dashed bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
+              <p className="text-xs text-muted-foreground">Cotización</p>
+              <p className="text-muted-foreground">
+                Esta solicitud no tiene cotización ni cálculo registrados: se envió sin pasar por los cálculos.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

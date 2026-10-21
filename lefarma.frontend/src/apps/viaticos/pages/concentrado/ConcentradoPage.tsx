@@ -517,7 +517,7 @@ export function ConcentradoPage() {
       >
         <DialogContent data-testid="revision-solicitud" className="max-h-[92vh] w-[90vw] max-w-[1400px] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Revisión de la solicitud #{revisandoId}</DialogTitle>
+            <DialogTitle>Revisión de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
               Mismo detalle que ve la persona viajera. Se autoriza la opción elegida por ella, nunca un
               reemplazo elegido en su nombre.
