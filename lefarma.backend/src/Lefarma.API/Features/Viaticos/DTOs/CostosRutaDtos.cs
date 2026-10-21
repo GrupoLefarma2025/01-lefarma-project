@@ -149,6 +149,18 @@ public class CostosRutaTramo
     public List<CostosRutaOferta> Opciones { get; set; } = [];
 }
 
+/// <summary>
+/// Terminal de un trayecto (aeropuerto o central de autobuses) con su
+/// coordenada real, para que el resumen reconstruido dibuje el traslado en
+/// taxi de ida y de vuelta.
+/// </summary>
+public class CostosRutaTerminal
+{
+    public string Nombre { get; set; } = string.Empty;
+    public double Latitud { get; set; }
+    public double Longitud { get; set; }
+}
+
 public class CostosRutaOferta
 {
     public string Id { get; set; } = string.Empty;
@@ -176,6 +188,13 @@ public class CostosRutaOferta
     /// El "Tiempo total" del concentrado lo suma al viaje y al abordaje.
     /// </summary>
     public int MinutosTaxi { get; set; }
+
+    /// <summary>Terminal de salida (aeropuerto o central de autobuses) con su
+    /// coordenada real; <c>null</c> en auto, renta y taxi.</summary>
+    public CostosRutaTerminal? TerminalOrigen { get; set; }
+
+    /// <summary>Terminal de llegada, misma regla que <see cref="TerminalOrigen"/>.</summary>
+    public CostosRutaTerminal? TerminalDestino { get; set; }
     public string PrecioTxt { get; set; } = string.Empty;
     public bool PorPersona { get; set; }
     public double PrecioDesde { get; set; }

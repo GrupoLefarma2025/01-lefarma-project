@@ -38,8 +38,42 @@ public static class CalculoCostosRuta
         ["BJX"] = ("León", 21.1214, -101.6830, "BJX"),
     };
 
-    private static readonly Dictionary<string, double> CasetasIda = new()
+    /// <summary>
+    /// Aeropuertos de las ciudades sembradas, con su coordenada real. Es la
+    /// terminal a la que el viajero se traslada en taxi antes de volar y desde
+    /// la que sale al llegar; el mapa del resumen dibuja ese traslado.
+    /// </summary>
+    private static readonly Dictionary<string, (string Nombre, double Lat, double Lon)> Aeropuertos = new()
     {
+        ["MEX"] = ("Aeropuerto Internacional Benito Juárez (MEX)", 19.4361, -99.0719),
+        ["GDL"] = ("Aeropuerto Internacional de Guadalajara (GDL)", 20.5218, -103.3111),
+        ["MTY"] = ("Aeropuerto Internacional de Monterrey (MTY)", 25.7785, -100.1064),
+        ["QRO"] = ("Aeropuerto Intercontinental de Querétaro (QRO)", 20.6173, -100.1857),
+        ["PBC"] = ("Aeropuerto Internacional de Puebla (PBC)", 19.1581, -98.3716),
+        ["CUN"] = ("Aeropuerto Internacional de Cancún (CUN)", 21.0365, -86.8771),
+        ["TIJ"] = ("Aeropuerto Internacional de Tijuana (TIJ)", 32.5411, -116.9700),
+        ["BJX"] = ("Aeropuerto Internacional del Bajío (BJX)", 20.9935, -101.4808),
+    };
+
+    /// <summary>
+    /// Central de autobuses principal de cada ciudad sembrada. Una ciudad puede
+    /// tener varias terminales: se usa la central de referencia y el resumen la
+    /// etiqueta como terminal, no como dirección exacta de ventanilla.
+    /// </summary>
+    private static readonly Dictionary<string, (string Nombre, double Lat, double Lon)> Centrales = new()
+    {
+        ["CDMX"] = ("Central de Autobuses del Norte (CDMX)", 19.4789, -99.1383),
+        ["GDL"] = ("Central Nueva de Autobuses (Guadalajara)", 20.6226, -103.3290),
+        ["MTY"] = ("Central de Autobuses de Monterrey", 25.6866, -100.2980),
+        ["QRO"] = ("Terminal de Autobuses de Querétaro", 20.5960, -100.4040),
+        ["PUE"] = ("CAPU, Central de Autobuses de Puebla", 19.0700, -98.2460),
+        ["CUN"] = ("Terminal de Autobuses de Cancún", 21.1619, -86.8515),
+        ["TIJ"] = ("Central de Autobuses de Tijuana", 32.5149, -117.0382),
+        ["XAL"] = ("Terminal de Autobuses de Xalapa (CAXA)", 19.5438, -96.9102),
+        ["BJX"] = ("Terminal de Autobuses de León", 21.1214, -101.6830),
+    };
+
+    private static readonly Dictionary<string, double> CasetasIda = new()    {
         ["CDMX-GDL"] = 950, ["CDMX-MTY"] = 1180, ["CDMX-QRO"] = 330, ["CDMX-PUE"] = 180,
         ["GDL-MTY"] = 900, ["CDMX-CUN"] = 1450, ["GDL-CUN"] = 1250,
     };
@@ -502,12 +536,6 @@ public static class CalculoCostosRuta
                 incumplimientos.Add("Con tu horario, algún tramo no tiene alternativa viable (todas llegan tarde o salen antes de que puedas tomarlas).");
 
             var hoteles = await HotelesAsync(norm, i, prop, tramos, opciones.CalcularHoteles, http, cache, ct, incumplimientos);
-            // Minutos del taxi a la terminal por tramo: se estima con la distancia
-            // de cada extremo al centro de su ciudad (la misma que costea el taxi)
-            // a la velocidad urbana configurada.
-            var minutosTaxiPorTramo = tramos
-                .Select((_, ti) => ti + 1 < prop.Count ? MinutosTaxiTerminal(prop[ti], prop[ti + 1]) : 0)
-                .ToList();
             var resultado = new CostosRutaResultado
             {
                 Nombre = norm.Nombre,
@@ -516,7 +544,8 @@ public static class CalculoCostosRuta
                 Tramos = tramos.Select((t, ti) => new CostosRutaTramo
                 {
                     From = t.From, To = t.To, Km = Math.Round(t.Km, 1),
-                    Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To, minutosTaxiPorTramo[ti])).ToList(),
+                    Opciones = t.Opciones.Select((o, oi) => OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To,
+                        ti < prop.Count ? prop[ti] : null, ti + 1 < prop.Count ? prop[ti + 1] : null)).ToList(),
                 }).ToList(),
                 RutaArmada = RutaArmada(prop, tramos, precios),
                 HotelesPropuestos = hoteles,
@@ -528,7 +557,8 @@ public static class CalculoCostosRuta
             foreach (var (t, ti) in tramos.Select((t, ti) => (t, ti)))
                 foreach (var (o, oi) in t.Opciones.Select((o, oi) => (o, oi)))
                 {
-                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To, minutosTaxiPorTramo[ti]);
+                    var of = OfertaDe(o, norm.Nombre, i, ti + 1, oi, t.From, t.To,
+                        ti < prop.Count ? prop[ti] : null, ti + 1 < prop.Count ? prop[ti + 1] : null);
                     resp.Categorias[CatDeModo[o.Modo]].Add(of);
                 }
             foreach (var h in hoteles)
@@ -1229,27 +1259,64 @@ public static class CalculoCostosRuta
 
     /// <summary>
     /// Minutos estimados del traslado en taxi a la terminal (bus o avión): la
-    /// distancia de cada extremo al centro de su ciudad — la misma que usa el
-    /// costo del taxi — a la velocidad urbana de <c>costos.taxi_km_h</c>.
-    /// Vale 0 cuando el punto ya está dentro de la ciudad (≤ 3 km) o no se
-    /// reconoce, para no inventar un traslado que no existe.
+    /// distancia del origen a su terminal más la de la terminal de destino al
+    /// punto final, a la velocidad urbana de <c>costos.taxi_km_h</c>. Si la
+    /// ciudad no tiene terminal en el catálogo se cae al centro de la ciudad,
+    /// que es lo que ya se usa para costear el taxi.
     /// </summary>
-    private static int MinutosTaxiTerminal(LugarNorm a, LugarNorm b)
+    private static int MinutosTaxiTerminal(
+        LugarNorm? origen,
+        LugarNorm? destino,
+        (string Nombre, double Lat, double Lon)? terminalOrigen,
+        (string Nombre, double Lat, double Lon)? terminalDestino)
     {
         var km = 0.0;
-        foreach (var s in new[] { a, b })
-        {
-            var (key, _) = SnapCiudad(s.Lat, s.Lon);
-            if (key is null) continue;
-            var c = Ciudades[key];
-            var d = HaversineKm(s.Lat, s.Lon, c.Lat, c.Lon);
-            if (d <= 3) continue;
-            km += d;
-        }
+        if (origen is not null)
+            km += terminalOrigen is { } to
+                ? HaversineKm(origen.Lat, origen.Lon, to.Lat, to.Lon)
+                : DistanciaAlCentroKm(origen);
+        if (destino is not null)
+            km += terminalDestino is { } td
+                ? HaversineKm(destino.Lat, destino.Lon, td.Lat, td.Lon)
+                : DistanciaAlCentroKm(destino);
+
         if (km <= 0) return 0;
         var velocidad = ConfiguracionViaticos.Double("costos.taxi_km_h", 25);
         if (velocidad <= 0) velocidad = 25;
         return (int)Math.Round(km / velocidad * 60);
+    }
+
+    /// <summary>
+    /// Terminal de una oferta según su modo: el aeropuerto de la ciudad para
+    /// volar y su central de autobuses para el bus. Los modos que no usan
+    /// terminal (auto, renta, uber, metro) devuelven <c>null</c>.
+    /// </summary>
+    private static (string Nombre, double Lat, double Lon)? TerminalDe(string modo, LugarNorm? lugar)
+    {
+        if (lugar is null || modo is not ("bus" or "avion")) return null;
+        var (key, _) = SnapCiudad(lugar.Lat, lugar.Lon);
+        if (key is null) return null;
+        if (modo == "avion")
+        {
+            var iata = Ciudades[key].Iata;
+            return iata is not null && Aeropuertos.TryGetValue(iata, out var aeropuerto) ? aeropuerto : null;
+        }
+        return Centrales.TryGetValue(key, out var central) ? central : null;
+    }
+
+    private static CostosRutaTerminal? TerminalDto((string Nombre, double Lat, double Lon)? terminal)
+        => terminal is { } t
+            ? new CostosRutaTerminal { Nombre = t.Nombre, Latitud = t.Lat, Longitud = t.Lon }
+            : null;
+
+    /// <summary>Distancia del punto al centro de su ciudad; 0 si está dentro (≤ 3 km).</summary>
+    private static double DistanciaAlCentroKm(LugarNorm lugar)
+    {
+        var (key, _) = SnapCiudad(lugar.Lat, lugar.Lon);
+        if (key is null) return 0;
+        var c = Ciudades[key];
+        var d = HaversineKm(lugar.Lat, lugar.Lon, c.Lat, c.Lon);
+        return d <= 3 ? 0 : d;
     }
 
     private static double MillaExtra(LugarNorm a, LugarNorm b)
@@ -1315,7 +1382,8 @@ public static class CalculoCostosRuta
         return armada;
     }
 
-    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a, int minutosTaxi = 0)
+    private static CostosRutaOferta OfertaDe(OpCalc o, string persona, int ixP, int tramo, int ixOferta, string de, string a,
+        LugarNorm? lugarOrigen = null, LugarNorm? lugarDestino = null)
     {
         var mid = (o.Lo + o.Hi) / 2;
         // El tiempo puerta a puerta ya incluye los minutos de antes/después
@@ -1323,6 +1391,9 @@ public static class CalculoCostosRuta
         var minutosExtra = Math.Max(0, (int)Math.Round(o.PuertaH * 60 - (o.Llegada - o.Salida).TotalMinutes));
         var minutosAntes = Math.Min(o.OverheadMin, minutosExtra);
         var minutosDespues = Math.Max(0, minutosExtra - minutosAntes);
+        // Terminal real (aeropuerto o central) a la que hay que llegar en taxi.
+        var terminalOrigen = TerminalDe(o.Modo, lugarOrigen);
+        var terminalDestino = TerminalDe(o.Modo, lugarDestino);
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -1336,7 +1407,11 @@ public static class CalculoCostosRuta
             PuertaAPuertaH = Math.Round(o.PuertaH, 2),
             MinutosAntes = minutosAntes,
             MinutosDespues = minutosDespues,
-            MinutosTaxi = o.Modo is "bus" or "avion" ? minutosTaxi : 0,
+            MinutosTaxi = o.Modo is "bus" or "avion"
+                ? MinutosTaxiTerminal(lugarOrigen, lugarDestino, terminalOrigen, terminalDestino)
+                : 0,
+            TerminalOrigen = TerminalDto(terminalOrigen),
+            TerminalDestino = TerminalDto(terminalDestino),
             PrecioTxt = o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total",
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),

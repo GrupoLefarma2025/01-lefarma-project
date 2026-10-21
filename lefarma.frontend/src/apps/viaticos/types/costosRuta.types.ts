@@ -56,6 +56,13 @@ export interface CostosRutaLugarInput {
   hora_fin_actividad?: string;
 }
 
+/** Terminal del trayecto (aeropuerto o central) con su coordenada real. */
+export interface CostosRutaTerminal {
+  nombre: string;
+  latitud: number;
+  longitud: number;
+}
+
 export interface CostosRutaCompra {
   url: string;
   sitio: string;
@@ -86,6 +93,10 @@ export interface CostosRutaOferta {
   minutosDespues?: number;
   /** Minutos estimados del taxi a la terminal (bus o avión). */
   minutosTaxi?: number;
+  /** Terminal de salida (aeropuerto o central) con coordenada real. */
+  terminalOrigen?: CostosRutaTerminal | null;
+  /** Terminal de llegada (aeropuerto o central) con coordenada real. */
+  terminalDestino?: CostosRutaTerminal | null;
   precioTxt: string;
   porPersona: boolean;
   costoGrupo: number;

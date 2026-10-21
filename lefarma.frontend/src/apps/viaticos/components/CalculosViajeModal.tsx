@@ -16,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { TablaOpciones } from './TablaOpciones';
-import { ResumenRutaModal, type PuntoRutaResumen } from './ResumenRutaModal';
+import { ResumenRutaModal, type PuntoRutaResumen, type SegmentoRuta } from './ResumenRutaModal';
 import {
   MARGEN_CARRO,
   construirCalculo,
@@ -219,76 +219,99 @@ export function CalculosViajeModal({
     [hotelElegido, hotelResultados],
   );
 
-  /** Ruta reconstruida: origen → hotel → punto → ... → regreso. */
-  const puntosResumen = useMemo<PuntoRutaResumen[]>(() => {
+  /**
+   * Cadena completa del resumen: origen → terminal → vuelo/bus → terminal →
+   * hotel o punto → … → regreso. Si la oferta elegida no usa terminal (auto o
+   * renta) se dibuja la carretera. Es lo que se ve en el mapa y en la lista.
+   */
+  const cadenaResumen = useMemo(() => {
     const puntos: PuntoRutaResumen[] = [];
-    const vistas = new Set<string>();
-    const agregar = (punto: PuntoRutaResumen) => {
-      const clave = `${punto.lat.toFixed(4)},${punto.lng.toFixed(4)}`;
-      if (vistas.has(clave)) return;
-      vistas.add(clave);
-      puntos.push(punto);
+    const segmentos: SegmentoRuta[] = [];
+    const textos: string[] = [];
+    const vistos = new Set<string>();
+
+    const agregarPunto = (lat: number, lng: number, nombre: string, tipo: PuntoRutaResumen['tipo']) => {
+      const clave = `${lat.toFixed(4)},${lng.toFixed(4)}`;
+      if (vistos.has(clave)) return;
+      vistos.add(clave);
+      puntos.push({ lat, lng, nombre, tipo });
     };
+    const agregarSegmento = (
+      tipo: SegmentoRuta['tipo'],
+      de: [number, number],
+      a: [number, number],
+      etiqueta?: string,
+    ) => {
+      if (Math.abs(de[0] - a[0]) < 1e-6 && Math.abs(de[1] - a[1]) < 1e-6) return;
+      segmentos.push({ tipo, puntos: [de, a], etiqueta });
+    };
+
+    const ofertaDe = (indice: number) => {
+      const persona = resultados[indice]?.resultados[0];
+      if (!persona) return null;
+      const opciones = persona.tramos.flatMap((t) => t.opciones);
+      return opciones.find((o) => o.id === seleccion[indice]) ?? opciones[0] ?? null;
+    };
+
     tramos.forEach((tramo, indice) => {
-      agregar({
-        lat: tramo.desde.punto.latitud,
-        lng: tramo.desde.punto.longitud,
-        nombre: tramo.desde.nombre,
-        tipo: indice === 0 ? 'origen' : 'punto',
-      });
+      const oferta = ofertaDe(indice);
+      const origen: [number, number] = [tramo.desde.punto.latitud, tramo.desde.punto.longitud];
       const hotel = hotelElegidoDeTramo(indice);
-      if (hotel && hotel.latitud != null && hotel.longitud != null) {
-        agregar({
-          lat: hotel.latitud,
-          lng: hotel.longitud,
-          nombre: hotel.nombre ?? hotel.lugar,
-          tipo: 'hotel',
-        });
-      }
-      agregar({
-        lat: tramo.hasta.punto.latitud,
-        lng: tramo.hasta.punto.longitud,
-        nombre: tramo.hasta.nombre,
-        tipo: tramo.esRegreso ? 'regreso' : 'punto',
-      });
-    });
-    return puntos;
-  }, [tramos, hotelElegidoDeTramo]);
+      const conHotel = hotel?.latitud != null && hotel.longitud != null;
+      const destino: [number, number] = conHotel
+        ? [hotel!.latitud as number, hotel!.longitud as number]
+        : [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
+      const destinoNombre = conHotel ? (hotel!.nombre ?? hotel!.lugar) : tramo.hasta.nombre;
 
-  const tramosResumen = useMemo<string[]>(
-    () =>
-      tramos.map((tramo, indice) => {
-        const hotel = hotelElegidoDeTramo(indice);
-        const base = `${tramo.desde.nombre} → ${tramo.hasta.nombre}`;
-        return hotel ? `${base} (durmiendo en ${hotel.nombre ?? hotel.lugar})` : base;
-      }),
-    [tramos, hotelElegidoDeTramo],
-  );
+      agregarPunto(origen[0], origen[1], tramo.desde.nombre, indice === 0 ? 'origen' : 'punto');
 
-  /** Trazado de la carretera (no una línea recta) para el mapa del resumen. */
-  const lineaResumen = useMemo<[number, number][]>(() => {
-    const puntos: [number, number][] = [];
-    const agregar = (lat: number, lng: number) => {
-      const ultimo = puntos[puntos.length - 1];
-      if (ultimo && Math.abs(ultimo[0] - lat) < 1e-6 && Math.abs(ultimo[1] - lng) < 1e-6) return;
-      puntos.push([lat, lng]);
-    };
-    tramos.forEach((tramo, indice) => {
-      const conHotel = hotelElegidoDeTramo(indice) !== null;
-      const fuente = conHotel ? hotelResultados[indice] : resultados[indice];
-      const tramosRuta = fuente?.resultados[0]?.rutaArmada.tramos ?? [];
-      const hayTrazado = tramosRuta.some((t) => (t.grafica?.length ?? 0) > 1);
-      if (hayTrazado) {
-        for (const t of tramosRuta) {
-          for (const p of t.grafica ?? []) agregar(p[0], p[1]);
+      const terminalOrigen = oferta?.terminalOrigen ?? null;
+      const terminalDestino = oferta?.terminalDestino ?? null;
+      const transporteLargo = oferta?.modo === 'bus' || oferta?.modo === 'avion';
+
+      if (oferta && transporteLargo) {
+        // Cadena del viaje largo: taxi a la terminal, vuelo/autobús y taxi al
+        // punto. Si alguna terminal no está en el catálogo se usa el punto
+        // capturado como extremo, para no dejar el tramo sin dibujar.
+        const tOrigen: [number, number] | null = terminalOrigen ? [terminalOrigen.latitud, terminalOrigen.longitud] : null;
+        const tDestino: [number, number] | null = terminalDestino ? [terminalDestino.latitud, terminalDestino.longitud] : null;
+        if (tOrigen) {
+          agregarPunto(tOrigen[0], tOrigen[1], terminalOrigen!.nombre, 'terminal');
+          agregarSegmento('taxi', origen, tOrigen, `Taxi a ${terminalOrigen!.nombre}`);
+          textos.push(`Taxi: ${tramo.desde.nombre} → ${terminalOrigen!.nombre}`);
+        }
+        if (tDestino) {
+          agregarPunto(tDestino[0], tDestino[1], terminalDestino!.nombre, 'terminal');
+        }
+        const desdeLargo = tOrigen ?? origen;
+        const hastaLargo = tDestino ?? destino;
+        agregarSegmento('transporte', desdeLargo, hastaLargo, `${oferta.linea} · ${oferta.modo === 'avion' ? 'vuelo' : 'autobús'}`);
+        const nombreDesde = terminalOrigen?.nombre ?? tramo.desde.nombre;
+        const nombreHasta = terminalDestino?.nombre ?? destinoNombre;
+        textos.push(
+          `${oferta.modo === 'avion' ? 'Vuelo' : 'Autobús'} ${oferta.linea}: ${nombreDesde} → ${nombreHasta} (${oferta.salidaTxt} a ${oferta.llegadaTxt})`,
+        );
+        if (tDestino) {
+          agregarSegmento('taxi', tDestino, destino, `Taxi a ${destinoNombre}`);
+          textos.push(`Taxi: ${terminalDestino!.nombre} → ${destinoNombre}${conHotel ? ' (hotel)' : ''}`);
         }
       } else {
-        agregar(tramo.desde.punto.latitud, tramo.desde.punto.longitud);
-        agregar(tramo.hasta.punto.latitud, tramo.hasta.punto.longitud);
+        // Sin terminal: auto propio, renta o taxi de punta a punta.
+        const fuente = conHotel ? hotelResultados[indice] : resultados[indice];
+        const grafica = (fuente?.resultados[0]?.rutaArmada.tramos ?? [])
+          .flatMap((t) => (t.grafica ?? []).map((p) => [p[0], p[1]] as [number, number]));
+        if (grafica.length > 1) segmentos.push({ tipo: 'carretera', puntos: grafica });
+        else agregarSegmento('carretera', origen, destino);
+        textos.push(
+          `${tramo.desde.nombre} → ${destinoNombre}${oferta ? ` (${oferta.linea})` : ''}${conHotel ? ' · duerme ahí' : ''}`,
+        );
       }
+
+      agregarPunto(destino[0], destino[1], destinoNombre, conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto');
     });
-    return puntos;
-  }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo]);
+
+    return { puntos, segmentos, textos };
+  }, [tramos, resultados, hotelResultados, hotelElegidoDeTramo, seleccion]);
 
 
   useEffect(() => {
@@ -749,9 +772,9 @@ export function CalculosViajeModal({
         <ResumenRutaModal
           open={resumenAbierto}
           onOpenChange={setResumenAbierto}
-          puntos={puntosResumen}
-          linea={lineaResumen}
-          tramosTexto={tramosResumen}
+          puntos={cadenaResumen.puntos}
+          segmentos={cadenaResumen.segmentos}
+          tramosTexto={cadenaResumen.textos}
           onEnviar={() => { void enviar(); }}
           enviando={enviando}
         />
