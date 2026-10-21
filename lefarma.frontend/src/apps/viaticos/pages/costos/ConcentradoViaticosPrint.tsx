@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import logo from '@/assets/logo_concentrado.png';
+import logoAsokam from '@/assets/logo_7.png';
 
 /**
  * Concentrado de viaticos FOR-008 sobre DATOS PERSISTIDOS.
@@ -62,6 +62,37 @@ const border: CSSProperties = {
   verticalAlign: 'top',
   overflowWrap: 'anywhere',
 };
+
+/**
+ * Paleta del formato original (ejemplo.xlsx, ASK-ADM-FOR-008): encabezados de
+ * la tabla en azul claro y el bloque de firmas en azul marino con letra blanca.
+ */
+const NAVY = '#1f3864';
+const HEADER_FILL = '#dbe5f1';
+
+const thStyle: CSSProperties = {
+  ...border,
+  background: HEADER_FILL,
+  fontWeight: 700,
+  textAlign: 'center',
+};
+
+const firmaHeadStyle: CSSProperties = {
+  ...border,
+  background: NAVY,
+  color: '#fff',
+  fontWeight: 700,
+  textAlign: 'center',
+};
+
+const firmaAccionStyle: CSSProperties = {
+  ...border,
+  background: NAVY,
+  color: '#fff',
+  fontWeight: 700,
+  textAlign: 'center',
+};
+
 const tableStyle: CSSProperties = {
   width: '100%',
   borderCollapse: 'collapse',
@@ -105,7 +136,7 @@ function Firmas({ filas }: { filas: [string, string, string][] }) {
       <thead>
         <tr>
           {['', 'PUESTO', 'NOMBRE', 'FIRMA', 'FECHA'].map((h, i) => (
-            <th style={border} key={i}>
+            <th style={firmaHeadStyle} key={i}>
               {h}
             </th>
           ))}
@@ -114,7 +145,7 @@ function Firmas({ filas }: { filas: [string, string, string][] }) {
       <tbody>
         {filas.map(([accion, puesto, nombre]) => (
           <tr key={puesto}>
-            <td style={border}>{accion}</td>
+            <td style={firmaAccionStyle}>{accion}</td>
             <td style={border}>{puesto}</td>
             <td style={border}>{nombre}</td>
             <td style={{ ...border, height: 35 }} />
@@ -146,13 +177,19 @@ const PRINT_CSS = `
 }`;
 
 interface Props {
-  /** Solicitudes ya cargadas; el componente filtra las no autorizadas. */
+  /** Solicitudes ya cargadas; por defecto el componente filtra las no autorizadas. */
   solicitudes: SolicitudConcentrado[];
   /** Nombre del responsable o gerencia responsable del concentrado. */
   nombreResponsable?: string | null;
   gerencia?: string;
   /** Fecha de emision; por defecto hoy en yyyy-MM-dd. */
   fecha?: string;
+  /**
+   * Filtrar solo las autorizadas (documento oficial FOR-008). El concentrado de
+   * revision lo apaga para imprimir exactamente lo que la persona tiene
+   * filtrado en pantalla, aunque todavia no este autorizado.
+   */
+  soloAutorizadas?: boolean;
 }
 
 export function ConcentradoViaticosPrint({
@@ -160,10 +197,11 @@ export function ConcentradoViaticosPrint({
   nombreResponsable,
   gerencia = 'EDUCACION MEDICA',
   fecha = hoyIso(),
+  soloAutorizadas = true,
 }: Props) {
-  const filas = solicitudes.filter(s =>
-    (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado),
-  );
+  const filas = soloAutorizadas
+    ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
+    : solicitudes;
   const conceptos: ConceptoConcentrado[] = [
     'autobus',
     'avion',
@@ -183,11 +221,11 @@ export function ConcentradoViaticosPrint({
       <style>{PRINT_CSS}</style>
       <header style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
         <img
-          src={logo}
+          src={logoAsokam}
           alt="ASOKAM"
-          style={{ width: 120, height: 40, objectFit: 'contain' }}
+          style={{ width: 150, height: 48, objectFit: 'contain' }}
         />
-        <h1 style={{ flex: 1, textAlign: 'center', fontSize: 18 }}>
+        <h1 style={{ flex: 1, textAlign: 'right', fontSize: 18, color: NAVY, margin: 0 }}>
           Concentrado de Viáticos
         </h1>
       </header>
@@ -206,25 +244,25 @@ export function ConcentradoViaticosPrint({
         <thead>
           <tr>
             {['No.', 'Solicitante', 'Fecha', 'Origen', 'Destino'].map(h => (
-              <th key={h} rowSpan={2} style={border}>
+              <th key={h} rowSpan={2} style={thStyle}>
                 {h}
               </th>
             ))}
-            <th colSpan={2} style={border}>
+            <th colSpan={2} style={thStyle}>
               Transporte
             </th>
-            <th colSpan={2} style={border}>
+            <th colSpan={2} style={thStyle}>
               Automóvil propio
             </th>
             {['Hospedaje', 'Comida', 'Taxi', 'Total'].map(h => (
-              <th key={h} rowSpan={2} style={border}>
+              <th key={h} rowSpan={2} style={thStyle}>
                 {h}
               </th>
             ))}
           </tr>
           <tr>
             {['Costo boleto Autobús', 'Costo boleto Avión', 'Gasolina', 'Casetas'].map(h => (
-              <th key={h} style={border}>
+              <th key={h} style={thStyle}>
                 {h}
               </th>
             ))}
@@ -248,7 +286,7 @@ export function ConcentradoViaticosPrint({
         </tbody>
         <tfoot>
           <tr>
-            <td colSpan={5} style={border}>
+            <td colSpan={5} style={{ ...thStyle, textAlign: 'left' }}>
               Total
             </td>
             {conceptos.map(c => (

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ConcentradoPage } from './ConcentradoPage';
 import type { SolicitudBandeja } from '../../types/aprobaciones.types';
@@ -22,8 +22,19 @@ vi.mock('@/hooks/usePermission', () => ({
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }));
 
+/** Fecha local en ISO (aaaa-mm-dd); `toISOString` es UTC y correría el día. */
+function isoLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+const ahora = new Date();
+const HOY = isoLocal(ahora);
+const AYER = isoLocal(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() - 1));
+const EN_DIEZ_DIAS = isoLocal(new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate() + 10));
+
 const fila: SolicitudBandeja = {
   id_solicitud: 5,
+  folio: 'VIA-TEST-0005',
   id_usuario_solicitante: 9,
   nombre_solicitante: 'Persona Solicitante',
   periodo: '2026-11',
@@ -31,7 +42,9 @@ const fila: SolicitudBandeja = {
   destino: 'Destino Uno',
   estado: 'enviada',
   total: 2000,
-  fecha_creacion: '2026-11-04T10:00:00',
+  // El filtro por defecto es «Hoy» por fecha de creación: la fila tiene que
+  // haber nacido hoy para que el concentrado la muestre sin tocar los filtros.
+  fecha_creacion: `${HOY}T10:00:00`,
 };
 
 const detalleOk = {
@@ -109,5 +122,65 @@ describe('ConcentradoPage', () => {
     flags.verTodos = false;
     render(<ConcentradoPage />);
     await waitFor(() => expect(screen.getByText(/solo ves tus propias solicitudes/i)).toBeInTheDocument());
+  });
+
+  it('por fecha de viaje incluye el viaje en curso y descarta el que no toca el rango', async () => {
+    const usuario = userEvent.setup();
+    mocks.bandeja.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          { ...fila, id_solicitud: 7, fecha_salida: AYER, fecha_regreso: EN_DIEZ_DIAS },
+          { ...fila, id_solicitud: 8, fecha_salida: EN_DIEZ_DIAS, fecha_regreso: EN_DIEZ_DIAS },
+        ],
+      },
+    });
+    render(<ConcentradoPage />);
+
+    // Por defecto («Hoy» por fecha de creación) ambas fueron creadas hoy.
+    await waitFor(() => expect(screen.getByTestId('concentrado-7')).toBeInTheDocument());
+    expect(screen.getByTestId('concentrado-8')).toBeInTheDocument();
+
+    await usuario.selectOptions(screen.getByLabelText(/buscar por/i), 'viaje');
+
+    // El viaje del 7 está en curso hoy; el del 8 empieza en diez días.
+    expect(screen.getByTestId('concentrado-7')).toBeInTheDocument();
+    expect(screen.queryByTestId('concentrado-8')).not.toBeInTheDocument();
+  });
+
+  it('muestra el folio en lugar del id y genera el documento FOR-008 con las filas visibles', async () => {
+    const usuario = userEvent.setup();
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    // La identidad que usa la persona es el folio, no el id interno.
+    expect(within(screen.getByTestId('concentrado-5')).getByText('VIA-TEST-0005')).toBeInTheDocument();
+
+    await usuario.click(screen.getByRole('button', { name: /generar documento/i }));
+
+    expect(screen.getByTestId('documento-toolbar')).toBeInTheDocument();
+    const documento = document.querySelector('#concentrado-viaticos-print');
+    expect(documento).not.toBeNull();
+    expect(documento).toHaveTextContent('Concentrado de Viáticos');
+    expect(documento).toHaveTextContent('Destino Uno');
+    expect(documento).toHaveTextContent('Persona Solicitante');
+  });
+
+  it('el rango personalizado se aplica solo cuando hay fecha inicial y final', async () => {
+    const usuario = userEvent.setup();
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+
+    await usuario.selectOptions(screen.getByLabelText(/periodo/i), 'personalizado');
+    expect(screen.getByText(/elige la fecha inicial y la final/i)).toBeInTheDocument();
+    // Sin ambas fechas no se recorta nada.
+    expect(screen.getByTestId('concentrado-5')).toBeInTheDocument();
+
+    // Los inputs date se llenan con change, no tecleando: jsdom no simula sus
+    // segmentos de edición.
+    fireEvent.change(screen.getByLabelText(/desde/i), { target: { value: HOY } });
+    fireEvent.change(screen.getByLabelText(/hasta/i), { target: { value: HOY } });
+    expect(screen.getByTestId('rango-visible')).toHaveTextContent('al');
+    expect(screen.getByTestId('concentrado-5')).toBeInTheDocument();
   });
 });
