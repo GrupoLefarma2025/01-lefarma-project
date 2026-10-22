@@ -202,8 +202,10 @@ public static class CalculoCostosRuta
             var sal = fecha.ToDateTime(new TimeOnly(l.Item4, l.Item5));
             var arr = sal.AddHours(dur);
             var fare = base_ * l.Item2;
-            return new ViajeBus(l.Item1, sal, arr, Math.Round(fare * 0.88, 2), Math.Round(fare * 1.15, 2),
-                null, fuente, l.Item6, l.Item7);
+            // Precio unico tambien en el estimado: el rango deja de existir como
+            // formato. La etiqueta "Estimado" es la que advierte que no es cotizacion.
+            var precio = Math.Round(fare, 2);
+            return new ViajeBus(l.Item1, sal, arr, precio, precio, null, fuente, l.Item6, l.Item7);
         }).ToList();
     }
 
@@ -395,45 +397,227 @@ public static class CalculoCostosRuta
             : double.NaN;
     }
 
+    // El adapter de ClickBus expone su propio catalogo de lugares (1,642 destinos).
+    private const string ClickBusAdapterBase = "https://adapter.clickbus.com.mx/api";
+
+    /// <summary>Lugar del catalogo de ClickBus (`places/get-all`).</summary>
+    private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo);
+
+    /// <summary>
+    /// Viajes reales de autobus desde el adapter de ClickBus.
+    ///
+    /// Firma real del endpoint, descubierta leyendo el bundle del sitio (la que
+    /// usaba antes este metodo — POST con origin/destination/date — respondia
+    /// 405 con POST y 422/500 con GET):
+    /// <c>GET {base}/trips/search?from={slug}&amp;to={slug}&amp;departure=YYYY-MM-DD&amp;currency=MXN&amp;return=</c>
+    /// <c>return</c> tiene que ir presente aunque vaya vacio: sin el, el adapter
+    /// responde 500. El precio viaja en centavos como texto dentro de
+    /// <c>trips.going[].parts[]</c> (<c>offer</c> con descuento manda sobre <c>price</c>).
+    ///
+    /// Si la ruta no existe en el catalogo (caso real: Xicotlan) o el adapter
+    /// falla, devuelve lista vacia. El respaldo a estimado vive en
+    /// <see cref="CalcularTramoAsync"/>, que solo estima cuando NINGUN proveedor
+    /// cotizo: asi el estimado nunca aparece como una fila mas al lado de un
+    /// precio real.
+    /// </summary>
     public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
-        string origen, string destino, DateOnly fecha, double km, CancellationToken ct)
+        string origen, string destino, DateOnly fecha, IMemoryCache cache, CancellationToken ct)
     {
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(TimeSpan.FromSeconds(12));
             var t = cts.Token;
-            using var res = await http.PostAsJsonAsync("https://adapter.clickbus.com.mx/api/trips/search",
-                new { origin = origen, destination = destino, date = fecha.ToString("yyyy-MM-dd") }, t);
+
+            var lugares = await ObtenerLugaresClickBusAsync(http, cache, t);
+            var slugOrigen = ResolverSlugClickBus(lugares, origen);
+            var slugDestino = ResolverSlugClickBus(lugares, destino);
+            if (slugOrigen is null || slugDestino is null)
+                throw new InvalidOperationException($"ClickBus no tiene {origen} → {destino} en su catalogo");
+
+            var url = $"{ClickBusAdapterBase}/trips/search?from={slugOrigen}&to={slugDestino}"
+                + $"&departure={fecha:yyyy-MM-dd}&currency=MXN&return=";
+            using var res = await http.GetAsync(url, t);
             res.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
-            var viajes = new List<ViajeBus>();
-            if (doc.RootElement.TryGetProperty("trips", out var trips))
+
+            if (!doc.RootElement.TryGetProperty("trips", out var trips)
+                || trips.ValueKind != JsonValueKind.Object
+                || !trips.TryGetProperty("going", out var going)
+                || going.ValueKind != JsonValueKind.Array)
             {
-                foreach (var trip in trips.EnumerateArray())
-                {
-                    var sal = trip.GetProperty("departure").GetDateTime();
-                    var arr = trip.GetProperty("arrival").GetDateTime();
-                    var precio = trip.GetProperty("price").GetDouble();
-                    int? asientos = trip.TryGetProperty("seats", out var s) ? s.GetInt32() : null;
-                    var linea = trip.TryGetProperty("company", out var c) ? c.GetString() ?? "ClickBus" : "ClickBus";
-                    viajes.Add(new ViajeBus(linea, sal, arr, precio, Math.Round(precio * 1.15, 2), asientos,
-                        "ClickBus adapter (en vivo)",
-                        $"https://www.clickbus.com.mx/trips?departure_date={fecha:yyyy-MM-dd}",
-                        "horarios + precios + asientos del adapter"));
-                }
+                throw new InvalidOperationException("ClickBus sin viajes");
             }
-            if (viajes.Count > 0) return viajes;
-            throw new InvalidOperationException("ClickBus sin viajes");
+
+            var viajes = new List<ViajeBus>();
+            foreach (var trip in going.EnumerateArray())
+            {
+                if (!trip.TryGetProperty("parts", out var parts)
+                    || parts.ValueKind != JsonValueKind.Array
+                    || parts.GetArrayLength() == 0) continue;
+
+                DateTime? salida = null;
+                DateTime? llegada = null;
+                var precio = 0.0;
+                var linea = "ClickBus";
+                int? asientos = null;
+
+                foreach (var part in parts.EnumerateArray())
+                {
+                    if (part.TryGetProperty("departure", out var dep))
+                    {
+                        precio += PrecioClickBus(dep);
+                        salida ??= FechaHoraClickBus(dep);
+                    }
+                    if (part.TryGetProperty("arrival", out var arr))
+                        llegada = FechaHoraClickBus(arr) ?? llegada;
+                    if (part.TryGetProperty("busCompany", out var empresa)
+                        && empresa.TryGetProperty("name", out var nombreEmpresa))
+                        linea = nombreEmpresa.GetString() ?? linea;
+                    if (part.TryGetProperty("availableSeats", out var asientosParte)
+                        && asientosParte.ValueKind == JsonValueKind.Number)
+                        asientos = asientosParte.GetInt32();
+                }
+
+                if (salida is null || llegada is null || precio <= 0) continue;
+
+                // Precio unico: el cotizado es el que se cobra. Nunca se le suma un
+                // margen ni se convierte en rango (regla: solo precios reales).
+                var total = Math.Round(precio, 2);
+                viajes.Add(new ViajeBus(linea, salida.Value, llegada.Value, total, total, asientos,
+                    "ClickBus (en vivo)", "https://www.clickbus.com.mx/es/",
+                    "precio y horario del adapter de ClickBus"));
+            }
+
+            return viajes;
         }
         catch
         {
-            return ViajesBusSeed(fecha, km, "seed bus (ClickBus no respondió)");
+            return new List<ViajeBus>();
         }
     }
 
+    /// <summary>
+    /// Catalogo de lugares de ClickBus (slug + nombre + ciudad + tipo de terminal).
+    /// Se cachea 12 h: son 1,642 destinos y cambia poco.
+    /// </summary>
+    private static async Task<List<LugarClickBus>> ObtenerLugaresClickBusAsync(
+        HttpClient http, IMemoryCache cache, CancellationToken ct)
+    {
+        const string clave = "costos:clickbus:places";
+        if (cache.TryGetValue(clave, out List<LugarClickBus>? cacheados) && cacheados is not null)
+            return cacheados;
+
+        var lugares = new List<LugarClickBus>();
+        try
+        {
+            using var res = await http.GetAsync($"{ClickBusAdapterBase}/places/get-all", ct);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (doc.RootElement.TryGetProperty("places", out var places) && places.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var p in places.EnumerateArray())
+                {
+                    var slug = p.TryGetProperty("slug", out var s) ? s.GetString() ?? "" : "";
+                    if (slug.Length == 0) continue;
+                    lugares.Add(new LugarClickBus(
+                        slug,
+                        p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
+                        p.TryGetProperty("city", out var c) ? c.GetString() ?? "" : "",
+                        p.TryGetProperty("terminal_type", out var tt) ? tt.GetString() ?? "" : ""));
+                }
+            }
+        }
+        catch
+        {
+            return lugares; // sin catalogo: el llamador cae al respaldo
+        }
+
+        if (lugares.Count > 0) cache.Set(clave, lugares, TimeSpan.FromHours(12));
+        return lugares;
+    }
+
+    /// <summary>
+    /// Nombre de ciudad del viaje -> slug de ClickBus. La comparacion ignora
+    /// acentos y mayusculas y prefiere la entrada "Todas las Terminales".
+    /// Devuelve null cuando el destino no existe en el catalogo (caso real:
+    /// Xicotlan no esta entre los 1,642 destinos de ClickBus).
+    /// </summary>
+    private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre)
+    {
+        if (lugares.Count == 0) return null;
+        var buscado = NormalizarTexto(nombre);
+        if (buscado.Length == 0) return null;
+
+        static bool EsGrupo(LugarClickBus l) =>
+            l.Tipo.Contains("Todas las Terminales", StringComparison.OrdinalIgnoreCase);
+
+        var candidatos = lugares
+            .Where(l => !string.IsNullOrWhiteSpace(l.Ciudad))
+            .Select(l => new { Lugar = l, Ciudad = NormalizarTexto(l.Ciudad), Nombre = NormalizarTexto(l.Nombre) })
+            .ToList();
+
+        var coincidencias = candidatos.Where(x => x.Ciudad == buscado).ToList();
+        if (coincidencias.Count == 0)
+            coincidencias = candidatos
+                .Where(x => x.Ciudad.StartsWith(buscado, StringComparison.Ordinal)
+                         || buscado.StartsWith(x.Ciudad, StringComparison.Ordinal)).ToList();
+        if (coincidencias.Count == 0)
+            coincidencias = candidatos.Where(x => x.Nombre.Contains(buscado, StringComparison.Ordinal)).ToList();
+        if (coincidencias.Count == 0) return null;
+
+        return coincidencias
+            .OrderByDescending(x => EsGrupo(x.Lugar))
+            .ThenBy(x => x.Lugar.Nombre.Length)
+            .First().Lugar.Slug;
+    }
+
+    /// <summary>Minusculas, sin acentos y sin espacios sobrantes, para comparar nombres de lugar.</summary>
+    private static string NormalizarTexto(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s)) return "";
+        var descompuesto = s.Normalize(NormalizationForm.FormD);
+        var sb = new StringBuilder(descompuesto.Length);
+        foreach (var ch in descompuesto)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(ch)
+                == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
+            sb.Append(ch);
+        }
+        return sb.ToString().Trim().ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Precio del adapter en pesos. Llega en centavos como texto; `offer` (con
+    /// descuento) manda sobre `price` (tarifa de lista).
+    /// </summary>
+    private static double PrecioClickBus(JsonElement nodo)
+    {
+        foreach (var propiedad in new[] { "offer", "price" })
+        {
+            if (!nodo.TryGetProperty(propiedad, out var v)) continue;
+            var texto = v.ValueKind == JsonValueKind.String ? v.GetString() : v.ToString();
+            if (double.TryParse(texto, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var centavos) && centavos > 0)
+                return centavos / 100.0;
+        }
+        return 0;
+    }
+
+    /// <summary>Fecha y hora naive del adapter (`date` y `time` vienen separados).</summary>
+    private static DateTime? FechaHoraClickBus(JsonElement nodo)
+    {
+        if (!nodo.TryGetProperty("waypoint", out var wp)
+            || !wp.TryGetProperty("schedule", out var schedule)) return null;
+        var fecha = schedule.TryGetProperty("date", out var d) ? d.GetString() : null;
+        var hora = schedule.TryGetProperty("time", out var h) ? h.GetString() : null;
+        if (string.IsNullOrWhiteSpace(fecha) || string.IsNullOrWhiteSpace(hora)) return null;
+        return DateTime.TryParse($"{fecha}T{hora}", System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
+    }
+
     public static async Task<List<ViajeBus>> BuscarBusesDistribusionAsync(HttpClient http,
-        string origen, string destino, DateOnly fecha, double km, CancellationToken ct)
+        string origen, string destino, DateOnly fecha, CancellationToken ct)
     {
         try
         {
@@ -454,18 +638,19 @@ public static class CalculoCostosRuta
                     var arr = c.GetProperty("arrival").GetDateTime();
                     var barato = c.TryGetProperty("cheapest_price", out var p) ? p.GetDouble() : 300;
                     int? asientos = c.TryGetProperty("seats_available", out var s) ? s.GetInt32() : null;
-                    viajes.Add(new ViajeBus("Distribusion · red asociada", sal, arr, barato, Math.Round(barato * 1.15, 2),
+                    // Precio unico: sin margen ni rango (regla: solo precios reales).
+                    viajes.Add(new ViajeBus("Distribusion · red asociada", sal, arr, barato, barato,
                         asientos, "Distribusion (en vivo)",
                         "https://book.api.distribusion.com", "connections + seats + cheapest_prices"));
                 }
             }
-            if (viajes.Count > 0) return viajes;
-            throw new InvalidOperationException("Distribusion sin conexiones");
+            return viajes;
         }
         catch
         {
-            return ViajesBusSeed(fecha, km, "seed bus (Distribusion no respondió; retailerPartnerNumber=343401 default sin credencial)")
-                .Select(v => v with { Linea = v.Linea + " · vía Distribusion" }).ToList();
+            // Sin cotizacion no hay precio: el respaldo a estimado lo decide
+            // CalcularTramoAsync solo cuando NINGUN proveedor respondio.
+            return new List<ViajeBus>();
         }
     }
 
@@ -857,22 +1042,31 @@ public static class CalculoCostosRuta
         {
             var fechas = new[] { deadline.Date, deadline.Date.AddDays(-1) };
             var candidatos = new List<ViajeBus>();
+            // ClickBus busca por ciudad, no por direccion: el municipio es el dato
+            // que empata con su catalogo (el nombre del lugar suele ser una calle).
+            var ciudadOrigen = string.IsNullOrWhiteSpace(a.Municipio) ? a.Nombre : a.Municipio;
+            var ciudadDestino = string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio;
             foreach (var f in fechas)
             {
-                candidatos.AddRange(await BuscarBusesClickBusAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
-                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), km, ct));
+                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, DateOnly.FromDateTime(f), cache, ct));
+                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), ct));
             }
+            // El estimado es el ultimo recurso: solo aparece cuando ningun
+            // proveedor cotizo. Con precio real, la tabla no mezcla estimados.
+            var busEstimado = candidatos.Count == 0;
+            if (busEstimado)
+                candidatos = ViajesBusSeed(DateOnly.FromDateTime(deadline), km, "estimado: sin proveedor de autobuses");
             foreach (var g in candidatos.GroupBy(v => v.Linea))
             {
                 var mejor = MejorHorario(g.ToList(), salidaPrevia, 30, deadline,
                     v => v.Salida, v => v.Llegada, out var saleAntes);
                 var durB = (mejor.Llegada - mejor.Salida).TotalHours;
-                opts.Add(new OpCalc("bus", mejor.Linea, "Directo", mejor.Salida, mejor.Llegada, durB + 0.5, 30,
+                opts.Add(new OpCalc("bus", mejor.Linea, busEstimado ? "Estimado" : "Directo", mejor.Salida, mejor.Llegada, durB + 0.5, 30,
                     mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
                     null, null, null, null, mejor.Llegada > deadline, saleAntes,
                     mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
-                    mejor.Fuente, true, $"{mejor.Nota} · cotiza en el sitio/app oficial",
-                    $"https://www.clickbus.com.mx/trips?departure_date={mejor.Salida:yyyy-MM-dd}", "ClickBus",
+                    mejor.Fuente, busEstimado, $"{mejor.Nota} · cotiza en el sitio/app oficial",
+                    mejor.Url, "ClickBus",
                     "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", ""));
             }
 
@@ -1416,7 +1610,12 @@ public static class CalculoCostosRuta
                 : 0,
             TerminalOrigen = TerminalDto(terminalOrigen),
             TerminalDestino = TerminalDto(terminalDestino),
-            PrecioTxt = o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total",
+            // Un precio cotizado es un numero, no un rango: si Lo y Hi coinciden
+            // (proveedor real) se muestra una sola cifra. El rango solo sobrevive
+            // en la tarifa estimada, que se etiqueta como tal.
+            PrecioTxt = Math.Abs(o.Hi - o.Lo) < 0.01
+                ? (o.PorPersona ? $"${o.Lo:F0} MXN /persona" : $"${o.Lo:F0} MXN total")
+                : (o.PorPersona ? $"${o.Lo:F0}–${o.Hi:F0} MXN /persona" : $"${o.Lo:F0}–${o.Hi:F0} MXN total"),
             PorPersona = o.PorPersona, PrecioDesde = Math.Round(o.Lo, 2), PrecioHasta = Math.Round(o.Hi, 2),
             CostoGrupo = Math.Round(o.CostoGrupo, 2), CostoPorPersona = Math.Round(mid, 2),
             ATiempo = !o.Late && !o.SaleAntes, LlegaTarde = o.Late, MinutosTarde = o.LateMin, NoTomable = o.SaleAntes,
