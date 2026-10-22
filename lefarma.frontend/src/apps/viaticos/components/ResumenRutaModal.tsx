@@ -65,15 +65,17 @@ export function ResumenRutaModal({
         </DialogHeader>
 
         <div className="space-y-3">
-          {puntos.length > 0 ? (
-            <RutaMapa puntos={puntos} segmentos={segmentos} alto={480} />
-          ) : (
-            <p className="text-sm text-muted-foreground">Todavía no hay puntos para trazar.</p>
-          )}
+          <div className="grid gap-3 lg:grid-cols-2">
+            {puntos.length > 0 ? (
+              <RutaMapa puntos={puntos} segmentos={segmentos} alto={420} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Todavía no hay puntos para trazar.</p>
+            )}
 
-          <div data-testid="resumen-ruta-diagrama" className="rounded-lg border bg-card p-4">
-            <h3 className="mb-3 font-semibold">Ruta del viaje</h3>
-            <RutaViajeTimeline nodos={nodos} />
+            <div data-testid="resumen-ruta-diagrama" className="max-h-[420px] overflow-y-auto rounded-lg border bg-card p-4">
+              <h3 className="mb-3 font-semibold">Ruta del viaje</h3>
+              <RutaViajeTimeline nodos={nodos} />
+            </div>
           </div>
 
           {tiposSegmento.length > 0 ? (
