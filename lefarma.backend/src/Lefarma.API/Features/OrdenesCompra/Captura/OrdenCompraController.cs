@@ -47,7 +47,7 @@ namespace Lefarma.API.Features.OrdenesCompra.Captura
                 .ToList();
             var result = await _service.GetAllAsync(query, GetUserId(), rolesUsuario, puedeVerTodas);
             return result.ToActionResult(this, data => Ok(new ApiResponse<IEnumerable<OrdenCompraResponse>>
-            { Success = true, Message = "�rdenes obtenidas exitosamente.", Data = data }));
+            { Success = true, Message = "Órdenes obtenidas exitosamente.", Data = data }));
         }
 
         [HttpGet("{id}")]

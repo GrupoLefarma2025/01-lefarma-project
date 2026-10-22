@@ -28,7 +28,7 @@ Reemplazar el wireframe de **Calendario** por **"Mi planeación"**: una pantalla
 1. **Semana**: visitas confirmadas y talleres de la semana (con horas), navegación ‹ Semana › y filtros.
 2. **Rutas**: todas las rutas confirmadas del usuario, agrupadas por ruta, con la lista completa de sus destinos/visitas.
 
-El **handoff a la cotización de viáticos** queda como **última fase** (no se implementa en esta entrega): un botón **"Cotizar viáticos" por ruta** abrirá un modal para enviar **toda la ruta o solo los destinos seleccionados** a `/viaticos/solicitud` con el prefill correspondiente. La cotización y la autorización viven en el módulo de Viáticos.
+El **handoff a la cotización de viáticos** se implementa reutilizando el API existente de Viáticos: un botón **"Cotizar viáticos" por ruta** abre un modal para enviar **toda la ruta o solo los destinos seleccionados**; se crea (o reutiliza) un borrador en Viáticos y se abre el asistente con los destinos precargados. La cotización y la autorización viven en el módulo de Viáticos.
 
 El **FOR-006** (calendario mensual de talleres del AEM) **no es esta pantalla**: queda como decisión separada (implementarlo aparte o fundirlo en la Matriz).
 
@@ -62,8 +62,8 @@ Se acuerda: vista semanal personal, visitas + talleres, reutilizar endpoints con
 ### Fase 2 — Frontend "Mi planeación"
 
 - Reemplazar el wireframe (`CalendarioPage`) por la página real; renombrar el ítem del menú a **"Mi planeación"** (se conserva la ruta `/educacion-medica/calendario` para no romper enlaces).
-- **Vista Semana**: header con equipo/región, navegación ‹ Semana › + "Hoy", filtros `Todo / Visitas / Talleres`; semana Lun-Vie con tarjetas por día (solo lectura): visitas (hospital, hora, región, extraordinaria) y talleres (hospital, hora, estado).
-- **Vista Rutas a pantalla completa**: selector compacto de ruta (dropdown si hay varias), badges de equipo/región, métricas (destinos, días, rango, cotización) y tabla de visitas **agrupada por día** (encabezado con fecha larga y "Hoy/Mañana", fondos alternados por bloque, icono de hospital, región como pill, horario o "Sin hora", tipo Normal/Extraordinaria y hover). El botón "Cotizar viáticos" abre un **modal de selección** (todos o algunos destinos).
+- **Vista Semana**: header con equipo/región, navegación ‹ Semana › + "Hoy", filtros `Todo / Visitas / Talleres`; métricas con iconos (visitas, talleres, días con actividad); semana Lun-Vie con tarjetas blancas por día (solo lectura): fecha larga con badges "Hoy/Mañana", iconos de hospital/taller, región en pill sólida, horario o "Sin hora", y hover.
+- **Vista Rutas a pantalla completa**: selector compacto de ruta (dropdown si hay varias), metadatos de equipo/región como texto con iconos, métricas con iconos (destinos, días, rango, cotización) y tabla de visitas **agrupada por día** (encabezado con fecha larga y "Hoy/Mañana", fondos sólidos alternados por bloque, icono de hospital, región como pill sólida, horario o "Sin hora", tipo Normal/Extraordinaria y hover). El botón "Cotizar viáticos" abre un **modal de selección** (todos o algunos destinos).
 - Reutilizar el lenguaje visual de `SemanaRuta`/`DiaRuta` y helpers de fecha (`rutasUtils`), pero **sin** DnD ni badges de capacidad.
 - Talleres desde `GET /talleres/mis-talleres` (mes) filtrados por semana en cliente; enlace a "Mis talleres" para el detalle.
 - Estados vacíos por día/semana/rutas; responsive (semana apilada en móvil).
@@ -75,15 +75,16 @@ Se acuerda: vista semanal personal, visitas + talleres, reutilizar endpoints con
 - Mini agenda **"Próximos 7 días"** (visitas + talleres) con el mismo origen de datos.
 - La tarjeta "Mis visitas del mes" enlaza a "Mi planeación".
 
-### Fase 4 — Handoff a viáticos (futura, no en esta entrega)
+### Fase 4 — Handoff a viáticos (implementada)
 
-> Mientras se implementa, cada ruta muestra el botón **"Cotizar viáticos"** en modo visual (abre el modal de selección; sin acción real; toast "Próximamente") para validar la UX.
+> **Extensión aprobada (2026-10-22):** la relación por visita, el bloqueo de visitas activas, las múltiples cotizaciones por ruta y el costo se detallan en **ADR-00014**; esta fase describe el handoff inicial (borrador + destinos).
 
-- Botón **"Cotizar viáticos" por ruta** en la vista **Rutas** de "Mi planeación".
-- El modal permite **toda la ruta o un subconjunto de destinos**; el payload del handoff es la selección (todas las visitas/destinos con fecha, hora, hospital y coordenadas, o solo las marcadas).
-- Contrato de prefill hacia `/viaticos/solicitud` (ruta/equipo/visitas con fechas, horas y hospitales) o un endpoint de borrador; hoy el wizard solo hidrata borradores por `:id`.
-- Dependencias: implementar el catálogo/estimador oficial (ADR-00003) o aceptar la capa de cotización real (ADR-00007); sembrar la matriz de roles de Viáticos (`viaticos.solicitar` para EV/EP; `autorizar` para GV/CA/GG/DC) y reconciliar los códigos documentados con los implementados.
-- **Permisos requeridos a futuro:** ver sección siguiente.
+- Botón **"Cotizar viáticos" por ruta**, visible solo si el usuario tiene `viaticos.solicitar`.
+- **Modal agrupado por día** con check por día y por hospital; los hospitales **sin coordenadas** quedan deshabilitados con aviso y botón **"Copiar lista"** para avisar al gerente. Solo se envían destinos con coordenadas y sin hora.
+- Snapshot **`solicitud-v2`** en `datos` (persona, transporte, origen, destinos, retorno) + bloque **`origenEm`** con la trazabilidad de la ruta.
+- `POST /viaticos/solicitudes` con `sistema_origen: "educacion_medica"`; se **reutiliza** un borrador existente de la misma ruta y se navega a `/viaticos/solicitud/:id`.
+- El usuario completa origen, transporte y retorno en el asistente y cotiza ahí (capa ADR-00007).
+- Dependencias: permisos de Viáticos (los asigna el usuario); catálogo oficial ADR-00003 pendiente, **no bloquea** el handoff.
 
 ### Fase 5 — FOR-006 (fuera de este plan)
 
@@ -96,7 +97,7 @@ Decidir si el calendario de talleres del AEM se implementa como pantalla propia 
 | Asignaciones (vista Semana y Rutas) | `GET /talleres/asignaciones` | Se cargan todas las visitas del usuario; la semana se filtra en cliente. Incluye horas y extraordinaria; permiso `talleres.puede_capturar` |
 | Talleres del mes | `GET /talleres/mis-talleres?periodo=YYYY-MM` | Se filtran por semana en cliente; se actualizan al crear/editar talleres; permiso `talleres.puede_ver` |
 | Rutas | Agrupación en cliente por `idRuta` | `nombreRuta`, total de destinos y rango de fechas |
-| Cotización (visual) | Modal `CotizarRutaModal` | Selección de todos o algunos destinos; conteo y toast; sin envío real |
+| Cotización / handoff | `POST /viaticos/solicitudes` (`sistema_origen: educacion_medica`) | Snapshot `solicitud-v2`; solo destinos con coordenadas; reutiliza borrador de la ruta; abre `/viaticos/solicitud/:id` |
 | Encabezado del equipo | `mis-talleres` (`nombreEjecutivo`, `nombreEspecialista`, `nombreRegion`) | — |
 | Navegación | Cliente | Semana ISO; "Hoy"; sin selector de mes |
 
@@ -113,14 +114,16 @@ Decidir si el calendario de talleres del AEM se implementa como pantalla propia 
 - `educacion_medica.talleres.puede_ver` → talleres (`mis-talleres`) y visibilidad del menú.
 - No se crean permisos nuevos.
 
-**A futuro, solo para el handoff de viáticos (resaltado):**
-- `viaticos.solicitar` → crear/editar la solicitud de viáticos (EV/EP).
+**Handoff a Viáticos (implementado):**
+- `viaticos.solicitar` → crear/editar la solicitud de viáticos (EV/EP). **El botón se oculta sin este permiso.**
+
+**A futuro (aprobación/concentrado):**
 - `viaticos.autorizar` → aprobar/rechazar (GV/CA/GG/DC).
 - `viaticos.ver_todos` → concentrado global.
 - `viaticos.ajustar` → ajustes.
 - Del ADR-00007: `educacion_medica.viaticos_costos_ruta.puede_cotizar` / `.puede_ver_capturas` (hoy provisionales de SuperAdmin).
 - Del ADR-00003: `educacion_medica.viaticos_tarifas.puede_ver` / `.puede_editar` y `educacion_medica.viaticos.puede_cotizar` / `.puede_aprobar` (documentados; reconciliar con los implementados antes de sembrar).
-- Estado actual: **solo SuperAdministrador** tiene permisos de viáticos; la matriz de roles está pendiente.
+- Estado actual: **solo SuperAdministrador** tiene permisos de viáticos; el usuario asignará la matriz de roles.
 - El script `0032` (permisos EM/CEM) queda fuera de este plan; lo aplica el usuario.
 
 ## Consequences
@@ -128,14 +131,16 @@ Decidir si el calendario de talleres del AEM se implementa como pantalla propia 
 **Positivas**
 - El equipo ve su semana real (visitas + talleres) en una sola pantalla, con horas y sin capturar nada.
 - La vista por rutas permite revisar todas las rutas confirmadas y preparar la cotización de la **ruta completa**.
+- El handoff reutiliza el API existente de Viáticos; **no duplica el cotizador**.
+- La selección por día/hospital y el aviso de hospitales sin coordenadas evitan destinos inválidos.
 - Reutiliza endpoints existentes; sin backend nuevo ni permisos nuevos en Fase 1–3.
 - Los talleres se actualizan solos al crearse/editarse.
-- Deja preparado el handoff natural a Viáticos.
 
 **Negativas**
 - Solo muestra rutas **confirmadas** (los borradores de planeación no se ven).
 - El rango de fechas del endpoint excluye selecciones vencidas por la regla actual de asignaciones; el histórico de meses pasados queda limitado hasta ajustar esa regla.
-- Sin catálogo/estimador oficial de viáticos, el handoff no puede completarse todavía.
+- El handoff requiere `viaticos.solicitar`; hoy solo SuperAdministrador lo tiene (el usuario asignará la matriz).
+- El catálogo oficial de tarifas (ADR-00003) sigue pendiente; se cotiza con la capa real/evidencia (ADR-00007).
 
 **Neutras**
 - El menú "Calendario" cambia de nombre a "Mi planeación"; el path se conserva.

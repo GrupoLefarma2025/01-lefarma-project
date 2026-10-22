@@ -42,6 +42,70 @@ public class CotizacionRequest
 }
 
 /// <summary>
+/// Body de POST /api/viaticos/solicitudes/desde-educacion-medica (ADR-00014).
+/// `id_ruta_visitas` son las visitas seleccionadas; el servidor las usa para
+/// bloquear visitas ya cotizadas y para deduplicar por conjunto exacto.
+/// </summary>
+public class CrearSolicitudDesdeEducacionMedicaRequest
+{
+    [JsonPropertyName("id_ruta")]
+    public int IdRuta { get; set; }
+
+    [JsonPropertyName("id_seleccion_mensual")]
+    public int? IdSeleccionMensual { get; set; }
+
+    [JsonPropertyName("id_ruta_visitas")]
+    public List<int> IdRutaVisitas { get; set; } = new();
+
+    [JsonPropertyName("gerencia")]
+    public string? Gerencia { get; set; }
+
+    [JsonPropertyName("datos")]
+    public JsonElement Datos { get; set; }
+}
+
+/// <summary>Respuesta de crear/reutilizar una cotización desde Educación Médica.</summary>
+public class SolicitudDesdeEducacionMedicaDto
+{
+    [JsonPropertyName("id_solicitud")]
+    public int IdSolicitud { get; set; }
+
+    [JsonPropertyName("folio")]
+    public string? Folio { get; set; }
+
+    [JsonPropertyName("reutilizado")]
+    public bool Reutilizado { get; set; }
+}
+
+/// <summary>
+/// Resumen de una cotización ligada a una ruta de Educación Médica.
+/// `total` es null mientras la cotización no tenga precios persistidos.
+/// </summary>
+public class SolicitudOrigenEmResumenDto
+{
+    [JsonPropertyName("id_solicitud")]
+    public int IdSolicitud { get; set; }
+
+    [JsonPropertyName("folio")]
+    public string? Folio { get; set; }
+
+    [JsonPropertyName("estado")]
+    public string Estado { get; set; } = string.Empty;
+
+    [JsonPropertyName("num_puntos")]
+    public int NumPuntos { get; set; }
+
+    [JsonPropertyName("total")]
+    public decimal? Total { get; set; }
+
+    [JsonPropertyName("fecha_creacion")]
+    public DateTime FechaCreacion { get; set; }
+
+    [JsonPropertyName("id_ruta_visitas")]
+    public List<int> IdRutaVisitas { get; set; } = new();
+}
+
+/// <summary>
 /// Salida de las acciones del controller. <c>Opciones</c> y
 /// <c>Eventos</c> se hidratan en el GET por id y en el POST de creación
 /// (queda vacío hasta que el usuario persista la cotización).

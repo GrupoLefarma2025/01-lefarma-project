@@ -277,7 +277,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'id_programa_anual';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 2 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Fecha (a�o) del programa', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha';
+    EXEC sp_addextendedproperty N'MS_Description', N'Fecha (año) del programa', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'fecha';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Definicion/objetivo del programa (FOR-003)', 'SCHEMA', N'educacion_medica', 'TABLE', N'programas_anuales', 'COLUMN', N'definicion';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[programas_anuales]') AND minor_id = 4 AND name = 'MS_Description')
@@ -444,7 +444,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 1 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Identificador interno del equipo de pareo', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_equipo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 2 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Regi�n fija que opera el equipo (FK f�sica a regiones_cat). Toda la agrupaci�n y asignaci�n de la selecci�n mensual parte de esta relaci�n 1 equipo = 1 regi�n', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_region';
+    EXEC sp_addextendedproperty N'MS_Description', N'Región fija que opera el equipo (FK física a regiones_cat). Toda la agrupación y asignación de la selección mensual parte de esta relación 1 equipo = 1 región', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_region';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 3 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Ejecutivo de Ventas del pareo (FK logica app.Usuarios, Asokam). Unico entre equipos activos (indice filtrado)', 'SCHEMA', N'educacion_medica', 'TABLE', N'equipos_pareo', 'COLUMN', N'id_ejecutivo';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[equipos_pareo]') AND minor_id = 4 AND name = 'MS_Description')
@@ -907,7 +907,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID(
     EXEC sp_addextendedproperty N'MS_Description', N'Observaciones de la captura', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'observaciones';
 
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 9 AND name = 'MS_Description')
-    EXEC sp_addextendedproperty N'MS_Description', N'Latitud del hospital congelada al momento de agregarlo a la seleccion (snapshot; el cat�logo Asokam puede cambiar despu�s)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'latitud_snapshot';
+    EXEC sp_addextendedproperty N'MS_Description', N'Latitud del hospital congelada al momento de agregarlo a la seleccion (snapshot; el catálogo Asokam puede cambiar después)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'latitud_snapshot';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 10 AND name = 'MS_Description')
     EXEC sp_addextendedproperty N'MS_Description', N'Longitud del hospital congelada al momento de agregarlo a la seleccion (snapshot)', 'SCHEMA', N'educacion_medica', 'TABLE', N'selecciones_mensuales_hospitales', 'COLUMN', N'longitud_snapshot';
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE major_id = OBJECT_ID('educacion_medica.[selecciones_mensuales_hospitales]') AND minor_id = 11 AND name = 'MS_Description')

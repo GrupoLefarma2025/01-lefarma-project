@@ -10,6 +10,7 @@ using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Swashbuckle.AspNetCore.Annotations;
 
 namespace Lefarma.API.Features.Viaticos;
@@ -208,8 +209,310 @@ public class SolicitudesController : ControllerBase
     }
 
     // ----------------------------------------------------------------
-    // GET /api/viaticos/solicitudes/mis
+    // POST /api/viaticos/solicitudes/desde-educacion-medica
     // ----------------------------------------------------------------
+    [HttpPost("solicitudes/desde-educacion-medica")]
+    [SwaggerOperation(
+        Summary = "Crear o reutilizar una cotización desde una ruta de Educación Médica",
+        Description = "Crea un borrador de viáticos ligado a las visitas seleccionadas de una ruta. " +
+                      "Reutiliza un borrador del mismo usuario si la ruta y el conjunto exacto de " +
+                      "visitas coinciden. Responde 409 si alguna visita ya pertenece a una cotización " +
+                      "activa (borrador, enviada, autorizada o autorizada_con_ajustes).")]
+    [SwaggerResponse(201, "Cotización creada", typeof(ApiResponse<SolicitudDesdeEducacionMedicaDto>))]
+    [SwaggerResponse(200, "Cotización existente reutilizada", typeof(ApiResponse<SolicitudDesdeEducacionMedicaDto>))]
+    [SwaggerResponse(400, "Body inválido")]
+    [SwaggerResponse(401, "Sin token")]
+    [SwaggerResponse(403, "Sin permiso viaticos.solicitar")]
+    [SwaggerResponse(409, "Alguna visita ya está en una cotización activa")]
+    public async Task<IActionResult> CrearDesdeEducacionMedica(
+        [FromBody] CrearSolicitudDesdeEducacionMedicaRequest? request,
+        CancellationToken ct)
+    {
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar))
+        {
+            return Forbid();
+        }
+
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Token sin id de usuario válido."
+            });
+        }
+
+        if (request is null || request.IdRuta <= 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "id_ruta es obligatorio."
+            });
+        }
+
+        var visitasSolicitadas = request.IdRutaVisitas
+            .Where(id => id > 0)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+        if (visitasSolicitadas.Count == 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Selecciona al menos una visita con coordenadas."
+            });
+        }
+
+        // La búsqueda de duplicados, el bloqueo y la inserción corren dentro de
+        // una transacción serializable en SQL Server: dos solicitudes simultáneas
+        // no pueden cotizar la misma visita. Los proveedores no relacionales
+        // (EF InMemory en las pruebas) no soportan transacciones y se omiten.
+        await using var transaccion = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
+            : null;
+
+        var ahora = DateTime.UtcNow;
+        var gerencia = string.IsNullOrWhiteSpace(request.Gerencia) ? GerenciaPorDefecto : request.Gerencia.Trim();
+
+        // 1) Reutilizar un borrador propio con la misma ruta y el conjunto exacto
+        // de visitas. El borrador legado (sin filas en la tabla liga) no entra.
+        var borradores = await _context.Solicitudes
+            .AsNoTracking()
+            .Include(s => s.OrigenEmVisitas)
+            .Where(s => s.IdUsuarioSolicitante == userId
+                        && s.Activo
+                        && s.SistemaOrigen == SistemaOrigenEducacionMedica
+                        && s.Estado == EstadoBorrador)
+            .ToListAsync(ct);
+
+        var reutilizable = borradores.FirstOrDefault(s =>
+        {
+            var deLaRuta = s.OrigenEmVisitas
+                .Where(l => l.IdRuta == request.IdRuta)
+                .Select(l => l.IdRutaVisita)
+                .OrderBy(id => id)
+                .ToList();
+            return deLaRuta.SequenceEqual(visitasSolicitadas);
+        });
+
+        if (reutilizable is not null)
+        {
+            return Ok(new ApiResponse<SolicitudDesdeEducacionMedicaDto>
+            {
+                Success = true,
+                Message = "Se reutilizó la cotización en borrador existente.",
+                Data = new SolicitudDesdeEducacionMedicaDto
+                {
+                    IdSolicitud = reutilizable.IdSolicitud,
+                    Folio = reutilizable.Folio,
+                    Reutilizado = true,
+                }
+            });
+        }
+
+        // 2) Bloquear visitas que ya estén en una cotización activa del usuario.
+        var estadosActivos = new[] { EstadoBorrador, EstadoEnviada, "autorizada", "autorizada_con_ajustes" };
+        var activas = await (
+            from liga in _context.SolicitudOrigenEmVisitas
+            join s in _context.Solicitudes on liga.IdSolicitud equals s.IdSolicitud
+            where liga.IdRuta == request.IdRuta
+                  && visitasSolicitadas.Contains(liga.IdRutaVisita)
+                  && s.IdUsuarioSolicitante == userId
+                  && s.Activo
+                  && estadosActivos.Contains(s.Estado)
+            select new
+            {
+                liga.IdRutaVisita,
+                s.IdSolicitud,
+                s.Folio,
+                s.Estado,
+            })
+            .AsNoTracking()
+            .ToListAsync(ct);
+
+        if (activas.Count > 0)
+        {
+            var detalle = activas
+                .GroupBy(a => a.IdRutaVisita)
+                .Select(g => new
+                {
+                    id_ruta_visita = g.Key,
+                    id_solicitud = g.First().IdSolicitud,
+                    folio = g.First().Folio,
+                    estado = g.First().Estado,
+                })
+                .ToList();
+            var folios = string.Join(", ", detalle.Select(d => d.folio).Where(f => !string.IsNullOrWhiteSpace(f)).Distinct());
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = folios.Length > 0
+                    ? $"Algunas visitas ya están en una cotización activa ({folios}). Elimina esa cotización o ajusta la selección."
+                    : "Algunas visitas ya están en una cotización activa. Elimínala o ajusta la selección.",
+                Data = detalle
+            });
+        }
+
+        // 3) Crear el borrador. Las filas de la liga viajan por la navegación:
+        // EF inserta solicitud + liga en el mismo SaveChanges (atómico).
+        var personaSnapshot = LeerPersonaDelSnapshot(request.Datos);
+        var personas = await ResolverPersonasAsync(userId, personaSnapshot, ct);
+        var numeroFolio = await SiguienteNumeroFolioAsync(ct);
+        var samFolio = personas.SamViajero.Length > 40 ? personas.SamViajero[..40] : personas.SamViajero;
+        var folioNuevo = $"VIA-{samFolio}-{numeroFolio:D4}";
+
+        var solicitud = new Solicitud
+        {
+            IdUsuarioSolicitante = userId,
+            IdUsuarioCreacion = userId,
+            SistemaOrigen = SistemaOrigenEducacionMedica,
+            NumPuntos = visitasSolicitadas.Count,
+            PersonaSolicitante = personas.Solicitante,
+            PersonaViajera = personas.Viajero,
+            Periodo = ahora.ToString("yyyy-MM"),
+            Gerencia = gerencia,
+            Estado = EstadoBorrador,
+            Folio = folioNuevo,
+            DatosJson = request.Datos.ValueKind == JsonValueKind.Undefined || request.Datos.ValueKind == JsonValueKind.Null
+                ? "{}"
+                : request.Datos.GetRawText(),
+            Activo = true,
+            FechaCreacion = ahora,
+            FechaModificacion = ahora,
+        };
+
+        foreach (var idVisita in visitasSolicitadas)
+        {
+            solicitud.OrigenEmVisitas.Add(new SolicitudOrigenEmVisita
+            {
+                IdRuta = request.IdRuta,
+                IdRutaVisita = idVisita,
+                IdSeleccionMensual = request.IdSeleccionMensual,
+                FechaCreacion = ahora,
+            });
+        }
+
+        solicitud.Eventos.Add(new SolicitudEvento
+        {
+            Tipo = "creada",
+            PayloadJson = JsonSerializer.Serialize(new
+            {
+                estado = solicitud.Estado,
+                gerencia,
+                sistema_origen = SistemaOrigenEducacionMedica,
+                num_puntos = solicitud.NumPuntos,
+                folio = folioNuevo,
+                id_ruta = request.IdRuta,
+                id_seleccion_mensual = request.IdSeleccionMensual,
+                id_ruta_visitas = visitasSolicitadas,
+            }),
+            IdUsuario = userId,
+            FechaCreacion = ahora,
+        });
+
+        _context.Solicitudes.Add(solicitud);
+        await _context.SaveChangesAsync(ct);
+        if (transaccion is not null)
+        {
+            await transaccion.CommitAsync(ct);
+        }
+
+        _logger.LogInformation(
+            "Cotización de viáticos {Id} creada desde Educación Médica (ruta {IdRuta}, {Visitas} visita(s)) por usuario {UserId}.",
+            solicitud.IdSolicitud, request.IdRuta, visitasSolicitadas.Count, userId);
+
+        return StatusCode(StatusCodes.Status201Created, new ApiResponse<SolicitudDesdeEducacionMedicaDto>
+        {
+            Success = true,
+            Message = "Cotización creada en borrador.",
+            Data = new SolicitudDesdeEducacionMedicaDto
+            {
+                IdSolicitud = solicitud.IdSolicitud,
+                Folio = solicitud.Folio,
+                Reutilizado = false,
+            }
+        });
+    }
+
+    // ----------------------------------------------------------------
+    // GET /api/viaticos/solicitudes/por-ruta/{idRuta}
+    // ----------------------------------------------------------------
+    [HttpGet("solicitudes/por-ruta/{idRuta:int}")]
+    [SwaggerOperation(
+        Summary = "Cotizaciones de viáticos ligadas a una ruta de Educación Médica",
+        Description = "Devuelve todas las cotizaciones activas ligadas a la ruta, con sus visitas, " +
+                      "folio, estado y total (null si aún no tiene precios). El dueño ve las suyas; " +
+                      "viaticos.ver_todos ve las de todos.")]
+    [SwaggerResponse(200, "Cotizaciones", typeof(ApiResponse<List<SolicitudOrigenEmResumenDto>>))]
+    [SwaggerResponse(401, "Sin token")]
+    [SwaggerResponse(403, "Sin permiso viaticos.solicitar o viaticos.ver_todos")]
+    public async Task<IActionResult> PorRuta([FromRoute] int idRuta, CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Token sin id de usuario válido."
+            });
+        }
+
+        var esVerTodos = User.TienePermiso(Permissions.Viaticos.VerTodos);
+        if (!User.TienePermiso(Permissions.Viaticos.Solicitar) && !esVerTodos)
+        {
+            return Forbid();
+        }
+
+        if (idRuta <= 0)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "idRuta inválido."
+            });
+        }
+
+        var solicitudes = await _context.Solicitudes
+            .AsNoTracking()
+            .Include(s => s.Opciones)
+            .Include(s => s.OrigenEmVisitas)
+            .Where(s => s.Activo
+                        && s.SistemaOrigen == SistemaOrigenEducacionMedica
+                        && (esVerTodos || s.IdUsuarioSolicitante == userId)
+                        && s.OrigenEmVisitas.Any(l => l.IdRuta == idRuta))
+            .OrderByDescending(s => s.FechaCreacion)
+            .ToListAsync(ct);
+
+        var data = solicitudes
+            .Select(s => new SolicitudOrigenEmResumenDto
+            {
+                IdSolicitud = s.IdSolicitud,
+                Folio = s.Folio,
+                Estado = s.Estado,
+                NumPuntos = s.NumPuntos,
+                Total = LeerTotalDeDatos(s.DatosJson) ?? CalcularTotalOpciones(s),
+                FechaCreacion = s.FechaCreacion,
+                IdRutaVisitas = s.OrigenEmVisitas
+                    .Where(l => l.IdRuta == idRuta)
+                    .Select(l => l.IdRutaVisita)
+                    .OrderBy(id => id)
+                    .ToList(),
+            })
+            .ToList();
+
+        return Ok(new ApiResponse<List<SolicitudOrigenEmResumenDto>>
+        {
+            Success = true,
+            Message = "Cotizaciones obtenidas.",
+            Data = data
+        });
+    }
+
+
     [HttpGet("solicitudes/mis")]
     [SwaggerOperation(
         Summary = "Mis solicitudes de viáticos",
@@ -485,6 +788,16 @@ public class SolicitudesController : ControllerBase
         if (solicitud.IdUsuarioSolicitante != userId && !esVerTodos)
         {
             return Forbid();
+        }
+
+        // 2.1) Persistir el total del wizard en datos.total. Aprobaciones y el
+        // resumen de cotizaciones por ruta lo leen de ahi (ADR-00014).
+        if (request.Cotizacion.ValueKind == JsonValueKind.Object
+            && request.Cotizacion.TryGetProperty("total", out var totalEl)
+            && totalEl.ValueKind == JsonValueKind.Number
+            && totalEl.TryGetDecimal(out var total))
+        {
+            solicitud.DatosJson = ConTotalEnDatos(solicitud.DatosJson, total);
         }
 
         // 3) Reemplazar las opciones existentes (regla de UX: la última cotización gana).
@@ -851,6 +1164,57 @@ public class SolicitudesController : ControllerBase
         return destinos.GetArrayLength();
     }
 
+    /// <summary>Lee `datos.total`; null si no existe o no es numérico.</summary>
+    private static decimal? LeerTotalDeDatos(string datosJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(datosJson);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object
+                && doc.RootElement.TryGetProperty("total", out var total)
+                && total.ValueKind == JsonValueKind.Number
+                && total.TryGetDecimal(out var valor))
+            {
+                return valor;
+            }
+        }
+        catch (JsonException)
+        {
+            // datos_json corrupto: el resumen no debe romper.
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Total de respaldo: suma de las opciones elegidas con precio. Se usa
+    /// cuando la cotización no persistió `datos.total` (p. ej. cotizaciones
+    /// capturadas por la API antes de ADR-00014).
+    /// </summary>
+    private static decimal? CalcularTotalOpciones(Solicitud s)
+    {
+        var elegidas = s.Opciones
+            .Where(o => o.FueElegida && o.Precio.HasValue)
+            .Sum(o => o.Precio!.Value);
+        return elegidas > 0 ? elegidas : null;
+    }
+
+    /// <summary>Agrega/reemplaza `total` en datos_json sin perder el resto del snapshot.</summary>
+    private static string ConTotalEnDatos(string datosJson, decimal total)
+    {
+        Dictionary<string, JsonElement>? datos = null;
+        try
+        {
+            datos = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(datosJson);
+        }
+        catch (JsonException)
+        {
+            // Si el snapshot no es un objeto válido, se reemplaza por uno mínimo.
+        }
+        datos ??= new Dictionary<string, JsonElement>();
+        datos["total"] = JsonSerializer.SerializeToElement(total);
+        return JsonSerializer.Serialize(datos);
+    }
+
     /// <summary>
     /// Siguiente consecutivo del folio del viaje. En SQL Server sale de
     /// <c>[viaticos].[seq_folio_viaje]</c> (<c>NEXT VALUE FOR</c>, sin bloqueos),
@@ -885,6 +1249,16 @@ public class SolicitudesController : ControllerBase
         {
             await using var comando = conexion.CreateCommand();
             comando.CommandText = "SELECT NEXT VALUE FOR [viaticos].[seq_folio_viaje];";
+
+            // La cotización desde EM abre una transacción local; el comando
+            // crudo comparte la conexión del DbContext y debe enlistarse en
+            // esa transacción (si no, SqlClient lanza InvalidOperationException).
+            var transaccionActual = _context.Database.CurrentTransaction;
+            if (transaccionActual is not null)
+            {
+                comando.Transaction = transaccionActual.GetDbTransaction();
+            }
+
             var valor = await comando.ExecuteScalarAsync(ct);
             return Convert.ToInt32(valor, CultureInfo.InvariantCulture);
         }

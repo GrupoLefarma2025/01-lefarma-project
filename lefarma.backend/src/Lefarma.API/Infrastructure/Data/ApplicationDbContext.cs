@@ -150,8 +150,9 @@ public class ApplicationDbContext : DbContext
         public DbSet<HelpImage> HelpImages { get; set; }
 
         // DbSets - Viáticos (wizard de solicitudes)
-        public DbSet<Solicitud> Solicitudes { get; set; }
-        public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
+    public DbSet<Solicitud> Solicitudes { get; set; }
+    public DbSet<SolicitudOpcion> SolicitudOpciones { get; set; }
+    public DbSet<SolicitudOrigenEmVisita> SolicitudOrigenEmVisitas { get; set; }
         public DbSet<SolicitudAjuste> SolicitudAjustes { get; set; }
         public DbSet<SolicitudEvento> SolicitudEventos { get; set; }
 

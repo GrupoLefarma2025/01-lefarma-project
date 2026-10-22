@@ -76,6 +76,36 @@ export interface CrearSolicitudPayload {
 }
 
 /**
+ * Body de POST /viaticos/solicitudes/desde-educacion-medica (ADR-00014).
+ * `id_ruta_visitas` es el conjunto exacto que se liga a la cotización.
+ */
+export interface CrearSolicitudDesdeEducacionMedicaPayload {
+  id_ruta: number;
+  id_seleccion_mensual?: number | null;
+  id_ruta_visitas: number[];
+  gerencia?: string;
+  datos: Record<string, unknown>;
+}
+
+/** Respuesta de crear o reutilizar una cotización desde Educación Médica. */
+export interface SolicitudDesdeEducacionMedicaResponse {
+  id_solicitud: number;
+  folio: string | null;
+  reutilizado: boolean;
+}
+
+/** Resumen de una cotización ligada a una ruta (GET /solicitudes/por-ruta/{idRuta}). */
+export interface SolicitudOrigenEmResumen {
+  id_solicitud: number;
+  folio: string | null;
+  estado: string;
+  num_puntos: number;
+  total: number | null;
+  fecha_creacion: string;
+  id_ruta_visitas: number[];
+}
+
+/**
  * Una opción del body de PUT /viaticos/solicitudes/{id}/opciones.
  * El backend exige url_compra y fuente, y solo admite precio null si la fuente
  * es estimada. capturas[] viaja entero: la primera tambien va en ruta_captura,

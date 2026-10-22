@@ -11,7 +11,7 @@ public class CreateWorkflowRequestValidator : AbstractValidator<CreateWorkflowRe
             RuleFor(x => x.CodigoProceso)
                 .NotEmpty().MaximumLength(50)
                 .Matches(@"^[A-Z0-9_]+$")
-                .WithMessage("Solo may�sculas, n�meros y gui�n bajo. Ej: ORDEN_COMPRA");
+                .WithMessage("Solo mayúsculas, números y guión bajo. Ej: ORDEN_COMPRA");
         }
     }
 

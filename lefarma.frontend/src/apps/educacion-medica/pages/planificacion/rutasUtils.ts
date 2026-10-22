@@ -2,6 +2,37 @@ import type { Ruta, RutaVisita } from '@/apps/educacion-medica/types/educacionMe
 
 export const DIAS = ['DOM', 'LUN', 'MAR', 'MIÉ', 'JUE', 'VIE', 'SÁB'];
 
+const DIAS_LARGOS = [
+  'Domingo',
+  'Lunes',
+  'Martes',
+  'Miércoles',
+  'Jueves',
+  'Viernes',
+  'Sábado',
+];
+
+const MESES_LARGOS = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+/** Fecha larga en español: "Viernes, 16 de octubre". */
+export function fechaLarga(fecha: string): string {
+  const dia = new Date(`${fecha}T00:00:00`);
+  return `${DIAS_LARGOS[dia.getDay()]}, ${dia.getDate()} de ${MESES_LARGOS[dia.getMonth()]}`;
+}
+
 export function formatearFecha(fecha: string): string {
   const [anio, mes, dia] = fecha.split('-');
   return `${dia}/${mes}/${anio}`;
@@ -100,7 +131,7 @@ const MESES_CORTOS = [
 ];
 
 export function fechaCorta(fecha: string): string {
-  const [anio, mes, dia] = fecha.split('-').map(Number);
+  const [, mes, dia] = fecha.split('-').map(Number);
   return `${dia} ${MESES_CORTOS[(mes ?? 1) - 1]}`;
 }
 

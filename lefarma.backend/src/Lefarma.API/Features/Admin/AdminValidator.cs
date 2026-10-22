@@ -19,7 +19,7 @@ public class CreateUsuarioValidator : AbstractValidator<CreateUsuarioRequest>
             .MaximumLength(200).WithMessage("El nombre completo no puede exceder 200 caracteres");
 
         RuleFor(x => x.Correo)
-            .EmailAddress().WithMessage("El correo electr�nico no es v�lido")
+            .EmailAddress().WithMessage("El correo electrónico no es válido")
             .When(x => !string.IsNullOrEmpty(x.Correo));
     }
 }
@@ -37,7 +37,7 @@ public class UpdateUsuarioValidator : AbstractValidator<UpdateUsuarioRequest>
             .MaximumLength(200).WithMessage("El nombre completo no puede exceder 200 caracteres");
 
         RuleFor(x => x.Correo)
-            .EmailAddress().WithMessage("El correo electr�nico no es v�lido")
+            .EmailAddress().WithMessage("El correo electrónico no es válido")
             .MaximumLength(200).WithMessage("El correo no puede exceder 200 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Correo));
 
@@ -52,13 +52,13 @@ public class UpdateUsuarioDetalleValidator : AbstractValidator<UpdateUsuarioDeta
     public UpdateUsuarioDetalleValidator()
     {
         RuleFor(x => x.IdEmpresa)
-            .GreaterThan(0).WithMessage("Debe seleccionar una empresa v�lida");
+            .GreaterThan(0).WithMessage("Debe seleccionar una empresa válida");
 
         RuleFor(x => x.IdSucursal)
-            .GreaterThan(0).WithMessage("Debe seleccionar una sucursal v�lida");
+            .GreaterThan(0).WithMessage("Debe seleccionar una sucursal válida");
 
         RuleFor(x => x.IdArea)
-            .GreaterThan(0).WithMessage("El �rea debe ser v�lida")
+            .GreaterThan(0).WithMessage("El área debe ser válida")
             .When(x => x.IdArea.HasValue);
 
         RuleFor(x => x.Puesto)
@@ -66,15 +66,15 @@ public class UpdateUsuarioDetalleValidator : AbstractValidator<UpdateUsuarioDeta
             .When(x => !string.IsNullOrEmpty(x.Puesto));
 
         RuleFor(x => x.NumeroEmpleado)
-            .MaximumLength(50).WithMessage("El n�mero de empleado no puede exceder 50 caracteres")
+            .MaximumLength(50).WithMessage("El número de empleado no puede exceder 50 caracteres")
             .When(x => !string.IsNullOrEmpty(x.NumeroEmpleado));
 
         RuleFor(x => x.TelefonoOficina)
-            .MaximumLength(20).WithMessage("El tel�fono de oficina no puede exceder 20 caracteres")
+            .MaximumLength(20).WithMessage("El teléfono de oficina no puede exceder 20 caracteres")
             .When(x => !string.IsNullOrEmpty(x.TelefonoOficina));
 
         RuleFor(x => x.Extension)
-            .MaximumLength(10).WithMessage("La extensi�n no puede exceder 10 caracteres")
+            .MaximumLength(10).WithMessage("La extensión no puede exceder 10 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Extension));
 
         RuleFor(x => x.Celular)
@@ -98,7 +98,7 @@ public class UpdateUsuarioDetalleValidator : AbstractValidator<UpdateUsuarioDeta
             .When(x => !string.IsNullOrEmpty(x.DashboardInicio));
 
         RuleFor(x => x.DelegacionHasta)
-            .GreaterThanOrEqualTo(DateTime.Today).WithMessage("La fecha de delegaci�n debe ser mayor o igual a hoy")
+            .GreaterThanOrEqualTo(DateTime.Today).WithMessage("La fecha de delegación debe ser mayor o igual a hoy")
             .When(x => x.DelegacionHasta.HasValue);
     }
 }
@@ -112,7 +112,7 @@ public class CreateRolValidator : AbstractValidator<CreateRolRequest>
             .MaximumLength(100).WithMessage("El nombre del rol no puede exceder 100 caracteres");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(500).WithMessage("La descripci�n no puede exceder 500 caracteres")
+            .MaximumLength(500).WithMessage("La descripción no puede exceder 500 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Descripcion));
     }
 }
@@ -126,7 +126,7 @@ public class UpdateRolValidator : AbstractValidator<UpdateRolRequest>
             .MaximumLength(100).WithMessage("El nombre del rol no puede exceder 100 caracteres");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(500).WithMessage("La descripci�n no puede exceder 500 caracteres")
+            .MaximumLength(500).WithMessage("La descripción no puede exceder 500 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Descripcion));
     }
 }
@@ -136,19 +136,19 @@ public class CreatePermisoValidator : AbstractValidator<CreatePermisoRequest>
     public CreatePermisoValidator()
     {
         RuleFor(x => x.CodigoPermiso)
-            .NotEmpty().WithMessage("El c�digo del permiso es requerido")
-            .MaximumLength(100).WithMessage("El c�digo del permiso no puede exceder 100 caracteres");
+            .NotEmpty().WithMessage("El código del permiso es requerido")
+            .MaximumLength(100).WithMessage("El código del permiso no puede exceder 100 caracteres");
 
         RuleFor(x => x.NombrePermiso)
             .NotEmpty().WithMessage("El nombre del permiso es requerido")
             .MaximumLength(200).WithMessage("El nombre del permiso no puede exceder 200 caracteres");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(500).WithMessage("La descripci�n no puede exceder 500 caracteres")
+            .MaximumLength(500).WithMessage("La descripción no puede exceder 500 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Descripcion));
 
         RuleFor(x => x.Categoria)
-            .MaximumLength(100).WithMessage("La categor�a no puede exceder 100 caracteres")
+            .MaximumLength(100).WithMessage("La categoría no puede exceder 100 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Categoria));
 
         RuleFor(x => x.Recurso)
@@ -156,7 +156,7 @@ public class CreatePermisoValidator : AbstractValidator<CreatePermisoRequest>
             .When(x => !string.IsNullOrEmpty(x.Recurso));
 
         RuleFor(x => x.Accion)
-            .MaximumLength(50).WithMessage("La acci�n no puede exceder 50 caracteres")
+            .MaximumLength(50).WithMessage("La acción no puede exceder 50 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Accion));
     }
 }
@@ -166,19 +166,19 @@ public class UpdatePermisoValidator : AbstractValidator<UpdatePermisoRequest>
     public UpdatePermisoValidator()
     {
         RuleFor(x => x.CodigoPermiso)
-            .NotEmpty().WithMessage("El c�digo del permiso es requerido")
-            .MaximumLength(100).WithMessage("El c�digo del permiso no puede exceder 100 caracteres");
+            .NotEmpty().WithMessage("El código del permiso es requerido")
+            .MaximumLength(100).WithMessage("El código del permiso no puede exceder 100 caracteres");
 
         RuleFor(x => x.NombrePermiso)
             .NotEmpty().WithMessage("El nombre del permiso es requerido")
             .MaximumLength(200).WithMessage("El nombre del permiso no puede exceder 200 caracteres");
 
         RuleFor(x => x.Descripcion)
-            .MaximumLength(500).WithMessage("La descripci�n no puede exceder 500 caracteres")
+            .MaximumLength(500).WithMessage("La descripción no puede exceder 500 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Descripcion));
 
         RuleFor(x => x.Categoria)
-            .MaximumLength(100).WithMessage("La categor�a no puede exceder 100 caracteres")
+            .MaximumLength(100).WithMessage("La categoría no puede exceder 100 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Categoria));
 
         RuleFor(x => x.Recurso)
@@ -186,7 +186,7 @@ public class UpdatePermisoValidator : AbstractValidator<UpdatePermisoRequest>
             .When(x => !string.IsNullOrEmpty(x.Recurso));
 
         RuleFor(x => x.Accion)
-            .MaximumLength(50).WithMessage("La acci�n no puede exceder 50 caracteres")
+            .MaximumLength(50).WithMessage("La acción no puede exceder 50 caracteres")
             .When(x => !string.IsNullOrEmpty(x.Accion));
     }
 }
