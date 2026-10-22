@@ -50,8 +50,7 @@ import {
  */
 const DEFINICIONES_ACTIVO: { id: string; etiqueta: string; estados: string[] }[] = [
   { id: 'enviada', etiqueta: 'Enviadas (pendientes de autorización)', estados: ['enviada'] },
-  { id: 'enviada-borrador', etiqueta: 'Enviadas + borradores', estados: ['enviada', 'borrador'] },
-  { id: 'todas', etiqueta: 'Todas (incluye autorizadas y rechazadas)', estados: [] as string[] },
+  { id: 'todas', etiqueta: 'Todas (enviadas, autorizadas y rechazadas)', estados: [] as string[] },
 ] as const;
 type DefinicionActivo = string;
 
@@ -149,6 +148,9 @@ export function ConcentradoPage() {
 
   const visibles = filas.filter(
     (f) =>
+      // Un borrador no se ha enviado: no tiene nada que autorizar y no debe
+      // aparecer en el concentrado, aunque ya tenga cálculo.
+      f.estado !== 'borrador' &&
       (recalculo === 'todos' || (recalculo === 'con' ? f.recalculada === true : f.recalculada !== true)) &&
       (campoFecha === 'viaje'
         ? viajeEnRango(f, rango)
