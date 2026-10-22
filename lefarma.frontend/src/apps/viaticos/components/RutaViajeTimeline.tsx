@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type ReactNode } from 'react';
+import { LineaConCoordenadas } from './LineaConCoordenadas';
 
 export interface NodoRutaTimeline {
   id: string;
@@ -170,7 +171,7 @@ export function RutaViajeTimeline({ nodos }: { nodos: NodoRutaTimeline[] }) {
             ) : null}
             {nodo.detalles.map((linea, idx) => (
               <p key={idx} data-testid={idx === 0 ? nodo.testId : undefined} className="text-xs text-muted-foreground">
-                {linea}
+                {typeof linea === 'string' ? <LineaConCoordenadas texto={linea} /> : linea}
               </p>
             ))}
           </li>

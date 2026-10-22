@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { CircleMarker, MapContainer, TileLayer } from 'react-leaflet';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MapaPuntoMini } from './MapaPuntoMini';
 import type { PuntoSeleccion } from '../types/costosRuta.types';
 import type { ResumenDestino, ResumenViajeDatos } from '../services/resumenViaje';
 import { RutaViajeTimeline } from './RutaViajeTimeline';
@@ -47,31 +47,7 @@ function coordenadas(punto: PuntoSeleccion | null): string {
 
 /** Mapa de referencia de solo lectura: punto pequeño y vista amplia del estado. */
 function MapaResumen({ punto }: { punto: PuntoSeleccion }) {
-  return (
-    <MapContainer
-      center={[punto.latitud, punto.longitud]}
-      zoom={7}
-      dragging={false}
-      scrollWheelZoom={false}
-      doubleClickZoom={false}
-      touchZoom={false}
-      boxZoom={false}
-      keyboard={false}
-      zoomControl={false}
-      attributionControl={false}
-      className="h-[340px] w-[520px] max-w-[85vw] cursor-default rounded-md"
-    >
-      <TileLayer
-        attribution='&copy; OpenStreetMap contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
-      <CircleMarker
-        center={[punto.latitud, punto.longitud]}
-        radius={5}
-        pathOptions={{ color: '#ffffff', weight: 2, fillColor: '#eb6c36', fillOpacity: 1 }}
-      />
-    </MapContainer>
-  );
+  return <MapaPuntoMini lat={punto.latitud} lng={punto.longitud} />;
 }
 
 /** Ubicación con coordenadas clicables: abren el mapa de referencia. */
