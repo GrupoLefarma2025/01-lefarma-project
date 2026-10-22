@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Info } from 'lucide-react';
@@ -128,6 +128,8 @@ function desgloseTiempo(oferta: CostosRutaOferta): {
   antes: number;
   despues: number;
   taxi: number;
+  /** El motor ya manda los dos taxis por separado (aunque alguno sea desconocido). */
+  conDesgloseTaxi: boolean;
   taxiOrigen: number | null;
   taxiDestino: number | null;
 } | null {
@@ -138,11 +140,22 @@ function desgloseTiempo(oferta: CostosRutaOferta): {
   const despues = oferta.minutosDespues ?? 0;
   const taxi = oferta.minutosTaxi ?? 0;
   const viaje = Math.max(0, puertaAPuerta - antes - despues);
-  // Dos taxis: punto → terminal y terminal → punto. Un cálculo viejo puede no
-  // traer el desglose; en ese caso queda el total en una sola fila.
-  const taxiOrigen = oferta.minutosTaxiOrigen ?? null;
-  const taxiDestino = oferta.minutosTaxiDestino ?? null;
-  return { total: viaje + antes + despues + taxi, viaje, antes, despues, taxi, taxiOrigen, taxiDestino };
+  // Dos taxis: punto → terminal y terminal → punto. `null` es "no se sabe
+  // dónde está la terminal"; un cálculo viejo puede no traer ni el campo.
+  const conDesgloseTaxi = oferta.minutosTaxiOrigen != null
+    || oferta.minutosTaxiDestino != null
+    || 'minutosTaxiOrigen' in oferta
+    || 'minutosTaxiDestino' in oferta;
+  return {
+    total: viaje + antes + despues + taxi,
+    viaje,
+    antes,
+    despues,
+    taxi,
+    conDesgloseTaxi,
+    taxiOrigen: oferta.minutosTaxiOrigen ?? null,
+    taxiDestino: oferta.minutosTaxiDestino ?? null,
+  };
 }
 
 /**
@@ -168,6 +181,11 @@ const capturasPorUrl = new Map<string, string>();
 /** URLs con captura en curso, para no pedirla dos veces. */
 const capturasEnCurso = new Set<string>();
 
+/** Solo los enlaces de resultados de ClickBus prueban el precio. */
+function esCapturable(url: string | undefined): boolean {
+  return typeof url === 'string' && url.includes('/trips?departure_place=');
+}
+
 /** Nombre estable y válido ([a-zA-Z0-9_-]) derivado de la URL. */
 function nombreCaptura(url: string): string {
   let hash = 7;
@@ -177,37 +195,44 @@ function nombreCaptura(url: string): string {
 
 /**
  * Toma en segundo plano la captura de las mejores ofertas de autobús, sin
- * bloquear la tabla. Solo aplica a los enlaces de resultados de ClickBus: en
- * las demás fuentes la página no prueba el precio de esa opción.
+ * bloquear la tabla.
  *
- * Devuelve url -> archivo y, cuando llega, la deja también en
- * `oferta.rutaCaptura` para que viaje en `solicitud_opciones` al enviar.
+ * La dependencia del efecto es la lista de URLs (string), no el arreglo de
+ * ofertas: si dependiera del arreglo, cada re-render reiniciaría el efecto y
+ * la limpieza descartaría el resultado de la captura en curso (el PNG se
+ * generaba pero nunca llegaba a la tabla).
  */
 function useCapturasAutomaticas(ofertas: CostosRutaOferta[]): Record<string, string> {
   const [rutas, setRutas] = useState<Record<string, string>>({});
+  // Referencia estable: el efecto no debe reiniciarse cuando el padre
+  // reconstruye el arreglo de ofertas en cada render.
+  const ofertasRef = useRef(ofertas);
+  ofertasRef.current = ofertas;
+
+  const clave = [
+    ...new Set(
+      ofertas
+        .filter((o) => o.modo === 'bus' && esCapturable(o.comprar?.url))
+        .map((o) => o.comprar?.url as string),
+    ),
+  ]
+    .slice(0, 2)
+    .join('|');
 
   useEffect(() => {
-    const urls = [
-      ...new Set(
-        ofertas
-          .filter((o) => o.modo === 'bus' && o.comprar?.url?.includes('/trips?departure_place='))
-          .map((o) => o.comprar?.url as string),
-      ),
-    ].slice(0, 3);
-
+    const urls = clave.split('|').filter((u) => u.length > 0);
     if (urls.length === 0) return;
 
-    const desdeCache: Record<string, string> = {};
+    // Hidrata lo ya capturado en esta sesión del navegador.
+    const conocidas: Record<string, string> = {};
     for (const url of urls) {
       const ruta = capturasPorUrl.get(url);
-      if (ruta) desdeCache[url] = ruta;
+      if (ruta) conocidas[url] = ruta;
     }
-    if (Object.keys(desdeCache).length > 0) setRutas((prev) => ({ ...prev, ...desdeCache }));
+    if (Object.keys(conocidas).length > 0) setRutas((prev) => ({ ...prev, ...conocidas }));
 
     const pendientes = urls.filter((u) => !capturasPorUrl.has(u) && !capturasEnCurso.has(u));
     if (pendientes.length === 0) return;
-
-    let cancelado = false;
     for (const url of pendientes) capturasEnCurso.add(url);
 
     void (async () => {
@@ -219,10 +244,10 @@ function useCapturasAutomaticas(ofertas: CostosRutaOferta[]): Record<string, str
             capturasPorUrl.set(url, archivo);
             // El padre arma `solicitud_opciones` con estos mismos objetos: al
             // dejarlo en la oferta, la captura viaja al enviar.
-            for (const oferta of ofertas) {
+            for (const oferta of ofertasRef.current) {
               if (oferta.comprar?.url === url) oferta.rutaCaptura = archivo;
             }
-            if (!cancelado) setRutas((prev) => ({ ...prev, [url]: archivo }));
+            setRutas((prev) => ({ ...prev, [url]: archivo }));
           }
         } catch {
           // Sin captura: la fila se queda en "Sin captura" y el flujo sigue.
@@ -231,11 +256,7 @@ function useCapturasAutomaticas(ofertas: CostosRutaOferta[]): Record<string, str
         }
       }
     })();
-
-    return () => {
-      cancelado = true;
-    };
-  }, [ofertas]);
+  }, [clave]);
 
   return rutas;
 }
@@ -281,6 +302,9 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
           {ofertas.map((o) => {
             const elegida = opcionElegidaId === o.id;
             const etiqueta = `${o.linea} ${o.salidaTxt} → ${o.llegadaTxt}`;
+            const urlCompra = o.comprar?.url;
+            const rutaCaptura = capturas[urlCompra ?? ''] ?? o.capturas?.[0] ?? o.rutaCaptura;
+            const capturando = !rutaCaptura && esCapturable(urlCompra);
             return (
               <TableRow key={o.id} data-state={elegida ? 'selected' : undefined}>
                 <TableCell>
@@ -327,29 +351,31 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                     if (!d) {
                       return <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.duracion}</Badge>;
                     }
-                    const partes: { etiqueta: string; minutos: number }[] = [
-                      { etiqueta: 'Viaje', minutos: d.viaje },
-                      { etiqueta: 'En terminal', minutos: d.antes },
-                      { etiqueta: 'Maletas', minutos: d.despues },
-                    ];
-                    if (d.taxiOrigen === null && d.taxiDestino === null) {
-                      partes.push({ etiqueta: 'Taxi', minutos: d.taxi });
-                    } else {
-                      // Son dos taxis: el del punto a la terminal y el de la
-                      // terminal al punto final.
-                      partes.push({ etiqueta: 'Taxi punto → terminal', minutos: d.taxiOrigen ?? 0 });
-                      partes.push({ etiqueta: 'Taxi terminal → punto', minutos: d.taxiDestino ?? 0 });
+                    const filas: { etiqueta: string; valor: string }[] = [];
+                    if (d.viaje > 0) filas.push({ etiqueta: 'Viaje', valor: minutosTexto(d.viaje) });
+                    if (d.antes > 0) filas.push({ etiqueta: 'En terminal', valor: minutosTexto(d.antes) });
+                    if (d.despues > 0) filas.push({ etiqueta: 'Maletas', valor: minutosTexto(d.despues) });
+                    if (d.conDesgloseTaxi) {
+                      // Son dos taxis. El que no se puede estimar (terminal por
+                      // confirmar) se declara; nunca se pinta un 0 inventado.
+                      const valorTaxi = (minutos: number | null) => {
+                        if (minutos === null) return 'por confirmar';
+                        return minutos > 0 ? minutosTexto(minutos) : 'sin traslado';
+                      };
+                      filas.push({ etiqueta: 'Taxi punto → terminal', valor: valorTaxi(d.taxiOrigen) });
+                      filas.push({ etiqueta: 'Taxi terminal → punto', valor: valorTaxi(d.taxiDestino) });
+                    } else if (d.taxi > 0) {
+                      filas.push({ etiqueta: 'Taxi', valor: minutosTexto(d.taxi) });
                     }
-                    const visibles = partes.filter((parte) => parte.minutos > 0);
                     return (
                       <>
                         <Badge variant="outline" className="whitespace-nowrap tabular-nums">{duracionHm(d.total)}</Badge>
                         <table className="mt-1 text-xs text-muted-foreground">
                           <tbody>
-                            {visibles.map((parte) => (
-                              <tr key={parte.etiqueta}>
-                                <td className="pr-2">{parte.etiqueta}</td>
-                                <td className="whitespace-nowrap tabular-nums">{minutosTexto(parte.minutos)}</td>
+                            {filas.map((fila) => (
+                              <tr key={fila.etiqueta}>
+                                <td className="pr-2">{fila.etiqueta}</td>
+                                <td className="whitespace-nowrap tabular-nums">{fila.valor}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -362,10 +388,11 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                   <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.precioTxt}</Badge>
                 </TableCell>
                 <TableCell>
-                  <CeldaCaptura
-                    ruta={capturas[o.comprar?.url ?? ''] ?? o.capturas?.[0] ?? o.rutaCaptura}
-                    etiqueta={etiqueta}
-                  />
+                  {capturando ? (
+                    <span className="text-xs text-muted-foreground">Capturando…</span>
+                  ) : (
+                    <CeldaCaptura ruta={rutaCaptura} etiqueta={etiqueta} />
+                  )}
                 </TableCell>
                 <TableCell>
                   {o.comprar?.url ? (
