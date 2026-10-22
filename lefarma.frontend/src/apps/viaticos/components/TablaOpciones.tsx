@@ -10,8 +10,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import type { CostosRutaOferta } from '../types/costosRuta.types';
-import { CeldaCaptura, CeldaFuente } from './celdasCotizacion';
+import type { CostosRutaOferta, CostosRutaTerminal } from '../types/costosRuta.types';
+import { CeldaCaptura } from './celdasCotizacion';
 
 export interface TablaOpcionesProps {
   /** Etiqueta del tramo, para el encabezado de la tabla. */
@@ -44,6 +44,41 @@ function BadgeModo({ modo }: { modo: string }) {
     return <Badge variant="outline">{modo}</Badge>;
   }
   return <Badge variant="outline" className={config.clase}>{config.texto}</Badge>;
+}
+
+const MESES = [
+  'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+  'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
+];
+
+/** "23/10 14:30" (formato del motor) -> fecha en letra y hora, por separado. */
+function partirFechaHora(texto: string): { fecha: string; hora: string } | null {
+  const partes = /^(\d{1,2})\/(\d{1,2})\s+(\d{1,2}:\d{2})$/.exec(texto.trim());
+  if (!partes) return null;
+  const dia = Number(partes[1]);
+  const mes = Number(partes[2]);
+  if (!dia || mes < 1 || mes > 12) return null;
+  return { fecha: `${dia} de ${MESES[mes - 1]}`, hora: partes[3] };
+}
+
+/**
+ * Salida y llegada como dos badges: la fecha en letra ("23 de octubre") y la
+ * hora tal como la trae el motor ("14:30"). Si el texto no trae el formato
+ * esperado se pinta intacto: nunca se pierde la información.
+ */
+function FechaHoraBadges({ texto }: { texto: string }) {
+  const partes = partirFechaHora(texto);
+  if (!partes) return <>{texto}</>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      <Badge variant="outline" className="whitespace-nowrap border-slate-200 bg-slate-50 text-slate-700">
+        {partes.fecha}
+      </Badge>
+      <Badge variant="outline" className="whitespace-nowrap border-slate-200 tabular-nums">
+        {partes.hora}
+      </Badge>
+    </div>
+  );
 }
 
 /** Minutos como "2 h" / "30 min" / "2 h 30 min". */
@@ -91,6 +126,28 @@ function desgloseTiempo(oferta: CostosRutaOferta): { total: number; viaje: numbe
   return { total: viaje + antes + despues + taxi, viaje, antes, despues, taxi };
 }
 
+/**
+ * Terminal del extremo del viaje: la que informa el proveedor (ClickBus) o,
+ * si no hay, la que estima el motor. Se muestra con sus coordenadas; sin
+ * terminal no pinta nada, para no dejar lineas vacias en la tabla.
+ */
+function TerminalLinea({ terminal }: { terminal?: CostosRutaTerminal | null }) {
+  if (!terminal?.nombre) return null;
+  const coords =
+    terminal.latitud && terminal.longitud
+      ? `${terminal.latitud.toFixed(4)}, ${terminal.longitud.toFixed(4)}`
+      : null;
+  return (
+    <div
+      className="mt-1 max-w-[190px] text-xs text-muted-foreground"
+      title={coords ? `${terminal.nombre} · ${coords}` : terminal.nombre}
+    >
+      <div className="truncate">{terminal.nombre}</div>
+      {coords && <div className="tabular-nums">{coords}</div>}
+    </div>
+  );
+}
+
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
   return (
     <div className="space-y-2">
@@ -122,7 +179,6 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
               </span>
             </TableHead>
             <TableHead>Precio</TableHead>
-            <TableHead>Fuente</TableHead>
             <TableHead>Captura</TableHead>
             <TableHead>Comprar</TableHead>
             <TableHead className="text-right">Elegir</TableHead>
@@ -143,34 +199,45 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                   </div>
                 </TableCell>
                 <TableCell><BadgeModo modo={o.modo} /></TableCell>
-                <TableCell>{o.salidaTxt}</TableCell>
-                <TableCell>{o.llegadaTxt}</TableCell>
+                <TableCell>
+                  <FechaHoraBadges texto={o.salidaTxt} />
+                  <TerminalLinea terminal={o.terminalOrigen} />
+                </TableCell>
+                <TableCell>
+                  <FechaHoraBadges texto={o.llegadaTxt} />
+                  <TerminalLinea terminal={o.terminalDestino} />
+                </TableCell>
                 <TableCell>
                   {(() => {
                     const d = desgloseTiempo(o);
-                    if (!d) return <div>{o.duracion}</div>;
-                    const partes = [
-                      `${minutosTexto(d.viaje)} de viaje`,
-                      d.antes > 0 ? `${minutosTexto(d.antes)} antes` : '',
-                      d.despues > 0 ? `${minutosTexto(d.despues)} de maletas` : '',
-                      d.taxi > 0 ? `${minutosTexto(d.taxi)} de taxi` : '',
-                    ].filter(Boolean);
+                    if (!d) {
+                      return <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.duracion}</Badge>;
+                    }
+                    const partes: { etiqueta: string; minutos: number }[] = [
+                      { etiqueta: 'Viaje', minutos: d.viaje },
+                      { etiqueta: 'En terminal', minutos: d.antes },
+                      { etiqueta: 'Maletas', minutos: d.despues },
+                      { etiqueta: 'Taxi', minutos: d.taxi },
+                    ].filter((parte) => parte.minutos > 0);
                     return (
                       <>
-                        <div>{duracionHm(d.total)}</div>
-                        <div className="text-xs text-muted-foreground">{partes.join(' + ')}</div>
+                        <Badge variant="outline" className="whitespace-nowrap tabular-nums">{duracionHm(d.total)}</Badge>
+                        <table className="mt-1 text-xs text-muted-foreground">
+                          <tbody>
+                            {partes.map((parte) => (
+                              <tr key={parte.etiqueta}>
+                                <td className="pr-2">{parte.etiqueta}</td>
+                                <td className="whitespace-nowrap tabular-nums">{minutosTexto(parte.minutos)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </>
                     );
                   })()}
                 </TableCell>
                 <TableCell>
-                  <div>{o.precioTxt}</div>
-                  {o.porPersona === false && (
-                    <div className="text-xs text-muted-foreground">precio del grupo</div>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <CeldaFuente fuente={o.fuente} estimado={o.estimado} />
+                  <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.precioTxt}</Badge>
                 </TableCell>
                 <TableCell>
                   <CeldaCaptura ruta={o.capturas?.[0] ?? o.rutaCaptura} etiqueta={etiqueta} />

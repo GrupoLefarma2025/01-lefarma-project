@@ -16,7 +16,8 @@ namespace Lefarma.API.Features.Viaticos;
 
 public record RutaCarretera(double Km, double Horas, string Fuente, List<(double Lat, double Lon)>? Grafica = null);
 public record PreciosGasolina(double Magna, double Premium, string Fuente);
-public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota);
+public record ViajeBus(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, int? Asientos, string Fuente, string Url, string Nota,
+    CostosRutaTerminal? TerminalOrigen = null, CostosRutaTerminal? TerminalDestino = null);
 public record ViajeVuelo(string Linea, DateTime Salida, DateTime Llegada, double PrecioDesde, double PrecioHasta, string Fuente, string Url, string Nota);
 
 public static class CalculoCostosRuta
@@ -153,7 +154,9 @@ public static class CalculoCostosRuta
         double PuertaH, int OverheadMin, double Lo, double Hi, double CostoGrupo, bool PorPersona,
         double? Litros, double? PrecioLitro, double? CasetasVal, double? TarifaDia,
         bool Late, bool SaleAntes, int LateMin, string Fuente, bool Estimado, string Nota,
-        string Url, string Sitio, string Accion, string Objetivo, string Badge);
+        string Url, string Sitio, string Accion, string Objetivo, string Badge,
+        // Terminal real que informa el proveedor (ClickBus). Null = usar la sembrada.
+        CostosRutaTerminal? TerminalOrigenDato = null, CostosRutaTerminal? TerminalDestinoDato = null);
 
     private sealed record TramoCalc(string From, string To, double Km, double Hrs, List<OpCalc> Opciones,
         List<(double Lat, double Lon)>? Grafica = null);
@@ -461,6 +464,8 @@ public static class CalculoCostosRuta
                 var precio = 0.0;
                 var linea = "ClickBus";
                 int? asientos = null;
+                string? estacionOrigen = null;
+                string? estacionDestino = null;
 
                 foreach (var part in parts.EnumerateArray())
                 {
@@ -468,9 +473,13 @@ public static class CalculoCostosRuta
                     {
                         precio += PrecioClickBus(dep);
                         salida ??= FechaHoraClickBus(dep);
+                        estacionOrigen ??= NombreEstacionClickBus(dep);
                     }
                     if (part.TryGetProperty("arrival", out var arr))
+                    {
                         llegada = FechaHoraClickBus(arr) ?? llegada;
+                        estacionDestino = NombreEstacionClickBus(arr) ?? estacionDestino;
+                    }
                     if (part.TryGetProperty("busCompany", out var empresa)
                         && empresa.TryGetProperty("name", out var nombreEmpresa))
                         linea = nombreEmpresa.GetString() ?? linea;
@@ -481,12 +490,19 @@ public static class CalculoCostosRuta
 
                 if (salida is null || llegada is null || precio <= 0) continue;
 
+                // Terminal real del proveedor, con coordenadas geocodificadas
+                // (cache 24 h). Si no se puede geocodificar, el nombre se
+                // conserva y la coordenada queda en 0.
+                var terminalOrigen = await TerminalGeocodificadaAsync(http, cache, estacionOrigen, ct);
+                var terminalDestino = await TerminalGeocodificadaAsync(http, cache, estacionDestino, ct);
+
                 // Precio unico: el cotizado es el que se cobra. Nunca se le suma un
                 // margen ni se convierte en rango (regla: solo precios reales).
                 var total = Math.Round(precio, 2);
                 viajes.Add(new ViajeBus(linea, salida.Value, llegada.Value, total, total, asientos,
                     "ClickBus (en vivo)", "https://www.clickbus.com.mx/es/",
-                    "precio y horario del adapter de ClickBus"));
+                    "precio y horario del adapter de ClickBus",
+                    terminalOrigen, terminalDestino));
             }
 
             return viajes;
@@ -614,6 +630,75 @@ public static class CalculoCostosRuta
         if (string.IsNullOrWhiteSpace(fecha) || string.IsNullOrWhiteSpace(hora)) return null;
         return DateTime.TryParse($"{fecha}T{hora}", System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
+    }
+
+    /// <summary>
+    /// Nombre de la estacion (terminal) que informa ClickBus para un extremo del
+    /// viaje: `waypoint.place.station.current.name`; si no viene, la ciudad.
+    /// </summary>
+    private static string? NombreEstacionClickBus(JsonElement nodo)
+    {
+        if (!nodo.TryGetProperty("waypoint", out var wp)
+            || !wp.TryGetProperty("place", out var place)) return null;
+
+        if (place.TryGetProperty("station", out var station)
+            && station.TryGetProperty("current", out var actual)
+            && actual.TryGetProperty("name", out var nombre)
+            && nombre.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(nombre.GetString()))
+            return nombre.GetString();
+
+        return place.TryGetProperty("city", out var ciudad) && ciudad.ValueKind == JsonValueKind.String
+            ? ciudad.GetString()
+            : null;
+    }
+
+    /// <summary>
+    /// Nombre de terminal -> terminal con coordenadas. Geocodifica con Nominatim
+    /// una sola vez por nombre (cache 24 h, incluidos los fallos) porque las
+    /// terminales de ClickBus no traen latitud/longitud en su API.
+    /// </summary>
+    private static async Task<CostosRutaTerminal?> TerminalGeocodificadaAsync(
+        HttpClient http, IMemoryCache cache, string? nombre, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(nombre)) return null;
+        var limpio = nombre.Trim();
+        var clave = "terminal-geo:" + limpio.ToLowerInvariant();
+        if (cache.TryGetValue(clave, out CostosRutaTerminal? guardada)) return guardada;
+
+        try
+        {
+            var url = $"https://nominatim.openstreetmap.org/search?q={Uri.EscapeDataString(limpio)}"
+                + "&format=jsonv2&limit=1&countrycodes=mx";
+            using var req = new HttpRequestMessage(HttpMethod.Get, url);
+            req.Headers.UserAgent.ParseAdd("LefarmaViaticos/1.0 (sistemas@grupolefarma.com.mx)");
+            using var res = await http.SendAsync(req, ct);
+            res.EnsureSuccessStatusCode();
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
+            {
+                cache.Set(clave, (CostosRutaTerminal?)null, TimeSpan.FromHours(24));
+                return null;
+            }
+
+            var el = doc.RootElement[0];
+            if (!double.TryParse(el.GetProperty("lat").GetString(), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var lat)
+                || !double.TryParse(el.GetProperty("lon").GetString(), System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out var lon))
+            {
+                cache.Set(clave, (CostosRutaTerminal?)null, TimeSpan.FromHours(24));
+                return null;
+            }
+
+            var terminal = new CostosRutaTerminal { Nombre = limpio, Latitud = lat, Longitud = lon };
+            cache.Set(clave, terminal, TimeSpan.FromHours(24));
+            return terminal;
+        }
+        catch
+        {
+            return null; // sin coordenada: el nombre se conserva igual
+        }
     }
 
     public static async Task<List<ViajeBus>> BuscarBusesDistribusionAsync(HttpClient http,
@@ -1067,7 +1152,8 @@ public static class CalculoCostosRuta
                     mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
                     mejor.Fuente, busEstimado, $"{mejor.Nota} · cotiza en el sitio/app oficial",
                     mejor.Url, "ClickBus",
-                    "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", ""));
+                    "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", "",
+                    mejor.TerminalOrigen, mejor.TerminalDestino));
             }
 
             var (iataO, iataD) = (keyO is not null ? Ciudades[keyO].Iata : null,
@@ -1608,8 +1694,8 @@ public static class CalculoCostosRuta
             MinutosTaxi = o.Modo is "bus" or "avion"
                 ? MinutosTaxiTerminal(lugarOrigen, lugarDestino, terminalOrigen, terminalDestino)
                 : 0,
-            TerminalOrigen = TerminalDto(terminalOrigen),
-            TerminalDestino = TerminalDto(terminalDestino),
+            TerminalOrigen = o.TerminalOrigenDato ?? TerminalDto(terminalOrigen),
+            TerminalDestino = o.TerminalDestinoDato ?? TerminalDto(terminalDestino),
             // Un precio cotizado es un numero, no un rango: si Lo y Hi coinciden
             // (proveedor real) se muestra una sola cifra. El rango solo sobrevive
             // en la tarifa estimada, que se etiqueta como tal.
