@@ -404,7 +404,7 @@ public static class CalculoCostosRuta
     private const string ClickBusAdapterBase = "https://adapter.clickbus.com.mx/api";
 
     /// <summary>Lugar del catalogo de ClickBus (`places/get-all`).</summary>
-    private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo);
+    private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo, string Estado);
 
     /// <summary>
     /// Viajes reales de autobus desde el adapter de ClickBus.
@@ -424,7 +424,8 @@ public static class CalculoCostosRuta
     /// precio real.
     /// </summary>
     public static async Task<List<ViajeBus>> BuscarBusesClickBusAsync(HttpClient http,
-        string origen, string destino, DateOnly fecha, IMemoryCache cache, CancellationToken ct)
+        string origen, string destino, DateOnly fecha, IMemoryCache cache, CancellationToken ct,
+        string? estadoOrigen = null, string? estadoDestino = null)
     {
         try
         {
@@ -433,8 +434,8 @@ public static class CalculoCostosRuta
             var t = cts.Token;
 
             var lugares = await ObtenerLugaresClickBusAsync(http, cache, t);
-            var slugOrigen = ResolverSlugClickBus(lugares, origen);
-            var slugDestino = ResolverSlugClickBus(lugares, destino);
+            var slugOrigen = ResolverSlugClickBus(lugares, origen, estadoOrigen);
+            var slugDestino = ResolverSlugClickBus(lugares, destino, estadoDestino);
             if (slugOrigen is null || slugDestino is null)
                 throw new InvalidOperationException($"ClickBus no tiene {origen} → {destino} en su catalogo");
 
@@ -546,7 +547,13 @@ public static class CalculoCostosRuta
                         slug,
                         p.TryGetProperty("name", out var n) ? n.GetString() ?? "" : "",
                         p.TryGetProperty("city", out var c) ? c.GetString() ?? "" : "",
-                        p.TryGetProperty("terminal_type", out var tt) ? tt.GetString() ?? "" : ""));
+                        p.TryGetProperty("terminal_type", out var tt) ? tt.GetString() ?? "" : "",
+                        p.TryGetProperty("place", out var place)
+                            && place.TryGetProperty("state", out var state)
+                            && state.TryGetProperty("name", out var nombreEstado)
+                            && nombreEstado.ValueKind == JsonValueKind.String
+                                ? nombreEstado.GetString() ?? ""
+                                : ""));
                 }
             }
         }
@@ -565,25 +572,49 @@ public static class CalculoCostosRuta
     /// Devuelve null cuando el destino no existe en el catalogo (caso real:
     /// Xicotlan no esta entre los 1,642 destinos de ClickBus).
     /// </summary>
-    private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre)
+    private static string? ResolverSlugClickBus(List<LugarClickBus> lugares, string nombre, string? estado = null)
     {
         if (lugares.Count == 0) return null;
         var buscado = NormalizarTexto(nombre);
         if (buscado.Length == 0) return null;
+        var estadoBuscado = NormalizarTexto(estado ?? "");
 
         static bool EsGrupo(LugarClickBus l) =>
             l.Tipo.Contains("Todas las Terminales", StringComparison.OrdinalIgnoreCase);
 
-        var candidatos = lugares
+        var todos = lugares
             .Where(l => !string.IsNullOrWhiteSpace(l.Ciudad))
-            .Select(l => new { Lugar = l, Ciudad = NormalizarTexto(l.Ciudad), Nombre = NormalizarTexto(l.Nombre) })
+            .Select(l => new
+            {
+                Lugar = l,
+                Ciudad = NormalizarTexto(l.Ciudad),
+                Nombre = NormalizarTexto(l.Nombre),
+                Estado = NormalizarTexto(l.Estado),
+            })
             .ToList();
+
+        // El estado del viaje desambigua: "Victoria de Durango" (Durango) no es
+        // la "Victoria" de Texas, ni "Ciudad Victoria" (Tamaulipas) es esa misma.
+        var candidatos = estadoBuscado.Length > 0
+            ? todos.Where(x => x.Estado.Length > 0
+                && (x.Estado == estadoBuscado
+                    || x.Estado.Contains(estadoBuscado, StringComparison.Ordinal)
+                    || estadoBuscado.Contains(x.Estado, StringComparison.Ordinal))).ToList()
+            : todos;
+        if (candidatos.Count == 0) candidatos = todos;
 
         var coincidencias = candidatos.Where(x => x.Ciudad == buscado).ToList();
         if (coincidencias.Count == 0)
             coincidencias = candidatos
                 .Where(x => x.Ciudad.StartsWith(buscado, StringComparison.Ordinal)
                          || buscado.StartsWith(x.Ciudad, StringComparison.Ordinal)).ToList();
+        if (coincidencias.Count == 0)
+            // El municipio contiene el nombre de la ciudad ("Victoria de Durango"
+            // contiene "Durango"): gana la coincidencia mas larga.
+            coincidencias = candidatos
+                .Where(x => buscado.Contains(x.Ciudad, StringComparison.Ordinal))
+                .OrderByDescending(x => x.Ciudad.Length)
+                .ToList();
         if (coincidencias.Count == 0)
             coincidencias = candidatos.Where(x => x.Nombre.Contains(buscado, StringComparison.Ordinal)).ToList();
         if (coincidencias.Count == 0) return null;
@@ -683,8 +714,11 @@ public static class CalculoCostosRuta
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
             if (doc.RootElement.ValueKind != JsonValueKind.Array || doc.RootElement.GetArrayLength() == 0)
             {
-                cache.Set(clave, (CostosRutaTerminal?)null, TimeSpan.FromHours(24));
-                return null;
+                // Sin resultado del geocoder se conserva el nombre real de la
+                // terminal: perderlo por una coordenada faltante seria peor.
+                var sinPunto = new CostosRutaTerminal { Nombre = limpio };
+                cache.Set(clave, sinPunto, TimeSpan.FromHours(24));
+                return sinPunto;
             }
 
             var el = doc.RootElement[0];
@@ -693,8 +727,9 @@ public static class CalculoCostosRuta
                 || !double.TryParse(el.GetProperty("lon").GetString(), System.Globalization.NumberStyles.Any,
                     System.Globalization.CultureInfo.InvariantCulture, out var lon))
             {
-                cache.Set(clave, (CostosRutaTerminal?)null, TimeSpan.FromHours(24));
-                return null;
+                var sinPunto = new CostosRutaTerminal { Nombre = limpio };
+                cache.Set(clave, sinPunto, TimeSpan.FromHours(24));
+                return sinPunto;
             }
 
             var terminal = new CostosRutaTerminal { Nombre = limpio, Latitud = lat, Longitud = lon };
@@ -703,7 +738,10 @@ public static class CalculoCostosRuta
         }
         catch
         {
-            return null; // sin coordenada: el nombre se conserva igual
+            // Nominatim caido o lento: nombre si, coordenadas no.
+            var sinPunto = new CostosRutaTerminal { Nombre = limpio };
+            cache.Set(clave, sinPunto, TimeSpan.FromHours(1));
+            return sinPunto;
         }
     }
 
@@ -1139,7 +1177,7 @@ public static class CalculoCostosRuta
             var ciudadDestino = string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio;
             foreach (var f in fechas)
             {
-                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, DateOnly.FromDateTime(f), cache, ct));
+                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, DateOnly.FromDateTime(f), cache, ct, a.Estado, b.Estado));
                 candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), ct));
             }
             // El estimado es el ultimo recurso: solo aparece cuando ningun
