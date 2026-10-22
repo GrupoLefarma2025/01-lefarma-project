@@ -1,4 +1,4 @@
-import { ExternalLink, Ticket } from 'lucide-react';
+import { ExternalLink, ImageOff, Ticket } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { CeldaCaptura } from './celdasCotizacion';
+import { useCapturaAutenticada } from './celdasCotizacion';
 import { importeFormateado } from '../types/aprobaciones.types';
 import type { SolicitudOpcion } from '../types/solicitud.types';
 
@@ -29,25 +29,70 @@ function precio(opcion: SolicitudOpcion): string | null {
   return importeFormateado(opcion.precio, opcion.moneda);
 }
 
-/** Una opción con su boleto: línea, precio, enlace de compra y captura. */
+/** Captura de la opción: miniatura que abre la imagen completa, o su ausencia. */
+function CapturaBoleto({ ruta, etiqueta }: { ruta?: string; etiqueta: string }) {
+  const estado = useCapturaAutenticada(ruta);
+
+  if (!ruta) {
+    return (
+      <div className="flex h-24 w-full items-center justify-center gap-1.5 rounded-md border border-dashed text-xs text-muted-foreground sm:w-40">
+        <ImageOff className="h-4 w-4" aria-hidden />
+        Sin captura
+      </div>
+    );
+  }
+  if (estado.error) {
+    return (
+      <p role="alert" className="flex h-24 w-full items-center justify-center rounded-md border text-xs text-destructive sm:w-40">
+        {estado.error}
+      </p>
+    );
+  }
+  if (!estado.url) {
+    return (
+      <div className="flex h-24 w-full items-center justify-center rounded-md border text-xs text-muted-foreground sm:w-40">
+        Cargando captura…
+      </div>
+    );
+  }
+  return (
+    <a
+      href={estado.url}
+      target="_blank"
+      rel="noreferrer"
+      title={`Ver captura completa · ${etiqueta}`}
+      className="block"
+    >
+      <img
+        src={estado.url}
+        alt={`Captura de pantalla de ${etiqueta}`}
+        className="h-24 w-full rounded-md border object-cover sm:w-40"
+      />
+    </a>
+  );
+}
+
+/** Una opción con su boleto: línea, precio, fuente, enlace de compra y captura. */
 function FilaBoleto({ opcion }: { opcion: SolicitudOpcion }) {
   const captura = opcion.ruta_captura ?? undefined;
   const importe = precio(opcion);
 
   return (
-    <li className="flex flex-wrap items-start gap-3 rounded-md border p-3 text-sm">
-      <div className="min-w-0 flex-1 space-y-1">
+    <li className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium">{opcion.linea}</span>
+          <span className="text-base font-semibold">{opcion.linea}</span>
           <Badge variant="outline" className="font-normal">
             {ETIQUETA_TIPO[opcion.tipo] ?? opcion.tipo}
           </Badge>
           {opcion.fue_elegida ? <Badge className="font-normal">Elegida</Badge> : null}
         </div>
-        <p className="text-xs text-muted-foreground">
-          {importe ?? 'Sin precio registrado'}
-          {opcion.fuente ? ` · ${opcion.fuente}` : ''}
-        </p>
+        <p className="text-lg font-semibold tabular-nums">{importe ?? 'Sin precio registrado'}</p>
+        {opcion.fuente ? (
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium text-foreground/70">Fuente:</span> {opcion.fuente}
+          </p>
+        ) : null}
         {opcion.url_compra ? (
           <Button asChild variant="outline" size="sm" className="gap-1.5">
             <a href={opcion.url_compra} target="_blank" rel="noreferrer">
@@ -59,7 +104,7 @@ function FilaBoleto({ opcion }: { opcion: SolicitudOpcion }) {
           <p className="text-xs text-muted-foreground">Sin enlace de compra registrado.</p>
         )}
       </div>
-      <CeldaCaptura ruta={captura} etiqueta={opcion.linea} />
+      <CapturaBoleto ruta={captura} etiqueta={opcion.linea} />
     </li>
   );
 }
