@@ -440,6 +440,12 @@ public static class CalculoCostosRuta
 
             var url = $"{ClickBusAdapterBase}/trips/search?from={slugOrigen}&to={slugDestino}"
                 + $"&departure={fecha:yyyy-MM-dd}&currency=MXN&return=";
+            // Enlace publico de resultados con la misma ruta y fecha. Es el que
+            // se usa para "ver costo del boleto" y para la captura de pantalla:
+            // los parametros reales del sitio son departure_place/arrival_place
+            // (no origin/destination).
+            var urlCompra = $"https://www.clickbus.com.mx/trips?departure_place={slugOrigen}"
+                + $"&arrival_place={slugDestino}&departure_date={fecha:yyyy-MM-dd}&minPrice=0&maxPrice=5000";
             using var res = await http.GetAsync(url, t);
             res.EnsureSuccessStatusCode();
             using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
@@ -500,7 +506,7 @@ public static class CalculoCostosRuta
                 // margen ni se convierte en rango (regla: solo precios reales).
                 var total = Math.Round(precio, 2);
                 viajes.Add(new ViajeBus(linea, salida.Value, llegada.Value, total, total, asientos,
-                    "ClickBus (en vivo)", "https://www.clickbus.com.mx/es/",
+                    "ClickBus (en vivo)", urlCompra,
                     "precio y horario del adapter de ClickBus",
                     terminalOrigen, terminalDestino));
             }
@@ -1542,28 +1548,20 @@ public static class CalculoCostosRuta
     }
 
     /// <summary>
-    /// Minutos estimados del traslado en taxi a la terminal (bus o avión): la
-    /// distancia del origen a su terminal más la de la terminal de destino al
-    /// punto final, a la velocidad urbana de <c>costos.taxi_km_h</c>. Si la
+    /// Minutos estimados de UN traslado en taxi entre un punto y su terminal
+    /// (bus o avión), a la velocidad urbana de <c>costos.taxi_km_h</c>. Si la
     /// ciudad no tiene terminal en el catálogo se cae al centro de la ciudad,
-    /// que es lo que ya se usa para costear el taxi.
+    /// que es lo que ya se usa para costear el taxi. El tramo tiene dos: del
+    /// punto de salida a su terminal y de la terminal de llegada al punto.
     /// </summary>
-    private static int MinutosTaxiTerminal(
-        LugarNorm? origen,
-        LugarNorm? destino,
-        (string Nombre, double Lat, double Lon)? terminalOrigen,
-        (string Nombre, double Lat, double Lon)? terminalDestino)
+    private static int MinutosTaxiPuntoTerminal(
+        LugarNorm? punto,
+        (string Nombre, double Lat, double Lon)? terminal)
     {
-        var km = 0.0;
-        if (origen is not null)
-            km += terminalOrigen is { } to
-                ? HaversineKm(origen.Lat, origen.Lon, to.Lat, to.Lon)
-                : DistanciaAlCentroKm(origen);
-        if (destino is not null)
-            km += terminalDestino is { } td
-                ? HaversineKm(destino.Lat, destino.Lon, td.Lat, td.Lon)
-                : DistanciaAlCentroKm(destino);
-
+        if (punto is null) return 0;
+        var km = terminal is { } t
+            ? HaversineKm(punto.Lat, punto.Lon, t.Lat, t.Lon)
+            : DistanciaAlCentroKm(punto);
         if (km <= 0) return 0;
         var velocidad = ConfiguracionViaticos.Double("costos.taxi_km_h", 25);
         if (velocidad <= 0) velocidad = 25;
@@ -1592,6 +1590,31 @@ public static class CalculoCostosRuta
         => terminal is { } t
             ? new CostosRutaTerminal { Nombre = t.Nombre, Latitud = t.Lat, Longitud = t.Lon }
             : null;
+
+    /// <summary>
+    /// Terminal de respaldo cuando el proveedor no la informa y la ciudad no
+    /// esta en el catalogo sembrado: usa el municipio del lugar con sus
+    /// coordenadas y la marca "por confirmar", para no inventar una terminal
+    /// que no conocemos. Solo aplica a bus y avion; en auto, renta, taxi o
+    /// transporte publico no hay terminal.
+    /// </summary>
+    private static CostosRutaTerminal? TerminalDeRespaldo(LugarNorm? lugar, string modo)
+    {
+        if (lugar is null || modo is not ("bus" or "avion")) return null;
+
+        var nombre = string.IsNullOrWhiteSpace(lugar.Municipio) ? lugar.Nombre : lugar.Municipio;
+        if (!string.IsNullOrWhiteSpace(lugar.Estado)
+            && !nombre.Contains(lugar.Estado, StringComparison.OrdinalIgnoreCase))
+            nombre += ", " + lugar.Estado;
+
+        var sufijo = modo == "avion" ? "(aeropuerto por confirmar)" : "(terminal por confirmar)";
+        return new CostosRutaTerminal
+        {
+            Nombre = $"{nombre} {sufijo}",
+            Latitud = lugar.Lat,
+            Longitud = lugar.Lon,
+        };
+    }
 
     /// <summary>Distancia del punto al centro de su ciudad; 0 si está dentro (≤ 3 km).</summary>
     private static double DistanciaAlCentroKm(LugarNorm lugar)
@@ -1678,6 +1701,12 @@ public static class CalculoCostosRuta
         // Terminal real (aeropuerto o central) a la que hay que llegar en taxi.
         var terminalOrigen = TerminalDe(o.Modo, lugarOrigen);
         var terminalDestino = TerminalDe(o.Modo, lugarDestino);
+        // El traslado a la terminal son DOS taxis: el del punto de salida a su
+        // terminal y el de la terminal de llegada al punto final. Auto propio,
+        // renta y taxi urbano no pagan traslado a terminal.
+        var usaTerminal = o.Modo is "bus" or "avion";
+        var minutosTaxiOrigen = usaTerminal ? MinutosTaxiPuntoTerminal(lugarOrigen, terminalOrigen) : 0;
+        var minutosTaxiDestino = usaTerminal ? MinutosTaxiPuntoTerminal(lugarDestino, terminalDestino) : 0;
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -1691,11 +1720,15 @@ public static class CalculoCostosRuta
             PuertaAPuertaH = Math.Round(o.PuertaH, 2),
             MinutosAntes = minutosAntes,
             MinutosDespues = minutosDespues,
-            MinutosTaxi = o.Modo is "bus" or "avion"
-                ? MinutosTaxiTerminal(lugarOrigen, lugarDestino, terminalOrigen, terminalDestino)
-                : 0,
-            TerminalOrigen = o.TerminalOrigenDato ?? TerminalDto(terminalOrigen),
-            TerminalDestino = o.TerminalDestinoDato ?? TerminalDto(terminalDestino),
+            MinutosTaxi = minutosTaxiOrigen + minutosTaxiDestino,
+            MinutosTaxiOrigen = minutosTaxiOrigen,
+            MinutosTaxiDestino = minutosTaxiDestino,
+            TerminalOrigen = o.TerminalOrigenDato
+                ?? TerminalDto(terminalOrigen)
+                ?? TerminalDeRespaldo(lugarOrigen, o.Modo),
+            TerminalDestino = o.TerminalDestinoDato
+                ?? TerminalDto(terminalDestino)
+                ?? TerminalDeRespaldo(lugarDestino, o.Modo),
             // Un precio cotizado es un numero, no un rango: si Lo y Hi coinciden
             // (proveedor real) se muestra una sola cifra. El rango solo sobrevive
             // en la tarifa estimada, que se etiqueta como tal.
