@@ -87,6 +87,37 @@ public class AprobacionesControllerTests
     // ---------------- GET /api/viaticos/solicitudes: destino y directorio ----------------
 
     [Fact]
+    public async Task Bandeja_SinGerenciaPropia_UsaLaUltimaDelViajero()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5200;
+        const int solicitanteId = 8201;
+        const int viajeroId = 8202;
+
+        // El viajero ya tenia una solicitud clasificada; la nueva nace "Sin asignar".
+        ctx.SembrarSolicitud(viajeroId, "autorizada", """{"total":100}""", gerencia: "IMSS Bienestar");
+        var sinGerencia = ctx.SembrarSolicitud(
+            solicitanteId,
+            "enviada",
+            $$"""{"persona":{"modo":"otra","empleadoId":{{viajeroId}},"nombre":"Viajero"},"total":200}""",
+            gerencia: SolicitudesController.GerenciaPorDefecto);
+        // Una solicitud que SI trae gerencia conserva la suya.
+        var conGerencia = ctx.SembrarSolicitud(
+            solicitanteId, "enviada", """{"total":300}""", gerencia: "Descentralizado");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Data!.Single(x => x.IdSolicitud == sinGerencia).Gerencia.Should().Be("IMSS Bienestar");
+        envelope.Data!.Single(x => x.IdSolicitud == conGerencia).Gerencia.Should().Be("Descentralizado");
+    }
+
+    [Fact]
     public async Task Bandeja_LeeDestinoDeDatosJsonYNombreDelDirectorio()
     {
         using var ctx = new TestContext();
@@ -458,6 +489,76 @@ public class AprobacionesControllerTests
         body.Should().Contain("autorizada");
     }
 
+    [Fact]
+    public async Task Autorizar_SinBody_CopiaLaRutaVigenteComoAutorizada()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(
+            7008,
+            "enviada",
+            """{"calculo":{"tramos":[{"de":"Origen","a":"Destino"}]},"total":1000}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7008");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsync($"/api/viaticos/solicitudes/{id}/autorizar", null);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var datos = ctx.LeeDatosJson(id);
+        // La ruta calculada se conserva y ademas queda como autorizada.
+        datos.Should().Contain("calculo").And.Contain("calculo_autorizado");
+        datos.Should().Contain("Origen").And.Contain("Destino");
+    }
+
+    [Fact]
+    public async Task Autorizar_ConRutaNueva_GuardaLaAutorizadaYReemplazaOpciones()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(
+            7009,
+            "enviada",
+            """{"calculo":{"tramos":[{"de":"Vieja","a":"Ruta"}]},"total":1000}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7009");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new { tramos = new[] { new { de = "Nueva", a = "Ruta" } }, generado_en = "2026-10-22T10:00:00" },
+            opciones = new[]
+            {
+                new
+                {
+                    tipo = "autobus",
+                    linea = "Nueva ruta ETN",
+                    precio = 1234.50m,
+                    moneda = "MXN",
+                    url_compra = "https://proveedor.test/boleto",
+                    fuente = "proveedor",
+                    fue_elegida = true,
+                    ruta_captura = (string?)null,
+                },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var datos = ctx.LeeDatosJson(id);
+        datos.Should().Contain("calculo_autorizado").And.Contain("Nueva").And.Contain("Ruta");
+        datos.Should().Contain("Vieja"); // la ruta calculada original no se pierde.
+
+        var opciones = ctx.LeeOpciones(id);
+        opciones.Should().ContainSingle();
+        opciones[0].Linea.Should().Be("Nueva ruta ETN");
+        opciones[0].FueElegida.Should().BeTrue();
+
+        ctx.LeeEstado(id).Should().Be("autorizada");
+        ctx.LeeEventos(id).Should().Contain(e =>
+            e.Tipo == "autorizada" && e.PayloadJson!.Contains("\"ruta\":\"nueva\""));
+    }
+
     // ---------------- POST /{id}/ajustes ----------------
 
     [Fact]
@@ -657,7 +758,12 @@ public class AprobacionesControllerTests
         public int SembrarSolicitud(int duenoId, string estado)
             => SembrarSolicitud(duenoId, estado, """{"total":1000}""");
 
-        public int SembrarSolicitud(int duenoId, string estado, string? datosJson, string? folio = null)
+        public int SembrarSolicitud(
+            int duenoId,
+            string estado,
+            string? datosJson,
+            string? folio = null,
+            string gerencia = "Operaciones")
         {
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -666,7 +772,7 @@ public class AprobacionesControllerTests
             {
                 IdUsuarioSolicitante = duenoId,
                 Periodo = ahora.ToString("yyyy-MM"),
-                Gerencia = "Operaciones",
+                Gerencia = gerencia,
                 Estado = estado,
                 DatosJson = datosJson!,
                 Folio = folio,
@@ -697,6 +803,23 @@ public class AprobacionesControllerTests
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             return db.Solicitudes.AsNoTracking().Single(x => x.IdSolicitud == idSolicitud).Estado;
+        }
+
+        public string LeeDatosJson(int idSolicitud)
+        {
+            using var scope = Servidor.Host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return db.Solicitudes.AsNoTracking().Single(x => x.IdSolicitud == idSolicitud).DatosJson;
+        }
+
+        public List<SolicitudOpcion> LeeOpciones(int idSolicitud)
+        {
+            using var scope = Servidor.Host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return db.SolicitudOpciones.AsNoTracking()
+                .Where(x => x.IdSolicitud == idSolicitud)
+                .OrderBy(x => x.IdOpcion)
+                .ToList();
         }
 
         public List<SolicitudAjuste> LeeAjustes(int idSolicitud)
@@ -743,6 +866,9 @@ public class AprobacionesControllerTests
 
         [JsonPropertyName("id_usuario_solicitante")]
         public int IdUsuarioSolicitante { get; set; }
+
+        [JsonPropertyName("gerencia")]
+        public string Gerencia { get; set; } = string.Empty;
 
         [JsonPropertyName("estado")]
         public string Estado { get; set; } = string.Empty;

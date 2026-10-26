@@ -8,6 +8,7 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -123,12 +124,37 @@ public class AprobacionesController : ControllerBase
             .Select(u => new { u.IdUsuario, u.NombreCompleto })
             .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
 
+        // El snapshot se parsea UNA vez por fila; cada clave se lee con el
+        // mismo lector tolerante (null si falta, no es numerica o el JSON
+        // no parsea).
+        var datosPorSolicitud = filas.ToDictionary(
+            f => f.IdSolicitud,
+            f => ParsearDatosJson(f.DatosJson));
+
+        // La gerencia que se agrupa en el concentrado: la de la solicitud y,
+        // si nace en "Sin asignar", la ultima que registro la persona que
+        // viaja. Se resuelve en un solo query para no hacer N+1.
+        var idViajeroPorSolicitud = filas.ToDictionary(
+            f => f.IdSolicitud,
+            f => LeerIdViajero(datosPorSolicitud[f.IdSolicitud], f.IdUsuarioSolicitante));
+        var idsViajeros = idViajeroPorSolicitud.Values.Distinct().ToList();
+        var gerenciasRecientes = await _context.Solicitudes
+            .AsNoTracking()
+            .Where(s => s.Activo
+                && idsViajeros.Contains(s.IdUsuarioSolicitante)
+                && s.Gerencia != null
+                && s.Gerencia != ""
+                && s.Gerencia != SolicitudesController.GerenciaPorDefecto)
+            .OrderByDescending(s => s.FechaCreacion)
+            .Select(s => new { s.IdUsuarioSolicitante, s.Gerencia })
+            .ToListAsync(ct);
+        var gerenciaPorUsuario = gerenciasRecientes
+            .GroupBy(g => g.IdUsuarioSolicitante)
+            .ToDictionary(g => g.Key, g => g.First().Gerencia);
+
         var bandeja = filas.Select(f =>
         {
-            // El snapshot se parsea UNA vez por fila; cada clave se lee con el
-            // mismo lector tolerante (null si falta, no es numerica o el JSON
-            // no parsea).
-            var datos = ParsearDatosJson(f.DatosJson);
+            var datos = datosPorSolicitud[f.IdSolicitud];
             var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
             return new SolicitudBandejaDto
             {
@@ -140,7 +166,10 @@ public class AprobacionesController : ControllerBase
                         ? nombre.Trim()
                         : $"Usuario #{f.IdUsuarioSolicitante}",
                 Periodo = f.Periodo,
-                Gerencia = f.Gerencia,
+                Gerencia = ResolverGerenciaEfectiva(
+                    f.Gerencia,
+                    idViajeroPorSolicitud[f.IdSolicitud],
+                    gerenciaPorUsuario),
                 Estado = f.Estado,
                 Destino = LeerDestinosDesdeJson(datos),
                 Origen = LeerOrigenDesdeJson(datos),
@@ -173,12 +202,18 @@ public class AprobacionesController : ControllerBase
     [HttpPost("solicitudes/{id:int}/autorizar")]
     [SwaggerOperation(
         Summary = "Autorizar una solicitud de viaticos",
-        Description = "Transiciona la solicitud de 'enviada' a 'autorizada'. Requiere viaticos.autorizar.")]
+        Description = "Transiciona la solicitud de 'enviada' a 'autorizada'. Requiere viaticos.autorizar. " +
+                      "Sin body autoriza la ruta que ya tenia la solicitud. Con { calculo } guarda esa version " +
+                      "como 'ruta autorizada' y, si llegan opciones, reemplaza la cotizacion vigente.")]
     [SwaggerResponse(200, "Solicitud autorizada", typeof(ApiResponse<object>))]
+    [SwaggerResponse(400, "Cotizacion invalida.")]
     [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
     [SwaggerResponse(404, "Solicitud no encontrada.")]
     [SwaggerResponse(409, "La solicitud no esta en estado 'enviada'.")]
-    public async Task<IActionResult> Autorizar(int id, CancellationToken ct)
+    public async Task<IActionResult> Autorizar(
+        int id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AutorizarSolicitudRequest? body,
+        CancellationToken ct)
     {
         if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
         {
@@ -213,10 +248,30 @@ public class AprobacionesController : ControllerBase
         var idUsuario = User.GetUserId();
         var ahora = DateTime.UtcNow;
 
+        // La ruta nueva (si la hay) se valida antes de mover el estado: una
+        // cotizacion invalida no debe dejar la solicitud autorizada a medias.
+        List<SolicitudOpcion>? nuevasOpciones = null;
+        if (body?.Opciones is { } opcionesElement
+            && opcionesElement.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+        {
+            var (opciones, errorOpciones) = SolicitudOpcionesParser.Parsear(id, opcionesElement, ahora);
+            if (errorOpciones is not null)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = errorOpciones,
+                    Data = null
+                });
+            }
+            nuevasOpciones = opciones;
+        }
+
         // Filtro por estado en el propio Update: si otra peticion movio la
         // solicitud entre la lectura y aqui, el SaveChanges no afecta filas
         // y se devuelve 409 en vez de pisar la transicion ajena.
         var solicitud = await _context.Solicitudes
+            .Include(s => s.Opciones)
             .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Estado == "enviada", ct);
         if (solicitud is null)
         {
@@ -228,16 +283,40 @@ public class AprobacionesController : ControllerBase
             });
         }
 
+        if (nuevasOpciones is not null)
+        {
+            if (solicitud.Opciones.Count > 0)
+            {
+                _context.SolicitudOpciones.RemoveRange(solicitud.Opciones);
+            }
+            _context.SolicitudOpciones.AddRange(nuevasOpciones);
+        }
+
+        // La ruta autorizada se conserva aparte: la calculada por el viajero
+        // no se pierde y la pestana "Ruta autorizada" del detalle la muestra.
+        AplicarCalculoAutorizado(solicitud, body?.Calculo);
+
         solicitud.Estado = "autorizada";
         solicitud.FechaModificacion = ahora;
-        _context.SolicitudEventos.Add(NuevoEvento(id, "autorizada", null, idUsuario, ahora));
+
+        var rutaNueva = body?.Calculo is { ValueKind: JsonValueKind.Object };
+        var payload = JsonSerializer.Serialize(new
+        {
+            estado_anterior = "enviada",
+            estado = "autorizada",
+            ruta = rutaNueva ? "nueva" : "elegida",
+            opciones = nuevasOpciones?.Count,
+        });
+        _context.SolicitudEventos.Add(NuevoEvento(id, "autorizada", payload, idUsuario, ahora));
 
         await _context.SaveChangesAsync(ct);
 
         return Ok(new ApiResponse<object>
         {
             Success = true,
-            Message = "Solicitud autorizada exitosamente.",
+            Message = rutaNueva
+                ? "Ruta autorizada exitosamente."
+                : "Solicitud autorizada exitosamente.",
             Data = null
         });
     }
@@ -469,6 +548,134 @@ public class AprobacionesController : ControllerBase
         };
 
     // -------- lectura tolerante del snapshot datos_json --------
+
+    /// <summary>
+    /// Gerencia que se muestra y agrupa: la de la solicitud si ya esta
+    /// clasificada; si no, la ultima gerencia conocida de quien viaja; si
+    /// tampoco hay, el valor por defecto. `Sin asignar` NUNCA se toma como
+    /// una clasificacion valida.
+    /// </summary>
+    private static string ResolverGerenciaEfectiva(
+        string? gerencia,
+        int idViajero,
+        IReadOnlyDictionary<int, string> gerenciaPorUsuario)
+    {
+        if (!string.IsNullOrWhiteSpace(gerencia)
+            && !string.Equals(
+                gerencia.Trim(),
+                SolicitudesController.GerenciaPorDefecto,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return gerencia.Trim();
+        }
+
+        return gerenciaPorUsuario.TryGetValue(idViajero, out var reciente)
+               && !string.IsNullOrWhiteSpace(reciente)
+            ? reciente.Trim()
+            : SolicitudesController.GerenciaPorDefecto;
+    }
+
+    /// <summary>
+    /// Id de la persona que viaja segun el snapshot: `persona.empleadoId`
+    /// cuando el viaje es para alguien mas; en cualquier otro caso, el
+    /// solicitante. El login es la unica fuente confiable si el snapshot no
+    /// trae la persona.
+    /// </summary>
+    private static int LeerIdViajero(JsonElement? snapshot, int idSolicitante)
+    {
+        if (snapshot is not { } raiz
+            || !raiz.TryGetProperty("persona", out var persona)
+            || persona.ValueKind != JsonValueKind.Object
+            || LeerTextoDesdeJson(persona, "modo") != "otra")
+        {
+            return idSolicitante;
+        }
+
+        return persona.TryGetProperty("empleadoId", out var empleadoId)
+               && empleadoId.ValueKind == JsonValueKind.Number
+               && empleadoId.TryGetInt32(out var id)
+               && id > 0
+            ? id
+            : idSolicitante;
+    }
+
+    /// <summary>
+    /// Guarda la ruta autorizada dentro del snapshot sin tocar la ruta
+    /// calculada: con un calculo nuevo ese es el autorizado; sin calculo se
+    /// copia el vigente (se autorizo la ruta que eligio la persona viajera).
+    /// </summary>
+    private static void AplicarCalculoAutorizado(Solicitud solicitud, JsonElement? calculo)
+    {
+        var autorizado = calculo is { ValueKind: JsonValueKind.Object }
+            ? calculo
+            : LeerPropiedadSnapshot(solicitud.DatosJson, "calculo");
+
+        if (autorizado is { ValueKind: JsonValueKind.Object })
+        {
+            EscribirPropiedadSnapshot(solicitud, "calculo_autorizado", autorizado.Value);
+        }
+    }
+
+    /// <summary>
+    /// Lee una propiedad del snapshot <c>datos_json</c>. Devuelve <c>null</c>
+    /// cuando el JSON es invalido, la raiz no es objeto o la clave no existe.
+    /// Nunca lanza.
+    /// </summary>
+    private static JsonElement? LeerPropiedadSnapshot(string? datosJson, string clave)
+    {
+        if (string.IsNullOrWhiteSpace(datosJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(datosJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                   && doc.RootElement.TryGetProperty(clave, out var valor)
+                ? valor.Clone()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Escribe (o reemplaza) una propiedad del snapshot conservando el resto
+    /// de las claves. Ante un JSON invalido degrada a un objeto con esa sola
+    /// clave: el detalle nunca se queda sin la ruta autorizada.
+    /// </summary>
+    private static void EscribirPropiedadSnapshot(Solicitud solicitud, string clave, JsonElement valor)
+    {
+        try
+        {
+            var baseJson = string.IsNullOrWhiteSpace(solicitud.DatosJson) ? "{}" : solicitud.DatosJson;
+            using var doc = JsonDocument.Parse(baseJson);
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.NameEquals(clave)) continue;
+                    prop.WriteTo(writer);
+                }
+                writer.WritePropertyName(clave);
+                valor.WriteTo(writer);
+                writer.WriteEndObject();
+            }
+            solicitud.DatosJson = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            solicitud.DatosJson = JsonSerializer.Serialize(new Dictionary<string, JsonElement>
+            {
+                [clave] = valor,
+            });
+        }
+    }
 
     /// <summary>
     /// Parsea <c>solicitudes.datos_json</c> una sola vez por fila. Se lee en

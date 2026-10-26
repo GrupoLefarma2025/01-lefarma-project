@@ -261,6 +261,47 @@ public class SolicitudesController : ControllerBase
     }
 
     // ----------------------------------------------------------------
+    // GET /api/viaticos/solicitudes/gerencia-sugerida
+    // ----------------------------------------------------------------
+    [HttpGet("solicitudes/gerencia-sugerida")]
+    [SwaggerOperation(
+        Summary = "Gerencia sugerida para el wizard",
+        Description = "Devuelve la ultima gerencia con la que el usuario clasifico una solicitud propia. " +
+                      "El wizard la usa como valor inicial del combo; null cuando aun no tiene ninguna.")]
+    [SwaggerResponse(200, "Gerencia sugerida", typeof(ApiResponse<GerenciaSugeridaDto>))]
+    [SwaggerResponse(401, "Sin token")]
+    public async Task<IActionResult> GerenciaSugerida(CancellationToken ct)
+    {
+        var userId = User.GetUserId();
+        if (userId <= 0)
+        {
+            return Unauthorized(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Token sin id de usuario válido."
+            });
+        }
+
+        var gerencia = await _context.Solicitudes
+            .AsNoTracking()
+            .Where(s => s.IdUsuarioSolicitante == userId
+                && s.Activo
+                && s.Gerencia != null
+                && s.Gerencia != ""
+                && s.Gerencia != GerenciaPorDefecto)
+            .OrderByDescending(s => s.FechaCreacion)
+            .Select(s => s.Gerencia)
+            .FirstOrDefaultAsync(ct);
+
+        return Ok(new ApiResponse<GerenciaSugeridaDto>
+        {
+            Success = true,
+            Message = "Gerencia sugerida obtenida.",
+            Data = new GerenciaSugeridaDto { Gerencia = gerencia }
+        });
+    }
+
+    // ----------------------------------------------------------------
     // GET /api/viaticos/solicitudes/{id}
     // ----------------------------------------------------------------
     [HttpGet("solicitudes/{id:int}")]
@@ -363,7 +404,7 @@ public class SolicitudesController : ControllerBase
         }
 
         // 1) Validar el JSON de cotización antes de tocar la BD.
-        if (!request.Cotizacion.TryGetProperty("opciones", out var opcionesEl) || opcionesEl.ValueKind != JsonValueKind.Array)
+        if (!request.Cotizacion.TryGetProperty("opciones", out var opcionesEl))
         {
             return BadRequest(new ApiResponse<object>
             {
@@ -373,98 +414,14 @@ public class SolicitudesController : ControllerBase
         }
 
         var ahora = DateTime.UtcNow;
-        var nuevasOpciones = new List<SolicitudOpcion>();
-        var indice = 0;
-        foreach (var op in opcionesEl.EnumerateArray())
+        var (nuevasOpciones, errorOpciones) = SolicitudOpcionesParser.Parsear(id, opcionesEl, ahora);
+        if (errorOpciones is not null)
         {
-            if (op.ValueKind != JsonValueKind.Object)
+            return BadRequest(new ApiResponse<object>
             {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = $"opciones[{indice}] debe ser un objeto."
-                });
-            }
-
-            if (!op.TryGetProperty("url_compra", out var urlEl) || urlEl.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(urlEl.GetString()))
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = $"opciones[{indice}].url_compra es obligatorio."
-                });
-            }
-            if (!op.TryGetProperty("fuente", out var fuenteEl) || fuenteEl.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(fuenteEl.GetString()))
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = $"opciones[{indice}].fuente es obligatorio."
-                });
-            }
-            var fuente = fuenteEl.GetString()!.Trim();
-
-            string? urlCompra = urlEl.GetString()!.Trim();
-            decimal? precio = null;
-            if (op.TryGetProperty("precio", out var precioEl) && precioEl.ValueKind == JsonValueKind.Number)
-            {
-                precio = precioEl.GetDecimal();
-            }
-            else if (op.TryGetProperty("precio", out var precioElNull) && precioElNull.ValueKind == JsonValueKind.Null)
-            {
-                precio = null;
-            }
-            else if (op.TryGetProperty("precio", out precioEl))
-            {
-                // precio con un tipo no soportado (p.ej. string) -> rechazado
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = $"opciones[{indice}].precio debe ser numérico o null."
-                });
-            }
-
-            if (precio is null && fuente.IndexOf("estimado", StringComparison.OrdinalIgnoreCase) < 0)
-            {
-                return BadRequest(new ApiResponse<object>
-                {
-                    Success = false,
-                    Message = $"opciones[{indice}].precio solo puede ser null si la fuente es estimada."
-                });
-            }
-
-            var tipo = op.TryGetProperty("tipo", out var tipoEl) && tipoEl.ValueKind == JsonValueKind.String
-                ? tipoEl.GetString()!
-                : "vuelo";
-            var linea = op.TryGetProperty("linea", out var lineaEl) && lineaEl.ValueKind == JsonValueKind.String
-                ? lineaEl.GetString()!
-                : "(sin línea)";
-            var moneda = op.TryGetProperty("moneda", out var monEl) && monEl.ValueKind == JsonValueKind.String
-                ? monEl.GetString()
-                : null;
-            var fueElegida = op.TryGetProperty("fue_elegida", out var feEl) && feEl.ValueKind == JsonValueKind.True;
-            var rutaCaptura = op.TryGetProperty("ruta_captura", out var rcEl) && rcEl.ValueKind == JsonValueKind.String
-                ? rcEl.GetString()
-                : null;
-            var datosJson = op.TryGetProperty("datos", out var dEl) && dEl.ValueKind == JsonValueKind.Object
-                ? dEl.GetRawText()
-                : null;
-
-            nuevasOpciones.Add(new SolicitudOpcion
-            {
-                IdSolicitud = id,
-                Tipo = tipo,
-                Linea = linea,
-                DatosJson = datosJson,
-                Precio = precio,
-                Moneda = moneda,
-                UrlCompra = urlCompra,
-                Fuente = fuente,
-                FueElegida = fueElegida,
-                RutaCaptura = rutaCaptura,
-                CapturadaEn = rutaCaptura is not null ? (DateTime?)ahora : null,
+                Success = false,
+                Message = errorOpciones
             });
-            indice++;
         }
 
         // 2) Cargar la solicitud (con verificación de dueño).

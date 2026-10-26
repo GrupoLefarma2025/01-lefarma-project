@@ -179,3 +179,15 @@ public class SolicitudEventoDto
     [JsonPropertyName("payload")]
     public JsonElement? Payload { get; set; }
 }
+
+/// <summary>
+/// Gerencia que el wizard propone al capturar: la ultima que registro el
+/// usuario en una solicitud propia. <c>null</c> cuando aun no tiene ninguna
+/// clasificada (el combo arranca vacio y la persona la elige).
+/// </summary>
+public class GerenciaSugeridaDto
+{
+    [JsonPropertyName("gerencia")]
+    public string? Gerencia { get; set; }
+}
+

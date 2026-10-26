@@ -1,6 +1,23 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lefarma.API.Features.Viaticos.DTOs;
+
+/// <summary>
+/// Body opcional de POST /api/viaticos/solicitudes/{id}/autorizar.
+/// Sin body se autoriza la ruta que ya tenia la solicitud. Con <c>Calculo</c>
+/// se guarda esa version como <c>calculo_autorizado</c> (la ruta nueva que
+/// genero el revisor) y, si llegan <c>Opciones</c>, se reemplaza la
+/// cotizacion vigente por la de esa ruta.
+/// </summary>
+public class AutorizarSolicitudRequest
+{
+    [JsonPropertyName("calculo")]
+    public JsonElement? Calculo { get; set; }
+
+    [JsonPropertyName("opciones")]
+    public JsonElement? Opciones { get; set; }
+}
 
 /// <summary>
 /// Body de POST /api/viaticos/solicitudes/{id}/ajustes.
