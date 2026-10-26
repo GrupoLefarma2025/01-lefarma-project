@@ -182,12 +182,26 @@ public class CostosRutaOferta
     /// <summary>Minutos después de la llegada (bajar del avión y recoger maletas).</summary>
     public int MinutosDespues { get; set; }
     /// <summary>
-    /// Minutos estimados del traslado en taxi a la terminal (bus o avión): la
-    /// distancia de cada extremo al centro de su ciudad, a la velocidad urbana
-    /// configurada. Es 0 cuando el punto ya está en la ciudad o no se reconoce.
+    /// Minutos de taxi que sí se conocen: la suma de <see cref="MinutosTaxiOrigen"/>
+    /// y <see cref="MinutosTaxiDestino"/>. Si una terminal es desconocida, ese
+    /// tramo no entra (el resumen lo declara por separado; nunca se inventa).
     /// El "Tiempo total" del concentrado lo suma al viaje y al abordaje.
     /// </summary>
     public int MinutosTaxi { get; set; }
+
+    /// <summary>
+    /// Minutos del primer taxi del tramo: del punto de salida a su terminal
+    /// (central de autobuses o aeropuerto). <c>null</c> cuando no se conoce la
+    /// terminal (ni el proveedor ni el catálogo la tienen).
+    /// </summary>
+    public int? MinutosTaxiOrigen { get; set; }
+
+    /// <summary>
+    /// Minutos del segundo taxi del tramo: de la terminal de llegada al punto
+    /// final. <c>null</c> cuando no se conoce la terminal de llegada. Nunca se
+    /// inventa un 0: un 0 significa "el punto está en la terminal".
+    /// </summary>
+    public int? MinutosTaxiDestino { get; set; }
 
     /// <summary>Terminal de salida (aeropuerto o central de autobuses) con su
     /// coordenada real; <c>null</c> en auto, renta y taxi.</summary>

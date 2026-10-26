@@ -93,6 +93,10 @@ export interface CostosRutaOferta {
   minutosDespues?: number;
   /** Minutos estimados del taxi a la terminal (bus o avión). */
   minutosTaxi?: number;
+  /** Minutos del primer taxi: del punto de salida a su terminal. `null` = terminal desconocida. */
+  minutosTaxiOrigen?: number | null;
+  /** Minutos del segundo taxi: de la terminal de llegada al punto final. `null` = terminal desconocida. */
+  minutosTaxiDestino?: number | null;
   /** Terminal de salida (aeropuerto o central) con coordenada real. */
   terminalOrigen?: CostosRutaTerminal | null;
   /** Terminal de llegada (aeropuerto o central) con coordenada real. */

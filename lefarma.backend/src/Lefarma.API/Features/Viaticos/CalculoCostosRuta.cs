@@ -1743,8 +1743,24 @@ public static class CalculoCostosRuta
         // terminal y el de la terminal de llegada al punto final. Auto propio,
         // renta y taxi urbano no pagan traslado a terminal.
         var usaTerminal = o.Modo is "bus" or "avion";
-        var minutosTaxiOrigen = usaTerminal ? MinutosTaxiPuntoTerminal(lugarOrigen, terminalOrigen) : 0;
-        var minutosTaxiDestino = usaTerminal ? MinutosTaxiPuntoTerminal(lugarDestino, terminalDestino) : 0;
+        // Un traslado solo se estima cuando SABEMOS dónde está la terminal: la
+        // que informa el proveedor o la del catálogo sembrado. El respaldo
+        // "por confirmar" usa las coordenadas del propio punto y daría 0 min
+        // falsos, así que ahí se declara desconocido (null), nunca 0.
+        var conoceTerminalOrigen = o.TerminalOrigenDato is not null || terminalOrigen is not null;
+        var conoceTerminalDestino = o.TerminalDestinoDato is not null || terminalDestino is not null;
+        var terminalTaxiOrigen = o.TerminalOrigenDato is { } datoOrigen
+            ? (datoOrigen.Nombre, datoOrigen.Latitud, datoOrigen.Longitud)
+            : terminalOrigen;
+        var terminalTaxiDestino = o.TerminalDestinoDato is { } datoDestino
+            ? (datoDestino.Nombre, datoDestino.Latitud, datoDestino.Longitud)
+            : terminalDestino;
+        int? minutosTaxiOrigen = usaTerminal && conoceTerminalOrigen
+            ? MinutosTaxiPuntoTerminal(lugarOrigen, terminalTaxiOrigen)
+            : null;
+        int? minutosTaxiDestino = usaTerminal && conoceTerminalDestino
+            ? MinutosTaxiPuntoTerminal(lugarDestino, terminalTaxiDestino)
+            : null;
         return new CostosRutaOferta
         {
             // ixOferta es la posición del modo dentro del tramo: modo solo no
@@ -1758,7 +1774,7 @@ public static class CalculoCostosRuta
             PuertaAPuertaH = Math.Round(o.PuertaH, 2),
             MinutosAntes = minutosAntes,
             MinutosDespues = minutosDespues,
-            MinutosTaxi = minutosTaxiOrigen + minutosTaxiDestino,
+            MinutosTaxi = (minutosTaxiOrigen ?? 0) + (minutosTaxiDestino ?? 0),
             MinutosTaxiOrigen = minutosTaxiOrigen,
             MinutosTaxiDestino = minutosTaxiDestino,
             TerminalOrigen = o.TerminalOrigenDato
