@@ -4,13 +4,19 @@ import userEvent from '@testing-library/user-event';
 import { SolicitudPage } from './SolicitudPage';
 import type { CatalogoItem } from '@/apps/educacion-medica/components/CatalogoSearchSelect';
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), usuarios: vi.fn(), crear: vi.fn(), guardar: vi.fn(), navigate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ get: vi.fn(), usuarios: vi.fn(), crear: vi.fn(), guardar: vi.fn(), gerenciaSugerida: vi.fn(), navigate: vi.fn() }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get } }));
 vi.mock('@/apps/educacion-medica/services/educacionMedica.api', () => ({
   educacionMedicaApi: { usuarios: { getAll: mocks.usuarios } },
 }));
 vi.mock('../../services/solicitudes.api', () => ({
-  solicitudesApi: { crear: mocks.crear, guardarOpciones: mocks.guardar, misSolicitudes: vi.fn(), detalle: vi.fn() },
+  solicitudesApi: {
+    crear: mocks.crear,
+    guardarOpciones: mocks.guardar,
+    gerenciaSugerida: mocks.gerenciaSugerida,
+    misSolicitudes: vi.fn(),
+    detalle: vi.fn(),
+  },
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate, useParams: () => ({}) }));
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
@@ -91,6 +97,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
   mocks.usuarios.mockResolvedValue({ data: { success: true, data: empleados } });
+  mocks.gerenciaSugerida.mockResolvedValue({ data: { success: true, data: { gerencia: 'IMSS' } } });
   mocks.crear.mockResolvedValue({ data: { success: true, data: { id_solicitud: 42 } } });
   mocks.guardar.mockResolvedValue({ data: { success: true, data: { id_solicitud: 42 } } });
 });
@@ -171,6 +178,9 @@ describe('SolicitudPage', () => {
     const payload = mocks.crear.mock.calls[0][0];
     expect(payload.datos.version).toBe('solicitud-v2');
     expect(payload.datos.destinos).toHaveLength(1);
+    // La gerencia precargada del usuario viaja en el body: es la llave del
+    // concentrado por institución.
+    expect(payload.gerencia).toBe('IMSS');
     // Guardar borrador NO envía la cotización.
     expect(mocks.guardar).not.toHaveBeenCalled();
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/viaticos/mis-viajes'));

@@ -22,6 +22,7 @@ import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMe
 import { solicitudesApi } from '../../services/solicitudes.api';
 import { geocodificarReversa } from '../../services/geocodificar.api';
 import { hidratarSolicitud } from '../../services/solicitudDraft';
+import { GERENCIAS_VIATICOS, GERENCIA_SIN_ASIGNAR } from '../../constants/gerencias';
 import type { CrearSolicitudPayload } from '../../types/solicitud.types';
 import type {
   AcompananteV2,
@@ -54,6 +55,9 @@ const PASOS = [
 ] as const;
 
 type PasoId = (typeof PASOS)[number]['id'];
+
+/** Opción del combo que habilita capturar una gerencia fuera del catálogo. */
+const OPCION_GERENCIA_OTRA = 'Otras';
 
 const PULSO_AGREGAR_CSS = `
 @keyframes agregar-pulso {
@@ -194,6 +198,14 @@ export function SolicitudPage() {
   }, [paso]);
 
   const [persona, setPersona] = useState<PasoPersonaV2>({ modo: 'mia', empleadoId: null, nombre: '', motivo: '' });
+  /**
+   * Gerencia con la que se clasifica la solicitud (Descentralizado / IMSS /
+   * IMSS Bienestar) y con la que el concentrado agrupa. Arranca con la última
+   * que registró el usuario; `otra` habilita el texto libre.
+   */
+  const [gerencia, setGerencia] = useState('');
+  const [gerenciaOtra, setGerenciaOtra] = useState('');
+  const gerenciaEfectiva = (gerencia === OPCION_GERENCIA_OTRA ? gerenciaOtra : gerencia).trim();
   const [transporte, setTransporte] = useState<PasoTransporteV2>({ modo: 'solicitado', compartir: false, acompanantes: [] });
   const [origen, setOrigen] = useState<OrigenV2>({ punto: null, fechaSalida: '', horaSalida: '' });
   const [destinos, setDestinos] = useState<DestinoV2[]>(() => [nuevoDestino()]);
@@ -266,6 +278,11 @@ export function SolicitudPage() {
         // que ya visitó en esta sesión.
         setMaxPaso(PASOS.length as PasoId);
         setSolicitudEditando({ id: res.data.data.id_solicitud, folio: res.data.data.folio ?? null });
+        // La gerencia guardada manda sobre la sugerencia del perfil; el valor
+        // por defecto del servidor ("Sin asignar") no se muestra como si fuera
+        // una clasificación real.
+        const guardada = res.data.data.gerencia?.trim() ?? '';
+        if (guardada !== '' && guardada !== GERENCIA_SIN_ASIGNAR) setGerencia(guardada);
       } catch (falla: unknown) {
         toast.error(toApiError(falla).message || 'No se pudo cargar el borrador.');
         navigate('/viaticos/mis-viajes');
@@ -275,6 +292,33 @@ export function SolicitudPage() {
     })();
     return () => { cancelado = true; };
   }, [idParam, navigate]);
+
+  // Gerencia precargada: la última que el usuario registró en una solicitud
+  // propia. Si el borrador en edición ya trajo una, esa manda.
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      try {
+        const res = await solicitudesApi.gerenciaSugerida();
+        if (cancelado) return;
+        const sugerida = res.data.data?.gerencia?.trim() ?? '';
+        if (sugerida !== '' && sugerida !== GERENCIA_SIN_ASIGNAR) {
+          setGerencia((actual) => actual || sugerida);
+        }
+      } catch {
+        // Sin sugerencia el combo arranca vacío; no bloquea el wizard.
+      }
+    })();
+    return () => { cancelado = true; };
+  }, []);
+
+  const opcionesGerencia = useMemo(() => {
+    const lista: string[] = [...GERENCIAS_VIATICOS];
+    if (gerencia !== '' && gerencia !== OPCION_GERENCIA_OTRA && !lista.includes(gerencia)) {
+      lista.push(gerencia);
+    }
+    return lista;
+  }, [gerencia]);
 
   // Alto real de la barra de pasos (sticky): la barra de búsqueda del mapa se
   // pega justo debajo en vez de encimársele.
@@ -441,6 +485,9 @@ export function SolicitudPage() {
   function pasoValido(id: PasoId): boolean {
     if (id === 1) {
       if (persona.modo === 'otra' && persona.empleadoId === null) return false;
+      // La gerencia es la llave del concentrado por institución: sin ella la
+      // solicitud no se puede clasificar ni agrupar.
+      if (gerenciaEfectiva === '') return false;
       return persona.nombre.trim() !== '';
     }
     if (id === 2) return persona.motivo.trim() !== '';
@@ -498,7 +545,10 @@ export function SolicitudPage() {
 
   async function guardarBorrador() {
     if (enviando) return;
-    const payload: CrearSolicitudPayload = { datos: construirDatos() };
+    const payload: CrearSolicitudPayload = {
+      datos: construirDatos(),
+      ...(gerenciaEfectiva !== '' ? { gerencia: gerenciaEfectiva } : {}),
+    };
     setEnviando(true);
     try {
       if (solicitudEditando) {
@@ -634,6 +684,34 @@ export function SolicitudPage() {
                   {errorEmp ? <p role="alert" className="text-xs text-destructive">{errorEmp}</p> : null}
                 </div>
               ) : null}
+              <div className="mx-auto max-w-2xl space-y-1">
+                <Label htmlFor="gerencia-solicitud">Gerencia</Label>
+                <select
+                  id="gerencia-solicitud"
+                  aria-label="Gerencia"
+                  className="h-10 w-full rounded-md border bg-background px-3"
+                  value={gerencia}
+                  onChange={(e) => setGerencia(e.target.value)}
+                >
+                  <option value="">Selecciona la gerencia</option>
+                  {opcionesGerencia.map((opcion) => (
+                    <option key={opcion} value={opcion}>{opcion}</option>
+                  ))}
+                  <option value={OPCION_GERENCIA_OTRA}>{OPCION_GERENCIA_OTRA}</option>
+                </select>
+                {gerencia === OPCION_GERENCIA_OTRA ? (
+                  <Input
+                    id="gerencia-otra"
+                    aria-label="Especifica la gerencia"
+                    value={gerenciaOtra}
+                    onChange={(e) => setGerenciaOtra(e.target.value)}
+                    placeholder="Escribe la gerencia"
+                  />
+                ) : null}
+                <p className="text-xs text-muted-foreground">
+                  Se usa para agrupar el concentrado por Descentralizado, IMSS o IMSS Bienestar.
+                </p>
+              </div>
             </section>
           ) : null}
 

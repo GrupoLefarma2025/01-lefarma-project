@@ -15,6 +15,9 @@ export const solicitudesApi = {
     API.post<ApiResponse<Solicitud>>(BASE, payload),
   /** GET /viaticos/solicitudes/mis */
   misSolicitudes: () => API.get<ApiResponse<Solicitud[]>>(`${BASE}/mis`),
+  /** GET /viaticos/solicitudes/gerencia-sugerida: última gerencia del usuario. */
+  gerenciaSugerida: () =>
+    API.get<ApiResponse<{ gerencia: string | null }>>(`${BASE}/gerencia-sugerida`),
   /** GET /viaticos/solicitudes/{id} */
   detalle: (id: number) => API.get<ApiResponse<Solicitud>>(`${BASE}/${id}`),
   /** PUT /viaticos/solicitudes/{id}: reemplaza el snapshot de un borrador. */
