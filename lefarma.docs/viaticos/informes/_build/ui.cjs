@@ -180,6 +180,39 @@ pre.json .k { color: #8fd3ff; }
 }
 .quote b { display: block; font-size: 9.4px; color: #0b4a86; margin-bottom: 3px; }
 .quote i { color: #0b2f5e; }
+/* Variante "simple": menos texto, letra más grande, lectura para toda la empresa. */
+.slide.simple h1 { font-size: 34px; line-height: 1.1; letter-spacing: -.5px; }
+.slide.simple .kicker { font-size: 11px; }
+.slide.simple .lead { font-size: 17px; line-height: 1.4; margin-bottom: 14px; }
+.slide.simple .body { font-size: 15px; line-height: 1.5; }
+.slide.simple .body.tight { font-size: 14px; }
+.slide.simple table { font-size: 12px; line-height: 1.38; }
+.slide.simple table.tight { font-size: 11.4px; line-height: 1.35; }
+.slide.simple th { font-size: 9.8px; padding: 7px 9px; }
+.slide.simple td { padding: 7px 9px; }
+.slide.simple .note { padding: 11px 15px; margin: 9px 0; }
+.slide.simple .note .nt { font-size: 9.8px; }
+.slide.simple .note p { font-size: 13.4px; line-height: 1.45; }
+.slide.simple .quote { font-size: 13.6px; line-height: 1.45; padding: 13px 15px; }
+.slide.simple .quote b { font-size: 12.5px; margin-bottom: 5px; }
+.slide.simple .take { font-size: 16px; line-height: 1.35; padding-top: 9px; }
+.slide.simple .take span { font-size: 9.2px; }
+.slide.simple .src { font-size: 9.5px; }
+.slide.simple .fbox { font-size: 12px; line-height: 1.35; padding: 11px 12px; }
+.slide.simple .fbox b { font-size: 12.8px; margin-bottom: 4px; }
+.slide.simple .kpi b { font-size: 30px; }
+.slide.simple .kpi span { font-size: 9.8px; }
+.slide.simple .chip { font-size: 10.2px; padding: 3px 9px; }
+.slide.simple li { margin-bottom: 7px; padding-left: 17px; }
+.slide.simple li:before { top: 8px; width: 6px; height: 6px; }
+.check { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid #e2e8f0; }
+.check:last-child { border-bottom: 0; }
+.dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 5px; flex: none; }
+.dot.g { background: #12805c; }
+.dot.a { background: #b54708; }
+.dot.r { background: #d92d20; }
+.check b { display: block; font-size: 15px; color: #0b2f5e; line-height: 1.3; }
+.check span { font-size: 13px; color: #475569; line-height: 1.4; }
 .idx { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 28px; }
 .idxi { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #e2e8f0; }
 .idxn { font-family: 'Century Gothic', sans-serif; font-size: 24px; color: #0b74b7; line-height: 1; min-width: 38px; font-weight: 700; }
@@ -221,7 +254,7 @@ pre.json .k { color: #8fd3ff; }
 .cover .author .ad { font-size: 10.5px; color: #64748b; margin-top: 1px; }
 .cover .stats {
   position: absolute; right: 54px; bottom: 46px; display: grid;
-  grid-template-columns: 1fr 1fr; gap: 9px; width: 420px;
+  grid-template-columns: 1fr; gap: 9px; width: 420px;
 }
 .cover .stat { background: rgba(255,255,255,.94); border-radius: 8px; padding: 9px 12px; }
 .cover .stat b {
@@ -285,8 +318,8 @@ const TAKES = {
   'Glosario': 'Vocabulario compartido para discutir sin ambigüedad.'
 };
 
-function slide({ section, title, body, src, tag, cls = '' }) {
-  const take = TAKES[title] || '';
+function slide({ section, title, body, src, tag, cls = '', take: takeOverride }) {
+  const take = takeOverride !== undefined ? takeOverride : (TAKES[title] || '');
   const wm = tag && /^\d\d/.test(tag) && !tag.startsWith('00') ? tag.slice(0, 2) : '';
   return `
 <section class="slide ${cls}">
@@ -311,7 +344,7 @@ function divider({ num, title, desc }) {
 <section class="slide divider">
   ${LINES}
   <div class="big">${num}</div>
-  <div class="dk">Sección ${num} / 06</div>
+  <div class="dk">Sección ${num} / 02</div>
   <div class="dt">${title}</div>
   <div class="dd">${desc}</div>
   <div class="pgnum">@@P@@</div>
