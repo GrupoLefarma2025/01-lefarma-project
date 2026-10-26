@@ -114,8 +114,19 @@ describe('ConcentradoPage', () => {
     await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
     await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
     await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
-    await usuario.click(screen.getByRole('button', { name: /aprobar la opción elegida/i }));
+    const autorizar = await screen.findByRole('button', { name: /autorizar esta ruta/i });
+    await usuario.click(autorizar);
     expect(mocks.autorizar).toHaveBeenCalledWith(5);
+  });
+
+  it('ofrece generar una nueva ruta dentro del detalle', async () => {
+    const usuario = userEvent.setup();
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-5')).toBeInTheDocument());
+    await usuario.click(within(screen.getByTestId('concentrado-5')).getByRole('button', { name: /Ver detalle/ }));
+    await waitFor(() => expect(screen.getByTestId('revision-solicitud')).toBeInTheDocument());
+    await usuario.click(await screen.findByRole('button', { name: /generar nueva ruta/i }));
+    expect(await screen.findByText(/Cálculos del viaje/i)).toBeInTheDocument();
   });
 
   it('rechazar exige comentario y devolver queda deshabilitado sin endpoint', async () => {
@@ -200,5 +211,33 @@ describe('ConcentradoPage', () => {
     fireEvent.change(screen.getByLabelText(/hasta/i), { target: { value: HOY } });
     expect(screen.getByTestId('rango-visible')).toHaveTextContent('al');
     expect(screen.getByTestId('concentrado-5')).toBeInTheDocument();
+  });
+
+  it('agrupa por gerencia y parte el FOR-008 en bloques con subtotal', async () => {
+    const usuario = userEvent.setup();
+    mocks.bandeja.mockResolvedValue({
+      data: {
+        success: true,
+        data: [
+          { ...fila, id_solicitud: 11, folio: 'VIA-A', gerencia: 'IMSS', nombre_solicitante: 'Ana IMSS' },
+          { ...fila, id_solicitud: 12, folio: 'VIA-B', gerencia: 'Descentralizado', nombre_solicitante: 'Beto Desc' },
+          { ...fila, id_solicitud: 13, folio: 'VIA-C', gerencia: 'IMSS', nombre_solicitante: 'Carla IMSS' },
+        ],
+      },
+    });
+    render(<ConcentradoPage />);
+    await waitFor(() => expect(screen.getByTestId('concentrado-11')).toBeInTheDocument());
+
+    expect(screen.getByLabelText(/agrupar por/i)).toHaveValue('gerencia');
+    const resumen = screen.getByTestId('grupos-concentrado');
+    expect(resumen).toHaveTextContent('Descentralizado');
+    expect(resumen).toHaveTextContent('IMSS');
+
+    await usuario.click(screen.getByRole('button', { name: /generar documento/i }));
+    const documento = document.querySelector('#concentrado-viaticos-print') as HTMLElement;
+    expect(documento).toHaveTextContent(/Gerencia: Descentralizado/i);
+    expect(documento).toHaveTextContent(/Gerencia: IMSS/i);
+    // Un subtotal por bloque; el total general sigue en el pie.
+    expect(documento.querySelectorAll('.concentrado-subtotal-grupo')).toHaveLength(2);
   });
 });

@@ -32,6 +32,9 @@ interface ResumenRutaModalProps {
   nodos: NodoRutaTimeline[];
   onEnviar: () => void;
   enviando: boolean;
+  /** Etiqueta del botón de confirmación (enviar o autorizar). */
+  textoAccion?: string;
+  textoEnviando?: string;
 }
 
 /**
@@ -50,6 +53,8 @@ export function ResumenRutaModal({
   nodos,
   onEnviar,
   enviando,
+  textoAccion = 'Enviar a concentrado',
+  textoEnviando = 'Enviando…',
 }: ResumenRutaModalProps) {
   const tiposSegmento = Array.from(new Set(segmentos.map((s) => s.tipo)));
 
@@ -111,7 +116,7 @@ export function ResumenRutaModal({
           </Button>
           <Button type="button" onClick={onEnviar} disabled={enviando} className="gap-1.5">
             <Send className="h-4 w-4" aria-hidden />
-            {enviando ? 'Enviando…' : 'Enviar a concentrado'}
+            {enviando ? textoEnviando : textoAccion}
           </Button>
         </DialogFooter>
       </DialogContent>

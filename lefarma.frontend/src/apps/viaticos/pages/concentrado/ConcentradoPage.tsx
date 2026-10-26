@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Eye } from 'lucide-react';
+import { Check, Eye, Route } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,6 +30,9 @@ import type { Solicitud } from '../../types/solicitud.types';
 import { filaConcentrado } from '../aprobaciones/ConcentradoViaticosView';
 import { VistaDetalle } from '../mis-viajes/MisViajesPage';
 import { ConcentradoDocumentoPreview } from './ConcentradoDocumentoPreview';
+import { CalculosViajeModal } from '../../components/CalculosViajeModal';
+import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
+import { gerenciaVisible } from '../../constants/gerencias';
 import {
   ETIQUETA_CAMPO_FECHA,
   ETIQUETA_FILTRO_FECHA,
@@ -118,6 +121,7 @@ export function ConcentradoPage() {
   const [documentoAbierto, setDocumentoAbierto] = useState(false);
   const [seleccionadas, setSeleccionadas] = useState<SolicitudBandeja[]>([]);
   const [autorizandoLote, setAutorizandoLote] = useState(false);
+  const [calculoAbierto, setCalculoAbierto] = useState(false);
 
   const cargar = useCallback(async () => {
     setCargando(true);
@@ -145,6 +149,8 @@ export function ConcentradoPage() {
   const rango = rangoDeFiltroFecha(filtroFecha, hoy, desde, hasta);
 
   const [recalculo, setRecalculo] = useState<'con' | 'sin' | 'todos'>('con');
+  /** Criterio de agrupación del concentrado y del documento FOR-008. */
+  const [agruparPor, setAgruparPor] = useState<GrupoConcentrado>('gerencia');
 
   const visibles = filas.filter(
     (f) =>
@@ -160,6 +166,34 @@ export function ConcentradoPage() {
       (estadosActivos.length === 0 || estadosActivos.includes(f.estado)) &&
       (tipo === 'todos' || tipoDeFila(f) === tipo),
   );
+
+  /** Llave con la que se agrupa una fila; la gerencia vacía cae a «Sin asignar». */
+  const claveGrupo = (fila: SolicitudBandeja): string =>
+    agruparPor === 'gerencia' ? gerenciaVisible(fila.gerencia) : fila.nombre_solicitante;
+
+  // Agrupado = mismas filas visibles, ordenadas por el criterio elegido para
+  // que los bloques del documento y la tabla cuenten la misma historia.
+  const filasOrdenadas =
+    agruparPor === 'ninguna'
+      ? visibles
+      : [...visibles].sort(
+          (a, b) =>
+            claveGrupo(a).localeCompare(claveGrupo(b), 'es-MX') ||
+            a.nombre_solicitante.localeCompare(b.nombre_solicitante, 'es-MX'),
+        );
+
+  const gruposConcentrado = (() => {
+    if (agruparPor === 'ninguna') return [];
+    const mapa = new Map<string, { total: number; importe: number }>();
+    for (const fila of filasOrdenadas) {
+      const clave = claveGrupo(fila);
+      const actual = mapa.get(clave) ?? { total: 0, importe: 0 };
+      actual.total += 1;
+      actual.importe += fila.total ?? 0;
+      mapa.set(clave, actual);
+    }
+    return [...mapa.entries()].map(([grupo, datos]) => ({ grupo, ...datos }));
+  })();
 
   const revisar = useCallback(async (id: number) => {
     setRevisandoId(id);
@@ -179,7 +213,15 @@ export function ConcentradoPage() {
 
   const cerrarRevision = useCallback(() => {
     setRevisandoId(null);    setDetalle(null);
+    setCalculoAbierto(false);
   }, []);
+
+  /** El revisor autorizó una ruta recalculada: se recarga la bandeja. */
+  const alAutorizarRutaNueva = useCallback(async () => {
+    setCalculoAbierto(false);
+    cerrarRevision();
+    await cargar();
+  }, [cargar, cerrarRevision]);
 
   async function aprobar() {
     if (revisandoId === null || accionando) return;
@@ -251,11 +293,11 @@ export function ConcentradoPage() {
   // Encabezado del documento: el filtro activo y cuántas filas lo componen.
   // La gerencia se toma de las filas visibles solo cuando todas coinciden; si
   // hay varias se declara "VARIAS" en vez de elegir una al azar.
-  const gerencias = Array.from(new Set(visibles.map((v) => v.gerencia).filter((g) => g !== '')));
+  const gerencias = Array.from(new Set(visibles.map((v) => gerenciaVisible(v.gerencia))));
   const gerenciaDocumento = gerencias.length === 1 ? gerencias[0] : gerencias.length > 1 ? 'VARIAS' : undefined;
   const tituloDocumento = `${ETIQUETA_FILTRO_FECHA[filtroFecha]} · ${visibles.length} ${
     visibles.length === 1 ? 'solicitud' : 'solicitudes'
-  }`;
+  }${agruparPor === 'ninguna' ? '' : ` · agrupado por ${GRUPO_LABELS[agruparPor].toLowerCase()}`}`;
 
   const columnas = useMemo<ColumnDef<SolicitudBandeja>[]>(
     () => [
@@ -315,6 +357,12 @@ export function ConcentradoPage() {
         header: 'Solicitante',
         accessorFn: (fila) => fila.nombre_solicitante,
         cell: ({ getValue }) => <Badge variant="secondary" className="font-normal">{getValue<string>()}</Badge>,
+      },
+      {
+        id: 'gerencia',
+        header: 'Gerencia',
+        accessorFn: (fila) => gerenciaVisible(fila.gerencia),
+        cell: ({ getValue }) => <span className="text-xs">{getValue<string>()}</span>,
       },
       {
         id: 'estado',
@@ -449,6 +497,20 @@ export function ConcentradoPage() {
               </select>
             </div>
             <div className="space-y-1">
+              <Label htmlFor="concentrado-agrupar">Agrupar por</Label>
+              <select
+                id="concentrado-agrupar"
+                aria-label="Agrupar por"
+                className="h-10 w-full rounded-md border bg-background px-3"
+                value={agruparPor}
+                onChange={(e) => setAgruparPor(e.target.value as GrupoConcentrado)}
+              >
+                {(Object.keys(GRUPO_LABELS) as GrupoConcentrado[]).map((grupo) => (
+                  <option key={grupo} value={grupo}>{GRUPO_LABELS[grupo]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
               <Label htmlFor="concentrado-activo">Definición de «activo»</Label>
               <select
                 id="concentrado-activo"
@@ -481,6 +543,18 @@ export function ConcentradoPage() {
           {filtroFecha === 'personalizado' && !rango ? (
             <p className="text-xs text-muted-foreground">Elige la fecha inicial y la final para aplicar el rango.</p>
           ) : null}
+          {agruparPor !== 'ninguna' && gruposConcentrado.length > 0 ? (
+            <p data-testid="grupos-concentrado" className="text-xs text-muted-foreground">
+              {gruposConcentrado.map((grupo, indice) => (
+                <span key={grupo.grupo}>
+                  {indice > 0 ? ' · ' : null}
+                  <strong className="font-medium text-foreground">{grupo.grupo}</strong>{' '}
+                  {grupo.total} {grupo.total === 1 ? 'solicitud' : 'solicitudes'}
+                  {grupo.importe > 0 ? ` · ${importeFormateado(grupo.importe, 'MXN')}` : ''}
+                </span>
+              ))}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -509,9 +583,13 @@ export function ConcentradoPage() {
 
       <DataTable
         columns={columnas}
-        data={visibles}
+        data={filasOrdenadas}
         title="Concentrado de viáticos"
-        subtitle={`Total: ${visibles.length}`}
+        subtitle={
+          agruparPor === 'ninguna'
+            ? `Total: ${visibles.length}`
+            : `Total: ${visibles.length} · ${GRUPO_LABELS[agruparPor]}`
+        }
         pagination
         pageSize={10}
         height={460}
@@ -522,8 +600,10 @@ export function ConcentradoPage() {
         exportLabel="Generar documento"
         onExport={() => setDocumentoAbierto(true)}
         filterConfig={{
-          tableId: 'viaticos-concentrado-v1',
-          searchableColumns: ['destino', 'solicitante', 'estado'],
+          // v2: agrega la columna Gerencia; el id nuevo evita que una
+          // configuración guardada (sin esa columna) la oculte.
+          tableId: 'viaticos-concentrado-v2',
+          searchableColumns: ['destino', 'solicitante', 'estado', 'gerencia'],
           defaultSearchColumns: ['destino'],
           defaultVisibleColumns: [
             'solicitud',
@@ -533,6 +613,7 @@ export function ConcentradoPage() {
             'transporte',
             'costo',
             'solicitante',
+            'gerencia',
             'estado',
             'calculo',
             'acciones',
@@ -547,9 +628,10 @@ export function ConcentradoPage() {
 
       <ConcentradoDocumentoPreview
         abierto={documentoAbierto}
-        solicitudes={visibles.map(filaConcentrado)}
+        solicitudes={filasOrdenadas.map(filaConcentrado)}
         titulo={tituloDocumento}
         gerencia={gerenciaDocumento}
+        grupoPor={agruparPor}
         onCerrar={() => setDocumentoAbierto(false)}
       />
 
@@ -563,15 +645,43 @@ export function ConcentradoPage() {
           <DialogHeader>
             <DialogTitle>Revisión de la solicitud {detalle?.folio ?? (revisandoId !== null ? `#${revisandoId}` : '')}</DialogTitle>
             <DialogDescription>
-              Mismo detalle que ve la persona viajera. Se autoriza la opción elegida por ella, nunca un
-              reemplazo elegido en su nombre.
+              Mismo detalle que ve la persona viajera. Autoriza la ruta que eligió o genera una nueva
+              versión para autorizarla.
             </DialogDescription>
           </DialogHeader>
 
           {cargandoDetalle ? <p role="status">Cargando revisión…</p> : null}
           {detalle ? (
             <div className="space-y-3">
-              <VistaDetalle solicitud={detalle} />
+              <VistaDetalle
+                solicitud={detalle}
+                acciones={
+                  filaRevisada?.estado === ESTADO_ENVIADA && puedeAutorizar ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => setCalculoAbierto(true)}
+                      >
+                        <Route className="h-4 w-4" aria-hidden />
+                        Generar nueva ruta
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={accionando}
+                        onClick={() => { void aprobar(); }}
+                      >
+                        <Check className="h-4 w-4" aria-hidden />
+                        Autorizar esta ruta
+                      </Button>
+                    </>
+                  ) : undefined
+                }
+              />
               <div className="space-y-1">
                 <Label htmlFor="comentario-revision">Comentario de revisión</Label>
                 <Input
@@ -607,12 +717,20 @@ export function ConcentradoPage() {
             >
               Rechazar
             </Button>
-            <Button type="button" size="sm" disabled={!esAutorizable || accionando} onClick={aprobar}>
-              Aprobar la opción elegida
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {calculoAbierto && detalle ? (
+        <CalculosViajeModal
+          solicitud={detalle}
+          open={calculoAbierto}
+          onOpenChange={setCalculoAbierto}
+          onEnviado={() => undefined}
+          modo="autorizar"
+          onAutorizado={() => { void alAutorizarRutaNueva(); }}
+        />
+      ) : null}
     </div>
   );
 }

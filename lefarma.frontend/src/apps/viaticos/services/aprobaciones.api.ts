@@ -5,8 +5,18 @@ import type {
   FiltrosBandeja,
   SolicitudBandeja,
 } from '../types/aprobaciones.types';
+import type { CalculoViaje, OpcionCotizacion } from '../types/solicitud.types';
 
 const BASE = '/viaticos/solicitudes';
+
+/**
+ * Ruta nueva que el revisor autoriza desde el concentrado. Si se omite, el
+ * backend autoriza la ruta que ya tenía la solicitud.
+ */
+export interface AutorizarSolicitudPayload {
+  calculo?: CalculoViaje;
+  opciones?: OpcionCotizacion[];
+}
 
 /** Serializa los filtros a query string omitiendo los vacios. */
 function query(filtros: FiltrosBandeja): string {
@@ -30,7 +40,10 @@ export const aprobacionesApi = {
   bandeja: (filtros: FiltrosBandeja = {}) =>
     API.get<ApiResponse<SolicitudBandeja[]>>(`${BASE}${query(filtros)}`),
   /** POST /viaticos/solicitudes/{id}/autorizar: 'enviada' -> 'autorizada'. */
-  autorizar: (id: number) => API.post<ApiResponse<object>>(`${BASE}/${id}/autorizar`),
+  autorizar: (id: number, payload?: AutorizarSolicitudPayload) =>
+    payload
+      ? API.post<ApiResponse<object>>(`${BASE}/${id}/autorizar`, payload)
+      : API.post<ApiResponse<object>>(`${BASE}/${id}/autorizar`),
   /** POST /viaticos/solicitudes/{id}/rechazar: 'enviada' -> 'rechazada'. */
   rechazar: (id: number, motivo: string) =>
     API.post<ApiResponse<object>>(`${BASE}/${id}/rechazar`, { motivo }),

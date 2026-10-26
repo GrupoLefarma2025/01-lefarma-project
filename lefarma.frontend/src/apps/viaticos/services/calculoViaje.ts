@@ -82,11 +82,24 @@ function separarIso(iso: string | null | undefined): { fecha: string | null; hor
  * enviar). Devuelve `null` si la solicitud todavía no tiene cálculo.
  */
 export function leerCalculoDesdeDatos(datos: unknown): CalculoViaje | null {
+  return leerCalculo(datos, 'calculo');
+}
+
+/**
+ * Lee la ruta que el concentrado autorizó. Puede ser la misma que eligió la
+ * persona viajera o una nueva generada por el revisor; vive aparte en
+ * `datos.calculo_autorizado` para no perder la ruta calculada original.
+ */
+export function leerCalculoAutorizadoDesdeDatos(datos: unknown): CalculoViaje | null {
+  return leerCalculo(datos, 'calculo_autorizado');
+}
+
+function leerCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): CalculoViaje | null {
   const raiz = typeof datos === 'object' && datos !== null && !Array.isArray(datos)
     ? (datos as Record<string, unknown>)
     : null;
-  const bruto = raiz && typeof raiz.calculo === 'object' && raiz.calculo !== null && !Array.isArray(raiz.calculo)
-    ? (raiz.calculo as Record<string, unknown>)
+  const bruto = raiz && typeof raiz[clave] === 'object' && raiz[clave] !== null && !Array.isArray(raiz[clave])
+    ? (raiz[clave] as Record<string, unknown>)
     : null;
   if (!bruto || !Array.isArray(bruto.tramos)) return null;
 

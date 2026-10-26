@@ -1,5 +1,8 @@
 import type { CSSProperties } from 'react';
+import { Fragment } from 'react';
 import logoAsokam from '@/assets/logo_7.png';
+import { GRUPO_LABELS, type GrupoConcentrado } from '../../constants/grupos';
+import { gerenciaVisible, GERENCIA_SIN_ASIGNAR } from '../../constants/gerencias';
 
 /**
  * Concentrado de viaticos FOR-008 sobre DATOS PERSISTIDOS.
@@ -24,6 +27,8 @@ const ESTADOS_AUTORIZADOS = ['autorizada', 'autorizada_con_ajustes'] as const;
 export interface SolicitudConcentrado {
   id_solicitud: number;
   nombre_solicitante: string;
+  /** Gerencia con la que se capturó (Descentralizado / IMSS / IMSS Bienestar). */
+  gerencia?: string | null;
   /** `autorizada` o `autorizada_con_ajustes` para que la fila se imprima. */
   estado: string;
   /** Rango del viaje tal como lo guarda la solicitud: "05/10/2026 AL 09/10/2026". */
@@ -50,6 +55,8 @@ export type ConceptoConcentrado =
   | 'comida'
   | 'taxi'
   | 'total';
+
+
 
 const money = (n: number | null) =>
   n === null
@@ -91,6 +98,29 @@ const firmaAccionStyle: CSSProperties = {
   color: '#fff',
   fontWeight: 700,
   textAlign: 'center',
+};
+
+/** Banda que separa los bloques del concentrado (una por gerencia o persona). */
+const grupoStyle: CSSProperties = {
+  ...border,
+  background: '#e8eef7',
+  color: NAVY,
+  fontWeight: 700,
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
+};
+
+const subtotalLabelStyle: CSSProperties = {
+  ...border,
+  background: '#f3f6fb',
+  fontWeight: 700,
+  textAlign: 'right',
+};
+
+const subtotalCellStyle: CSSProperties = {
+  ...border,
+  background: '#f3f6fb',
+  fontWeight: 700,
 };
 
 const tableStyle: CSSProperties = {
@@ -190,6 +220,11 @@ interface Props {
    * filtrado en pantalla, aunque todavia no este autorizado.
    */
   soloAutorizadas?: boolean;
+  /**
+   * Parte la tabla en bloques con encabezado y subtotal. `ninguna` imprime el
+   * formato clasico de una sola tabla (comportamiento historico).
+   */
+  grupoPor?: GrupoConcentrado;
 }
 
 export function ConcentradoViaticosPrint({
@@ -198,6 +233,7 @@ export function ConcentradoViaticosPrint({
   gerencia = 'EDUCACION MEDICA',
   fecha = hoyIso(),
   soloAutorizadas = true,
+  grupoPor = 'ninguna',
 }: Props) {
   const filas = soloAutorizadas
     ? solicitudes.filter(s => (ESTADOS_AUTORIZADOS as readonly string[]).includes(s.estado))
@@ -212,6 +248,28 @@ export function ConcentradoViaticosPrint({
     'taxi',
     'total',
   ];
+
+  // El orden de llegada manda: quien monta el componente ya ordeno por el
+  // criterio elegido. Aqui solo se corta en bloques contiguos.
+  const grupos: Array<{ grupo: string | null; filas: SolicitudConcentrado[] }> =
+    grupoPor === 'ninguna'
+      ? [{ grupo: null, filas }]
+      : (() => {
+          const mapa = new Map<string, SolicitudConcentrado[]>();
+          for (const fila of filas) {
+            const clave =
+              grupoPor === 'gerencia'
+                ? gerenciaVisible(fila.gerencia)
+                : fila.nombre_solicitante || GERENCIA_SIN_ASIGNAR;
+            const lista = mapa.get(clave) ?? [];
+            lista.push(fila);
+            mapa.set(clave, lista);
+          }
+          return [...mapa.entries()].map(([grupo, filasGrupo]) => ({ grupo, filas: filasGrupo }));
+        })();
+
+  const numeroPorSolicitud = new Map(filas.map((fila, indice) => [fila.id_solicitud, indice + 1]));
+  const COLUMNAS_FIJAS = 5;
 
   return (
     <article
@@ -269,19 +327,43 @@ export function ConcentradoViaticosPrint({
           </tr>
         </thead>
         <tbody>
-          {filas.map((s, i) => (
-            <tr key={s.id_solicitud}>
-              <td style={border}>{i + 1}</td>
-              <td style={border}>{s.nombre_solicitante || UNKNOWN}</td>
-              <td style={border}>{s.fecha || UNKNOWN}</td>
-              <td style={border}>{s.origen ?? UNKNOWN}</td>
-              <td style={border}>{s.destino ?? UNKNOWN}</td>
-              {conceptos.map(c => (
-                <td style={border} key={c}>
-                  {money(s[c])}
-                </td>
+          {grupos.map(({ grupo, filas: filasGrupo }) => (
+            <Fragment key={grupo ?? 'concentrado-unico'}>
+              {grupo !== null ? (
+                <tr className="concentrado-grupo">
+                  <td colSpan={COLUMNAS_FIJAS + conceptos.length} style={grupoStyle}>
+                    {GRUPO_LABELS[grupoPor]}: {grupo} · {filasGrupo.length}{' '}
+                    {filasGrupo.length === 1 ? 'solicitud' : 'solicitudes'}
+                  </td>
+                </tr>
+              ) : null}
+              {filasGrupo.map((s) => (
+                <tr key={s.id_solicitud}>
+                  <td style={border}>{numeroPorSolicitud.get(s.id_solicitud) ?? 0}</td>
+                  <td style={border}>{s.nombre_solicitante || UNKNOWN}</td>
+                  <td style={border}>{s.fecha || UNKNOWN}</td>
+                  <td style={border}>{s.origen ?? UNKNOWN}</td>
+                  <td style={border}>{s.destino ?? UNKNOWN}</td>
+                  {conceptos.map(c => (
+                    <td style={border} key={c}>
+                      {money(s[c])}
+                    </td>
+                  ))}
+                </tr>
               ))}
-            </tr>
+              {grupo !== null ? (
+                <tr className="concentrado-subtotal-grupo">
+                  <td colSpan={COLUMNAS_FIJAS} style={subtotalLabelStyle}>
+                    Subtotal {grupo}
+                  </td>
+                  {conceptos.map(c => (
+                    <td style={subtotalCellStyle} key={c}>
+                      {money(sumaColumna(filasGrupo, c))}
+                    </td>
+                  ))}
+                </tr>
+              ) : null}
+            </Fragment>
           ))}
         </tbody>
         <tfoot>

@@ -8,6 +8,7 @@ import {
   ConcentradoViaticosPrint,
   type SolicitudConcentrado,
 } from '../costos/ConcentradoViaticosPrint';
+import type { GrupoConcentrado } from '../../constants/grupos';
 
 /**
  * Vista previa imprimible del concentrado FOR-008 desde el concentrado de
@@ -46,10 +47,12 @@ interface Props {
   /** Texto de la barra: periodo o filtro activo. */
   titulo: string;
   gerencia?: string;
+  /** Criterio con el que se parten los bloques del FOR-008. */
+  grupoPor?: GrupoConcentrado;
   onCerrar: () => void;
 }
 
-export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gerencia, onCerrar }: Props) {
+export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gerencia, grupoPor = 'ninguna', onCerrar }: Props) {
   const [imprimiendo, setImprimiendo] = useState(false);
   const mounted = useRef(true);
 
@@ -121,6 +124,7 @@ export function ConcentradoDocumentoPreview({ abierto, solicitudes, titulo, gere
           <ConcentradoViaticosPrint
             solicitudes={solicitudes}
             gerencia={gerencia}
+            grupoPor={grupoPor}
             soloAutorizadas={false}
           />
         )}

@@ -39,6 +39,7 @@ import { costosRutaApi } from '../services/costosRuta.api';
 import { casetasDeRuta } from '../services/casetasRuta';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
+import { aprobacionesApi } from '../services/aprobaciones.api';
 import type { CostosRutaResponse } from '../types/costosRuta.types';
 import type { CalculoViaje, OpcionCotizacion, Solicitud } from '../types/solicitud.types';
 
@@ -77,11 +78,20 @@ export function CalculosViajeModal({
   open,
   onOpenChange,
   onEnviado,
+  modo = 'enviar',
+  onAutorizado,
 }: {
   solicitud: Solicitud | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onEnviado: (id: number) => void;
+  /**
+   * 'enviar' = flujo del viajero (borrador -> concentrado).
+   * 'autorizar' = flujo del revisor: recalcula la misma solicitud y guarda la
+   * versión nueva como ruta autorizada, sin crear otra solicitud.
+   */
+  modo?: 'enviar' | 'autorizar';
+  onAutorizado?: (id: number) => void;
 }) {
   const [paso, setPaso] = useState(0);
   const [resultados, setResultados] = useState<Record<number, CostosRutaResponse>>({});
@@ -533,6 +543,21 @@ export function CalculosViajeModal({
           })),
         },
       };
+      if (modo === 'autorizar') {
+        const res = await aprobacionesApi.autorizar(solicitud.id_solicitud, {
+          calculo,
+          ...(opciones.length > 0 ? { opciones } : {}),
+        });
+        if (!res.data.success) {
+          toast.error(res.data.message ?? 'No se pudo autorizar la ruta.');
+          return;
+        }
+        toast.success('Ruta autorizada.');
+        onAutorizado?.(solicitud.id_solicitud);
+        onOpenChange(false);
+        return;
+      }
+
       const res = opciones.length > 0
         ? await solicitudesApi.guardarOpciones(solicitud.id_solicitud, opciones, calculo)
         : await solicitudesApi.enviar(solicitud.id_solicitud, calculo);
@@ -544,7 +569,10 @@ export function CalculosViajeModal({
       onEnviado(solicitud.id_solicitud);
       onOpenChange(false);
     } catch (falla: unknown) {
-      toast.error(toApiError(falla).message || 'No se pudo enviar a concentrado.');
+      toast.error(
+        toApiError(falla).message
+          || (modo === 'autorizar' ? 'No se pudo autorizar la ruta.' : 'No se pudo enviar a concentrado.'),
+      );
     } finally {
       setEnviando(false);
     }
@@ -561,7 +589,9 @@ export function CalculosViajeModal({
           <DialogDescription>
             {tramo
               ? `Paso ${paso + 1} de ${tramos.length}: ${paso === 0 ? 'Origen' : tramo.desde.nombre} → ${tramo.esRegreso ? 'Regreso' : tramo.hasta.nombre}`
-              : 'Calcula cada tramo y envía la solicitud al concentrado.'}
+              : modo === 'autorizar'
+                ? 'Calcula cada tramo y autoriza esta nueva versión de la ruta.'
+                : 'Calcula cada tramo y envía la solicitud al concentrado.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -897,6 +927,8 @@ export function CalculosViajeModal({
           nodos={cadenaResumen.nodos}
           onEnviar={() => { void enviar(); }}
           enviando={enviando}
+          textoAccion={modo === 'autorizar' ? 'Autorizar ruta' : 'Enviar a concentrado'}
+          textoEnviando={modo === 'autorizar' ? 'Autorizando…' : 'Enviando…'}
         />
       </DialogContent>
     </Dialog>

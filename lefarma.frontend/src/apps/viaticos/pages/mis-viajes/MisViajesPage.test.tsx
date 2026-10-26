@@ -234,4 +234,56 @@ describe('MisViajesPage', () => {
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Ruta del viaje');
     expect(screen.getByTestId('detalle-viaje')).toHaveTextContent('Fechas del viaje');
   });
+
+  it('habilita la ruta autorizada cuando el concentrado ya la guardó', async () => {
+    const usuario = userEvent.setup();
+    const tramo = (de: string, a: string) => ({
+      de,
+      a,
+      km: 100,
+      duracion: '2h',
+      duracion_con_margen: '2h 12m',
+      salida_fecha: '2026-11-10',
+      salida_hora: '07:00',
+      llegada_fecha: '2026-11-10',
+      llegada_hora: '09:00',
+      alcanza: true,
+      casetas: [],
+    });
+    const datos = {
+      version: 'solicitud-v2',
+      persona: { modo: 'mia', nombre: 'Persona Actual', motivo: 'Ejemplo' },
+      transporte: { modo: 'solicitado', compartir: false, acompanantes: [] },
+      origen: { punto: { nombre: 'Ciudad de México', latitud: 19.43, longitud: -99.15 } },
+      destinos: [
+        { punto: { nombre: 'Aguascalientes', latitud: 21.88, longitud: -102.29 }, debeEstarFecha: '2026-11-10', debeEstarHora: '13:11' },
+      ],
+      retorno: { destino: 'origen', punto: null },
+      rango: { inicio: '2026-11-10', fin: '2026-11-10' },
+      calculo: {
+        generado_en: '2026-11-05T12:00:00.000Z',
+        margen: 0.1,
+        modo_transporte: 'solicitado',
+        tramos: [tramo('Ruta del viajero', 'Destino original')],
+      },
+      calculo_autorizado: {
+        generado_en: '2026-11-06T09:00:00.000Z',
+        margen: 0.1,
+        modo_transporte: 'solicitado',
+        tramos: [tramo('Ruta autorizada por el concentrado', 'Destino aprobado')],
+      },
+    };
+    mocks.mis.mockResolvedValue({ data: { success: true, data: [solicitud(1, { datos })] } });
+    mocks.detalle.mockResolvedValue({ data: { success: true, data: solicitud(1, { datos }) } });
+    render(<MisViajesPage />);
+    await waitFor(() => expect(screen.getByTestId('viaje-1')).toBeInTheDocument());
+    await usuario.click(within(screen.getByTestId('viaje-1')).getByRole('button', { name: /Ver detalle/ }));
+    await waitFor(() => expect(screen.getByTestId('detalle-viaje')).toBeInTheDocument());
+
+    const tabAutorizada = screen.getByRole('tab', { name: 'Ruta autorizada' });
+    expect(tabAutorizada).not.toBeDisabled();
+    await usuario.click(tabAutorizada);
+    expect(screen.getByTestId('diagrama-ruta-autorizada')).toBeInTheDocument();
+    expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
+  });
 });

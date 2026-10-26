@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Clock, Eye, MoreHorizontal, Pencil, Route, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,7 +32,7 @@ import { BoletoViajeDialog, BotonVerBoleto } from '../../components/BoletoViajeD
 import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
-import { horaAmPm, leerCalculoDesdeDatos } from '../../services/calculoViaje';
+import { horaAmPm, leerCalculoAutorizadoDesdeDatos, leerCalculoDesdeDatos } from '../../services/calculoViaje';
 import {
   ETIQUETA_PERIODO,
   clasificarRelacion,
@@ -673,15 +673,48 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
  * otra pestaña, la propuesta original del wizard. La tercera pestaña queda
  * reservada para la ruta que se autorice en el concentrado.
  */
-export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
+export function VistaDetalle({
+  solicitud,
+  acciones,
+}: {
+  solicitud: Solicitud;
+  /**
+   * Acciones del revisor dentro del detalle (autorizar la ruta elegida o
+   * generar una nueva). Mis viajes no las pasa: la persona viajera solo
+   * consulta.
+   */
+  acciones?: ReactNode;
+}) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
-  const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | null>(null);
+  // Solicitudes autorizadas antes de que existiera `calculo_autorizado`: la
+  // ruta calculada ES la que se autorizó. Las nuevas traen su propia versión.
+  const estaAutorizada =
+    solicitud.estado === 'autorizada' || solicitud.estado === 'autorizada_con_ajustes';
+  const calculoAutorizado =
+    leerCalculoAutorizadoDesdeDatos(solicitud.datos) ?? (estaAutorizada ? calculo : null);
+  const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | 'autorizada' | null>(null);
   const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
+  const mapaAutorizado = mapaDeCalculo(calculoAutorizado);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
+  const barraAcciones = acciones ? (
+    <div
+      data-testid="acciones-detalle"
+      className="flex flex-wrap items-center justify-end gap-2 rounded-lg border bg-muted/30 p-2"
+    >
+      {acciones}
+    </div>
+  ) : null;
 
-  if (!resumen) return <DetalleViajeLegado solicitud={solicitud} />;
+  if (!resumen) {
+    return (
+      <div className="space-y-4">
+        {barraAcciones}
+        <DetalleViajeLegado solicitud={solicitud} />
+      </div>
+    );
+  }
 
   const propuesta = (
     <div className="space-y-4">
@@ -697,19 +730,22 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
     // revisor ve la misma pantalla aunque la solicitud no haya pasado por los
     // cálculos (o venga del flujo anterior).
     return (
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="space-y-4">{propuesta}</div>
-        <div className="space-y-3">
-          {solicitud.opciones.length > 0 ? (
-            <DetalleOpciones solicitud={solicitud} />
-          ) : (
-            <div className="rounded-lg border border-dashed bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
-              <p className="text-xs text-muted-foreground">Cotización</p>
-              <p className="text-muted-foreground">
-                Esta solicitud no tiene cotización ni cálculo registrados: se envió sin pasar por los cálculos.
-              </p>
-            </div>
-          )}
+      <div className="space-y-4">
+        {barraAcciones}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <div className="space-y-4">{propuesta}</div>
+          <div className="space-y-3">
+            {solicitud.opciones.length > 0 ? (
+              <DetalleOpciones solicitud={solicitud} />
+            ) : (
+              <div className="rounded-lg border border-dashed bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
+                <p className="text-xs text-muted-foreground">Cotización</p>
+                <p className="text-muted-foreground">
+                  Esta solicitud no tiene cotización ni cálculo registrados: se envió sin pasar por los cálculos.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -717,6 +753,7 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
 
   return (
     <Tabs defaultValue="calculada" className="space-y-4">
+      {barraAcciones}
       <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
         <TabsTrigger value="calculada" className={folderTabTriggerClassName}>
           Ruta calculada
@@ -724,7 +761,7 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
         <TabsTrigger value="inicial" className={folderTabTriggerClassName}>
           Viaje inicial
         </TabsTrigger>
-        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled>
+        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled={!calculoAutorizado}>
           Ruta autorizada
         </TabsTrigger>
       </TabsList>
@@ -767,10 +804,28 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
           <RutaCalculada calculo={calculo} />
         </div>
       </TabsContent>
-      <TabsContent value="autorizada">
-        <p className="text-sm text-muted-foreground">
-          La ruta autorizada aparece aquí cuando el concentrado la modifique al autorizar el viaje.
-        </p>
+      <TabsContent value="autorizada" className="space-y-4">
+        {calculoAutorizado ? (
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+            <div data-testid="diagrama-ruta-autorizada" className="rounded-lg border bg-card p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="font-semibold">Ruta autorizada</h3>
+                {mapaAutorizado.puntos.length > 0 ? (
+                  <BotonVerMapa onClick={() => setMapaAbierto('autorizada')} />
+                ) : null}
+              </div>
+              <RutaViajeTimeline nodos={nodosDesdeCalculo(calculoAutorizado)} />
+            </div>
+            <div className="space-y-3">
+              {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
+              <CasetasRuta calculo={calculoAutorizado} />
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            La ruta autorizada aparece aquí cuando el concentrado autoriza el viaje.
+          </p>
+        )}
       </TabsContent>
 
       <RutaMapaDialog
@@ -788,6 +843,14 @@ export function VistaDetalle({ solicitud }: { solicitud: Solicitud }) {
         descripcion="Origen, destinos y regreso capturados en el wizard, sin hoteles ni terminales."
         puntos={mapaInicial.puntos}
         segmentos={mapaInicial.segmentos}
+      />
+      <RutaMapaDialog
+        abierto={mapaAbierto === 'autorizada'}
+        onOpenChange={(abierto) => setMapaAbierto(abierto ? 'autorizada' : null)}
+        titulo="Ruta autorizada"
+        descripcion="La versión que autorizó el concentrado, con terminales, hotel y taxis."
+        puntos={mapaAutorizado.puntos}
+        segmentos={mapaAutorizado.segmentos}
       />
       <BoletoViajeDialog
         abierto={boletoAbierto}
