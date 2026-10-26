@@ -42,7 +42,9 @@ export function LineaConCoordenadas({ texto }: { texto: string }) {
         </PopoverTrigger>
         <PopoverContent side="right" align="start" collisionPadding={12} className="w-auto p-2">
           <MapaPuntoMini lat={coords.lat} lng={coords.lng} />
-          <p className="px-1 pt-1 text-[10px] text-muted-foreground">© OpenStreetMap contributors</p>
+          <p className="px-1 pt-1 text-[10px] text-muted-foreground">
+            Arrastra para mover · Ctrl + rueda para acercar · © OpenStreetMap contributors
+          </p>
         </PopoverContent>
       </Popover>
       {resto}

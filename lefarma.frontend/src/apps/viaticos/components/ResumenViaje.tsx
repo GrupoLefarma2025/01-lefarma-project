@@ -80,7 +80,9 @@ function DetalleUbicacion({
         </PopoverTrigger>
         <PopoverContent side="right" align="start" collisionPadding={12} className="w-auto p-2">
           <MapaResumen punto={punto} />
-          <p className="px-1 pt-1 text-[10px] text-muted-foreground">© OpenStreetMap contributors</p>
+          <p className="px-1 pt-1 text-[10px] text-muted-foreground">
+            Arrastra para mover · Ctrl + rueda para acercar · © OpenStreetMap contributors
+          </p>
         </PopoverContent>
       </Popover>
       {sufijo ? ` ${sufijo}` : null}
