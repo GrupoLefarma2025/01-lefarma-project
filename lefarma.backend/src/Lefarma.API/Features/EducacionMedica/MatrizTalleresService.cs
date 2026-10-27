@@ -104,13 +104,45 @@ public class MatrizTalleresService : IMatrizTalleresService
             .Include(m => m.Equipo)
                 .ThenInclude(e => e!.Region)
             .Where(m => idsIndividuales.Contains(m.IdMatrizIndividual))
-            .OrderBy(m => m.IdEquipo)
+            .OrderBy(m => m.IdEjecutivo)
+            .ThenBy(m => m.IdEquipo)
             .ToListAsync(ct);
 
-        var idsUsuarios = individuales
-            .SelectMany(m => new[] { m.Equipo?.IdEjecutivo, m.Equipo?.IdEspecialista })
+        var resumenTalleres = await _context.Talleres.AsNoTracking()
+            .Where(t => t.IdMatrizGeneral == idMatrizGeneral && t.IdMatrizIndividual != null && t.Activo)
+            .Select(t => new
+            {
+                IdMatrizIndividual = t.IdMatrizIndividual!.Value,
+                t.IdEspecialista,
+                t.Region,
+            })
+            .ToListAsync(ct);
+        var datosPorIndividual = resumenTalleres
+            .GroupBy(t => t.IdMatrizIndividual)
+            .ToDictionary(
+                g => g.Key,
+                g => new
+                {
+                    Total = g.Count(),
+                    IdEspecialista = g.Select(t => t.IdEspecialista).FirstOrDefault(i => i.HasValue),
+                    Region = g.Select(t => t.Region).FirstOrDefault(r => !string.IsNullOrWhiteSpace(r)),
+                });
+
+        var idsEjecutivos = individuales
+            .Select(m => m.IdEjecutivo ?? m.Equipo?.IdEjecutivo)
             .Where(i => i.HasValue)
             .Select(i => i!.Value)
+            .Distinct()
+            .ToList();
+        var idsUsuarios = idsEjecutivos
+            .Concat(datosPorIndividual.Values
+                .Select(d => d.IdEspecialista)
+                .Where(i => i.HasValue)
+                .Select(i => i!.Value))
+            .Concat(individuales
+                .Select(m => m.Equipo?.IdEspecialista)
+                .Where(i => i.HasValue)
+                .Select(i => i!.Value))
             .Distinct()
             .ToList();
 
@@ -120,26 +152,49 @@ public class MatrizTalleresService : IMatrizTalleresService
                 .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto ?? string.Empty, ct)
             : new Dictionary<int, string>();
 
-        var talleresPorIndividual = await _context.Talleres.AsNoTracking()
-            .Where(t => t.IdMatrizGeneral == idMatrizGeneral && t.IdMatrizIndividual != null && t.Activo)
-            .GroupBy(t => t.IdMatrizIndividual!.Value)
-            .Select(g => new { IdMatrizIndividual = g.Key, Total = g.Count() })
-            .ToDictionaryAsync(x => x.IdMatrizIndividual, x => x.Total, ct);
+        var regionesPorEjecutivo = new Dictionary<int, string?>();
+        if (idsEjecutivos.Count > 0)
+        {
+            var asignaciones = await _context.EjecutivosRegion.AsNoTracking()
+                .Include(e => e.Region)
+                .Where(e => e.Activo && idsEjecutivos.Contains(e.IdUsuario) && e.Region != null)
+                .ToListAsync(ct);
+            regionesPorEjecutivo = asignaciones
+                .GroupBy(e => e.IdUsuario)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Select(e => e.Region?.Nombre).FirstOrDefault());
+        }
 
         return individuales
-            .Select(m => new ConcentracionEquipoDto
+            .Select(m =>
             {
-                IdMatrizIndividual = m.IdMatrizIndividual,
-                IdEquipo = m.IdEquipo,
-                NombreRegion = m.Equipo?.Region?.Nombre,
-                IdEjecutivo = m.Equipo?.IdEjecutivo,
-                NombreEjecutivo = m.Equipo is not null ? nombresUsuarios.GetValueOrDefault(m.Equipo.IdEjecutivo) : null,
-                IdEspecialista = m.Equipo?.IdEspecialista,
-                NombreEspecialista = m.Equipo is not null ? nombresUsuarios.GetValueOrDefault(m.Equipo.IdEspecialista) : null,
-                EsBloqueado = m.EsBloqueado,
-                FechaBloqueo = m.FechaBloqueo,
-                FechaDesbloqueo = m.FechaDesbloqueo,
-                TotalTalleres = talleresPorIndividual.GetValueOrDefault(m.IdMatrizIndividual),
+                var datos = datosPorIndividual.GetValueOrDefault(m.IdMatrizIndividual);
+                var idEjecutivo = m.IdEjecutivo ?? m.Equipo?.IdEjecutivo;
+                var idEspecialista = datos?.IdEspecialista ?? m.Equipo?.IdEspecialista;
+
+                return new ConcentracionEquipoDto
+                {
+                    IdMatrizIndividual = m.IdMatrizIndividual,
+                    IdEquipo = m.IdEquipo ?? 0,
+                    NombreRegion = m.Equipo?.Region?.Nombre
+                        ?? (idEjecutivo.HasValue
+                            ? regionesPorEjecutivo.GetValueOrDefault(idEjecutivo.Value)
+                            : null)
+                        ?? datos?.Region,
+                    IdEjecutivo = idEjecutivo,
+                    NombreEjecutivo = idEjecutivo.HasValue
+                        ? nombresUsuarios.GetValueOrDefault(idEjecutivo.Value)
+                        : null,
+                    IdEspecialista = idEspecialista,
+                    NombreEspecialista = idEspecialista.HasValue
+                        ? nombresUsuarios.GetValueOrDefault(idEspecialista.Value)
+                        : null,
+                    EsBloqueado = m.EsBloqueado,
+                    FechaBloqueo = m.FechaBloqueo,
+                    FechaDesbloqueo = m.FechaDesbloqueo,
+                    TotalTalleres = datos?.Total ?? 0,
+                };
             })
             .ToList();
     }

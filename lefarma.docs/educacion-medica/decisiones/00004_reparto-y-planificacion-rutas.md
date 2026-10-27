@@ -8,7 +8,9 @@ resumen: Diseño del reparto por zonas y la planificación de rutas (draft→sel
 
 ## Status
 
-Accepted
+Superseded by ADR-00015
+
+> **Sustituido parcialmente (2026-10-23).** El modelo de equipos de pareo EV+EP y la ruta por equipo se sustituyen por [[decisiones/00015_reparto-ejecutivo-rutas-especialista]] (selección → ejecutivo, ruta → especialista). Se conservan de este ADR: zonas calculadas por GPS, snapshot de coordenadas, capacidad 3/día/8/semana, viajes foráneos, versionado mínimo y el principio sistema-propone/humano-dispone.
 
 > Complementa al ADR-00001 (esquema de datos del módulo; parcialmente superseded por ADR-00002 en la parte de cálculo de anestesias, que no afecta esta decisión). No reemplaza ningún ADR: define la capa de **planificación** (reparto y rutas) que se apoya en las tablas `selecciones_mensuales` / `selecciones_mensuales_hospitales` ya creadas en el script 0003.
 

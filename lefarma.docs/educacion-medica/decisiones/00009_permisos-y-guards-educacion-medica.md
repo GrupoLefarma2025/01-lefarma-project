@@ -10,6 +10,8 @@ resumen: Permisos y guards de Educación Médica — cierra la escalada horizont
 
 Proposed
 
+> **Actualización 2026-10-23:** se agregan permisos de calendario, personas y solicitudes de cambio según [[decisiones/00016_calendario-planeacion-talleres]] y [[decisiones/00018_candado-solicitudes-matriz]]. Los permisos existentes de selección/rutas/talleres/matriz se conservan; `rutas.puede_autorizar` deja de aplicar al retirarse el workflow de rutas.
+
 > Complementa a los ADR-00001 (esquema), 00004 (rutas), 00006 (workflow) y 00007 (matriz de talleres). **No cambia esquemas ni workflows**: endurece la superficie HTTP del módulo y alinea la navegación con los permisos que ya existían desde `0017`, más 5 códigos nuevos y ajustes de matriz (script `0021`).
 
 ## Índice

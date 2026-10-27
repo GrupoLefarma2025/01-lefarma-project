@@ -210,7 +210,8 @@ public class SeleccionMensualServiceTests
             workflow.WorkflowRepo,
             (workflowQuery ?? new Mock<IWorkflowQueryService>()).Object,
             profileService.Object,
-            workflow.JefeResolverMock.Object);
+            workflow.JefeResolverMock.Object,
+            new EjecutivoElegibilidadService(workflow.Context));
     }
 
     private static Mock<IRegionRepository> CreateRegionRepositoryMock()
@@ -555,8 +556,43 @@ public class SeleccionMensualServiceTests
             idUsuario: workflow.UsuarioGvImss);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*sin equipo de pareo*OCCIDENTE*");
+            .WithMessage("*sin ejecutivo*OCCIDENTE*");
         seleccion.Estado.Should().Be(SeleccionMensual.EstadoEnRevision);
+    }
+
+    [Fact]
+    public async Task FirmarAsync_CerrarRegionSinEjecutivoConSuplente_Debe_AsignarYCeerrar()
+    {
+        var repo = new FakeSeleccionRepository();
+        var workflow = WorkflowTestHarness.Crear();
+        var seleccion = SeleccionEnPasoGv(repo, workflow);
+        var regionSinEjecutivo = new SeleccionRegion
+        {
+            IdSeleccionMensual = seleccion.IdSeleccionMensual,
+            IdRegion = 2,
+            IdRegionCatalogo = 1,
+            Nombre = "OCCIDENTE",
+        };
+        repo.Regiones.Add(new SeleccionRegion { IdSeleccionMensual = seleccion.IdSeleccionMensual, IdRegion = 1, Nombre = "NORESTE", IdEquipo = EquipoId });
+        repo.Regiones.Add(regionSinEjecutivo);
+        workflow.Context.EjecutivosSuplentes.Add(new EjecutivoSuplente
+        {
+            IdUsuario = 999,
+            IdTipoGerencia = 1,
+            IdRegionCatalogo = 1,
+            Activo = true,
+        });
+        workflow.Context.SaveChanges();
+
+        var service = CreateService(repo, workflow: workflow);
+        var dto = await service.FirmarAsync(
+            seleccion.IdSeleccionMensual,
+            new FirmarWorkflowRequest { IdAccion = workflow.AccionesSeleccion["GvImssCerrar"] },
+            idUsuario: workflow.UsuarioGvImss);
+
+        regionSinEjecutivo.IdEjecutivo.Should().Be(999);
+        dto.Estado.Should().Be(SeleccionMensual.EstadoCerrada);
+        seleccion.Estado.Should().Be(SeleccionMensual.EstadoCerrada);
     }
 
     [Fact]

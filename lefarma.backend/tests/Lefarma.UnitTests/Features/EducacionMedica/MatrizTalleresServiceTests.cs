@@ -345,6 +345,32 @@ public class MatrizTalleresServiceTests
     }
 
     [Fact]
+    public async Task GetConcentracion_PorEjecutivo_Debe_ResolverEjecutivoEspecialistaYRegion()
+    {
+        var general = SembrarMatrizEnConcentracion(talleresSinCostos: 1);
+        var contexto = _workflow.Context;
+        var individual = contexto.MatricesIndividuales.Single();
+        individual.IdEquipo = null;
+        individual.IdEjecutivo = IdEv;
+        contexto.EjecutivosRegion.Add(new EjecutivoRegion
+        {
+            IdUsuario = IdEv,
+            IdRegionCatalogo = 1,
+            Activo = true,
+        });
+        contexto.SaveChanges();
+
+        var panel = await CrearServicio().GetConcentracionAsync(general.IdMatrizGeneral);
+
+        var fila = panel.Should().ContainSingle().Subject;
+        fila.IdEquipo.Should().Be(0);
+        fila.IdEjecutivo.Should().Be(IdEv);
+        fila.IdEspecialista.Should().Be(IdEp);
+        fila.NombreRegion.Should().Be("Región 1");
+        fila.TotalTalleres.Should().Be(1);
+    }
+
+    [Fact]
     public async Task GetMatrices_Debe_FiltrarPorGerenciaYPeriodo()
     {
         SembrarMatrizEnConcentracion();

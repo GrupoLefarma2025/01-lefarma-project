@@ -14,6 +14,7 @@ public class RutaConfiguration : IEntityTypeConfiguration<Ruta>
         builder.Property(e => e.IdRuta).HasColumnName("id_ruta");
         builder.Property(e => e.IdSeleccionMensual).HasColumnName("id_seleccion_mensual");
         builder.Property(e => e.IdEquipo).HasColumnName("id_equipo");
+        builder.Property(e => e.IdEspecialista).HasColumnName("id_especialista");
         builder.Property(e => e.Version).HasColumnName("version");
         builder.Property(e => e.Nombre).HasColumnName("nombre").HasMaxLength(80);
         builder.Property(e => e.Estado).HasColumnName("estado").HasMaxLength(15).IsRequired();
@@ -29,6 +30,9 @@ public class RutaConfiguration : IEntityTypeConfiguration<Ruta>
 
         builder.HasIndex(e => e.IdRutaVersion)
             .HasDatabaseName("IX_rutas_id_ruta_version");
+
+        builder.HasIndex(e => e.IdEspecialista)
+            .HasDatabaseName("IX_rutas_especialista");
 
         builder.HasOne(e => e.RutaVersion)
             .WithMany(v => v.Rutas)

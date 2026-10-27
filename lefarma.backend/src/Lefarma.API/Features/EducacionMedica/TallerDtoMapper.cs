@@ -36,6 +36,7 @@ internal static class TallerDtoMapper
         return new TallerDto
         {
             IdTaller = taller.IdTaller,
+            IdRutaVisita = taller.IdRutaVisita,
             IdSeleccionHospital = taller.IdSeleccionHospital,
             IdHospital = taller.IdHospital,
             NombreHospital = taller.IdHospital.HasValue

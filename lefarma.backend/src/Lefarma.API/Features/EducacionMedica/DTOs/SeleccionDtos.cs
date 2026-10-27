@@ -55,7 +55,9 @@ public class SeleccionHospitalDto
     public string? NombreRegion { get; set; }
     /// <summary>Equipo de pareo de la región del hospital (solo lectura; se asigna a nivel región).</summary>
     public int? IdEquipo { get; set; }
+    public int? IdEjecutivo { get; set; }
     public string? NombreEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
     public string? NombreEspecialista { get; set; }
     public decimal? ScoreSugerencia { get; set; }
     /// <summary>Origen de la asignación de región en la agrupación: null = región de catálogo (o alta manual) | "GPS" = fallback por centroide.</summary>
@@ -73,6 +75,10 @@ public class SeleccionRegionDto
     public int CantidadHospitales { get; set; }
     public int? IdEquipo { get; set; }
     public string? NombreEquipo { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public string? NombreEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
+    public string? NombreEspecialista { get; set; }
     public int? IdRegionCatalogo { get; set; }
     public string? Algoritmo { get; set; }
     public DateTime FechaCalculo { get; set; }
@@ -141,6 +147,21 @@ public class AsignarEquipoRegionRequest
     [Required(ErrorMessage = "El equipo es obligatorio.")]
     [Range(1, int.MaxValue, ErrorMessage = "El equipo es obligatorio.")]
     public int IdEquipo { get; set; }
+}
+
+public class AsignarEjecutivoRegionRequest
+{
+    [Required(ErrorMessage = "El ejecutivo es obligatorio.")]
+    [Range(1, int.MaxValue, ErrorMessage = "El ejecutivo es obligatorio.")]
+    public int IdEjecutivo { get; set; }
+
+    public int? IdEspecialista { get; set; }
+}
+
+public class AsignarEjecutivoHospitalRequest
+{
+    /// <summary>Ejecutivo que cubre el hospital; NULL = heredar del ejecutivo de la región.</summary>
+    public int? IdEjecutivo { get; set; }
 }
 
 public class MoverHospitalARegionRequest

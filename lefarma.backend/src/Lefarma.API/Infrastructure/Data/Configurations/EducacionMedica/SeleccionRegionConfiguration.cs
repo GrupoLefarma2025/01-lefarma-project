@@ -20,6 +20,8 @@ public class SeleccionRegionConfiguration : IEntityTypeConfiguration<SeleccionRe
         builder.Property(e => e.Algoritmo).HasColumnName("algoritmo").HasMaxLength(50);
         builder.Property(e => e.FechaCalculo).HasColumnName("fecha_calculo");
         builder.Property(e => e.IdEquipo).HasColumnName("id_equipo");
+        builder.Property(e => e.IdEjecutivo).HasColumnName("id_ejecutivo");
+        builder.Property(e => e.IdEspecialista).HasColumnName("id_especialista");
         builder.Property(e => e.IdRegionCatalogo).HasColumnName("id_region_catalogo");
         builder.Property(e => e.FechaCreacion).HasColumnName("fecha_creacion");
         builder.Property(e => e.FechaModificacion).HasColumnName("fecha_modificacion");
@@ -35,6 +37,8 @@ public class SeleccionRegionConfiguration : IEntityTypeConfiguration<SeleccionRe
             .WithMany()
             .HasForeignKey(e => e.IdEquipo)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.IdEjecutivo).HasDatabaseName("IX_selecciones_regiones_ejecutivo");
 
         builder.HasOne<RegionCatalogo>()
             .WithMany()

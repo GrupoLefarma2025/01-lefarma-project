@@ -9,12 +9,11 @@ import {
   CalendarRange,
   FileText,
   CheckSquare,
-  Calendar,
+  CalendarDays,
   ClipboardList,
   Presentation,
   PenLine,
   MapPin,
-  
   LineChart,
   BarChart3,
   Sparkles,
@@ -56,6 +55,12 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
     isCollapsible: true,
     items: [
       {
+        title: 'Colaboradores',
+        icon: Users,
+        path: '/educacion-medica/personas',
+        permission: { require: PERMISOS.configuracion },
+      },
+      {
         title: 'Hospitales',
         icon: Hospital,
         path: '/educacion-medica/catalogos/hospitales',
@@ -79,12 +84,7 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         path: '/educacion-medica/catalogos/regiones',
         permission: { require: PERMISOS.configuracion },
       },
-      {
-        title: 'Equipos y pareo',
-        icon: Users,
-        path: '/educacion-medica/catalogos/equipos-pareo',
-        permission: { require: PERMISOS.configuracion },
-      },
+
       {
         title: 'Parámetros',
         icon: Settings,
@@ -117,8 +117,8 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.seleccionesVer },
       },
       {
-        title: 'Mi planeación',
-        icon: Calendar,
+        title: 'Calendario',
+        icon: CalendarDays,
         path: '/educacion-medica/calendario',
         permission: { require: PERMISOS.talleresVer },
       },
@@ -134,12 +134,6 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         icon: Presentation,
         path: '/educacion-medica/talleres',
         permission: { require: PERMISOS.talleresVer },
-      },
-      {
-        title: 'Mis talleres',
-        icon: ClipboardList,
-        path: '/educacion-medica/talleres/mis-talleres',
-        permission: { require: PERMISOS.talleresCapturar },
       },
       {
         title: 'Bandeja de Autorizaciones',

@@ -48,11 +48,28 @@ public class TalleresController : ControllerBase
         }
     }
 
+    [HttpGet("visita/{idRutaVisita:int}")]
+    [HasPermission(Permissions.EducacionMedica.TalleresVer)]
+    [SwaggerOperation(
+        Summary = "Talleres de una visita de ruta",
+        Description = "Retorna los talleres activos ligados a la visita seleccionada, con recursos y costo.")]
+    [SwaggerResponse(200, "Talleres obtenidos", typeof(ApiResponse<List<TallerDto>>))]
+    public async Task<IActionResult> GetByVisita(int idRutaVisita, CancellationToken ct)
+    {
+        var talleres = await _service.GetByVisitaAsync(idRutaVisita, ct);
+        return Ok(new ApiResponse<List<TallerDto>>
+        {
+            Success = true,
+            Message = "Talleres obtenidos exitosamente.",
+            Data = talleres,
+        });
+    }
+
     [HttpPost]
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
     [SwaggerOperation(
         Summary = "Capturar taller (FOR-005)",
-        Description = "Captura un taller sobre un hospital de la selección. Valida que el usuario sea EV/EP del equipo asignado a la región; con talleres.puede_capturar_asistida el CEM captura a nombre de otro equipo (idEquipo explícito; ADR-00011). Modo extraordinario (esExtraordinario + idHospital + idEquipo + motivoExtraordinario): hospital del catálogo fuera de la selección, exige talleres.puede_capturar_extraordinarios y nace Programado. Hace get-or-create de las matrices.")]
+        Description = "Captura un taller sobre un hospital de la selección. Con idRutaVisita hereda hospital, ejecutivo, especialista, fecha y hora de la visita (ADR-00015/00016). Valida que el usuario sea el ejecutivo/especialista responsable; con talleres.puede_capturar_asistida el CEM captura a nombre de otro responsable (ADR-00011). Modo extraordinario (esExtraordinario + idHospital + idEquipo + motivoExtraordinario): hospital del catálogo fuera de la selección, exige talleres.puede_capturar_extraordinarios y nace Programado. Hace get-or-create de la matriz individual por ejecutivo y de la general por gerencia.")]
     [SwaggerResponse(200, "Taller capturado", typeof(ApiResponse<TallerDto>))]
     [SwaggerResponse(409, "Elegibilidad, permiso o candado de edición fallido")]
     public async Task<IActionResult> Crear([FromBody] CrearTallerRequest request, CancellationToken ct)

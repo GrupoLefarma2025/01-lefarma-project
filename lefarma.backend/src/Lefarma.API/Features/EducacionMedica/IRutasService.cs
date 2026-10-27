@@ -28,6 +28,14 @@ public interface IRutasService
         int idUsuario,
         CancellationToken ct = default);
 
+    /// <summary>Asigna manualmente el ejecutivo de una visita; en ruta Cerrada es ajuste auditado.</summary>
+    Task<DTOs.RutaVisitaDto> AsignarEjecutivoVisitaAsync(
+        int idRuta,
+        int idRutaVisita,
+        DTOs.AsignarEjecutivoVisitaRequest request,
+        int idUsuario,
+        CancellationToken ct = default);
+
     Task<DTOs.RutaVisitaDto> AgregarVisitaAsync(
         int idRuta,
         DTOs.AgregarVisitaRequest request,

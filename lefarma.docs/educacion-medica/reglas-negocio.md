@@ -1,6 +1,6 @@
 ---
 fecha_creacion: 2026-08-10 17:45
-fecha_modificacion: 2026-08-13 18:50
+fecha_modificacion: 2026-10-23 10:00
 resumen: Documento maestro único del módulo Educación Médica — brief + proceso AS-IS (32 pasos detallados) + reglas de negocio (TO-BE) + modelo de datos y dependencias del legacy (Asokam).
 ---
 
@@ -9,6 +9,14 @@ resumen: Documento maestro único del módulo Educación Médica — brief + pro
 Documento de referencia **único y maestro** que consolida el contexto, el proceso actual (AS-IS, con los 32 pasos detallados y sus citas literales), las reglas de la digitalización (TO-BE) y el modelo de datos del módulo **Educación Médica**, que digitaliza el proceso **Talleres Médicos en Hospitales** (`ASK-CEM-DDP-001`).
 
 - Para el **diseño técnico** (schema, tablas, endpoints, pantallas, permisos): [[decisiones/00001_esquema-datos-educacion-medica]].
+
+> **Actualización 2026-10-23 — cambio de modelo de reparto.** Las secciones §5.2–5.5, §5.10, §5.11 y §5.13 describen el modelo anterior de equipos de pareo EV+EP. El nuevo modelo está en:
+> - [[decisiones/00015_reparto-ejecutivo-rutas-especialista]] — la selección asigna ejecutivos y la ruta se organiza por especialista; sin equipos de pareo.
+> - [[decisiones/00016_calendario-planeacion-talleres]] — calendario unificado de planeación y talleres, con vista primaria por especialista.
+> - [[decisiones/00017_tercera-gerencia-imss-bienestar]] — tercera gerencia y clasificación de hospitales.
+> - [[decisiones/00018_candado-solicitudes-matriz]] — candado por taller y solicitudes de cambio de matriz.
+>
+> Las tareas 00015–00018 actualizan el texto de este documento. Mientras tanto, este archivo sigue siendo la referencia del AS-IS y de las reglas que no cambian.
 
 ---
 

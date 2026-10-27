@@ -10,6 +10,8 @@ resumen: Pantalla "Mi planeación" para EV/EP — vista semanal de solo lectura 
 
 Proposed
 
+> **Actualización 2026-10-23:** “Mi planeación” se integra como vista personal del calendario unificado de [[decisiones/00016_calendario-planeacion-talleres]]. El handoff a Viáticos (ADR-00014) se conserva; la ruta ahora se organiza por especialista ([[decisiones/00015_reparto-ejecutivo-rutas-especialista]]).
+
 ## Índice
 
 - [[#Status|Status]]

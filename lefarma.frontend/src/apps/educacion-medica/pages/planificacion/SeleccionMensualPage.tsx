@@ -41,7 +41,9 @@ import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMe
 import type {
   AccionDisponible,
   AgruparSeleccionResponse,
-  EquipoPareo,
+  EjecutivoRegion,
+  EjecutivoSuplente,
+  EspecialistaPersona,
   FiltrosDisponibles,
   Hospital,
   HospitalCercanoOtraSeleccion,
@@ -101,7 +103,9 @@ export default function SeleccionMensualPage() {
 
   const [selecciones, setSelecciones] = useState<SeleccionMensual[]>([]);
   const [detalle, setDetalle] = useState<SeleccionDetalle | null>(null);
-  const [equipos, setEquipos] = useState<EquipoPareo[]>([]);
+  const [ejecutivos, setEjecutivos] = useState<EjecutivoRegion[]>([]);
+  const [suplentes, setSuplentes] = useState<EjecutivoSuplente[]>([]);
+  const [especialistas, setEspecialistas] = useState<EspecialistaPersona[]>([]);
   const [loading, setLoading] = useState(true);
   const [guardando, setGuardando] = useState(false);
   const [accionesWorkflow, setAccionesWorkflow] = useState<AccionDisponible[]>([]);
@@ -230,10 +234,24 @@ export default function SeleccionMensualPage() {
         if (!cancelado) setLoading(false);
       });
 
-    educacionMedicaApi.equiposPareo
-      .getAll({ soloVigentes: true })
+    educacionMedicaApi.personas.ejecutivos
+      .getAll({ soloActivos: true })
       .then((response) => {
-        if (!cancelado && response.data.success) setEquipos(response.data.data ?? []);
+        if (!cancelado && response.data.success) setEjecutivos(response.data.data ?? []);
+      })
+      .catch(() => undefined);
+
+    educacionMedicaApi.personas.suplentes
+      .getAll({ soloActivos: true })
+      .then((response) => {
+        if (!cancelado && response.data.success) setSuplentes(response.data.data ?? []);
+      })
+      .catch(() => undefined);
+
+    educacionMedicaApi.personas.especialistas
+      .getAll(undefined, true)
+      .then((response) => {
+        if (!cancelado && response.data.success) setEspecialistas(response.data.data ?? []);
       })
       .catch(() => undefined);
 
@@ -302,13 +320,13 @@ export default function SeleccionMensualPage() {
     }
   }, []);
 
-  // Al cambiar de selección, abrir la primera región con problema (sin equipo > advertencia <4)
+  // Al cambiar de selección, abrir la primera región con problema (sin ejecutivo > advertencia <4)
   useEffect(() => {
     if (!detalle) return;
     if (regionesInicializadasPara.current === detalle.idSeleccionMensual) return;
     regionesInicializadasPara.current = detalle.idSeleccionMensual;
     const problematica =
-      detalle.regiones.find((r) => !r.idEquipo) ??
+      detalle.regiones.find((r) => !r.idEjecutivo) ??
       detalle.regiones.find((r) => r.advertenciaMinimo) ??
       null;
     setRegionesAbiertas(problematica ? [String(problematica.idRegion)] : []);
@@ -599,25 +617,92 @@ export default function SeleccionMensualPage() {
     }
   };
 
-  const asignarEquipo = async (
+  const asignarEjecutivoRegion = async (
     region: SeleccionRegion,
-    idEquipo: string
+    idEjecutivo: string
   ): Promise<{ ok: boolean; mensaje?: string }> => {
-    if (!detalle || idEquipo === 'sin-equipo') return { ok: true };
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
     try {
-      const response = await educacionMedicaApi.seleccionesMensuales.asignarEquipo(
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoRegion(
         detalle.idSeleccionMensual,
         region.idRegion,
-        { idEquipo: Number(idEquipo) }
+        {
+          idEjecutivo: Number(idEjecutivo),
+          idEspecialista: region.idEspecialista,
+        }
       );
       if (response.data.success) {
-        toast.success(`Región asignada a ${response.data.data?.nombreEquipo}.`);
+        toast.success(
+          `Región asignada a ${response.data.data?.nombreEjecutivo ?? 'el ejecutivo seleccionado'}.`
+        );
         await refrescar();
         return { ok: true };
       }
-      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el equipo' };
+      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el ejecutivo' };
     } catch (error: unknown) {
-      return { ok: false, mensaje: toApiError(error).message ?? 'Error al asignar el equipo' };
+      return { ok: false, mensaje: toApiError(error).message ?? 'Error al asignar el ejecutivo' };
+    }
+  };
+
+  const asignarEspecialistaRegion = async (
+    region: SeleccionRegion,
+    idEspecialista: string
+  ): Promise<{ ok: boolean; mensaje?: string }> => {
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
+    if (!region.idEjecutivo) {
+      return { ok: false, mensaje: 'Asigna primero un ejecutivo a la región.' };
+    }
+
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoRegion(
+        detalle.idSeleccionMensual,
+        region.idRegion,
+        {
+          idEjecutivo: region.idEjecutivo,
+          idEspecialista:
+            idEspecialista === 'sin-especialista' ? null : Number(idEspecialista),
+        }
+      );
+      if (response.data.success) {
+        toast.success('Especialista sugerido actualizado.');
+        await refrescar();
+        return { ok: true };
+      }
+      return { ok: false, mensaje: response.data.message ?? 'Error al asignar el especialista' };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        mensaje: toApiError(error).message ?? 'Error al asignar el especialista',
+      };
+    }
+  };
+
+  const asignarEjecutivoHospital = async (
+    hospital: SeleccionHospital,
+    idEjecutivo: string
+  ): Promise<{ ok: boolean; mensaje?: string }> => {
+    if (!detalle) return { ok: false, mensaje: 'No hay una selección abierta.' };
+    try {
+      const response = await educacionMedicaApi.seleccionesMensuales.asignarEjecutivoHospital(
+        detalle.idSeleccionMensual,
+        hospital.idSeleccionHospital,
+        { idEjecutivo: idEjecutivo === 'heredar' ? null : Number(idEjecutivo) }
+      );
+      if (response.data.success) {
+        toast.success('Ejecutivo del hospital actualizado.');
+        await refrescar();
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        mensaje: response.data.message ?? 'Error al asignar el ejecutivo del hospital',
+      };
+    } catch (error: unknown) {
+      return {
+        ok: false,
+        mensaje:
+          toApiError(error).message ?? 'Error al asignar el ejecutivo del hospital',
+      };
     }
   };
 
@@ -1016,7 +1101,11 @@ export default function SeleccionMensualPage() {
           subtitle="Todas las selecciones creadas, en cualquier estado"
           onVer={(s) => abrirSeleccion(s.idSeleccionMensual)}
           onEditar={(s) => abrirSeleccion(s.idSeleccionMensual)}
-          onRutas={(s) => navigate(`/educacion-medica/seleccion/${s.idSeleccionMensual}/rutas`)}
+            onRutas={(s) =>
+              navigate(
+                `/educacion-medica/calendario?idSeleccion=${s.idSeleccionMensual}&vista=especialista`
+              )
+            }
           onFirma={abrirFirmaLista}
           onHistorial={abrirHistorialLista}
           onArchivos={abrirArchivosLista}
@@ -1130,7 +1219,7 @@ export default function SeleccionMensualPage() {
               <DatePicker value={nuevaFin} onChange={setNuevaFin} placeholder="Seleccionar" />
               <p className="text-xs text-muted-foreground">
                 Último día del periodo. Las rutas se distribuyen entre los días laborales (Lun–Vie)
-                de este rango; la capacidad de cada equipo se calcula sobre estas fechas.
+                de este rango; la capacidad de cada especialista se calcula sobre estas fechas.
               </p>
               {errorFechasNueva && <p className="text-xs text-destructive">{errorFechasNueva}</p>}
             </div>
@@ -1243,7 +1332,9 @@ export default function SeleccionMensualPage() {
               <Button
                 size="sm"
                 onClick={() =>
-                  navigate(`/educacion-medica/seleccion/${detalle.idSeleccionMensual}/rutas`)
+                  navigate(
+                  `/educacion-medica/calendario?idSeleccion=${detalle.idSeleccionMensual}&vista=especialista`
+                )
                 }
               >
                 <RouteIcon className="mr-2 h-4 w-4" />
@@ -1291,14 +1382,19 @@ export default function SeleccionMensualPage() {
               regiones={detalle.regiones}
               hospitalesPorRegion={hospitalesPorRegion}
               totalHospitales={detalle.totalHospitales}
-              equipos={equipos}
+              ejecutivos={ejecutivos}
+              suplentes={suplentes}
+              especialistas={especialistas}
+              idTipoGerencia={detalle.idTipoGerencia}
               editable={editable}
               guardando={guardando}
               regionesAbiertas={regionesAbiertas}
               onRegionesAbiertasChange={manejarRegionesAbiertas}
               onHoverRegion={setRegionHoverId}
               onHoverHospital={setHospitalHoverId}
-              onAsignarEquipo={asignarEquipo}
+              onAsignarEjecutivoRegion={asignarEjecutivoRegion}
+              onAsignarEspecialistaRegion={asignarEspecialistaRegion}
+              onAsignarEjecutivoHospital={asignarEjecutivoHospital}
               onQuitarHospital={quitarHospital}
               onDividir={setRegionDividir}
               onRecalcular={() => void agrupar()}
@@ -1503,7 +1599,7 @@ export default function SeleccionMensualPage() {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
             La mitad más alejada del centroide formará una región nueva. Esta es una excepción
-            manual a la regla de una región por equipo; documenta el motivo.
+            manual a la regla de una región por ejecutivo; documenta el motivo.
           </p>
           <Input
             placeholder="Motivo de la división..."
@@ -1517,7 +1613,6 @@ export default function SeleccionMensualPage() {
         open={modalResumen}
         onOpenChange={setModalResumen}
         detalle={detalle}
-        equipos={equipos}
       />
 
       <DocumentoFirmaModal

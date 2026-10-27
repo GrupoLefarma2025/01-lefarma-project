@@ -1,4 +1,4 @@
-import { Route } from 'react-router-dom';
+import { Navigate, Route, useParams } from 'react-router-dom';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { createAppRoutes } from '@/shared/router/createAppRoutes';
@@ -6,20 +6,18 @@ import type { SubtreeRoutesProps } from '@/shared/router/types';
 import { educacionMedicaMenuItems } from './menuItems';
 
 import { EducacionMedicaDashboard } from './pages/dashboard/EducacionMedicaDashboard';
+import ColaboradoresPage from './pages/personas/PersonasPage';
 import Perfil from '@/pages/Perfil';
 import HospitalesPage from './pages/catalogos/HospitalesPage';
 import ProductosPage from './pages/catalogos/ProductosPage';
 import TipoGerenciaPage from './pages/catalogos/TipoGerenciaPage';
 import RegionesPage from './pages/catalogos/RegionesPage';
-import EquiposPareoPage from './pages/catalogos/EquiposPareoPage';
 import ParametrosPage from './pages/catalogos/ParametrosPage';
 import ConfigRankingPage from './pages/catalogos/ConfigRankingPage';
 import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
 import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
-import RutasPage from './pages/planificacion/RutasPage';
-import MiPlaneacionPage from './pages/planificacion/MiPlaneacionPage';
+import CalendarioPage from './pages/calendario/CalendarioPage';
 import MatrizTalleresPage from './pages/taller/MatrizTalleresPage';
-import MisTalleresPage from './pages/taller/MisTalleresPage';
 import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
 import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
 import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
@@ -36,10 +34,31 @@ const PERMISOS = {
   configuracion: 'educacion_medica.configuracion.puede_gestionar',
   programasVer: 'educacion_medica.programas.puede_ver',
   seleccionesVer: 'educacion_medica.selecciones.puede_ver',
-  rutasVer: 'educacion_medica.rutas.puede_ver',
   talleresVer: 'educacion_medica.talleres.puede_ver',
   talleresCapturar: 'educacion_medica.talleres.puede_capturar',
 } as const;
+
+function RedirectRutasLegacy() {
+  const { idSeleccion } = useParams();
+  return (
+    <Navigate
+      replace
+      to={
+        idSeleccion
+          ? `/educacion-medica/calendario?idSeleccion=${idSeleccion}&vista=especialista`
+          : '/educacion-medica/calendario'
+      }
+    />
+  );
+}
+
+function RedirectMisTalleres() {
+  return <Navigate replace to="/educacion-medica/calendario?vista=semana&filtro=mis" />;
+}
+
+function RedirectEquiposLegacy() {
+  return <Navigate replace to="/educacion-medica/personas" />;
+}
 
 /**
  * Educación Médica route table — delega TODO el scaffolding a la fábrica
@@ -80,6 +99,15 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         <Route path="perfil" element={<Perfil />} />
 
         <Route
+          path="personas"
+          element={
+            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.configuracion}>
+              <ColaboradoresPage />
+            </PermissionGuard>
+          }
+        />
+
+        <Route
           path="catalogos/hospitales"
           element={
             <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.hospitalesVer}>
@@ -111,14 +139,7 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
             </PermissionGuard>
           }
         />
-        <Route
-          path="catalogos/equipos-pareo"
-          element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.configuracion}>
-              <EquiposPareoPage />
-            </PermissionGuard>
-          }
-        />
+        <Route path="catalogos/equipos-pareo" element={<RedirectEquiposLegacy />} />
         <Route
           path="catalogos/parametros"
           element={
@@ -151,20 +172,13 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
             </PermissionGuard>
           }
         />
-        <Route
-          path="seleccion/:idSeleccion/rutas"
-          element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.rutasVer}>
-              <RutasPage />
-            </PermissionGuard>
-          }
-        />
+        <Route path="seleccion/:idSeleccion/rutas" element={<RedirectRutasLegacy />} />
         <Route
           path="calendario"
           element={
-          <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
-            <MiPlaneacionPage />
-          </PermissionGuard>
+            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
+              <CalendarioPage />
+            </PermissionGuard>
           }
         />
         <Route
@@ -175,14 +189,7 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
             </PermissionGuard>
           }
         />
-        <Route
-          path="talleres/mis-talleres"
-          element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresCapturar}>
-              <MisTalleresPage />
-            </PermissionGuard>
-          }
-        />
+        <Route path="talleres/mis-talleres" element={<RedirectMisTalleres />} />
         <Route
           path="aprobaciones"
           element={

@@ -161,6 +161,36 @@ public class RutasController : ControllerBase
         }
     }
 
+    [HttpPut("rutas/{idRuta:int}/visitas/{idRutaVisita:int}/ejecutivo")]
+    [HasPermission(Permissions.EducacionMedica.RutasGestionar)]
+    [SwaggerOperation(
+        Summary = "Asignar ejecutivo a una visita",
+        Description = "Asigna manualmente el ejecutivo de la visita (primario o suplente) validando misma región/gerencia; null = heredar. En ruta Cerrada exige rutas.puede_ajustar + motivo y queda auditado (EDITAR_EJECUTIVO; ADR-00010).")]
+    [SwaggerResponse(200, "Ejecutivo asignado", typeof(ApiResponse<RutaVisitaDto>))]
+    [SwaggerResponse(409, "Validación o permiso fallido")]
+    public async Task<IActionResult> AsignarEjecutivoVisita(
+        int idRuta,
+        int idRutaVisita,
+        [FromBody] AsignarEjecutivoVisitaRequest request,
+        CancellationToken ct)
+    {
+        try
+        {
+            var visita = await _service.AsignarEjecutivoVisitaAsync(
+                idRuta, idRutaVisita, request, GetUserId(), ct);
+            return Ok(new ApiResponse<RutaVisitaDto>
+            {
+                Success = true,
+                Message = "Ejecutivo de la visita actualizado exitosamente.",
+                Data = visita,
+            });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
+        }
+    }
+
     [HttpPut("rutas/{idRuta:int}/visitas/{idRutaVisita:int}/mover")]
     [HasPermission(Permissions.EducacionMedica.RutasGestionar)]
     [SwaggerOperation(

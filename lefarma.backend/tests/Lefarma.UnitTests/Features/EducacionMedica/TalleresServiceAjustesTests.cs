@@ -369,7 +369,8 @@ public class TalleresServiceAjustesTests
         historial.EstadoNuevo.Should().Be(Taller.EstadoProgramado);
         historial.Origen.Should().Be(TallerEstadoHistorial.OrigenAutomatico);
 
-        _workflow.Context.MatricesIndividuales.Should().Contain(m => m.IdEquipo == IdEquipo && m.Periodo == new DateOnly(2026, 10, 1));
+        _workflow.Context.MatricesIndividuales.Should().Contain(m =>
+            m.IdEjecutivo == IdEv && m.IdEquipo == null && m.Periodo == new DateOnly(2026, 10, 1));
         _workflow.Context.MatricesGenerales.Should().Contain(m => m.IdTipoGerencia == 1 && m.Periodo == new DateOnly(2026, 10, 1));
     }
 

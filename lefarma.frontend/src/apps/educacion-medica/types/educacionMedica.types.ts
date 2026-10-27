@@ -232,6 +232,91 @@ export interface UsuarioCatalogo {
   correo: string;
 }
 
+export interface EjecutivoRegion {
+  idEjecutivoRegion: number;
+  idUsuario: number;
+  nombreUsuario: string;
+  idRegionCatalogo: number;
+  nombreRegion: string;
+  idTipoGerencia: number;
+  nombreGerencia: string;
+  activo: boolean;
+}
+
+export interface CrearEjecutivoRegionRequest {
+  idUsuario: number;
+  idRegionCatalogo: number;
+}
+
+export interface ActualizarEjecutivoRegionRequest {
+  idRegionCatalogo: number;
+  activo?: boolean | null;
+}
+
+export interface EjecutivoSuplente {
+  idEjecutivoSuplente: number;
+  idUsuario: number;
+  nombreUsuario: string;
+  idTipoGerencia: number | null;
+  nombreGerencia: string;
+  idRegionCatalogo: number | null;
+  nombreRegion: string;
+  activo: boolean;
+}
+
+export interface CrearEjecutivoSuplenteRequest {
+  idUsuario: number;
+  idTipoGerencia?: number | null;
+  idRegionCatalogo?: number | null;
+  activo?: boolean;
+}
+
+export interface ActualizarEjecutivoSuplenteRequest {
+  idTipoGerencia?: number | null;
+  idRegionCatalogo?: number | null;
+  activo?: boolean | null;
+}
+
+export interface EspecialistaGerencia {
+  idEspecialistaGerencia: number;
+  idTipoGerencia: number;
+  nombreGerencia: string;
+  activo: boolean;
+}
+
+export interface EspecialistaRegionPreferida {
+  idEspecialistaRegion: number;
+  idRegionCatalogo: number;
+  nombreRegion: string;
+  activo: boolean;
+}
+
+export interface EspecialistaPersona {
+  idUsuario: number;
+  nombreUsuario: string;
+  gerencias: EspecialistaGerencia[];
+  regionPreferida: EspecialistaRegionPreferida | null;
+  activo: boolean;
+}
+
+export interface GuardarEspecialistaRequest {
+  idUsuario: number;
+  idsTipoGerencia: number[];
+  idRegionCatalogo?: number | null;
+}
+
+export interface PersonasEjecutivosFiltros {
+  busqueda?: string;
+  idTipoGerencia?: number | null;
+  soloActivos?: boolean | null;
+}
+
+export interface PersonasSuplentesFiltros {
+  busqueda?: string;
+  idTipoGerencia?: number | null;
+  soloActivos?: boolean | null;
+}
+
 export interface EquipoPareo {
   idEquipo: number;
   idRegion: number;
@@ -343,9 +428,11 @@ export interface SeleccionHospital {
   longitudSnapshot: number | null;
   idRegion: number | null;
   nombreRegion: string | null;
-  /** Equipo de pareo de la región del hospital (solo lectura). */
+  /** Equipo de pareo (legacy, solo lectura). */
   idEquipo: number | null;
+  idEjecutivo: number | null;
   nombreEjecutivo: string | null;
+  idEspecialista: number | null;
   nombreEspecialista: string | null;
   scoreSugerencia: number | null;
   /** Origen de la asignación de región: null = catálogo/manual | "GPS" = fallback por centroide. */
@@ -365,10 +452,86 @@ export interface SeleccionRegion {
   cantidadHospitales: number;
   idEquipo: number | null;
   nombreEquipo: string | null;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
   idRegionCatalogo: number | null;
   algoritmo: string | null;
   fechaCalculo: string;
   advertenciaMinimo: boolean;
+}
+
+export interface AsignarEjecutivoRegionRequest {
+  idEjecutivo: number;
+  idEspecialista?: number | null;
+}
+
+export interface AsignarEjecutivoHospitalRequest {
+  idEjecutivo: number | null;
+}
+
+export interface AsignarEjecutivoVisitaRequest {
+  idEjecutivo: number | null;
+  motivo?: string | null;
+}
+
+export interface CalendarioFiltro {
+  idSeleccion?: number | null;
+  desde?: string | null;
+  hasta?: string | null;
+  idGerencia?: number | null;
+  idRegion?: number | null;
+  idEjecutivo?: number | null;
+  idEspecialista?: number | null;
+  estado?: string | null;
+  tipoVisita?: string | null;
+}
+
+export interface SugerenciaEspecialista {
+  idRutaVisita: number;
+  idHospital: number | null;
+  nombreHospital: string | null;
+  ciudadMunicipio: string | null;
+  fechaVisita: string;
+  idEspecialista: number;
+  nombreEspecialista: string;
+  cargaDia: number;
+  cargaSemana: number;
+  motivo: string;
+}
+
+export interface CalendarioItem {
+  idRutaVisita: number;
+  idRuta: number;
+  idSeleccionMensual: number;
+  idTaller: number | null;
+  idSeleccionHospital: number | null;
+  idHospital: number | null;
+  hospital: string | null;
+  region: string | null;
+  gerencia: string;
+  estadoRuta: string;
+  institucion: string | null;
+  ciudadMunicipio: string | null;
+  fecha: string;
+  orden: number;
+  hora: string | null;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  tipoVisita: string;
+  tema: string | null;
+  producto: string | null;
+  cantidad: number | null;
+  costo: number | null;
+  participantes: number | null;
+  estado: string;
+  esExtraordinario: boolean;
+  bloqueado: boolean;
+  solicitudCambioPendiente: boolean;
+  conflictos: string[];
 }
 
 export interface SeleccionDetalle extends SeleccionMensual {
@@ -376,7 +539,7 @@ export interface SeleccionDetalle extends SeleccionMensual {
   regiones: SeleccionRegion[];
 }
 
-export type CriterioCercania = "distancia" | "mismoEstado" | "mismaCiudad";
+export type CriterioCercania = 'distancia' | 'mismoEstado' | 'mismaCiudad';
 
 export interface HospitalCercanoOtraSeleccion {
   idSeleccionHospitalAjeno: number;
@@ -521,6 +684,9 @@ export interface RutaVisita {
   idSeleccionHospital: number | null;
   idHospital: number | null;
   nombreHospital: string | null;
+  idEjecutivo: number | null;
+  idEspecialista: number | null;
+  idTipoVisita: number | null;
   fechaVisita: string;
   orden: number;
   /** TimeOnly del backend: 'HH:mm:ss'. */
@@ -850,6 +1016,7 @@ export interface TallerRecurso {
 
 export interface Taller {
   idTaller: number;
+  idRutaVisita: number | null;
   idSeleccionHospital: number | null;
   idHospital: number | null;
   nombreHospital: string | null;
@@ -945,6 +1112,8 @@ export interface GuardarTallerRecursoRequest {
 
 /** Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección). */
 export interface CrearTallerRequest {
+  /** Visita de la ruta desde la que se crea el taller; hereda hospital, fecha y responsables. */
+  idRutaVisita?: number | null;
   /** Hospital de la selección; obligatorio en el modo normal (null en extraordinario). */
   idSeleccionHospital?: number | null;
   /** Equipo explícito para la captura asistida del CEM (ADR-00011). */
@@ -960,6 +1129,8 @@ export interface CrearTallerRequest {
   lugar?: string | null;
   fechaTaller?: string | null;
   horaTaller?: string | null;
+  /** Motivo obligatorio si la fecha obliga a crear una visita en una ruta cerrada. */
+  motivoAjuste?: string | null;
   requiereEquipoProyeccion?: boolean | null;
   tipoEquipoProyeccion?: string | null;
   observaciones?: string | null;

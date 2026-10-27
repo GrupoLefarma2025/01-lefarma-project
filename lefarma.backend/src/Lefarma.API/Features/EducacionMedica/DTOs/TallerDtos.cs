@@ -22,6 +22,7 @@ public class TallerRecursoDto
 public class TallerDto
 {
     public int IdTaller { get; set; }
+    public int? IdRutaVisita { get; set; }
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
     public string? NombreHospital { get; set; }
@@ -58,7 +59,7 @@ public class TallerDto
     public decimal CostoTotal { get; set; }
 }
 
-/// <summary>Matriz individual de un equipo de pareo (equipo + mes).</summary>
+/// <summary>Matriz individual por ejecutivo (ejecutivo + mes).</summary>
 public class MatrizIndividualDto
 {
     public int IdMatrizIndividual { get; set; }
@@ -119,6 +120,9 @@ public class GuardarTallerRecursoRequest
 /// <summary>Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección).</summary>
 public class CrearTallerRequest
 {
+    /// <summary>Visita de la ruta desde la que se crea el taller; hereda hospital, ejecutivo, especialista, fecha y hora.</summary>
+    public int? IdRutaVisita { get; set; }
+
     /// <summary>Hospital de la selección; obligatorio en el modo normal (null en extraordinario).</summary>
     [Range(1, int.MaxValue, ErrorMessage = "El hospital de la selección es obligatorio.")]
     public int? IdSeleccionHospital { get; set; }
@@ -147,6 +151,11 @@ public class CrearTallerRequest
 
     public DateOnly? FechaTaller { get; set; }
     public TimeOnly? HoraTaller { get; set; }
+
+    /// <summary>Motivo obligatorio cuando la fecha del taller obliga a crear una visita en una ruta cerrada.</summary>
+    [MaxLength(500)]
+    public string? MotivoAjuste { get; set; }
+
     public bool? RequiereEquipoProyeccion { get; set; }
 
     [MaxLength(10)]

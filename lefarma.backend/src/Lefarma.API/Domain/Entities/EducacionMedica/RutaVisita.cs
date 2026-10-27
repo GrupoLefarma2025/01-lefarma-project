@@ -7,6 +7,9 @@ public class RutaVisita
     /// <summary>Hospital de la selección que origina la visita; NULL en visitas extraordinarias (ADR-00011).</summary>
     public int? IdSeleccionHospital { get; set; }
     public int? IdHospital { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
+    public int? IdTipoVisita { get; set; }
     public DateOnly FechaVisita { get; set; }
     public int Orden { get; set; }
     public TimeOnly? HoraSalida { get; set; }

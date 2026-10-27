@@ -49,43 +49,93 @@ public class TalleresService : ITalleresService
         var periodoDate = ParsePeriodo(periodo);
         var equipo = await ObtenerEquipoDelUsuarioAsync(idUsuario, ct);
 
+        MatrizIndividual? matriz;
+        List<Taller> talleres;
+        int? idEjecutivo;
+        int? idEspecialista;
+
+        if (equipo is not null)
+        {
+            // Fallback legacy: usuario que aún pertenece a un equipo de pareo activo.
+            matriz = await _context.MatricesIndividuales.AsNoTracking()
+                .FirstOrDefaultAsync(m => m.IdEquipo == equipo.IdEquipo && m.Periodo == periodoDate, ct);
+            talleres = matriz is null
+                ? []
+                : await _context.Talleres.AsNoTracking()
+                    .Include(t => t.Recursos)
+                    .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.Activo)
+                    .OrderBy(t => t.FechaTaller)
+                    .ThenBy(t => t.IdTaller)
+                    .ToListAsync(ct);
+            idEjecutivo = equipo.IdEjecutivo;
+            idEspecialista = equipo.IdEspecialista;
+        }
+        else
+        {
+            // Nuevo modelo: matriz individual del ejecutivo.
+            matriz = await _context.MatricesIndividuales.AsNoTracking()
+                .FirstOrDefaultAsync(m => m.IdEjecutivo == idUsuario && m.Periodo == periodoDate, ct);
+
+            if (matriz is not null)
+            {
+                talleres = await _context.Talleres.AsNoTracking()
+                    .Include(t => t.Recursos)
+                    .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.Activo)
+                    .OrderBy(t => t.FechaTaller)
+                    .ThenBy(t => t.IdTaller)
+                    .ToListAsync(ct);
+                idEjecutivo = matriz.IdEjecutivo;
+                idEspecialista = talleres
+                    .Where(t => t.IdEspecialista.HasValue)
+                    .Select(t => t.IdEspecialista)
+                    .FirstOrDefault();
+            }
+            else
+            {
+                // Especialista sin matriz propia: ve las visitas/talleres donde fue asignado.
+                var inicio = periodoDate;
+                var fin = periodoDate.AddMonths(1);
+                talleres = await _context.Talleres.AsNoTracking()
+                    .Include(t => t.Recursos)
+                    .Where(t => t.Activo
+                        && t.IdEspecialista == idUsuario
+                        && t.FechaTaller >= inicio
+                        && t.FechaTaller < fin)
+                    .OrderBy(t => t.FechaTaller)
+                    .ThenBy(t => t.IdTaller)
+                    .ToListAsync(ct);
+                idEjecutivo = null;
+                idEspecialista = idUsuario;
+            }
+        }
+
         var response = new MisTalleresResponse
         {
             IdEquipo = equipo?.IdEquipo,
-            NombreRegion = equipo?.Region?.Nombre,
+            NombreRegion = equipo?.Region?.Nombre
+                ?? (idEjecutivo.HasValue
+                    ? await ObtenerNombreRegionEjecutivoAsync(idEjecutivo.Value, ct)
+                    : null),
             Periodo = periodoDate,
         };
 
-        if (equipo is null)
-        {
-            return response;
-        }
-
-        var matriz = await _context.MatricesIndividuales.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.IdEquipo == equipo.IdEquipo && m.Periodo == periodoDate, ct);
-
-        var talleres = matriz is null
-            ? []
-            : await _context.Talleres.AsNoTracking()
-                .Include(t => t.Recursos)
-                .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.Activo)
-                .OrderBy(t => t.FechaTaller)
-                .ThenBy(t => t.IdTaller)
-                .ToListAsync(ct);
-
         var (nombresHospitales, nombresUsuarios) = await ResolverNombresAsync(
             talleres.Select(t => t.IdHospital),
-            [equipo.IdEjecutivo, equipo.IdEspecialista],
+            [idEjecutivo, idEspecialista],
             ct);
         var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
             _asokamContext, talleres, ct);
         var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
 
-        response.NombreEjecutivo = nombresUsuarios.GetValueOrDefault(equipo.IdEjecutivo);
-        response.NombreEspecialista = nombresUsuarios.GetValueOrDefault(equipo.IdEspecialista);
+        response.NombreEjecutivo = idEjecutivo.HasValue
+            ? nombresUsuarios.GetValueOrDefault(idEjecutivo.Value)
+            : null;
+        response.NombreEspecialista = idEspecialista.HasValue
+            ? nombresUsuarios.GetValueOrDefault(idEspecialista.Value)
+            : null;
         response.Matriz = matriz is null
             ? null
-            : ArmarMatrizIndividualDto(matriz, equipo, talleres.Count, nombresUsuarios);
+            : ArmarMatrizIndividualDto(matriz, idEjecutivo, idEspecialista, talleres.Count, nombresUsuarios);
         response.Talleres = talleres
             .Select(t =>
             {
@@ -121,25 +171,106 @@ public class TalleresService : ITalleresService
         return response;
     }
 
+    public async Task<List<TallerDto>> GetByVisitaAsync(int idRutaVisita, CancellationToken ct = default)
+    {
+        var talleres = await _context.Talleres
+            .AsNoTracking()
+            .Include(t => t.Recursos)
+            .Where(t => t.IdRutaVisita == idRutaVisita && t.Activo)
+            .OrderBy(t => t.FechaTaller)
+            .ThenBy(t => t.IdTaller)
+            .ToListAsync(ct);
+
+        if (talleres.Count == 0)
+        {
+            return [];
+        }
+
+        var (nombresHospitales, nombresUsuarios) = await ResolverNombresAsync(
+            talleres.Select(t => t.IdHospital),
+            talleres.SelectMany(t => new[] { t.IdEjecutivo, t.IdEspecialista, t.IdUsuarioCreacion }),
+            ct);
+        var (nombresEstados, nombresProductos) = await EducacionMedicaNombres.ResolverParaTalleresAsync(
+            _asokamContext, talleres, ct);
+        var solicitudesPendientes = await CargarSolicitudesPendientesAsync(talleres, ct);
+
+        return talleres
+            .Select(t =>
+            {
+                var dto = TallerDtoMapper.Armar(
+                    t, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
+                dto.SolicitudCambioPendiente = solicitudesPendientes.GetValueOrDefault(t.IdTaller);
+                return dto;
+            })
+            .ToList();
+    }
+
     public async Task<TallerDto> CrearAsync(CrearTallerRequest request, int idUsuario, CancellationToken ct = default)
     {
         if (request.EsExtraordinario)
         {
+            if (request.IdRutaVisita.HasValue)
+            {
+                throw new InvalidOperationException(
+                    "Una visita de ruta no puede crear un taller extraordinario; usa el alta de extraordinarios.");
+            }
+
             return await CrearExtraordinarioAsync(request, idUsuario, ct);
         }
 
-        var hospitalSeleccion = await _context.SeleccionesHospitales
-            .FirstOrDefaultAsync(h => h.IdSeleccionHospital == request.IdSeleccionHospital, ct)
-            ?? throw new InvalidOperationException($"El hospital de la selección {request.IdSeleccionHospital} no existe.");
+        RutaVisita? visita = null;
+        Ruta? ruta = null;
+        SeleccionHospital hospitalSeleccion;
 
-        // Solo se capturan talleres de hospitales cuya ruta de visitas ya fue autorizada (cerrada).
-        var tieneRutaAutorizada = await _context.RutasVisitas.AsNoTracking()
-            .AnyAsync(v => v.IdSeleccionHospital == hospitalSeleccion.IdSeleccionHospital
-                && _context.Rutas.Any(r => r.IdRuta == v.IdRuta && r.Estado == Ruta.EstadoCerrada), ct);
-        if (!tieneRutaAutorizada)
+        if (request.IdRutaVisita.HasValue)
         {
-            throw new InvalidOperationException(
-                "El hospital aún no tiene una ruta autorizada; el taller se captura cuando la ruta de visitas está cerrada.");
+            visita = await _context.RutasVisitas.AsNoTracking()
+                .FirstOrDefaultAsync(v => v.IdRutaVisita == request.IdRutaVisita.Value, ct)
+                ?? throw new InvalidOperationException($"La visita {request.IdRutaVisita} no existe.");
+
+            ruta = await _context.Rutas.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.IdRuta == visita.IdRuta, ct)
+                ?? throw new InvalidOperationException($"La ruta {visita.IdRuta} no existe.");
+
+            if (ruta.Estado is Ruta.EstadoArchivada or Ruta.EstadoCancelada or Ruta.EstadoRechazada)
+            {
+                throw new InvalidOperationException(
+                    $"La ruta está {ruta.Estado}; no se puede crear el taller desde una visita de una ruta no activa.");
+            }
+
+            if (visita.IdSeleccionHospital is not int idSeleccionHospitalVisita)
+            {
+                throw new InvalidOperationException(
+                    "La visita no tiene hospital de la selección; el taller extraordinario se captura por su propio flujo.");
+            }
+
+            hospitalSeleccion = await _context.SeleccionesHospitales
+                .FirstOrDefaultAsync(h => h.IdSeleccionHospital == idSeleccionHospitalVisita, ct)
+                ?? throw new InvalidOperationException(
+                    $"El hospital de la selección {idSeleccionHospitalVisita} de la visita no existe.");
+
+            if (request.IdSeleccionHospital.HasValue
+                && request.IdSeleccionHospital.Value != hospitalSeleccion.IdSeleccionHospital)
+            {
+                throw new InvalidOperationException(
+                    "El hospital indicado no coincide con el hospital de la visita seleccionada.");
+            }
+        }
+        else
+        {
+            hospitalSeleccion = await _context.SeleccionesHospitales
+                .FirstOrDefaultAsync(h => h.IdSeleccionHospital == request.IdSeleccionHospital, ct)
+                ?? throw new InvalidOperationException($"El hospital de la selección {request.IdSeleccionHospital} no existe.");
+
+            // El alta manual conserva el candado histórico: solo hospitales con ruta cerrada.
+            var tieneRutaAutorizada = await _context.RutasVisitas.AsNoTracking()
+                .AnyAsync(v => v.IdSeleccionHospital == hospitalSeleccion.IdSeleccionHospital
+                    && _context.Rutas.Any(r => r.IdRuta == v.IdRuta && r.Estado == Ruta.EstadoCerrada), ct);
+            if (!tieneRutaAutorizada)
+            {
+                throw new InvalidOperationException(
+                    "El hospital aún no tiene una ruta autorizada; el taller se captura cuando la ruta de visitas está cerrada.");
+            }
         }
 
         var seleccion = await _context.SeleccionesMensuales
@@ -152,46 +283,62 @@ public class TalleresService : ITalleresService
                 "La selección no tiene tipo de gerencia configurado; no se puede determinar la matriz general.");
         }
 
-        // El equipo del taller es el asignado a la región del hospital; la captura asistida
-        // permite al CEM crearlo a nombre de ese equipo (ADR-00011).
-        var equipo = await ObtenerEquipoDelHospitalAsync(hospitalSeleccion, ct)
-            ?? throw new InvalidOperationException(
-                "El hospital no tiene equipo asignado en la selección (la región no fue asignada en el paso Reparto).");
+        var responsables = await ResolverResponsablesAsync(
+            hospitalSeleccion,
+            visita?.IdEjecutivo,
+            visita?.IdEspecialista ?? ruta?.IdEspecialista,
+            ct);
+        if (!responsables.IdEjecutivo.HasValue)
+        {
+            throw new InvalidOperationException(
+                "El hospital no tiene ejecutivo asignado en la selección (la región no fue asignada en el paso Reparto).");
+        }
 
-        if (request.IdEquipo.HasValue && request.IdEquipo.Value != equipo.IdEquipo)
+        if (responsables.Equipo is not null
+            && request.IdEquipo.HasValue
+            && request.IdEquipo.Value != responsables.Equipo.IdEquipo)
         {
             throw new InvalidOperationException(
                 "El hospital no pertenece a la selección del equipo indicado; elige un hospital de la lista de su selección.");
         }
 
-        await ValidarCapturaDelUsuarioAsync(equipo, idUsuario, ct);
+        await ValidarCapturaResponsablesAsync(responsables, idUsuario, ct);
 
-        var periodo = new DateOnly(seleccion.FechaSeleccion.Year, seleccion.FechaSeleccion.Month, 1);
+        var fechaTaller = request.FechaTaller ?? visita?.FechaVisita;
+        var horaTaller = request.HoraTaller ?? visita?.HoraSalida;
+        var periodo = fechaTaller.HasValue
+            ? new DateOnly(fechaTaller.Value.Year, fechaTaller.Value.Month, 1)
+            : new DateOnly(seleccion.FechaSeleccion.Year, seleccion.FechaSeleccion.Month, 1);
 
         var matrizGeneral = await GetOrCreateMatrizGeneralAsync(seleccion.IdTipoGerencia.Value, periodo, idUsuario, ct);
         await ValidarMatrizGeneralEditableAsync(matrizGeneral, "capturar talleres", ct);
 
-        var matrizIndividual = await GetOrCreateMatrizIndividualAsync(equipo.IdEquipo, periodo, idUsuario, ct);
+        var matrizIndividual = responsables.Equipo is not null
+            ? await GetOrCreateMatrizIndividualAsync(
+                responsables.Equipo.IdEquipo, periodo, idUsuario, ct)
+            : await GetOrCreateMatrizIndividualPorEjecutivoAsync(
+                responsables.IdEjecutivo!.Value, periodo, idUsuario, ct);
         if (matrizIndividual.EsBloqueado)
         {
             throw new InvalidOperationException(
-                "La matriz individual del equipo ya está bloqueada (generada). Pide al Gerente de Ventas que reabra la captura.");
+                "La matriz individual del ejecutivo ya está bloqueada (generada). Pide al Gerente de Ventas que reabra la captura.");
         }
 
         var taller = new Taller
         {
+            IdRutaVisita = request.IdRutaVisita,
             IdSeleccionHospital = hospitalSeleccion.IdSeleccionHospital,
-            IdHospital = hospitalSeleccion.IdHospital,
+            IdHospital = hospitalSeleccion.IdHospital ?? visita?.IdHospital,
             Region = hospitalSeleccion.Region,
             EntidadFederativa = hospitalSeleccion.EntidadFederativa,
             CiudadMunicipio = hospitalSeleccion.CiudadMunicipio,
             NumeroParticipantes = request.NumeroParticipantes,
-            IdEjecutivo = equipo.IdEjecutivo,
-            IdEspecialista = equipo.IdEspecialista,
+            IdEjecutivo = responsables.IdEjecutivo,
+            IdEspecialista = responsables.IdEspecialista,
             UnidadMedica = request.UnidadMedica,
             Lugar = request.Lugar,
-            FechaTaller = request.FechaTaller,
-            HoraTaller = request.HoraTaller,
+            FechaTaller = fechaTaller,
+            HoraTaller = horaTaller,
             RequiereEquipoProyeccion = request.RequiereEquipoProyeccion,
             TipoEquipoProyeccion = request.TipoEquipoProyeccion,
             Estado = Taller.EstadoCreada,
@@ -203,14 +350,15 @@ public class TalleresService : ITalleresService
             IdUsuarioModificacion = idUsuario,
         };
 
-        ReemplazarRecursos(taller, request.Recursos, idUsuario);
+        var cantidadProductoDefault = await LeerCantidadProductoDefaultAsync(ct);
+        ReemplazarRecursos(taller, request.Recursos, idUsuario, cantidadProductoDefault);
 
         _context.Talleres.Add(taller);
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Taller {IdTaller} capturado por el usuario {IdUsuario} (equipo {IdEquipo}, matriz general {IdMatrizGeneral}).",
-            taller.IdTaller, idUsuario, equipo.IdEquipo, matrizGeneral.IdMatrizGeneral);
+            "Taller {IdTaller} capturado por el usuario {IdUsuario} (ejecutivo {IdEjecutivo}, visita {IdRutaVisita}, matriz general {IdMatrizGeneral}).",
+            taller.IdTaller, idUsuario, taller.IdEjecutivo, taller.IdRutaVisita, matrizGeneral.IdMatrizGeneral);
 
         return await ArmarTallerDtoConNombresAsync(taller, ct);
     }
@@ -276,7 +424,8 @@ public class TalleresService : ITalleresService
         var periodo = new DateOnly(fechaTaller.Year, fechaTaller.Month, 1);
 
         var matrizGeneral = await GetOrCreateMatrizGeneralAsync(idTipoGerencia, periodo, idUsuario, ct);
-        var matrizIndividual = await GetOrCreateMatrizIndividualAsync(equipo.IdEquipo, periodo, idUsuario, ct);
+        var matrizIndividual = await GetOrCreateMatrizIndividualPorEjecutivoAsync(
+            equipo.IdEjecutivo, periodo, idUsuario, ct);
 
         var taller = new Taller
         {
@@ -305,7 +454,8 @@ public class TalleresService : ITalleresService
             IdUsuarioModificacion = idUsuario,
         };
 
-        ReemplazarRecursos(taller, request.Recursos, idUsuario);
+        var cantidadProductoDefault = await LeerCantidadProductoDefaultAsync(ct);
+        ReemplazarRecursos(taller, request.Recursos, idUsuario, cantidadProductoDefault);
 
         _context.Talleres.Add(taller);
         await _context.SaveChangesAsync(ct);
@@ -740,7 +890,7 @@ public class TalleresService : ITalleresService
             .FirstOrDefaultAsync(m => m.IdMatrizIndividual == idMatrizIndividual, ct)
             ?? throw new InvalidOperationException($"La matriz individual {idMatrizIndividual} no existe.");
 
-        ValidarMiembroEquipo(matriz.Equipo, idUsuario);
+        await ValidarAccesoMatrizAsync(matriz, idUsuario, ct);
 
         if (matriz.EsBloqueado)
         {
@@ -760,8 +910,8 @@ public class TalleresService : ITalleresService
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Matriz individual {IdMatrizIndividual} (equipo {IdEquipo}) bloqueada por el usuario {IdUsuario}.",
-            matriz.IdMatrizIndividual, matriz.IdEquipo, idUsuario);
+            "Matriz individual {IdMatrizIndividual} (ejecutivo {IdEjecutivo}) bloqueada por el usuario {IdUsuario}.",
+            matriz.IdMatrizIndividual, matriz.IdEjecutivo, idUsuario);
 
         return await ArmarMatrizIndividualDtoConNombresAsync(matriz, ct);
     }
@@ -796,8 +946,8 @@ public class TalleresService : ITalleresService
         await _context.SaveChangesAsync(ct);
 
         _logger.LogInformation(
-            "Matriz individual {IdMatrizIndividual} (equipo {IdEquipo}) reabierta por el usuario {IdUsuario}.",
-            matriz.IdMatrizIndividual, matriz.IdEquipo, idUsuario);
+            "Matriz individual {IdMatrizIndividual} (ejecutivo {IdEjecutivo}) reabierta por el usuario {IdUsuario}.",
+            matriz.IdMatrizIndividual, matriz.IdEjecutivo, idUsuario);
 
         return await ArmarMatrizIndividualDtoConNombresAsync(matriz, ct);
     }
@@ -853,6 +1003,15 @@ public class TalleresService : ITalleresService
                 && (e.IdEjecutivo == idUsuario || e.IdEspecialista == idUsuario), ct);
     }
 
+    private async Task<string?> ObtenerNombreRegionEjecutivoAsync(int idEjecutivo, CancellationToken ct)
+    {
+        return await _context.EjecutivosRegion.AsNoTracking()
+            .Where(e => e.Activo && e.IdUsuario == idEjecutivo)
+            .OrderBy(e => e.IdEjecutivoRegion)
+            .Select(e => e.Region != null ? e.Region.Nombre : null)
+            .FirstOrDefaultAsync(ct);
+    }
+
     private async Task<EquipoPareo?> ObtenerEquipoDelHospitalAsync(SeleccionHospital hospital, CancellationToken ct)
     {
         if (hospital.IdRegion is null)
@@ -872,22 +1031,77 @@ public class TalleresService : ITalleresService
             .FirstOrDefaultAsync(e => e.IdEquipo == region.IdEquipo.Value && e.Activo, ct);
     }
 
-    private static void ValidarMiembroEquipo(EquipoPareo? equipo, int idUsuario)
+    private sealed record ResponsablesHospital(
+        int? IdEjecutivo,
+        int? IdEspecialista,
+        EquipoPareo? Equipo);
+
+    private async Task<ResponsablesHospital> ResolverResponsablesAsync(
+        SeleccionHospital hospital,
+        int? idEjecutivoOverride,
+        int? idEspecialistaOverride,
+        CancellationToken ct)
     {
-        if (equipo is null || (equipo.IdEjecutivo != idUsuario && equipo.IdEspecialista != idUsuario))
+        var region = hospital.IdRegion.HasValue
+            ? await _context.SeleccionesRegiones.AsNoTracking()
+                .FirstOrDefaultAsync(r => r.IdRegion == hospital.IdRegion.Value, ct)
+            : null;
+
+        var idEjecutivo = idEjecutivoOverride ?? hospital.IdEjecutivo ?? region?.IdEjecutivo;
+        var idEspecialista = idEspecialistaOverride ?? hospital.IdEspecialista ?? region?.IdEspecialista;
+
+        if (!idEjecutivo.HasValue)
         {
-            throw new InvalidOperationException(
-                "Solo el Ejecutivo de Ventas o el Especialista de Producto del equipo puede ejecutar esta acción.");
+            var equipo = await ObtenerEquipoDelHospitalAsync(hospital, ct);
+            if (equipo is not null)
+            {
+                return new ResponsablesHospital(equipo.IdEjecutivo, equipo.IdEspecialista, equipo);
+            }
         }
+
+        return new ResponsablesHospital(idEjecutivo, idEspecialista, null);
+    }
+
+    private async Task ValidarAccesoMatrizAsync(
+        MatrizIndividual matriz,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        if (matriz.IdEjecutivo == idUsuario)
+        {
+            return;
+        }
+
+        if (matriz.IdEquipo.HasValue)
+        {
+            var equipo = await _context.EquiposPareo.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.IdEquipo == matriz.IdEquipo.Value, ct);
+            if (equipo?.IdEjecutivo == idUsuario || equipo?.IdEspecialista == idUsuario)
+            {
+                return;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Solo el ejecutivo dueño de la matriz (o el equipo legacy) puede ejecutar esta acción.");
     }
 
     /// <summary>
-    /// Captura normal: EV/EP del equipo. Captura asistida (ADR-00011): el CEM con permiso
-    /// crea a nombre de cualquier equipo.
+    /// Captura normal: ejecutivo/especialista de la visita o del hospital. Captura asistida
+    /// (ADR-00011): el CEM con permiso crea a nombre de cualquier responsable.
     /// </summary>
-    private async Task ValidarCapturaDelUsuarioAsync(EquipoPareo equipo, int idUsuario, CancellationToken ct)
+    private async Task ValidarCapturaResponsablesAsync(
+        ResponsablesHospital responsables,
+        int idUsuario,
+        CancellationToken ct)
     {
-        if (equipo.IdEjecutivo == idUsuario || equipo.IdEspecialista == idUsuario)
+        if (responsables.IdEjecutivo == idUsuario || responsables.IdEspecialista == idUsuario)
+        {
+            return;
+        }
+
+        if (responsables.Equipo is not null
+            && (responsables.Equipo.IdEjecutivo == idUsuario || responsables.Equipo.IdEspecialista == idUsuario))
         {
             return;
         }
@@ -896,7 +1110,7 @@ public class TalleresService : ITalleresService
         if (!permisos.Contains(Permissions.EducacionMedica.TalleresCapturarAsistida))
         {
             throw new InvalidOperationException(
-                "Solo el Ejecutivo de Ventas o el Especialista de Producto del equipo asignado a la región del hospital puede capturar el taller.");
+                "Solo el Ejecutivo de Ventas o el Especialista de Producto asignado a la visita/hospital puede capturar el taller.");
         }
     }
 
@@ -943,6 +1157,39 @@ public class TalleresService : ITalleresService
         _context.MatricesIndividuales.Add(matriz);
         await _context.SaveChangesAsync(ct);
         return matriz;
+    }
+
+    private async Task<MatrizIndividual> GetOrCreateMatrizIndividualPorEjecutivoAsync(
+        int idEjecutivo,
+        DateOnly periodo,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        var matriz = await _context.MatricesIndividuales
+            .FirstOrDefaultAsync(m => m.IdEjecutivo == idEjecutivo && m.Periodo == periodo, ct);
+
+        if (matriz is not null)
+        {
+            return matriz;
+        }
+
+        matriz = new MatrizIndividual
+        {
+            IdEjecutivo = idEjecutivo,
+            Periodo = periodo,
+            IdUsuarioCreacion = idUsuario,
+            IdUsuarioModificacion = idUsuario,
+        };
+        _context.MatricesIndividuales.Add(matriz);
+        await _context.SaveChangesAsync(ct);
+        return matriz;
+    }
+
+    private async Task<int> LeerCantidadProductoDefaultAsync(CancellationToken ct)
+    {
+        var parametro = await _context.ParametrosModulo.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Clave == "producto_cantidad_default" && p.Activo, ct);
+        return (int)(parametro?.Valor ?? 2);
     }
 
     private async Task<MatrizGeneral> GetOrCreateMatrizGeneralAsync(int idTipoGerencia, DateOnly periodo, int idUsuario, CancellationToken ct)
@@ -1060,7 +1307,11 @@ public class TalleresService : ITalleresService
             .FirstOrDefaultAsync(m => m.IdMatrizGeneral == idMatrizGeneral.Value, ct);
     }
 
-    private void ReemplazarRecursos(Taller taller, List<GuardarTallerRecursoRequest>? recursos, int idUsuario)
+    private void ReemplazarRecursos(
+        Taller taller,
+        List<GuardarTallerRecursoRequest>? recursos,
+        int idUsuario,
+        int? cantidadProductoDefault = null)
     {
         if (recursos is null)
         {
@@ -1087,7 +1338,10 @@ public class TalleresService : ITalleresService
                 IdProducto = request.IdProducto,
                 Descripcion = request.Descripcion,
                 TipoEnvio = request.TipoEnvio,
-                Cantidad = request.Cantidad,
+                Cantidad = request.Cantidad
+                    ?? (request.TipoRecurso == TallerRecurso.RecursoProducto
+                        ? cantidadProductoDefault
+                        : null),
                 Observaciones = request.Observaciones,
                 IdUsuarioCreacion = idUsuario,
                 IdUsuarioModificacion = idUsuario,
@@ -1282,38 +1536,54 @@ public class TalleresService : ITalleresService
 
     private async Task<MatrizIndividualDto> ArmarMatrizIndividualDtoConNombresAsync(MatrizIndividual matriz, CancellationToken ct)
     {
-        var equipo = matriz.Equipo ?? await _context.EquiposPareo.AsNoTracking()
-            .FirstOrDefaultAsync(e => e.IdEquipo == matriz.IdEquipo, ct);
+        var equipo = matriz.IdEquipo.HasValue
+            ? await _context.EquiposPareo.AsNoTracking()
+                .FirstOrDefaultAsync(e => e.IdEquipo == matriz.IdEquipo.Value, ct)
+            : null;
+
+        var idEjecutivo = matriz.IdEjecutivo ?? equipo?.IdEjecutivo;
+        var idEspecialista = equipo?.IdEspecialista
+            ?? await _context.Talleres.AsNoTracking()
+                .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual
+                    && t.Activo
+                    && t.IdEspecialista != null)
+                .Select(t => t.IdEspecialista)
+                .FirstOrDefaultAsync(ct);
 
         var totalTalleres = await _context.Talleres.AsNoTracking()
             .CountAsync(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.Activo, ct);
 
         var (_, nombresUsuarios) = await ResolverNombresAsync(
             [],
-            [equipo?.IdEjecutivo, equipo?.IdEspecialista],
+            [idEjecutivo, idEspecialista],
             ct);
 
-        return ArmarMatrizIndividualDto(matriz, equipo, totalTalleres, nombresUsuarios);
+        return ArmarMatrizIndividualDto(matriz, idEjecutivo, idEspecialista, totalTalleres, nombresUsuarios);
     }
 
     private static MatrizIndividualDto ArmarMatrizIndividualDto(
         MatrizIndividual matriz,
-        EquipoPareo? equipo,
+        int? idEjecutivo,
+        int? idEspecialista,
         int totalTalleres,
         IReadOnlyDictionary<int, string> nombresUsuarios)
     {
         return new MatrizIndividualDto
         {
             IdMatrizIndividual = matriz.IdMatrizIndividual,
-            IdEquipo = matriz.IdEquipo,
+            IdEquipo = matriz.IdEquipo ?? 0,
             Periodo = matriz.Periodo,
             EsBloqueado = matriz.EsBloqueado,
             FechaBloqueo = matriz.FechaBloqueo,
             FechaDesbloqueo = matriz.FechaDesbloqueo,
-            IdEjecutivo = equipo?.IdEjecutivo,
-            NombreEjecutivo = equipo is not null ? nombresUsuarios.GetValueOrDefault(equipo.IdEjecutivo) : null,
-            IdEspecialista = equipo?.IdEspecialista,
-            NombreEspecialista = equipo is not null ? nombresUsuarios.GetValueOrDefault(equipo.IdEspecialista) : null,
+            IdEjecutivo = idEjecutivo,
+            NombreEjecutivo = idEjecutivo.HasValue
+                ? nombresUsuarios.GetValueOrDefault(idEjecutivo.Value)
+                : null,
+            IdEspecialista = idEspecialista,
+            NombreEspecialista = idEspecialista.HasValue
+                ? nombresUsuarios.GetValueOrDefault(idEspecialista.Value)
+                : null,
             TotalTalleres = totalTalleres,
         };
     }

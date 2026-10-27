@@ -58,7 +58,7 @@ public class RutaRepository : IRutaRepository
 
         return await _context.Rutas
             .AsNoTracking()
-            .Where(r => r.Estado == Ruta.EstadoCerrada && ids.Contains(r.IdEquipo))
+            .Where(r => r.Estado == Ruta.EstadoCerrada && r.IdEquipo.HasValue && ids.Contains(r.IdEquipo.Value))
             .OrderBy(r => r.IdSeleccionMensual)
             .ThenBy(r => r.IdEquipo)
             .ToListAsync(cancellationToken);

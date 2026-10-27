@@ -125,7 +125,7 @@ public class RutasServiceTests
         public Task<List<Ruta>> GetConfirmadasPorEquiposAsync(IEnumerable<int> idsEquipos, CancellationToken cancellationToken = default)
         {
             var ids = idsEquipos.ToHashSet();
-            return Task.FromResult(Rutas.Where(r => r.Estado == Ruta.EstadoCerrada && ids.Contains(r.IdEquipo)).ToList());
+            return Task.FromResult(Rutas.Where(r => r.Estado == Ruta.EstadoCerrada && r.IdEquipo.HasValue && ids.Contains(r.IdEquipo.Value)).ToList());
         }
 
         public Task<List<Ruta>> GetByEquipoAsync(int idEquipo, CancellationToken cancellationToken = default)
@@ -220,7 +220,8 @@ public class RutasServiceTests
             workflow.Engine, workflow.CreateResolverMock().Object, workflow.WorkflowRepo,
             new Mock<Lefarma.API.Features.Config.Workflows.IWorkflowQueryService>().Object,
             profileService.Object, workflow.JefeResolverMock.Object, workflow.Asokam,
-            workflow.Context, new UserPermissionService(workflow.Asokam, new MemoryCache(new MemoryCacheOptions())));
+            workflow.Context, new UserPermissionService(workflow.Asokam, new MemoryCache(new MemoryCacheOptions())),
+            new EjecutivoElegibilidadService(workflow.Context));
     }
 
     private SeleccionMensual SeedSeleccionAutorizada(int cantidadHospitales, bool conRegionSegunda = false)
@@ -457,6 +458,47 @@ public class RutasServiceTests
     }
 
     [Fact]
+    public async Task GenerarAsync_PorEspecialista_Debe_AgruparRutasYHeredarEjecutivo()
+    {
+        SeedSeleccionAutorizada(3);
+        _seleccionRepo.Regiones.Clear();
+        _seleccionRepo.Regiones.Add(new SeleccionRegion
+        {
+            IdRegion = 1,
+            IdSeleccionMensual = 1,
+            Nombre = "Región 01",
+            IdEjecutivo = IdEv,
+            IdEspecialista = IdEp,
+            CantidadHospitales = 2,
+        });
+        _seleccionRepo.Regiones.Add(new SeleccionRegion
+        {
+            IdRegion = 2,
+            IdSeleccionMensual = 1,
+            Nombre = "Región 02",
+            IdEjecutivo = 70,
+            IdEspecialista = 80,
+            CantidadHospitales = 1,
+        });
+        _seleccionRepo.Hospitales[2].IdRegion = 2;
+
+        var service = CreateService();
+        var resultado = await service.GenerarAsync(1, idUsuario: 99);
+
+        resultado.Rutas.Should().HaveCount(2);
+        var rutaEp = resultado.Rutas.Single(r => r.IdEspecialista == IdEp);
+        rutaEp.IdEquipo.Should().Be(0);
+        rutaEp.NombreEquipo.Should().Be($"Especialista {IdEp}");
+        rutaEp.Visitas.Should().HaveCount(2);
+        rutaEp.Visitas.Should().OnlyContain(v =>
+            v.IdEspecialista == IdEp && v.IdEjecutivo == IdEv);
+
+        var rutaOtro = resultado.Rutas.Single(r => r.IdEspecialista == 80);
+        rutaOtro.Visitas.Should().ContainSingle();
+        rutaOtro.Visitas.Single().IdEjecutivo.Should().Be(70);
+    }
+
+    [Fact]
     public async Task GenerarAsync_Debe_Archivar_DraftAnterior_Y_CrearVersionNueva()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 2);
@@ -518,6 +560,117 @@ public class RutasServiceTests
         var act = () => service.GenerarAsync(1, idUsuario: 99);
 
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*Capacidad insuficiente*");
+    }
+
+    [Fact]
+    public async Task AsignarEjecutivoVisita_Debe_ValidarRegionYGerencia()
+    {
+        SeedSeleccionAutorizada(2);
+        var region = _seleccionRepo.Regiones.Single();
+        region.IdRegionCatalogo = 1;
+        _workflow.Context.RegionesCat.Add(new RegionCatalogo
+        {
+            IdRegion = 1,
+            IdTipoGerencia = 1,
+            Nombre = "Región 01",
+            Activo = true,
+        });
+        _workflow.Context.EjecutivosRegion.Add(new EjecutivoRegion
+        {
+            IdUsuario = IdEv,
+            IdRegionCatalogo = 1,
+            Activo = true,
+        });
+        _workflow.Context.SaveChanges();
+
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            Estado = Ruta.EstadoCreada,
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 100,
+            FechaVisita = new DateOnly(2026, 9, 2),
+            Orden = 1,
+        });
+
+        var servicio = CreateService();
+        var dto = await servicio.AsignarEjecutivoVisitaAsync(
+            1, 1,
+            new AsignarEjecutivoVisitaRequest { IdEjecutivo = IdEv },
+            idUsuario: 99);
+
+        dto.IdEjecutivo.Should().Be(IdEv);
+
+        var act = () => servicio.AsignarEjecutivoVisitaAsync(
+            1, 1,
+            new AsignarEjecutivoVisitaRequest { IdEjecutivo = 70 },
+            idUsuario: 99);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*misma región y gerencia*");
+    }
+
+    [Fact]
+    public async Task AsignarEjecutivoVisita_EnRutaCerrada_Debe_AuditarAjuste()
+    {
+        SeedSeleccionAutorizada(1);
+        var region = _seleccionRepo.Regiones.Single();
+        region.IdRegionCatalogo = 1;
+        _workflow.Context.RegionesCat.Add(new RegionCatalogo
+        {
+            IdRegion = 1,
+            IdTipoGerencia = 1,
+            Nombre = "Región 01",
+            Activo = true,
+        });
+        _workflow.Context.EjecutivosRegion.Add(new EjecutivoRegion
+        {
+            IdUsuario = IdEv,
+            IdRegionCatalogo = 1,
+            Activo = true,
+        });
+        _workflow.OtorgarPermiso(99, Permissions.EducacionMedica.RutasAjustar);
+        _workflow.Context.SaveChanges();
+
+        _rutaRepo.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            Estado = Ruta.EstadoCerrada,
+        });
+        _rutaRepo.Visitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 100,
+            FechaVisita = DateOnly.FromDateTime(DateTime.Today),
+            Orden = 1,
+        });
+
+        var servicio = CreateService();
+        var dto = await servicio.AsignarEjecutivoVisitaAsync(
+            1, 1,
+            new AsignarEjecutivoVisitaRequest
+            {
+                IdEjecutivo = IdEv,
+                Motivo = "Cambio de dueño del hospital",
+            },
+            idUsuario: 99);
+
+        dto.IdEjecutivo.Should().Be(IdEv);
+        _workflow.Context.AjustesPostCierre.Should().Contain(a =>
+            a.IdEntidad == 1
+            && a.Accion == AjustePostCierre.AccionEditarEjecutivo
+            && a.Motivo == "Cambio de dueño del hospital");
     }
 
     [Fact]
@@ -694,6 +847,7 @@ public class RutasServiceTests
     {
         SeedSeleccionAutorizada(cantidadHospitales: 4);
         _seleccionRepo.Selecciones.Single().IdTipoGerencia = 1; // IMSS: firma el GV IMSS
+        _seleccionRepo.Selecciones.Single().FechaFinVigencia = DateOnly.FromDateTime(DateTime.Today).AddDays(30);
         var service = CreateService();
         await service.GenerarAsync(1, idUsuario: 99);
         var version = _rutaRepo.Versiones.Single();
@@ -733,6 +887,7 @@ public class RutasServiceTests
     public async Task GetAsignacionesAsync_Debe_ResolverEstadoCiudadEInstitucion()
     {
         SeedSeleccionAutorizada(cantidadHospitales: 1);
+        _seleccionRepo.Selecciones.Single().FechaFinVigencia = DateOnly.FromDateTime(DateTime.Today).AddDays(30);
         var hospitalSeleccion = _seleccionRepo.Hospitales.Single();
         hospitalSeleccion.EntidadFederativa = "19";
         hospitalSeleccion.CiudadMunicipio = "Monterrey";

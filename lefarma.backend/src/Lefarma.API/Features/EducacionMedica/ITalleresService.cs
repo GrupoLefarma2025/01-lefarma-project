@@ -10,6 +10,9 @@ public interface ITalleresService
     /// <summary>Captura un taller (FOR-005); hace get-or-create de la matriz individual y de la general.</summary>
     Task<TallerDto> CrearAsync(CrearTallerRequest request, int idUsuario, CancellationToken ct = default);
 
+    /// <summary>Talleres activos ligados a una visita de ruta (ADR-00015/00016).</summary>
+    Task<List<TallerDto>> GetByVisitaAsync(int idRutaVisita, CancellationToken ct = default);
+
     Task<TallerDto> ActualizarAsync(int idTaller, ActualizarTallerRequest request, int idUsuario, CancellationToken ct = default);
     Task EliminarAsync(int idTaller, int idUsuario, CancellationToken ct = default);
 

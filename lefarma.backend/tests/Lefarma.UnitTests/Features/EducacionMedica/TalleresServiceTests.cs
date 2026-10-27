@@ -141,6 +141,45 @@ public class TalleresServiceTests
     }
 
     [Fact]
+    public async Task Crear_DesdeVisita_Debe_HeredarResponsablesFechaYMatrizPorEjecutivo()
+    {
+        var contexto = _workflow.Context;
+        var region = contexto.SeleccionesRegiones.Single(r => r.IdRegion == 1);
+        region.IdEquipo = null;
+        region.IdEjecutivo = IdEv;
+        region.IdEspecialista = IdEp;
+        var visita = contexto.RutasVisitas.Single(v => v.IdRutaVisita == 1);
+        visita.IdEjecutivo = IdEv;
+        visita.IdEspecialista = IdEp;
+        visita.HoraSalida = new TimeOnly(9, 30);
+        contexto.Rutas.Single(r => r.IdRuta == 1).Estado = Ruta.EstadoCreada;
+        contexto.SaveChanges();
+
+        var servicio = CrearServicio();
+        var dto = await servicio.CrearAsync(new CrearTallerRequest
+        {
+            IdRutaVisita = 1,
+            NumeroParticipantes = 15,
+            Recursos =
+            [
+                new GuardarTallerRecursoRequest { TipoRecurso = "Producto", IdProducto = "R-III" },
+            ],
+        }, IdEv);
+
+        dto.IdRutaVisita.Should().Be(1);
+        dto.IdEjecutivo.Should().Be(IdEv);
+        dto.IdEspecialista.Should().Be(IdEp);
+        dto.FechaTaller.Should().Be(new DateOnly(2026, 10, 20));
+        dto.HoraTaller.Should().Be(new TimeOnly(9, 30));
+        dto.Recursos.Single().Cantidad.Should().Be(2);
+
+        var individual = contexto.MatricesIndividuales.Single(m => m.IdMatrizIndividual == dto.IdMatrizIndividual);
+        individual.IdEjecutivo.Should().Be(IdEv);
+        individual.IdEquipo.Should().BeNull();
+        individual.Periodo.Should().Be(Periodo);
+    }
+
+    [Fact]
     public async Task Crear_UsuarioQueNoEsDelEquipo_Debe_Fallar()
     {
         var servicio = CrearServicio();
