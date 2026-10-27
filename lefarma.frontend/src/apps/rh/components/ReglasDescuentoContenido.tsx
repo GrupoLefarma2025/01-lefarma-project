@@ -54,7 +54,8 @@ export function ReglasDescuentoContenido({ reglas, className }: ReglasDescuentoC
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
           Puedes justificar hasta <span className="font-semibold">{limite}</span>{' '}
-          {limite === 1 ? 'descuento' : 'descuentos'} por mes.
+          {limite === 1 ? 'descuento' : 'descuentos'} por mes. Solo las solicitudes de incidencia
+          consumen este límite; vacaciones, permisos y otros tipos no descuentan cupo.
         </p>
       </div>
 

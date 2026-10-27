@@ -613,7 +613,8 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
                 EstadoCodigo = s.Estado!.Codigo,
-                TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
+                TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null,
+                CategoriaSolicitud = s.TipoSolicitud != null ? (CategoriaSolicitud?)s.TipoSolicitud.Categoria : null
             })
             .ToListAsync(cancellationToken);
 
@@ -645,6 +646,9 @@ public class IncidenciasChecadoService : BaseService, IIncidenciasChecadoService
 
             if (coincidencias.Count == 0)
                 continue;
+
+            item.CubiertaPorSolicitudIncidencia = coincidencias.Any(
+                s => s.CategoriaSolicitud == CategoriaSolicitud.Incidencia);
 
             var cerrada = coincidencias.FirstOrDefault(s => s.EstadoCodigo == WorkflowEstadoCodigo.CERRADA);
             if (cerrada is not null)

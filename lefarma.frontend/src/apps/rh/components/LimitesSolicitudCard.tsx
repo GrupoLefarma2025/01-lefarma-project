@@ -86,6 +86,9 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
   const estado = calcularEstado(limite.usado, limite.limite);
   const Icon = estado.icon;
   const sinLimite = limite.limite === 0;
+  const esDescuentosJustificados = limite.idTipoSolicitud === 0;
+  const cubiertosPorOtras = limite.cubiertosPorOtrasSolicitudes ?? 0;
+  const pendientesPorJustificar = limite.pendientesPorJustificar ?? 0;
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2.5 transition-colors hover:bg-muted/40">
@@ -119,15 +122,35 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
           )}
         </div>
         <p className="text-xs text-muted-foreground">{limite.periodo}</p>
+        {esDescuentosJustificados && (cubiertosPorOtras > 0 || pendientesPorJustificar > 0) && (
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            {cubiertosPorOtras > 0 && (
+              <span
+                title="No consume el límite de descuentos justificables"
+                className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-1.5 py-px text-[10px] font-medium text-slate-600 dark:border-slate-800 dark:bg-slate-950/40 dark:text-slate-300"
+              >
+                {cubiertosPorOtras} cubierto{cubiertosPorOtras === 1 ? '' : 's'} por otro tipo de
+                solicitud
+              </span>
+            )}
+            {pendientesPorJustificar > 0 && (
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-1.5 py-px text-[10px] font-medium text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+                {pendientesPorJustificar} pendiente{pendientesPorJustificar === 1 ? '' : 's'} por
+                justificar
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {!sinLimite && (
         <div className="flex shrink-0 items-center gap-3">
           <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-            lleva <span className="text-sm font-semibold text-foreground">{limite.usado}</span>
-            {' · '}
-            <span className="text-sm font-semibold text-foreground">{limite.disponible}</span>{' '}
-            disponibles
+            Usados:{' '}
+            <span className="text-sm font-semibold text-foreground">{limite.usado}</span> de{' '}
+            <span className="text-sm font-semibold text-foreground">{limite.limite}</span>.{' '}
+            Disponibles:{' '}
+            <span className="text-sm font-semibold text-foreground">{limite.disponible}</span>.
           </p>
           <div
             role="progressbar"
@@ -497,9 +520,10 @@ export function LimitesSolicitudCard({
               {limites.length > 0 && (
                 <p className="text-muted-foreground/70 text-xs">
                   Los límites cuentan las solicitudes desde que se crean; canceladas y rechazadas no
-                  cuentan. Los descuentos justificados se cubren al cerrarse la solicitud (o quedan
-                  apartados si está en trámite) y se cuentan por día, máximo 2 días con descuento por
-                  mes.
+                  cuentan. Solo las solicitudes de categoría Incidencia consumen el límite de
+                  descuentos justificables; vacaciones, permisos y otros tipos pueden cubrir la
+                  incidencia, pero no descuentan cupo. Se cuentan por día, máximo 2 días con
+                  descuento por mes.
                 </p>
               )}
             </>

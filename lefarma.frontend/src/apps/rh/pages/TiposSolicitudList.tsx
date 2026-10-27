@@ -645,7 +645,7 @@ export default function TiposSolicitudList() {
               />
               {esCategoriaIncidencia ? (
                 <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground md:col-span-2">
-                  Los justificantes de incidencia comparten el tope de 2 descuentos justificados
+                  Los justificantes de incidencia comparten el límite de 2 descuentos justificables
                   por mes; no se configura un límite por tipo.
                 </div>
               ) : (
