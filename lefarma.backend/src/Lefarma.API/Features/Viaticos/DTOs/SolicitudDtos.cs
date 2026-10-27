@@ -39,6 +39,23 @@ public class CotizacionRequest
 {
     [JsonPropertyName("cotizacion")]
     public JsonElement Cotizacion { get; set; }
+
+    /// <summary>
+    /// Cálculo de la ruta hecho al enviar (kilómetros, tiempos y casetas por
+    /// tramo). Se guarda dentro del snapshot, en <c>datos.calculo</c>.
+    /// </summary>
+    [JsonPropertyName("calculo")]
+    public JsonElement? Calculo { get; set; }
+}
+
+/// <summary>
+/// Body de POST /api/viaticos/solicitudes/{id}/enviar. Solo lleva el cálculo
+/// de la ruta; el estado borrador -> enviada lo pone el endpoint.
+/// </summary>
+public class EnviarSolicitudRequest
+{
+    [JsonPropertyName("calculo")]
+    public JsonElement? Calculo { get; set; }
 }
 
 /// <summary>
@@ -226,3 +243,15 @@ public class SolicitudEventoDto
     [JsonPropertyName("payload")]
     public JsonElement? Payload { get; set; }
 }
+
+/// <summary>
+/// Gerencia que el wizard propone al capturar: la ultima que registro el
+/// usuario en una solicitud propia. <c>null</c> cuando aun no tiene ninguna
+/// clasificada (el combo arranca vacio y la persona la elige).
+/// </summary>
+public class GerenciaSugeridaDto
+{
+    [JsonPropertyName("gerencia")]
+    public string? Gerencia { get; set; }
+}
+

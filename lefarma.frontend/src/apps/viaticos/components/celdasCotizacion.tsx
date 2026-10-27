@@ -13,10 +13,7 @@ export function CeldaFuente({ fuente, estimado }: { fuente: string; estimado: bo
       {estimado
         ? <Badge variant="secondary">Estimado</Badge>
         : <Badge variant="outline">Cotizado</Badge>}
-      <span className="text-xs text-muted-foreground">
-        {estimado ? 'Estimado por fórmula · sin proveedor de precios' : fuente}
-      </span>
-      {estimado && <span className="text-xs text-muted-foreground">{fuente}</span>}
+      <span className="text-xs text-muted-foreground">{fuente}</span>
     </div>
   );
 }

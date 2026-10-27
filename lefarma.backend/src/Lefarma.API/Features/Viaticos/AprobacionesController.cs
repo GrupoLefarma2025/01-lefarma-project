@@ -8,6 +8,7 @@ using Lefarma.API.Shared.Constants;
 using Lefarma.API.Shared.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.EntityFrameworkCore;
 using Swashbuckle.AspNetCore.Annotations;
 
@@ -33,30 +34,40 @@ namespace Lefarma.API.Features.Viaticos;
 public class AprobacionesController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly AsokamDbContext _asokamContext;
 
-    public AprobacionesController(ApplicationDbContext context)
+    public AprobacionesController(ApplicationDbContext context, AsokamDbContext asokamContext)
     {
         _context = context;
+        _asokamContext = asokamContext;
     }
 
     [HttpGet("solicitudes")]
     [SwaggerOperation(
         Summary = "Bandeja de solicitudes de viaticos",
-        Description = "Lista solicitudes filtradas por periodo, estado y gerencia. Si el usuario no tiene viaticos.ver_todos, se filtran automaticamente a sus propias solicitudes (id_usuario_solicitante = id del JWT).")]
+        Description = "Lista TODAS las solicitudes filtradas por periodo, estado y gerencia. Es la pantalla de autorizacion: requiere el permiso viaticos.autorizar.")]
     [SwaggerResponse(200, "Bandeja obtenida", typeof(ApiResponse<List<SolicitudBandejaDto>>))]
     [SwaggerResponse(401, "Sin token valido.")]
+    [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
     public async Task<IActionResult> GetSolicitudes(
         [FromQuery] string? periodo,
         [FromQuery] string? estado,
         [FromQuery] string? gerencia,
         CancellationToken ct)
     {
-        var idUsuario = User.GetUserId();
-        var verTodos = User.TienePermiso(Permissions.Viaticos.VerTodos);
+        // La bandeja es la pantalla donde se autoriza: sin el permiso no se
+        // expone. Antes se recortaba a las solicitudes propias, pero eso
+        // dejaba la pantalla abierta a cualquiera por URL.
+        if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
+        {
+            return StatusCode(403, new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"No tiene permiso para revisar solicitudes de viáticos ({Permissions.Viaticos.Autorizar}).",
+                Data = null
+            });
+        }
 
-        // Sin ver_todos NO se rechaza la peticion: se recorta el alcance a
-        // las solicitudes del propio usuario (mismo criterio que aplica
-        // SolicitudesController en GET /solicitudes/{id}).
         var consulta = _context.Solicitudes
             .AsNoTracking()
             .Where(s => s.Activo);
@@ -76,22 +87,20 @@ public class AprobacionesController : ControllerBase
             consulta = consulta.Where(s => s.Gerencia == gerencia);
         }
 
-        if (!verTodos)
-        {
-            consulta = consulta.Where(s => s.IdUsuarioSolicitante == idUsuario);
-        }
-
         var filas = await consulta
             .OrderByDescending(s => s.FechaCreacion)
             .Select(s => new
             {
                 s.IdSolicitud,
+                s.Folio,
                 s.IdUsuarioSolicitante,
                 s.Periodo,
                 s.Gerencia,
                 s.Estado,
                 s.DatosJson,
                 s.FechaCreacion,
+                s.FechaModificacion,
+                TieneOpciones = s.Opciones.Any(),
             })
             .ToListAsync(ct);
 
@@ -99,37 +108,74 @@ public class AprobacionesController : ControllerBase
         // todos los solicitantes de la pagina (evita N+1). Se filtra por
         // EsActivo: un usuario dado de baja no debe exponer su nombre en la
         // bandeja del admin; en ese caso cae al fallback "Usuario #{id}".
+        //
+        // El directorio NO vive en la BD de Lefarma: `app.Usuarios` esta en la
+        // BD Asokam (igual que en SolicitudesController). Consultarlo con
+        // ApplicationDbContext revienta con "Invalid object name 'app.Usuarios'"
+        // y la bandeja entera responde 500.
         var idsSolicitantes = filas
             .Select(f => f.IdUsuarioSolicitante)
             .Distinct()
             .ToList();
 
-        var directorio = await _context.Usuarios
+        var directorio = await _asokamContext.Usuarios
             .AsNoTracking()
             .Where(u => u.EsActivo && idsSolicitantes.Contains(u.IdUsuario))
             .Select(u => new { u.IdUsuario, u.NombreCompleto })
             .ToDictionaryAsync(u => u.IdUsuario, u => u.NombreCompleto, ct);
 
+        // El snapshot se parsea UNA vez por fila; cada clave se lee con el
+        // mismo lector tolerante (null si falta, no es numerica o el JSON
+        // no parsea).
+        var datosPorSolicitud = filas.ToDictionary(
+            f => f.IdSolicitud,
+            f => ParsearDatosJson(f.DatosJson));
+
+        // La gerencia que se agrupa en el concentrado: la de la solicitud y,
+        // si nace en "Sin asignar", la ultima que registro la persona que
+        // viaja. Se resuelve en un solo query para no hacer N+1.
+        var idViajeroPorSolicitud = filas.ToDictionary(
+            f => f.IdSolicitud,
+            f => LeerIdViajero(datosPorSolicitud[f.IdSolicitud], f.IdUsuarioSolicitante));
+        var idsViajeros = idViajeroPorSolicitud.Values.Distinct().ToList();
+        var gerenciasRecientes = await _context.Solicitudes
+            .AsNoTracking()
+            .Where(s => s.Activo
+                && idsViajeros.Contains(s.IdUsuarioSolicitante)
+                && s.Gerencia != null
+                && s.Gerencia != ""
+                && s.Gerencia != SolicitudesController.GerenciaPorDefecto)
+            .OrderByDescending(s => s.FechaCreacion)
+            .Select(s => new { s.IdUsuarioSolicitante, s.Gerencia })
+            .ToListAsync(ct);
+        var gerenciaPorUsuario = gerenciasRecientes
+            .GroupBy(g => g.IdUsuarioSolicitante)
+            .ToDictionary(g => g.Key, g => g.First().Gerencia);
+
         var bandeja = filas.Select(f =>
         {
-            // El snapshot se parsea UNA vez por fila; cada clave se lee con el
-            // mismo lector tolerante (null si falta, no es numerica o el JSON
-            // no parsea).
-            var datos = ParsearDatosJson(f.DatosJson);
+            var datos = datosPorSolicitud[f.IdSolicitud];
+            var (fechaSalida, fechaRegreso) = LeerRangoViajeDesdeJson(datos);
             return new SolicitudBandejaDto
             {
                 IdSolicitud = f.IdSolicitud,
+                Folio = f.Folio,
                 IdUsuarioSolicitante = f.IdUsuarioSolicitante,
                 NombreSolicitante = directorio.TryGetValue(f.IdUsuarioSolicitante, out var nombre)
                     && !string.IsNullOrWhiteSpace(nombre)
                         ? nombre.Trim()
                         : $"Usuario #{f.IdUsuarioSolicitante}",
                 Periodo = f.Periodo,
-                Gerencia = f.Gerencia,
+                Gerencia = ResolverGerenciaEfectiva(
+                    f.Gerencia,
+                    idViajeroPorSolicitud[f.IdSolicitud],
+                    gerenciaPorUsuario),
                 Estado = f.Estado,
-                Destino = LeerTextoDesdeJson(datos, "destino"),
-                Origen = LeerTextoDesdeJson(datos, "origen"),
-                Fecha = LeerFechaViajeDesdeJson(datos),
+                Destino = LeerDestinosDesdeJson(datos),
+                Origen = LeerOrigenDesdeJson(datos),
+                Fecha = ComponerRangoFecha(fechaSalida, fechaRegreso),
+                FechaSalida = fechaSalida,
+                FechaRegreso = fechaRegreso,
                 Autobus = LeerDecimal(datos, "autobus"),
                 Avion = LeerDecimal(datos, "avion"),
                 Gasolina = LeerDecimal(datos, "gasolina"),
@@ -140,6 +186,8 @@ public class AprobacionesController : ControllerBase
                 Taxi = LeerDecimal(datos, "taxi"),
                 Total = LeerTotalDesdeJson(datos),
                 FechaCreacion = f.FechaCreacion,
+                FechaModificacion = f.FechaModificacion,
+                Recalculada = f.TieneOpciones || TieneCalculo(datos),
             };
         }).ToList();
 
@@ -154,12 +202,18 @@ public class AprobacionesController : ControllerBase
     [HttpPost("solicitudes/{id:int}/autorizar")]
     [SwaggerOperation(
         Summary = "Autorizar una solicitud de viaticos",
-        Description = "Transiciona la solicitud de 'enviada' a 'autorizada'. Requiere viaticos.autorizar.")]
+        Description = "Transiciona la solicitud de 'enviada' a 'autorizada'. Requiere viaticos.autorizar. " +
+                      "Sin body autoriza la ruta que ya tenia la solicitud. Con { calculo } guarda esa version " +
+                      "como 'ruta autorizada' y, si llegan opciones, reemplaza la cotizacion vigente.")]
     [SwaggerResponse(200, "Solicitud autorizada", typeof(ApiResponse<object>))]
+    [SwaggerResponse(400, "Cotizacion invalida.")]
     [SwaggerResponse(403, "Sin permiso viaticos.autorizar.")]
     [SwaggerResponse(404, "Solicitud no encontrada.")]
     [SwaggerResponse(409, "La solicitud no esta en estado 'enviada'.")]
-    public async Task<IActionResult> Autorizar(int id, CancellationToken ct)
+    public async Task<IActionResult> Autorizar(
+        int id,
+        [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] AutorizarSolicitudRequest? body,
+        CancellationToken ct)
     {
         if (!User.TienePermiso(Permissions.Viaticos.Autorizar))
         {
@@ -194,10 +248,30 @@ public class AprobacionesController : ControllerBase
         var idUsuario = User.GetUserId();
         var ahora = DateTime.UtcNow;
 
+        // La ruta nueva (si la hay) se valida antes de mover el estado: una
+        // cotizacion invalida no debe dejar la solicitud autorizada a medias.
+        List<SolicitudOpcion>? nuevasOpciones = null;
+        if (body?.Opciones is { } opcionesElement
+            && opcionesElement.ValueKind is not (JsonValueKind.Undefined or JsonValueKind.Null))
+        {
+            var (opciones, errorOpciones) = SolicitudOpcionesParser.Parsear(id, opcionesElement, ahora);
+            if (errorOpciones is not null)
+            {
+                return BadRequest(new ApiResponse<object>
+                {
+                    Success = false,
+                    Message = errorOpciones,
+                    Data = null
+                });
+            }
+            nuevasOpciones = opciones;
+        }
+
         // Filtro por estado en el propio Update: si otra peticion movio la
         // solicitud entre la lectura y aqui, el SaveChanges no afecta filas
         // y se devuelve 409 en vez de pisar la transicion ajena.
         var solicitud = await _context.Solicitudes
+            .Include(s => s.Opciones)
             .FirstOrDefaultAsync(s => s.IdSolicitud == id && s.Estado == "enviada", ct);
         if (solicitud is null)
         {
@@ -209,16 +283,40 @@ public class AprobacionesController : ControllerBase
             });
         }
 
+        if (nuevasOpciones is not null)
+        {
+            if (solicitud.Opciones.Count > 0)
+            {
+                _context.SolicitudOpciones.RemoveRange(solicitud.Opciones);
+            }
+            _context.SolicitudOpciones.AddRange(nuevasOpciones);
+        }
+
+        // La ruta autorizada se conserva aparte: la calculada por el viajero
+        // no se pierde y la pestana "Ruta autorizada" del detalle la muestra.
+        AplicarCalculoAutorizado(solicitud, body?.Calculo);
+
         solicitud.Estado = "autorizada";
         solicitud.FechaModificacion = ahora;
-        _context.SolicitudEventos.Add(NuevoEvento(id, "autorizada", null, idUsuario, ahora));
+
+        var rutaNueva = body?.Calculo is { ValueKind: JsonValueKind.Object };
+        var payload = JsonSerializer.Serialize(new
+        {
+            estado_anterior = "enviada",
+            estado = "autorizada",
+            ruta = rutaNueva ? "nueva" : "elegida",
+            opciones = nuevasOpciones?.Count,
+        });
+        _context.SolicitudEventos.Add(NuevoEvento(id, "autorizada", payload, idUsuario, ahora));
 
         await _context.SaveChangesAsync(ct);
 
         return Ok(new ApiResponse<object>
         {
             Success = true,
-            Message = "Solicitud autorizada exitosamente.",
+            Message = rutaNueva
+                ? "Ruta autorizada exitosamente."
+                : "Solicitud autorizada exitosamente.",
             Data = null
         });
     }
@@ -452,6 +550,134 @@ public class AprobacionesController : ControllerBase
     // -------- lectura tolerante del snapshot datos_json --------
 
     /// <summary>
+    /// Gerencia que se muestra y agrupa: la de la solicitud si ya esta
+    /// clasificada; si no, la ultima gerencia conocida de quien viaja; si
+    /// tampoco hay, el valor por defecto. `Sin asignar` NUNCA se toma como
+    /// una clasificacion valida.
+    /// </summary>
+    private static string ResolverGerenciaEfectiva(
+        string? gerencia,
+        int idViajero,
+        IReadOnlyDictionary<int, string> gerenciaPorUsuario)
+    {
+        if (!string.IsNullOrWhiteSpace(gerencia)
+            && !string.Equals(
+                gerencia.Trim(),
+                SolicitudesController.GerenciaPorDefecto,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return gerencia.Trim();
+        }
+
+        return gerenciaPorUsuario.TryGetValue(idViajero, out var reciente)
+               && !string.IsNullOrWhiteSpace(reciente)
+            ? reciente.Trim()
+            : SolicitudesController.GerenciaPorDefecto;
+    }
+
+    /// <summary>
+    /// Id de la persona que viaja segun el snapshot: `persona.empleadoId`
+    /// cuando el viaje es para alguien mas; en cualquier otro caso, el
+    /// solicitante. El login es la unica fuente confiable si el snapshot no
+    /// trae la persona.
+    /// </summary>
+    private static int LeerIdViajero(JsonElement? snapshot, int idSolicitante)
+    {
+        if (snapshot is not { } raiz
+            || !raiz.TryGetProperty("persona", out var persona)
+            || persona.ValueKind != JsonValueKind.Object
+            || LeerTextoDesdeJson(persona, "modo") != "otra")
+        {
+            return idSolicitante;
+        }
+
+        return persona.TryGetProperty("empleadoId", out var empleadoId)
+               && empleadoId.ValueKind == JsonValueKind.Number
+               && empleadoId.TryGetInt32(out var id)
+               && id > 0
+            ? id
+            : idSolicitante;
+    }
+
+    /// <summary>
+    /// Guarda la ruta autorizada dentro del snapshot sin tocar la ruta
+    /// calculada: con un calculo nuevo ese es el autorizado; sin calculo se
+    /// copia el vigente (se autorizo la ruta que eligio la persona viajera).
+    /// </summary>
+    private static void AplicarCalculoAutorizado(Solicitud solicitud, JsonElement? calculo)
+    {
+        var autorizado = calculo is { ValueKind: JsonValueKind.Object }
+            ? calculo
+            : LeerPropiedadSnapshot(solicitud.DatosJson, "calculo");
+
+        if (autorizado is { ValueKind: JsonValueKind.Object })
+        {
+            EscribirPropiedadSnapshot(solicitud, "calculo_autorizado", autorizado.Value);
+        }
+    }
+
+    /// <summary>
+    /// Lee una propiedad del snapshot <c>datos_json</c>. Devuelve <c>null</c>
+    /// cuando el JSON es invalido, la raiz no es objeto o la clave no existe.
+    /// Nunca lanza.
+    /// </summary>
+    private static JsonElement? LeerPropiedadSnapshot(string? datosJson, string clave)
+    {
+        if (string.IsNullOrWhiteSpace(datosJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(datosJson);
+            return doc.RootElement.ValueKind == JsonValueKind.Object
+                   && doc.RootElement.TryGetProperty(clave, out var valor)
+                ? valor.Clone()
+                : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Escribe (o reemplaza) una propiedad del snapshot conservando el resto
+    /// de las claves. Ante un JSON invalido degrada a un objeto con esa sola
+    /// clave: el detalle nunca se queda sin la ruta autorizada.
+    /// </summary>
+    private static void EscribirPropiedadSnapshot(Solicitud solicitud, string clave, JsonElement valor)
+    {
+        try
+        {
+            var baseJson = string.IsNullOrWhiteSpace(solicitud.DatosJson) ? "{}" : solicitud.DatosJson;
+            using var doc = JsonDocument.Parse(baseJson);
+            using var buffer = new MemoryStream();
+            using (var writer = new Utf8JsonWriter(buffer))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in doc.RootElement.EnumerateObject())
+                {
+                    if (prop.NameEquals(clave)) continue;
+                    prop.WriteTo(writer);
+                }
+                writer.WritePropertyName(clave);
+                valor.WriteTo(writer);
+                writer.WriteEndObject();
+            }
+            solicitud.DatosJson = System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+        }
+        catch (JsonException)
+        {
+            solicitud.DatosJson = JsonSerializer.Serialize(new Dictionary<string, JsonElement>
+            {
+                [clave] = valor,
+            });
+        }
+    }
+
+    /// <summary>
     /// Parsea <c>solicitudes.datos_json</c> una sola vez por fila. Se lee en
     /// memoria a proposito: la version anterior usaba
     /// <c>ISNULL(TRY_CAST(JSON_VALUE(...) AS DECIMAL(18,2)), 0)</c> sobre
@@ -531,26 +757,117 @@ public class AprobacionesController : ControllerBase
     }
 
     /// <summary>
-    /// Rango de fechas del viaje (<c>$.fecha_salida</c> y
-    /// <c>$.fecha_regreso</c>) para la columna "Fecha" del concentrado
+    /// <summary>
+    /// Origen de la ruta. El snapshot actual (<c>solicitud-v2</c>) lo guarda
+    /// como objeto (<c>$.origen.punto</c>); el flujo anterior lo guardaba como
+    /// texto en <c>$.origen</c>. Se lee la ciudad del punto
+    /// (<c>municipio</c>, y si falta <c>nombre</c>) porque el concentrado
+    /// FOR-008 imprime la ciudad, no la direccion completa. Devuelve
+    /// <c>null</c> —nunca lanza— cuando no hay origen legible.
+    /// </summary>
+    private static string? LeerOrigenDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is not { } raiz)
+        {
+            return null;
+        }
+
+        var texto = LeerTextoDesdeJson(raiz, "origen");
+        if (texto is not null)
+        {
+            return texto;
+        }
+
+        return raiz.TryGetProperty("origen", out var origen) && origen.ValueKind == JsonValueKind.Object
+            ? LeerPunto(origen)
+            : null;
+    }
+
+    /// <summary>
+    /// Destinos de la ruta en una sola linea, como los imprime el FOR-008
+    /// (<c>"CHIHUAHUA-CD.JUAREZ"</c>). El snapshot actual los guarda en
+    /// <c>$.destinos[]</c> (cada uno con su <c>$.punto</c>); el flujo anterior
+    /// usaba un unico texto en <c>$.destino</c>. Los puntos se unen con
+    /// <c>" - "</c> en el orden del itinerario y sin repetir el mismo lugar.
+    /// Devuelve <c>null</c> —nunca lanza— cuando no hay ningun destino legible:
+    /// el concentrado imprime "—", nunca un texto inventado.
+    /// </summary>
+    private static string? LeerDestinosDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is not { } raiz)
+        {
+            return null;
+        }
+
+        var texto = LeerTextoDesdeJson(raiz, "destino");
+        if (texto is not null)
+        {
+            return texto;
+        }
+
+        if (!raiz.TryGetProperty("destinos", out var destinos) || destinos.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var puntos = new List<string>();
+        foreach (var destino in destinos.EnumerateArray())
+        {
+            var punto = LeerPunto(destino);
+            if (punto is not null && !puntos.Contains(punto, StringComparer.OrdinalIgnoreCase))
+            {
+                puntos.Add(punto);
+            }
+        }
+
+        return puntos.Count > 0 ? string.Join(" - ", puntos) : null;
+    }
+
+    /// <summary>
+    /// Ciudad de un punto del itinerario. Acepta tanto el destino completo
+    /// (<c>{"punto":{...}}</c>) como el punto suelto (<c>$.origen.punto</c>).
+    /// Prioriza <c>municipio</c> y cae a <c>nombre</c>: el concentrado imprime
+    /// ciudades, no direcciones.
+    /// </summary>
+    private static string? LeerPunto(JsonElement contenedor)
+    {
+        var punto = contenedor.TryGetProperty("punto", out var anidado) && anidado.ValueKind == JsonValueKind.Object
+            ? anidado
+            : contenedor;
+
+        return LeerTextoDesdeJson(punto, "municipio") ?? LeerTextoDesdeJson(punto, "nombre");
+    }
+
+    /// <summary>
+    /// ¿El snapshot trae el cálculo de la ruta (<c>datos.calculo</c>)? Es lo que
+    /// guarda el envío desde los cálculos; sin él no hay casetas, hoteles ni
+    /// tiempos que revisar.
+    /// </summary>
+    private static bool TieneCalculo(JsonElement? snapshot)
+        => snapshot is { } raiz
+           && raiz.TryGetProperty("calculo", out var calculo)
+           && calculo.ValueKind == JsonValueKind.Object;
+
+    /// <summary>
+    /// Rango de fechas del viaje para la columna "Fecha" del concentrado
     /// FOR-008. Se compone con el formato que documenta el componente de
     /// impresion (<c>ConcentradoViaticosPrint.tsx</c>):
     /// <c>"05/10/2026 AL 09/10/2026"</c>. Devuelve <c>null</c> —nunca lanza— si
-    /// no hay ninguna de las dos claves, no son strings o el JSON no parseo: el
+    /// no hay ninguna fecha, no son strings o el JSON no parseo: el
     /// concentrado imprime "—". Un valor que no parsea como fecha ISO se
     /// conserva tal cual, sin perder el dato.
     /// </summary>
-    private static string? LeerFechaViajeDesdeJson(JsonElement? snapshot)
+    private static string? ComponerRangoFecha(string? salida, string? regreso)
     {
-        var salida = FormatearFecha(LeerTextoDesdeJson(snapshot, "fecha_salida"));
-        var regreso = FormatearFecha(LeerTextoDesdeJson(snapshot, "fecha_regreso"));
+        var salidaTexto = FormatearFecha(salida);
+        var regresoTexto = FormatearFecha(regreso);
 
-        return (salida, regreso) switch
+        return (salidaTexto, regresoTexto) switch
         {
             (null, null) => null,
-            (not null, null) => salida,
-            (null, not null) => regreso,
-            _ => $"{salida} AL {regreso}",
+            (not null, null) => salidaTexto,
+            (null, not null) => regresoTexto,
+            _ => $"{salidaTexto} AL {regresoTexto}",
         };
 
         static string? FormatearFecha(string? valor)
@@ -558,5 +875,66 @@ public class AprobacionesController : ControllerBase
                && DateOnly.TryParse(valor, CultureInfo.InvariantCulture, out var fecha)
                 ? fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)
                 : valor;
+    }
+
+    /// <summary>
+    /// Fechas reales del viaje en ISO (<c>aaaa-mm-dd</c>), en el orden en que
+    /// las busca:
+    /// <list type="number">
+    ///   <item><c>$.rango.inicio</c>/<c>$.rango.fin</c>: el rango explicito del
+    ///   wizard actual (<c>solicitud-v2</c>), la fuente que manda.</item>
+    ///   <item><c>$.fecha_salida</c>/<c>$.fecha_regreso</c>: snapshots del flujo
+    ///   anterior.</item>
+    ///   <item>Los dias comprometidos de cada destino
+    ///   (<c>$.destinos[].debeEstarFecha</c>, o <c>saleFecha</c>): el menor y el
+    ///   mayor son el viaje completo.</item>
+    /// </list>
+    /// Devuelve <c>(null, null)</c> —nunca lanza— cuando el snapshot no trae
+    /// ninguna fecha legible: el filtro por fecha de viaje no puede afirmar que
+    /// ese viaje caiga en un rango.
+    /// </summary>
+    private static (string? Salida, string? Regreso) LeerRangoViajeDesdeJson(JsonElement? snapshot)
+    {
+        if (snapshot is { } raiz)
+        {
+            if (raiz.TryGetProperty("rango", out var rango) && rango.ValueKind == JsonValueKind.Object)
+            {
+                var inicio = LeerTextoDesdeJson(rango, "inicio");
+                var fin = LeerTextoDesdeJson(rango, "fin");
+                if (inicio is not null || fin is not null)
+                {
+                    return (inicio, fin);
+                }
+            }
+
+            var salida = LeerTextoDesdeJson(raiz, "fecha_salida");
+            var regreso = LeerTextoDesdeJson(raiz, "fecha_regreso");
+            if (salida is not null || regreso is not null)
+            {
+                return (salida, regreso);
+            }
+
+            if (raiz.TryGetProperty("destinos", out var destinos) && destinos.ValueKind == JsonValueKind.Array)
+            {
+                var dias = new List<string>();
+                foreach (var destino in destinos.EnumerateArray())
+                {
+                    var dia = LeerTextoDesdeJson(destino, "debeEstarFecha")
+                              ?? LeerTextoDesdeJson(destino, "saleFecha");
+                    if (dia is not null)
+                    {
+                        dias.Add(dia);
+                    }
+                }
+
+                if (dias.Count > 0)
+                {
+                    dias.Sort(StringComparer.Ordinal);
+                    return (dias[0], dias[^1]);
+                }
+            }
+        }
+
+        return (null, null);
     }
 }

@@ -40,33 +40,29 @@ public class AprobacionesControllerTests
     // ---------------- GET /api/viaticos/solicitudes ----------------
 
     [Fact]
-    public async Task Bandeja_SinVerTodos_DevuelveSoloLasPropias()
+    public async Task Bandeja_SinPermisoAutorizar_Retorna403()
     {
         using var ctx = new TestContext();
         const int yoId = 1000;
-        var propiaA = ctx.SembrarSolicitud(yoId, "enviada");
-        var propiaB = ctx.SembrarSolicitud(yoId, "autorizada");
-        var ajena = ctx.SembrarSolicitud(2000, "enviada");
+        ctx.SembrarSolicitud(yoId, "enviada");
+        ctx.SembrarSolicitud(yoId, "autorizada");
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", yoId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+        // Solicitar (y ver_todos) no bastan: la bandeja es la pantalla de
+        // autorizacion y exige viaticos.autorizar.
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
+            string.Join(",", Permissions.Viaticos.Solicitar, Permissions.Viaticos.VerTodos));
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
-        resp.StatusCode.Should().Be(HttpStatusCode.OK);
-        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
-        envelope!.Success.Should().BeTrue();
-        envelope.Data.Should().NotBeNull();
-        envelope.Data.Should().HaveCount(2);
-        envelope.Data!.Should().OnlyContain(x => x.IdUsuarioSolicitante == yoId);
-        envelope.Data.Select(x => x.IdSolicitud).Should().BeEquivalentTo(
-            new[] { propiaA, propiaB });
-        envelope.Data.Should().NotContain(x => x.IdSolicitud == ajena);
+        resp.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+        var body = await resp.Content.ReadAsStringAsync();
+        body.Should().Contain(Permissions.Viaticos.Autorizar);
     }
 
     [Fact]
-    public async Task Bandeja_ConVerTodos_DevuelveTodas()
+    public async Task Bandeja_ConAutorizar_DevuelveTodas()
     {
         using var ctx = new TestContext();
         const int adminId = 5000;
@@ -76,8 +72,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions",
-            string.Join(",", Permissions.Viaticos.VerTodos, Permissions.Viaticos.Autorizar));
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -90,6 +85,37 @@ public class AprobacionesControllerTests
     }
 
     // ---------------- GET /api/viaticos/solicitudes: destino y directorio ----------------
+
+    [Fact]
+    public async Task Bandeja_SinGerenciaPropia_UsaLaUltimaDelViajero()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5200;
+        const int solicitanteId = 8201;
+        const int viajeroId = 8202;
+
+        // El viajero ya tenia una solicitud clasificada; la nueva nace "Sin asignar".
+        ctx.SembrarSolicitud(viajeroId, "autorizada", """{"total":100}""", gerencia: "IMSS Bienestar");
+        var sinGerencia = ctx.SembrarSolicitud(
+            solicitanteId,
+            "enviada",
+            $$"""{"persona":{"modo":"otra","empleadoId":{{viajeroId}},"nombre":"Viajero"},"total":200}""",
+            gerencia: SolicitudesController.GerenciaPorDefecto);
+        // Una solicitud que SI trae gerencia conserva la suya.
+        var conGerencia = ctx.SembrarSolicitud(
+            solicitanteId, "enviada", """{"total":300}""", gerencia: "Descentralizado");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Data!.Single(x => x.IdSolicitud == sinGerencia).Gerencia.Should().Be("IMSS Bienestar");
+        envelope.Data!.Single(x => x.IdSolicitud == conGerencia).Gerencia.Should().Be("Descentralizado");
+    }
 
     [Fact]
     public async Task Bandeja_LeeDestinoDeDatosJsonYNombreDelDirectorio()
@@ -108,7 +134,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -137,7 +163,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -163,7 +189,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -194,7 +220,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -230,7 +256,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -274,7 +300,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -305,7 +331,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -325,6 +351,76 @@ public class AprobacionesControllerTests
     }
 
     [Fact]
+    public async Task Bandeja_LeeElRangoDelViajeDelSnapshotV2YDeLosDestinos()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5650;
+        // solicitud-v2: el rango explicito manda sobre los dias de cada destino.
+        var wizard = ctx.SembrarSolicitud(
+            8650, "enviada",
+            """{"version":"solicitud-v2","rango":{"inicio":"2026-10-18","fin":"2026-10-22"},"destinos":[{"debeEstarFecha":"2026-10-19"}]}""");
+        // Sin rango: el viaje va del dia menor al mayor de los destinos.
+        var soloDestinos = ctx.SembrarSolicitud(
+            8651, "enviada",
+            """{"version":"solicitud-v2","destinos":[{"debeEstarFecha":"2026-10-21"},{"debeEstarFecha":"2026-10-22"}]}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        envelope!.Success.Should().BeTrue();
+
+        var filaRango = envelope.Data!.Single(x => x.IdSolicitud == wizard);
+        filaRango.FechaSalida.Should().Be("2026-10-18");
+        filaRango.FechaRegreso.Should().Be("2026-10-22");
+        filaRango.Fecha.Should().Be("18/10/2026 AL 22/10/2026");
+
+        var filaDestinos = envelope.Data!.Single(x => x.IdSolicitud == soloDestinos);
+        filaDestinos.FechaSalida.Should().Be("2026-10-21");
+        filaDestinos.FechaRegreso.Should().Be("2026-10-22");
+    }
+
+    [Fact]
+    public async Task Bandeja_ExponeFolioYLosDestinosDelSnapshotV2()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 5670;
+        // solicitud-v2: origen y destinos son objetos con `punto`; se publican
+        // como ciudad, no como direccion completa.
+        var multiPunto = ctx.SembrarSolicitud(
+            8670, "enviada",
+            """
+            {"version":"solicitud-v2",
+             "origen":{"punto":{"nombre":"Calle 1, Pátzcuaro, Michoacán","municipio":"Pátzcuaro"}},
+             "destinos":[
+               {"punto":{"nombre":"Avenida 2, Chihuahua","municipio":"Chihuahua"}},
+               {"punto":{"nombre":"Calle 3, Juárez","municipio":"Juárez"}},
+               {"punto":{"nombre":"Avenida 2, Chihuahua","municipio":"Chihuahua"}}
+             ]}
+            """,
+            folio: "VIA-BLEDESMA-42");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        var fila = envelope!.Data!.Single(x => x.IdSolicitud == multiPunto);
+
+        fila.Folio.Should().Be("VIA-BLEDESMA-42");
+        fila.Origen.Should().Be("Pátzcuaro");
+        // Los puntos se unen con " - " y el repetido no se pinta dos veces.
+        fila.Destino.Should().Be("Chihuahua - Juárez");
+    }
+
+    [Fact]
     public async Task Bandeja_SinOrigenNiFechaOMalformado_DevuelveNullSinLanzar()
     {
         using var ctx = new TestContext();
@@ -340,7 +436,7 @@ public class AprobacionesControllerTests
 
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
-        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.VerTodos);
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
 
         var resp = await cliente.GetAsync("/api/viaticos/solicitudes");
 
@@ -391,6 +487,76 @@ public class AprobacionesControllerTests
         resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
         var body = await resp.Content.ReadAsStringAsync();
         body.Should().Contain("autorizada");
+    }
+
+    [Fact]
+    public async Task Autorizar_SinBody_CopiaLaRutaVigenteComoAutorizada()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(
+            7008,
+            "enviada",
+            """{"calculo":{"tramos":[{"de":"Origen","a":"Destino"}]},"total":1000}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7008");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsync($"/api/viaticos/solicitudes/{id}/autorizar", null);
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var datos = ctx.LeeDatosJson(id);
+        // La ruta calculada se conserva y ademas queda como autorizada.
+        datos.Should().Contain("calculo").And.Contain("calculo_autorizado");
+        datos.Should().Contain("Origen").And.Contain("Destino");
+    }
+
+    [Fact]
+    public async Task Autorizar_ConRutaNueva_GuardaLaAutorizadaYReemplazaOpciones()
+    {
+        using var ctx = new TestContext();
+        var id = ctx.SembrarSolicitud(
+            7009,
+            "enviada",
+            """{"calculo":{"tramos":[{"de":"Vieja","a":"Ruta"}]},"total":1000}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7009");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new { tramos = new[] { new { de = "Nueva", a = "Ruta" } }, generado_en = "2026-10-22T10:00:00" },
+            opciones = new[]
+            {
+                new
+                {
+                    tipo = "autobus",
+                    linea = "Nueva ruta ETN",
+                    precio = 1234.50m,
+                    moneda = "MXN",
+                    url_compra = "https://proveedor.test/boleto",
+                    fuente = "proveedor",
+                    fue_elegida = true,
+                    ruta_captura = (string?)null,
+                },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var datos = ctx.LeeDatosJson(id);
+        datos.Should().Contain("calculo_autorizado").And.Contain("Nueva").And.Contain("Ruta");
+        datos.Should().Contain("Vieja"); // la ruta calculada original no se pierde.
+
+        var opciones = ctx.LeeOpciones(id);
+        opciones.Should().ContainSingle();
+        opciones[0].Linea.Should().Be("Nueva ruta ETN");
+        opciones[0].FueElegida.Should().BeTrue();
+
+        ctx.LeeEstado(id).Should().Be("autorizada");
+        ctx.LeeEventos(id).Should().Contain(e =>
+            e.Tipo == "autorizada" && e.PayloadJson!.Contains("\"ruta\":\"nueva\""));
     }
 
     // ---------------- POST /{id}/ajustes ----------------
@@ -540,10 +706,15 @@ public class AprobacionesControllerTests
     /// <see cref="TestServer"/> con el <see cref="AprobacionesController"/> real,
     /// <see cref="ApplicationDbContext"/> sobre InMemory (nombre unico por test) y
     /// el <c>TestAuthHandler</c> compartido.
+    ///
+    /// <see cref="AsokamDbContext"/> tambien va sobre InMemory pero con su PROPIA
+    /// base: el directorio de usuarios (<c>app.Usuarios</c>) vive en la BD Asokam,
+    /// no en la de Lefarma, igual que en el servidor real.
     /// </summary>
     private sealed class TestContext : IDisposable
     {
         private readonly string _dbName = $"AprobacionesCtrl-{Guid.NewGuid():N}";
+        private readonly string _asokamDbName = $"AprobacionesCtrl-Asokam-{Guid.NewGuid():N}";
         public TestServer Servidor { get; }
 
         public TestContext()
@@ -564,6 +735,7 @@ public class AprobacionesControllerTests
                     services.AddLogging();
                     services.AddRouting();
                     services.AddDbContext<ApplicationDbContext>(o => o.UseInMemoryDatabase(_dbName));
+                    services.AddDbContext<AsokamDbContext>(o => o.UseInMemoryDatabase(_asokamDbName));
                     services.AddAuthentication(PermisosEndpointTests.TestAuthHandler.NombreEsquema)
                         .AddScheme<AuthenticationSchemeOptions, PermisosEndpointTests.TestAuthHandler>(
                             PermisosEndpointTests.TestAuthHandler.NombreEsquema, _ => { });
@@ -586,7 +758,12 @@ public class AprobacionesControllerTests
         public int SembrarSolicitud(int duenoId, string estado)
             => SembrarSolicitud(duenoId, estado, """{"total":1000}""");
 
-        public int SembrarSolicitud(int duenoId, string estado, string? datosJson)
+        public int SembrarSolicitud(
+            int duenoId,
+            string estado,
+            string? datosJson,
+            string? folio = null,
+            string gerencia = "Operaciones")
         {
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -595,9 +772,10 @@ public class AprobacionesControllerTests
             {
                 IdUsuarioSolicitante = duenoId,
                 Periodo = ahora.ToString("yyyy-MM"),
-                Gerencia = "Operaciones",
+                Gerencia = gerencia,
                 Estado = estado,
                 DatosJson = datosJson!,
+                Folio = folio,
                 Activo = true,
                 FechaCreacion = ahora,
                 FechaModificacion = ahora,
@@ -610,7 +788,7 @@ public class AprobacionesControllerTests
         public void SembrarUsuario(int idUsuario, string nombreCompleto, bool esActivo)
         {
             using var scope = Servidor.Host.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var db = scope.ServiceProvider.GetRequiredService<AsokamDbContext>();
             db.Usuarios.Add(new Usuario
             {
                 IdUsuario = idUsuario,
@@ -625,6 +803,23 @@ public class AprobacionesControllerTests
             using var scope = Servidor.Host.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             return db.Solicitudes.AsNoTracking().Single(x => x.IdSolicitud == idSolicitud).Estado;
+        }
+
+        public string LeeDatosJson(int idSolicitud)
+        {
+            using var scope = Servidor.Host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return db.Solicitudes.AsNoTracking().Single(x => x.IdSolicitud == idSolicitud).DatosJson;
+        }
+
+        public List<SolicitudOpcion> LeeOpciones(int idSolicitud)
+        {
+            using var scope = Servidor.Host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            return db.SolicitudOpciones.AsNoTracking()
+                .Where(x => x.IdSolicitud == idSolicitud)
+                .OrderBy(x => x.IdOpcion)
+                .ToList();
         }
 
         public List<SolicitudAjuste> LeeAjustes(int idSolicitud)
@@ -666,8 +861,14 @@ public class AprobacionesControllerTests
         [JsonPropertyName("id_solicitud")]
         public int IdSolicitud { get; set; }
 
+        [JsonPropertyName("folio")]
+        public string? Folio { get; set; }
+
         [JsonPropertyName("id_usuario_solicitante")]
         public int IdUsuarioSolicitante { get; set; }
+
+        [JsonPropertyName("gerencia")]
+        public string Gerencia { get; set; } = string.Empty;
 
         [JsonPropertyName("estado")]
         public string Estado { get; set; } = string.Empty;
@@ -683,6 +884,12 @@ public class AprobacionesControllerTests
 
         [JsonPropertyName("fecha")]
         public string? Fecha { get; set; }
+
+        [JsonPropertyName("fecha_salida")]
+        public string? FechaSalida { get; set; }
+
+        [JsonPropertyName("fecha_regreso")]
+        public string? FechaRegreso { get; set; }
 
         [JsonPropertyName("autobus")]
         public decimal? Autobus { get; set; }

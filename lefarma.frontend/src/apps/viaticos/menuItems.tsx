@@ -13,13 +13,13 @@ export const viaticosMenuItems: SidebarMenuItemConfig[] = [
     path: '/viaticos/mis-viajes',
   },
   {
-    // `viaticos.ver_todos` es el permiso de revisión global; sin él, el
-    // backend recorta la bandeja a las solicitudes propias del usuario y la
-    // vista lo declara en vez de mostrar un concentrado ajeno.
+    // Pantalla de autorización: solo entra quien puede autorizar. El backend
+    // exige el mismo permiso en la bandeja, así que el recorte a las
+    // solicitudes propias ya no aplica aquí.
     title: 'Concentrado de viáticos',
     icon: ClipboardCheck,
     path: '/viaticos/concentrado',
-    permission: { require: 'viaticos.ver_todos' },
+    permission: { require: 'viaticos.autorizar' },
   },
   {
     title: 'Configuración de viáticos',

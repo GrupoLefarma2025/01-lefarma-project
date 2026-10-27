@@ -29,6 +29,7 @@ public class NotificarIncidenciaItemRequest
     public string? MsgError { get; set; }
     public bool Justificada { get; set; }
     public bool EnTramite { get; set; }
+    public bool CubiertaPorSolicitudIncidencia { get; set; }
     public bool Descuento { get; set; }
     public int? IdSolicitud { get; set; }
     public string? TipoSolicitudNombre { get; set; }

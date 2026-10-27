@@ -268,4 +268,36 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
       VIAJES_OCTUBRE_2026.map(v => v.no),
     );
   });
+
+  it('agrupa por gerencia con banda y subtotal por bloque', () => {
+    const { container } = render(
+      <ConcentradoViaticosPrint
+        solicitudes={[
+          { ...Solicitudes[0], id_solicitud: 1, gerencia: 'IMSS', nombre_solicitante: 'Uno' },
+          { ...Solicitudes[1], id_solicitud: 2, gerencia: 'IMSS', nombre_solicitante: 'Dos' },
+          { ...Solicitudes[2], id_solicitud: 3, gerencia: 'IMSS Bienestar', nombre_solicitante: 'Tres' },
+        ]}
+        nombreResponsable="EDUCACION MEDICA"
+        fecha="2026-09-01"
+        grupoPor="gerencia"
+      />,
+    );
+    const cuerpo = tablaDatos(container).querySelector('tbody')! as HTMLElement;
+    expect(cuerpo).toHaveTextContent(/Gerencia: IMSS · 2 solicitudes/i);
+    expect(cuerpo).toHaveTextContent(/Gerencia: IMSS Bienestar · 1 solicitud/i);
+
+    const subtotales = cuerpo.querySelectorAll('.concentrado-subtotal-grupo');
+    expect(subtotales).toHaveLength(2);
+    const totalImss = (Solicitudes[0].total ?? 0) + (Solicitudes[1].total ?? 0);
+    expect(subtotales[0]).toHaveTextContent(dinero(totalImss));
+    expect(subtotales[1]).toHaveTextContent(dinero(Solicitudes[2].total ?? 0));
+
+    // La numeracion sigue siendo continua entre bloques (1..3).
+    const numeros = within(cuerpo)
+      .getAllByRole('row')
+      .filter((fila) => fila.classList.contains('concentrado-grupo') === false)
+      .filter((fila) => fila.classList.contains('concentrado-subtotal-grupo') === false)
+      .map((fila) => within(fila).getAllByRole('cell')[0].textContent);
+    expect(numeros).toEqual(['1', '2', '3']);
+  });
 });

@@ -222,7 +222,14 @@ async function captureOne(browser, item) {
     return { url: rawUrl, ok: false, archivo: null, error: urlRejection };
   }
 
-  const ctx = await browser.newContext();
+  // Viewport fijo y captura de la ventana (no de la pagina completa): en
+  // listados largos (ClickBus, ADO) la pagina entera sale como una tira
+  // ilegible; lo que importa es el encabezado con los primeros precios.
+  const ctx = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    locale: 'es-MX',
+    timezoneId: 'America/Mexico_City',
+  });
   let ctxClosed = false;
   try {
     const page = await ctx.newPage();
@@ -230,7 +237,7 @@ async function captureOne(browser, item) {
       await page.goto(rawUrl, { waitUntil: 'networkidle', timeout: PAGE_TIMEOUT_MS });
       await page.waitForTimeout(POST_LOAD_DELAY_MS);
       const outPath = join(OUTPUT_DIR, `${safeName}.png`);
-      await page.screenshot({ path: outPath, fullPage: true });
+      await page.screenshot({ path: outPath });
       return {
         url: rawUrl,
         ok: true,

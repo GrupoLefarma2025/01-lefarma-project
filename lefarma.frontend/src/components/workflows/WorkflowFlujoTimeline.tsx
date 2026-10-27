@@ -15,6 +15,7 @@ import {
   ChevronRight,
   UserRound,
   Clock,
+  Zap,
   Ban,
   Circle,
 } from 'lucide-react';
@@ -22,6 +23,10 @@ import type {
   HistorialWorkflowItemResponse,
   WorkflowPasoFlowResponse,
 } from '@/types/solicitudPersonalWorkflow.types';
+import {
+  agruparEventosPorPasoActividad,
+  parseSnapshot,
+} from './workflowHistorial';
 
 const fmtFecha = (dateStr?: string | null) => {
   if (!dateStr) return '-';
@@ -35,26 +40,6 @@ const fmtFecha = (dateStr?: string | null) => {
     });
   } catch {
     return dateStr;
-  }
-};
-
-interface SnapshotData {
-  omisionAutomatica?: boolean;
-  motivo?: string | null;
-  idPasoOmitido?: number | null;
-  idPasoDestinoSalto?: number | null;
-  idPasoAnterior?: number | null;
-  idPasoNuevo?: number | null;
-  idEstadoNuevo?: number | null;
-  datosAdicionales?: unknown;
-}
-
-const parseSnapshot = (raw?: string | null): SnapshotData | null => {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as SnapshotData;
-  } catch {
-    return null;
   }
 };
 
@@ -99,7 +84,9 @@ interface PasoTimelineItem {
   tipo: 'paso';
   paso: WorkflowPasoFlowResponse;
   eventos: HistorialWorkflowItemResponse[];
+  eventosActividad: HistorialWorkflowItemResponse[];
   ultimoEvento?: HistorialWorkflowItemResponse;
+  ultimoEventoActividad?: HistorialWorkflowItemResponse;
   isActual: boolean;
   isRetorno: boolean;
   pasoOrigenRetorno?: string;
@@ -169,6 +156,11 @@ export function WorkflowFlujoTimeline({
     }
     return map;
   }, [historial]);
+
+  const eventosActividadPorPaso = useMemo(
+    () => agruparEventosPorPasoActividad(historial),
+    [historial]
+  );
 
   const eventosOmision = useMemo(() => {
     return historial.filter((h) => parseSnapshot(h.datosSnapshot)?.omisionAutomatica === true);
@@ -283,6 +275,7 @@ export function WorkflowFlujoTimeline({
 
       const isPasoActual = idPasoActual === paso.idPaso;
       const eventos = eventosPorPaso.get(paso.idPaso) ?? [];
+      const eventosActividad = eventosActividadPorPaso.get(paso.idPaso) ?? [];
       if (isDocumentoTerminal && !isPasoActual && eventos.length === 0) {
         bufferNoAplica.push(paso);
         continue;
@@ -292,6 +285,7 @@ export function WorkflowFlujoTimeline({
       flushOmitidos();
 
       const ultimoEvento = eventos[eventos.length - 1];
+      const ultimoEventoActividad = eventosActividad[eventosActividad.length - 1];
       let isRetorno = false;
       let pasoOrigenRetorno: string | undefined;
 
@@ -320,7 +314,9 @@ export function WorkflowFlujoTimeline({
         tipo: 'paso',
         paso,
         eventos,
+        eventosActividad,
         ultimoEvento,
+        ultimoEventoActividad,
         isActual: isPasoActual,
         isRetorno,
         pasoOrigenRetorno,
@@ -335,6 +331,7 @@ export function WorkflowFlujoTimeline({
     pasosOrdenados,
     pasosOmitidosIds,
     eventosPorPaso,
+    eventosActividadPorPaso,
     eventosOmision,
     pasosPorId,
     idPasoActual,
@@ -456,7 +453,17 @@ function PasoItem({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const { paso, eventos, ultimoEvento, isActual, isRetorno, pasoOrigenRetorno, estadoTerminal } = item;
+  const {
+    paso,
+    eventos,
+    eventosActividad,
+    ultimoEvento,
+    ultimoEventoActividad,
+    isActual,
+    isRetorno,
+    pasoOrigenRetorno,
+    estadoTerminal,
+  } = item;
   const tipoUltimo = ultimoEvento ? getTipoEvento(ultimoEvento.nombreAccion) : null;
 
   const isTerminalCerrada = isActual && estadoTerminal === 'cerrada';
@@ -560,23 +567,21 @@ function PasoItem({
           <p className="mt-1 text-[11px] text-muted-foreground">{paso.descripcionAyuda}</p>
         )}
 
-        {/* Resumen último evento */}
-        {ultimoEvento ? (
+        {/* Resumen del último evento ejecutado en el paso */}
+        {ultimoEventoActividad ? (
           <div className="mt-2 space-y-1.5">
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <Clock className="h-3 w-3" />
-              <span>{fmtFecha(ultimoEvento.fechaEvento)}</span>
+              <span>{fmtFecha(ultimoEventoActividad.fechaEvento)}</span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <UserRound className="h-3 w-3" />
-              <span>{ultimoEvento.nombreUsuario || `Usuario ${ultimoEvento.idUsuario}`}</span>
+              <span>{ultimoEventoActividad.nombreUsuario || `Usuario ${ultimoEventoActividad.idUsuario}`}</span>
             </div>
-            {isDevuelto && pasoOrigenRetorno && (
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
-                <Undo2 className="h-3 w-3" />
-                <span>Devuelto desde: {pasoOrigenRetorno}</span>
-              </div>
-            )}
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <Zap className="h-3 w-3" />
+              <span>{ultimoEventoActividad.nombreAccion || `Acción ${ultimoEventoActividad.idAccion}`}</span>
+            </div>
             {comentarioPaso && (
               <div className="mt-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-2 text-[11px] italic leading-relaxed text-foreground/90">
                 "{comentarioPaso}"
@@ -587,8 +592,15 @@ function PasoItem({
           <p className="mt-2 text-[11px] text-muted-foreground">Sin actividad registrada</p>
         )}
 
+        {isDevuelto && pasoOrigenRetorno && (
+          <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-amber-700">
+            <Undo2 className="h-3 w-3" />
+            <span>Devuelto desde: {pasoOrigenRetorno}</span>
+          </div>
+        )}
+
         {/* Historial completo */}
-        {eventos.length > 1 && (
+        {eventosActividad.length > 1 && (
           <div className="mt-2">
             <Button
               variant="ghost"
@@ -601,12 +613,12 @@ function PasoItem({
               ) : (
                 <ChevronRight className="h-3 w-3" />
               )}
-              {isExpanded ? 'Ocultar historial' : `Ver historial (${eventos.length - 1} más)`}
+              {isExpanded ? 'Ocultar historial' : `Ver historial (${eventosActividad.length - 1} más)`}
             </Button>
 
             {isExpanded && (
               <div className="mt-2 space-y-2">
-                {eventos.slice(0, -1).map((evt) => (
+                {eventosActividad.slice(0, -1).map((evt) => (
                   <EventoCard key={evt.idEvento} evento={evt} pasosPorId={pasosPorId} />
                 ))}
               </div>

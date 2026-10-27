@@ -67,6 +67,69 @@ export interface Solicitud {
   nombre_creador?: string | null;
 }
 
+/** Caseta de referencia que aparece en un tramo del cálculo de ruta. */
+export interface CasetaCalculada {
+  nombre: string;
+  km: number;
+  direccion: string;
+  costo: number | null;
+}
+
+/** Tramo de la ruta calculada (la que manda tras el envío). */
+export interface TramoCalculado {
+  de: string;
+  a: string;
+  km: number | null;
+  /** Tiempo de recorrido sin margen ("8h 35m"). */
+  duracion: string | null;
+  /** Tiempo de recorrido con el margen aplicado ("9h 27m"). */
+  duracion_con_margen: string | null;
+  salida_fecha: string | null;
+  salida_hora: string | null;
+  llegada_fecha: string | null;
+  llegada_hora: string | null;
+  /** Si la llegada estimada cumple la hora requerida del tramo. */
+  alcanza: boolean | null;
+  casetas: CasetaCalculada[];
+}
+
+/**
+ * Cálculo de la ruta hecho al enviar la solicitud. Se guarda en
+ * `datos.calculo` del snapshot y es la ruta que manda (la propuesta del
+ * wizard queda como referencia).
+ */
+export interface CalculoViaje {
+  generado_en: string;
+  margen: number;
+  modo_transporte: 'propio' | 'solicitado';
+  km_total: number | null;
+  horas_total: string | null;
+  tramos: TramoCalculado[];
+  /**
+   * Cadena completa tal como se revisó antes de enviar: paradas con su punto
+   * (origen, terminal, hotel, regreso) y su detalle. Es lo que pinta el
+   * diagrama de "Ruta calculada" en el detalle del viaje.
+   */
+  ruta?: RutaCalculadaGuardada | null;
+}
+
+/** Parada de la ruta calculada, con su coordenada y el detalle de cómo se llega. */
+export interface ParadaCalculada {
+  lat: number;
+  lng: number;
+  nombre: string;
+  tipo: 'origen' | 'punto' | 'hotel' | 'regreso' | 'terminal';
+  detalle?: string;
+}
+
+/** Ruta calculada completa: paradas del mapa y nodos del diagrama. */
+export interface RutaCalculadaGuardada {
+  puntos: ParadaCalculada[];
+  nodos: { titulo: string; detalles: string[]; chips?: string[] }[];
+  /** Trazado por tipo de tramo, para pintar el mapa igual que se revisó. */
+  segmentos?: { tipo: 'taxi' | 'transporte' | 'carretera'; puntos: [number, number][] }[];
+}
+
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */
 export interface CrearSolicitudPayload {
   gerencia?: string;

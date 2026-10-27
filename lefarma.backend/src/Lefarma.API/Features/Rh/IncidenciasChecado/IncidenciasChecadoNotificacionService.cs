@@ -440,7 +440,8 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
                 FechaInicio = s.FechaInicio!.Value,
                 FechaFin = s.FechaFin,
                 EstadoCodigo = s.Estado!.Codigo,
-                TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null
+                TipoSolicitudNombre = s.TipoSolicitud != null ? s.TipoSolicitud.Nombre : null,
+                CategoriaSolicitud = s.TipoSolicitud != null ? (CategoriaSolicitud?)s.TipoSolicitud.Categoria : null
             })
             .ToListAsync(cancellationToken);
 
@@ -469,6 +470,9 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
 
             if (coincidencias.Count == 0)
                 continue;
+
+            item.CubiertaPorSolicitudIncidencia = coincidencias.Any(
+                s => s.CategoriaSolicitud == CategoriaSolicitud.Incidencia);
 
             var cerrada = coincidencias.FirstOrDefault(s => s.EstadoCodigo == WorkflowEstadoCodigo.CERRADA);
             if (cerrada is not null)
@@ -540,8 +544,13 @@ public class IncidenciasChecadoNotificacionService : BaseService, IIncidenciasCh
         // Los descuentos se cuentan por día (igual que el tope): un día sin checadas
         // (omisión de entrada y salida) es un solo descuento/justificante.
         var diasConDescuento = items.Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuento));
-        var diasJustificados = items.Count(i => i.Justificada && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
-        var diasEnTramite = items.Count(i => !i.Justificada && i.EnTramite && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
+        var diasJustificados = items.Count(i => i.Justificada
+            && i.CubiertaPorSolicitudIncidencia
+            && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
+        var diasEnTramite = items.Count(i => !i.Justificada
+            && i.EnTramite
+            && i.CubiertaPorSolicitudIncidencia
+            && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
 
         return new Dictionary<string, string>
         {

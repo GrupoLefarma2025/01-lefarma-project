@@ -1,7 +1,9 @@
 using FluentAssertions;
 using Lefarma.API.Features.Viaticos;
 using Lefarma.API.Features.Viaticos.DTOs;
+using Lefarma.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Formatters;
@@ -39,6 +41,19 @@ public class CostosRutaServiceTests
     }
 
     private static readonly JsonSerializerOptions MvcJson = GetMvcJson();
+
+    /// <summary>
+    /// Contexto EF InMemory. El motor lee la configuracion de viaticos desde la
+    /// base (tabla viaticos.config_parametros); con InMemory esa lectura falla
+    /// y el motor sigue con los valores por defecto.
+    /// </summary>
+    private static ApplicationDbContext CrearContexto()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+        return new ApplicationDbContext(options);
+    }
 
     private static JsonSerializerOptions GetMvcJson()
     {
@@ -98,7 +113,7 @@ public class CostosRutaServiceTests
         person.Lugares[2].HoraFinActividad.Should().Be("12:00");
         using var handler = new FallaTodoHandler();
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var controller = new CostosRutaController(new FabricaFake(handler), cache);
+        var controller = new CostosRutaController(new FabricaFake(handler), cache, CrearContexto());
         var result = (await controller.Calcular(request)).Should().BeOfType<OkObjectResult>().Subject;
         result.StatusCode.Should().Be(200);
         result.Value.Should().BeOfType<ApiResponse<CostosRutaResponse>>().Subject.Success.Should().BeTrue();
@@ -114,7 +129,7 @@ public class CostosRutaServiceTests
         request.Personas[0].Lugares[1].FechaInicioActividad.Should().Be("2026-10-15");
         using var handler = new FallaTodoHandler();
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var controller = new CostosRutaController(new FabricaFake(handler), cache);
+        var controller = new CostosRutaController(new FabricaFake(handler), cache, CrearContexto());
         var result = (await controller.Calcular(request)).Should().BeOfType<OkObjectResult>().Subject;
         var response = result.Value.Should().BeOfType<ApiResponse<CostosRutaResponse>>().Subject;
         response.Success.Should().BeTrue();
@@ -178,7 +193,7 @@ public class CostosRutaServiceTests
         var request = await ReadMvcBody(wire);
         using var cache = new MemoryCache(new MemoryCacheOptions());
         using var handler = new FallaTodoHandler();
-        var controller = new CostosRutaController(new FabricaFake(handler), cache);
+        var controller = new CostosRutaController(new FabricaFake(handler), cache, CrearContexto());
         var result = (await controller.Calcular(request)).Should().BeOfType<BadRequestObjectResult>().Subject;
         result.StatusCode.Should().Be(400);
         result.Value.Should().BeOfType<ApiResponse<object>>().Subject.Message
@@ -449,7 +464,7 @@ public class CostosRutaServiceTests
     [Fact]
     public async Task Personas_Vacias_Lanza_400()
     {
-        var controller = new CostosRutaController(new FabricaFake(new FallaTodoHandler()), new MemoryCache(new MemoryCacheOptions()));
+        var controller = new CostosRutaController(new FabricaFake(new FallaTodoHandler()), new MemoryCache(new MemoryCacheOptions()), CrearContexto());
         var result = await controller.Calcular(new CostosRutaRequest
         {
             Opciones = new CostosRutaOpcionesInput(),

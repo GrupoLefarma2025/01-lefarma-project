@@ -17,6 +17,11 @@ vi.mock('./pages/concentrado/ConcentradoPage', () => ({ ConcentradoPage: () => <
 vi.mock('@/hooks/usePageTitle', () => ({ usePageTitle: vi.fn() }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/hooks/usePermission', () => ({ usePermission: () => true }));
+// El guard lee permisos de localStorage; para el ruteo se deja pasar y el
+// candado real se prueba en PermissionGuard.test.tsx.
+vi.mock('@/components/auth/PermissionGuard', () => ({
+  PermissionGuard: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 const mocks = vi.hoisted(() => ({ get: vi.fn(), post: vi.fn() }));
 vi.mock('@/shared/api/apiClient', () => ({ API: { get: mocks.get, post: mocks.post } }));

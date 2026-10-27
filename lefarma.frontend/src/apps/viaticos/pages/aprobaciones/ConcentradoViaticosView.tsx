@@ -58,6 +58,7 @@ export function filaConcentrado(solicitud: SolicitudBandeja): SolicitudConcentra
   return {
     id_solicitud: solicitud.id_solicitud,
     nombre_solicitante: solicitud.nombre_solicitante,
+    gerencia: solicitud.gerencia,
     estado: solicitud.estado,
     fecha: solicitud.fecha ?? '',
     origen: solicitud.origen ?? null,

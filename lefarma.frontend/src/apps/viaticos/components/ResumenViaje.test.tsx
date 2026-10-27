@@ -9,6 +9,8 @@ vi.mock('react-leaflet', () => ({
   MapContainer: ({ children }: { children?: ReactNode }) => <div data-testid="mapa-punto">{children}</div>,
   TileLayer: () => null,
   CircleMarker: () => null,
+  // El mapa del globo engancha Ctrl + rueda con useMap.
+  useMap: () => ({ getContainer: () => document.createElement('div'), getZoom: () => 12, setZoom: () => undefined }),
 }));
 
 const base: ResumenViajeDatos = {

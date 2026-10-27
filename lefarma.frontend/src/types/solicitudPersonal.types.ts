@@ -161,6 +161,8 @@ export interface LimitePorTipoResponse {
   limite: number;
   usado: number;
   disponible: number;
+  cubiertosPorOtrasSolicitudes?: number;
+  pendientesPorJustificar?: number;
   periodo: string;
   periodoInicio: string;
   periodoFin: string;
@@ -261,6 +263,7 @@ export interface IncidenciaChecadoResponse {
   incidenciasCalculadas?: IncidenciaCalculada[];
   justificada?: boolean;
   enTramite?: boolean;
+  cubiertaPorSolicitudIncidencia?: boolean;
   descuento?: boolean;
   idSolicitud?: number | null;
   tipoSolicitudNombre?: string | null;

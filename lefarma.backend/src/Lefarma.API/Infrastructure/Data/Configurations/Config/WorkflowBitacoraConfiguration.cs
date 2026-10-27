@@ -15,7 +15,7 @@ public class WorkflowBitacoraConfiguration : IEntityTypeConfiguration<WorkflowBi
             builder.Property(b => b.IdPaso).HasColumnName("id_paso");
             builder.Property(b => b.IdAccion).HasColumnName("id_accion");
             builder.Property(b => b.IdUsuario).HasColumnName("id_usuario");
-            builder.Property(b => b.Comentario).HasColumnName("comentario").HasMaxLength(500);
+            builder.Property(b => b.Comentario).HasColumnName("comentario").HasColumnType("nvarchar(max)");
             builder.Property(b => b.DatosSnapshot).HasColumnName("datos_snapshot");
             builder.Property(b => b.FechaEvento).HasColumnName("fecha_evento").HasDefaultValueSql("GETDATE()");
 

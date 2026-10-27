@@ -58,6 +58,10 @@ public class CostosRutaLugarInput
     public string? Nombre { get; set; }
     public double Latitud { get; set; }
     public double Longitud { get; set; }
+    /// <summary>Municipio del punto (se usa para consultar la ruta en la SCT).</summary>
+    public string? Municipio { get; set; }
+    /// <summary>Estado del punto (se usa para consultar la ruta en la SCT).</summary>
+    public string? Estado { get; set; }
     public string? FechaSalida { get; set; }
     public string? HoraSalida { get; set; }
     public string? FechaLlegada { get; set; }
@@ -109,6 +113,26 @@ public class CostosRutaResultado
     public CostosRutaRutaArmada RutaArmada { get; set; } = new();
     public List<CostosRutaHotel> HotelesPropuestos { get; set; } = [];
     public List<string> Incumplimientos { get; set; } = [];
+    /// <summary>Casetas de la ruta según la SCT, por tramo.</summary>
+    public List<CostosRutaCaseta> Casetas { get; set; } = [];
+}
+
+/// <summary>Plaza de cobro de la ruta (SCT · Rutas Punto a Punto).</summary>
+public class CostosRutaCaseta
+{
+    public int Tramo { get; set; }
+    /// <summary>Municipio de origen del tramo (para emparejar con el tramo del viaje).</summary>
+    public string DeMunicipio { get; set; } = string.Empty;
+    /// <summary>Municipio de destino del tramo.</summary>
+    public string AMunicipio { get; set; } = string.Empty;
+    public string Nombre { get; set; } = string.Empty;
+    public string Carretera { get; set; } = string.Empty;
+    /// <summary>Kilómetro desde el origen donde está la plaza.</summary>
+    public double Km { get; set; }
+    /// <summary>Tarifa de automóvil en pesos.</summary>
+    public double Tarifa { get; set; }
+    public string Direccion { get; set; } = string.Empty;
+    public string Fuente { get; set; } = string.Empty;
 }
 
 public class CostosRutaPropuestaDraft
@@ -123,6 +147,18 @@ public class CostosRutaTramo
     public string To { get; set; } = string.Empty;
     public double Km { get; set; }
     public List<CostosRutaOferta> Opciones { get; set; } = [];
+}
+
+/// <summary>
+/// Terminal de un trayecto (aeropuerto o central de autobuses) con su
+/// coordenada real, para que el resumen reconstruido dibuje el traslado en
+/// taxi de ida y de vuelta.
+/// </summary>
+public class CostosRutaTerminal
+{
+    public string Nombre { get; set; } = string.Empty;
+    public double Latitud { get; set; }
+    public double Longitud { get; set; }
 }
 
 public class CostosRutaOferta
@@ -141,6 +177,38 @@ public class CostosRutaOferta
     public string LlegadaTxt { get; set; } = string.Empty;
     public string Duracion { get; set; } = string.Empty;
     public double? PuertaAPuertaH { get; set; }
+    /// <summary>Minutos que hay que estar antes de la salida (abordaje/aeropuerto).</summary>
+    public int MinutosAntes { get; set; }
+    /// <summary>Minutos después de la llegada (bajar del avión y recoger maletas).</summary>
+    public int MinutosDespues { get; set; }
+    /// <summary>
+    /// Minutos de taxi que sí se conocen: la suma de <see cref="MinutosTaxiOrigen"/>
+    /// y <see cref="MinutosTaxiDestino"/>. Si una terminal es desconocida, ese
+    /// tramo no entra (el resumen lo declara por separado; nunca se inventa).
+    /// El "Tiempo total" del concentrado lo suma al viaje y al abordaje.
+    /// </summary>
+    public int MinutosTaxi { get; set; }
+
+    /// <summary>
+    /// Minutos del primer taxi del tramo: del punto de salida a su terminal
+    /// (central de autobuses o aeropuerto). <c>null</c> cuando no se conoce la
+    /// terminal (ni el proveedor ni el catálogo la tienen).
+    /// </summary>
+    public int? MinutosTaxiOrigen { get; set; }
+
+    /// <summary>
+    /// Minutos del segundo taxi del tramo: de la terminal de llegada al punto
+    /// final. <c>null</c> cuando no se conoce la terminal de llegada. Nunca se
+    /// inventa un 0: un 0 significa "el punto está en la terminal".
+    /// </summary>
+    public int? MinutosTaxiDestino { get; set; }
+
+    /// <summary>Terminal de salida (aeropuerto o central de autobuses) con su
+    /// coordenada real; <c>null</c> en auto, renta y taxi.</summary>
+    public CostosRutaTerminal? TerminalOrigen { get; set; }
+
+    /// <summary>Terminal de llegada, misma regla que <see cref="TerminalOrigen"/>.</summary>
+    public CostosRutaTerminal? TerminalDestino { get; set; }
     public string PrecioTxt { get; set; } = string.Empty;
     public bool PorPersona { get; set; }
     public double PrecioDesde { get; set; }
@@ -211,8 +279,18 @@ public class CostosRutaHotel
     public int Noches { get; set; }
     public int Habitaciones { get; set; }
     public double DistanciaKm { get; set; }
+    /// <summary>Latitud del hotel (para el mapa de la ruta reconstruida).</summary>
+    public double Latitud { get; set; }
+    /// <summary>Longitud del hotel.</summary>
+    public double Longitud { get; set; }
     public double PrecioNoche { get; set; }
     public double PrecioTotal { get; set; }
+    /// <summary>Calificación del hotel (Google Places).</summary>
+    public double? Rating { get; set; }
+    /// <summary>Número de reseñas (Google Places).</summary>
+    public int? RatingCount { get; set; }
+    /// <summary>Dirección del hotel (Google Places).</summary>
+    public string? Direccion { get; set; }
     public string Motivo { get; set; } = string.Empty;
     public string Fuente { get; set; } = string.Empty;
     public string Link { get; set; } = string.Empty;
@@ -250,6 +328,8 @@ public class CostosRutaRutaTramo
     public string De { get; set; } = string.Empty;
     public string A { get; set; } = string.Empty;
     public double Km { get; set; }
+    /// <summary>Trazado de la carretera: pares [latitud, longitud].</summary>
+    public List<double[]>? Grafica { get; set; }
     public double Litros { get; set; }
     public CostosRutaGasolinaDetalle Gasolina { get; set; } = new();
     public CostosRutaCasetasDetalle Casetas { get; set; } = new();

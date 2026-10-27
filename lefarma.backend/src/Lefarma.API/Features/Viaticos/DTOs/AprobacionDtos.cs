@@ -1,6 +1,23 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace Lefarma.API.Features.Viaticos.DTOs;
+
+/// <summary>
+/// Body opcional de POST /api/viaticos/solicitudes/{id}/autorizar.
+/// Sin body se autoriza la ruta que ya tenia la solicitud. Con <c>Calculo</c>
+/// se guarda esa version como <c>calculo_autorizado</c> (la ruta nueva que
+/// genero el revisor) y, si llegan <c>Opciones</c>, se reemplaza la
+/// cotizacion vigente por la de esa ruta.
+/// </summary>
+public class AutorizarSolicitudRequest
+{
+    [JsonPropertyName("calculo")]
+    public JsonElement? Calculo { get; set; }
+
+    [JsonPropertyName("opciones")]
+    public JsonElement? Opciones { get; set; }
+}
 
 /// <summary>
 /// Body de POST /api/viaticos/solicitudes/{id}/ajustes.
@@ -89,6 +106,13 @@ public class SolicitudBandejaDto
     [JsonPropertyName("id_solicitud")]
     public int IdSolicitud { get; set; }
 
+    /// <summary>Folio legible del viaje (<c>VIA-{SamAccountName}-{id}</c>). Es
+    /// la identidad que usa la persona para referirse a su solicitud; el
+    /// concentrado lo imprime en la columna "No." y la tabla lo muestra en
+    /// lugar del id interno. <c>null</c> en solicitudes viejas sin folio.</summary>
+    [JsonPropertyName("folio")]
+    public string? Folio { get; set; }
+
     [JsonPropertyName("id_usuario_solicitante")]
     public int IdUsuarioSolicitante { get; set; }
 
@@ -119,6 +143,18 @@ public class SolicitudBandejaDto
     /// <c>null</c> imprime "—".</summary>
     [JsonPropertyName("fecha")]
     public string? Fecha { get; set; }
+
+    /// <summary>Fecha de salida del snapshot tal como esta guardada (ISO
+    /// <c>aaaa-mm-dd</c>). Existe para que el filtro "fecha de viaje" del
+    /// concentrado compare fechas reales y no parsee el texto ya formateado de
+    /// <see cref="Fecha"/>. <c>null</c> cuando el snapshot no la trae.</summary>
+    [JsonPropertyName("fecha_salida")]
+    public string? FechaSalida { get; set; }
+
+    /// <summary>Fecha de regreso del snapshot tal como esta guardada (ISO
+    /// <c>aaaa-mm-dd</c>). <c>null</c> cuando el snapshot no la trae.</summary>
+    [JsonPropertyName("fecha_regreso")]
+    public string? FechaRegreso { get; set; }
 
     [JsonPropertyName("autobus")]
     public decimal? Autobus { get; set; }
@@ -151,4 +187,18 @@ public class SolicitudBandejaDto
 
     [JsonPropertyName("fecha_creacion")]
     public DateTime FechaCreacion { get; set; }
+
+    /// <summary>Ultima modificacion de la solicitud. Es la fecha que manda con
+    /// el filtro "última actualización": una solicitud creada ayer y enviada
+    /// hoy tiene que aparecer hoy en el concentrado.</summary>
+    [JsonPropertyName("fecha_modificacion")]
+    public DateTime FechaModificacion { get; set; }
+
+    /// <summary>
+    /// La solicitud pasó por los cálculos: tiene cotización guardada
+    /// (<c>datos.calculo</c>) u opciones de vuelo/hotel. Es lo que el
+    /// concentrado necesita para autorizar; sin esto no hay nada que revisar.
+    /// </summary>
+    [JsonPropertyName("recalculada")]
+    public bool Recalculada { get; set; }
 }

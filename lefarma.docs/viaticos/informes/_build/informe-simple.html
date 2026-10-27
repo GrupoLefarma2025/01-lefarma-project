@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="author" content="Brandom Rafael Ledesma Muñoz">
+<meta name="description" content="Informe de control de calidad y APIs para costos reales del módulo de viáticos de Grupo Lefarma.">
+<title>Viáticos · Control de calidad y APIs para costos reales</title>
+<style>
+@page { size: 1280px 720px; margin: 0; }
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: #0b74b7; }
+.slide {
+  width: 1280px; height: 720px; position: relative; overflow: hidden;
+  page-break-after: always; break-after: page;
+  background:
+    radial-gradient(900px 520px at 8% 4%, rgba(255,255,255,.28), rgba(255,255,255,0) 60%),
+    linear-gradient(148deg, #32d2f2 0%, #1cc0e8 18%, #12a7dd 44%, #0b83c4 70%, #0a5ea3 100%);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  color: #1e293b;
+}
+.slide:last-child { page-break-after: auto; break-after: auto; }
+.lines { position: absolute; inset: 0; width: 1280px; height: 720px; pointer-events: none; }
+.chrome {
+  position: absolute; left: 44px; top: 27px;
+  font-family: 'Century Gothic', 'Segoe UI', sans-serif; font-weight: 700;
+  font-size: 26px; letter-spacing: .2px; color: #0b3a66;
+}
+.tag {
+  position: absolute; right: 46px; top: 35px; font-size: 10px; letter-spacing: 2.1px;
+  text-transform: uppercase; color: #0b3a66; opacity: .82; font-weight: 700;
+}
+.pgnum {
+  position: absolute; left: 46px; bottom: 14px; font-family: 'Century Gothic', sans-serif;
+  font-weight: 700; font-size: 15px; color: #093862;
+}
+.foot {
+  position: absolute; left: 50%; transform: translateX(-50%); bottom: 16px;
+  font-size: 9.5px; letter-spacing: .7px; color: #093862; opacity: .78;
+}
+.panel {
+  position: absolute; left: 40px; top: 88px; width: 1200px; height: 590px;
+  background: #ffffff; border-radius: 10px;
+  box-shadow: 0 18px 44px rgba(3,35,75,.26);
+  padding: 28px 40px 22px; display: flex; flex-direction: column; overflow: hidden;
+}
+.kicker {
+  font-size: 10px; letter-spacing: 2.3px; text-transform: uppercase;
+  color: #0b74b7; font-weight: 700; margin-bottom: 3px;
+}
+h1 {
+  font-family: 'Century Gothic', 'Segoe UI', sans-serif; font-size: 29px; line-height: 1.14;
+  color: #0b2f5e; margin: 0 0 8px; font-weight: 700; letter-spacing: -.3px;
+}
+h1 .thin { font-weight: 400; color: #0b74b7; }
+.lead { font-size: 14px; line-height: 1.46; color: #475569; margin: 0 0 11px; }
+.body { font-size: 12.6px; line-height: 1.5; color: #334155; }
+.body.tight { font-size: 11.8px; line-height: 1.44; }
+p { margin: 0 0 7px; }
+ul { margin: 0; padding: 0; list-style: none; }
+li { position: relative; padding-left: 14px; margin-bottom: 5px; }
+li:before {
+  content: ''; position: absolute; left: 0; top: 6px; width: 5px; height: 5px;
+  background: #0b74b7; border-radius: 1px;
+}
+li.no:before { display: none; }
+b, strong { color: #0b2f5e; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.cols.wide { grid-template-columns: 1.25fr .9fr; }
+.cols3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin: 3px 0 9px; }
+.kpi { background: #f2f8fe; border: 1px solid #d8e7f5; border-radius: 8px; padding: 9px 11px; }
+.kpi b {
+  display: block; font-family: 'Century Gothic', sans-serif; font-size: 25px;
+  color: #0b4a86; line-height: 1.08; font-weight: 700;
+}
+.kpi span { font-size: 8.9px; color: #64748b; text-transform: uppercase; letter-spacing: .8px; }
+table { width: 100%; border-collapse: collapse; font-size: 10.6px; line-height: 1.33; }
+th {
+  background: #0b3a66; color: #fff; text-align: left; padding: 5.5px 8px;
+  font-size: 9.1px; letter-spacing: .45px; text-transform: uppercase; font-weight: 600;
+}
+td { padding: 5.2px 8px; border-bottom: 1px solid #dbe7f3; vertical-align: top; }
+tr:nth-child(even) td { background: #f4f9fe; }
+td.num { white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.c, th.c { text-align: center; }
+table.tight { font-size: 9.4px; line-height: 1.3; }
+table.tight th { font-size: 8.4px; padding: 4.4px 6px; }
+table.tight td { padding: 4.2px 6px; }
+.note {
+  border-left: 5px solid #0b74b7; background: #eef6fd; padding: 8px 12px;
+  border-radius: 0 6px 6px 0; margin: 7px 0;
+}
+.note .nt {
+  font-size: 8.8px; letter-spacing: 1.4px; text-transform: uppercase;
+  font-weight: 700; color: #0b5a9b; margin-bottom: 2px;
+}
+.note p { font-size: 11.3px; line-height: 1.42; margin: 0; color: #25415f; }
+.note.warn { border-color: #d92d20; background: #fef3f2; }
+.note.warn .nt { color: #b42318; }
+.note.warn p { color: #5b2620; }
+.note.ok { border-color: #12805c; background: #ecfdf5; }
+.note.ok .nt { color: #0b6b4b; }
+.note.ok p { color: #1d4d3d; }
+.note.amber { border-color: #b54708; background: #fffaeb; }
+.note.amber .nt { color: #93370d; }
+.note.amber p { color: #5c3a12; }
+.flow { display: flex; align-items: stretch; gap: 7px; margin: 6px 0 8px; }
+.fbox {
+  flex: 1; background: #f2f8fe; border: 1px solid #d8e7f5; border-radius: 7px;
+  padding: 8px 10px; font-size: 9.9px; line-height: 1.32;
+}
+.fbox b { display: block; font-size: 10.3px; color: #0b4a86; margin-bottom: 2px; }
+.farrow { align-self: center; color: #0b74b7; font-weight: 700; font-size: 14px; }
+.steps { counter-reset: s; }
+.step {
+  position: relative; padding-left: 34px; margin-bottom: 8px;
+}
+.step:before {
+  counter-increment: s; content: counter(s);
+  position: absolute; left: 0; top: 0; width: 23px; height: 23px; border-radius: 50%;
+  background: #0b74b7; color: #fff; font-family: 'Century Gothic', sans-serif;
+  font-weight: 700; font-size: 11px; display: flex; align-items: center; justify-content: center;
+}
+.step b { display: block; font-size: 12px; color: #0b2f5e; }
+.step span { font-size: 11.2px; color: #475569; line-height: 1.4; }
+.chip {
+  display: inline-block; background: #eef6fd; border: 1px solid #cfe3f5; color: #0b4a86;
+  border-radius: 20px; padding: 2px 8px; font-size: 9.2px; margin: 0 4px 4px 0;
+  font-weight: 600; white-space: nowrap;
+}
+.tag-red { background: #fef3f2; border-color: #f5c6c0; color: #b42318; }
+.tag-green { background: #ecfdf5; border-color: #b7e4d0; color: #0b6b4b; }
+.tag-amber { background: #fffaeb; border-color: #f3d9a4; color: #93370d; }
+.src {
+  margin-top: auto; border-top: 1px solid #e2e8f0; padding-top: 6px;
+  font-size: 8.6px; line-height: 1.35; color: #64748b;
+}
+.take {
+  margin-top: auto; border-top: 2px solid #0b74b7; padding-top: 7px;
+  font-size: 13.4px; line-height: 1.4; color: #0b2f5e; font-weight: 600;
+}
+.take span {
+  display: block; font-size: 8.4px; letter-spacing: 2px; color: #0b74b7;
+  font-weight: 700; margin-bottom: 2px;
+}
+.take + .src { margin-top: 8px; }
+.wm {
+  position: absolute; right: 24px; bottom: 4px; z-index: 0;
+  font-family: 'Century Gothic', sans-serif; font-weight: 700; font-size: 150px;
+  line-height: 1; color: #f0f6fc; pointer-events: none;
+}
+.panel > *:not(.wm) { position: relative; z-index: 1; }
+.src b { color: #475569; }
+pre.json {
+  margin: 0; background: #0b1f3a; color: #d7e8f8; border-radius: 7px;
+  padding: 10px 12px; font-family: Consolas, 'Courier New', monospace;
+  font-size: 8.6px; line-height: 1.4; overflow: hidden;
+}
+pre.json .k { color: #8fd3ff; }
+.quote {
+  background: #f8fbff; border: 1px solid #d8e7f5; border-radius: 8px;
+  padding: 9px 11px; font-size: 10.7px; line-height: 1.42; color: #334155;
+}
+.quote b { display: block; font-size: 9.4px; color: #0b4a86; margin-bottom: 3px; }
+.quote i { color: #0b2f5e; }
+/* Variante "simple": menos texto, letra más grande, lectura para toda la empresa. */
+.slide.simple h1 { font-size: 34px; line-height: 1.1; letter-spacing: -.5px; }
+.slide.simple .kicker { font-size: 11px; }
+.slide.simple .lead { font-size: 17px; line-height: 1.4; margin-bottom: 14px; }
+.slide.simple .body { font-size: 15px; line-height: 1.5; }
+.slide.simple .body.tight { font-size: 14px; }
+.slide.simple table { font-size: 12px; line-height: 1.38; }
+.slide.simple table.tight { font-size: 11.4px; line-height: 1.35; }
+.slide.simple th { font-size: 9.8px; padding: 7px 9px; }
+.slide.simple td { padding: 7px 9px; }
+.slide.simple .note { padding: 11px 15px; margin: 9px 0; }
+.slide.simple .note .nt { font-size: 9.8px; }
+.slide.simple .note p { font-size: 13.4px; line-height: 1.45; }
+.slide.simple .quote { font-size: 13.6px; line-height: 1.45; padding: 13px 15px; }
+.slide.simple .quote b { font-size: 12.5px; margin-bottom: 5px; }
+.slide.simple .take { font-size: 16px; line-height: 1.35; padding-top: 9px; }
+.slide.simple .take span { font-size: 9.2px; }
+.slide.simple .src { font-size: 9.5px; }
+.slide.simple .fbox { font-size: 12px; line-height: 1.35; padding: 11px 12px; }
+.slide.simple .fbox b { font-size: 12.8px; margin-bottom: 4px; }
+.slide.simple .kpi b { font-size: 30px; }
+.slide.simple .kpi span { font-size: 9.8px; }
+.slide.simple .chip { font-size: 10.2px; padding: 3px 9px; }
+.slide.simple li { margin-bottom: 7px; padding-left: 17px; }
+.slide.simple li:before { top: 8px; width: 6px; height: 6px; }
+.check { display: flex; gap: 12px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid #e2e8f0; }
+.check:last-child { border-bottom: 0; }
+.dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 5px; flex: none; }
+.dot.g { background: #12805c; }
+.dot.a { background: #b54708; }
+.dot.r { background: #d92d20; }
+.check b { display: block; font-size: 15px; color: #0b2f5e; line-height: 1.3; }
+.check span { font-size: 13px; color: #475569; line-height: 1.4; }
+.idx { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 28px; }
+.idxi { display: flex; gap: 12px; align-items: flex-start; padding: 7px 0; border-bottom: 1px solid #e2e8f0; }
+.idxn { font-family: 'Century Gothic', sans-serif; font-size: 24px; color: #0b74b7; line-height: 1; min-width: 38px; font-weight: 700; }
+.idxt b { display: block; font-size: 11px; color: #0b2f5e; }
+.idxt span { font-size: 9.6px; color: #64748b; line-height: 1.38; }
+/* Portada */
+.cover .chrome, .cover .tag { display: none; }
+.cover .logo {
+  position: absolute; right: 54px; top: 40px; width: 220px; background: #fff;
+  border-radius: 10px; padding: 9px 14px; box-shadow: 0 10px 28px rgba(3,35,75,.18);
+}
+.cover .logo img { width: 100%; display: block; }
+.cover .k {
+  position: absolute; left: 70px; top: 142px; font-size: 10.5px; letter-spacing: 3.2px;
+  color: #093862; font-weight: 700; text-transform: uppercase;
+}
+.cover .t {
+  position: absolute; left: 64px; top: 168px;
+  font-family: 'Century Gothic', sans-serif; font-weight: 700; font-size: 94px;
+  line-height: .93; color: #072c57;
+}
+.cover .s {
+  position: absolute; left: 70px; top: 298px; width: 690px; font-size: 23px;
+  line-height: 1.28; color: #ffffff; font-weight: 600;
+}
+.cover .s small {
+  display: block; font-size: 14px; font-weight: 400; color: #e8f7ff;
+  margin-top: 9px; line-height: 1.4; opacity: 1;
+}
+.cover .author {
+  position: absolute; left: 70px; bottom: 46px; background: #fff; border-radius: 10px;
+  padding: 13px 20px 14px; box-shadow: 0 12px 30px rgba(3,35,75,.2); min-width: 430px;
+}
+.cover .author .ak { font-size: 8.8px; letter-spacing: 2.2px; color: #0b74b7; font-weight: 700; }
+.cover .author .an {
+  font-family: 'Century Gothic', sans-serif; font-size: 25px; color: #0b2f5e;
+  font-weight: 700; line-height: 1.22;
+}
+.cover .author .ad { font-size: 10.5px; color: #64748b; margin-top: 1px; }
+.cover .stats {
+  position: absolute; right: 54px; bottom: 46px; display: grid;
+  grid-template-columns: 1fr; gap: 9px; width: 420px;
+}
+.cover .stat { background: rgba(255,255,255,.94); border-radius: 8px; padding: 9px 12px; }
+.cover .stat b {
+  display: block; font-family: 'Century Gothic', sans-serif; font-size: 19px;
+  color: #0b3a66; line-height: 1.1;
+}
+.cover .stat span { font-size: 8.4px; color: #475569; text-transform: uppercase; letter-spacing: .7px; }
+/* Divisoria */
+.divider .chrome, .divider .tag, .divider .foot { display: none; }
+.divider .big {
+  position: absolute; left: 52px; top: 106px; font-family: 'Century Gothic', sans-serif;
+  font-size: 252px; font-weight: 700; line-height: 1; color: rgba(255,255,255,.16);
+}
+.divider .dk {
+  position: absolute; left: 74px; top: 92px; font-size: 10.5px; letter-spacing: 3px;
+  color: #eaf6ff; opacity: .9; font-weight: 700; text-transform: uppercase;
+}
+.divider .dt {
+  position: absolute; left: 70px; top: 330px; width: 1000px;
+  font-family: 'Century Gothic', sans-serif; font-size: 54px; font-weight: 700;
+  color: #fff; line-height: 1.05;
+}
+.divider .dd {
+  position: absolute; left: 74px; top: 408px; width: 800px; font-size: 17px;
+  line-height: 1.45; color: #eaf6ff;
+}
+</style>
+</head>
+<body>
+
+<section class="slide cover">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="logo"><img src="data:image/png;base64,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" alt="Grupo Lefarma"></div>
+  <div class="k">Informe de investigación · Octubre 2026</div>
+  <div class="t">VIÁTICOS</div>
+  <div class="s">Control de calidad y APIs para costos reales</div>
+  <div class="author">
+    <div class="ak">ELABORÓ</div>
+    <div class="an">Brandom Rafael Ledesma Muñoz</div>
+    <div class="ad">21 de octubre de 2026 · Grupo Lefarma · Calidad</div>
+  </div>
+  <div class="stats">
+    <div class="stat"><b>13</b><span>APIs evaluadas</span></div>
+    <div class="stat"><b>3</b><span>fuentes que usamos</span></div>
+    <div class="stat"><b>10</b><span>alternativas descartadas</span></div>
+  </div>
+  <div class="pgnum">01</div>
+</section>
+
+<section class="slide divider">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="big">01</div>
+  <div class="dk">Sección 01 / 02</div>
+  <div class="dt">Las APIs para investigar costos</div>
+  <div class="dd">Qué son, cuáles se consultarían, qué devuelven y cuánto cuestan.</div>
+  <div class="pgnum">02</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Concepto</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Qué es una API</h1>
+    
+    <p class="lead">Es una interfaz: un acuerdo entre dos sistemas para intercambiar información.</p>
+    <div class="body">
+      <p>No es una base de datos ni una lista de precios. Es la ventanilla con reglas: un sistema pide algo concreto y el otro responde en un formato acordado. Por ejemplo: “dame los vuelos de esta ruta y fecha” y el proveedor devuelve horarios, disponibilidad y condiciones.</p>
+    </div>
+    <div class="cols3" style="margin-top:8px">
+      <div class="quote"><b>Un contrato</b>Define qué se puede pedir y cómo se responde.</div>
+      <div class="quote"><b>Un intermediario</b>No guarda los datos: los pide a otro sistema.</div>
+      <div class="quote"><b>Un formato común</b>Las respuestas llegan ordenadas y se pueden comparar.</div>
+    </div>
+    <div class="take"><span>EN UNA FRASE</span>Una API es la interfaz, no la fuente de los datos.</div>
+    <div class="src"><b>Fuente:</b> Concepto general, aplicado al proceso de viáticos.</div>
+  </div>
+  <div class="pgnum">03</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Mapa</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Mapa de APIs por tipo de costo</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>Tipo de costo</th><th>Fuente que se consulta</th><th>Qué se le pregunta</th><th>Qué devuelve</th><th>Costo</th></tr></thead>
+  <tbody><tr><td>Vuelos</td><td>Algoritmo propio + tarifas de referencia</td><td>Ruta, fecha y aerolínea</td><td>Precio estimado por aerolínea</td><td>$0</td></tr><tr><td>Hospedaje</td><td>Tabulador + OpenStreetMap</td><td>Destino y noches</td><td>Tarifa de referencia y hoteles cercanos</td><td>$0</td></tr><tr><td>Autobús</td><td>Algoritmo propio + portales públicos</td><td>Ruta y fecha</td><td>Línea, horario y precio estimado</td><td>$0</td></tr><tr><td>Ruta y casetas</td><td>OSRM + SCT</td><td>Ruta en auto</td><td>Km, tiempo y casetas oficiales</td><td>$0</td></tr><tr><td>Direcciones</td><td>OpenStreetMap</td><td>Hospital o terminal</td><td>Coordenadas</td><td>$0</td></tr></tbody>
+</table>
+    <div class="take"><span>EN UNA FRASE</span>Cinco fuentes cubren la mayor parte de la investigación.</div>
+    <div class="src"><b>Fuente:</b> Páginas oficiales de cada proveedor.</div>
+  </div>
+  <div class="pgnum">04</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Categorías</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Vuelos, hoteles y taxis: qué investigamos</h1>
+    
+    <div class="cols3">
+      <div class="quote"><b>Vuelos</b>
+        Hoy: algoritmo propio con tarifas de referencia.<br>
+        Opciones: Duffel (prueba gratis), Travelpayouts (precios cacheados) y Amadeus Enterprise (solo contrato).<br>
+        Decisión: Duffel para el piloto.
+      </div>
+      <div class="quote"><b>Hoteles</b>
+        Hoy: tabulador + Google Places (nombres y rating).<br>
+        Opciones: Google Places (5,000 gratis/mes), Duffel Stays (prueba) y Booking Demand (socio).<br>
+        Decisión: Google Places + Duffel Stays.
+      </div>
+      <div class="quote"><b>Taxis</b>
+        Hoy: tarifas SEMOVI/Xalapa + OSRM.<br>
+        Opciones: Google Routes (10,000 gratis/mes), TaxiFareFinder (API beta) y Uber/DiDi (solo enlaces).<br>
+        Decisión: Google Routes + tarifas locales.
+      </div>
+    </div>
+    <div class="note ok"><div class="nt">Lo que falta</div><p>Contratar la fuente de vuelos y hospedaje; taxis se resuelve con distancia + tarifa local.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>Cada categoría ya tiene una ruta de investigación; vuelos y hoteles necesitan proveedor.</div>
+    <div class="src"><b>Fuente:</b> Duffel, Booking, Google Maps, TaxiFareFinder y tarifas locales.</div>
+  </div>
+  <div class="pgnum">05</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Complemento</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Autobuses, rutas y casetas</h1>
+    
+    <div class="cols">
+      <div class="quote"><b>Autobuses</b>
+        Algoritmo propio con líneas conocidas y portales públicos de consulta.<br>
+        ClickBus o Distribusion solo si se necesita precio y asientos en vivo.
+      </div>
+      <div class="quote"><b>Rutas y casetas</b>
+        OSRM para la ruta y el catálogo de la SCT para las plazas de cobro.<br>
+        Google Routes o TollGuru solo si se necesita cobertura total y garantía.
+      </div>
+    </div>
+    <div class="note ok"><div class="nt">Regla práctica</div><p>Primero se usan las fuentes actuales; las alternativas se evalúan solo si hacen falta.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>Autobuses y casetas se resuelven con las fuentes actuales.</div>
+    <div class="src"><b>Fuente:</b> OSRM y SCT; documentación de ClickBus, Distribusion, Google Routes y TollGuru.</div>
+  </div>
+  <div class="pgnum">06</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Datos</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>De dónde salen los datos</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>Dato</th><th>De dónde sale</th><th>Cómo se usa</th></tr></thead>
+  <tbody><tr><td>Kilómetros</td><td>OSRM: ruta entre los puntos</td><td>Distancia del tramo</td></tr><tr><td>Gasolina</td><td>CNE: precio promedio nacional</td><td>Litros = km ÷ 12; costo = litros × precio</td></tr><tr><td>Casetas</td><td>SCT: plazas y tarifas oficiales</td><td>Suma de plazas; si no hay, $1.40/km</td></tr><tr><td>Hospedaje</td><td>Tabulador por ciudad</td><td>Noches × tarifa</td></tr><tr><td>Taxi</td><td>Tarifa local (SEMOVI/Xalapa)</td><td>Base + km × tarifa</td></tr><tr><td>Vuelo y autobús</td><td>Fórmula propia</td><td>Base + km × factor</td></tr></tbody>
+</table>
+    <div class="note ok"><div class="nt">Lectura</div><p>SCT y CNE son datos oficiales; kilómetros, vuelos y autobuses son estimaciones.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>Cada dato tiene una fuente y una forma de usarse.</div>
+    <div class="src"><b>Fuente:</b> OSRM, CNE, SCT y tabuladores internos.</div>
+  </div>
+  <div class="pgnum">07</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Cálculo</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Cómo se calcula un viaje</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>Concepto</th><th>Fórmula</th></tr></thead>
+  <tbody><tr><td>Gasolina</td><td>(km ÷ 12) × precio del litro</td></tr><tr><td>Casetas</td><td>Suma de las plazas de la ruta</td></tr><tr><td>Hospedaje</td><td>Noches × tarifa de la ciudad</td></tr><tr><td>Taxis</td><td>Base + (km × tarifa)</td></tr><tr><td>Total</td><td>Suma de todos los conceptos</td></tr></tbody>
+</table>
+    <div class="note amber"><div class="nt">Si falta un dato</div><p>Se usa un valor de respaldo y se marca como estimado; nunca se presenta como precio de proveedor.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>La fórmula es simple; la calidad depende de la fuente de cada dato.</div>
+    <div class="src"><b>Fuente:</b> Motor de costos del módulo de viáticos.</div>
+  </div>
+  <div class="pgnum">08</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Flujo</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Cómo se vería en la práctica</h1>
+    
+    <div class="flow">
+      <div class="fbox"><b>1 · El empleado pide</b>Origen, destino, fechas y personas.</div>
+      <div class="farrow">→</div>
+      <div class="fbox"><b>2 · El sistema consulta</b>Vuelos, hotel, autobús y ruta.</div>
+      <div class="farrow">→</div>
+      <div class="fbox"><b>3 · Llegan los datos</b>Con fuente, vigencia y condiciones.</div>
+      <div class="farrow">→</div>
+      <div class="fbox"><b>4 · Calidad decide</b>Compara, autoriza y guarda evidencia.</div>
+    </div>
+    
+<table class="tight">
+  <thead><tr><th>Paso</th><th>Qué deja</th></tr></thead>
+  <tbody><tr><td>1 · El empleado pide</td><td>Solicitud completa</td></tr><tr><td>2 · El sistema consulta</td><td>Consulta trazable</td></tr><tr><td>3 · Llegan los datos</td><td>Dato con fuente y fecha</td></tr><tr><td>4 · Calidad decide</td><td>Evidencia guardada</td></tr></tbody>
+</table>
+    <div class="take"><span>EN UNA FRASE</span>La API no decide: solo le da a calidad un dato verificable.</div>
+    <div class="src"><b>Fuente:</b> Propuesta de flujo sobre el proceso actual.</div>
+  </div>
+  <div class="pgnum">09</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Opciones</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Límites gratis y más opciones</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>Fuente</th><th>Límite gratis</th><th>Qué agrega</th><th>¿La usamos?</th></tr></thead>
+  <tbody><tr><td>Google Maps</td><td>10,000 llamadas/mes por SKU Essentials; 5,000 Pro</td><td>Direcciones, lugares, rutas y casetas</td><td>Sí, para piloto</td></tr><tr><td>OpenRouteService</td><td>2,000 rutas/día; 3,000 geocodificaciones/día</td><td>Rutas alternativas e isocronas</td><td>Solo pruebas</td></tr><tr><td>Mapbox</td><td>50,000 mapas; 100,000 geocoding/directions al mes</td><td>Mapas y rutas</td><td>Alternativa</td></tr><tr><td>Geoapify</td><td>3,000 créditos/día</td><td>Geocoding, rutas y POIs</td><td>Alternativa comercial</td></tr><tr><td>OpenCage</td><td>2,500 geocodificaciones/día</td><td>Direcciones</td><td>Solo pruebas</td></tr><tr><td>TollGuru</td><td>14 días; 150 transacciones/día</td><td>Casetas</td><td>Piloto</td></tr><tr><td>Travelpayouts</td><td>Data API con cuenta de afiliado</td><td>Precios cacheados de vuelos</td><td>Limitado</td></tr></tbody>
+</table>
+    <div class="take"><span>EN UNA FRASE</span>Los límites gratis alcanzan para un piloto; producción exige revisar términos.</div>
+    <div class="src"><b>Fuente:</b> Páginas de precios y planes de cada proveedor.</div>
+  </div>
+  <div class="pgnum">10</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">01 · Google</div>
+  <div class="panel">
+    <div class="wm">01</div>
+    <div class="kicker">APIs</div>
+    <h1>Datos de Google Maps que podemos sumar</h1>
+    
+    <div class="cols">
+      <div class="quote"><b>Places</b>Hoteles, restaurantes, direcciones y calificaciones.</div>
+      <div class="quote"><b>Geocoding</b>Convierte direcciones en coordenadas y viceversa.</div>
+      <div class="quote"><b>Routes</b>Distancia, tiempo, ruta y casetas.</div>
+      <div class="quote"><b>Time Zone</b>Hora local para armar itinerarios.</div>
+    </div>
+    <div class="note ok"><div class="nt">Límite gratis</div><p>Google da 10,000 llamadas al mes por SKU Essentials y 5,000 por SKU Pro. Con cuenta de facturación y límites claros, alcanza para un piloto.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>Google Maps suma contexto; no sustituye la cotización.</div>
+    <div class="src"><b>Fuente:</b> Google Maps Platform: precios y límites por SKU.</div>
+  </div>
+  <div class="pgnum">11</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide divider">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="big">02</div>
+  <div class="dk">Sección 02 / 02</div>
+  <div class="dt">Decisiones</div>
+  <div class="dd">Cinco definiciones para que la investigación de costos avance.</div>
+  <div class="pgnum">12</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">02 · Decisiones</div>
+  <div class="panel">
+    <div class="wm">02</div>
+    <div class="kicker">Decisiones</div>
+    <h1>Cinco decisiones que se piden</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>#</th><th>Decisión</th><th>Qué define</th></tr></thead>
+  <tbody><tr><td>1</td><td>¿El módulo solo cotiza o también compra?</td><td>Duffel (cotizar y reservar) o una TMC; Amadeus Enterprise solo con contrato.</td></tr><tr><td>2</td><td>¿Qué fuente es la oficial: la estimación interna o la del proveedor?</td><td>Define qué dato se firma y cuál se audita.</td></tr><tr><td>3</td><td>¿Nos quedamos con las fuentes actuales o evaluamos un proveedor externo?</td><td>Hoy se usan fuentes gratuitas; se evalúa un proveedor solo si aporta cobertura.</td></tr><tr><td>4</td><td>¿Quién es dueño del catálogo de fuentes y tarifas?</td><td>Quién lo revisa cada mes y responde por él.</td></tr><tr><td>5</td><td>¿Qué evidencia conservamos y por cuánto tiempo?</td><td>Qué se puede defender ante una auditoría.</td></tr></tbody>
+</table>
+    <div class="note warn"><div class="nt">Si no se decide</div><p>Las APIs por sí solas no cambian el control: sin dueño y sin política, la tarifa sigue siendo un supuesto.</p></div>
+    <div class="take"><span>EN UNA FRASE</span>Sin estas cinco decisiones, la tecnología no resuelve el control.</div>
+    <div class="src"><b>Fuente:</b> Síntesis del informe.</div>
+  </div>
+  <div class="pgnum">13</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+
+<section class="slide simple">
+  
+<svg class="lines" viewBox="0 0 1280 720" preserveAspectRatio="none" aria-hidden="true">
+  <g stroke="#ffffff" stroke-linecap="round">
+    <line x1="742" y1="720" x2="1280" y2="250" stroke-width="2.2" opacity=".38"/>
+    <line x1="790" y1="720" x2="1280" y2="300" stroke-width="1.1" opacity=".55"/>
+    <line x1="836" y1="720" x2="1280" y2="346" stroke-width="2.6" opacity=".30"/>
+    <line x1="882" y1="720" x2="1280" y2="392" stroke-width="1.0" opacity=".62"/>
+    <line x1="928" y1="720" x2="1280" y2="438" stroke-width="1.8" opacity=".42"/>
+    <line x1="974" y1="720" x2="1280" y2="484" stroke-width="1.0" opacity=".55"/>
+    <line x1="1020" y1="720" x2="1280" y2="530" stroke-width="2.4" opacity=".28"/>
+    <line x1="1066" y1="720" x2="1280" y2="576" stroke-width="1.1" opacity=".45"/>
+    <line x1="1112" y1="720" x2="1280" y2="622" stroke-width="1.6" opacity=".35"/>
+    <line x1="1158" y1="720" x2="1280" y2="668" stroke-width="1.0" opacity=".50"/>
+    <line x1="1080" y1="210" x2="1280" y2="10" stroke-width="1.2" opacity=".35"/>
+    <line x1="1120" y1="250" x2="1280" y2="90" stroke-width="2.0" opacity=".25"/>
+    <line x1="1170" y1="300" x2="1280" y2="190" stroke-width="1.0" opacity=".45"/>
+  </g>
+</svg>
+  <div class="chrome">Viáticos · Informe de investigación</div>
+  <div class="tag">A · APIs</div>
+  <div class="panel">
+    
+    <div class="kicker">Anexo</div>
+    <h1>APIs: las que usamos y las que no</h1>
+    
+    
+<table class="tight">
+  <thead><tr><th>API o fuente</th><th>¿La usamos?</th><th>Para qué</th><th>Costo</th><th>Por qué</th></tr></thead>
+  <tbody><tr><td>OpenStreetMap</td><td><span class="chip tag-green">Sí</span></td><td>Direcciones, mapas y hoteles cercanos</td><td>$0</td><td>Cobertura nacional y sin contrato.</td></tr><tr><td>OSRM</td><td><span class="chip tag-green">Sí</span></td><td>Ruta, kilómetros y tiempo</td><td>$0</td><td>Código abierto y suficiente para estimar.</td></tr><tr><td>SCT / CNE / INEGI</td><td><span class="chip tag-green">Sí</span></td><td>Casetas, gasolina y municipios</td><td>$0</td><td>Fuentes oficiales.</td></tr><tr><td>Amadeus Enterprise</td><td><span class="chip">No</span></td><td>Vuelos</td><td>Por solicitud</td><td>Self-Service cerró en julio 2026; solo Enterprise con contrato.</td></tr><tr><td>Duffel</td><td><span class="chip">No</span></td><td>Vuelos y hospedaje</td><td>$3/orden + 1%</td><td>Requiere contrato y volumen.</td></tr><tr><td>Booking Demand</td><td><span class="chip">No</span></td><td>Hospedaje</td><td>Comisión</td><td>Solo para socios afiliados.</td></tr><tr><td>ClickBus / Distribusion</td><td><span class="chip">No</span></td><td>Autobuses</td><td>Convenio</td><td>Requieren acuerdo comercial.</td></tr><tr><td>Google Routes / TollGuru</td><td><span class="chip">No</span></td><td>Rutas y casetas</td><td>De pago</td><td>La SCT ya da las casetas oficiales.</td></tr></tbody>
+</table>
+    <div class="take"><span>EN UNA FRASE</span>Tres fuentes que usamos; cinco alternativas principales que no.</div>
+    <div class="src"><b>Fuente:</b> Páginas oficiales de cada proveedor.</div>
+  </div>
+  <div class="pgnum">14</div>
+  <div class="foot">Grupo Lefarma · Viáticos · Octubre 2026</div>
+</section>
+</body>
+</html>

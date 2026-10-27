@@ -79,6 +79,8 @@ export interface DataTableProps<TData> {
   showExportButton?: boolean;
   showRefreshButton?: boolean;
   showColumnToggle?: boolean;
+  /** Texto del botón de exportación (por defecto "Exportar"). */
+  exportLabel?: string;
 
   // Callbacks
   onExport?: () => void;
@@ -153,6 +155,7 @@ export function DataTable<TData>({
   showExportButton = false,
   showRefreshButton = false,
   showColumnToggle = false,
+  exportLabel = 'Exportar',
   onExport,
   onRefresh,
   onRowClick,
@@ -478,7 +481,7 @@ export function DataTable<TData>({
           {showExportButton && (
             <Button size="sm" className="h-8 gap-1.5 text-xs" onClick={onExport}>
               <DownloadIcon className="h-3.5 w-3.5" />
-              Exportar
+              {exportLabel}
             </Button>
           )}
         </div>

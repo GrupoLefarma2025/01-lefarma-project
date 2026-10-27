@@ -23,6 +23,7 @@ public class IncidenciaChecadoResponse
     public List<IncidenciaCalculadaDto> IncidenciasCalculadas { get; set; } = new();
     public bool Justificada { get; set; }
     public bool EnTramite { get; set; }
+    public bool CubiertaPorSolicitudIncidencia { get; set; }
     public bool Descuento { get; set; }
     public int? IdSolicitud { get; set; }
     public string? TipoSolicitudNombre { get; set; }
