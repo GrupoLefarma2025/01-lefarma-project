@@ -47,7 +47,7 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
           <p className="font-medium">{solicitud.empresaNombre || '—'}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
-          <p className="text-muted-foreground">Sucursal</p>
+          <p className="text-muted-foreground">Ubicación</p>
           <p className="font-medium">{solicitud.sucursalNombre || '—'}</p>
         </div>
         <div className="rounded-md border bg-background px-2 py-1.5">
