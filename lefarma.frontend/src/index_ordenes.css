@@ -220,6 +220,32 @@
   }
 }
 
+/* ─── Alta de partidas en órdenes de compra ──────────────────────────────── */
+
+@keyframes partida-nueva {
+  0% {
+    background-color: hsl(223 70% 26%);
+    border-color: hsl(223 70% 38%);
+    box-shadow: 0 0 0 3px hsl(223 70% 35% / 0.35);
+  }
+
+  45% {
+    background-color: hsl(223 55% 75%);
+    border-color: hsl(223 55% 62%);
+    box-shadow: 0 0 0 2px hsl(223 55% 50% / 0.18);
+  }
+
+  100% {
+    background-color: var(--card);
+    border-color: var(--border);
+    box-shadow: 0 0 0 0 hsl(223 55% 50% / 0);
+  }
+}
+
+.partida-nueva {
+  animation: partida-nueva 0.9s ease-out both;
+}
+
 /* ─── Print / PDF styles ─────────────────────────────────────────────────── */
 
 /* On screen: hide all print documents (CxP). Los portales de RH y de

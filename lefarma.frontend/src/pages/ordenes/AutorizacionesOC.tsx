@@ -8,7 +8,7 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1389,16 +1389,25 @@ export default function AutorizacionesOC() {
   };
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return ordenes.filter((o) => {
       const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
       const matchCreador = creadorFilter === 'all' || o.idUsuarioCreador === creadorFilter;
-      const q = search.trim().toLowerCase();
+      const proveedores = [o.idProveedor, ...o.partidas.map((p) => p.idProveedor)]
+        .map((id) => (id ? allProveedoresMap.get(id) : undefined));
       const matchSearch =
         q.length === 0 ||
-        o.folio.toLowerCase().includes(q);
+        [
+          o.folio,
+          o.razonSocialProveedor,
+          o.notaFormaPago,
+          o.notasGenerales,
+          ...proveedores.flatMap((p) => [p?.razonSocial, p?.detalle?.personaContactoNombre]),
+          ...o.partidas.map((p) => p.descripcion),
+        ].some((value) => value?.toLowerCase().includes(q));
       return matchEstado && matchCreador && matchSearch;
     });
-  }, [ordenes, estadoFilter, creadorFilter, search]);
+  }, [ordenes, estadoFilter, creadorFilter, search, allProveedoresMap]);
 
   const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
@@ -1521,16 +1530,12 @@ export default function AutorizacionesOC() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
-              <CardDescription>Filtra por estado, creador o búsqueda rápida</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Buscar por folio, proveedor o contacto"
+                  placeholder="Buscar por folio, proveedor, contacto, notas o partidas"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
