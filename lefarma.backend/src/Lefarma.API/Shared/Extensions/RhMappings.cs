@@ -15,6 +15,7 @@ public static class RhMappings
         string? EmpresaReal,
         string? Departamento,
         string? Puesto,
+        string? LugarRegistro,
         string? Ubicacion);
 
     #region SolicitudPersonal Mappings
@@ -36,7 +37,7 @@ public static class RhMappings
             IdEmpresa = s.IdEmpresa,
             EmpresaNombre = PrimeroConValor(empleado?.EmpresaReal, s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre),
             IdSucursal = s.IdSucursal,
-            SucursalNombre = s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre,
+            SucursalNombre = PrimeroConValor(empleado?.LugarRegistro, s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre),
             IdArea = s.IdArea,
             AreaNombre = PrimeroConValor(empleado?.Departamento, s.Area?.NombreNormalizado ?? s.Area?.Nombre),
             IdTipoSolicitud = s.IdTipoSolicitud,

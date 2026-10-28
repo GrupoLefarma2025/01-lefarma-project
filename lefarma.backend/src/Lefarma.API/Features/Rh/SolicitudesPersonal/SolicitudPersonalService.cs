@@ -98,6 +98,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         kvp.Value.EmpresaReal,
                         kvp.Value.Departamento,
                         kvp.Value.Puesto,
+                        kvp.Value.Lugarregistro,
                         kvp.Value.Ubicacion));
             }
             catch (Exception ex)

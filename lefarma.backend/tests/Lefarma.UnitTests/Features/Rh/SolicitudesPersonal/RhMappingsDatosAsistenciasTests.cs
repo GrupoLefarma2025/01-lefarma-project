@@ -46,7 +46,8 @@ public class RhMappingsDatosAsistenciasTests
                 "ASOKAM",
                 "CALIDAD",
                 "ANALISTA DE METODOS Y PROCEDIMIENTOS",
-                "ASOKAM GABRIEL MANCERA")
+                "ANTONIO MAURA",
+                "GRUPO LEFARMA")
         };
 
         var response = NuevaSolicitud().ToResponse(
@@ -57,7 +58,8 @@ public class RhMappingsDatosAsistenciasTests
         response.EmpresaNombre.Should().Be("ASOKAM");
         response.AreaNombre.Should().Be("CALIDAD");
         response.SolicitantePuesto.Should().Be("ANALISTA DE METODOS Y PROCEDIMIENTOS");
-        response.Ubicacion.Should().Be("ASOKAM GABRIEL MANCERA");
+        response.SucursalNombre.Should().Be("ANTONIO MAURA");
+        response.Ubicacion.Should().Be("GRUPO LEFARMA");
     }
 
     [Fact]
@@ -88,7 +90,7 @@ public class RhMappingsDatosAsistenciasTests
         };
         var empleadosInfo = new Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>
         {
-            [IdSolicitante] = new(null, "CALIDAD", null, null)
+            [IdSolicitante] = new(null, "CALIDAD", null, null, null)
         };
 
         var response = NuevaSolicitud().ToResponse(
@@ -110,7 +112,7 @@ public class RhMappingsDatosAsistenciasTests
         };
         var empleadosInfo = new Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>
         {
-            [IdSolicitante] = new("  ", "", "   ", null)
+            [IdSolicitante] = new("  ", "", "   ", null, null)
         };
 
         var response = NuevaSolicitud().ToResponse(
@@ -133,8 +135,8 @@ public class RhMappingsDatosAsistenciasTests
 
         var empleadosInfo = new Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>
         {
-            [idCreador] = new("GRUPO LEFARMA", "RECURSOS HUMANOS", "JEFE DE RH", "GRUPO LEFARMA"),
-            [IdSolicitante] = new("ASOKAM", "CALIDAD", "ANALISTA DE METODOS Y PROCEDIMIENTOS", "ASOKAM GABRIEL MANCERA")
+            [idCreador] = new("GRUPO LEFARMA", "RECURSOS HUMANOS", "JEFE DE RH", "OFICINAS CENTRALES", "GRUPO LEFARMA"),
+            [IdSolicitante] = new("ASOKAM", "CALIDAD", "ANALISTA DE METODOS Y PROCEDIMIENTOS", "ANTONIO MAURA", "GRUPO LEFARMA")
         };
 
         var response = solicitud.ToResponse(
@@ -144,5 +146,6 @@ public class RhMappingsDatosAsistenciasTests
         response.EmpresaNombre.Should().Be("ASOKAM");
         response.AreaNombre.Should().Be("CALIDAD");
         response.SolicitantePuesto.Should().Be("ANALISTA DE METODOS Y PROCEDIMIENTOS");
+        response.SucursalNombre.Should().Be("ANTONIO MAURA");
     }
 }
