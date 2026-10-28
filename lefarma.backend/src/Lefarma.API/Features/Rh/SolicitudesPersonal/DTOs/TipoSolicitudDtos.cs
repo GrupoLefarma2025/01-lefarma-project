@@ -103,6 +103,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int Limite { get; set; }
         public int Usado { get; set; }
         public int Disponible { get; set; }
+        public int CubiertosPorOtrasSolicitudes { get; set; }
+        public int PendientesPorJustificar { get; set; }
         public string Periodo { get; set; } = null!;
         public DateTime PeriodoInicio { get; set; }
         public DateTime PeriodoFin { get; set; }

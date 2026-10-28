@@ -699,6 +699,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         ["firmaSolicitanteArchivo"] = firmasAlCrear.GetValueOrDefault(solicitud.IdUsuarioSolicitante ?? 0)
                     };
 
+                    var comentarioCreacion = $"{motivoValidado.Value} ({(tipo.RequiereDocumentacion ? "pendiente de documentación" : "solicitud creada")})";
+
                     _context.WorkflowBitacoras.Add(new WorkflowBitacora
                     {
                         TipoEntidad = CodigoProceso.SOLICITUD_PERSONAL,
@@ -708,7 +710,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         IdPaso = pasoInicial.IdPaso,
                         IdAccion = accionInicial.IdAccion,
                         IdUsuario = idUsuario,
-                        Comentario = "Solicitud de personal creada",
+                        Comentario = comentarioCreacion,
                         DatosSnapshot = System.Text.Json.JsonSerializer.Serialize(snapshot),
                         FechaEvento = solicitud.FechaCreacion
                     });
@@ -757,7 +759,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         new FirmarRequest
                         {
                             IdAccion = accionEnviar.IdAccion,
-                            Comentario = "Envío automático al crear"
+                            Comentario = $"{motivoValidado.Value} (envío automático)"
                         },
                         idUsuario);
 
@@ -1194,7 +1196,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
         private sealed record EstadoDescuentosMes(
             List<IncidenciaChecadoResponse> Incidencias,
             HashSet<DateTime> FechasOtras,
-            int YaCubiertos);
+            int YaCubiertos,
+            int CubiertosPorOtrasSolicitudes,
+            int PendientesPorJustificar);
 
         private async Task<ErrorOr<Dictionary<DateTime, EstadoDescuentosMes>>> ObtenerEstadosDescuentosAsync(
             long nomina, int idUsuario, IReadOnlyCollection<DateTime> meses, int? excluirIdSolicitud, CancellationToken ct = default)
@@ -1215,17 +1219,37 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
             var fechasOtrasSolicitudes = await _context.SolicitudesPersonal
                 .AsNoTracking()
+                .Include(s => s.Detalle)
                 .Where(s => (s.IdUsuarioSolicitante ?? s.IdUsuarioCreador) == idUsuario
                     && s.TipoSolicitud != null && s.TipoSolicitud.Categoria == CategoriaSolicitud.Incidencia
                     && s.Estado != null
                     && s.Estado.Codigo != WorkflowEstadoCodigo.CANCELADA
                     && s.Estado.Codigo != WorkflowEstadoCodigo.RECHAZADA
                     && (!excluirIdSolicitud.HasValue || s.IdSolicitud != excluirIdSolicitud.Value)
-                    && s.Detalle.Any(d => d.Fecha >= inicio && d.Fecha <= fin))
-                .SelectMany(s => s.Detalle.Select(d => d.Fecha))
+                    && (s.FechaInicio.HasValue
+                        ? s.FechaInicio.Value.Date <= fin
+                            && (!s.FechaFin.HasValue || s.FechaFin.Value.Date >= inicio)
+                        : s.Detalle.Any(d => d.Fecha >= inicio && d.Fecha <= fin)))
                 .ToListAsync(ct);
 
-            var fechasOtras = fechasOtrasSolicitudes.Select(f => f.Date).ToHashSet();
+            var fechasOtras = new HashSet<DateTime>();
+            foreach (var solicitud in fechasOtrasSolicitudes)
+            {
+                if (solicitud.Detalle.Count > 0)
+                {
+                    foreach (var detalle in solicitud.Detalle)
+                        fechasOtras.Add(detalle.Fecha.Date);
+                    continue;
+                }
+
+                if (!solicitud.FechaInicio.HasValue)
+                    continue;
+
+                var desde = solicitud.FechaInicio.Value.Date;
+                var hasta = solicitud.FechaFin?.Date ?? desde;
+                for (var fecha = desde; fecha <= hasta; fecha = fecha.AddDays(1))
+                    fechasOtras.Add(fecha);
+            }
 
             var estados = new Dictionary<DateTime, EstadoDescuentosMes>();
             foreach (var mes in mesesOrdenados)
@@ -1235,13 +1259,32 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(i => i.Fecha.Date >= mes && i.Fecha.Date <= finMes)
                     .ToList();
 
-                // Días con descuento ya cubiertos por un justificante (cerrado o en trámite):
-                // se cuentan por día, aunque el día tenga varias incidencias con descuento.
+                // El tope solo lo consumen solicitudes de categoría Incidencia,
+                // abiertas o cerradas. Vacaciones, permisos y demás no cuentan.
                 var yaCubiertos = incidenciasMes
-                    .Where(i => i.Justificada || fechasOtras.Contains(i.Fecha.Date))
+                    .Where(i => fechasOtras.Contains(i.Fecha.Date))
                     .Count(i => i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico));
 
-                estados[mes] = new EstadoDescuentosMes(incidenciasMes, fechasOtras, yaCubiertos);
+                var cubiertosPorOtrasSolicitudes = incidenciasMes
+                    .Where(i => !i.CubiertaPorSolicitudIncidencia
+                        && (i.Justificada || i.EnTramite)
+                        && i.IncidenciasCalculadas.Any(c => c.GeneraDescuentoTeorico))
+                    .Select(i => i.Fecha.Date)
+                    .Distinct()
+                    .Count();
+
+                var pendientesPorJustificar = incidenciasMes
+                    .Where(i => i.Descuento && !i.Justificada && !i.EnTramite)
+                    .Select(i => i.Fecha.Date)
+                    .Distinct()
+                    .Count();
+
+                estados[mes] = new EstadoDescuentosMes(
+                    incidenciasMes,
+                    fechasOtras,
+                    yaCubiertos,
+                    cubiertosPorOtrasSolicitudes,
+                    pendientesPorJustificar);
             }
 
             return estados;
@@ -1382,10 +1425,12 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                             limites.Add(new LimitePorTipoResponse
                             {
                                 IdTipoSolicitud = 0,
-                                Tipo = "Descuentos justificados",
+                                Tipo = "Descuentos justificables",
                                 Limite = _limiteDescuentosJustificadosMes,
                                 Usado = estado.YaCubiertos,
                                 Disponible = Math.Max(0, _limiteDescuentosJustificadosMes - estado.YaCubiertos),
+                                CubiertosPorOtrasSolicitudes = estado.CubiertosPorOtrasSolicitudes,
+                                PendientesPorJustificar = estado.PendientesPorJustificar,
                                 Periodo = EtiquetaMes(mes),
                                 PeriodoInicio = mes,
                                 PeriodoFin = mes.AddMonths(1).AddDays(-1)

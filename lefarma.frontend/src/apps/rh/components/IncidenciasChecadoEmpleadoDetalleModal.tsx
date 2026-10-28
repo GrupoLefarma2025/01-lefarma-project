@@ -243,6 +243,9 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
             : o.enTramite
               ? 'bg-amber-100 text-amber-800'
               : 'bg-red-100 text-red-800';
+          const tieneDescuentoTeorico = (o.incidenciasCalculadas ?? []).some(
+            (inc) => inc.generaDescuentoTeorico
+          );
 
           return (
             <div className="flex flex-col gap-1">
@@ -254,6 +257,11 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
               {(o.justificada || o.enTramite) && o.tipoSolicitudNombre && (
                 <span className="text-xs text-muted-foreground">{o.tipoSolicitudNombre}</span>
               )}
+              {(o.justificada || o.enTramite) &&
+                !o.cubiertaPorSolicitudIncidencia &&
+                tieneDescuentoTeorico && (
+                  <span className="text-[10px] text-muted-foreground">No cuenta para el tope</span>
+                )}
               {(o.justificada || o.enTramite) && o.idSolicitud && (
                 <Button
                   variant="link"
@@ -327,17 +335,22 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
   const resumenDescuentos = useMemo(() => {
     let generados = 0;
     let justificados = 0;
+    let cubiertosPorOtroTipo = 0;
 
     for (const item of data) {
-      for (const inc of item.incidenciasCalculadas ?? []) {
-        if (inc.generaDescuento) generados += 1;
-        if (inc.generaDescuentoTeorico && (item.justificada || item.enTramite)) justificados += 1;
-      }
+      const incidencias = item.incidenciasCalculadas ?? [];
+      if (incidencias.some((inc) => inc.generaDescuento)) generados += 1;
+      if (!incidencias.some((inc) => inc.generaDescuentoTeorico)) continue;
+      if (!(item.justificada || item.enTramite)) continue;
+
+      if (item.cubiertaPorSolicitudIncidencia) justificados += 1;
+      else cubiertosPorOtroTipo += 1;
     }
 
     return {
       generados,
       justificados,
+      cubiertosPorOtroTipo,
       limite: reglas?.limiteDescuentosJustificadosMes ?? 2,
     };
   }, [data, reglas]);
@@ -361,9 +374,17 @@ export function IncidenciasChecadoEmpleadoDetalleModal({
                     Descuentos por justificar: {resumenDescuentos.generados}
                   </span>
                   <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
-                    Descuentos justificados: {resumenDescuentos.justificados} de{' '}
+                    Justificados con incidencia: {resumenDescuentos.justificados} de{' '}
                     {resumenDescuentos.limite}
                   </span>
+                  {resumenDescuentos.cubiertosPorOtroTipo > 0 && (
+                    <span
+                      title="No consumen el límite de descuentos justificables"
+                      className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700"
+                    >
+                      Cubiertos por otro tipo de solicitud: {resumenDescuentos.cubiertosPorOtroTipo}
+                    </span>
+                  )}
                 </div>
                 <ReglasDescuentoModal />
               </div>
