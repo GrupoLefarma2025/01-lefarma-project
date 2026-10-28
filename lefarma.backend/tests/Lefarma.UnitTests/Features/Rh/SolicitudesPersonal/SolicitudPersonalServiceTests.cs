@@ -1068,4 +1068,59 @@ public class SolicitudPersonalServiceTests
             f => f.FirmarAsync(It.IsAny<int>(), It.IsAny<FirmarRequest>(), It.IsAny<int>()),
             Times.Never);
     }
+
+    [Fact]
+    public async Task GetAllAsync_SoloConteo_CuentaTerminadas_SinTraerItems()
+    {
+        var context = CreateInMemoryContext();
+        context.WorkflowEstados.AddRange(
+            new WorkflowEstados { IdEstado = 2, Codigo = "APROBACION", Nombre = "Aprobación", Activo = true },
+            new WorkflowEstados { IdEstado = 3, Codigo = "CERRADA", Nombre = "Cerrada", Activo = true });
+        context.SolicitudesPersonal.AddRange(
+            new SolicitudPersonal
+            {
+                IdSolicitud = 1,
+                Folio = "SOL-1",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 3,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            },
+            new SolicitudPersonal
+            {
+                IdSolicitud = 2,
+                Folio = "SOL-2",
+                IdEmpresa = 1,
+                IdSucursal = 1,
+                IdUsuarioCreador = 1,
+                IdEstado = 2,
+                IdWorkflow = 1,
+                IdTipoSolicitud = 1,
+                FechaCreacion = DateTime.Today,
+            });
+        context.SaveChanges();
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetQueryable()).Returns(context.SolicitudesPersonal);
+        var service = CreateService(context, repository: repository.Object);
+
+        var result = await service.GetAllAsync(
+            new SolicitudPersonalRequest
+            {
+                SoloConteo = true,
+                VerTodas = true,
+                Periodo = "esta-quincena",
+                Estados = "CERRADA,CANCELADA,RECHAZADA",
+            },
+            idUsuario: 1,
+            rolesUsuario: [],
+            puedeVerTodas: true);
+
+        result.IsError.Should().BeFalse();
+        result.Value.TotalCount.Should().Be(1);
+        result.Value.Items.Should().BeEmpty();
+    }
 }

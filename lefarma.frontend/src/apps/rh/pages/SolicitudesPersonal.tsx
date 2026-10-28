@@ -53,6 +53,8 @@ interface Filters {
   estado: string;
 }
 
+const ESTADOS_TERMINALES_CODIGOS = 'CERRADA,CANCELADA,RECHAZADA';
+
 export default function SolicitudesPersonal() {
   usePageTitle(
     'Solicitudes de Personal',
@@ -106,6 +108,7 @@ export default function SolicitudesPersonal() {
   const [dataMias, setDataMias] = useState<SolicitudPersonalResponse[]>([]);
   const [loadingPendientes, setLoadingPendientes] = useState(false);
   const [loadingMias, setLoadingMias] = useState(false);
+  const [totalTerminadas, setTotalTerminadas] = useState(0);
   const [limitesRefreshKey, setLimitesRefreshKey] = useState(0);
   const [confirmCloseCrear, setConfirmCloseCrear] = useState(false);
   const crearDirtyRef = useRef(false);
@@ -150,10 +153,31 @@ export default function SolicitudesPersonal() {
     }
   }, [buildApiFilters]);
 
+  const fetchTerminadasCount = useCallback(async (filters: Filters) => {
+    try {
+      const res = await API.get<ApiResponse<number>>('/solicitudes-personal/conteo', {
+        params: {
+          verTodas: false,
+          estados: ESTADOS_TERMINALES_CODIGOS,
+          ...buildApiFilters(filters),
+        },
+      });
+      if (res.data?.success) {
+        setTotalTerminadas(res.data.data ?? 0);
+      }
+    } catch {
+      // El conteo no debe bloquear la carga del listado.
+    }
+  }, [buildApiFilters]);
+
   useEffect(() => {
     fetchTabData(tab, appliedFilters);
     fetchProfileSignature();
   }, [tab, appliedFilters, fetchTabData, fetchProfileSignature]);
+
+  useEffect(() => {
+    fetchTerminadasCount(appliedFiltersByTab.mias);
+  }, [appliedFiltersByTab.mias, fetchTerminadasCount]);
 
   useEffect(() => {
     fetchWorkflowEstados('SOLICITUD_PERSONAL')
@@ -388,7 +412,7 @@ export default function SolicitudesPersonal() {
           >
             Terminadas
             <span className="group-data-[state=active]:bg-primary-foreground/20 ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-bold text-foreground group-data-[state=active]:text-primary-foreground">
-              {solicitudesMias.length}
+              {totalTerminadas}
             </span>
           </TabsTrigger>
         </TabsList>

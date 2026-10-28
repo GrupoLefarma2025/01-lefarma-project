@@ -53,6 +53,25 @@ public class SolicitudPersonalController : ControllerBase
         { Success = true, Message = "Solicitudes obtenidas exitosamente.", Data = data }));
     }
 
+    [HttpGet("conteo")]
+    [SwaggerOperation(Summary = "Contar solicitudes de personal con filtros")]
+    public async Task<IActionResult> GetConteo([FromQuery] SolicitudPersonalRequest? query)
+    {
+        query ??= new SolicitudPersonalRequest();
+        query.SoloConteo = true;
+
+        var puedeVerTodas = TienePermiso("solicitud_personal.puede_ver_todas");
+        var rolesUsuario = User.Claims
+            .Where(c => c.Type == ClaimTypes.Role)
+            .Select(c => int.TryParse(c.Value, out var r) ? r : 0)
+            .Where(r => r > 0)
+            .ToList();
+
+        var result = await _service.GetAllAsync(query, GetUserId(), rolesUsuario, puedeVerTodas);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<int>
+        { Success = true, Message = "Conteo obtenido exitosamente.", Data = data.TotalCount }));
+    }
+
     [HttpGet("{id}")]
     [SwaggerOperation(Summary = "Obtener solicitud de personal por ID")]
     public async Task<IActionResult> GetById(int id)

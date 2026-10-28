@@ -146,7 +146,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                         .Select(e => e.ToUpperInvariant())
                         .Where(e => !string.IsNullOrWhiteSpace(e))
                         .ToList();
-                    q = q.Where(x => x.Estado != null && x.Estado.Codigo != null && estados.Contains(x.Estado.Codigo!.ToUpperInvariant()));
+                    q = q.Where(x => x.Estado != null && x.Estado.Codigo != null && estados.Contains(x.Estado.Codigo!.ToUpper()));
                 }
 
                 if (!string.IsNullOrWhiteSpace(request.IdsEstados))
@@ -357,6 +357,22 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     );
                 }
 
+                var page = Math.Max(1, request.Page);
+                var pageSize = Math.Clamp(request.PageSize, 1, 100);
+                var totalCount = await q.CountAsync();
+
+                if (request.SoloConteo)
+                {
+                    EnrichWideEvent("GetConteo", count: totalCount);
+                    return new PagedResult<SolicitudPersonalResponse>
+                    {
+                        Items = [],
+                        TotalCount = totalCount,
+                        Page = page,
+                        PageSize = pageSize,
+                    };
+                }
+
                 q = request.OrderBy?.ToLower() switch
                 {
                     "folio" => request.OrderDirection?.ToLower() == "asc"
@@ -368,10 +384,6 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     _ => q.OrderByDescending(x => x.FechaCreacion)
                 };
 
-                var page = Math.Max(1, request.Page);
-                var pageSize = Math.Clamp(request.PageSize, 1, 100);
-
-                var totalCount = await q.CountAsync();
                 var items = await q
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
