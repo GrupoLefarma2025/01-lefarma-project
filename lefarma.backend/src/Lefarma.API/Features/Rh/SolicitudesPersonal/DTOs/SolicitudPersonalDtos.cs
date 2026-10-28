@@ -108,5 +108,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
     {
         public DateTime Fecha { get; set; }
         public string? Comentario { get; set; }
+        public TimeSpan? Entrada { get; set; }
+        public TimeSpan? Entro { get; set; }
+        public TimeSpan? Salida { get; set; }
+        public TimeSpan? Salio { get; set; }
     }
 }

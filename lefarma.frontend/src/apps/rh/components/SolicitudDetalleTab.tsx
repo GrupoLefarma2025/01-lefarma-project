@@ -14,11 +14,21 @@ const fmtFecha = (dateStr?: string | null) => {
   }
 };
 
+const fmtHora = (hora?: string | null) => {
+  if (!hora) return '—';
+  const coincidencia = /^(\d{1,2}):(\d{2})/.exec(hora);
+  return coincidencia ? `${coincidencia[1].padStart(2, '0')}:${coincidencia[2]}` : hora;
+};
+
+const fmtChecada = (hora?: string | null) => (hora ? fmtHora(hora) : 'Sin checada');
+
 interface SolicitudDetalleTabProps {
   solicitud: SolicitudPersonalResponse;
 }
 
 export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
+  const esIncidencia = solicitud.categoria === '1' || solicitud.categoria === 'Incidencia';
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
@@ -117,6 +127,14 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
                 <tr className="border-b text-muted-foreground">
                   <th className="px-3 py-2 text-left font-medium">#</th>
                   <th className="px-3 py-2 text-left font-medium">Fecha</th>
+                  {esIncidencia && (
+                    <>
+                      <th className="px-3 py-2 text-left font-medium">Entrada programada</th>
+                      <th className="px-3 py-2 text-left font-medium">Entrada real</th>
+                      <th className="px-3 py-2 text-left font-medium">Salida programada</th>
+                      <th className="px-3 py-2 text-left font-medium">Salida real</th>
+                    </>
+                  )}
                   <th className="px-3 py-2 text-left font-medium">Comentario</th>
                 </tr>
               </thead>
@@ -125,6 +143,14 @@ export function SolicitudDetalleTab({ solicitud }: SolicitudDetalleTabProps) {
                   <tr key={idx} className="border-b">
                     <td className="px-3 py-2">{idx + 1}</td>
                     <td className="px-3 py-2">{fmtFecha(d.fecha)}</td>
+                    {esIncidencia && (
+                      <>
+                        <td className="px-3 py-2">{fmtHora(d.entrada)}</td>
+                        <td className="px-3 py-2">{fmtChecada(d.entro)}</td>
+                        <td className="px-3 py-2">{fmtHora(d.salida)}</td>
+                        <td className="px-3 py-2">{fmtChecada(d.salio)}</td>
+                      </>
+                    )}
                     <td className="px-3 py-2">{d.comentario || '-'}</td>
                   </tr>
                 ))}

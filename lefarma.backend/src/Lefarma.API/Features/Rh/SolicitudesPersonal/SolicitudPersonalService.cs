@@ -449,6 +449,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 var response = soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo, empleadosInfo);
 
+                await EnriquecerDetalleConChecadosAsync(response, soli, tipo);
+
                 if (tipo is not null
                     && string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase)
                     && soli.FechaInicio.HasValue && soli.FechaFin.HasValue)
@@ -484,6 +486,44 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             {
                 EnrichWideEvent("GetById", entityId: id, exception: ex);
                 return CommonErrors.DatabaseError("obtener la solicitud de personal");
+            }
+        }
+
+        private async Task EnriquecerDetalleConChecadosAsync(
+            SolicitudPersonalResponse response,
+            SolicitudPersonal solicitud,
+            TipoSolicitud? tipo)
+        {
+            if (tipo?.Categoria != CategoriaSolicitud.Incidencia || response.Detalle.Count == 0)
+                return;
+
+            var idUsuario = solicitud.IdUsuarioSolicitante ?? solicitud.IdUsuarioCreador;
+            var nomina = await _empleadoRepository.ResolverNominaPorUsuarioAsync(idUsuario);
+            if (!nomina.HasValue)
+                return;
+
+            var fechas = response.Detalle.Select(d => d.Fecha.Date).Distinct().ToList();
+            var fechaMinima = fechas.Min();
+            var fechaMaxima = fechas.Max().AddDays(1);
+
+            var registros = await _incidenciasRepository.GetQueryable()
+                .Where(x => x.Nomina == nomina.Value && x.Fecha >= fechaMinima && x.Fecha < fechaMaxima)
+                .Select(x => new { x.Fecha, x.Entrada, x.Entro, x.Salida, x.Salio })
+                .ToListAsync();
+
+            var porFecha = registros
+                .GroupBy(x => x.Fecha.Date)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var detalle in response.Detalle)
+            {
+                if (!porFecha.TryGetValue(detalle.Fecha.Date, out var registro))
+                    continue;
+
+                detalle.Entrada = registro.Entrada;
+                detalle.Entro = registro.Entro;
+                detalle.Salida = registro.Salida;
+                detalle.Salio = registro.Salio;
             }
         }
 

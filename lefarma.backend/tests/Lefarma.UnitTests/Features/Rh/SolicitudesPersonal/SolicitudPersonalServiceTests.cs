@@ -1,6 +1,7 @@
 using System.Reflection;
 using ErrorOr;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.Asistencias;
 using Lefarma.API.Domain.Entities.Catalogos;
 using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.Rh;
@@ -16,7 +17,9 @@ using Lefarma.API.Features.Rh.SolicitudesPersonal;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs;
 using Lefarma.API.Features.Rh.SolicitudesPersonal.Settings;
 using Lefarma.API.Infrastructure.Data;
+using Lefarma.API.Infrastructure.Data.Repositories.Rh;
 using Lefarma.API.Shared.Logging;
+using IncidenciasChecadoEntity = Lefarma.API.Domain.Entities.Asistencias.IncidenciasChecado;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Moq;
@@ -43,6 +46,29 @@ public class SolicitudPersonalServiceTests
         return new AsokamDbContext(options);
     }
 
+    private static AsistenciasDbContext CreateAsistenciasContext()
+    {
+        var options = new DbContextOptionsBuilder<AsistenciasDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .Options;
+
+        return new TestableAsistenciasDbContext(options);
+    }
+
+    private sealed class TestableAsistenciasDbContext : AsistenciasDbContext
+    {
+        public TestableAsistenciasDbContext(DbContextOptions<AsistenciasDbContext> options)
+            : base(options) { }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+            modelBuilder.Ignore<VwEmpleado>();
+            modelBuilder.Entity<VwEmpleado>().HasKey(e => e.Id);
+            modelBuilder.Entity<IncidenciasChecadoEntity>().HasKey(e => new { e.Fecha, e.Nomina });
+        }
+    }
+
     private static SolicitudPersonalService CreateService(
         ApplicationDbContext context,
         ITipoSolicitudRepository? tipoRepository = null,
@@ -52,7 +78,8 @@ public class SolicitudPersonalServiceTests
         ISolicitudPersonalFirmasService? firmasService = null,
         IAdminRepository? adminRepository = null,
         IProfileService? profileService = null,
-        ISolicitudPersonalRepository? repository = null)
+        ISolicitudPersonalRepository? repository = null,
+        IIncidenciasChecadoRepository? incidenciasRepository = null)
     {
         return new SolicitudPersonalService(
             adminRepository ?? Mock.Of<IAdminRepository>(),
@@ -64,7 +91,7 @@ public class SolicitudPersonalServiceTests
             Mock.Of<IJefeInmediatoResolver>(),
             firmasService ?? Mock.Of<ISolicitudPersonalFirmasService>(),
             empleadoRepository ?? Mock.Of<IEmpleadoRepository>(),
-            Mock.Of<IIncidenciasChecadoRepository>(),
+            incidenciasRepository ?? Mock.Of<IIncidenciasChecadoRepository>(),
             incidenciasChecadoService ?? Mock.Of<IIncidenciasChecadoService>(),
             profileService ?? Mock.Of<IProfileService>(),
             new HandlerConditionEvaluator(context),
@@ -709,6 +736,80 @@ public class SolicitudPersonalServiceTests
         saldo.Should().NotBeNull();
         saldo!.DiasQueDescuentan.Should().Be(1);
         saldo.SaldoResultante.Should().Be(19);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_Incidencia_Adjunta_Horarios_De_Checado()
+    {
+        var context = CreateInMemoryContext();
+        var asistencias = CreateAsistenciasContext();
+        var fecha = new DateTime(2026, 1, 5);
+
+        asistencias.IncidenciasChecados.Add(new IncidenciasChecadoEntity
+        {
+            Fecha = fecha,
+            Nomina = 555,
+            Nombre = "EMPLEADO PRUEBA",
+            Checa = "Si",
+            Entrada = new TimeSpan(8, 0, 0),
+            Entro = new TimeSpan(8, 17, 0),
+            Salida = new TimeSpan(18, 0, 0),
+            Salio = new TimeSpan(18, 2, 0)
+        });
+        await asistencias.SaveChangesAsync();
+
+        var solicitud = new SolicitudPersonal
+        {
+            IdSolicitud = 12,
+            Folio = "SOL-12",
+            IdEmpresa = 1,
+            IdSucursal = 1,
+            IdUsuarioCreador = 123,
+            IdUsuarioSolicitante = 123,
+            IdTipoSolicitud = 12,
+            FechaInicio = fecha,
+            FechaFin = fecha,
+            FechaCreacion = DateTime.Now,
+            Detalle = new List<SolicitudPersonalDetalle>
+            {
+                new() { Fecha = fecha, Comentario = "Retardo", FechaCreacion = DateTime.Now }
+            }
+        };
+
+        var repository = new Mock<ISolicitudPersonalRepository>();
+        repository.Setup(r => r.GetWithDetalleAsync(12)).ReturnsAsync(solicitud);
+
+        var tipo = new TipoSolicitud
+        {
+            IdTipoSolicitud = 12,
+            Nombre = "Retardo de entrada",
+            Clave = "retardo-entrada",
+            Categoria = CategoriaSolicitud.Incidencia,
+            Activo = true
+        };
+        var tipoRepository = new Mock<ITipoSolicitudRepository>();
+        tipoRepository.Setup(r => r.GetByIdAsync(12)).ReturnsAsync(tipo);
+
+        var empleadoRepository = new Mock<IEmpleadoRepository>();
+        empleadoRepository
+            .Setup(r => r.ResolverNominaPorUsuarioAsync(123, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(555L);
+
+        var service = CreateService(
+            context,
+            tipoRepository: tipoRepository.Object,
+            empleadoRepository: empleadoRepository.Object,
+            repository: repository.Object,
+            incidenciasRepository: new IncidenciasChecadoRepository(asistencias));
+
+        var result = await service.GetByIdAsync(12);
+
+        result.IsError.Should().BeFalse();
+        var detalle = result.Value.Detalle.Should().ContainSingle().Subject;
+        detalle.Entrada.Should().Be(new TimeSpan(8, 0, 0));
+        detalle.Entro.Should().Be(new TimeSpan(8, 17, 0));
+        detalle.Salida.Should().Be(new TimeSpan(18, 0, 0));
+        detalle.Salio.Should().Be(new TimeSpan(18, 2, 0));
     }
 
     [Fact]

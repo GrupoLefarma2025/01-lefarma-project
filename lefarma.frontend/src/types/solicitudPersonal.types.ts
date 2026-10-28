@@ -39,6 +39,10 @@ export interface CreateSolicitudPersonalRequest {
 export interface SolicitudPersonalDetalleDto {
   fecha: string;
   comentario?: string | null;
+  entrada?: string | null;
+  entro?: string | null;
+  salida?: string | null;
+  salio?: string | null;
 }
 
 export interface SolicitudPersonalResponse {
