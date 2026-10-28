@@ -1,0 +1,103 @@
+{
+  "version": "1.0.0",
+  "consulta": {
+    "origen": "Ciudad de Mexico",
+    "destino": "Victoria de Durango",
+    "fecha_salida": "2026-10-28",
+    "fecha_regreso": null,
+    "personas": 1
+  },
+  "cobertura_declarada": "Autobus: se consulto ClickBus (agregador de autobuses de Mexico) para la ruta Ciudad de México CDMX (Todas las Terminales) -> Durango, DGO (Todas las Terminales) el 2026-10-28. ClickBus devolvio 6 salida(s) de las empresas que publican en su catalogo. NO cubre lineas que no publican tarifas en ClickBus (Primera Plus, ADO GL/Platino, ETN Turistar) ni vuelos/hoteles; esas opciones se buscan por sitio o con el modo agentico (fase 2).",
+  "transportistas_no_encontrados": [
+    "Primera Plus: no publica tarifas en ClickBus; se requiere captura directa en primeraplus.com.mx.",
+    "ADO GL / Platino: no publica tarifas en ClickBus; se requiere captura directa en ado.com.mx.",
+    "ETN Turistar: no publica tarifas en ClickBus; se requiere captura directa en etn.com.mx.",
+    "VivaAerobus y demas aerolineas: los vuelos no se consultan con ClickBus; fase 2 (captura por sitio o agente)."
+  ],
+  "opciones": [
+    {
+      "transportista": "Chihuahuenses Select",
+      "modo": "autobus",
+      "salida": "2026-10-28T10:30:00-06:00",
+      "llegada": "2026-10-28T23:29:00-06:00",
+      "precio": 2612,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    },
+    {
+      "transportista": "Chihuahuenses Select",
+      "modo": "autobus",
+      "salida": "2026-10-28T16:15:00-06:00",
+      "llegada": "2026-10-29T04:44:00-06:00",
+      "precio": 2612,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    },
+    {
+      "transportista": "Chihuahuenses Select",
+      "modo": "autobus",
+      "salida": "2026-10-28T19:00:00-06:00",
+      "llegada": "2026-10-29T07:00:00-06:00",
+      "precio": 2612,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    },
+    {
+      "transportista": "Chihuahuenses Select",
+      "modo": "autobus",
+      "salida": "2026-10-28T21:15:00-06:00",
+      "llegada": "2026-10-29T09:44:00-06:00",
+      "precio": 2612,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    },
+    {
+      "transportista": "Valle del Guadiana",
+      "modo": "autobus",
+      "salida": "2026-10-28T22:45:00-06:00",
+      "llegada": "2026-10-29T11:41:00-06:00",
+      "precio": 2064,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    },
+    {
+      "transportista": "Futura Select",
+      "modo": "autobus",
+      "salida": "2026-10-28T23:00:00-06:00",
+      "llegada": "2026-10-29T12:25:00-06:00",
+      "precio": 2836,
+      "moneda": "MXN",
+      "url_compra": "https://www.clickbus.com.mx/trips?departure_place=ciudad-de-mexico-df-%28todas-las-terminales%29&arrival_place=durango-dgo-%28todas-las-terminales%29&departure_date=2026-10-28&minPrice=0&maxPrice=5000",
+      "capturas": [
+        "https://capturas.app.grupolefarma.com.mx/c/clickbus-ciudad-de-mexico-df--todas-las-terminales--durango--mvpu8fwu-2783ffba.png"
+      ],
+      "fuente": "clickbus.com.mx",
+      "consultado_en": "2026-10-26T22:38:19.283Z"
+    }
+  ]
+}

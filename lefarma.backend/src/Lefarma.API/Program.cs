@@ -115,6 +115,12 @@ builder.Host.UseSerilog();
 
 // HttpClientFactory for external API calls
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("capturas-agente", c =>
+{
+    // Modo agente (CapturasSettings:Modo=agente): el servicio externo corre
+    // OpenCode + Playwright MCP y puede tardar minutos (busqueda con formularios).
+    c.Timeout = TimeSpan.FromSeconds(900);
+});
 builder.Services.AddHttpClient("sat", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(15);

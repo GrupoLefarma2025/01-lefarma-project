@@ -1,0 +1,61 @@
+name: viaticos-capturas
+
+services:
+  capturas:
+    build:
+      context: .
+      args:
+        INSTALAR_OPENCODE: "${INSTALAR_OPENCODE:-true}"
+    image: viaticos-capturas:1.0.0
+    container_name: viaticos-capturas
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      PORT: "8099"
+      BASE_URL: "${BASE_URL:-https://capturas.app.grupolefarma.com.mx}"
+      CAPTURAS_DIR: "/data/capturas"
+      DIR_CACHE: "/data/cache"
+      MAX_CONCURRENCIA: "${MAX_CONCURRENCIA:-2}"
+      HOME: "/data/home"
+      # Modo agentico: OpenCode + Playwright MCP dentro del contenedor.
+      ENABLE_AGENTICO: "${ENABLE_AGENTICO:-1}"
+      OPENCODE_BIN: "/opt/opencode/.opencode/bin/opencode"
+      OPENCODE_MODEL: "${OPENCODE_MODEL:-tokenharbor/deepseek-v4.1-flash:free}"
+      # Lista de modelos gratis con fallback (se intentan en orden).
+      OPENCODE_MODELS: "${OPENCODE_MODELS:-tokenharbor/deepseek-v4.1-flash:free,tokenharbor/mimo-v2.5:free}"
+      AGENTICO_TIMEOUT_MS: "${AGENTICO_TIMEOUT_MS:-900000}"
+    volumes:
+      - ./data:/data
+      # Config de OpenCode (proveedor de modelo + MCP Playwright) editable sin rebuild.
+      - ./opencode/opencode.json:/data/home/.config/opencode/opencode.json:ro
+    shm_size: "512mb"
+    mem_limit: 2g
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - traefik
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "traefik-puro-test"
+      traefik.http.middlewares.viaticos-capturas-redirect.redirectscheme.scheme: "https"
+      traefik.http.routers.viaticos-capturas.entrypoints: "web"
+      traefik.http.routers.viaticos-capturas.rule: "Host(`capturas.app.grupolefarma.com.mx`)"
+      traefik.http.routers.viaticos-capturas.middlewares: "viaticos-capturas-redirect"
+      traefik.http.routers.viaticos-capturas.priority: "30"
+      traefik.http.routers.viaticos-capturas-secure.entrypoints: "websecure"
+      traefik.http.routers.viaticos-capturas-secure.rule: "Host(`capturas.app.grupolefarma.com.mx`)"
+      traefik.http.routers.viaticos-capturas-secure.priority: "30"
+      traefik.http.routers.viaticos-capturas-secure.tls: "true"
+      traefik.http.routers.viaticos-capturas-secure.tls.certresolver: "letsencrypt"
+      traefik.http.services.viaticos-capturas.loadbalancer.server.port: "8099"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  traefik:
+    name: traefik-puro-test
+    external: true

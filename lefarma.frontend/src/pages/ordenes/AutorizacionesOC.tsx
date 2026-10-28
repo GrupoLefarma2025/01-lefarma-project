@@ -366,6 +366,71 @@ const fmtFecha = (dateStr: string | null | undefined) => {
   }
 };
 
+const fmtFechaHora = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '-';
+  const fecha = new Date(dateStr);
+  if (Number.isNaN(fecha.getTime())) return dateStr;
+  return fecha.toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+/**
+ * Firma capturada en un evento de la bitácora. Se descarga como blob
+ * autenticado y no se pinta si el evento no tiene firma (404).
+ */
+function FirmaEventoRow({
+  idEvento,
+  nombreUsuario,
+}: {
+  idEvento: number;
+  nombreUsuario?: string | null;
+}) {
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelado = false;
+    let objectUrl: string | null = null;
+
+    fetchFirmaObjectUrl(firmasEndpoints.firmaEvento(idEvento)).then((u) => {
+      if (cancelado) {
+        if (u) URL.revokeObjectURL(u);
+        return;
+      }
+      objectUrl = u;
+      setUrl(u);
+    });
+
+    return () => {
+      cancelado = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [idEvento]);
+
+  if (url === undefined) {
+    return <span data-firma-loading="" className="inline-block h-6 w-20" />;
+  }
+  if (!url) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Firma
+      </span>
+      <img
+        src={url}
+        alt={`Firma de ${nombreUsuario || 'usuario'}`}
+        className="h-12 max-w-[14rem] object-contain"
+      />
+    </div>
+  );
+}
+
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
   const navigate = useNavigate();
@@ -2223,6 +2288,65 @@ export default function AutorizacionesOC() {
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
+                              // Fecha en que la orden llegó a este paso (última transición
+                              // cuyo destino es el paso). Para el paso inicial se usa la creación.
+                              const fechaEnPoderDesdePaso = (() => {
+                                let fecha: string | null = null;
+                                for (const ev of historial) {
+                                  if (!ev.datosSnapshot) continue;
+                                  try {
+                                    const snap = JSON.parse(ev.datosSnapshot) as {
+                                      idPasoNuevo?: number | null;
+                                    };
+                                    if (snap.idPasoNuevo !== paso.idPaso) continue;
+                                    if (
+                                      !fecha ||
+                                      new Date(ev.fechaEvento).getTime() > new Date(fecha).getTime()
+                                    ) {
+                                      fecha = ev.fechaEvento;
+                                    }
+                                  } catch {
+                                    // snapshot inválido: se ignora
+                                  }
+                                }
+                                if (fecha) return fecha;
+                                return paso.idPaso === selectedOrden?.idPasoActual
+                                  ? (selectedOrden?.fechaCreacion ?? null)
+                                  : null;
+                              })();
+
+                              // Fecha de la autorización propia de este paso: el evento
+                              // que salió del paso (snapshot.idPasoAnterior = este paso).
+                              // En el paso actual todavía no existe: queda "Pendiente".
+                              const fechaAutorizacionPaso = (() => {
+                                let fecha: string | null = null;
+                                for (const ev of historial) {
+                                  if (!ev.datosSnapshot) continue;
+                                  try {
+                                    const snap = JSON.parse(ev.datosSnapshot) as {
+                                      idPasoAnterior?: number | null;
+                                    };
+                                    if (snap.idPasoAnterior !== paso.idPaso) continue;
+                                    const nombre = (ev.nombreAccion || '').trim().toLowerCase();
+                                    if (
+                                      !nombre.startsWith('autoriz') &&
+                                      !nombre.startsWith('aprob')
+                                    ) {
+                                      continue;
+                                    }
+                                    if (
+                                      !fecha ||
+                                      new Date(ev.fechaEvento).getTime() > new Date(fecha).getTime()
+                                    ) {
+                                      fecha = ev.fechaEvento;
+                                    }
+                                  } catch {
+                                    // snapshot inválido: se ignora
+                                  }
+                                }
+                                return fecha;
+                              })();
+
                               // Visual del dot
                               const dotBg = isCompletado
                                 ? 'bg-emerald-500 border-emerald-500'
@@ -2323,7 +2447,7 @@ export default function AutorizacionesOC() {
                                     )}
                                     {eventosPaso.length > 0 && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
-                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFechaHora(ultimoEvento.fechaEvento)}
                                       </p>
                                     )}
 
@@ -2338,6 +2462,41 @@ export default function AutorizacionesOC() {
                                           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                             Historial de actividad
                                           </p>
+
+                                          {/* Fechas de la orden dentro del historial */}
+                                          <div className="mb-2 grid grid-cols-1 gap-2 rounded-md border bg-background/80 px-3 py-2 sm:grid-cols-3">
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                Fecha de creación
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fmtFechaHora(selectedOrden?.fechaCreacion)}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                Fecha de autorización
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fechaAutorizacionPaso
+                                                  ? fmtFechaHora(fechaAutorizacionPaso)
+                                                  : isActual
+                                                    ? 'Pendiente'
+                                                    : '—'}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                En su poder desde
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fechaEnPoderDesdePaso
+                                                  ? fmtFechaHora(fechaEnPoderDesdePaso)
+                                                  : '—'}
+                                              </p>
+                                            </div>
+                                          </div>
+
                                           {eventosPaso.length === 0 ? (
                                             <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
                                           ) : (
@@ -2369,7 +2528,7 @@ export default function AutorizacionesOC() {
                                                       {item.nombreAccion || `Acción ${item.idAccion}`}
                                                     </span>
                                                     <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                      {fmtFecha(item.fechaEvento)}
+                                                      {fmtFechaHora(item.fechaEvento)}
                                                     </span>
                                                   </div>
                                                   {/* Cuerpo con etiquetas */}
@@ -2381,6 +2540,10 @@ export default function AutorizacionesOC() {
                                                         <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
                                                       </div>
                                                     </div>
+                                                    <FirmaEventoRow
+                                                      idEvento={item.idEvento}
+                                                      nombreUsuario={item.nombreUsuario}
+                                                    />
                                                     {showTrans && (
                                                       <div className="flex items-center gap-2">
                                                         <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>

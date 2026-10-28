@@ -1447,7 +1447,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(s => s.IdUsuarioSolicitante == idUsuarioActual || (s.IdUsuarioSolicitante == null && s.IdUsuarioCreador == idUsuarioActual));
 
                 if (request.Estados != null && request.Estados.Any())
-                    query = query.Where(s => s.Estado != null && request.Estados.Contains(s.Estado.Codigo));
+                    query = query.Where(s => s.Estado != null && request.Estados.Contains(s.Estado.Codigo!));
 
                 if (request.IdEmpresa.HasValue)
                     query = query.Where(s => s.IdEmpresa == request.IdEmpresa.Value);

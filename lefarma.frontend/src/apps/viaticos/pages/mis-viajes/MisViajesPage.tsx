@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, Eye, MoreHorizontal, Pencil, Route, Send, Ticket, Trash2 } from 'lucide-react';
+import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,8 @@ import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { useAuthStore } from '@/shared/auth/authStore';
 import { solicitudesApi } from '../../services/solicitudes.api';
+import { evidenciasApi, type DatosViaje, type EvidenciasSolicitud } from '../../services/evidencias.api';
+import { CeldaCaptura } from '../../components/celdasCotizacion';
 import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
 import type { CalculoViaje, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
@@ -952,13 +954,163 @@ function RutaCalculada({ calculo }: { calculo: CalculoViaje }) {
   );
 }
 
+/** Resumen corto de los datos que el agente extrajo de la pagina de compra. */
+function DatosViajeTexto({ datos }: { datos: DatosViaje | null }) {
+  if (!datos) return null;
+
+  const horario =
+    datos.salida && datos.llegada
+      ? `${datos.salida} → ${datos.llegada}`
+      : (datos.salida ?? datos.llegada ?? null);
+  const duracion = datos.duracion_min != null ? `${datos.duracion_min} min` : null;
+  const asientos =
+    datos.asientos_disponibles != null ? `${datos.asientos_disponibles} asientos` : null;
+  const precio =
+    datos.precio != null ? `${datos.precio} ${datos.moneda ?? ''}`.trim() : null;
+  const partes = [
+    datos.transportista,
+    datos.modo,
+    horario,
+    duracion,
+    asientos,
+    precio,
+    datos.notas,
+  ].filter((parte): parte is string => Boolean(parte));
+
+  if (partes.length === 0) return null;
+  return (
+    <p className="max-w-md text-[11px] leading-snug text-muted-foreground">
+      {partes.join(' · ')}
+    </p>
+  );
+}
+
 function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
   const total = totalDeOpcionesElegidas(solicitud.opciones);
   const elegidas = solicitud.opciones.filter((o) => o.fue_elegida);
   const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
   const [boleto, setBoleto] = useState<SolicitudOpcion | null>(null);
 
-  /** Botón de boleto de un renglón: abre solo esa opción. */
+  // Capturas y datos por opción: arrancan con lo que ya trae el detalle y se
+  // refrescan con GET /evidencias al abrir y con POST /buscar.
+  const [capturas, setCapturas] = useState<Record<number, string | null>>(() =>
+    Object.fromEntries(solicitud.opciones.map((o) => [o.id_opcion, o.ruta_captura])),
+  );
+  const [datos, setDatos] = useState<Record<number, DatosViaje | null>>({});
+  const [generando, setGenerando] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
+  const [avisoCapturas, setAvisoCapturas] = useState<string | null>(null);
+  const hayLinks = solicitud.opciones.some((o) => Boolean(o.url_compra));
+
+  const aplicarEvidencias = useCallback((resultado: EvidenciasSolicitud) => {
+    setCapturas((previo) => {
+      const siguiente = { ...previo };
+      for (const evidencia of resultado.opciones) {
+        if (evidencia.ruta_captura) siguiente[evidencia.id_opcion] = evidencia.ruta_captura;
+      }
+      return siguiente;
+    });
+    setDatos((previo) => {
+      const siguiente = { ...previo };
+      for (const evidencia of resultado.opciones) {
+        if (evidencia.datos) siguiente[evidencia.id_opcion] = evidencia.datos;
+      }
+      return siguiente;
+    });
+  }, []);
+
+  useEffect(() => {
+    let vigente = true;
+    evidenciasApi
+      .obtener(solicitud.id_solicitud)
+      .then(({ data }) => {
+        if (vigente) aplicarEvidencias(data.data);
+      })
+      .catch(() => {
+        /* silencioso: sin evidencias el detalle sigue mostrando la solicitud */
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [aplicarEvidencias, solicitud.id_solicitud]);
+
+  async function generarCapturas() {
+    setGenerando(true);
+    setAvisoCapturas(null);
+    try {
+      const { data } = await evidenciasApi.generar(solicitud.id_solicitud);
+      const resultado = data.data;
+      aplicarEvidencias(resultado);
+      const partes = [
+        resultado.generadas > 0 ? `${resultado.generadas} nueva(s)` : null,
+        resultado.reutilizadas > 0 ? `${resultado.reutilizadas} ya estaban` : null,
+        resultado.fallidas > 0 ? `${resultado.fallidas} fallaron` : null,
+      ].filter(Boolean);
+      toast.success(partes.length > 0 ? `Capturas: ${partes.join(', ')}.` : 'Sin capturas nuevas.');
+      if (resultado.aviso) setAvisoCapturas(resultado.aviso);
+    } catch (error) {
+      toast.error(toApiError(error).message);
+    } finally {
+      setGenerando(false);
+    }
+  }
+
+  /**
+   * Pide al agente buscar las opciones una por una: cada que termina una, se
+   * pinta su captura y sus datos sin esperar a las demás.
+   */
+  async function buscarInformacion() {
+    const pendientes = solicitud.opciones.filter((o) => Boolean(o.url_compra));
+    if (pendientes.length === 0) {
+      toast.error('Ninguna opción tiene link de compra para que el agente la busque.');
+      return;
+    }
+
+    setBuscando(true);
+    setAvisoCapturas(null);
+    setProgreso({ hechas: 0, total: pendientes.length });
+    let conDatos = 0;
+    let fallidas = 0;
+    try {
+      for (const opcion of pendientes) {
+        try {
+          const { data } = await evidenciasApi.buscar(
+            solicitud.id_solicitud,
+            opcion.id_opcion,
+          );
+          aplicarEvidencias(data.data);
+          const evidencia = data.data.opciones.find(
+            (e) => e.id_opcion === opcion.id_opcion,
+          );
+          if (evidencia?.datos) conDatos += 1;
+        } catch {
+          fallidas += 1;
+        } finally {
+          setProgreso((previo) =>
+            previo ? { hechas: previo.hechas + 1, total: previo.total } : previo,
+          );
+        }
+      }
+
+      const partes = [
+        conDatos > 0 ? `${conDatos} con datos` : null,
+        fallidas > 0 ? `${fallidas} fallaron` : null,
+      ].filter(Boolean);
+      toast.success(
+        partes.length > 0
+          ? `Búsqueda: ${partes.join(', ')}.`
+          : 'El agente no devolvió información nueva.',
+      );
+    } catch (error) {
+      toast.error(toApiError(error).message);
+    } finally {
+      setBuscando(false);
+      setProgreso(null);
+    }
+  }
+
+  /** Botón de boleto de un renglón: abre esa opción con captura y link. */
   const botonBoleto = (opcion: SolicitudOpcion) => (
     <TooltipProvider delayDuration={150}>
       <Tooltip>
@@ -979,30 +1131,95 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
     </TooltipProvider>
   );
 
+  /** Link de compra del renglón (sitio de la aerolínea / autobús). */
+  const botonComprar = (opcion: SolicitudOpcion) => {
+    if (!opcion.url_compra) return null;
+    return (
+      <TooltipProvider delayDuration={150}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button asChild variant="ghost" size="icon" className="h-6 w-6 shrink-0">
+              <a
+                href={opcion.url_compra}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={`Comprar boleto de ${opcion.linea}`}
+              >
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Abrir sitio de compra</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
+
+  const fila = (opcion: SolicitudOpcion) => (
+    <tr key={opcion.id_opcion} className="border-b border-border/60 last:border-0">
+      <td className="py-1 pr-3 align-top">
+        <div>{opcion.linea}</div>
+        <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
+      </td>
+      <td className="py-1 pr-3 align-top">
+        <CeldaCaptura ruta={capturas[opcion.id_opcion] ?? undefined} etiqueta={opcion.linea} />
+      </td>
+      <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
+        {precioTexto(opcion)}
+      </td>
+      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
+      <td className="w-8 py-0.5 pl-1 text-right align-top">{botonComprar(opcion)}</td>
+    </tr>
+  );
+
   return (
     <div className="space-y-2 rounded-lg border bg-card p-3 text-sm shadow-[0_2px_10px_rgba(15,23,42,0.10)]">
-      <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">Transporte y hospedaje elegidos</p>
+        {hayLinks ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={generarCapturas}
+              disabled={generando || buscando}
+              aria-label="Generar capturas de pantalla de las opciones"
+            >
+              <Camera className="h-3.5 w-3.5" aria-hidden />
+              {generando ? 'Generando capturas…' : 'Generar capturas'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              onClick={buscarInformacion}
+              disabled={buscando || generando}
+              aria-label="Buscar opciones del viaje con el agente"
+            >
+              <Search className="h-3.5 w-3.5" aria-hidden />
+              {buscando
+                ? `Buscando… ${progreso?.hechas ?? 0}/${progreso?.total ?? solicitud.opciones.length}`
+                : 'Buscar opciones'}
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {avisoCapturas ? <p className="text-xs text-amber-700">{avisoCapturas}</p> : null}
       {elegidas.length === 0 ? (
         <p>Sin opciones elegidas.</p>
       ) : (
         <table className="w-full text-sm">
-          <tbody>
-            {elegidas.map((opcion) => (
-              <tr key={opcion.id_opcion} className="border-b border-border/60 last:border-0">
-                <td className="py-1 pr-3 align-top">{opcion.linea}</td>
-                <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
-                  {precioTexto(opcion)}
-                </td>
-                <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
-              </tr>
-            ))}
-          </tbody>
+          <tbody>{elegidas.map(fila)}</tbody>
           <tfoot>
             <tr>
               <td className="pt-2 align-bottom text-xs text-muted-foreground">Desglose</td>
+              <td />
               <td className="pt-1 text-right text-2xl font-semibold tracking-tight tabular-nums">
                 {textoTotalElegidas(total)}
               </td>
+              <td />
               <td />
             </tr>
           </tfoot>
@@ -1014,17 +1231,7 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
             Alternativas descartadas ({descartadas.length})
           </summary>
           <table className="mt-1 w-full text-xs text-muted-foreground">
-            <tbody>
-              {descartadas.map((opcion) => (
-                <tr key={opcion.id_opcion}>
-                  <td className="py-0.5 pr-3 align-top">{opcion.linea}</td>
-                  <td className="whitespace-nowrap py-0.5 text-right align-top tabular-nums">
-                    {precioTexto(opcion)}
-                  </td>
-                  <td className="w-8 py-0.5 pl-1 text-right align-top">{botonBoleto(opcion)}</td>
-                </tr>
-              ))}
-            </tbody>
+            <tbody>{descartadas.map(fila)}</tbody>
           </table>
         </details>
       ) : null}

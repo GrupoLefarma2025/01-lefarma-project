@@ -530,7 +530,7 @@ const [loadingDestinatarios, setLoadingDestinatarios] = useState(false);
                 <li><strong>DescuentosRestantes</strong>: cuántos días con descuento se pueden justificar todavía este mes.</li>
                 <li><strong>DiasConDescuento</strong>: cantidad de días distintos que generan descuento.</li>
                 <li><strong>FechasConDescuento</strong>: lista de días con descuento (ej. "1, 12 y 16 de septiembre de 2026").</li>
-                <li><strong>Retardos</strong>: cantidad de retardos de entrada (mayores y menores a 20 min).</li>
+                <li><strong>Retardos</strong>: cantidad de retardos de entrada (de 20 min o menos y de más de 20 min).</li>
                 <li><strong>Omisiones</strong>: cantidad de omisiones de entrada y salida.</li>
                 <li><strong>SalidasAnticipadas</strong>: cantidad de salidas anticipadas.</li>
                 <li><strong>ReglasDescuento</strong>: explicación de las reglas activas (acumulación y periodicidad).</li>

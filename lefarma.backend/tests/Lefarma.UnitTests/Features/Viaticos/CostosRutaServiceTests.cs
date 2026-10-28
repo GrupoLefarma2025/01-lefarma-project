@@ -573,4 +573,221 @@ public class CostosRutaServiceTests
         marcada.Modo.Should().Be(esperada.Modo);
         marcada.Linea.Should().Be(esperada.Linea);
     }
+
+    [Fact]
+    public async Task Enlace_De_Primera_Plus_Abre_Su_Busqueda_Con_La_Ruta_Y_La_Fecha()
+    {
+        // Primera Plus no vende en ClickBus: el boton debe abrir SU buscador ya
+        // resuelto con la ruta y la fecha (ciudad en el origen, terminal en el
+        // destino), no la portada comercial.
+        using var handler = new PrimeraPlusPlacesHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var request = new CostosRutaRequest
+        {
+            Personas =
+            [
+                new CostosRutaPersonaInput
+                {
+                    Nombre = "Ana",
+                    CarroPropio = false,
+                    Gasolina = "magna",
+                    Draft = false,
+                    Lugares =
+                    [
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 1, Tipo = "salida", Nombre = "Base CDMX",
+                            Municipio = "Ciudad de México", Estado = "Ciudad de México",
+                            Latitud = 19.4326, Longitud = -99.1332,
+                            FechaSalida = "2026-10-30", HoraSalida = "06:00",
+                        },
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 2, Tipo = "taller", Nombre = "Sucursal Morelia",
+                            Municipio = "Morelia", Estado = "Michoacán",
+                            Latitud = 19.7060, Longitud = -101.1950,
+                            FechaInicioActividad = "2026-10-30", HoraInicioActividad = "12:00",
+                            FechaFinActividad = "2026-10-30", HoraFinActividad = "18:00",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var resp = await CalculoCostosRuta.CalcularAsync(request, http, cache);
+
+        var pp = resp.Resultados[0].Tramos[0].Opciones.Single(o => o.Linea == "Primera Plus");
+        pp.Comprar.Url.Should().Be(
+            "https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-morelia-tam/2026-10-30"
+            + "/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true");
+    }
+
+    [Fact]
+    public async Task Primera_Plus_Resuelve_Un_Municipio_Que_No_Esta_En_Su_Catalogo()
+    {
+        // "La Aldea" no existe en Primera Plus: el enlace debe usar la ciudad
+        // real del punto (Morelia), no caer en la pagina de busqueda vacia.
+        using var handler = new PrimeraPlusPlacesHandler();
+        using var http = new HttpClient(handler);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var request = new CostosRutaRequest
+        {
+            Personas =
+            [
+                new CostosRutaPersonaInput
+                {
+                    Nombre = "Ana",
+                    CarroPropio = false,
+                    Gasolina = "magna",
+                    Draft = false,
+                    Lugares =
+                    [
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 1, Tipo = "salida", Nombre = "Base CDMX",
+                            Municipio = "Ciudad de México", Estado = "Ciudad de México",
+                            Latitud = 19.4326, Longitud = -99.1332,
+                            FechaSalida = "2026-10-30", HoraSalida = "06:00",
+                        },
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 2, Tipo = "taller", Nombre = "La Aldea",
+                            Municipio = "La Aldea", Estado = "Michoacán",
+                            Latitud = 19.7460, Longitud = -101.1377,
+                            FechaInicioActividad = "2026-10-30", HoraInicioActividad = "12:00",
+                            FechaFinActividad = "2026-10-30", HoraFinActividad = "18:00",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var resp = await CalculoCostosRuta.CalcularAsync(request, http, cache);
+
+        var pp = resp.Resultados[0].Tramos[0].Opciones.Single(o => o.Linea == "Primera Plus");
+        pp.Comprar.Url.Should().Be(
+            "https://viaje.primeraplus.com.mx/search/ciudad-de-mexico/t-morelia-tam/2026-10-30"
+            + "/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true");
+    }
+
+    [Fact]
+    public async Task Vuelos_Estimados_Abren_Una_Busqueda_Real_Con_La_Ruta_Y_La_Fecha()
+    {
+        // Las aerolineas no cotizan en el motor: el boton debe abrir una
+        // busqueda real (Google Flights) en vez de la portada de la aerolinea.
+        var (http, cache) = Infra();
+        var request = new CostosRutaRequest
+        {
+            Personas =
+            [
+                new CostosRutaPersonaInput
+                {
+                    Nombre = "Ana",
+                    CarroPropio = false,
+                    Gasolina = "magna",
+                    Draft = false,
+                    Lugares =
+                    [
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 1, Tipo = "salida", Nombre = "Base CDMX",
+                            Municipio = "Ciudad de México", Estado = "Ciudad de México",
+                            Latitud = 19.4326, Longitud = -99.1332,
+                            FechaSalida = "2026-10-23", HoraSalida = "06:00",
+                        },
+                        new CostosRutaLugarInput
+                        {
+                            Orden = 2, Tipo = "taller", Nombre = "Sucursal Durango",
+                            Municipio = "Victoria de Durango", Estado = "Durango",
+                            Latitud = 24.0053, Longitud = -104.6080,
+                            FechaInicioActividad = "2026-10-23", HoraInicioActividad = "12:00",
+                            FechaFinActividad = "2026-10-23", HoraFinActividad = "18:00",
+                        },
+                    ],
+                },
+            ],
+        };
+
+        var resp = await CalculoCostosRuta.CalcularAsync(request, http, cache);
+
+        var vuelo = resp.Resultados[0].Tramos[0].Opciones.First(o => o.Modo == "avion");
+        vuelo.Comprar.Url.Should().StartWith("https://www.google.com/travel/flights?q=");
+        vuelo.Comprar.Url.Should().Contain(Uri.EscapeDataString(
+            "Flights from MEX to DGO on 2026-10-2"));
+        vuelo.Comprar.Url.Should().Contain("&curr=MXN&hl=es-MX");
+        vuelo.Comprar.Sitio.Should().Be("Google Flights");
+    }
+
+    // Catalogo publico de Primera Plus: resuelve "Ciudad de Mexico" a su grupo
+    // de ciudad y "Morelia" a su terminal; "La Aldea" no existe y el inverso de
+    // Nominatim la ubica en Morelia. Todo lo demas falla para forzar el seed.
+    private sealed class PrimeraPlusPlacesHandler : HttpMessageHandler
+    {
+        private const string Cdmx = """
+        [{"display":"Ciudad de México","city_name":"Ciudad de México","slug":"ciudad-de-mexico","state":"Ciudad de México","result_type":"city"},
+        {"display":"Norte","city_name":"Ciudad de México","slug":"t-ciudad-de-mexico-central-norte","state":"Ciudad de México","result_type":"terminal"}]
+        """;
+
+        private const string Morelia = """
+        [{"display":"Morelia","city_name":"Morelia","slug":"morelia","state":"Michoacán","result_type":"city"},
+        {"display":"Terminal de Autobuses","city_name":"Morelia","slug":"t-morelia-tam","state":"Michoacán","result_type":"terminal"}]
+        """;
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            var host = request.RequestUri?.Host ?? "";
+            if (host == "nominatim.openstreetmap.org")
+            {
+                return Ok("""{"address":{"city":"Morelia","county":"Morelia","state":"Michoacán","country":"México"}}""");
+            }
+            if (host != "one-api.primeraplus.com.mx")
+                return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError));
+
+            var ruta = request.RequestUri!.AbsolutePath;
+            if (ruta.EndsWith("/config", StringComparison.Ordinal))
+            {
+                return Ok("""
+                {"config":{"environment_variables":{"api":{"desktopKey":"llave-de-prueba"}}}}
+                """);
+            }
+            if (ruta.EndsWith("/search", StringComparison.Ordinal))
+            {
+                return Ok("""{"search":{"id":123}}""");
+            }
+            if (ruta.Contains("/search/123", StringComparison.Ordinal))
+            {
+                return Ok("""
+                {
+                  "lines":{"primera-plus":{"name":"Primera Plus"}},
+                  "terminals":{
+                    "t-ciudad-de-mexico-central-norte":{"name":"Central del Norte","city_name":"Ciudad de México","coordinates":{"lat":19.4789,"long":-99.1383}},
+                    "t-morelia-tam":{"name":"Terminal de Autobuses","city_name":"Morelia","coordinates":{"lat":19.7191,"long":-101.2262}}
+                  },
+                  "trips":[
+                    {"line_id":"primera-plus","departure":"2026-10-30T08:00:00","arrival":"2026-10-30T12:20:00",
+                     "origin_id":"t-ciudad-de-mexico-central-norte","destination_id":"t-morelia-tam",
+                     "availability":9,"is_buyable":true,"pricing":{"total":743}}
+                  ]
+                }
+                """);
+            }
+            if (ruta.Contains("/places", StringComparison.Ordinal))
+            {
+                var consulta = request.RequestUri.Query;
+                var cuerpo = consulta.Contains("la+aldea", StringComparison.OrdinalIgnoreCase)
+                    || consulta.Contains("la%20aldea", StringComparison.OrdinalIgnoreCase)
+                        ? "[]"
+                        : consulta.Contains("morelia", StringComparison.OrdinalIgnoreCase) ? Morelia : Cdmx;
+                return Ok(cuerpo);
+            }
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError));
+
+            static Task<HttpResponseMessage> Ok(string cuerpo) => Task.FromResult(
+                new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new StringContent(cuerpo, Encoding.UTF8, "application/json"),
+                });
+        }
+    }
 }

@@ -166,6 +166,15 @@ describe('SolicitudPage', () => {
     expect(siguiente()).not.toBeDisabled();
   });
 
+  it('el paso 1 avanza sin gerencia: solo agrupa el concentrado', async () => {
+    mocks.gerenciaSugerida.mockResolvedValue({ data: { success: true, data: { gerencia: '' } } });
+    render(<SolicitudPage />);
+    await waitFor(() => expect(siguiente()).not.toBeDisabled());
+    expect(screen.getByLabelText('Gerencia')).toHaveValue('');
+    fireEvent.click(siguiente());
+    expect(await screen.findByTestId('paso-2')).toBeInTheDocument();
+  });
+
   it('carro propio: el resumen muestra solo "Carro propio" y guarda el borrador', async () => {
     await irAlPaso(5, 'propio');
     completarDestino();

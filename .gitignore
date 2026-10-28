@@ -128,3 +128,6 @@ lefarma.frontend/pnpm-lock.yaml
 
 # PIDs locales de desarrollo (multiappcli.ps1)
 pids.json
+
+# Scratch local (capturas/opencode)
+.tmp-opencode/

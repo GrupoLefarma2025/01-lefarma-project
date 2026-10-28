@@ -485,9 +485,8 @@ export function SolicitudPage() {
   function pasoValido(id: PasoId): boolean {
     if (id === 1) {
       if (persona.modo === 'otra' && persona.empleadoId === null) return false;
-      // La gerencia es la llave del concentrado por institución: sin ella la
-      // solicitud no se puede clasificar ni agrupar.
-      if (gerenciaEfectiva === '') return false;
+      // La gerencia es opcional: solo agrupa el concentrado; sin ella el
+      // servidor la guarda como "Sin asignar" y el paso avanza igual.
       return persona.nombre.trim() !== '';
     }
     if (id === 2) return persona.motivo.trim() !== '';
@@ -685,7 +684,7 @@ export function SolicitudPage() {
                 </div>
               ) : null}
               <div className="mx-auto max-w-2xl space-y-1">
-                <Label htmlFor="gerencia-solicitud">Gerencia</Label>
+                <Label htmlFor="gerencia-solicitud">Gerencia (opcional)</Label>
                 <select
                   id="gerencia-solicitud"
                   aria-label="Gerencia"

@@ -162,10 +162,14 @@ describe('TablaOpciones', () => {
     expect(screen.getByText(/no trae URL de compra/i)).toBeInTheDocument();
   });
 
-  it('muestra placeholder de captura, no una imagen rota, cuando no hay ruta_captura', () => {
+  it('ofrece volver a buscar la captura del viaje, sin imagen rota, cuando no hay ruta_captura', () => {
     render(<TablaOpciones titulo="Tramo 1" ofertas={[oferta({ id: 'sin-cap', linea: 'ETN' })]} />);
 
-    expect(screen.getByText('Sin captura')).toBeInTheDocument();
+    // Sin captura la celda no es un texto muerto: el boton pide al agente
+    // buscar el viaje en el sitio y capturar la pagina de resultados.
+    expect(
+      screen.getByRole('button', { name: /volver a buscar la captura de ETN/i }),
+    ).toBeInTheDocument();
     expect(fila('ETN').querySelector('img')).toBeNull();
   });
 
