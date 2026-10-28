@@ -496,6 +496,24 @@ public class ComprobanteService : IComprobanteService
 
         if (!comprobantes.Any()) return CommonErrors.NotFound("Comprobante", "No hay comprobantes para eliminar");
 
+        return await EliminarComprobantesAsync(comprobantes, idOrden, ct);
+    }
+
+    public async Task<ErrorOr<bool>> EliminarAsync(int idComprobante, int idUsuario, CancellationToken ct = default)
+    {
+        var comprobante = await _db.Comprobantes
+            .Include(c => c.Asignaciones)
+            .FirstOrDefaultAsync(c => c.IdComprobante == idComprobante && (c.Activo ?? true), ct);
+
+        if (comprobante is null)
+            return CommonErrors.NotFound("Comprobante", idComprobante.ToString());
+
+        return await EliminarComprobantesAsync([comprobante], null, ct);
+    }
+
+    private async Task<ErrorOr<bool>> EliminarComprobantesAsync(List<Comprobante> comprobantes, int? idOrden, CancellationToken ct)
+    {
+        var categoria = comprobantes[0].Categoria;
         await using var tx = await _db.Database.BeginTransactionAsync(ct);
         try
         {
@@ -549,17 +567,14 @@ public class ComprobanteService : IComprobanteService
                     await _archivoService.DeleteAsync(archivo.Id, ct);
                 }
 
-                // Eliminar comprobante
-                //_db.Comprobantes.Remove(comprobante);
-
                 //Se cambia a soft delete para mantener el historial de comprobantes eliminados
                 comprobante.Activo = false;
                 comprobante.Estado = 3; // Rechazado/Cancelado
                 comprobante.FechaModificacion = DateTime.UtcNow;
 
-                if (categoria == "pago")
+                if (categoria == "pago" && idOrden.HasValue)
                 {
-                    var orden = await _db.OrdenesCompra.FirstOrDefaultAsync(o => o.IdOrden == idOrden, ct);
+                    var orden = await _db.OrdenesCompra.FirstOrDefaultAsync(o => o.IdOrden == idOrden.Value, ct);
                     if (orden != null)
                     {
                         orden.IdsCuentasBancarias = OrdenCompraDocumentoJson.MergeClavesJson(

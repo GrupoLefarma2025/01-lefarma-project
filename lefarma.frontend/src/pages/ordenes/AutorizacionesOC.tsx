@@ -498,6 +498,7 @@ export default function AutorizacionesOC() {
   const [historialComprobantes, setHistorialComprobantes] = useState<HistorialComprobante[]>([]);
   const [isHistorialComprobantesOpen, setIsHistorialComprobantesOpen] = useState(false);
   const [historialCategoria, setHistorialCategoria] = useState<'pago' | 'gasto'>('pago');
+  const [eliminandoComprobanteId, setEliminandoComprobanteId] = useState<number | null>(null);
 
   //Permisos
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
@@ -1063,6 +1064,41 @@ export default function AutorizacionesOC() {
         toast.error('No se pudo cargar el historial de comprobantes');
     }
 };
+
+  const handleBorrarComprobanteGasto = async (comprobante: HistorialComprobante) => {
+    if (!selectedOrden || eliminandoComprobanteId !== null) return;
+    if (!window.confirm('¿Deseas eliminar este comprobante de gasto? Solo se revertirán sus asignaciones; los demás comprobantes se conservarán. Esta acción no se puede deshacer.')) return;
+
+    setEliminandoComprobanteId(comprobante.idComprobante);
+    try {
+      await comprobanteService.eliminar(comprobante.idComprobante);
+      toast.success('Comprobante de gasto eliminado correctamente');
+
+      const quedanComprobantes = historialComprobantes.some(
+        (c) => c.activo && c.idComprobante !== comprobante.idComprobante
+      );
+      setHistorialComprobantes((prev) => prev.map((c) =>
+        c.idComprobante === comprobante.idComprobante ? { ...c, activo: false, estado: 3 } : c
+      ));
+      setComprobantesWorkflow((prev) => {
+        const next = { ...prev };
+        if (!quedanComprobantes) {
+          delete next.comprobante_gasto;
+        } else {
+          next.comprobante_gasto = (next.comprobante_gasto ?? [])
+            .filter((c) => c.idComprobante !== comprobante.idComprobante);
+        }
+        return next;
+      });
+
+      await fetchDetalle(selectedOrden.idOrden);
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al eliminar el comprobante de gasto');
+    } finally {
+      setEliminandoComprobanteId(null);
+    }
+  };
 
   // Bitácora de pagos: entradas del historial JSON, más reciente primero.
   const historialOrdenOrdenado = useMemo(
@@ -3473,6 +3509,23 @@ export default function AutorizacionesOC() {
                           <span>{comp.nombreUsuarioSubio || `Usuario ${comp.idUsuarioSubio}`}</span>
                         </div>
                       </div>
+
+                      {historialCategoria === 'gasto' && comp.activo && selectedOrden?.idEstado !== 10 && (
+                        <div className="flex justify-end border-t px-3 py-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={eliminandoComprobanteId !== null}
+                            onClick={() => handleBorrarComprobanteGasto(comp)}
+                          >
+                            {eliminandoComprobanteId === comp.idComprobante
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                            Eliminar comprobante
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

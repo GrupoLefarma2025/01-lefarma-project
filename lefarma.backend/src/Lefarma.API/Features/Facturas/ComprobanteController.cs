@@ -191,6 +191,21 @@ public class ComprobanteController : ControllerBase
     }
 
     /// <summary>
+    /// Elimina un comprobante y revierte únicamente sus asignaciones.
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    [SwaggerOperation(Summary = "Eliminar comprobante", Description = "Elimina un comprobante, revierte sus asignaciones a partidas y desactiva sus archivos relacionados sin afectar los demás comprobantes.")]
+    public async Task<IActionResult> Eliminar(int id, CancellationToken ct)
+    {
+        var result = await _service.EliminarAsync(id, GetUserId(), ct);
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Comprobante eliminado correctamente"
+        }));
+    }
+
+    /// <summary>
     /// Elimina todos los comprobantes de una categoría para una orden y revierte sus asignaciones.
     /// </summary>
     [HttpDelete("orden/{idOrden:int}")]
