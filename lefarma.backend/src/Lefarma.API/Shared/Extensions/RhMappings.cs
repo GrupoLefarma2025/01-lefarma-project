@@ -7,6 +7,16 @@ public static class RhMappings
 {
     public record UsuarioInfo(string Nombre, string? Puesto);
 
+    /// <summary>
+    /// Datos del empleado en Asistencias (vwEmpleados). Son la fuente oficial de lo que se
+    /// imprime en los formatos de RH, por encima de los catálogos de Lefarma.
+    /// </summary>
+    public record EmpleadoAsistenciasInfo(
+        string? EmpresaReal,
+        string? Departamento,
+        string? Puesto,
+        string? Ubicacion);
+
     #region SolicitudPersonal Mappings
 
     public static SolicitudPersonalResponse ToResponse(
@@ -14,18 +24,21 @@ public static class RhMappings
         TipoSolicitud? tipo,
         Dictionary<int, UsuarioInfo>? usuariosInfo = null,
         string? paso = null,
-        string? estado = null)
+        string? estado = null,
+        Dictionary<int, EmpleadoAsistenciasInfo>? empleadosInfo = null)
     {
+        var empleado = ResolveEmpleadoInfo(s, empleadosInfo);
+
         return new SolicitudPersonalResponse
         {
             IdSolicitud = s.IdSolicitud,
             Folio = s.Folio,
             IdEmpresa = s.IdEmpresa,
-            EmpresaNombre = s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre,
+            EmpresaNombre = PrimeroConValor(empleado?.EmpresaReal, s.Empresa?.NombreNormalizado ?? s.Empresa?.Nombre),
             IdSucursal = s.IdSucursal,
             SucursalNombre = s.Sucursal?.NombreNormalizado ?? s.Sucursal?.Nombre,
             IdArea = s.IdArea,
-            AreaNombre = s.Area?.NombreNormalizado ?? s.Area?.Nombre,
+            AreaNombre = PrimeroConValor(empleado?.Departamento, s.Area?.NombreNormalizado ?? s.Area?.Nombre),
             IdTipoSolicitud = s.IdTipoSolicitud,
             TipoSolicitudNombre = tipo?.Nombre,
             Categoria = ((int)(tipo?.Categoria ?? CategoriaSolicitud.Permiso)).ToString(),
@@ -39,7 +52,8 @@ public static class RhMappings
             CreadorNombre = usuariosInfo != null && usuariosInfo.TryGetValue(s.IdUsuarioCreador, out var creadorInfo) ? creadorInfo.Nombre : null,
             IdUsuarioSolicitante = s.IdUsuarioSolicitante,
             SolicitanteNombre = ResolveSolicitanteNombre(s, usuariosInfo),
-            SolicitantePuesto = ResolveSolicitantePuesto(s, usuariosInfo),
+            SolicitantePuesto = PrimeroConValor(empleado?.Puesto, ResolveSolicitantePuesto(s, usuariosInfo)),
+            Ubicacion = empleado?.Ubicacion,
             LugarComision = s.LugarComision,
             Motivo = s.Motivo,
             FechaEnvio = s.FechaEnvio,
@@ -79,6 +93,19 @@ public static class RhMappings
         var id = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador;
         return usuariosInfo.TryGetValue(id, out var info) ? info.Puesto : null;
     }
+
+    private static EmpleadoAsistenciasInfo? ResolveEmpleadoInfo(
+        SolicitudPersonal s,
+        Dictionary<int, EmpleadoAsistenciasInfo>? empleadosInfo)
+    {
+        if (empleadosInfo is null) return null;
+        var id = s.IdUsuarioSolicitante ?? s.IdUsuarioCreador;
+        return empleadosInfo.TryGetValue(id, out var info) ? info : null;
+    }
+
+    /// <summary>Primer valor no vacío: el dato de Asistencias manda sobre el catálogo de Lefarma.</summary>
+    private static string? PrimeroConValor(params string?[] valores) =>
+        valores.Select(v => v?.Trim()).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
 
     #endregion
 

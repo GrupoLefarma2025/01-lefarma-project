@@ -61,6 +61,8 @@ export interface SolicitudPersonalResponse {
   idUsuarioSolicitante?: number;
   solicitanteNombre?: string;
   solicitantePuesto?: string;
+  /** Ubicación del empleado según Asistencias (vwEmpleados.ubicacion). */
+  ubicacion?: string | null;
   idTipoSolicitud: number;
   tipoSolicitudNombre?: string;
   categoria: string;

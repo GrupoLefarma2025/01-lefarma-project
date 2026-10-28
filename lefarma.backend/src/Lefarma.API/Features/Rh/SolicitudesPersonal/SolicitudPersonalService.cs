@@ -80,6 +80,33 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
             _limiteDescuentosJustificadosMes = Math.Max(1, solicitudesSettings.Value.LimiteDescuentosJustificadosMes);
         }
 
+        /// <summary>
+        /// Empresa, área (departamento), puesto y ubicación del empleado según Asistencias.
+        /// Si Asistencias no responde (o la vista no expone las columnas), se devuelve un
+        /// diccionario vacío y los formatos conservan los valores de los catálogos.
+        /// </summary>
+        private async Task<Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>> ObtenerEmpleadosAsistenciasAsync(
+            IEnumerable<int> idsUsuarios)
+        {
+            try
+            {
+                var empleados = await _empleadoRepository.ObtenerEmpleadosPorUsuariosAsync(idsUsuarios);
+
+                return empleados.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new RhMappings.EmpleadoAsistenciasInfo(
+                        kvp.Value.EmpresaReal,
+                        kvp.Value.Departamento,
+                        kvp.Value.Puesto,
+                        kvp.Value.Ubicacion));
+            }
+            catch (Exception ex)
+            {
+                EnrichWideEvent("EmpleadosAsistencias", exception: ex);
+                return new Dictionary<int, RhMappings.EmpleadoAsistenciasInfo>();
+            }
+        }
+
         public async Task<ErrorOr<PagedResult<SolicitudPersonalResponse>>> GetAllAsync(
             SolicitudPersonalRequest request, int idUsuario, IEnumerable<int> rolesUsuario, bool puedeVerTodas)
         {
@@ -357,6 +384,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
+                var empleadosInfo = await ObtenerEmpleadosAsistenciasAsync(userIds);
+
                 var pasoIds = items.Select(o => o.IdPasoActual).Distinct().ToList();
 
                 var pasoNombre = pasoIds.Any()
@@ -369,7 +398,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                 var result = new List<SolicitudPersonalResponse>();
                 foreach (var item in items)
                 {
-                    var dto = item.ToResponse(item.TipoSolicitud, usuariosInfo, pasoNombre, item.Estado?.Codigo);
+                    var dto = item.ToResponse(item.TipoSolicitud, usuariosInfo, pasoNombre, item.Estado?.Codigo, empleadosInfo);
                     result.Add(dto);
                 }
 
@@ -413,10 +442,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
+                var empleadosInfo = await ObtenerEmpleadosAsistenciasAsync(userIds);
 
                 var tipo = await _tipoRepository.GetByIdAsync(soli.IdTipoSolicitud);
 
-                var response = soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo);
+                var response = soli.ToResponse(tipo, usuariosInfo, paso, soli.Estado?.Codigo, empleadosInfo);
 
                 if (tipo is not null
                     && string.Equals(tipo.Clave, "vacaciones", StringComparison.OrdinalIgnoreCase)
@@ -787,6 +817,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     .Where(u => userIds.Contains(u.IdUsuario))
                     .ToDictionaryAsync(u => u.IdUsuario, u => new RhMappings.UsuarioInfo(u.NombreCompleto ?? u.SamAccountName ?? $"Usuario {u.IdUsuario}", u.Puesto));
 
+                var empleadosInfo = await ObtenerEmpleadosAsistenciasAsync(userIds);
+
                 var estadoFinal = await _context.WorkflowEstados.FindAsync(solicitud.IdEstado);
                 var pasoFinal = solicitud.IdPasoActual.HasValue
                     ? await _context.WorkflowPasos
@@ -799,7 +831,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
                     solicitud.Estado = estadoFinal;
 
                 EnrichWideEvent("Create", entityId: solicitud.IdSolicitud, nombre: solicitud.Folio);
-                return solicitud.ToResponse(tipo, usuariosInfo, pasoFinal, estadoFinal?.Codigo);
+                return solicitud.ToResponse(tipo, usuariosInfo, pasoFinal, estadoFinal?.Codigo, empleadosInfo);
             }
             catch (DbUpdateException ex)
             {
@@ -938,8 +970,11 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal
 
                 await _repository.UpdateAsync(soli);
 
+                var empleadosInfo = await ObtenerEmpleadosAsistenciasAsync(
+                    new[] { soli.IdUsuarioSolicitante ?? soli.IdUsuarioCreador });
+
                 EnrichWideEvent("Update", entityId: soli.IdSolicitud, nombre: soli.Folio);
-                return soli.ToResponse(tipo, null, null, null);
+                return soli.ToResponse(tipo, null, null, null, empleadosInfo);
             }
             catch (DbUpdateException ex)
             {

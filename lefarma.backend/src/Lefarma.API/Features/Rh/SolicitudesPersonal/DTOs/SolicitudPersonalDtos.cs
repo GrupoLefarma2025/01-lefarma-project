@@ -23,6 +23,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdUsuarioSolicitante { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
+        /// <summary>Ubicación del empleado según Asistencias (vwEmpleados.ubicacion).</summary>
+        public string? Ubicacion { get; set; }
 
         public int IdTipoSolicitud { get; set; }
         public string? TipoSolicitudNombre { get; set; }

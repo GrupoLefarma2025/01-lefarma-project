@@ -27,8 +27,10 @@ namespace Lefarma.API.Domain.Entities.Asistencias
         public string? Celularoficina { get; set; }
         public string? Telefonopersonal { get; set; }
         public string? Empresa { get; set; }
+        public string? EmpresaReal { get; set; }
         public string? Departamento { get; set; }
         public string? Puesto { get; set; }
+        public string? Ubicacion { get; set; }
         public string? Lugarregistro { get; set; }
         public string? Ciudad { get; set; }
         public string? Direccion { get; set; }
