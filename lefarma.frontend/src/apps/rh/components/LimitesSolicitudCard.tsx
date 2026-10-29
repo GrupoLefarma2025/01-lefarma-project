@@ -91,7 +91,7 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
   const pendientesPorJustificar = limite.pendientesPorJustificar ?? 0;
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-card px-3 py-2.5 transition-colors hover:bg-muted/40">
+    <div className="border-border/60 hover:bg-muted/40 flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors">
       <div
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-md',
@@ -105,7 +105,7 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <p className="truncate text-sm font-medium text-foreground">{limite.tipo}</p>
+          <p className="text-sm font-medium text-foreground">{limite.tipo}</p>
           {sinLimite ? (
             <span className="rounded-full border border-border bg-muted px-1.5 py-px text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Sin límite
@@ -141,32 +141,31 @@ function LimiteRow({ limite }: { limite: LimitePorTipoResponse }) {
             )}
           </div>
         )}
-      </div>
 
-      {!sinLimite && (
-        <div className="flex shrink-0 items-center gap-3">
-          <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-            Usados:{' '}
-            <span className="text-sm font-semibold text-foreground">{limite.usado}</span> de{' '}
-            <span className="text-sm font-semibold text-foreground">{limite.limite}</span>.{' '}
-            Disponibles:{' '}
-            <span className="text-sm font-semibold text-foreground">{limite.disponible}</span>.
-          </p>
-          <div
-            role="progressbar"
-            aria-valuenow={estado.porcentaje}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label={`${limite.tipo}: ${limite.usado} de ${limite.limite}`}
-            className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted sm:block"
-          >
+        {!sinLimite && (
+          <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
+              Usados: <span className="text-sm font-semibold text-foreground">{limite.usado}</span>{' '}
+              de <span className="text-sm font-semibold text-foreground">{limite.limite}</span>.{' '}
+              Disponibles:{' '}
+              <span className="text-sm font-semibold text-foreground">{limite.disponible}</span>.
+            </p>
             <div
-              className={cn('h-full rounded-full transition-all duration-500', estado.barClass)}
-              style={{ width: `${Math.min(100, estado.porcentaje)}%` }}
-            />
+              role="progressbar"
+              aria-valuenow={estado.porcentaje}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`${limite.tipo}: ${limite.usado} de ${limite.limite}`}
+              className="hidden h-1.5 w-20 overflow-hidden rounded-full bg-muted sm:block"
+            >
+              <div
+                className={cn('h-full rounded-full transition-all duration-500', estado.barClass)}
+                style={{ width: `${Math.min(100, estado.porcentaje)}%` }}
+              />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -181,19 +180,41 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
   const alerta = negativo || agotado;
 
   return (
-    <div className="flex flex-col gap-4 rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50/80 to-cyan-50/30 px-4 py-4 dark:border-blue-900/40 dark:from-blue-950/30 dark:to-cyan-950/10 sm:flex-row sm:items-center">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
-          <Palmtree className="h-5 w-5" />
+    <div className="rounded-xl border border-blue-200/60 bg-gradient-to-r from-blue-50/80 to-cyan-50/30 px-4 py-4 dark:border-blue-900/40 dark:from-blue-950/30 dark:to-cyan-950/10">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300">
+            <Palmtree className="h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-foreground">
+              Vacaciones {saldo.anio}
+            </p>
+            <p className="text-xs text-muted-foreground">Saldo anual</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-foreground">Vacaciones {saldo.anio}</p>
-          <p className="text-xs text-muted-foreground">Saldo anual</p>
+
+        <div className="ml-auto flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+          <span className="whitespace-nowrap">
+            lleva{' '}
+            <span className="font-semibold tabular-nums text-foreground">{saldo.diasTomados}</span>{' '}
+            tomados
+          </span>
+          <span className="whitespace-nowrap">
+            <span className="font-semibold tabular-nums text-foreground">
+              {saldo.diasCompensados}
+            </span>{' '}
+            compensados ·{' '}
+            <span className="font-semibold tabular-nums text-foreground">
+              {saldo.diasAjustados}
+            </span>{' '}
+            ajustados
+          </span>
         </div>
       </div>
 
-      <div className="min-w-0 flex-1 sm:px-2">
-        <div className="flex items-baseline gap-1.5">
+      <div className="mt-3">
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
           <span
             className={cn(
               'text-3xl font-bold tabular-nums leading-none',
@@ -206,12 +227,12 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
             de {saldo.diasGenerados} días disponibles
           </span>
           {negativo && (
-            <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               Saldo en negativo
             </span>
           )}
           {agotado && (
-            <span className="ml-2 rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <span className="rounded-full border border-red-200 bg-red-100 px-1.5 py-px text-xs font-medium uppercase tracking-wide text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               Agotado
             </span>
           )}
@@ -232,19 +253,6 @@ function SaldoVacacionesStrip({ saldo }: { saldo: SaldoVacacionesResponse }) {
             style={{ width: negativo ? '100%' : `${porcentaje}%` }}
           />
         </div>
-      </div>
-
-      <div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground sm:flex-col sm:items-end sm:gap-1 sm:text-right">
-        <span className="whitespace-nowrap">
-          lleva <span className="font-semibold tabular-nums text-foreground">{saldo.diasTomados}</span>{' '}
-          tomados
-        </span>
-        <span className="whitespace-nowrap">
-          <span className="font-semibold tabular-nums text-foreground">{saldo.diasCompensados}</span>{' '}
-          compensados ·{' '}
-          <span className="font-semibold tabular-nums text-foreground">{saldo.diasAjustados}</span>{' '}
-          ajustados
-        </span>
       </div>
     </div>
   );
@@ -362,11 +370,11 @@ export function LimitesSolicitudCard({
           </CardTitle>
 
           {!collapsed && data?.periodoActual && (
-            <CardDescription className="flex items-center gap-1.5 text-xs">
-              <Calendar className="h-3.5 w-3.5" />
-              {data.periodoActual}
+            <CardDescription className="flex flex-wrap items-center gap-1.5 text-xs">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
+              <span className="whitespace-nowrap">{data.periodoActual}</span>
               {data.periodoInicio && data.periodoFin && (
-                <span className="text-muted-foreground/70">
+                <span className="whitespace-nowrap text-muted-foreground/70">
                   · {formatearRangoFechas(data.periodoInicio, data.periodoFin)}
                 </span>
               )}
