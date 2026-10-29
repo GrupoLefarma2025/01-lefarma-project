@@ -55,6 +55,10 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
   const [comprobanteSubido, setComprobanteSubido] = useState<ComprobanteResponse | null>(null);
   const [asignaciones, setAsignaciones] = useState<{ idPartida: number; checked: boolean; idConcepto: number | null; cantidad: string; importe: string; notas: string; }[]>([]);
 
+  const asignacionesSeleccionadas = asignaciones.filter((a) => a.checked).length;
+  const todasAsignacionesSeleccionadas =
+    asignaciones.length > 0 && asignacionesSeleccionadas === asignaciones.length;
+
   const xmlInputRef = useRef<HTMLInputElement>(null);
   const esCfdi = tipoComprobante === 'cfdi';
 
@@ -424,6 +428,27 @@ export function SubirComprobanteModal({ open, onClose, idEmpresa, idOrden, idPas
 
           {asignaciones.length === 0 && (
             <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/20"><AlertCircle className="h-3.5 w-3.5 shrink-0" /> Sin partidas pendientes para asignar.</div>
+          )}
+
+          {asignaciones.length > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
+              <div className="flex items-center gap-2.5">
+                <Checkbox
+                  id="asig-check-all"
+                  checked={todasAsignacionesSeleccionadas}
+                  onCheckedChange={(checked) => {
+                    const marcar = checked === true;
+                    setAsignaciones((prev) => prev.map((a) => ({ ...a, checked: marcar })));
+                  }}
+                />
+                <label htmlFor="asig-check-all" className="cursor-pointer text-sm font-medium">
+                  {todasAsignacionesSeleccionadas ? 'Quitar todas' : 'Seleccionar todas'}
+                </label>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {asignacionesSeleccionadas} de {asignaciones.length} seleccionadas
+              </span>
+            </div>
           )}
 
           <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
