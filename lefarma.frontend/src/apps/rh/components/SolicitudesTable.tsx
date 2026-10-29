@@ -39,7 +39,6 @@ interface SolicitudesTableProps {
   onImprimir?: (s: SolicitudPersonalResponse) => void;
   showImprimir?: boolean;
   onEditar?: (s: SolicitudPersonalResponse) => void;
-  puedeEditar?: boolean;
   onRefresh?: () => void;
   showFirma?: boolean;
   showEditar?: boolean;
@@ -107,7 +106,6 @@ export function SolicitudesTable({
   onImprimir,
   showImprimir = true,
   onEditar,
-  puedeEditar,
   onRefresh,
   showFirma = true,
   showEditar = true,
@@ -208,7 +206,7 @@ export function SolicitudesTable({
         cell: ({ row }) => {
           const s = row.original;
           const puedeEditarFila =
-            showEditar && puedeEditar && s.estadoNombre === 'CREADA' && esDelMesActual(s.fechaCreacion);
+            showEditar && s.estadoNombre === 'CREADA'; //&& esDelMesActual(s.fechaCreacion);
           return (
             <div className="flex items-center gap-1">
               <Button size="sm" variant="outline" onClick={() => onDetalle(s)}>
@@ -269,7 +267,6 @@ export function SolicitudesTable({
       onImprimir,
       showImprimir,
       onEditar,
-      puedeEditar,
       showFirma,
       showEditar,
     ]
