@@ -511,6 +511,58 @@ public class ComprobanteService : IComprobanteService
         return await EliminarComprobantesAsync([comprobante], null, ct);
     }
 
+    public async Task<ErrorOr<PartidaFacturacionResponse>> EliminarAsignacionAsync(
+        int idAsignacion, int idUsuario, CancellationToken ct = default)
+    {
+        var asignacion = await _db.ComprobantesPartidas
+            .Include(a => a.Comprobante)
+            .FirstOrDefaultAsync(a => a.IdAsignacion == idAsignacion && a.Activo, ct);
+
+        if (asignacion is null)
+            return CommonErrors.NotFound("Asignacion", idAsignacion.ToString());
+
+        if (asignacion.Comprobante is null || asignacion.Comprobante.Categoria != "gasto")
+            return CommonErrors.Validation("Comprobante", "Solo se pueden eliminar asignaciones de comprobantes de gasto.");
+
+        var idPartida = asignacion.IdPartida;
+        var comprobante = asignacion.Comprobante;
+
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        try
+        {
+            await RevertirAsignacionPartidaAsync(
+                asignacion, comprobante.TipoComprobante == "cfdi", esPago: false, ct);
+
+            asignacion.Activo = false;
+            await _db.SaveChangesAsync(ct);
+
+            var tieneOtrasAsignaciones = await _db.ComprobantesPartidas
+                .AnyAsync(a => a.IdComprobante == comprobante.IdComprobante && a.Activo, ct);
+
+            if (!tieneOtrasAsignaciones)
+            {
+                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, ct);
+                comprobante.Activo = false;
+                comprobante.Estado = 3;
+                comprobante.FechaModificacion = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+            }
+
+            await tx.CommitAsync(ct);
+            _logger.LogInformation(
+                "Usuario {IdUsuario} elimino la asignacion {IdAsignacion} del comprobante {IdComprobante}",
+                idUsuario, idAsignacion, comprobante.IdComprobante);
+
+            return await GetFacturacionPartidaAsync(idPartida, ct);
+        }
+        catch (Exception ex)
+        {
+            await tx.RollbackAsync(ct);
+            _logger.LogError(ex, "Error al eliminar la asignacion {IdAsignacion}", idAsignacion);
+            throw;
+        }
+    }
+
     private async Task<ErrorOr<bool>> EliminarComprobantesAsync(List<Comprobante> comprobantes, int? idOrden, CancellationToken ct)
     {
         var categoria = comprobantes[0].Categoria;
@@ -524,48 +576,14 @@ public class ComprobanteService : IComprobanteService
 
                 // Revertir asignaciones en partidas
                 foreach (var asignacion in comprobante.Asignaciones)
-                {
-                    if (esCfdi)
-                    {
-                        await _db.OrdenesCompraPartidas
-                            .Where(p => p.IdPartida == asignacion.IdPartida)
-                            .ExecuteUpdateAsync(s => s
-                                .SetProperty(p => p.CantidadFacturada,
-                                    p => (p.CantidadFacturada ?? 0m) - asignacion.CantidadAsignada)
-                                .SetProperty(p => p.ImporteFacturado,
-                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
-                                ct);
-                    }
-                    else if (!esPago)
-                    {
-                        await _db.OrdenesCompraPartidas
-                            .Where(p => p.IdPartida == asignacion.IdPartida)
-                            .ExecuteUpdateAsync(s => s
-                                .SetProperty(p => p.ImporteFacturado,
-                                    p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
-                                ct);
-                    }
-
-                    await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
-                }
+                    await RevertirAsignacionPartidaAsync(asignacion, esCfdi, esPago, ct);
 
                 // Soft-delete de asignaciones (se conservan para el historial de comprobantes)
                 await _db.ComprobantesPartidas
                     .Where(cp => cp.IdComprobante == comprobante.IdComprobante)
                     .ExecuteUpdateAsync(s => s.SetProperty(cp => cp.Activo, false), ct);
 
-                // Desactivar archivos relacionados (buscar por idComprobante en metadata)
-                var archivosRelacionados = await _db.Archivos
-                    .Where(a => a.EntidadTipo == "OrdenCompra"
-                        && a.Carpeta == "comprobantes"
-                        && a.Metadata != null
-                        && a.Metadata.Contains($"\"idComprobante\":{comprobante.IdComprobante}"))
-                    .ToListAsync(ct);
-
-                foreach (var archivo in archivosRelacionados)
-                {
-                    await _archivoService.DeleteAsync(archivo.Id, ct);
-                }
+                await DesactivarArchivosComprobanteAsync(comprobante.IdComprobante, ct);
 
                 //Se cambia a soft delete para mantener el historial de comprobantes eliminados
                 comprobante.Activo = false;
@@ -595,6 +613,46 @@ public class ComprobanteService : IComprobanteService
             _logger.LogError(ex, "Error al eliminar comprobantes de {Categoria} para orden {IdOrden}", categoria, idOrden);
             throw;
         }
+    }
+
+    private async Task RevertirAsignacionPartidaAsync(
+        ComprobantePartida asignacion, bool esCfdi, bool esPago, CancellationToken ct)
+    {
+        if (esCfdi)
+        {
+            await _db.OrdenesCompraPartidas
+                .Where(p => p.IdPartida == asignacion.IdPartida)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.CantidadFacturada,
+                        p => (p.CantidadFacturada ?? 0m) - asignacion.CantidadAsignada)
+                    .SetProperty(p => p.ImporteFacturado,
+                        p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                    ct);
+        }
+        else if (!esPago)
+        {
+            await _db.OrdenesCompraPartidas
+                .Where(p => p.IdPartida == asignacion.IdPartida)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.ImporteFacturado,
+                        p => (p.ImporteFacturado ?? 0m) - asignacion.ImporteAsignado),
+                    ct);
+        }
+
+        await RecalcularEstadoPartidaAsync(asignacion.IdPartida, ct);
+    }
+
+    private async Task DesactivarArchivosComprobanteAsync(int idComprobante, CancellationToken ct)
+    {
+        var archivosRelacionados = await _db.Archivos
+            .Where(a => a.EntidadTipo == "OrdenCompra"
+                && a.Carpeta == "comprobantes"
+                && a.Metadata != null
+                && a.Metadata.Contains($"\"idComprobante\":{idComprobante}"))
+            .ToListAsync(ct);
+
+        foreach (var archivo in archivosRelacionados)
+            await _archivoService.DeleteAsync(archivo.Id, ct);
     }
 
     public async Task<ErrorOr<List<HistorialComprobanteResponse>>> GetHistorialComprobantesAsync(
