@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
+import { Camera, Clock, ExternalLink, Eye, MoreHorizontal, Pencil, RefreshCw, Route, Search, Send, Ticket, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -21,7 +21,14 @@ import { solicitudesApi } from '../../services/solicitudes.api';
 import { evidenciasApi, type DatosViaje, type EvidenciasSolicitud } from '../../services/evidencias.api';
 import { CeldaCaptura } from '../../components/celdasCotizacion';
 import { estadoTexto, precioTexto } from '../../types/aprobaciones.types';
-import type { CalculoViaje, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
+import type {
+  CalculoViaje,
+  DatosOpcion,
+  OpcionCotizacion,
+  PropuestaRuta,
+  Solicitud,
+  SolicitudOpcion,
+} from '../../types/solicitud.types';
 import { textoTotalElegidas, totalDeOpcionesElegidas } from '../aprobaciones/DetalleSolicitudModal';
 import { ResumenViaje } from '../../components/ResumenViaje';
 import { ModoTransporteBadge } from '../../components/ModoTransporteBadge';
@@ -31,6 +38,7 @@ import {
   RutaMapaDialog,
 } from '../../components/RutaMapa';
 import { BoletoViajeDialog, BotonVerBoleto } from '../../components/BoletoViajeDialog';
+import { ComparadorRutas } from '../../components/ComparadorRutas';
 import type { PuntoMapa, SegmentoMapa } from '../../components/rutaMapa.types';
 import { CalculosViajeModal } from '../../components/CalculosViajeModal';
 import { contarPuntos, resumenDesdeDatos } from '../../services/resumenViaje';
@@ -582,13 +590,136 @@ function chipsDeTramo(tramo: CalculoViaje['tramos'][number]): string[] {
   ].filter((chip) => chip !== '');
 }
 
-function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
+/** Costo y enlace de compra guardados con la ruta o con cada tramo. */
+interface CostoRuta {
+  costo: number | null;
+  url_compra: string | null;
+}
+
+interface CostosCalculo {
+  nodos: CostoRuta[];
+  tramos: CostoRuta[];
+}
+
+const COSTO_VACIO: CostoRuta = { costo: null, url_compra: null };
+
+function numeroONull(valor: unknown): number | null {
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+  if (typeof valor === 'string' && valor.trim() !== '') {
+    const numero = Number(valor);
+    return Number.isFinite(numero) ? numero : null;
+  }
+  return null;
+}
+
+function textoONull(valor: unknown): string | null {
+  return typeof valor === 'string' && valor.trim() !== '' ? valor : null;
+}
+
+function leerCostoRuta(valor: unknown): CostoRuta {
+  const objeto = comoObjeto(valor);
+  if (!objeto) return { ...COSTO_VACIO };
+  return {
+    costo: numeroONull(objeto.costo),
+    url_compra: textoONull(objeto.url_compra),
+  };
+}
+
+/**
+ * `leerCalculoDesdeDatos` normaliza lo que pinta la ruta, pero no conserva el
+ * costo ni el enlace de compra de cada parada. Se leen del snapshot crudo para
+ * que el diagrama muestre el precio por tramo y "Ir a compra".
+ */
+function leerCostosCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): CostosCalculo {
+  const calculo = comoObjeto(comoObjeto(datos)?.[clave]);
+  if (!calculo) return { nodos: [], tramos: [] };
+  const ruta = comoObjeto(calculo.ruta);
+  const nodosBrutos = ruta && Array.isArray(ruta.nodos) ? ruta.nodos : [];
+  const tramosBrutos = Array.isArray(calculo.tramos) ? calculo.tramos : [];
+  return {
+    nodos: nodosBrutos.map(leerCostoRuta),
+    tramos: tramosBrutos.map(leerCostoRuta),
+  };
+}
+
+/** Opciones de la propuesta como opciones de solicitud, con id sintético negativo. */
+function opcionesDePropuesta(opciones: OpcionCotizacion[]): SolicitudOpcion[] {
+  return opciones.map((opcion, indice) => ({
+    id_opcion: -(indice + 1),
+    tipo: opcion.tipo,
+    linea: opcion.linea,
+    precio: opcion.precio,
+    moneda: opcion.moneda ?? null,
+    url_compra: opcion.url_compra ?? null,
+    fuente: opcion.fuente,
+    fue_elegida: opcion.fue_elegida,
+    ruta_captura: opcion.ruta_captura ?? null,
+    datos: opcion.datos ?? null,
+  }));
+}
+
+/**
+ * Opciones que el viajero tenía antes de autorizar. El concentrado las deja en
+ * `datos.opciones_originales`; si no existen, las vigentes SON las originales.
+ */
+function leerOpcionesOriginales(datos: unknown): SolicitudOpcion[] | null {
+  const bruto = comoObjeto(datos)?.opciones_originales;
+  if (!Array.isArray(bruto)) return null;
+  return bruto
+    .map((item) => comoObjeto(item))
+    .filter((item): item is Record<string, unknown> => item !== null)
+    .map((item, indice) => ({
+      id_opcion: numeroONull(item.id_opcion) ?? -(indice + 1),
+      tipo: textoONull(item.tipo) ?? '',
+      linea: textoONull(item.linea) ?? '',
+      precio: numeroONull(item.precio),
+      moneda: textoONull(item.moneda),
+      url_compra: textoONull(item.url_compra),
+      fuente: textoONull(item.fuente) ?? '',
+      fue_elegida: item.fue_elegida === true,
+      ruta_captura: textoONull(item.ruta_captura),
+      datos: comoObjeto(item.datos) as DatosOpcion | null,
+    }));
+}
+
+/** Precio y enlace de compra del tramo como líneas del diagrama. */
+function nodosDesdeCalculo(
+  calculo: CalculoViaje,
+  opciones: SolicitudOpcion[] = [],
+  costos?: CostosCalculo,
+): NodoRutaTimeline[] {
+  const opcionDeTramo = (numero: number | null): SolicitudOpcion | null => {
+    if (numero === null) return null;
+    return (
+      opciones.find(
+        (opcion) => opcion.fue_elegida && opcion.datos?.tramo === numero,
+      ) ?? null
+    );
+  };
+
+  // Lo guardado en la ruta manda; si falta, se completa con la opción elegida
+  // cuyo `datos.tramo` corresponde a la parada numerada ("1. Destino").
+  const costoDeTramo = (
+    numero: number | null,
+    guardado?: CostoRuta,
+    tramo?: CalculoViaje['tramos'][number],
+  ): CostoRuta => {
+    const opcion = opcionDeTramo(numero);
+    return {
+      costo: tramo?.costo ?? guardado?.costo ?? opcion?.precio ?? null,
+      url_compra: tramo?.url_compra ?? guardado?.url_compra ?? opcion?.url_compra ?? null,
+    };
+  };
+
   if (calculo.ruta?.nodos?.length) {
     return calculo.ruta.nodos.map((nodo, i) => {
       // Los cálculos viejos no guardaron chips: se toman del tramo que
       // corresponde a la parada numerada ("1. Destino" -> tramo 1).
       const numero = /^(\d+)\./.exec(nodo.titulo.trim());
-      const tramo = numero ? calculo.tramos[Number(numero[1]) - 1] : undefined;
+      const numeroTramo = numero ? Number(numero[1]) : null;
+      const tramo = numeroTramo !== null ? calculo.tramos[numeroTramo - 1] : undefined;
+      const guardado = costos?.nodos[i];
+      const base = costoDeTramo(numeroTramo, guardado, tramo);
       return {
         id: `ruta-${i}`,
         titulo: nodo.titulo,
@@ -596,22 +727,34 @@ function nodosDesdeCalculo(calculo: CalculoViaje): NodoRutaTimeline[] {
         chips: nodo.chips && nodo.chips.length > 0
           ? nodo.chips
           : tramo ? chipsDeTramo(tramo) : undefined,
+        costo: nodo.costo ?? base.costo,
+        urlCompra: nodo.url_compra ?? base.url_compra,
       };
     });
   }
   const primera = calculo.tramos[0];
   return [
     { id: 'origen', titulo: 'Origen', detalles: [primera?.de ?? '—'] },
-    ...calculo.tramos.map((tramo, i) => ({
-      id: `tramo-${i}`,
-      titulo: `${i + 1}. ${tramo.a}`,
-      detalles: [
-        [tramo.salida_fecha, tramo.salida_hora, 'a', tramo.llegada_fecha, tramo.llegada_hora]
-          .filter(Boolean)
-          .join(' '),
-      ].filter((linea) => linea.trim() !== ''),
-      chips: chipsDeTramo(tramo),
-    })),
+    ...calculo.tramos.map((tramo, i) => {
+      const costo = costoDeTramo(i + 1, costos?.tramos[i], tramo);
+      const fechas = [
+        tramo.salida_fecha,
+        tramo.salida_hora,
+        'a',
+        tramo.llegada_fecha,
+        tramo.llegada_hora,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      return {
+        id: `tramo-${i}`,
+        titulo: `${i + 1}. ${tramo.a}`,
+        detalles: fechas.trim() !== '' ? [fechas] : [],
+        chips: chipsDeTramo(tramo),
+        costo: costo.costo,
+        urlCompra: costo.url_compra,
+      };
+    }),
   ];
 }
 
@@ -672,12 +815,16 @@ function mapaDeInicial(resumen: NonNullable<ReturnType<typeof resumenDesdeDatos>
 
 /**
  * Detalle del viaje: la ruta calculada (la que manda tras el envío) y, en
- * otra pestaña, la propuesta original del wizard. La tercera pestaña queda
- * reservada para la ruta que se autorice en el concentrado.
+ * otra pestaña, la propuesta original del wizard. La tercera pestaña muestra
+ * la versión autorizada o la propuesta que el revisor está evaluando.
  */
 export function VistaDetalle({
   solicitud,
   acciones,
+  modoRevision = false,
+  pestanaInicial,
+  propuesta = null,
+  onRecalcular,
 }: {
   solicitud: Solicitud;
   /**
@@ -686,6 +833,17 @@ export function VistaDetalle({
    * consulta.
    */
   acciones?: ReactNode;
+  /**
+   * Vista de revisión (concentrado): habilita «Ruta autorizada» desde el
+   * inicio usando la ruta original como propuesta mientras no haya recálculo.
+   */
+  modoRevision?: boolean;
+  /** Pestaña activa al abrir; por defecto la ruta calculada. */
+  pestanaInicial?: 'calculada' | 'inicial' | 'autorizada';
+  /** Versión recalculada que el revisor evalúa antes de autorizar. */
+  propuesta?: PropuestaRuta | null;
+  /** Vuelve a calcular la ruta desde la revisión. */
+  onRecalcular?: () => void;
 }) {
   const resumen = resumenDesdeDatos(solicitud.datos);
   const calculo = leerCalculoDesdeDatos(solicitud.datos);
@@ -695,11 +853,56 @@ export function VistaDetalle({
     solicitud.estado === 'autorizada' || solicitud.estado === 'autorizada_con_ajustes';
   const calculoAutorizado =
     leerCalculoAutorizadoDesdeDatos(solicitud.datos) ?? (estaAutorizada ? calculo : null);
+
+  // «Ruta autorizada» muestra, por prioridad: la propuesta en revisión, la
+  // versión ya autorizada o, en una revisión sin recálculo, la ruta original.
+  const versionAutorizada: {
+    calculo: CalculoViaje;
+    opciones: SolicitudOpcion[];
+    claveDatos: 'calculo' | 'calculo_autorizado' | null;
+    esPropuesta: boolean;
+  } | null = propuesta
+    ? {
+        calculo: propuesta.calculo,
+        opciones: opcionesDePropuesta(propuesta.opciones),
+        claveDatos: null,
+        esPropuesta: true,
+      }
+    : calculoAutorizado
+      ? {
+          calculo: calculoAutorizado,
+          opciones: solicitud.opciones,
+          claveDatos: 'calculo_autorizado',
+          esPropuesta: false,
+        }
+      : modoRevision && calculo
+        ? { calculo, opciones: solicitud.opciones, claveDatos: 'calculo', esPropuesta: false }
+        : null;
+
+  const costosAutorizados = versionAutorizada?.claveDatos
+    ? leerCostosCalculo(solicitud.datos, versionAutorizada.claveDatos)
+    : undefined;
+
+  // Cotización original del viajero: el snapshot que deja el concentrado al
+  // autorizar o, mientras no exista, las opciones vigentes.
+  const snapshotOriginal = leerOpcionesOriginales(solicitud.datos);
+  const opcionesOriginales = snapshotOriginal ?? solicitud.opciones;
+  // En la revisión se muestra desde el inicio (aunque todavía no haya
+  // recálculo) para que las opciones descartadas del viajero estén a la mano.
+  const mostrarComparador =
+    versionAutorizada !== null &&
+    opcionesOriginales.length > 0 &&
+    (propuesta !== null || snapshotOriginal !== null || modoRevision);
+
   const [mapaAbierto, setMapaAbierto] = useState<'calculada' | 'inicial' | 'autorizada' | null>(null);
   const [boletoAbierto, setBoletoAbierto] = useState(false);
   const mapaCalculado = mapaDeCalculo(calculo);
-  const mapaAutorizado = mapaDeCalculo(calculoAutorizado);
+  const mapaAutorizado = mapaDeCalculo(versionAutorizada?.calculo ?? null);
   const mapaInicial = resumen ? mapaDeInicial(resumen) : { puntos: [], segmentos: [] };
+  const tabInicial =
+    pestanaInicial === undefined || (pestanaInicial === 'autorizada' && versionAutorizada === null)
+      ? 'calculada'
+      : pestanaInicial;
   const barraAcciones = acciones ? (
     <div
       data-testid="acciones-detalle"
@@ -718,7 +921,7 @@ export function VistaDetalle({
     );
   }
 
-  const propuesta = (
+  const vistaInicial = (
     <div className="space-y-4">
       <div className="flex justify-end">
         <BotonVerMapa onClick={() => setMapaAbierto('inicial')} />
@@ -735,7 +938,7 @@ export function VistaDetalle({
       <div className="space-y-4">
         {barraAcciones}
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-          <div className="space-y-4">{propuesta}</div>
+          <div className="space-y-4">{vistaInicial}</div>
           <div className="space-y-3">
             {solicitud.opciones.length > 0 ? (
               <DetalleOpciones solicitud={solicitud} />
@@ -754,7 +957,7 @@ export function VistaDetalle({
   }
 
   return (
-    <Tabs defaultValue="calculada" className="space-y-4">
+    <Tabs defaultValue={tabInicial} className="space-y-4">
       {barraAcciones}
       <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none border-b bg-transparent p-0 text-muted-foreground">
         <TabsTrigger value="calculada" className={folderTabTriggerClassName}>
@@ -763,7 +966,7 @@ export function VistaDetalle({
         <TabsTrigger value="inicial" className={folderTabTriggerClassName}>
           Viaje inicial
         </TabsTrigger>
-        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled={!calculoAutorizado}>
+        <TabsTrigger value="autorizada" className={folderTabTriggerClassName} disabled={!versionAutorizada}>
           Ruta autorizada
         </TabsTrigger>
       </TabsList>
@@ -798,7 +1001,7 @@ export function VistaDetalle({
         </div>
       </TabsContent>
       <TabsContent value="inicial" className="space-y-4">
-        {propuesta}
+        {vistaInicial}
         <div>
           <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
             Tramos del itinerario · distancia por carretera, tiempos y casetas
@@ -807,22 +1010,68 @@ export function VistaDetalle({
         </div>
       </TabsContent>
       <TabsContent value="autorizada" className="space-y-4">
-        {calculoAutorizado ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div data-testid="diagrama-ruta-autorizada" className="rounded-lg border bg-card p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="font-semibold">Ruta autorizada</h3>
-                {mapaAutorizado.puntos.length > 0 ? (
-                  <BotonVerMapa onClick={() => setMapaAbierto('autorizada')} />
-                ) : null}
+        {versionAutorizada ? (
+          <>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+              <div data-testid="diagrama-ruta-autorizada" className="rounded-lg border bg-card p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold">Ruta autorizada</h3>
+                    {versionAutorizada.esPropuesta ? (
+                      <Badge
+                        data-testid="badge-propuesta"
+                        variant="outline"
+                        className="border-primary/40 bg-primary/10 font-normal text-primary"
+                      >
+                        Propuesta en revisión
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {mapaAutorizado.puntos.length > 0 ? (
+                      <BotonVerMapa onClick={() => setMapaAbierto('autorizada')} />
+                    ) : null}
+                    {onRecalcular ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 px-2 text-xs"
+                        aria-label="Recalcular ruta"
+                        onClick={onRecalcular}
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                        Recalcular ruta
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+                <RutaViajeTimeline
+                  nodos={nodosDesdeCalculo(
+                    versionAutorizada.calculo,
+                    versionAutorizada.opciones,
+                    costosAutorizados,
+                  )}
+                />
               </div>
-              <RutaViajeTimeline nodos={nodosDesdeCalculo(calculoAutorizado)} />
+              <div className="space-y-3">
+                {versionAutorizada.opciones.length > 0 ? (
+                  <div data-testid="opciones-ruta-autorizada">
+                    <DetalleOpciones solicitud={solicitud} opcionesVista={versionAutorizada.opciones} />
+                  </div>
+                ) : null}
+                <CasetasRuta calculo={versionAutorizada.calculo} />
+              </div>
             </div>
-            <div className="space-y-3">
-              {solicitud.opciones.length > 0 ? <DetalleOpciones solicitud={solicitud} /> : null}
-              <CasetasRuta calculo={calculoAutorizado} />
-            </div>
-          </div>
+            {mostrarComparador ? (
+              <ComparadorRutas
+                opcionesOriginales={opcionesOriginales}
+                opcionesPropuestas={versionAutorizada.opciones}
+                totalOriginal={totalDeOpcionesElegidas(opcionesOriginales).suma}
+                totalPropuesto={totalDeOpcionesElegidas(versionAutorizada.opciones).suma}
+              />
+            ) : null}
+          </>
         ) : (
           <p className="text-sm text-muted-foreground">
             La ruta autorizada aparece aquí cuando el concentrado autoriza el viaje.
@@ -985,23 +1234,34 @@ function DatosViajeTexto({ datos }: { datos: DatosViaje | null }) {
   );
 }
 
-function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
-  const total = totalDeOpcionesElegidas(solicitud.opciones);
-  const elegidas = solicitud.opciones.filter((o) => o.fue_elegida);
-  const descartadas = solicitud.opciones.filter((o) => !o.fue_elegida);
+function DetalleOpciones({
+  solicitud,
+  opcionesVista,
+}: {
+  solicitud: Solicitud;
+  /**
+   * Opciones de la versión que se está mostrando. Sin esta prop se usan las de
+   * la solicitud, que es el comportamiento de Mis viajes.
+   */
+  opcionesVista?: SolicitudOpcion[];
+}) {
+  const opciones = opcionesVista ?? solicitud.opciones;
+  const total = totalDeOpcionesElegidas(opciones);
+  const elegidas = opciones.filter((o) => o.fue_elegida);
+  const descartadas = opciones.filter((o) => !o.fue_elegida);
   const [boleto, setBoleto] = useState<SolicitudOpcion | null>(null);
 
   // Capturas y datos por opción: arrancan con lo que ya trae el detalle y se
   // refrescan con GET /evidencias al abrir y con POST /buscar.
   const [capturas, setCapturas] = useState<Record<number, string | null>>(() =>
-    Object.fromEntries(solicitud.opciones.map((o) => [o.id_opcion, o.ruta_captura])),
+    Object.fromEntries(opciones.map((o) => [o.id_opcion, o.ruta_captura])),
   );
   const [datos, setDatos] = useState<Record<number, DatosViaje | null>>({});
   const [generando, setGenerando] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [progreso, setProgreso] = useState<{ hechas: number; total: number } | null>(null);
   const [avisoCapturas, setAvisoCapturas] = useState<string | null>(null);
-  const hayLinks = solicitud.opciones.some((o) => Boolean(o.url_compra));
+  const hayLinks = opciones.some((o) => Boolean(o.url_compra));
 
   const aplicarEvidencias = useCallback((resultado: EvidenciasSolicitud) => {
     setCapturas((previo) => {
@@ -1061,7 +1321,7 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
    * pinta su captura y sus datos sin esperar a las demás.
    */
   async function buscarInformacion() {
-    const pendientes = solicitud.opciones.filter((o) => Boolean(o.url_compra));
+    const pendientes = opciones.filter((o) => Boolean(o.url_compra));
     if (pendientes.length === 0) {
       toast.error('Ninguna opción tiene link de compra para que el agente la busque.');
       return;
@@ -1162,7 +1422,10 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
         <DatosViajeTexto datos={datos[opcion.id_opcion] ?? null} />
       </td>
       <td className="py-1 pr-3 align-top">
-        <CeldaCaptura ruta={capturas[opcion.id_opcion] ?? undefined} etiqueta={opcion.linea} />
+        <CeldaCaptura
+          ruta={capturas[opcion.id_opcion] ?? opcion.ruta_captura ?? undefined}
+          etiqueta={opcion.linea}
+        />
       </td>
       <td className="whitespace-nowrap py-1 text-right align-top tabular-nums">
         {precioTexto(opcion)}
@@ -1200,7 +1463,7 @@ function DetalleOpciones({ solicitud }: { solicitud: Solicitud }) {
             >
               <Search className="h-3.5 w-3.5" aria-hidden />
               {buscando
-                ? `Buscando… ${progreso?.hechas ?? 0}/${progreso?.total ?? solicitud.opciones.length}`
+                ? `Buscando… ${progreso?.hechas ?? 0}/${progreso?.total ?? opciones.length}`
                 : 'Buscar opciones'}
             </Button>
           </div>

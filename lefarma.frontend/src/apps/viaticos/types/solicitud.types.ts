@@ -11,6 +11,20 @@ export interface SolicitudOpcion {
   fuente: string;
   fue_elegida: boolean;
   ruta_captura: string | null;
+  /** Metadatos de la opción (tramo, origen/destino) guardados en `datos_json`. */
+  datos?: DatosOpcion | null;
+}
+
+/**
+ * Datos auxiliares de una opción que viajan en `solicitud_opciones.datos_json`.
+ * `tramo` permite comparar la cotización original contra una ruta recalculada
+ * sin depender del orden del arreglo.
+ */
+export interface DatosOpcion {
+  tramo?: number;
+  de?: string;
+  a?: string;
+  [clave: string]: unknown;
 }
 
 /**
@@ -91,6 +105,13 @@ export interface TramoCalculado {
   /** Si la llegada estimada cumple la hora requerida del tramo. */
   alcanza: boolean | null;
   casetas: CasetaCalculada[];
+  /** Costo de la opción elegida para el tramo (no incluye casetas por separado). */
+  costo?: number | null;
+  moneda?: string | null;
+  /** Enlace real de compra de la opción elegida, cuando el proveedor lo trae. */
+  url_compra?: string | null;
+  /** Línea/transportista de la opción elegida. */
+  linea?: string | null;
 }
 
 /**
@@ -125,9 +146,43 @@ export interface ParadaCalculada {
 /** Ruta calculada completa: paradas del mapa y nodos del diagrama. */
 export interface RutaCalculadaGuardada {
   puntos: ParadaCalculada[];
-  nodos: { titulo: string; detalles: string[]; chips?: string[] }[];
+  nodos: {
+    titulo: string;
+    detalles: string[];
+    chips?: string[];
+    /** Costo de la opción elegida que llega a esa parada. */
+    costo?: number | null;
+    /** Enlace de compra de esa opción. */
+    url_compra?: string | null;
+  }[];
   /** Trazado por tipo de tramo, para pintar el mapa igual que se revisó. */
   segmentos?: { tipo: 'taxi' | 'transporte' | 'carretera'; puntos: [number, number][] }[];
+}
+
+/**
+ * Desglose de la versión autorizada que alimenta el FOR-008. `null` significa
+ * que el concepto no aplica o no se conoce; nunca se convierte en cero.
+ */
+export interface ResumenCostosRuta {
+  autobus: number | null;
+  avion: number | null;
+  gasolina: number | null;
+  casetas: number | null;
+  hospedaje: number | null;
+  comida: number | null;
+  taxi: number | null;
+  total: number | null;
+}
+
+/**
+ * Versión calculada que el revisor puede ver y autorizar. Los recálculos viven
+ * solo en la revisión: hasta que se autoriza, la solicitud no cambia en el
+ * servidor.
+ */
+export interface PropuestaRuta {
+  calculo: CalculoViaje;
+  opciones: OpcionCotizacion[];
+  resumen: ResumenCostosRuta;
 }
 
 /** Body de POST /viaticos/solicitudes (id_usuario_solicitante lo pone el token). */
@@ -149,9 +204,12 @@ export interface OpcionCotizacion {
   linea: string;
   precio: number | null;
   moneda: string;
-  url_compra: string;
+  /** El proveedor puede no traer enlace real de compra. */
+  url_compra: string | null;
   fuente: string;
   fue_elegida: boolean;
   ruta_captura: string | null;
   capturas: string[];
+  /** Tramo al que pertenece la opción; permite comparar versiones. */
+  datos?: DatosOpcion | null;
 }

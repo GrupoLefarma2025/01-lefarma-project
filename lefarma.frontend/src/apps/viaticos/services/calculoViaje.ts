@@ -1,5 +1,18 @@
-import type { CostosRutaLugarInput, CostosRutaRequest, CostosRutaResponse, PuntoSeleccion } from '../types/costosRuta.types';
-import type { CalculoViaje, ParadaCalculada, Solicitud } from '../types/solicitud.types';
+import type {
+  CostosRutaHotel,
+  CostosRutaLugarInput,
+  CostosRutaOferta,
+  CostosRutaRequest,
+  CostosRutaResponse,
+  PuntoSeleccion,
+} from '../types/costosRuta.types';
+import type {
+  CalculoViaje,
+  OpcionCotizacion,
+  ParadaCalculada,
+  ResumenCostosRuta,
+  Solicitud,
+} from '../types/solicitud.types';
 import { hidratarSolicitud } from './solicitudDraft';
 import { casetasDeRuta } from './casetasRuta';
 
@@ -127,6 +140,10 @@ function leerCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): C
           direccion: texto(c.direccion) ?? '',
           costo: numero(c.costo),
         })),
+      costo: numero(t.costo),
+      moneda: texto(t.moneda),
+      url_compra: texto(t.url_compra),
+      linea: texto(t.linea),
     }));
 
   const rutaBruta = typeof bruto.ruta === 'object' && bruto.ruta !== null && !Array.isArray(bruto.ruta)
@@ -158,6 +175,8 @@ function leerCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): C
             chips: (Array.isArray(n.chips) ? n.chips : [])
               .map((c) => texto(c))
               .filter((c): c is string => c !== null),
+            costo: numero(n.costo),
+            url_compra: texto(n.url_compra),
           })),
         segmentos: (Array.isArray(rutaBruta.segmentos) ? rutaBruta.segmentos : [])
           .filter((s): s is Record<string, unknown> => typeof s === 'object' && s !== null)
@@ -187,27 +206,243 @@ function leerCalculo(datos: unknown, clave: 'calculo' | 'calculo_autorizado'): C
   };
 }
 
+const dosDecimales = (valor: number): number => Math.round(valor * 100) / 100;
+
+/** Único punto que decide qué oferta representa un tramo en el cálculo. */
+export function ofertaCalculada(
+  respuesta: CostosRutaResponse | undefined,
+  idSeleccionado?: string | null,
+): CostosRutaOferta | undefined {
+  const persona = respuesta?.resultados[0];
+  const opciones = persona?.tramos.flatMap((t) => t.opciones) ?? [];
+  if (opciones.length === 0) return undefined;
+  if (idSeleccionado) {
+    const elegida = opciones.find((opcion) => opcion.id === idSeleccionado);
+    if (elegida) return elegida;
+  }
+  // En carro se toma la misma oferta que usa la ruta armada (la de cuota si
+  // su costo coincide), para que km y tiempo cuadren con lo que se ve.
+  const totalRuta = persona?.rutaArmada.totales.subtotalMagna ?? null;
+  const ofertaAuto =
+    opciones.find((o) => o.modo === 'auto' && totalRuta !== null && Math.abs(o.costoGrupo - totalRuta) < 1) ??
+    opciones.find((o) => o.modo === 'auto');
+  return ofertaAuto ?? opciones[0];
+}
+
+/** Clave estable de un hotel, la misma que usa la UI para marcarlo. */
+export function claveHotel(hotel: { lugar: string; nombre?: string; checkIn: string; distanciaKm?: number }): string {
+  return `${hotel.nombre ?? hotel.lugar}|${hotel.checkIn}|${hotel.distanciaKm ?? ''}`;
+}
+
+function precioOferta(oferta: CostosRutaOferta): number | null {
+  if (typeof oferta.costoGrupo !== 'number' || !Number.isFinite(oferta.costoGrupo)) return null;
+  // Un estimado sin costo no se convierte en $0: el backend solo admite
+  // precio null cuando la fuente es estimada.
+  if (oferta.estimado && oferta.costoGrupo <= 0) return null;
+  return dosDecimales(oferta.costoGrupo);
+}
+
+function urlCompraValida(valor: string | null | undefined): string | null {
+  const texto = typeof valor === 'string' ? valor.trim() : '';
+  return texto === '' ? null : texto;
+}
+
+function fuenteConEstimado(fuente: string, estimado: boolean): string {
+  if (!estimado) return fuente;
+  return /estimad/i.test(fuente) ? fuente : `${fuente} (estimado)`;
+}
+
+/**
+ * Modo del motor -> tipo que se guarda en `solicitud_opciones.tipo`. El CHECK
+ * de la tabla solo acepta estos valores; guardar el modo crudo ('avion',
+ * 'bus', 'uber') hacía fallar el envío con un error 500.
+ */
+const TIPO_OPCION: Record<string, string> = {
+  avion: 'vuelo',
+  bus: 'autobus',
+  auto: 'auto',
+  renta: 'renta',
+  uber: 'taxi',
+  taxi: 'taxi',
+  publico: 'publico',
+  metro: 'publico',
+};
+
+interface DatosOpcionPropuesta {
+  tramo: number;
+  de: string;
+  a: string;
+  [clave: string]: unknown;
+}
+
+function opcionDesdeOferta(
+  oferta: CostosRutaOferta,
+  datos: DatosOpcionPropuesta,
+  fueElegida: boolean,
+): OpcionCotizacion {
+  const capturas = oferta.capturas ?? (oferta.rutaCaptura ? [oferta.rutaCaptura] : []);
+  const precio = precioOferta(oferta);
+  // El backend solo admite precio null cuando la fuente declara que es
+  // estimada; si el motor no trae costo, la fuente lo dice explícitamente.
+  const estimado = oferta.estimado || precio === null;
+  return {
+    tipo: TIPO_OPCION[oferta.modo] ?? oferta.modo,
+    linea: oferta.linea,
+    precio,
+    moneda: 'MXN',
+    url_compra: urlCompraValida(oferta.comprar?.url),
+    fuente: fuenteConEstimado(oferta.fuente?.trim() || 'Motor', estimado),
+    fue_elegida: fueElegida,
+    ruta_captura: capturas[0] ?? null,
+    capturas,
+    datos,
+  };
+}
+
+function opcionDesdeHotel(
+  hotel: CostosRutaHotel,
+  datos: DatosOpcionPropuesta,
+  fueElegida: boolean,
+): OpcionCotizacion {
+  const capturas = hotel.capturas ?? (hotel.rutaCaptura ? [hotel.rutaCaptura] : []);
+  const precio = hotel.precioTotal ?? hotel.precioNoche ?? null;
+  return {
+    tipo: 'hotel',
+    linea: `${hotel.nombre ?? hotel.lugar} (${hotel.checkIn} al ${hotel.checkOut})`,
+    precio: typeof precio === 'number' && Number.isFinite(precio) ? dosDecimales(precio) : null,
+    moneda: 'MXN',
+    url_compra: urlCompraValida(hotel.link),
+    fuente: fuenteConEstimado(hotel.fuente?.trim() || 'Hotel propuesto', true),
+    fue_elegida: fueElegida,
+    ruta_captura: capturas[0] ?? null,
+    capturas,
+    datos,
+  };
+}
+
+/** Tope de opciones que se guardan por tramo para no inflar el payload. */
+export const MAX_OPCIONES_POR_TRAMO = 20;
+
+/**
+ * Todas las opciones que el motor ofreció, no solo las elegidas. La marca
+ * `fue_elegida` sigue la selección del wizard y los hoteles propuestos solo
+ * entran cuando la persona marcó dormir en ese tramo.
+ */
+export function construirOpcionesPropuesta(
+  tramos: TramoViaje[],
+  resultados: Record<number, CostosRutaResponse>,
+  seleccion: Record<number, string> = {},
+  hotelResultados: Record<number, CostosRutaResponse> = {},
+  usarHotel: Record<number, boolean> = {},
+  hotelElegido: Record<number, string> = {},
+): OpcionCotizacion[] {
+  const opciones: OpcionCotizacion[] = [];
+
+  tramos.forEach((tramo, indice) => {
+    const datos: DatosOpcionPropuesta = { tramo: indice, de: tramo.desde.nombre, a: tramo.hasta.nombre };
+    const idElegido = seleccion[indice] ?? null;
+    const persona = resultados[indice]?.resultados[0];
+    const ofertas = persona?.tramos.flatMap((t) => t.opciones) ?? [];
+    const vistas = new Set<string>();
+    const candidatas: OpcionCotizacion[] = [];
+
+    for (const oferta of ofertas) {
+      if (vistas.has(oferta.id)) continue;
+      vistas.add(oferta.id);
+      candidatas.push(opcionDesdeOferta(oferta, datos, idElegido !== null && oferta.id === idElegido));
+    }
+
+    if (usarHotel[indice] === true) {
+      const clave = hotelElegido[indice] ?? null;
+      const hoteles = hotelResultados[indice]?.resultados[0]?.hotelesPropuestos ?? [];
+      for (const hotel of hoteles) {
+        candidatas.push(opcionDesdeHotel(hotel, datos, clave !== null && claveHotel(hotel) === clave));
+      }
+    }
+
+    // El tope no debe perder la decisión ni el hospedaje: se reservan primero
+    // esos lugares y el recorte conserva el orden en que el motor ofreció.
+    if (candidatas.length > MAX_OPCIONES_POR_TRAMO) {
+      const mantener = new Set<number>();
+      candidatas.forEach((opcion, posicion) => {
+        if (opcion.fue_elegida && mantener.size < MAX_OPCIONES_POR_TRAMO) mantener.add(posicion);
+      });
+      candidatas.forEach((opcion, posicion) => {
+        if (opcion.tipo === 'hotel' && !mantener.has(posicion) && mantener.size < MAX_OPCIONES_POR_TRAMO) {
+          mantener.add(posicion);
+        }
+      });
+      for (let posicion = 0; posicion < candidatas.length && mantener.size < MAX_OPCIONES_POR_TRAMO; posicion += 1) {
+        if (!mantener.has(posicion)) mantener.add(posicion);
+      }
+      opciones.push(...candidatas.filter((_opcion, posicion) => mantener.has(posicion)));
+    } else {
+      opciones.push(...candidatas);
+    }
+  });
+
+  return opciones;
+}
+
+/**
+ * Resumen de costos de la versión calculada. Un concepto sin opciones elegidas
+ * se queda en `null` (no aplica / no se conoce), nunca en cero inventado.
+ */
+export function resumenCostosRuta(
+  calculo: CalculoViaje,
+  opciones: OpcionCotizacion[],
+  modoTransporte: 'propio' | 'solicitado',
+): ResumenCostosRuta {
+  const sumarElegidas = (filtro: (opcion: OpcionCotizacion) => boolean): number | null => {
+    const precios = opciones
+      .filter((opcion) => opcion.fue_elegida && filtro(opcion))
+      .map((opcion) => opcion.precio)
+      .filter((precio): precio is number => typeof precio === 'number' && Number.isFinite(precio));
+    if (precios.length === 0) return null;
+    return dosDecimales(precios.reduce((suma, precio) => suma + precio, 0));
+  };
+
+  const casetas = modoTransporte === 'propio'
+    ? (() => {
+        const costos = calculo.tramos
+          .flatMap((tramo) => tramo.casetas)
+          .map((caseta) => caseta.costo)
+          .filter((costo): costo is number => typeof costo === 'number' && Number.isFinite(costo));
+        return costos.length > 0 ? dosDecimales(costos.reduce((suma, costo) => suma + costo, 0)) : null;
+      })()
+    : null;
+
+  const autobus = sumarElegidas((opcion) => opcion.tipo === 'autobus');
+  const avion = sumarElegidas((opcion) => opcion.tipo === 'vuelo');
+  const gasolina = sumarElegidas((opcion) => opcion.tipo === 'auto' || opcion.tipo === 'renta');
+  const hospedaje = sumarElegidas((opcion) => opcion.tipo === 'hotel');
+  const taxi = sumarElegidas((opcion) => opcion.tipo === 'taxi');
+  const conceptos = [autobus, avion, gasolina, casetas, hospedaje, taxi];
+  const total = conceptos.some((valor) => valor !== null)
+    ? dosDecimales(conceptos.reduce<number>((suma, valor) => suma + (valor ?? 0), 0))
+    : null;
+
+  return { autobus, avion, gasolina, casetas, hospedaje, comida: null, taxi, total };
+}
+
 /**
  * Resumen de la ruta calculada por tramo: kilómetros, tiempos (con y sin
  * margen), hora de salida/llegada y las casetas de referencia. Es la ruta que
  * manda después del envío (se guarda en `datos.calculo`).
+ *
+ * `seleccion` fija la oferta de cada tramo por índice; sin ella se conserva la
+ * recomendación del motor (la misma oferta que dibuja la ruta armada).
  */
 export function construirCalculo(
   tramos: TramoViaje[],
   resultados: Record<number, CostosRutaResponse>,
   modoTransporte: 'propio' | 'solicitado',
+  seleccion?: Record<number, string>,
 ): CalculoViaje {
   const calculados = tramos.map((tramo, indice) => {
     const respuesta = resultados[indice];
     const persona = respuesta?.resultados[0];
-    const opciones = persona?.tramos.flatMap((t) => t.opciones) ?? [];
-    // En carro se toma la misma oferta que usa la ruta armada (la de cuota si
-    // su costo coincide), para que km y tiempo cuadren con lo que se ve.
-    const totalRuta = persona?.rutaArmada.totales.subtotalMagna ?? null;
-    const ofertaAuto =
-      opciones.find((o) => o.modo === 'auto' && totalRuta !== null && Math.abs(o.costoGrupo - totalRuta) < 1) ??
-      opciones.find((o) => o.modo === 'auto');
-    const oferta = ofertaAuto ?? opciones[0];
+    const oferta = ofertaCalculada(respuesta, seleccion?.[indice] ?? null);
     const km = persona?.rutaArmada.totales.km ?? persona?.tramos[0]?.km ?? null;
     const duracion = oferta?.duracion ?? null;
     const minutos = duracion ? minutosConMargen(duracion) : null;
@@ -222,7 +457,9 @@ export function construirCalculo(
       ? salidaAproximada(tramo.hasta.fecha, tramo.hasta.hora, duracion)
       : null;
 
-    const esCarro = modoTransporte === 'propio' && ofertaAuto !== undefined;
+    // Solo se tratan las horas como recorrido en carro cuando la oferta
+    // elegida es efectivamente auto; elegir un camión debe respetar sus horas.
+    const esCarro = modoTransporte === 'propio' && oferta?.modo === 'auto';
     const salida = esCarro
       ? (salidaDesde ?? (limiteSalida ? { fecha: limiteSalida.fecha, hora: limiteSalida.hora } : null))
       : separarIso(oferta?.salida);
@@ -258,6 +495,10 @@ export function construirCalculo(
       llegada_hora: llegada?.hora ?? null,
       alcanza,
       casetas: casetasMotor.length > 0 ? casetasMotor : casetasDeRuta(tramo.desde.nombre, tramo.hasta.nombre),
+      costo: oferta ? precioOferta(oferta) : null,
+      moneda: 'MXN',
+      url_compra: oferta ? urlCompraValida(oferta.comprar?.url) : null,
+      linea: oferta?.linea ?? null,
     };
   });
 
