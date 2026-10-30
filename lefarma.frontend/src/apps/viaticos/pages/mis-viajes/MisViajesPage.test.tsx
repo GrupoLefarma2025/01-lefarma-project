@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MisViajesPage } from './MisViajesPage';
-import type { Solicitud } from '../../types/solicitud.types';
+import { MisViajesPage, VistaDetalle } from './MisViajesPage';
+import type { CalculoViaje, PropuestaRuta, Solicitud, SolicitudOpcion } from '../../types/solicitud.types';
 
 const mocks = vi.hoisted(() => ({ mis: vi.fn(), detalle: vi.fn(), eliminar: vi.fn(), navigate: vi.fn() }));
 vi.mock('../../services/solicitudes.api', () => ({
@@ -14,6 +14,14 @@ vi.mock('../../services/solicitudes.api', () => ({
     actualizar: vi.fn(),
     enviar: vi.fn(),
     guardarOpciones: vi.fn(),
+  },
+}));
+vi.mock('../../services/evidencias.api', () => ({
+  evidenciasApi: {
+    // Promesa pendiente: el detalle no depende de las evidencias en estas pruebas.
+    obtener: vi.fn(() => new Promise(() => {})),
+    generar: vi.fn(),
+    buscar: vi.fn(),
   },
 }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => mocks.navigate }));
@@ -285,5 +293,282 @@ describe('MisViajesPage', () => {
     await usuario.click(tabAutorizada);
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toBeInTheDocument();
     expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Ruta autorizada por el concentrado');
+  });
+});
+
+// -------- detalle en revisión (propuesta y comparador) --------
+
+const tramoCalculado = (de: string, a: string) => ({
+  de,
+  a,
+  km: 100,
+  duracion: '2h',
+  duracion_con_margen: '2h 12m',
+  salida_fecha: '2026-11-10',
+  salida_hora: '07:00',
+  llegada_fecha: '2026-11-10',
+  llegada_hora: '09:00',
+  alcanza: true,
+  casetas: [],
+});
+
+const calculoDe = (de: string, a: string): CalculoViaje => ({
+  generado_en: '2026-11-05T12:00:00.000Z',
+  margen: 0.1,
+  modo_transporte: 'solicitado',
+  km_total: 200,
+  horas_total: '4h 24m',
+  tramos: [tramoCalculado(de, a)],
+});
+
+const datosRevision = (extra: Record<string, unknown>) => ({
+  version: 'solicitud-v2',
+  persona: { modo: 'mia', nombre: 'Persona Actual', motivo: 'Ejemplo' },
+  transporte: { modo: 'solicitado', compartir: false, acompanantes: [] },
+  origen: { punto: { nombre: 'Ciudad de México', latitud: 19.43, longitud: -99.15 } },
+  destinos: [
+    {
+      punto: { nombre: 'Aguascalientes', latitud: 21.88, longitud: -102.29 },
+      debeEstarFecha: '2026-11-10',
+      debeEstarHora: '13:11',
+    },
+  ],
+  retorno: { destino: 'origen', punto: null },
+  rango: { inicio: '2026-11-10', fin: '2026-11-10' },
+  ...extra,
+});
+
+const opcionBase = (extra: Partial<SolicitudOpcion>): SolicitudOpcion => ({
+  id_opcion: 1,
+  tipo: 'avion',
+  linea: 'Vuelo',
+  precio: 1000,
+  moneda: 'MXN',
+  url_compra: null,
+  fuente: 'proveedor',
+  fue_elegida: true,
+  ruta_captura: null,
+  datos: { tramo: 1 },
+  ...extra,
+});
+
+/** Propuesta del revisor: dos tramos, costos en nodos y opciones elegidas. */
+const propuestaDeRuta = (): PropuestaRuta => ({
+  calculo: {
+    generado_en: '2026-11-06T09:00:00.000Z',
+    margen: 0.1,
+    modo_transporte: 'solicitado',
+    km_total: 200,
+    horas_total: '4h 24m',
+    tramos: [
+      tramoCalculado('Ruta propuesta', 'Destino propuesto'),
+      tramoCalculado('Destino propuesto', 'Regreso propuesto'),
+    ],
+    ruta: {
+      puntos: [],
+      nodos: [
+        { titulo: 'Origen', detalles: ['Salida'] },
+        { titulo: '1. Destino propuesto', detalles: ['Llegada'], costo: 1600 },
+        { titulo: '2. Regreso propuesto', detalles: ['Vuelta'] },
+      ],
+    },
+  },
+  opciones: [
+    {
+      tipo: 'vuelo',
+      linea: 'Vuelo Propuesto',
+      precio: 1500,
+      moneda: 'MXN',
+      url_compra: 'https://propuesto',
+      fuente: 'proveedor',
+      fue_elegida: true,
+      ruta_captura: null,
+      capturas: [],
+      datos: { tramo: 1 },
+    },
+    {
+      tipo: 'hotel',
+      linea: 'Hotel Propuesto',
+      precio: 800,
+      moneda: 'MXN',
+      url_compra: null,
+      fuente: 'proveedor',
+      fue_elegida: true,
+      ruta_captura: null,
+      capturas: [],
+      datos: { tramo: 2 },
+    },
+    {
+      tipo: 'autobus',
+      linea: 'Alternativa propuesta',
+      precio: 500,
+      moneda: 'MXN',
+      url_compra: null,
+      fuente: 'proveedor',
+      fue_elegida: false,
+      ruta_captura: null,
+      capturas: [],
+      datos: { tramo: 1 },
+    },
+  ],
+  resumen: {
+    autobus: null,
+    avion: 1500,
+    gasolina: null,
+    casetas: null,
+    hospedaje: 800,
+    comida: null,
+    taxi: null,
+    total: 2300,
+  },
+});
+
+describe('VistaDetalle en revisión', () => {
+  it('arranca en la ruta autorizada con la ruta original y permite recalcular', async () => {
+    const usuario = userEvent.setup();
+    const onRecalcular = vi.fn();
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original del viajero', 'Destino original'),
+    });
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, { datos, estado: 'enviada' })}
+        modoRevision
+        pestanaInicial="autorizada"
+        onRecalcular={onRecalcular}
+      />,
+    );
+
+    const tab = screen.getByRole('tab', { name: 'Ruta autorizada' });
+    expect(tab).not.toBeDisabled();
+    expect(tab).toHaveAttribute('aria-selected', 'true');
+    const diagrama = screen.getByTestId('diagrama-ruta-autorizada');
+    expect(diagrama).toHaveTextContent('Destino original');
+    // Sin recálculo no hay propuesta: es la ruta original del viajero.
+    expect(screen.queryByTestId('badge-propuesta')).not.toBeInTheDocument();
+
+    await usuario.click(screen.getByRole('button', { name: 'Recalcular ruta' }));
+    expect(onRecalcular).toHaveBeenCalledTimes(1);
+  });
+
+  it('muestra la propuesta sin autorizar con su badge, nodos con costo y enlace', () => {
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original del viajero', 'Destino original'),
+    });
+    const originales = [
+      opcionBase({ id_opcion: 11, linea: 'Vuelo Original', precio: 1000, datos: { tramo: 1 } }),
+      opcionBase({
+        id_opcion: 12,
+        linea: 'Vuelo Descartado',
+        precio: 900,
+        fue_elegida: false,
+        datos: { tramo: 1 },
+      }),
+    ];
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, { datos, estado: 'enviada', opciones: originales })}
+        modoRevision
+        pestanaInicial="autorizada"
+        propuesta={propuestaDeRuta()}
+      />,
+    );
+
+    expect(screen.getByTestId('badge-propuesta')).toHaveTextContent('Propuesta en revisión');
+    const diagrama = screen.getByTestId('diagrama-ruta-autorizada');
+    expect(diagrama).toHaveTextContent('Destino propuesto');
+    expect(diagrama).not.toHaveTextContent('Destino original');
+    // Costo guardado en el nodo y, cuando falta, el de la opción elegida del tramo.
+    expect(within(diagrama).getByText(/1,600\.00/)).toBeInTheDocument();
+    expect(within(diagrama).getByText(/800\.00/)).toBeInTheDocument();
+    expect(within(diagrama).getByRole('link', { name: /Ir a compra/ })).toHaveAttribute(
+      'href',
+      'https://propuesto',
+    );
+    // La lista de opciones usa la versión mostrada, no las opciones guardadas.
+    const opciones = screen.getByTestId('opciones-ruta-autorizada');
+    expect(within(opciones).getByText('Vuelo Propuesto')).toBeInTheDocument();
+    expect(within(opciones).queryByText('Vuelo Original')).not.toBeInTheDocument();
+  });
+
+  it('compara la cotización original contra la propuesta y abre las opciones descartadas', async () => {
+    const usuario = userEvent.setup();
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original del viajero', 'Destino original'),
+    });
+    const originales = [
+      opcionBase({ id_opcion: 11, linea: 'Vuelo Original', precio: 1000, datos: { tramo: 1 } }),
+      opcionBase({
+        id_opcion: 12,
+        linea: 'Vuelo Descartado',
+        precio: 900,
+        fue_elegida: false,
+        datos: { tramo: 1 },
+      }),
+    ];
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, { datos, estado: 'enviada', opciones: originales })}
+        modoRevision
+        pestanaInicial="autorizada"
+        propuesta={propuestaDeRuta()}
+      />,
+    );
+
+    const comparador = screen.getByTestId('comparador-rutas');
+    expect(within(comparador).getByText('Subió')).toBeInTheDocument();
+    expect(within(comparador).getByText('Nueva')).toBeInTheDocument();
+    expect(screen.getByTestId('comparador-total-original')).toHaveTextContent('$1,000.00');
+    expect(screen.getByTestId('comparador-total-propuesto')).toHaveTextContent('$2,300.00');
+    expect(screen.getByTestId('comparador-total-diferencia')).toHaveTextContent('+$1,300.00');
+
+    const boton = within(comparador).getByRole('button', {
+      name: /Ver opciones descartadas del viajero/,
+    });
+    expect(boton).toBeEnabled();
+    await usuario.click(boton);
+    const dialogo = await screen.findByRole('dialog');
+    expect(within(dialogo).getByText('Vuelo Descartado')).toBeInTheDocument();
+  });
+
+  it('después de autorizar compara el snapshot original contra las opciones vigentes', () => {
+    const datos = datosRevision({
+      calculo: calculoDe('Ruta original', 'Destino original'),
+      calculo_autorizado: calculoDe('Ruta autorizada', 'Destino autorizado'),
+      opciones_originales: [
+        {
+          id_opcion: 11,
+          tipo: 'avion',
+          linea: 'Vuelo Original',
+          precio: 1000,
+          moneda: 'MXN',
+          url_compra: null,
+          fuente: 'proveedor',
+          fue_elegida: true,
+          ruta_captura: null,
+          datos: { tramo: 1 },
+        },
+      ],
+    });
+
+    render(
+      <VistaDetalle
+        solicitud={solicitud(1, {
+          datos,
+          estado: 'autorizada',
+          opciones: [opcionBase({ id_opcion: 11, linea: 'Vuelo Original', precio: 1200 })],
+        })}
+        pestanaInicial="autorizada"
+      />,
+    );
+
+    expect(screen.getByTestId('diagrama-ruta-autorizada')).toHaveTextContent('Destino autorizado');
+    expect(screen.getByTestId('comparador-rutas')).toBeInTheDocument();
+    expect(screen.getByTestId('comparador-total-original')).toHaveTextContent('$1,000.00');
+    expect(screen.getByTestId('comparador-total-propuesto')).toHaveTextContent('$1,200.00');
+    expect(screen.getByTestId('comparador-total-diferencia')).toHaveTextContent('+$200.00');
   });
 });

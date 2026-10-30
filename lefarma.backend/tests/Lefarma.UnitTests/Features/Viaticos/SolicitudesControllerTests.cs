@@ -295,7 +295,7 @@ public class SolicitudesControllerTests
     // ---------------- PUT /api/viaticos/solicitudes/{id}/opciones ----------------
 
     [Fact]
-    public async Task PutOpciones_OpcionSinUrlCompra_Retorna400NominandoElCampo()
+    public async Task PutOpciones_OpcionSinUrlCompra_SeGuardaConUrlNull()
     {
         using var ctx = new TestContext();
         const int duenoId = 800;
@@ -317,15 +317,18 @@ public class SolicitudesControllerTests
                         linea = "MTY -> BJX 2026-11-12",
                         fuente = "GoogleFlights",
                         precio = 1500m,
-                        // url_compra omitido -> debe fallar
+                        // url_compra omitido: el proveedor no trae enlace real
+                        // y la opcion se guarda con url_compra = null.
                     }
                 }
             }
         });
 
-        resp.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        var body = await resp.Content.ReadAsStringAsync();
-        body.Should().Contain("url_compra");
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await resp.Content.ReadFromJsonAsync<ApiEnvelope<SolicitudDtoJson>>();
+        envelope!.Data!.Opciones.Should().ContainSingle();
+        envelope.Data.Opciones[0].UrlCompra.Should().BeNull();
+        envelope.Data.Opciones[0].Precio.Should().Be(1500m);
     }
 
     [Fact]
