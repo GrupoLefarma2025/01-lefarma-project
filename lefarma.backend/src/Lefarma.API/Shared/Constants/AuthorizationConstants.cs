@@ -87,6 +87,7 @@ public static class Permissions
         public const string RutasGestionar = "educacion_medica.rutas.puede_gestionar";
         public const string RutasAjustar = "educacion_medica.rutas.puede_ajustar";
         public const string ConfiguracionGestionar = "educacion_medica.configuracion.puede_gestionar";
+        public const string CalendarioVerTodos = "educacion_medica.calendario.puede_ver_todos";
         public const string TalleresVer = "educacion_medica.talleres.puede_ver";
         public const string TalleresCapturar = "educacion_medica.talleres.puede_capturar";
         public const string TalleresRevisar = "educacion_medica.talleres.puede_revisar";

@@ -1,19 +1,28 @@
-import { useMemo, useState } from 'react';
-import { AlertTriangle, Copy, Hospital, Plane } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Copy, Hospital, Plane, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
+import { solicitudesApi } from '@/apps/viaticos/services/solicitudes.api';
+import type { SolicitudOrigenEmResumen } from '@/apps/viaticos/types/solicitud.types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Modal } from '@/components/ui/modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { fechaLarga } from '../rutasUtils';
 import { tieneCoordenadas } from '../viaticosHandoff';
-import type { Asignacion } from '../../../types/educacionMedica.types';
+import type { RutaParaCotizar, VisitaCotizable } from '../viaticosHandoff';
 
 interface CotizarRutaModalProps {
-  ruta: { nombre: string; visitas: Asignacion[] };
-  visitasCotizadas?: Map<number, VisitaCotizada>;
+  rutas: RutaParaCotizar[];
+  rutaInicialId?: number | null;
   onAbrirCotizacion?: (idSolicitud: number, estado: string) => void;
-  onConfirm: (visitas: Asignacion[]) => Promise<void>;
+  onConfirm: (ruta: RutaParaCotizar, visitas: VisitaCotizable[]) => Promise<void>;
   onClose: () => void;
 }
 
@@ -40,22 +49,67 @@ const estadoCotizacion = (estado: string) => ESTADO_COTIZACION[estado] ?? estado
  * los hospitales sin coordenadas y los que ya están en una cotización activa.
  */
 export function CotizarRutaModal({
-  ruta,
-  visitasCotizadas,
+  rutas,
+  rutaInicialId,
   onAbrirCotizacion,
   onConfirm,
   onClose,
 }: CotizarRutaModalProps) {
+  const [idRutaSeleccionada, setIdRutaSeleccionada] = useState<number | null>(
+    () => rutaInicialId ?? rutas.find((item) => item.viajero)?.idRuta ?? rutas[0]?.idRuta ?? null
+  );
+  const ruta = rutas.find((item) => item.idRuta === idRutaSeleccionada) ??
+    rutas[0] ?? {
+      idRuta: 0,
+      nombre: 'Sin ruta',
+      visitas: [],
+    };
+
+  const [cotizaciones, setCotizaciones] = useState<SolicitudOrigenEmResumen[]>([]);
+  useEffect(() => {
+    if (!ruta.idRuta) return;
+    let cancelado = false;
+
+    void solicitudesApi
+      .porRuta(ruta.idRuta)
+      .then((response) => {
+        if (cancelado || !response.data.success) return;
+        setCotizaciones(response.data.data ?? []);
+      })
+      .catch(() => {
+        if (!cancelado) setCotizaciones([]);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [ruta.idRuta]);
+
+  const visitasCotizadas = useMemo(() => {
+    const mapa = new Map<number, VisitaCotizada>();
+    for (const cotizacion of cotizaciones) {
+      for (const idRutaVisita of cotizacion.id_ruta_visitas) {
+        if (!mapa.has(idRutaVisita)) {
+          mapa.set(idRutaVisita, {
+            idSolicitud: cotizacion.id_solicitud,
+            folio: cotizacion.folio,
+            estado: cotizacion.estado,
+          });
+        }
+      }
+    }
+    return mapa;
+  }, [cotizaciones]);
+
   const seleccionables = useMemo(
     () =>
       ruta.visitas.filter(
-        (visita) =>
-          tieneCoordenadas(visita) && !visitasCotizadas?.has(visita.idRutaVisita)
+        (visita) => tieneCoordenadas(visita) && !visitasCotizadas.has(visita.idRutaVisita)
       ),
     [ruta.visitas, visitasCotizadas]
   );
   const bloqueadas = useMemo(
-    () => ruta.visitas.filter((visita) => visitasCotizadas?.has(visita.idRutaVisita)),
+    () => ruta.visitas.filter((visita) => visitasCotizadas.has(visita.idRutaVisita)),
     [ruta.visitas, visitasCotizadas]
   );
   const sinCoordenadas = useMemo(
@@ -63,7 +117,7 @@ export function CotizarRutaModal({
     [ruta.visitas]
   );
   const grupos = useMemo(() => {
-    const mapa = new Map<string, Asignacion[]>();
+    const mapa = new Map<string, VisitaCotizable[]>();
     for (const visita of ruta.visitas) {
       const lista = mapa.get(visita.fechaVisita) ?? [];
       lista.push(visita);
@@ -77,13 +131,22 @@ export function CotizarRutaModal({
       }));
   }, [ruta.visitas]);
 
-  const [seleccionadas, setSeleccionadas] = useState<Set<number>>(
-    () => new Set(seleccionables.map((visita) => visita.idRutaVisita))
-  );
+  const [seleccionadas, setSeleccionadas] = useState<Set<number>>(() => new Set());
   const [enviando, setEnviando] = useState(false);
 
-  const todas = seleccionables.length > 0 && seleccionadas.size === seleccionables.length;
-  const algunas = seleccionadas.size > 0 && !todas;
+  /* eslint-disable react-hooks/set-state-in-effect -- reinicia la selección al cambiar de ruta */
+  useEffect(() => {
+    setSeleccionadas(new Set(seleccionables.map((visita) => visita.idRutaVisita)));
+  }, [ruta.idRuta]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  const todas =
+    seleccionables.length > 0 &&
+    seleccionables.every((visita) => seleccionadas.has(visita.idRutaVisita));
+  const algunas = seleccionables.some((visita) => seleccionadas.has(visita.idRutaVisita)) && !todas;
+  const cantidadSeleccionada = seleccionables.filter((visita) =>
+    seleccionadas.has(visita.idRutaVisita)
+  ).length;
 
   const alternar = (id: number) => {
     setSeleccionadas((previas) => {
@@ -100,12 +163,9 @@ export function CotizarRutaModal({
     );
   };
 
-  const alternarDia = (visitasDia: Asignacion[]) => {
+  const alternarDia = (visitasDia: VisitaCotizable[]) => {
     const ids = visitasDia
-      .filter(
-        (visita) =>
-          tieneCoordenadas(visita) && !visitasCotizadas?.has(visita.idRutaVisita)
-      )
+      .filter((visita) => tieneCoordenadas(visita) && !visitasCotizadas?.has(visita.idRutaVisita))
       .map((visita) => visita.idRutaVisita);
     if (ids.length === 0) return;
 
@@ -127,11 +187,11 @@ export function CotizarRutaModal({
         tieneCoordenadas(visita) &&
         !visitasCotizadas?.has(visita.idRutaVisita)
     );
-    if (elegidas.length === 0 || enviando) return;
+    if (elegidas.length === 0 || enviando || !ruta.viajero) return;
 
     setEnviando(true);
     try {
-      await onConfirm(elegidas);
+      await onConfirm(ruta, elegidas);
     } finally {
       setEnviando(false);
     }
@@ -157,7 +217,7 @@ export function CotizarRutaModal({
       setOpen={(abierto) => {
         if (!abierto) onClose();
       }}
-      title={`Cotizar viáticos — ${ruta.nombre}`}
+      title="Cotizar viáticos"
       size="lg"
       canClose={!enviando}
       beforeClose={() => !enviando}
@@ -166,20 +226,69 @@ export function CotizarRutaModal({
           <Button variant="ghost" onClick={onClose} disabled={enviando}>
             Cancelar
           </Button>
-          <Button onClick={() => void confirmar()} disabled={seleccionadas.size === 0 || enviando}>
+          <Button
+            onClick={() => void confirmar()}
+            disabled={cantidadSeleccionada === 0 || enviando || !ruta.viajero}
+          >
             <Plane className="mr-1.5 h-4 w-4" />
             {enviando
-              ? 'Creando borrador…'
-              : `Cotizar ${seleccionadas.size} destino${seleccionadas.size === 1 ? '' : 's'}`}
+              ? 'Creando borrador.'
+              : !ruta.idRuta
+                ? 'Sin rutas disponibles'
+                : !ruta.viajero
+                  ? 'Ruta sin especialista'
+                  : `Cotizar ${cantidadSeleccionada} destino${cantidadSeleccionada === 1 ? '' : 's'}`}
           </Button>
         </div>
       }
     >
       <div className="space-y-3">
+        <div className="space-y-1">
+          <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            Ruta del especialista
+          </p>
+          {rutas.length === 0 ? (
+            <p className="rounded-md border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              No hay rutas disponibles en esta versión. Genera o revisa la planeación primero.
+            </p>
+          ) : (
+            <Select
+              value={ruta.idRuta ? String(ruta.idRuta) : undefined}
+              onValueChange={(valor) => setIdRutaSeleccionada(Number(valor))}
+            >
+              <SelectTrigger className="h-9 w-full text-xs">
+                <SelectValue placeholder="Selecciona una ruta" />
+              </SelectTrigger>
+              <SelectContent>
+                {rutas.map((opcion) => (
+                  <SelectItem key={opcion.idRuta} value={String(opcion.idRuta)}>
+                    {opcion.viajero?.nombre ?? 'Sin especialista'} · {opcion.visitas.length} visitas
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+
         <p className="text-xs text-muted-foreground">
-          Elige todos o algunos destinos disponibles. Los hospitales sin coordenadas no se
-          envían a cotización y los que ya tienen folio no se pueden volver a cotizar.
+          Elige todos o algunos destinos disponibles. Los hospitales sin coordenadas no se envían a
+          cotización y los que ya tienen folio no se pueden volver a cotizar.
         </p>
+
+        {ruta.viajero ? (
+          <div className="flex items-center gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-800 dark:border-sky-900 dark:bg-sky-950/30 dark:text-sky-200">
+            <UserRound className="h-4 w-4 shrink-0" />
+            <span>
+              Viajero: <strong>{ruta.viajero.nombre}</strong>{' '}
+              <span className="opacity-70">({ruta.viajero.rol})</span>
+            </span>
+          </div>
+        ) : ruta.idRuta ? (
+          <div className="flex items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            La ruta no tiene especialista asignado. Corrige la ruta antes de cotizar.
+          </div>
+        ) : null}
 
         {bloqueadas.length > 0 && (
           <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
@@ -190,8 +299,8 @@ export function CotizarRutaModal({
                   {bloqueadas.length} visita(s) ya en una cotización activa
                 </p>
                 <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                  Las filas con folio están bloqueadas. Abre la cotización existente para
-                  revisarla o eliminarla.
+                  Las filas con folio están bloqueadas. Abre la cotización existente para revisarla
+                  o eliminarla.
                 </p>
               </div>
             </div>
@@ -206,7 +315,7 @@ export function CotizarRutaModal({
           />
           Seleccionar todos
           <span className="ml-auto text-xs font-normal text-muted-foreground">
-            {seleccionadas.size}/{seleccionables.length} disponibles
+            {cantidadSeleccionada}/{seleccionables.length} disponibles
             {bloqueadas.length > 0 ? ` - ${bloqueadas.length} cotizada(s)` : ''}
           </span>
         </label>
@@ -242,8 +351,7 @@ export function CotizarRutaModal({
         <ul className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
           {grupos.map((grupo) => {
             const seleccionablesDia = grupo.visitas.filter(
-              (visita) =>
-                tieneCoordenadas(visita) && !visitasCotizadas?.has(visita.idRutaVisita)
+              (visita) => tieneCoordenadas(visita) && !visitasCotizadas?.has(visita.idRutaVisita)
             );
             const seleccionadasDia = seleccionablesDia.filter((visita) =>
               seleccionadas.has(visita.idRutaVisita)
@@ -254,7 +362,8 @@ export function CotizarRutaModal({
             const todasDelDia =
               seleccionablesDia.length > 0 && seleccionadasDia === seleccionablesDia.length;
             const algunasDelDia = seleccionadasDia > 0 && !todasDelDia;
-            const sinCoordenadasDia = grupo.visitas.length - seleccionablesDia.length - bloqueadasDia;
+            const sinCoordenadasDia =
+              grupo.visitas.length - seleccionablesDia.length - bloqueadasDia;
 
             return (
               <li key={grupo.fecha} className="space-y-1.5">

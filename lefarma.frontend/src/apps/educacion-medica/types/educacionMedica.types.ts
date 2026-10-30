@@ -101,6 +101,13 @@ export interface Producto {
   marcaImss: string | null;
 }
 
+export interface TipoVisitaOpcion {
+  idTipoVisita: number;
+  clave: string;
+  descripcion: string;
+  esTaller: boolean;
+}
+
 export interface TipoGerencia {
   idTipoGerencia: number;
   descripcion: string;
@@ -478,6 +485,7 @@ export interface AsignarEjecutivoVisitaRequest {
 
 export interface CalendarioFiltro {
   idSeleccion?: number | null;
+  version?: number | null;
   desde?: string | null;
   hasta?: string | null;
   idGerencia?: number | null;
@@ -514,6 +522,7 @@ export interface CalendarioItem {
   estadoRuta: string;
   institucion: string | null;
   ciudadMunicipio: string | null;
+  entidadFederativa: string | null;
   fecha: string;
   orden: number;
   hora: string | null;
@@ -521,6 +530,7 @@ export interface CalendarioItem {
   nombreEjecutivo: string | null;
   idEspecialista: number | null;
   nombreEspecialista: string | null;
+  idTipoVisita: number | null;
   tipoVisita: string;
   tema: string | null;
   producto: string | null;
@@ -532,6 +542,52 @@ export interface CalendarioItem {
   bloqueado: boolean;
   solicitudCambioPendiente: boolean;
   conflictos: string[];
+}
+
+export interface ActividadVisitaTaller {
+  idTaller: number;
+  tema: string | null;
+  producto: string | null;
+  fechaTaller: string | null;
+  horaTaller: string | null;
+  estado: string;
+  fechaCreacion: string;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  esIntegranteEquipo: boolean;
+  candadoPuesto: boolean;
+  idSolicitudPendiente: number | null;
+}
+
+export interface ActividadVisitaEvento {
+  tipo: string;
+  fecha: string;
+  idTaller: number | null;
+  idSolicitud: number | null;
+  titulo: string;
+  detalle: string | null;
+  actor: string | null;
+  estadoAnterior: string | null;
+  estadoNuevo: string | null;
+  antes: string | null;
+  despues: string | null;
+  motivo: string | null;
+}
+
+export interface ActividadVisita {
+  idRutaVisita: number;
+  idRuta: number;
+  hospital: string | null;
+  fechaVisita: string;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  candadoPuesto: boolean;
+  talleres: ActividadVisitaTaller[];
+  eventos: ActividadVisitaEvento[];
 }
 
 export interface SeleccionDetalle extends SeleccionMensual {
@@ -559,10 +615,12 @@ export interface HospitalCercanoOtraSeleccion {
 }
 
 export interface CrearSeleccionMensualRequest {
-  fechaSeleccion: string;
+  /** Mes futuro YYYY-MM; el backend calcula primer y último día. */
+  periodo?: string | null;
+  fechaSeleccion?: string;
   idTipoGerencia?: number | null;
-  fechaInicioVigencia: string;
-  fechaFinVigencia: string;
+  fechaInicioVigencia?: string;
+  fechaFinVigencia?: string;
   talleresObjetivoMes?: number | null;
 }
 
@@ -698,6 +756,10 @@ export interface RutaVisita {
   esExtraordinaria?: boolean;
   idRegion: number | null;
   nombreRegion: string | null;
+  entidadFederativa?: string | null;
+  ciudadMunicipio?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
   aviso?: string | null;
   /** Avisos no bloqueantes del modo ajuste (capacidad excedida; ADR-00010). */
   avisos?: string[];
@@ -708,6 +770,8 @@ export interface Ruta {
   idSeleccionMensual: number;
   idEquipo: number;
   nombreEquipo: string;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
   version: number;
   nombre: string | null;
   estado: 'Creada' | 'Cerrada' | 'Rechazada' | 'Cancelada' | 'Archivada';
@@ -1038,6 +1102,7 @@ export interface Taller {
   tipoEquipoProyeccion: string | null;
   estado: string;
   observaciones: string | null;
+  tema?: string | null;
   idMatrizIndividual: number | null;
   idMatrizGeneral: number | null;
   /** Fecha real de cierre (estado Realizado; ADR-00008). */
@@ -1061,10 +1126,6 @@ export interface MatrizIndividual {
   idEquipo: number;
   /** DateOnly del backend: 'YYYY-MM-DD' (siempre día 1). */
   periodo: string;
-  /** 0 = captura abierta; 1 = captura bloqueada (generada). */
-  esBloqueado: boolean;
-  fechaBloqueo: string | null;
-  fechaDesbloqueo: string | null;
   idEjecutivo: number | null;
   nombreEjecutivo: string | null;
   idEspecialista: number | null;
@@ -1112,6 +1173,8 @@ export interface GuardarTallerRecursoRequest {
 
 /** Alta de un taller (campos FOR-005 1–12; hospital/región se derivan de la selección). */
 export interface CrearTallerRequest {
+  /** Tipo de visita (taller, informativa, captación de queja, otro). */
+  idTipoVisita?: number | null;
   /** Visita de la ruta desde la que se crea el taller; hereda hospital, fecha y responsables. */
   idRutaVisita?: number | null;
   /** Hospital de la selección; obligatorio en el modo normal (null en extraordinario). */
@@ -1134,6 +1197,7 @@ export interface CrearTallerRequest {
   requiereEquipoProyeccion?: boolean | null;
   tipoEquipoProyeccion?: string | null;
   observaciones?: string | null;
+  tema?: string | null;
   recursos?: GuardarTallerRecursoRequest[] | null;
 }
 
@@ -1147,6 +1211,7 @@ export interface ActualizarTallerRequest {
   requiereEquipoProyeccion?: boolean | null;
   tipoEquipoProyeccion?: string | null;
   observaciones?: string | null;
+  tema?: string | null;
   /** Motivo del ajuste post-cierre (obligatorio con el taller Autorizado/Programado; ADR-00010). */
   motivo?: string | null;
   recursos?: GuardarTallerRecursoRequest[] | null;
@@ -1264,10 +1329,13 @@ export interface TallerSolicitudCambioResumen {
 
 export interface CrearSolicitudCambioRequest {
   motivo: string;
+  fechaVisita?: string | null;
   fechaTaller?: string | null;
   horaTaller?: string | null;
   lugar?: string | null;
   numeroParticipantes?: number | null;
+  idEjecutivo?: number | null;
+  idEspecialista?: number | null;
 }
 
 export interface ResolverSolicitudCambioRequest {
@@ -1333,11 +1401,54 @@ export interface ConcentracionEquipo {
   nombreEjecutivo: string | null;
   idEspecialista: number | null;
   nombreEspecialista: string | null;
-  /** 0 = captura abierta; 1 = captura bloqueada (generada). */
-  esBloqueado: boolean;
-  fechaBloqueo: string | null;
-  fechaDesbloqueo: string | null;
   totalTalleres: number;
+}
+
+/** Cobertura de la matriz contra las visitas de la versión de rutas activa. */
+export interface MatrizRevision {
+  idMatrizGeneral: number;
+  idTipoGerencia: number;
+  gerencia: string | null;
+  periodo: string;
+  capturaAbierta: boolean;
+  idSeleccionMensual: number | null;
+  idRutaVersion: number | null;
+  version: number | null;
+  estadoRutaVersion: string | null;
+  totalVisitas: number;
+  visitasTipoTaller: number;
+  visitasConTaller: number;
+  visitasSinTaller: number;
+  visitasNoTaller: number;
+  totalTalleres: number;
+  talleresSinRecursos: number;
+  talleresSinCosto: number;
+  talleresFueraVersionActiva: number;
+  talleresExtraordinarios: number;
+  solicitudesPendientes: number;
+  visitasSinTallerDetalle: VisitaSinTaller[];
+  advertencias: AdvertenciaMatriz[];
+}
+
+export interface VisitaSinTaller {
+  idRutaVisita: number;
+  idRuta: number;
+  idHospital: number | null;
+  hospital: string | null;
+  region: string | null;
+  fechaVisita: string;
+  idEjecutivo: number | null;
+  nombreEjecutivo: string | null;
+  idEspecialista: number | null;
+  nombreEspecialista: string | null;
+  estadoRuta: string | null;
+}
+
+export interface AdvertenciaMatriz {
+  codigo: string;
+  severidad: 'info' | 'warning' | 'error' | string;
+  mensaje: string;
+  total: number;
 }
 
 /** Recurso con costo capturado por el AEM en el paso de costos. */

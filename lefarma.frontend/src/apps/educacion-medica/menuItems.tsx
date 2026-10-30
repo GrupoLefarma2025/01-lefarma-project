@@ -11,7 +11,6 @@ import {
   CheckSquare,
   CalendarDays,
   ClipboardList,
-  Presentation,
   PenLine,
   MapPin,
   LineChart,
@@ -117,9 +116,9 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
         permission: { require: PERMISOS.seleccionesVer },
       },
       {
-        title: 'Calendario',
+        title: 'Panel de rutas',
         icon: CalendarDays,
-        path: '/educacion-medica/calendario',
+        path: '/educacion-medica/panel-rutas',
         permission: { require: PERMISOS.talleresVer },
       },
     ],
@@ -129,12 +128,6 @@ export const educacionMedicaMenuItems: SidebarMenuItemConfig[] = [
     icon: ClipboardList,
     isCollapsible: true,
     items: [
-      {
-        title: 'Matriz de talleres',
-        icon: Presentation,
-        path: '/educacion-medica/talleres',
-        permission: { require: PERMISOS.talleresVer },
-      },
       {
         title: 'Bandeja de Autorizaciones',
         icon: PenLine,

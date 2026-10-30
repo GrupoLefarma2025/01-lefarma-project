@@ -1,4 +1,4 @@
-import { Navigate, Route, useParams } from 'react-router-dom';
+import { Navigate, Route, useLocation, useParams } from 'react-router-dom';
 import { PermissionGuard } from '@/components/auth/PermissionGuard';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { createAppRoutes } from '@/shared/router/createAppRoutes';
@@ -17,7 +17,6 @@ import ConfigRankingPage from './pages/catalogos/ConfigRankingPage';
 import ProgramaAnualPage from './pages/planificacion/ProgramaAnualPage';
 import SeleccionMensualPage from './pages/planificacion/SeleccionMensualPage';
 import CalendarioPage from './pages/calendario/CalendarioPage';
-import MatrizTalleresPage from './pages/taller/MatrizTalleresPage';
 import BandejaAprobacionesPage from './pages/taller/BandejaAprobacionesPage';
 import MisAsignacionesPage from './pages/taller/MisAsignacionesPage';
 import IndicadoresPage from './pages/seguimiento/IndicadoresPage';
@@ -38,6 +37,11 @@ const PERMISOS = {
   talleresCapturar: 'educacion_medica.talleres.puede_capturar',
 } as const;
 
+function RedirectPanelRutasLegacy() {
+  const { search } = useLocation();
+  return <Navigate replace to={`/educacion-medica/panel-rutas${search}`} />;
+}
+
 function RedirectRutasLegacy() {
   const { idSeleccion } = useParams();
   return (
@@ -45,15 +49,22 @@ function RedirectRutasLegacy() {
       replace
       to={
         idSeleccion
-          ? `/educacion-medica/calendario?idSeleccion=${idSeleccion}&vista=especialista`
-          : '/educacion-medica/calendario'
+          ? `/educacion-medica/panel-rutas?idSeleccion=${idSeleccion}&vista=mes`
+          : '/educacion-medica/panel-rutas'
       }
     />
   );
 }
 
 function RedirectMisTalleres() {
-  return <Navigate replace to="/educacion-medica/calendario?vista=semana&filtro=mis" />;
+  return <Navigate replace to="/educacion-medica/panel-rutas?vista=semana&filtro=mis" />;
+}
+
+function RedirectMatrizLegacy() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set('vista', 'matriz');
+  return <Navigate replace to={`/educacion-medica/panel-rutas?${params.toString()}`} />;
 }
 
 function RedirectEquiposLegacy() {
@@ -174,21 +185,15 @@ export function EducacionMedicaRoutes({ variant, loginPath }: SubtreeRoutesProps
         />
         <Route path="seleccion/:idSeleccion/rutas" element={<RedirectRutasLegacy />} />
         <Route
-          path="calendario"
+          path="panel-rutas"
           element={
             <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
               <CalendarioPage />
             </PermissionGuard>
           }
         />
-        <Route
-          path="talleres"
-          element={
-            <PermissionGuard blockedPath={resolvedBlockedPath} require={PERMISOS.talleresVer}>
-              <MatrizTalleresPage />
-            </PermissionGuard>
-          }
-        />
+        <Route path="calendario" element={<RedirectPanelRutasLegacy />} />
+        <Route path="talleres" element={<RedirectMatrizLegacy />} />
         <Route path="talleres/mis-talleres" element={<RedirectMisTalleres />} />
         <Route
           path="aprobaciones"

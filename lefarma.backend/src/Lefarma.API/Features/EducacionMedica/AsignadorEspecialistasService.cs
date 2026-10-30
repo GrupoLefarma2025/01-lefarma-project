@@ -68,6 +68,48 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
                 $"El especialista ya tiene {cargaSemana} visita(s) esa semana; el máximo es {maxSemana}.");
         }
 
+        if (ruta is not null)
+        {
+            var rutaDestino = await _context.Rutas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(
+                    r => r.IdSeleccionMensual == ruta.IdSeleccionMensual
+                        && r.Version == ruta.Version
+                        && r.IdEspecialista == request.IdEspecialista
+                        && r.Estado != Ruta.EstadoArchivada
+                        && r.Estado != Ruta.EstadoCancelada
+                        && r.Estado != Ruta.EstadoRechazada,
+                    ct);
+
+            if (rutaDestino is null)
+            {
+                var nombreEspecialista = await _asokamContext.Usuarios
+                    .AsNoTracking()
+                    .Where(u => u.IdUsuario == request.IdEspecialista)
+                    .Select(u => u.NombreCompleto)
+                    .FirstOrDefaultAsync(ct);
+                rutaDestino = new Ruta
+                {
+                    IdSeleccionMensual = ruta.IdSeleccionMensual,
+                    IdEquipo = null,
+                    IdEspecialista = request.IdEspecialista,
+                    Version = ruta.Version,
+                    IdRutaVersion = ruta.IdRutaVersion,
+                    Nombre = $"Ruta {nombreEspecialista ?? $"Especialista {request.IdEspecialista}"} - v{ruta.Version}",
+                    Estado = ruta.Estado,
+                    FechaConfirmacion = ruta.FechaConfirmacion,
+                    FechaCreacion = DateTime.UtcNow,
+                    FechaModificacion = DateTime.UtcNow,
+                    IdUsuarioCreacion = idUsuario,
+                    IdUsuarioModificacion = idUsuario,
+                };
+                _context.Rutas.Add(rutaDestino);
+                await _context.SaveChangesAsync(ct);
+            }
+
+            visita.IdRuta = rutaDestino.IdRuta;
+        }
+
         visita.IdEspecialista = request.IdEspecialista;
         if (!visita.IdEjecutivo.HasValue)
         {
@@ -77,6 +119,22 @@ public class AsignadorEspecialistasService : IAsignadorEspecialistasService
         visita.IdUsuarioModificacion = idUsuario;
         visita.FechaModificacion = DateTime.UtcNow;
         await _context.SaveChangesAsync(ct);
+
+        if (ruta is not null && visita.IdRuta != ruta.IdRuta)
+        {
+            var origenSigueConVisitas = await _context.RutasVisitas
+                .AnyAsync(v => v.IdRuta == ruta.IdRuta, ct);
+            if (!origenSigueConVisitas)
+            {
+                var origen = await _context.Rutas.FirstOrDefaultAsync(r => r.IdRuta == ruta.IdRuta, ct);
+                if (origen is not null)
+                {
+                    _context.Rutas.Remove(origen);
+                    await _context.SaveChangesAsync(ct);
+                }
+            }
+        }
+
         return true;
     }
 

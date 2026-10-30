@@ -340,8 +340,8 @@ public class MatrizTalleresServiceTests
         var panel = await CrearServicio().GetConcentracionAsync(general.IdMatrizGeneral);
 
         panel.Should().HaveCount(2);
-        panel.Should().Contain(e => e.IdEquipo == IdEquipo && e.EsBloqueado && e.TotalTalleres == 2);
-        panel.Should().Contain(e => e.IdEquipo == 2 && !e.EsBloqueado && e.TotalTalleres == 1);
+        panel.Should().Contain(e => e.IdEquipo == IdEquipo && e.TotalTalleres == 2);
+        panel.Should().Contain(e => e.IdEquipo == 2 && e.TotalTalleres == 1);
     }
 
     [Fact]
@@ -407,5 +407,120 @@ public class MatrizTalleresServiceTests
             999,
             CodigoProceso.EDUCACION_MEDICA_MATRIZ);
         accionesAjeno.Should().BeEmpty();
+    }
+
+    private void SembrarSeleccionConVisitaSinTaller()
+    {
+        var contexto = _workflow.Context;
+        contexto.SeleccionesMensuales.Add(new SeleccionMensual
+        {
+            IdSeleccionMensual = 1,
+            FechaSeleccion = Periodo,
+            FechaInicioVigencia = Periodo,
+            FechaFinVigencia = Periodo.AddMonths(1).AddDays(-1),
+            IdTipoGerencia = 1,
+            Estado = SeleccionMensual.EstadoCerrada,
+            Activo = true,
+        });
+        contexto.RutasVersiones.Add(new RutaVersion
+        {
+            IdRutaVersion = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            IdTipoGerencia = 1,
+            Estado = RutaVersion.EstadoCreada,
+        });
+        contexto.Rutas.Add(new Ruta
+        {
+            IdRuta = 1,
+            IdSeleccionMensual = 1,
+            Version = 1,
+            IdRutaVersion = 1,
+            Estado = Ruta.EstadoCreada,
+            Nombre = "Ruta 1",
+        });
+        contexto.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 1,
+            IdRuta = 1,
+            IdHospital = 100,
+            FechaVisita = new DateOnly(2026, 10, 20),
+            Orden = 1,
+            IdEjecutivo = IdEv,
+            IdEspecialista = IdEp,
+        });
+        contexto.SaveChanges();
+    }
+
+    [Fact]
+    public async Task GetRevision_SinSeleccion_Debe_AdvertirSinSeleccion()
+    {
+        var general = SembrarMatrizEnConcentracion();
+
+        var revision = await CrearServicio().GetRevisionAsync(general.IdMatrizGeneral, null);
+
+        revision.VisitasSinTaller.Should().Be(0);
+        revision.Advertencias.Should().Contain(a => a.Codigo == "SIN_SELECCION");
+    }
+
+    [Fact]
+    public async Task GetRevision_ConVisitaSinTaller_Debe_ContarlaYListarla()
+    {
+        var general = SembrarMatrizEnConcentracion();
+        SembrarSeleccionConVisitaSinTaller();
+
+        var revision = await CrearServicio().GetRevisionAsync(general.IdMatrizGeneral, null);
+
+        revision.TotalVisitas.Should().Be(1);
+        revision.VisitasTipoTaller.Should().Be(1);
+        revision.VisitasConTaller.Should().Be(0);
+        revision.VisitasSinTaller.Should().Be(1);
+        revision.VisitasSinTallerDetalle.Should().ContainSingle()
+            .Which.IdRutaVisita.Should().Be(1);
+        revision.TalleresExtraordinarios.Should().Be(2);
+        revision.Advertencias.Should().Contain(a => a.Codigo == "VISITAS_SIN_TALLER");
+    }
+
+    [Fact]
+    public async Task Firmar_EnviarConVisitasSinTaller_SinConfirmacion_Debe_Fallar()
+    {
+        var general = SembrarMatrizEnConcentracion();
+        SembrarSeleccionConVisitaSinTaller();
+        var servicio = CrearServicio();
+
+        var act = () => servicio.FirmarAsync(
+            general.IdMatrizGeneral,
+            new FirmarWorkflowRequest
+            {
+                IdAccion = _workflow.AccionesMatriz["Enviar"],
+                Comentario = "Envío de la matriz",
+            },
+            _workflow.UsuarioGvImss);
+
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*visita(s) tipo taller sin taller*");
+    }
+
+    [Fact]
+    public async Task Firmar_EnviarConVisitasSinTaller_ConConfirmacion_Debe_Avanzar()
+    {
+        var general = SembrarMatrizEnConcentracion();
+        SembrarSeleccionConVisitaSinTaller();
+        var servicio = CrearServicio();
+
+        var detalle = await servicio.FirmarAsync(
+            general.IdMatrizGeneral,
+            new FirmarWorkflowRequest
+            {
+                IdAccion = _workflow.AccionesMatriz["Enviar"],
+                Comentario = "Envío de la matriz",
+                DatosAdicionales = new Dictionary<string, object>
+                {
+                    ["confirmarVisitasSinTaller"] = true,
+                },
+            },
+            _workflow.UsuarioGvImss);
+
+        detalle.IdPasoActual.Should().Be(_workflow.PasosMatriz["GvImss"]);
     }
 }

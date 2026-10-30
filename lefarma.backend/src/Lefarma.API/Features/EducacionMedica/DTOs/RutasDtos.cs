@@ -36,6 +36,10 @@ public class RutaVisitaDto
     public bool EsExtraordinaria { get; set; }
     public int? IdRegion { get; set; }
     public string? NombreRegion { get; set; }
+    public string? EntidadFederativa { get; set; }
+    public string? CiudadMunicipio { get; set; }
+    public decimal? Latitud { get; set; }
+    public decimal? Longitud { get; set; }
 
     /// <summary>Aviso de intervención humana (p. ej. alta manual de hospital sin región/equipo asignado).</summary>
     public string? Aviso { get; set; }
@@ -80,6 +84,9 @@ public class AgregarVisitaRequest
     [Required(ErrorMessage = "El hospital seleccionado es obligatorio.")]
     [Range(1, int.MaxValue, ErrorMessage = "El hospital seleccionado es obligatorio.")]
     public int IdSeleccionHospital { get; set; }
+
+    /// <summary>Tipo de visita (taller, informativa, captación de queja, otro).</summary>
+    public int? IdTipoVisita { get; set; }
 
     [Required(ErrorMessage = "La fecha de visita es obligatoria.")]
     public DateOnly FechaVisita { get; set; }

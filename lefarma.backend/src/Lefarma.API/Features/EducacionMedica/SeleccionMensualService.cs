@@ -484,13 +484,46 @@ public class SeleccionMensualService : ISeleccionMensualService
 
     public async Task<SeleccionMensualDto> CreateAsync(CrearSeleccionMensualRequest request, int idUsuario, CancellationToken ct = default)
     {
-        if (request.FechaFinVigencia < request.FechaInicioVigencia)
+        DateOnly fechaSeleccion;
+        DateOnly inicioVigencia;
+        DateOnly finVigencia;
+
+        if (!string.IsNullOrWhiteSpace(request.Periodo))
         {
-            throw new InvalidOperationException("La fecha de fin de vigencia no puede ser anterior a la de inicio.");
+            var partes = request.Periodo.Split('-');
+            if (partes.Length != 2
+                || !int.TryParse(partes[0], out var anio)
+                || !int.TryParse(partes[1], out var mes)
+                || mes is < 1 or > 12)
+            {
+                throw new InvalidOperationException("El periodo debe tener formato YYYY-MM.");
+            }
+
+            inicioVigencia = new DateOnly(anio, mes, 1);
+            finVigencia = inicioVigencia.AddMonths(1).AddDays(-1);
+            fechaSeleccion = inicioVigencia;
+
+            var hoy = DateOnly.FromDateTime(DateTime.UtcNow);
+            var mesActual = new DateOnly(hoy.Year, hoy.Month, 1);
+            if (inicioVigencia <= mesActual)
+            {
+                throw new InvalidOperationException("El periodo de la selección debe ser un mes futuro.");
+            }
+        }
+        else
+        {
+            if (request.FechaFinVigencia < request.FechaInicioVigencia)
+            {
+                throw new InvalidOperationException("La fecha de fin de vigencia no puede ser anterior a la de inicio.");
+            }
+
+            fechaSeleccion = request.FechaSeleccion;
+            inicioVigencia = request.FechaInicioVigencia;
+            finVigencia = request.FechaFinVigencia;
         }
 
         var duplicada = await _repository.ExisteSeleccionActivaAsync(
-            request.FechaInicioVigencia, request.FechaFinVigencia, request.IdTipoGerencia, ct);
+            inicioVigencia, finVigencia, request.IdTipoGerencia, ct);
         if (duplicada)
         {
             throw new InvalidOperationException(
@@ -499,10 +532,10 @@ public class SeleccionMensualService : ISeleccionMensualService
 
         var seleccion = await _repository.CreateAsync(new SeleccionMensual
         {
-            FechaSeleccion = request.FechaSeleccion,
+            FechaSeleccion = fechaSeleccion,
             IdTipoGerencia = request.IdTipoGerencia,
-            FechaInicioVigencia = request.FechaInicioVigencia,
-            FechaFinVigencia = request.FechaFinVigencia,
+            FechaInicioVigencia = inicioVigencia,
+            FechaFinVigencia = finVigencia,
             TalleresObjetivoMes = request.TalleresObjetivoMes,
             Estado = SeleccionMensual.EstadoCreada,
             IdUsuarioCreacion = idUsuario,

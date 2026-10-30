@@ -56,7 +56,8 @@ public class TalleresController : ControllerBase
     [SwaggerResponse(200, "Talleres obtenidos", typeof(ApiResponse<List<TallerDto>>))]
     public async Task<IActionResult> GetByVisita(int idRutaVisita, CancellationToken ct)
     {
-        var talleres = await _service.GetByVisitaAsync(idRutaVisita, ct);
+        var talleres = await _service.GetByVisitaAsync(
+            idRutaVisita, GetUserId(), PuedeVerTodas(), ct);
         return Ok(new ApiResponse<List<TallerDto>>
         {
             Success = true,
@@ -94,7 +95,7 @@ public class TalleresController : ControllerBase
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
     [SwaggerOperation(
         Summary = "Editar taller",
-        Description = "Edición normal: solo con la matriz general en estado Creada (paso inicial) y la individual sin bloquear, por el EV/EP del equipo. Ajuste post-cierre (ADR-00010): con el taller Autorizado/Programado exige talleres.puede_ajustar + motivo; solo fecha/hora/lugar/participantes, con límite de días y sincronización de la visita de la ruta activa.")]
+        Description = "Edición normal: solo con la matriz general en estado Creada (paso inicial), por el EV/EP del equipo. Ajuste post-cierre (ADR-00010): con el taller Autorizado/Programado exige talleres.puede_ajustar + motivo; solo fecha/hora/lugar/participantes, con límite de días y sincronización de la visita de la ruta activa.")]
     [SwaggerResponse(200, "Taller actualizado", typeof(ApiResponse<TallerDto>))]
     [SwaggerResponse(409, "Candado de edición, permiso o límite fallido")]
     public async Task<IActionResult> Actualizar(int idTaller, [FromBody] ActualizarTallerRequest request, CancellationToken ct)
@@ -119,7 +120,7 @@ public class TalleresController : ControllerBase
     [HasPermission(Permissions.EducacionMedica.TalleresCapturar)]
     [SwaggerOperation(
         Summary = "Eliminar taller",
-        Description = "Borrado físico (con sus recursos). Solo con la matriz general en estado Creada y la individual EnCaptura.")]
+        Description = "Borrado físico (con sus recursos). Solo con la matriz general en estado Creada.")]
     [SwaggerResponse(200, "Taller eliminado")]
     [SwaggerResponse(409, "Candado de edición")]
     public async Task<IActionResult> Eliminar(int idTaller, CancellationToken ct)
@@ -128,56 +129,6 @@ public class TalleresController : ControllerBase
         {
             await _service.EliminarAsync(idTaller, GetUserId(), ct);
             return Ok(new ApiResponse<object> { Success = true, Message = "Taller eliminado exitosamente." });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
-        }
-    }
-
-    [HttpPost("matrices-individuales/{idMatrizIndividual:int}/generar")]
-    [HasPermission(Permissions.EducacionMedica.TalleresCapturar)]
-    [SwaggerOperation(
-        Summary = "Generar matriz individual",
-        Description = "Bloquea la captura del equipo y registra la fecha de generación. La ejecuta el EV o EP del equipo, con la general en estado Creada.")]
-    [SwaggerResponse(200, "Matriz generada", typeof(ApiResponse<MatrizIndividualDto>))]
-    [SwaggerResponse(409, "Ya generada o la general salió del paso inicial")]
-    public async Task<IActionResult> GenerarMatrizIndividual(int idMatrizIndividual, CancellationToken ct)
-    {
-        try
-        {
-            var matriz = await _service.GenerarMatrizIndividualAsync(idMatrizIndividual, GetUserId(), ct);
-            return Ok(new ApiResponse<MatrizIndividualDto>
-            {
-                Success = true,
-                Message = "Matriz individual generada exitosamente.",
-                Data = matriz
-            });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
-        }
-    }
-
-    [HttpPost("matrices-individuales/{idMatrizIndividual:int}/reabrir")]
-    [HasPermission(Permissions.EducacionMedica.TalleresRevisar)]
-    [SwaggerOperation(
-        Summary = "Reabrir captura de la matriz individual",
-        Description = "Solo el Gerente de Ventas participante del paso y solo mientras la matriz general siga en estado Creada.")]
-    [SwaggerResponse(200, "Captura reabierta", typeof(ApiResponse<MatrizIndividualDto>))]
-    [SwaggerResponse(409, "No generada, sin participación o la general salió del paso inicial")]
-    public async Task<IActionResult> ReabrirMatrizIndividual(int idMatrizIndividual, CancellationToken ct)
-    {
-        try
-        {
-            var matriz = await _service.ReabrirMatrizIndividualAsync(idMatrizIndividual, GetUserId(), ct);
-            return Ok(new ApiResponse<MatrizIndividualDto>
-            {
-                Success = true,
-                Message = "Captura reabierta exitosamente.",
-                Data = matriz
-            });
         }
         catch (InvalidOperationException ex)
         {
@@ -584,4 +535,8 @@ public class TalleresController : ControllerBase
 
     private int GetUserId() =>
         int.TryParse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+    private bool PuedeVerTodas() =>
+        User.TienePermiso(Permissions.EducacionMedica.CalendarioVerTodos)
+        || User.TienePermiso(Permissions.EducacionMedica.RutasVer);
 }

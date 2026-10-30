@@ -9,6 +9,7 @@ import type {
 import {
   DIAS_SEMANA,
   HORAS,
+  claveEvento,
   cuadriculaMes,
   diasLaboralesDe,
   esFinDeSemana,
@@ -17,6 +18,7 @@ import {
   tonoAvatar,
 } from '../calendarioUtils';
 import { CalendarioEvento } from './CalendarioEvento';
+import { TextoExpandible } from './TextoExpandible';
 
 interface CalendarioGridProps {
   vista: 'dia' | 'semana' | 'mes' | 'especialista' | 'ejecutivo';
@@ -28,6 +30,7 @@ interface CalendarioGridProps {
   suplentes: EjecutivoSuplente[];
   onSelect: (item: CalendarioItem) => void;
   onMover: (item: CalendarioItem, fecha: string) => void;
+  onDiaDobleClick?: (fecha: string) => void;
 }
 
 function CabeceraDia({ fecha, compacta = false }: { fecha: string; compacta?: boolean }) {
@@ -74,11 +77,13 @@ function DragCell({
   children,
   className = '',
   onMover,
+  onDoubleClick,
 }: {
   fecha: string;
   children: ReactNode;
   className?: string;
   onMover: (fecha: string, idRutaVisita: number) => void;
+  onDoubleClick?: () => void;
 }) {
   const aceptar = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -93,6 +98,7 @@ function DragCell({
         const id = Number(event.dataTransfer.getData('calendario-item'));
         if (id) onMover(fecha, id);
       }}
+      onDoubleClick={onDoubleClick}
     >
       {children}
     </div>
@@ -157,7 +163,7 @@ function SemanaView({
                   <div className="space-y-1">
                     {porDiaHora(dia, null).map((item) => (
                       <CalendarioEvento
-                        key={item.idRutaVisita}
+                        key={claveEvento(item)}
                         item={item}
                         activo={item.idRutaVisita === seleccionadoId}
                         onClick={onSelect}
@@ -203,7 +209,7 @@ function SemanaView({
                     <div className="space-y-1">
                       {eventos.map((item) => (
                         <CalendarioEvento
-                          key={item.idRutaVisita}
+                          key={claveEvento(item)}
                           item={item}
                           activo={item.idRutaVisita === seleccionadoId}
                           onClick={onSelect}
@@ -239,6 +245,7 @@ function MesView({
   seleccionadoId,
   onSelect,
   onMover,
+  onDiaDobleClick,
 }: Omit<CalendarioGridProps, 'vista' | 'especialistas' | 'ejecutivos' | 'suplentes'>) {
   const dias = cuadriculaMes(fecha);
   const mes = Number(fecha.slice(5, 7));
@@ -276,6 +283,7 @@ function MesView({
                     const item = items.find((evento) => evento.idRutaVisita === id);
                     if (item) onMover(item, nuevaFecha);
                   }}
+                  onDoubleClick={() => onDiaDobleClick?.(dia)}
                 >
                   <div className="mb-1 flex items-center justify-between px-1">
                     <span
@@ -299,7 +307,7 @@ function MesView({
                   <div className="space-y-1">
                     {eventos.slice(0, 3).map((item) => (
                       <CalendarioEvento
-                        key={item.idRutaVisita}
+                        key={claveEvento(item)}
                         item={item}
                         variante="mes"
                         activo={item.idRutaVisita === seleccionadoId}
@@ -344,7 +352,7 @@ function DiaView({
   return (
     <div className="space-y-1.5">
       {delDia.map((item) => (
-        <div key={item.idRutaVisita} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3">
+        <div key={claveEvento(item)} className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3">
           <div className="pt-3 text-right">
             <p className="text-xs font-semibold tabular-nums text-slate-700 dark:text-slate-200">
               {item.hora?.slice(0, 5) ?? '—'}
@@ -499,9 +507,11 @@ function MatrizView({
                     )}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
-                      {fila.nombre}
-                    </p>
+                    <TextoExpandible
+                      text={fila.nombre}
+                      className="text-xs font-semibold text-slate-700 dark:text-slate-200"
+                      triggerClassName="w-full"
+                    />
                     <p className="truncate text-[9px] text-slate-400">
                       {fila.detalle || 'Sin detalle'} · {total}
                     </p>
@@ -520,7 +530,7 @@ function MatrizView({
                       <div className="space-y-1">
                         {eventos.map((item) => (
                           <CalendarioEvento
-                            key={item.idRutaVisita}
+                            key={claveEvento(item)}
                             item={item}
                             variante="matriz"
                             activo={item.idRutaVisita === seleccionadoId}

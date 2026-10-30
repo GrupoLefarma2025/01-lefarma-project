@@ -698,12 +698,38 @@ BEGIN TRY
     WHERE NOT EXISTS (SELECT 1 FROM config.workflows w2 WHERE w2.id_workflow = v.id_workflow);
     PRINT 'Backfill de rutas_versiones: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' fila(s) re-vinculada(s).';
 
+    -- 5.6 Backfill: re-vincular matrices generales huérfanas al paso inicial
+    --      (0018 borra y recrea los workflows; sin este backfill las matrices
+    --      existentes quedan apuntando a workflows que ya no existen).
+    UPDATE educacion_medica.matrices_generales
+    SET id_workflow = w.id_workflow,
+        id_paso_actual = p.id_paso,
+        id_estado = p.id_estado,
+        fecha_modificacion = GETDATE()
+    FROM educacion_medica.matrices_generales mg
+    JOIN (VALUES
+            (1, @wfMatImss),
+            (2, @wfMatDesc)
+         ) AS g(id_tipo_gerencia, id_workflow)
+        ON g.id_tipo_gerencia = mg.id_tipo_gerencia
+    JOIN config.workflows w
+        ON w.id_workflow = g.id_workflow
+       AND w.activo = 1
+    JOIN config.workflow_pasos p
+        ON p.id_workflow = w.id_workflow
+       AND p.es_inicio = 1
+       AND p.activo = 1
+    WHERE NOT EXISTS (SELECT 1 FROM config.workflows w2 WHERE w2.id_workflow = mg.id_workflow);
+    PRINT 'Backfill de matrices_generales: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' fila(s) re-vinculada(s).';
+
     COMMIT TRANSACTION;
     PRINT '0018 completado: 6 flujos EM (selección, rutas, matriz) con patrón Creada + Cerrada/Rechazada/Cancelada.';
 
     -- =========================================================================
     -- VERIFICACIÓN (ejecutar aparte) y PASOS MANUALES EN EL FRONTEND
     -- =========================================================================
+    -- NOTA: si reejecutas 0018, ejecuta después 0040 para recrear los mappings
+    --       TIPO_GERENCIA de EDUCACION_MEDICA_MATRIZ que este script elimina en 2.3.
     -- SELECT id_workflow, nombre, codigo_proceso FROM config.workflows
     --   WHERE codigo_proceso LIKE 'EDUCACION_MEDICA%' ORDER BY codigo_proceso, nombre;
     -- SELECT p.id_workflow, p.orden, p.nombre_paso, e.codigo AS estado, p.es_inicio, p.es_final, p.requiere_firma

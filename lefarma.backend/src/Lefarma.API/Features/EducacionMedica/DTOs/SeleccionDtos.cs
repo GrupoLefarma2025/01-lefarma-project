@@ -116,6 +116,10 @@ public class SeleccionDetalleDto : SeleccionMensualDto
 
 public class CrearSeleccionMensualRequest
 {
+    /// <summary>Mes de planeación en formato YYYY-MM. Si viene, sustituye las fechas manuales y debe ser futuro.</summary>
+    [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$", ErrorMessage = "El periodo debe tener formato YYYY-MM.")]
+    public string? Periodo { get; set; }
+
     [Required(ErrorMessage = "La fecha de selección es obligatoria.")]
     public DateOnly FechaSeleccion { get; set; }
 

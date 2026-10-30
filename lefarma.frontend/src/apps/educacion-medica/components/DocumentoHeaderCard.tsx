@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
-import { FileSignature, History, Loader2 } from 'lucide-react';
+import { FileSignature, History, Loader2, Send } from 'lucide-react';
 import { etiquetaEstadoDominio } from './seleccionUtils';
 
 interface DocumentoHeaderCardProps {
@@ -21,6 +21,8 @@ interface DocumentoHeaderCardProps {
    * Al pulsarlo se abre el modal de acciones (DocumentoFirmaModal).
    */
   showFirmar?: boolean;
+  textoFirmar?: string;
+  tipoAccion?: 'firmar' | 'enviar';
   onFirmar?: () => void;
   firmando?: boolean;
   firmarDeshabilitado?: boolean;
@@ -44,6 +46,8 @@ export function DocumentoHeaderCard({
   estadoColor,
   estadoFallback,
   showFirmar = false,
+  textoFirmar = 'Firmar',
+  tipoAccion = 'firmar',
   onFirmar,
   firmando = false,
   firmarDeshabilitado = false,
@@ -94,10 +98,12 @@ export function DocumentoHeaderCard({
             >
               {firmando ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : tipoAccion === 'enviar' ? (
+                <Send className="h-3.5 w-3.5" />
               ) : (
                 <FileSignature className="h-3.5 w-3.5" />
               )}
-              Firmar
+              {textoFirmar}
             </Button>
           )}
         </div>

@@ -1,5 +1,7 @@
+using System.Text.Json;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Auth;
+using Lefarma.API.Domain.Entities.Config;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica.DTOs;
@@ -26,7 +28,7 @@ public class CalendarioServiceTests
         var items = await service.GetCalendarioAsync(new CalendarioFiltro
         {
             IdSeleccion = 1,
-        });
+        }, 0, true);
 
         var item = items.Should().ContainSingle().Subject;
         item.IdRutaVisita.Should().Be(1);
@@ -46,6 +48,53 @@ public class CalendarioServiceTests
         item.Bloqueado.Should().BeTrue();
         item.SolicitudCambioPendiente.Should().BeTrue();
         item.Conflictos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GetCalendarioAsync_Debe_FiltrarVisitasPropiasCuandoNoVeTodas()
+    {
+        var (app, asokam) = CrearContextos();
+        SeedBase(app);
+        SeedAsokam(asokam);
+        app.RutasVisitas.Add(new RutaVisita
+        {
+            IdRutaVisita = 2,
+            IdRuta = 1,
+            IdSeleccionHospital = 1,
+            IdHospital = 100,
+            IdEjecutivo = 30,
+            IdEspecialista = 40,
+            IdTipoVisita = 1,
+            FechaVisita = Fecha,
+            HoraSalida = new TimeOnly(10, 0),
+            Orden = 2,
+        });
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new CalendarioService(app, asokam);
+
+        var propiasEjecutivo = await service.GetCalendarioAsync(
+            new CalendarioFiltro { IdSeleccion = 1 }, 10, false);
+        var propiasEspecialista = await service.GetCalendarioAsync(
+            new CalendarioFiltro { IdSeleccion = 1 }, 20, false);
+        var ajenas = await service.GetCalendarioAsync(
+            new CalendarioFiltro { IdSeleccion = 1 }, 30, false);
+        var todas = await service.GetCalendarioAsync(
+            new CalendarioFiltro { IdSeleccion = 1 }, 10, true);
+
+        propiasEjecutivo.Should().ContainSingle().Which.IdRutaVisita.Should().Be(1);
+        propiasEspecialista.Should().ContainSingle().Which.IdRutaVisita.Should().Be(1);
+        ajenas.Should().ContainSingle().Which.IdRutaVisita.Should().Be(2);
+        todas.Should().HaveCount(2);
+
+        var detalleAjeno = await service.GetItemAsync(2, 10, false);
+        var detallePropio = await service.GetItemAsync(2, 30, false);
+        var actividadAjena = await service.GetActividadVisitaAsync(2, 10, false);
+
+        detalleAjeno.Should().BeNull();
+        detallePropio.Should().NotBeNull();
+        actividadAjena.Should().BeNull();
     }
 
     [Fact]
@@ -92,7 +141,7 @@ public class CalendarioServiceTests
         var items = await service.GetCalendarioAsync(new CalendarioFiltro
         {
             IdSeleccion = 1,
-        });
+        }, 0, true);
 
         items.Should().HaveCount(5);
         items.Where(i => i.IdRutaVisita <= 4).Should().OnlyContain(i =>
@@ -102,14 +151,188 @@ public class CalendarioServiceTests
     }
 
     [Fact]
+    public async Task GetCalendarioAsync_Debe_OcultarRutasArchivadasYMostrarlasAlConsultarSuVersion()
+    {
+        var (app, asokam) = CrearContextos();
+        SeedBase(app);
+        SeedAsokam(asokam);
+        await app.SaveChangesAsync();
+        app.Rutas.Single().Estado = Ruta.EstadoArchivada;
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new CalendarioService(app, asokam);
+
+        var activas = await service.GetCalendarioAsync(new CalendarioFiltro
+        {
+            IdSeleccion = 1,
+        }, 0, true);
+        var historicas = await service.GetCalendarioAsync(new CalendarioFiltro
+        {
+            IdSeleccion = 1,
+            Version = 1,
+        }, 0, true);
+
+        activas.Should().BeEmpty();
+        historicas.Should().ContainSingle().Which.IdRutaVisita.Should().Be(1);
+    }
+
+    [Fact]
     public async Task GetItemAsync_Debe_RetornarNullSiNoExisteLaVisita()
     {
         var (app, asokam) = CrearContextos();
         var service = new CalendarioService(app, asokam);
 
-        var item = await service.GetItemAsync(999);
+        var item = await service.GetItemAsync(999, 10, true);
 
         item.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GetActividadVisitaAsync_Debe_UnificarHistorialYCandado()
+    {
+        var (app, asokam) = CrearContextos();
+        SeedBase(app);
+        SeedAsokam(asokam);
+        await app.SaveChangesAsync();
+
+        var visita = app.RutasVisitas.Single();
+        visita.FechaCreacion = new DateTime(2026, 9, 30, 8, 0, 0);
+        visita.IdUsuarioCreacion = 10;
+
+        var taller = app.Talleres.Single();
+        taller.FechaCreacion = new DateTime(2026, 10, 1, 8, 0, 0);
+        taller.IdUsuarioCreacion = 10;
+        taller.IdMatrizIndividual = 1;
+        app.MatricesIndividuales.Add(new MatrizIndividual
+        {
+            IdMatrizIndividual = 1,
+            IdEjecutivo = 10,
+            Periodo = new DateOnly(2026, 10, 1),
+        });
+
+        var estadoRevision = new WorkflowEstados
+        {
+            IdEstado = 1,
+            Codigo = "REVISION",
+            Nombre = "Revisión",
+            Activo = true,
+        };
+        var workflowMatriz = new Workflow
+        {
+            IdWorkflow = 1,
+            Nombre = "Matriz de talleres - IMSS",
+            CodigoProceso = "EDUCACION_MEDICA_MATRIZ",
+            Version = 1,
+            Activo = true,
+            FechaCreacion = DateTime.Now,
+        };
+        var pasoFirma = new WorkflowPaso
+        {
+            IdPaso = 1,
+            IdWorkflow = 1,
+            Orden = 10,
+            NombrePaso = "Firma Gerente de Ventas - IMSS",
+            IdEstado = 1,
+            EsInicio = false,
+            EsFinal = false,
+            Activo = true,
+        };
+        taller.IdMatrizGeneral = 1;
+        app.WorkflowEstados.Add(estadoRevision);
+        app.Workflows.Add(workflowMatriz);
+        app.WorkflowPasos.Add(pasoFirma);
+        app.MatricesGenerales.Add(new MatrizGeneral
+        {
+            IdMatrizGeneral = 1,
+            IdTipoGerencia = 1,
+            Periodo = new DateOnly(2026, 10, 1),
+            IdWorkflow = 1,
+            IdPasoActual = 1,
+            IdEstado = 1,
+        });
+
+        app.TalleresEstadosHistorial.Add(new TallerEstadoHistorial
+        {
+            IdHistorial = 1,
+            IdTaller = 1,
+            EstadoAnterior = Taller.EstadoProgramado,
+            EstadoNuevo = Taller.EstadoEnCurso,
+            Origen = TallerEstadoHistorial.OrigenManual,
+            Motivo = "Inicio del taller",
+            IdUsuario = 10,
+            Fecha = new DateTime(2026, 10, 21, 9, 5, 0),
+        });
+
+        var solicitud = app.TalleresSolicitudesCambio.Single();
+        solicitud.FechaCreacion = new DateTime(2026, 10, 21, 10, 0, 0);
+        solicitud.IdUsuarioCreacion = 10;
+        solicitud.DatosJson = JsonSerializer.Serialize(new
+        {
+            antes = new
+            {
+                fechaVisita = "2026-10-21",
+                fechaTaller = "2026-10-21",
+                horaTaller = "09:00",
+                lugar = "Auditorio",
+                numeroParticipantes = 25,
+                idEjecutivo = 10,
+                idEspecialista = 20,
+            },
+            despues = new
+            {
+                fechaVisita = "2026-10-22",
+                fechaTaller = "2026-10-22",
+                horaTaller = "11:00",
+                lugar = "Sala 2",
+                numeroParticipantes = 30,
+                idEjecutivo = 11,
+                idEspecialista = 20,
+            },
+            motivoSolicitante = "Cambio de fecha",
+            idSolicitante = 10,
+        });
+
+        app.AjustesPostCierre.AddRange(
+            new AjustePostCierre
+            {
+                IdAjuste = 1,
+                EntidadTipo = AjustePostCierre.EntidadTaller,
+                IdEntidad = 1,
+                Accion = AjustePostCierre.AccionEditarTaller,
+                Motivo = "Ajuste de logística",
+                IdUsuario = 10,
+                FechaAjuste = new DateTime(2026, 10, 21, 11, 0, 0),
+            },
+            new AjustePostCierre
+            {
+                IdAjuste = 2,
+                EntidadTipo = AjustePostCierre.EntidadRutaVisita,
+                IdEntidad = 1,
+                Accion = AjustePostCierre.AccionMoverVisita,
+                Motivo = "Reprogramación de visita",
+                IdUsuario = 10,
+                FechaAjuste = new DateTime(2026, 10, 21, 12, 0, 0),
+            });
+
+        await app.SaveChangesAsync();
+        await asokam.SaveChangesAsync();
+
+        var service = new CalendarioService(app, asokam);
+
+        var actividad = await service.GetActividadVisitaAsync(1, 10, true);
+
+        actividad.Should().NotBeNull();
+        actividad!.CandadoPuesto.Should().BeTrue();
+        actividad.Talleres.Should().ContainSingle().Which.EsIntegranteEquipo.Should().BeTrue();
+        actividad.Talleres.Single().IdSolicitudPendiente.Should().Be(1);
+        actividad.Eventos.Should().Contain(e => e.Tipo == "VISITA_CREADA");
+        actividad.Eventos.Should().Contain(e => e.Tipo == "TALLER_CREADO");
+        actividad.Eventos.Should().Contain(e => e.Tipo == "TALLER_ESTADO");
+        actividad.Eventos.Should().Contain(e => e.Tipo == "TALLER_SOLICITUD");
+        actividad.Eventos.Should().Contain(e => e.Tipo == "TALLER_AJUSTE");
+        actividad.Eventos.Should().Contain(e => e.Tipo == "VISITA_AJUSTE");
+        actividad.Eventos.Select(e => e.Fecha).Should().BeInDescendingOrder();
     }
 
     private static void SeedBase(ApplicationDbContext app)

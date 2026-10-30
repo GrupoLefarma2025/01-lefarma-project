@@ -132,6 +132,7 @@ export function TallerFormModal({
   const [requiereEquipo, setRequiereEquipo] = useState(false);
   const [tipoEquipo, setTipoEquipo] = useState('');
   const [observaciones, setObservaciones] = useState('');
+  const [tema, setTema] = useState('');
   const [recursos, setRecursos] = useState<RecursoForm[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
 
@@ -164,17 +165,19 @@ export function TallerFormModal({
         description: [h.ciudad, h.clues].filter(Boolean).join(' · ') || undefined,
       }));
     }
-    const fuente = hospitalesElegibles.length > 0
-      ? hospitalesElegibles.map((h) => ({
-          id: h.idSeleccionHospital,
-          label: h.nombreHospital ?? `Hospital ${h.idHospital}`,
-          description: [h.region, h.ciudadMunicipio].filter(Boolean).join(' · ') || undefined,
-        }))
-      : hospitalesAsignados.map((a) => ({
-          id: a.idSeleccionHospital as number,
-          label: a.nombreHospital ?? `Hospital ${a.idHospital ?? a.idSeleccionHospital}`,
-          description: [a.nombreRegion, a.ciudadMunicipio].filter(Boolean).join(' · ') || undefined,
-        }));
+    const fuente =
+      hospitalesElegibles.length > 0
+        ? hospitalesElegibles.map((h) => ({
+            id: h.idSeleccionHospital,
+            label: h.nombreHospital ?? `Hospital ${h.idHospital}`,
+            description: [h.region, h.ciudadMunicipio].filter(Boolean).join(' · ') || undefined,
+          }))
+        : hospitalesAsignados.map((a) => ({
+            id: a.idSeleccionHospital as number,
+            label: a.nombreHospital ?? `Hospital ${a.idHospital ?? a.idSeleccionHospital}`,
+            description:
+              [a.nombreRegion, a.ciudadMunicipio].filter(Boolean).join(' · ') || undefined,
+          }));
     return fuente;
   }, [extraordinario, hospitalesCatalogo, hospitalesElegibles, hospitalesAsignados]);
 
@@ -257,6 +260,7 @@ export function TallerFormModal({
         setRequiereEquipo(taller.requiereEquipoProyeccion ?? false);
         setTipoEquipo(aTexto(taller.tipoEquipoProyeccion));
         setObservaciones(aTexto(taller.observaciones));
+        setTema(aTexto(taller.tema));
         setRecursos(
           taller.recursos.map((r) => ({
             tipoRecurso: (r.tipoRecurso as TipoRecursoTaller) ?? 'Producto',
@@ -281,6 +285,7 @@ export function TallerFormModal({
         setRequiereEquipo(false);
         setTipoEquipo('');
         setObservaciones('');
+        setTema('');
         setRecursos([]);
       }
     }
@@ -387,6 +392,7 @@ export function TallerFormModal({
       requiereEquipoProyeccion: requiereEquipo,
       tipoEquipoProyeccion: requiereEquipo ? aTextoONull(tipoEquipo) : null,
       observaciones: aTextoONull(observaciones),
+      tema: aTextoONull(tema),
       recursos: recursos.map((r) => ({
         tipoRecurso: r.tipoRecurso,
         idProducto: r.tipoRecurso === 'Producto' ? aTextoONull(r.idProducto) : null,
@@ -430,11 +436,7 @@ export function TallerFormModal({
         if (!o) onClose();
       }}
       title={
-        esAjuste
-          ? 'Ajustar taller (post-cierre)'
-          : taller
-            ? 'Editar taller'
-            : 'Capturar taller'
+        esAjuste ? 'Ajustar taller (post-cierre)' : taller ? 'Editar taller' : 'Capturar taller'
       }
       size="wide"
       footer={
@@ -470,7 +472,7 @@ export function TallerFormModal({
         )}
 
         {!esAjuste && (datosUbicacion || nombreEjecutivo || nombreEspecialista) && (
-          <div className="rounded-lg bg-muted/50 p-3">
+          <div className="bg-muted/50 rounded-lg p-3">
             <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <MapPin className="h-3.5 w-3.5" />
               Ruta planeada de la visita
@@ -525,26 +527,26 @@ export function TallerFormModal({
           </div>
         )}
 
-          {!taller && puedeExtraordinarios && (
-            <div className="flex flex-wrap items-center gap-3 rounded-md bg-muted/50 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <Switch checked={extraordinario} onCheckedChange={setExtraordinario} />
-                <Label>Hospital extraordinario</Label>
-              </div>
-              {extraordinario && (
-                <div className="min-w-[240px] flex-1 space-y-1">
-                  <Label className="text-xs">Motivo del extraordinario *</Label>
-                  <Input
-                    value={motivoExtraordinario}
-                    onChange={(e) => setMotivoExtraordinario(e.target.value)}
-                    placeholder="Imprevisto que origina el taller"
-                  />
-                </div>
-              )}
+        {!taller && puedeExtraordinarios && (
+          <div className="bg-muted/50 flex flex-wrap items-center gap-3 rounded-md px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={extraordinario} onCheckedChange={setExtraordinario} />
+              <Label>Hospital extraordinario</Label>
             </div>
-          )}
+            {extraordinario && (
+              <div className="min-w-[240px] flex-1 space-y-1">
+                <Label className="text-xs">Motivo del extraordinario *</Label>
+                <Input
+                  value={motivoExtraordinario}
+                  onChange={(e) => setMotivoExtraordinario(e.target.value)}
+                  placeholder="Imprevisto que origina el taller"
+                />
+              </div>
+            )}
+          </div>
+        )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {!esAjuste && (
             <>
               {(puedeAsistida || (puedeExtraordinarios && !taller)) && (
@@ -616,6 +618,16 @@ export function TallerFormModal({
 
           {!esAjuste && (
             <div className="space-y-1">
+              <Label>Tema del taller</Label>
+              <Input value={tema} onChange={(e) => setTema(e.target.value)} />
+              <p className="text-xs text-muted-foreground">
+                Texto libre para el tema o asunto del taller.
+              </p>
+            </div>
+          )}
+
+          {!esAjuste && (
+            <div className="space-y-1">
               <Label>Unidad médica</Label>
               <Input value={unidadMedica} onChange={(e) => setUnidadMedica(e.target.value)} />
               <p className="text-xs text-muted-foreground">
@@ -646,11 +658,7 @@ export function TallerFormModal({
           </div>
           <div className="space-y-1">
             <Label>Hora del taller</Label>
-            <Input
-              type="time"
-              value={horaTaller}
-              onChange={(e) => setHoraTaller(e.target.value)}
-            />
+            <Input type="time" value={horaTaller} onChange={(e) => setHoraTaller(e.target.value)} />
             <p className="text-xs text-muted-foreground">Hora programada del taller.</p>
           </div>
 

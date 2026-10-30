@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica.DTOs;
 using Lefarma.API.Infrastructure.Data;
@@ -18,6 +19,8 @@ public class CalendarioService : ICalendarioService
 
     public async Task<List<CalendarioItemDto>> GetCalendarioAsync(
         CalendarioFiltro filtro,
+        int idUsuario,
+        bool verTodas,
         CancellationToken ct = default)
     {
         var (inicio, fin) = await ResolverRangoAsync(filtro, ct);
@@ -29,6 +32,23 @@ public class CalendarioService : ICalendarioService
                     from h in hospitales.DefaultIfEmpty()
                     where v.FechaVisita >= inicio && v.FechaVisita <= fin
                     select new { v, r, s, h };
+
+        if (!verTodas)
+        {
+            query = query.Where(x =>
+                x.v.IdEjecutivo == idUsuario || x.v.IdEspecialista == idUsuario);
+        }
+
+        if (filtro.Version.HasValue)
+        {
+            query = query.Where(x => x.r.Version == filtro.Version.Value);
+        }
+        else
+        {
+            query = query.Where(x => x.r.Estado != Ruta.EstadoArchivada
+                && x.r.Estado != Ruta.EstadoCancelada
+                && x.r.Estado != Ruta.EstadoRechazada);
+        }
 
         if (filtro.IdSeleccion.HasValue)
         {
@@ -69,7 +89,7 @@ public class CalendarioService : ICalendarioService
             .ToListAsync(ct);
         var tallerPorVisita = talleres
             .GroupBy(t => t.IdRutaVisita!.Value)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(t => t.IdTaller).First());
+            .ToDictionary(g => g.Key, g => g.OrderBy(t => t.HoraTaller).ThenBy(t => t.IdTaller).ToList());
 
         var idsTaller = talleres.Select(t => t.IdTaller).ToList();
         var solicitudesPendientes = idsTaller.Count == 0
@@ -121,6 +141,12 @@ public class CalendarioService : ICalendarioService
                 .Where(h => idsHospital.Contains(h.CodigoContacto))
                 .ToDictionaryAsync(h => h.CodigoContacto, ct);
 
+        var nombresEstados = await EducacionMedicaNombres.ResolverEstadosAsync(
+            _asokamContext,
+            hospitalesAsokam.Values.Select(h => h.CodigoEstado)
+                .Concat(filas.Select(x => x.h?.EntidadFederativa)),
+            ct);
+
         var idsPadre = hospitalesAsokam.Values
             .Select(h => h.CodigoContactoPrincipal)
             .Where(id => id.HasValue)
@@ -168,7 +194,6 @@ public class CalendarioService : ICalendarioService
         {
             var visita = fila.v;
             var hospital = fila.h;
-            var taller = tallerPorVisita.GetValueOrDefault(visita.IdRutaVisita);
             var idHospital = visita.IdHospital ?? hospital?.IdHospital;
             var hospitalAsokam = idHospital.HasValue
                 ? hospitalesAsokam.GetValueOrDefault(idHospital.Value)
@@ -179,30 +204,41 @@ public class CalendarioService : ICalendarioService
                 ? padres.GetValueOrDefault(idPadre)?.NombreContacto
                 : null;
 
-            var recursoProducto = taller?.Recursos
-                .FirstOrDefault(r => r.TipoRecurso == TallerRecurso.RecursoProducto);
-            string? producto = null;
-            if (recursoProducto is not null)
+            var talleresVisita = tallerPorVisita.TryGetValue(visita.IdRutaVisita, out var listaTalleres)
+                ? listaTalleres
+                : [];
+            var iteraciones = talleresVisita.Count > 0
+                ? talleresVisita.Cast<Taller?>().ToList()
+                : [null];
+
+            foreach (var taller in iteraciones)
             {
-                producto = int.TryParse(recursoProducto.IdProducto, out var idProducto)
-                    && productos.TryGetValue(idProducto, out var nombreProducto)
-                    ? nombreProducto
-                    : recursoProducto.Descripcion ?? recursoProducto.IdProducto;
-            }
+                var recursoProducto = taller?.Recursos
+                    .FirstOrDefault(r => r.TipoRecurso == TallerRecurso.RecursoProducto);
+                string? producto = null;
+                if (recursoProducto is not null)
+                {
+                    producto = int.TryParse(recursoProducto.IdProducto, out var idProducto)
+                        && productos.TryGetValue(idProducto, out var nombreProducto)
+                        ? nombreProducto
+                        : recursoProducto.Descripcion ?? recursoProducto.IdProducto;
+                }
 
-            var tema = taller?.IdTemaTaller.HasValue == true
-                ? temas.GetValueOrDefault(taller.IdTemaTaller.Value)
-                : null;
+                var tema = taller?.Tema
+                    ?? (taller?.IdTemaTaller.HasValue == true
+                        ? temas.GetValueOrDefault(taller.IdTemaTaller.Value)
+                        : null);
 
-            var idEjecutivo = visita.IdEjecutivo ?? taller?.IdEjecutivo;
-            var idEspecialista = visita.IdEspecialista ?? taller?.IdEspecialista;
-            var tipoVisita = visita.IdTipoVisita.HasValue
-                ? tiposVisita.GetValueOrDefault(visita.IdTipoVisita.Value)
-                : null;
+                var idEjecutivo = visita.IdEjecutivo ?? taller?.IdEjecutivo;
+                var idEspecialista = visita.IdEspecialista ?? taller?.IdEspecialista;
+                var tipoVisita = visita.IdTipoVisita.HasValue
+                    ? tiposVisita.GetValueOrDefault(visita.IdTipoVisita.Value)
+                    : null;
 
-            var conflictos = CalcularConflictos(
-                visita, fila.s, idEspecialista, maxDia, maxSemana,
-                visitasCapacidad, elegibilidad, nombreHospital);
+                var conflictos = CalcularConflictos(
+                    visita, fila.s, idEspecialista, maxDia, maxSemana,
+                    visitasCapacidad, elegibilidad, nombreHospital);
+
 
             var costos = taller?.Recursos
                 .Select(r => r.Subtotal
@@ -230,9 +266,14 @@ public class CalendarioService : ICalendarioService
                 EstadoRuta = fila.r.Estado,
                 Institucion = institucion,
                 CiudadMunicipio = hospitalAsokam?.Ciudad,
+                EntidadFederativa = hospitalAsokam?.CodigoEstado is { } codigoEstado
+                    ? nombresEstados.GetValueOrDefault(codigoEstado, codigoEstado)
+                    : (hospital?.EntidadFederativa is { } codigoSeleccion
+                        ? nombresEstados.GetValueOrDefault(codigoSeleccion, codigoSeleccion)
+                        : null),
                 Fecha = visita.FechaVisita,
                 Orden = visita.Orden,
-                Hora = visita.HoraSalida ?? taller?.HoraTaller,
+                Hora = taller?.HoraTaller ?? visita.HoraSalida,
                 IdEjecutivo = idEjecutivo,
                 NombreEjecutivo = idEjecutivo.HasValue
                     ? usuarios.GetValueOrDefault(idEjecutivo.Value)
@@ -241,6 +282,7 @@ public class CalendarioService : ICalendarioService
                 NombreEspecialista = idEspecialista.HasValue
                     ? usuarios.GetValueOrDefault(idEspecialista.Value)
                     : null,
+                IdTipoVisita = visita.IdTipoVisita,
                 TipoVisita = tipoVisita ?? "Taller",
                 Tema = tema ?? producto,
                 Producto = producto,
@@ -254,6 +296,7 @@ public class CalendarioService : ICalendarioService
                     && solicitudesPendientes.Contains(taller.IdTaller),
                 Conflictos = conflictos,
             });
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(filtro.Estado))
@@ -299,11 +342,16 @@ public class CalendarioService : ICalendarioService
         return items;
     }
 
-    public async Task<CalendarioItemDto?> GetItemAsync(int idRutaVisita, CancellationToken ct = default)
+    public async Task<CalendarioItemDto?> GetItemAsync(
+        int idRutaVisita,
+        int idUsuario,
+        bool verTodas,
+        CancellationToken ct = default)
     {
         var fecha = await _context.RutasVisitas
             .AsNoTracking()
-            .Where(v => v.IdRutaVisita == idRutaVisita)
+            .Where(v => v.IdRutaVisita == idRutaVisita
+                && (verTodas || v.IdEjecutivo == idUsuario || v.IdEspecialista == idUsuario))
             .Select(v => (DateOnly?)v.FechaVisita)
             .FirstOrDefaultAsync(ct);
         if (!fecha.HasValue)
@@ -313,8 +361,424 @@ public class CalendarioService : ICalendarioService
 
         var items = await GetCalendarioAsync(
             new CalendarioFiltro { Desde = fecha.Value, Hasta = fecha.Value },
+            idUsuario,
+            verTodas,
             ct);
         return items.FirstOrDefault(i => i.IdRutaVisita == idRutaVisita);
+    }
+
+    public async Task<ActividadVisitaDto?> GetActividadVisitaAsync(
+        int idRutaVisita,
+        int idUsuario,
+        bool verTodas,
+        CancellationToken ct = default)
+    {
+        var visita = await _context.RutasVisitas.AsNoTracking()
+            .FirstOrDefaultAsync(v => v.IdRutaVisita == idRutaVisita
+                && (verTodas || v.IdEjecutivo == idUsuario || v.IdEspecialista == idUsuario), ct);
+
+        if (visita is null)
+        {
+            return null;
+        }
+
+        var idHospital = visita.IdHospital
+            ?? (visita.IdSeleccionHospital.HasValue
+                ? await _context.SeleccionesHospitales.AsNoTracking()
+                    .Where(h => h.IdSeleccionHospital == visita.IdSeleccionHospital.Value)
+                    .Select(h => h.IdHospital)
+                    .FirstOrDefaultAsync(ct)
+                : null);
+        var hospital = idHospital.HasValue
+            ? await _asokamContext.Hospitales.AsNoTracking()
+                .FirstOrDefaultAsync(h => h.CodigoContacto == idHospital.Value, ct)
+            : null;
+
+        var talleres = await _context.Talleres.AsNoTracking()
+            .Where(t => t.IdRutaVisita == idRutaVisita && t.Activo)
+            .OrderByDescending(t => t.FechaCreacion)
+            .ThenByDescending(t => t.IdTaller)
+            .ToListAsync(ct);
+        var idsTalleres = talleres.Select(t => t.IdTaller).ToList();
+
+        var historial = idsTalleres.Count == 0
+            ? []
+            : await _context.TalleresEstadosHistorial.AsNoTracking()
+                .Where(h => idsTalleres.Contains(h.IdTaller))
+                .OrderByDescending(h => h.Fecha)
+                .ThenByDescending(h => h.IdHistorial)
+                .ToListAsync(ct);
+
+        var solicitudes = idsTalleres.Count == 0
+            ? []
+            : await _context.TalleresSolicitudesCambio.AsNoTracking()
+                .Where(s => idsTalleres.Contains(s.IdTaller))
+                .OrderByDescending(s => s.FechaCreacion)
+                .ThenByDescending(s => s.IdSolicitud)
+                .ToListAsync(ct);
+
+        var ajustes = await _context.AjustesPostCierre.AsNoTracking()
+            .Where(a =>
+                (a.EntidadTipo == AjustePostCierre.EntidadTaller && idsTalleres.Contains(a.IdEntidad))
+                || (a.EntidadTipo == AjustePostCierre.EntidadRutaVisita && a.IdEntidad == idRutaVisita))
+            .OrderByDescending(a => a.FechaAjuste)
+            .ThenByDescending(a => a.IdAjuste)
+            .ToListAsync(ct);
+
+        var recursos = idsTalleres.Count == 0
+            ? []
+            : await _context.TalleresRecursos.AsNoTracking()
+                .Where(r => idsTalleres.Contains(r.IdTaller) && r.TipoRecurso == TallerRecurso.RecursoProducto)
+                .ToListAsync(ct);
+        var idsProducto = recursos
+            .Select(r => int.TryParse(r.IdProducto, out var id) ? id : (int?)null)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .Distinct()
+            .ToList();
+        var productos = idsProducto.Count == 0
+            ? new Dictionary<int, string>()
+            : await _asokamContext.Productos.AsNoTracking()
+                .Where(p => idsProducto.Contains(p.CodigoProducto))
+                .ToDictionaryAsync(
+                    p => p.CodigoProducto,
+                    p => p.NombreInternoProducto ?? p.CodigoProducto.ToString(),
+                    ct);
+
+        var idsMatrizGeneral = talleres
+            .Where(t => t.IdMatrizGeneral.HasValue)
+            .Select(t => t.IdMatrizGeneral!.Value)
+            .Distinct()
+            .ToList();
+        var matricesGenerales = idsMatrizGeneral.Count == 0
+            ? new Dictionary<int, MatrizGeneral>()
+            : await _context.MatricesGenerales.AsNoTracking()
+                .Where(m => idsMatrizGeneral.Contains(m.IdMatrizGeneral))
+                .ToDictionaryAsync(m => m.IdMatrizGeneral, ct);
+        var idsPaso = matricesGenerales.Values
+            .Where(m => m.IdPasoActual.HasValue)
+            .Select(m => m.IdPasoActual!.Value)
+            .Distinct()
+            .ToList();
+        var pasos = idsPaso.Count == 0
+            ? new Dictionary<int, (bool EsInicio, int IdWorkflow, bool Activo)>()
+            : await _context.WorkflowPasos.AsNoTracking()
+                .Where(p => idsPaso.Contains(p.IdPaso))
+                .ToDictionaryAsync(
+                    p => p.IdPaso,
+                    p => (EsInicio: p.EsInicio, IdWorkflow: p.IdWorkflow, Activo: p.Activo),
+                    ct);
+
+        bool CandadoPuesto(Taller taller)
+        {
+            if (!taller.IdMatrizGeneral.HasValue
+                || !matricesGenerales.TryGetValue(taller.IdMatrizGeneral.Value, out var general))
+            {
+                return false;
+            }
+
+            return !general.IdWorkflow.HasValue
+                || !general.IdPasoActual.HasValue
+                || !pasos.TryGetValue(general.IdPasoActual.Value, out var paso)
+                || !paso.Activo
+                || paso.IdWorkflow != general.IdWorkflow.Value
+                || !paso.EsInicio;
+        }
+
+        var solicitudPendientePorTaller = solicitudes
+            .Where(s => s.Estado == TallerSolicitudCambio.EstadoPendiente)
+            .GroupBy(s => s.IdTaller)
+            .ToDictionary(g => g.Key, g => g.First().IdSolicitud);
+        var productoPorTaller = recursos
+            .GroupBy(r => r.IdTaller)
+            .ToDictionary(g => g.Key, g => g.First());
+        var candados = talleres.ToDictionary(t => t.IdTaller, CandadoPuesto);
+        var candadoPuesto = candados.Values.Any(v => v);
+
+        var idsUsuarios = new HashSet<int>();
+        void AgregarUsuario(int? id)
+        {
+            if (id.HasValue)
+            {
+                idsUsuarios.Add(id.Value);
+            }
+        }
+
+        AgregarUsuario(visita.IdEjecutivo);
+        AgregarUsuario(visita.IdEspecialista);
+        AgregarUsuario(visita.IdUsuarioCreacion);
+        foreach (var taller in talleres)
+        {
+            AgregarUsuario(taller.IdEjecutivo);
+            AgregarUsuario(taller.IdEspecialista);
+            AgregarUsuario(taller.IdUsuarioCreacion);
+        }
+
+        foreach (var evento in historial)
+        {
+            AgregarUsuario(evento.IdUsuario);
+        }
+
+        foreach (var solicitud in solicitudes)
+        {
+            AgregarUsuario(solicitud.IdUsuarioCreacion);
+            AgregarUsuario(solicitud.IdUsuarioModificacion);
+        }
+
+        foreach (var ajuste in ajustes)
+        {
+            AgregarUsuario(ajuste.IdUsuario);
+        }
+
+        var nombresUsuarios = idsUsuarios.Count == 0
+            ? new Dictionary<int, string>()
+            : await _asokamContext.Usuarios.AsNoTracking()
+                .Where(u => idsUsuarios.Contains(u.IdUsuario))
+                .ToDictionaryAsync(
+                    u => u.IdUsuario,
+                    u => u.NombreCompleto ?? $"Usuario {u.IdUsuario}",
+                    ct);
+
+        string? Nombre(int? id) =>
+            id.HasValue ? nombresUsuarios.GetValueOrDefault(id.Value) : null;
+
+        var eventos = new List<ActividadVisitaEventoDto>();
+        eventos.Add(new ActividadVisitaEventoDto
+        {
+            Tipo = "VISITA_CREADA",
+            Fecha = visita.FechaCreacion,
+            Titulo = "Visita creada",
+            Detalle = hospital?.NombreContacto ?? $"Hospital {idHospital}",
+            Actor = Nombre(visita.IdUsuarioCreacion),
+        });
+
+        foreach (var taller in talleres)
+        {
+            var producto = productoPorTaller.GetValueOrDefault(taller.IdTaller);
+            var nombreProducto = producto is not null
+                && int.TryParse(producto.IdProducto, out var idProducto)
+                ? productos.GetValueOrDefault(idProducto) ?? producto.Descripcion ?? producto.IdProducto
+                : producto?.Descripcion;
+
+            eventos.Add(new ActividadVisitaEventoDto
+            {
+                Tipo = "TALLER_CREADO",
+                Fecha = taller.FechaCreacion,
+                IdTaller = taller.IdTaller,
+                Titulo = "Taller creado",
+                Detalle = taller.Tema ?? nombreProducto ?? "Sin tema capturado",
+                Actor = Nombre(taller.IdUsuarioCreacion),
+            });
+        }
+
+        foreach (var cambio in historial)
+        {
+            eventos.Add(new ActividadVisitaEventoDto
+            {
+                Tipo = "TALLER_ESTADO",
+                Fecha = cambio.Fecha,
+                IdTaller = cambio.IdTaller,
+                Titulo = "Cambio de estado",
+                Detalle = $"{cambio.EstadoAnterior ?? "Sin estado"} → {cambio.EstadoNuevo}",
+                Actor = Nombre(cambio.IdUsuario) ?? "Sistema",
+                EstadoAnterior = cambio.EstadoAnterior,
+                EstadoNuevo = cambio.EstadoNuevo,
+                Motivo = cambio.Motivo,
+            });
+        }
+
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+
+        foreach (var solicitud in solicitudes)
+        {
+            ActividadSolicitudDatos? datos = null;
+            if (!string.IsNullOrWhiteSpace(solicitud.DatosJson))
+            {
+                try
+                {
+                    datos = JsonSerializer.Deserialize<ActividadSolicitudDatos>(
+                        solicitud.DatosJson, jsonOptions);
+                }
+                catch (JsonException)
+                {
+                    datos = null;
+                }
+            }
+
+            var antes = datos?.Antes is null ? null : JsonSerializer.Serialize(datos.Antes, jsonOptions);
+            var despues = datos?.Despues is null ? null : JsonSerializer.Serialize(datos.Despues, jsonOptions);
+            var cambios = DescribirCambios(datos?.Antes, datos?.Despues);
+
+            eventos.Add(new ActividadVisitaEventoDto
+            {
+                Tipo = "TALLER_SOLICITUD",
+                Fecha = solicitud.FechaCreacion,
+                IdTaller = solicitud.IdTaller,
+                IdSolicitud = solicitud.IdSolicitud,
+                Titulo = "Solicitud de cambio",
+                Detalle = cambios,
+                Actor = Nombre(solicitud.IdUsuarioCreacion),
+                Antes = antes,
+                Despues = despues,
+                Motivo = datos?.MotivoSolicitante,
+                EstadoNuevo = solicitud.Estado,
+            });
+
+            if (solicitud.Estado != TallerSolicitudCambio.EstadoPendiente)
+            {
+                eventos.Add(new ActividadVisitaEventoDto
+                {
+                    Tipo = "TALLER_SOLICITUD_RESUELTA",
+                    Fecha = solicitud.FechaModificacion,
+                    IdTaller = solicitud.IdTaller,
+                    IdSolicitud = solicitud.IdSolicitud,
+                    Titulo = solicitud.Estado == TallerSolicitudCambio.EstadoAprobada
+                        ? "Solicitud aprobada"
+                        : "Solicitud rechazada",
+                    Detalle = datos?.Resolucion?.Motivo,
+                    Actor = Nombre(solicitud.IdUsuarioModificacion ?? datos?.Resolucion?.IdUsuarioResolutor),
+                    Antes = antes,
+                    Despues = despues,
+                    Motivo = datos?.Resolucion?.Motivo,
+                    EstadoNuevo = solicitud.Estado,
+                });
+            }
+        }
+
+        foreach (var ajuste in ajustes)
+        {
+            eventos.Add(new ActividadVisitaEventoDto
+            {
+                Tipo = ajuste.EntidadTipo == AjustePostCierre.EntidadRutaVisita
+                    ? "VISITA_AJUSTE"
+                    : "TALLER_AJUSTE",
+                Fecha = ajuste.FechaAjuste,
+                IdTaller = ajuste.EntidadTipo == AjustePostCierre.EntidadTaller
+                    ? ajuste.IdEntidad
+                    : null,
+                Titulo = TituloAjuste(ajuste.Accion),
+                Detalle = ajuste.Motivo,
+                Actor = Nombre(ajuste.IdUsuario),
+                Antes = ajuste.ValoresAntes,
+                Despues = ajuste.ValoresDespues,
+                Motivo = ajuste.Motivo,
+            });
+        }
+
+        return new ActividadVisitaDto
+        {
+            IdRutaVisita = visita.IdRutaVisita,
+            IdRuta = visita.IdRuta,
+            Hospital = hospital?.NombreContacto ?? $"Hospital {idHospital}",
+            FechaVisita = visita.FechaVisita,
+            IdEjecutivo = visita.IdEjecutivo,
+            NombreEjecutivo = Nombre(visita.IdEjecutivo),
+            IdEspecialista = visita.IdEspecialista,
+            NombreEspecialista = Nombre(visita.IdEspecialista),
+            CandadoPuesto = candadoPuesto,
+            Talleres = talleres.Select(t =>
+            {
+                var producto = productoPorTaller.GetValueOrDefault(t.IdTaller);
+                var nombreProducto = producto is not null
+                    && int.TryParse(producto.IdProducto, out var idProducto)
+                    ? productos.GetValueOrDefault(idProducto) ?? producto.Descripcion ?? producto.IdProducto
+                    : producto?.Descripcion;
+
+                return new ActividadVisitaTallerDto
+                {
+                    IdTaller = t.IdTaller,
+                    Tema = t.Tema,
+                    Producto = nombreProducto,
+                    FechaTaller = t.FechaTaller,
+                    HoraTaller = t.HoraTaller,
+                    Estado = t.Estado,
+                    FechaCreacion = t.FechaCreacion,
+                    IdEjecutivo = t.IdEjecutivo,
+                    NombreEjecutivo = Nombre(t.IdEjecutivo),
+                    IdEspecialista = t.IdEspecialista,
+                    NombreEspecialista = Nombre(t.IdEspecialista),
+                    EsIntegranteEquipo = t.IdEjecutivo == idUsuario || t.IdEspecialista == idUsuario,
+                    CandadoPuesto = candados.GetValueOrDefault(t.IdTaller),
+                    IdSolicitudPendiente = solicitudPendientePorTaller.GetValueOrDefault(t.IdTaller),
+                };
+            }).ToList(),
+            Eventos = eventos
+                .OrderByDescending(e => e.Fecha)
+                .ThenByDescending(e => e.Tipo)
+                .ToList(),
+        };
+    }
+
+    private static string? DescribirCambios(
+        ActividadSolicitudDiff? antes,
+        ActividadSolicitudDiff? despues)
+    {
+        if (despues is null)
+        {
+            return null;
+        }
+
+        var campos = new List<string>();
+        if (despues.FechaVisita.HasValue && despues.FechaVisita != antes?.FechaVisita)
+            campos.Add("fecha de visita");
+        if (despues.FechaTaller.HasValue && despues.FechaTaller != antes?.FechaTaller)
+            campos.Add("fecha del taller");
+        if (despues.HoraTaller.HasValue && despues.HoraTaller != antes?.HoraTaller)
+            campos.Add("hora");
+        if (despues.Lugar is not null && despues.Lugar != antes?.Lugar)
+            campos.Add("lugar");
+        if (despues.NumeroParticipantes.HasValue
+            && despues.NumeroParticipantes != antes?.NumeroParticipantes)
+            campos.Add("participantes");
+        if (despues.IdEjecutivo.HasValue && despues.IdEjecutivo != antes?.IdEjecutivo)
+            campos.Add("ejecutivo");
+        if (despues.IdEspecialista.HasValue && despues.IdEspecialista != antes?.IdEspecialista)
+            campos.Add("especialista");
+
+        return campos.Count == 0 ? null : $"Cambios: {string.Join(", ", campos)}";
+    }
+
+    private static string TituloAjuste(string accion) => accion switch
+    {
+        AjustePostCierre.AccionMoverVisita => "Movimiento de visita",
+        AjustePostCierre.AccionEditarHoras => "Cambio de horario",
+        AjustePostCierre.AccionEditarEjecutivo => "Cambio de ejecutivo",
+        AjustePostCierre.AccionAltaVisita => "Alta de visita",
+        AjustePostCierre.AccionBajaVisita => "Baja de visita",
+        AjustePostCierre.AccionEditarTaller => "Ajuste de taller",
+        _ => "Ajuste",
+    };
+
+    private sealed class ActividadSolicitudDatos
+    {
+        public ActividadSolicitudDiff? Antes { get; set; }
+        public ActividadSolicitudDiff? Despues { get; set; }
+        public string? MotivoSolicitante { get; set; }
+        public int? IdSolicitante { get; set; }
+        public ActividadSolicitudResolucion? Resolucion { get; set; }
+    }
+
+    private sealed class ActividadSolicitudDiff
+    {
+        public DateOnly? FechaVisita { get; set; }
+        public DateOnly? FechaTaller { get; set; }
+        public TimeOnly? HoraTaller { get; set; }
+        public string? Lugar { get; set; }
+        public int? NumeroParticipantes { get; set; }
+        public int? IdEjecutivo { get; set; }
+        public int? IdEspecialista { get; set; }
+    }
+
+    private sealed class ActividadSolicitudResolucion
+    {
+        public bool Aprobada { get; set; }
+        public string? Motivo { get; set; }
+        public int? IdUsuarioResolutor { get; set; }
+        public DateTime Fecha { get; set; }
     }
 
     private async Task<(DateOnly Inicio, DateOnly Fin)> ResolverRangoAsync(

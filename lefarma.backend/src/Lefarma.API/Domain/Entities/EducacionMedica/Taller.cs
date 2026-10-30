@@ -51,6 +51,7 @@ public class Taller
     public int? IdMatrizGeneral { get; set; }
     public int? IdRutaVisita { get; set; }
     public int? IdTemaTaller { get; set; }
+    public string? Tema { get; set; }
 
     /// <summary>Fecha real de cierre del taller (estado Realizado); indicadores/cobertura (ADR-00008).</summary>
     public DateOnly? FechaRealizado { get; set; }

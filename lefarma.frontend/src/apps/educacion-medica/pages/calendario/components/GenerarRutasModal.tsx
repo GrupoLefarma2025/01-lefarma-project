@@ -14,6 +14,7 @@ interface GenerarRutasModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   seleccion: SeleccionDetalle | null;
+  regenerar?: boolean;
   onGenerated: () => void;
 }
 
@@ -21,6 +22,7 @@ export function GenerarRutasModal({
   open,
   onOpenChange,
   seleccion,
+  regenerar = false,
   onGenerated,
 }: GenerarRutasModalProps) {
   const [estrategia, setEstrategia] = useState<Estrategia>('ciudad');
@@ -61,8 +63,12 @@ export function GenerarRutasModal({
       id="calendario-generar-rutas"
       open={open}
       setOpen={onOpenChange}
-      title="Generar propuesta de rutas"
-      subtitle="Calendariza los hospitales autorizados de la selección."
+      title={regenerar ? 'Regenerar propuesta de rutas' : 'Generar propuesta de rutas'}
+      subtitle={
+        regenerar
+          ? 'Se archivará el borrador actual y se creará una nueva versión.'
+          : 'Calendariza los hospitales autorizados de la selección.'
+      }
       size="md"
       footer={
         <div className="flex justify-end gap-2 pt-2">
@@ -163,8 +169,9 @@ export function GenerarRutasModal({
         </div>
 
         <div className="rounded-xl border border-slate-200/80 bg-slate-50/70 px-3 py-2.5 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-400">
-          Se creará la primera versión de rutas. Después podrás ajustar fechas, responsables y
-          talleres desde el calendario.
+          {regenerar
+            ? 'Se archivará el borrador actual y se creará la siguiente versión. Después podrás ajustar fechas, responsables y talleres.'
+            : 'Se creará la primera versión de rutas. Después podrás ajustar fechas, responsables y talleres.'}
         </div>
 
         {error && (

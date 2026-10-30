@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using System.Text.Json;
+using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Features.Viaticos.DTOs;
 using Lefarma.API.Infrastructure.Data;
@@ -270,6 +271,59 @@ public class SolicitudesController : ControllerBase
         // una transacción serializable en SQL Server: dos solicitudes simultáneas
         // no pueden cotizar la misma visita. Los proveedores no relacionales
         // (EF InMemory en las pruebas) no soportan transacciones y se omiten.
+        var ruta = await _context.Rutas
+            .AsNoTracking()
+            .Where(r => r.IdRuta == request.IdRuta)
+            .Select(r => new { r.IdRuta, r.IdEspecialista, r.IdSeleccionMensual, r.Estado })
+            .FirstOrDefaultAsync(ct);
+        if (ruta is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La ruta {request.IdRuta} no existe."
+            });
+        }
+
+        if (ruta.Estado is Ruta.EstadoArchivada or Ruta.EstadoCancelada or Ruta.EstadoRechazada)
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"La ruta está {ruta.Estado}; no se puede cotizar. Selecciona una versión vigente."
+            });
+        }
+
+        var visitasRuta = await _context.RutasVisitas
+            .AsNoTracking()
+            .Where(v => v.IdRuta == request.IdRuta && visitasSolicitadas.Contains(v.IdRutaVisita))
+            .Select(v => new { v.IdRutaVisita, v.IdEspecialista })
+            .ToListAsync(ct);
+        if (visitasRuta.Count != visitasSolicitadas.Count)
+        {
+            return BadRequest(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "Todas las visitas seleccionadas deben pertenecer a la ruta indicada."
+            });
+        }
+        if (!ruta.IdEspecialista.HasValue)
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "La ruta no tiene especialista asignado; corrige la ruta antes de cotizar."
+            });
+        }
+        if (visitasRuta.Any(v => v.IdEspecialista != ruta.IdEspecialista))
+        {
+            return Conflict(new ApiResponse<object>
+            {
+                Success = false,
+                Message = "La ruta contiene visitas de especialistas distintos; corrige la asignación antes de cotizar."
+            });
+        }
+
         await using var transaccion = _context.Database.IsRelational()
             ? await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
             : null;

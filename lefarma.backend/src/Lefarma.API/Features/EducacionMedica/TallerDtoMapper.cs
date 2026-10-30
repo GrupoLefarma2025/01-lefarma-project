@@ -64,6 +64,7 @@ internal static class TallerDtoMapper
             TipoEquipoProyeccion = taller.TipoEquipoProyeccion,
             Estado = taller.Estado,
             Observaciones = taller.Observaciones,
+            Tema = taller.Tema,
             IdMatrizIndividual = taller.IdMatrizIndividual,
             IdMatrizGeneral = taller.IdMatrizGeneral,
             FechaRealizado = taller.FechaRealizado,

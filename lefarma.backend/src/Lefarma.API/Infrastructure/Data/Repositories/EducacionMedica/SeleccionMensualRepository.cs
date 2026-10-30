@@ -56,7 +56,6 @@ public class SeleccionMensualRepository : ISeleccionMensualRepository
         return await _context.SeleccionesMensuales
             .AsNoTracking()
             .AnyAsync(s => s.Activo
-                && s.Estado != SeleccionMensual.EstadoCerrada
                 && s.Estado != SeleccionMensual.EstadoCancelada
                 && s.Estado != SeleccionMensual.EstadoRechazada
                 && (idTipoGerencia == null || s.IdTipoGerencia == idTipoGerencia)

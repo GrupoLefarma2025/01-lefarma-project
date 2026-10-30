@@ -305,7 +305,7 @@ export function EquipoCard({ misTalleres }: { misTalleres: MisTalleresResponse }
     <DashboardCard
       title="Panel de situación del equipo"
       icon={TrendingUp}
-      link={{ to: '/educacion-medica/talleres/mis-talleres', label: 'Mis talleres' }}
+      link={{ to: '/educacion-medica/panel-rutas?vista=semana&filtro=mis', label: 'Mis talleres' }}
     >
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="truncate">
@@ -354,7 +354,7 @@ export function VisitasCard({ asignaciones }: { asignaciones: Asignacion[] }) {
     <DashboardCard
       title="Mis visitas del mes"
       icon={MapPin}
-      link={{ to: '/educacion-medica/calendario', label: 'Ver planeación' }}
+      link={{ to: '/educacion-medica/panel-rutas', label: 'Ver planeación' }}
     >
       <p className="text-2xl font-semibold tabular-nums">{asignaciones.length}</p>
       <p className="text-xs text-muted-foreground">visitas confirmadas</p>
@@ -431,7 +431,7 @@ export function ProximosDiasCard({
     <DashboardCard
       title="Próximos 7 días"
       icon={CalendarDays}
-      link={{ to: '/educacion-medica/calendario', label: 'Mi planeación' }}
+      link={{ to: '/educacion-medica/panel-rutas', label: 'Mi planeación' }}
     >
       <ul className="space-y-1.5">
         {eventos.map((evento) => (
@@ -478,7 +478,7 @@ export function MatrizCard({ matrices }: { matrices: MatrizGeneralResumen[] }) {
     <DashboardCard
       title="Matriz general del mes"
       icon={Presentation}
-      link={{ to: '/educacion-medica/talleres', label: 'Abrir matriz' }}
+      link={{ to: '/educacion-medica/panel-rutas?vista=matriz', label: 'Abrir matriz' }}
     >
       <ul className="space-y-2">
         {matrices.map((matriz) => (
@@ -516,7 +516,7 @@ export function SolicitudesCard({ solicitudes }: { solicitudes: Taller[] }) {
     <DashboardCard
       title="Solicitudes de cambio"
       icon={FileSignature}
-      link={{ to: '/educacion-medica/talleres', label: 'Revisar' }}
+      link={{ to: '/educacion-medica/panel-rutas?vista=matriz', label: 'Revisar' }}
     >
       <p className="text-2xl font-semibold tabular-nums">{solicitudes.length}</p>
       <ul className="mt-2 space-y-1.5 text-sm">

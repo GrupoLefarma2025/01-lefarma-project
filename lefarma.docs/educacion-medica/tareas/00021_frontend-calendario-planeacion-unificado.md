@@ -143,7 +143,8 @@
 
 Implementado en lefarma.frontend/src/apps/educacion-medica/pages/calendario/:
 
-- [x] Ruta /educacion-medica/calendario reemplaza MiPlaneacionPage; acceso con utas.puede_ver.
+- [x] Ruta /educacion-medica/calendario reemplaza MiPlaneacionPage; acceso con 
+utas.puede_ver.
 - [x] Tipos CalendarioItem, CalendarioFiltro, SugerenciaEspecialista y AsignarEjecutivoVisitaRequest.
 - [x] API de calendario: listado por rango/filtros, detalle, sugerencias, asignar especialista, asignar ejecutivo y crear taller desde visita.
 - [x] Catálogos de gerencia, región, ejecutivos, suplentes y especialistas para filtros y rail.
@@ -183,3 +184,71 @@ Pendientes para cerrar el alcance completo:
 - [x] `rutas.puede_ajustar` se mantiene exclusivo del CEM.
 - [x] Si la visita ya tiene taller y se intenta crear otro en la misma fecha, la UI lo bloquea y pide cambiar la fecha.
 - [x] El producto, cantidad, participantes, costo y estado del taller se muestran en el calendario; la matriz queda como acceso secundario.
+## Integración de talleres y selección mensual (28-oct-2026)
+
+- [x] La tab **Talleres** abre `TallerDetalleModal` por taller, con acciones de **Editar**, **Asistencia**, **Evidencias**, **Material** y **Abrir en matriz**.
+- [x] El alta/edición de taller captura **tema libre**, **tipo de visita** y **producto**; la edición completa reutiliza `TallerFormModal` para recursos.
+- [x] `talleres.tema` se agrega con el script `0039_20261028-1200_educacion-medica_taller-tema-libre.lefarma.sql` (aplicado en LefarmaDev2).
+- [x] La selección mensual usa un selector de **mes futuro**; el backend calcula primer/último día y distribuye rutas en el mes.
+- [x] El botón **Generar/Regenerar propuesta** queda visible en el calendario para selecciones cerradas con permiso de gestión de rutas.
+- [x] Al regenerar se archiva el borrador actual; si la versión está en autorización/confirmada, el backend bloquea y la UI muestra el error.
+## Cierre de alcance solicitado (28-oct-2026)
+
+- [x] Detalle de taller reutilizado en calendario con botones Editar, Asistencia, Evidencias, Material y Abrir en matriz.
+- [x] Tema libre (`talleres.tema`) y tipo de visita desde el catálogo `tipo_visita` (Taller, Informativa, Captación de queja, Otro).
+- [x] Producto seleccionable al crear taller y recursos completos al editar con `TallerFormModal`.
+- [x] Selección mensual solo con mes futuro; backend calcula primer y último día del mes.
+- [x] Botón Generar/Regenerar propuesta persistente en calendario para selecciones cerradas con permiso.
+- [x] Aplicar `0039_20261028-1200_educacion-medica_taller-tema-libre.lefarma.sql` antes de reiniciar backend.
+## Múltiples talleres por visita (28-oct-2026)
+
+- [x] Se permite crear varios talleres sobre la misma visita en fechas iguales y horas distintas.
+- [x] El alta solicita hora y valida duplicado por visita + fecha + hora exacta (HH:mm).
+- [x] El backend también valida duplicados al crear y editar.
+- [x] El calendario devuelve una tarjeta/fila por taller, no solo el taller más reciente.
+- [x] Semana, Tabla y Matriz usan claves por taller y muestran cada horario.
+- [x] Si no hay hora, el alta no permite guardar; la hora inicial es la de la visita.
+## Contexto mensual y navegación (28-oct-2026)
+
+- [x] Se retiró la gráfica redundante de Resumen; el rail muestra **Selección del mes**.
+- [x] El selector superior ahora es de **mes**; la navegación anterior/siguiente/Hoy vive arriba del calendario para Día/Semana/Especialista/Ejecutivo.
+- [x] Al elegir mes y gerencia se busca la selección correspondiente y se muestra su estado, hospitales, regiones y rutas en la cabecera.
+- [x] Al abrir “Planificar rutas” con `idSeleccion`, el calendario adopta el mes y la gerencia de la selección.
+- [x] La creación de selección valida que no exista otra del mismo mes/gerencia; solo se permite si la anterior está Cancelada o Rechazada.
+- [x] El backend ahora considera también las selecciones Cerradas en la validación de duplicados.
+
+## Refinamiento de experiencia y cotizaci�n por especialista (29-oct-2026)
+
+- [x] Filtros de calendario agrupados y colapsables; una sola barra de herramientas con vistas y filtros activos como chips.
+- [x] Resumen de actividades/talleres/conflictos/sin responsable convertido en barra compacta colapsable; rail lateral colapsable.
+- [x] Ayudas contextuales por grupo de filtro y por vista, con color sutil por agrupaci�n.
+- [x] Componente TextoExpandible para nombres largos en tarjetas, tabla, matriz e inspector, con popover y copia.
+- [x] Sugerencias de especialista visibles en el calendario; se aplican manualmente desde el sheet o el inspector.
+- [x] Cotizaci�n de vi�ticos desde la ruta del especialista, con el especialista como viajero y sin incluir al ejecutivo.
+- [x] El modal de cotizaci�n muestra el viajero, reutiliza el bloqueo de visitas ya cotizadas y permite abrir cotizaciones existentes.
+- [x] Se conservan todas las pantallas existentes; la matriz de talleres y la vista Matriz del calendario no se eliminan.
+
+## Ajustes de sugerencias, ubicación y acciones (29-oct-2026)
+
+- [x] Sugerencias con checkbox, seleccionar todas y asignación por lote; se conserva la asignación individual.
+- [x] El badge de capacidad se muestra como Carga: N/3 visitas y el motivo ya no se trunca.
+- [x] El sheet de sugerencias explica al final cómo funciona y aclara que la asignación es manual.
+- [x] Detalle de hospital y tabla muestran entidad federativa y municipio además de región y gerencia.
+- [x] La acción **Enviar a autorización** se integra en DocumentoHeaderCard; se elimina el botón duplicado fuera del header.
+- [x] El rail muestra tabs **Ejecutivos/Especialistas** debajo de filtros rápidos, independientes de la vista actual.
+- [x] La cotización por especialista se mantiene sin cambios funcionales en esta iteración.
+
+## Consistencia ruta-especialista (29-oct-2026)
+
+- [x] La generación usa el especialista efectivo de cada hospital (SeleccionHospital.IdEspecialista) y cae a SeleccionRegion.IdEspecialista; los hospitales se agrupan por ese especialista.
+- [x] Una ruta mantiene un solo especialista; sus visitas heredan ese especialista.
+- [x] Reasignar el especialista de una visita la mueve a la ruta del especialista destino dentro de la misma versión; si no existe, se crea la ruta destino.
+- [x] La cotización valida que todas las visitas seleccionadas pertenezcan a la ruta y tengan el mismo especialista que la ruta.
+- [x] El frontend refresca la lista de rutas después de una reasignación para que el selector y la cotización reflejen la ruta destino.
+
+## Cotización desde modal (29-oct-2026)
+
+- [x] El botón **Cotizar viáticos** se muestra siempre con permiso iaticos.solicitar; ya no depende de una ruta preseleccionada.
+- [x] El selector de ruta se movió al interior de CotizarRutaModal; muestra especialista y número de visitas.
+- [x] El modal carga las cotizaciones existentes de la ruta elegida y bloquea las visitas ya cotizadas.
+- [x] Si no hay rutas o la ruta no tiene especialista, el modal lo explica y deshabilita la confirmación.

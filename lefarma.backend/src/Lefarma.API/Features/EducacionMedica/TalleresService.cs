@@ -171,8 +171,21 @@ public class TalleresService : ITalleresService
         return response;
     }
 
-    public async Task<List<TallerDto>> GetByVisitaAsync(int idRutaVisita, CancellationToken ct = default)
+    public async Task<List<TallerDto>> GetByVisitaAsync(
+        int idRutaVisita,
+        int idUsuario,
+        bool verTodas,
+        CancellationToken ct = default)
     {
+        var visitaVisible = await _context.RutasVisitas
+            .AsNoTracking()
+            .AnyAsync(v => v.IdRutaVisita == idRutaVisita
+                && (verTodas || v.IdEjecutivo == idUsuario || v.IdEspecialista == idUsuario), ct);
+        if (!visitaVisible)
+        {
+            return [];
+        }
+
         var talleres = await _context.Talleres
             .AsNoTracking()
             .Include(t => t.Recursos)
@@ -273,6 +286,30 @@ public class TalleresService : ITalleresService
             }
         }
 
+        if (visita is not null && request.IdTipoVisita.HasValue
+            && visita.IdTipoVisita != request.IdTipoVisita.Value)
+        {
+            var permisos = await _permissionService.GetPermissionsAsync(idUsuario);
+            if (!permisos.Contains(Permissions.EducacionMedica.RutasGestionar))
+            {
+                throw new InvalidOperationException(
+                    "No tienes permiso para cambiar el tipo de visita (educacion_medica.rutas.puede_gestionar).");
+            }
+
+            var tipoValido = await _context.TiposVisita.AsNoTracking()
+                .AnyAsync(t => t.IdTipoVisita == request.IdTipoVisita.Value && t.Activo, ct);
+            if (!tipoValido)
+            {
+                throw new InvalidOperationException("El tipo de visita seleccionado no existe o está inactivo.");
+            }
+
+            var visitaTracked = await _context.RutasVisitas
+                .FirstAsync(v => v.IdRutaVisita == visita.IdRutaVisita, ct);
+            visitaTracked.IdTipoVisita = request.IdTipoVisita;
+            visitaTracked.IdUsuarioModificacion = idUsuario;
+            await _context.SaveChangesAsync(ct);
+        }
+
         var seleccion = await _context.SeleccionesMensuales
             .FirstOrDefaultAsync(s => s.IdSeleccionMensual == hospitalSeleccion.IdSeleccionMensual && s.Activo, ct)
             ?? throw new InvalidOperationException("La selección mensual del hospital no existe.");
@@ -318,11 +355,6 @@ public class TalleresService : ITalleresService
                 responsables.Equipo.IdEquipo, periodo, idUsuario, ct)
             : await GetOrCreateMatrizIndividualPorEjecutivoAsync(
                 responsables.IdEjecutivo!.Value, periodo, idUsuario, ct);
-        if (matrizIndividual.EsBloqueado)
-        {
-            throw new InvalidOperationException(
-                "La matriz individual del ejecutivo ya está bloqueada (generada). Pide al Gerente de Ventas que reabra la captura.");
-        }
 
         var taller = new Taller
         {
@@ -343,6 +375,7 @@ public class TalleresService : ITalleresService
             TipoEquipoProyeccion = request.TipoEquipoProyeccion,
             Estado = Taller.EstadoCreada,
             Observaciones = request.Observaciones,
+            Tema = request.Tema,
             Activo = true,
             IdMatrizIndividual = matrizIndividual.IdMatrizIndividual,
             IdMatrizGeneral = matrizGeneral.IdMatrizGeneral,
@@ -445,6 +478,7 @@ public class TalleresService : ITalleresService
             TipoEquipoProyeccion = request.TipoEquipoProyeccion,
             Estado = Taller.EstadoProgramado,
             Observaciones = request.Observaciones,
+            Tema = request.Tema,
             EsExtraordinario = true,
             MotivoExtraordinario = request.MotivoExtraordinario.Trim(),
             Activo = true,
@@ -499,6 +533,12 @@ public class TalleresService : ITalleresService
         }
 
         await ValidarEdicionNormalAsync(taller, idUsuario, ct);
+        await ValidarHorarioUnicoAsync(
+            taller.IdRutaVisita,
+            request.FechaTaller ?? taller.FechaTaller,
+            request.HoraTaller ?? taller.HoraTaller,
+            taller.IdTaller,
+            ct);
 
         taller.NumeroParticipantes = request.NumeroParticipantes;
         taller.UnidadMedica = request.UnidadMedica;
@@ -508,6 +548,7 @@ public class TalleresService : ITalleresService
         taller.RequiereEquipoProyeccion = request.RequiereEquipoProyeccion;
         taller.TipoEquipoProyeccion = request.TipoEquipoProyeccion;
         taller.Observaciones = request.Observaciones;
+        taller.Tema = request.Tema;
         taller.IdUsuarioModificacion = idUsuario;
 
         ReemplazarRecursos(taller, request.Recursos, idUsuario);
@@ -581,6 +622,12 @@ public class TalleresService : ITalleresService
         }
 
         taller.IdUsuarioModificacion = idUsuario;
+        await ValidarHorarioUnicoAsync(
+            taller.IdRutaVisita,
+            taller.FechaTaller,
+            taller.HoraTaller,
+            taller.IdTaller,
+            ct);
 
         _context.AjustesPostCierre.Add(new AjustePostCierre
         {
@@ -712,11 +759,16 @@ public class TalleresService : ITalleresService
             .FirstOrDefaultAsync(t => t.IdTaller == idTaller && t.Activo, ct)
             ?? throw new InvalidOperationException($"El taller {idTaller} no existe.");
 
-        if (taller.Estado is Taller.EstadoRealizado or Taller.EstadoCancelado or Taller.EstadoCreada)
+        if (taller.Estado is Taller.EstadoRealizado or Taller.EstadoCancelado)
         {
             throw new InvalidOperationException(
                 $"No se puede solicitar cambio con el taller en estado {taller.Estado}.");
         }
+
+        var visita = taller.IdRutaVisita.HasValue
+            ? await _context.RutasVisitas.FirstOrDefaultAsync(
+                v => v.IdRutaVisita == taller.IdRutaVisita.Value, ct)
+            : null;
 
         // La crea cualquier integrante del equipo; el CEM con captura asistida también.
         var esMiembro = taller.IdEjecutivo == idUsuario || taller.IdEspecialista == idUsuario;
@@ -728,10 +780,25 @@ public class TalleresService : ITalleresService
                 "Solo un integrante del equipo (o el CEM con captura asistida) puede solicitar el cambio.");
         }
 
-        if (request.FechaTaller is null && request.HoraTaller is null
-            && request.Lugar is null && request.NumeroParticipantes is null)
+        if (!await CandadoPuestoAsync(taller, ct))
         {
-            throw new InvalidOperationException("La solicitud debe incluir al menos un cambio (fecha, hora, lugar o participantes).");
+            throw new InvalidOperationException(
+                "La captura sigue abierta: solicita el cambio directamente sin candado.");
+        }
+
+        if ((request.FechaVisita.HasValue || request.IdEjecutivo.HasValue || request.IdEspecialista.HasValue)
+            && visita is null)
+        {
+            throw new InvalidOperationException(
+                "El taller no tiene una visita de ruta asociada; no se pueden solicitar cambios de visita.");
+        }
+
+        if (request.FechaVisita is null && request.FechaTaller is null && request.HoraTaller is null
+            && request.Lugar is null && request.NumeroParticipantes is null
+            && request.IdEjecutivo is null && request.IdEspecialista is null)
+        {
+            throw new InvalidOperationException(
+                "La solicitud debe incluir al menos un cambio (visita, fecha, hora, lugar, participantes, ejecutivo o especialista).");
         }
 
         var pendiente = await _context.TalleresSolicitudesCambio.AnyAsync(
@@ -745,17 +812,23 @@ public class TalleresService : ITalleresService
         {
             antes = new
             {
+                fechaVisita = visita?.FechaVisita,
                 fechaTaller = taller.FechaTaller,
                 horaTaller = taller.HoraTaller,
                 lugar = taller.Lugar,
                 numeroParticipantes = taller.NumeroParticipantes,
+                idEjecutivo = visita?.IdEjecutivo ?? taller.IdEjecutivo,
+                idEspecialista = visita?.IdEspecialista ?? taller.IdEspecialista,
             },
             despues = new
             {
+                fechaVisita = request.FechaVisita,
                 fechaTaller = request.FechaTaller,
                 horaTaller = request.HoraTaller,
                 lugar = request.Lugar,
                 numeroParticipantes = request.NumeroParticipantes,
+                idEjecutivo = request.IdEjecutivo,
+                idEspecialista = request.IdEspecialista,
             },
             motivoSolicitante = request.Motivo,
             idSolicitante = idUsuario,
@@ -820,16 +893,26 @@ public class TalleresService : ITalleresService
                 throw new InvalidOperationException("La solicitud no contiene el cambio solicitado.");
             }
 
-            var ajusteRequest = new ActualizarTallerRequest
-            {
-                FechaTaller = datos.Despues.FechaTaller,
-                HoraTaller = datos.Despues.HoraTaller,
-                Lugar = datos.Despues.Lugar,
-                NumeroParticipantes = datos.Despues.NumeroParticipantes,
-                Motivo = request.Motivo,
-            };
+            var cambiaTaller = datos.Despues.FechaTaller.HasValue
+                || datos.Despues.HoraTaller.HasValue
+                || datos.Despues.Lugar is not null
+                || datos.Despues.NumeroParticipantes.HasValue;
 
-            await AplicarAjusteAsync(taller, ajusteRequest, idUsuario, request.Motivo, ct);
+            if (cambiaTaller)
+            {
+                var ajusteRequest = new ActualizarTallerRequest
+                {
+                    FechaTaller = datos.Despues.FechaTaller,
+                    HoraTaller = datos.Despues.HoraTaller,
+                    Lugar = datos.Despues.Lugar,
+                    NumeroParticipantes = datos.Despues.NumeroParticipantes,
+                    Motivo = request.Motivo,
+                };
+
+                await AplicarAjusteAsync(taller, ajusteRequest, idUsuario, request.Motivo, ct);
+            }
+
+            await AplicarCambiosVisitaAsync(taller, datos.Despues, idUsuario, ct);
         }
 
         solicitud.Estado = request.Aprobar
@@ -863,6 +946,159 @@ public class TalleresService : ITalleresService
         return await ArmarSolicitudDtoAsync(solicitud, ct);
     }
 
+    private async Task AplicarCambiosVisitaAsync(
+        Taller taller,
+        SolicitudCambioDiff cambios,
+        int idUsuario,
+        CancellationToken ct)
+    {
+        if (!taller.IdRutaVisita.HasValue)
+        {
+            return;
+        }
+
+        var visita = await _context.RutasVisitas
+            .FirstOrDefaultAsync(v => v.IdRutaVisita == taller.IdRutaVisita.Value, ct);
+        if (visita is null)
+        {
+            return;
+        }
+
+        var talleresVisita = await _context.Talleres
+            .Where(t => t.IdRutaVisita == visita.IdRutaVisita && t.Activo)
+            .ToListAsync(ct);
+        var huboCambios = false;
+
+        if (cambios.FechaVisita.HasValue && cambios.FechaVisita.Value != visita.FechaVisita)
+        {
+            if (cambios.FechaVisita.Value.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+            {
+                throw new InvalidOperationException(
+                    "La nueva fecha de visita debe ser un día laboral (Lun-Vie).");
+            }
+
+            visita.FechaVisita = cambios.FechaVisita.Value;
+            foreach (var item in talleresVisita)
+            {
+                item.FechaTaller = cambios.FechaVisita.Value;
+            }
+
+            huboCambios = true;
+        }
+
+        if (cambios.IdEjecutivo.HasValue && cambios.IdEjecutivo.Value != visita.IdEjecutivo)
+        {
+            visita.IdEjecutivo = cambios.IdEjecutivo.Value;
+            foreach (var item in talleresVisita)
+            {
+                item.IdEjecutivo = cambios.IdEjecutivo.Value;
+            }
+
+            huboCambios = true;
+        }
+
+        if (cambios.IdEspecialista.HasValue && cambios.IdEspecialista.Value != visita.IdEspecialista)
+        {
+            var rutaOrigen = await _context.Rutas
+                .FirstOrDefaultAsync(r => r.IdRuta == visita.IdRuta, ct);
+            if (rutaOrigen is not null)
+            {
+                var rutaDestino = await _context.Rutas.FirstOrDefaultAsync(
+                    r => r.IdSeleccionMensual == rutaOrigen.IdSeleccionMensual
+                        && r.Version == rutaOrigen.Version
+                        && r.IdEspecialista == cambios.IdEspecialista.Value
+                        && r.Estado != Ruta.EstadoArchivada
+                        && r.Estado != Ruta.EstadoCancelada
+                        && r.Estado != Ruta.EstadoRechazada,
+                    ct);
+
+                if (rutaDestino is null)
+                {
+                    rutaDestino = new Ruta
+                    {
+                        IdSeleccionMensual = rutaOrigen.IdSeleccionMensual,
+                        IdEquipo = null,
+                        IdEspecialista = cambios.IdEspecialista.Value,
+                        Version = rutaOrigen.Version,
+                        IdRutaVersion = rutaOrigen.IdRutaVersion,
+                        Nombre = $"Ruta especialista {cambios.IdEspecialista.Value} - v{rutaOrigen.Version}",
+                        Estado = rutaOrigen.Estado,
+                        FechaConfirmacion = rutaOrigen.FechaConfirmacion,
+                        FechaCreacion = DateTime.UtcNow,
+                        FechaModificacion = DateTime.UtcNow,
+                        IdUsuarioCreacion = idUsuario,
+                        IdUsuarioModificacion = idUsuario,
+                    };
+                    _context.Rutas.Add(rutaDestino);
+                    await _context.SaveChangesAsync(ct);
+                }
+
+                visita.IdRuta = rutaDestino.IdRuta;
+            }
+
+            visita.IdEspecialista = cambios.IdEspecialista.Value;
+            foreach (var item in talleresVisita)
+            {
+                item.IdEspecialista = cambios.IdEspecialista.Value;
+            }
+
+            huboCambios = true;
+        }
+
+        if (!huboCambios)
+        {
+            return;
+        }
+
+        visita.IdUsuarioModificacion = idUsuario;
+        visita.FechaModificacion = DateTime.UtcNow;
+        foreach (var item in talleresVisita)
+        {
+            item.IdUsuarioModificacion = idUsuario;
+            item.FechaModificacion = DateTime.UtcNow;
+        }
+    }
+
+    private async Task<bool> CandadoPuestoAsync(Taller taller, CancellationToken ct)
+    {
+        if (!taller.IdMatrizGeneral.HasValue)
+        {
+            return false;
+        }
+
+        var general = await _context.MatricesGenerales.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.IdMatrizGeneral == taller.IdMatrizGeneral.Value, ct);
+        if (general is null)
+        {
+            return false;
+        }
+
+        if (!general.IdWorkflow.HasValue || general.IdPasoActual is not int idPaso)
+        {
+            _logger.LogWarning(
+                "Matriz general {IdMatrizGeneral} sin workflow/paso configurado; se trata como bloqueada.",
+                general.IdMatrizGeneral);
+            return true;
+        }
+
+        var paso = await _context.WorkflowPasos.AsNoTracking()
+            .Where(p => p.IdPaso == idPaso
+                && p.IdWorkflow == general.IdWorkflow.Value
+                && p.Activo)
+            .Select(p => new { p.EsInicio })
+            .FirstOrDefaultAsync(ct);
+
+        if (paso is null)
+        {
+            _logger.LogWarning(
+                "Matriz general {IdMatrizGeneral} apunta al paso {IdPaso} del workflow {IdWorkflow}, pero el paso no existe, está inactivo o pertenece a otro workflow; se trata como bloqueada.",
+                general.IdMatrizGeneral, idPaso, general.IdWorkflow.Value);
+            return true;
+        }
+
+        return !paso.EsInicio;
+    }
+
     public async Task<List<TallerSolicitudCambioDto>> GetSolicitudesCambioAsync(int idTaller, CancellationToken ct = default)
     {
         _ = await _context.Talleres.AsNoTracking()
@@ -883,75 +1119,6 @@ public class TalleresService : ITalleresService
         return resultado;
     }
 
-    public async Task<MatrizIndividualDto> GenerarMatrizIndividualAsync(int idMatrizIndividual, int idUsuario, CancellationToken ct = default)
-    {
-        var matriz = await _context.MatricesIndividuales
-            .Include(m => m.Equipo)
-            .FirstOrDefaultAsync(m => m.IdMatrizIndividual == idMatrizIndividual, ct)
-            ?? throw new InvalidOperationException($"La matriz individual {idMatrizIndividual} no existe.");
-
-        await ValidarAccesoMatrizAsync(matriz, idUsuario, ct);
-
-        if (matriz.EsBloqueado)
-        {
-            throw new InvalidOperationException("La matriz individual ya está bloqueada (generada).");
-        }
-
-        var matrizGeneral = await ObtenerMatrizGeneralDeIndividualAsync(matriz, ct)
-            ?? throw new InvalidOperationException(
-                "La matriz individual no tiene talleres capturados; captura al menos un taller antes de generar.");
-
-        await ValidarMatrizGeneralEditableAsync(matrizGeneral, "generar la matriz individual", ct);
-
-        matriz.EsBloqueado = true;
-        matriz.FechaBloqueo = DateTime.UtcNow;
-        matriz.FechaDesbloqueo = null;
-        matriz.IdUsuarioModificacion = idUsuario;
-        await _context.SaveChangesAsync(ct);
-
-        _logger.LogInformation(
-            "Matriz individual {IdMatrizIndividual} (ejecutivo {IdEjecutivo}) bloqueada por el usuario {IdUsuario}.",
-            matriz.IdMatrizIndividual, matriz.IdEjecutivo, idUsuario);
-
-        return await ArmarMatrizIndividualDtoConNombresAsync(matriz, ct);
-    }
-
-    public async Task<MatrizIndividualDto> ReabrirMatrizIndividualAsync(int idMatrizIndividual, int idUsuario, CancellationToken ct = default)
-    {
-        var matriz = await _context.MatricesIndividuales
-            .Include(m => m.Equipo)
-            .FirstOrDefaultAsync(m => m.IdMatrizIndividual == idMatrizIndividual, ct)
-            ?? throw new InvalidOperationException($"La matriz individual {idMatrizIndividual} no existe.");
-
-        if (!matriz.EsBloqueado)
-        {
-            throw new InvalidOperationException("La matriz individual no está bloqueada; no hay captura que reabrir.");
-        }
-
-        var matrizGeneral = await ObtenerMatrizGeneralDeIndividualAsync(matriz, ct)
-            ?? throw new InvalidOperationException("La matriz individual no tiene matriz general asociada.");
-
-        // Solo mientras la general sigue en el paso inicial (CREADA) se puede reabrir.
-        // El permiso de quien reabre lo valida el endpoint (talleres.puede_revisar = GV/CA).
-        var pasoActual = await ObtenerPasoActualAsync(matrizGeneral, ct);
-        if (pasoActual is null || !pasoActual.EsInicio)
-        {
-            throw new InvalidOperationException(
-                "No se puede reabrir la captura: la matriz general ya está en autorización. Devuélvela a Creada primero.");
-        }
-
-        matriz.EsBloqueado = false;
-        matriz.FechaDesbloqueo = DateTime.UtcNow;
-        matriz.IdUsuarioModificacion = idUsuario;
-        await _context.SaveChangesAsync(ct);
-
-        _logger.LogInformation(
-            "Matriz individual {IdMatrizIndividual} (ejecutivo {IdEjecutivo}) reabierta por el usuario {IdUsuario}.",
-            matriz.IdMatrizIndividual, matriz.IdEjecutivo, idUsuario);
-
-        return await ArmarMatrizIndividualDtoConNombresAsync(matriz, ct);
-    }
-
     // ----- Helpers -----
 
     private sealed class SolicitudCambioDatos
@@ -964,10 +1131,13 @@ public class TalleresService : ITalleresService
 
     private sealed class SolicitudCambioDiff
     {
+        public DateOnly? FechaVisita { get; set; }
         public DateOnly? FechaTaller { get; set; }
         public TimeOnly? HoraTaller { get; set; }
         public string? Lugar { get; set; }
         public int? NumeroParticipantes { get; set; }
+        public int? IdEjecutivo { get; set; }
+        public int? IdEspecialista { get; set; }
     }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -1060,30 +1230,6 @@ public class TalleresService : ITalleresService
         }
 
         return new ResponsablesHospital(idEjecutivo, idEspecialista, null);
-    }
-
-    private async Task ValidarAccesoMatrizAsync(
-        MatrizIndividual matriz,
-        int idUsuario,
-        CancellationToken ct)
-    {
-        if (matriz.IdEjecutivo == idUsuario)
-        {
-            return;
-        }
-
-        if (matriz.IdEquipo.HasValue)
-        {
-            var equipo = await _context.EquiposPareo.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.IdEquipo == matriz.IdEquipo.Value, ct);
-            if (equipo?.IdEjecutivo == idUsuario || equipo?.IdEspecialista == idUsuario)
-            {
-                return;
-            }
-        }
-
-        throw new InvalidOperationException(
-            "Solo el ejecutivo dueño de la matriz (o el equipo legacy) puede ejecutar esta acción.");
     }
 
     /// <summary>
@@ -1207,7 +1353,7 @@ public class TalleresService : ITalleresService
             CodigoProceso.EDUCACION_MEDICA_MATRIZ,
             new Dictionary<string, int?> { [WorkflowScope.TIPO_GERENCIA] = idTipoGerencia })
             ?? throw new InvalidOperationException(
-                "No hay workflow configurado para la matriz de talleres de esa gerencia. Aplica el script 0015 y crea el mapping (EDUCACION_MEDICA_MATRIZ + Tipo de gerencia) en el admin de workflows.");
+                "No hay workflow configurado para la matriz de talleres de esa gerencia. Aplica el script 0040 o crea el mapping (EDUCACION_MEDICA_MATRIZ + Tipo de gerencia) en el admin de workflows.");
 
         var pasoInicio = workflow.Pasos.FirstOrDefault(p => p.EsInicio)
             ?? throw new InvalidOperationException("El workflow de la matriz de talleres no tiene paso inicial configurado.");
@@ -1230,8 +1376,21 @@ public class TalleresService : ITalleresService
     /// <summary>Candado de edición estilo OC/Solicitudes: solo en el paso inicial (estado CREADA).</summary>
     private async Task ValidarMatrizGeneralEditableAsync(MatrizGeneral matrizGeneral, string accion, CancellationToken ct)
     {
+        if (!matrizGeneral.IdWorkflow.HasValue)
+        {
+            throw new InvalidOperationException(
+                "La matriz general no tiene workflow configurado (EDUCACION_MEDICA_MATRIZ). Revisa los mappings de workflow.");
+        }
+
         var pasoActual = await ObtenerPasoActualAsync(matrizGeneral, ct);
-        if (pasoActual is null || !pasoActual.EsInicio)
+        if (pasoActual is null)
+        {
+            throw new InvalidOperationException(
+                $"La matriz general {matrizGeneral.IdMatrizGeneral} apunta al paso {matrizGeneral.IdPasoActual} del workflow {matrizGeneral.IdWorkflow}, " +
+                "pero ese paso no existe, está inactivo o pertenece a otro workflow. Corrige la configuración del workflow.");
+        }
+
+        if (!pasoActual.EsInicio)
         {
             throw new InvalidOperationException($"Solo se pueden {accion} en estado Creada.");
         }
@@ -1244,29 +1403,60 @@ public class TalleresService : ITalleresService
             return null;
         }
 
-        return await _context.WorkflowPasos.AsNoTracking()
+        var query = _context.WorkflowPasos.AsNoTracking()
             .Include(p => p.Participantes)
-            .FirstOrDefaultAsync(p => p.IdPaso == matrizGeneral.IdPasoActual.Value, ct);
+            .Where(p => p.IdPaso == matrizGeneral.IdPasoActual.Value && p.Activo);
+
+        if (matrizGeneral.IdWorkflow.HasValue)
+        {
+            query = query.Where(p => p.IdWorkflow == matrizGeneral.IdWorkflow.Value);
+        }
+
+        return await query.FirstOrDefaultAsync(ct);
     }
 
     /// <summary>Edición normal (matriz en Creada): membresía del equipo + candados de captura.</summary>
+    private async Task ValidarHorarioUnicoAsync(
+        int? idRutaVisita,
+        DateOnly? fecha,
+        TimeOnly? hora,
+        int? idTallerExcluir,
+        CancellationToken ct)
+    {
+        if (!idRutaVisita.HasValue || !fecha.HasValue)
+        {
+            return;
+        }
+
+        var query = _context.Talleres
+            .AsNoTracking()
+            .Where(t => t.Activo
+                && t.IdRutaVisita == idRutaVisita.Value
+                && t.FechaTaller == fecha.Value);
+
+        query = hora.HasValue
+            ? query.Where(t => t.HoraTaller == hora.Value)
+            : query.Where(t => t.HoraTaller == null);
+
+        if (idTallerExcluir.HasValue)
+        {
+            query = query.Where(t => t.IdTaller != idTallerExcluir.Value);
+        }
+
+        if (await query.AnyAsync(ct))
+        {
+            var horario = hora?.ToString("HH:mm") ?? "sin hora";
+            throw new InvalidOperationException(
+                $"Ya existe un taller para esta visita el {fecha.Value:dd/MM/yyyy} a las {horario}. Elige otra hora.");
+        }
+    }
+
     private async Task ValidarEdicionNormalAsync(Taller taller, int idUsuario, CancellationToken ct)
     {
         if (taller.IdEjecutivo != idUsuario && taller.IdEspecialista != idUsuario)
         {
             throw new InvalidOperationException(
                 "Solo el Ejecutivo de Ventas o el Especialista de Producto del equipo puede modificar el taller.");
-        }
-
-        if (taller.IdMatrizIndividual is not null)
-        {
-            var matrizIndividual = await _context.MatricesIndividuales.AsNoTracking()
-                .FirstOrDefaultAsync(m => m.IdMatrizIndividual == taller.IdMatrizIndividual.Value, ct);
-            if (matrizIndividual?.EsBloqueado == true)
-            {
-                throw new InvalidOperationException(
-                    "La matriz individual del equipo ya está bloqueada (generada). Pide al Gerente de Ventas que reabra la captura.");
-            }
         }
 
         if (taller.IdMatrizGeneral is not null)
@@ -1289,22 +1479,6 @@ public class TalleresService : ITalleresService
 
         await ValidarEdicionNormalAsync(taller, idUsuario, ct);
         return taller;
-    }
-
-    private async Task<MatrizGeneral?> ObtenerMatrizGeneralDeIndividualAsync(MatrizIndividual matriz, CancellationToken ct)
-    {
-        var idMatrizGeneral = await _context.Talleres.AsNoTracking()
-            .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.IdMatrizGeneral != null)
-            .Select(t => t.IdMatrizGeneral)
-            .FirstOrDefaultAsync(ct);
-
-        if (idMatrizGeneral is null or 0)
-        {
-            return null;
-        }
-
-        return await _context.MatricesGenerales
-            .FirstOrDefaultAsync(m => m.IdMatrizGeneral == idMatrizGeneral.Value, ct);
     }
 
     private void ReemplazarRecursos(
@@ -1534,33 +1708,6 @@ public class TalleresService : ITalleresService
         return TallerDtoMapper.Armar(taller, nombresHospitales, nombresUsuarios, nombresProductos, nombresEstados);
     }
 
-    private async Task<MatrizIndividualDto> ArmarMatrizIndividualDtoConNombresAsync(MatrizIndividual matriz, CancellationToken ct)
-    {
-        var equipo = matriz.IdEquipo.HasValue
-            ? await _context.EquiposPareo.AsNoTracking()
-                .FirstOrDefaultAsync(e => e.IdEquipo == matriz.IdEquipo.Value, ct)
-            : null;
-
-        var idEjecutivo = matriz.IdEjecutivo ?? equipo?.IdEjecutivo;
-        var idEspecialista = equipo?.IdEspecialista
-            ?? await _context.Talleres.AsNoTracking()
-                .Where(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual
-                    && t.Activo
-                    && t.IdEspecialista != null)
-                .Select(t => t.IdEspecialista)
-                .FirstOrDefaultAsync(ct);
-
-        var totalTalleres = await _context.Talleres.AsNoTracking()
-            .CountAsync(t => t.IdMatrizIndividual == matriz.IdMatrizIndividual && t.Activo, ct);
-
-        var (_, nombresUsuarios) = await ResolverNombresAsync(
-            [],
-            [idEjecutivo, idEspecialista],
-            ct);
-
-        return ArmarMatrizIndividualDto(matriz, idEjecutivo, idEspecialista, totalTalleres, nombresUsuarios);
-    }
-
     private static MatrizIndividualDto ArmarMatrizIndividualDto(
         MatrizIndividual matriz,
         int? idEjecutivo,
@@ -1573,9 +1720,6 @@ public class TalleresService : ITalleresService
             IdMatrizIndividual = matriz.IdMatrizIndividual,
             IdEquipo = matriz.IdEquipo ?? 0,
             Periodo = matriz.Periodo,
-            EsBloqueado = matriz.EsBloqueado,
-            FechaBloqueo = matriz.FechaBloqueo,
-            FechaDesbloqueo = matriz.FechaDesbloqueo,
             IdEjecutivo = idEjecutivo,
             NombreEjecutivo = idEjecutivo.HasValue
                 ? nombresUsuarios.GetValueOrDefault(idEjecutivo.Value)

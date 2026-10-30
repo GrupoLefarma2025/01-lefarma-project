@@ -11,13 +11,14 @@ import {
 } from 'lucide-react';
 import type { CalendarioItem } from '../../../types/educacionMedica.types';
 import { esFinDeSemana, estiloEvento, fmtHora, tonoEvento } from '../calendarioUtils';
+import { TextoExpandible } from './TextoExpandible';
 
 interface CalendarioEventoProps {
   item: CalendarioItem;
   variante?: 'semana' | 'mes' | 'matriz' | 'dia';
   activo?: boolean;
   onClick: (item: CalendarioItem) => void;
-  onDragStart?: (event: DragEvent<HTMLButtonElement>, item: CalendarioItem) => void;
+  onDragStart?: (event: DragEvent<HTMLDivElement>, item: CalendarioItem) => void;
 }
 
 export function CalendarioEvento({
@@ -35,14 +36,21 @@ export function CalendarioEvento({
   const compacto = esMes || esMatriz;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       draggable={Boolean(onDragStart)}
       onDragStart={(event) => onDragStart?.(event, item)}
       onClick={(event) => {
         event.stopPropagation();
         onClick(item);
       }}
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        onClick(item);
+      }}
+      onDoubleClick={(event) => event.stopPropagation()}
       className={[
         'group relative w-full overflow-hidden rounded-xl border text-left transition-all',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
@@ -61,13 +69,12 @@ export function CalendarioEvento({
 
       <span className="flex items-start justify-between gap-2 pl-1">
         <span className="min-w-0">
-          <span
-            className={`block truncate font-semibold tracking-tight ${
-              compacto ? 'text-[11px]' : 'text-[12px]'
-            }`}
-          >
-            {item.hospital ?? 'Hospital sin nombre'}
-          </span>
+          <TextoExpandible
+            text={item.hospital}
+            fallback="Hospital sin nombre"
+            className={`font-semibold tracking-tight ${compacto ? 'text-[11px]' : 'text-[12px]'}`}
+            triggerClassName="w-full"
+          />
           {!esMes && (
             <span className="mt-0.5 flex min-w-0 items-center gap-1 text-[10px] opacity-65">
               <MapPin className="h-2.5 w-2.5 shrink-0" />
@@ -132,6 +139,6 @@ export function CalendarioEvento({
           <span className="truncate">{hora ?? item.gerencia}</span>
         </span>
       )}
-    </button>
+    </div>
   );
 }

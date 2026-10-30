@@ -492,10 +492,31 @@ public class RutasServiceTests
         rutaEp.Visitas.Should().HaveCount(2);
         rutaEp.Visitas.Should().OnlyContain(v =>
             v.IdEspecialista == IdEp && v.IdEjecutivo == IdEv);
+        rutaEp.Visitas.Should().OnlyContain(v =>
+            v.Latitud == 19.430m && v.Longitud == -99.130m);
 
         var rutaOtro = resultado.Rutas.Single(r => r.IdEspecialista == 80);
         rutaOtro.Visitas.Should().ContainSingle();
         rutaOtro.Visitas.Single().IdEjecutivo.Should().Be(70);
+    }
+
+    [Fact]
+    public async Task GenerarAsync_Debe_UsarEspecialistaOverrideDelHospital()
+    {
+        SeedSeleccionAutorizada(cantidadHospitales: 3);
+        var region = _seleccionRepo.Regiones.Single();
+        region.IdEspecialista = IdEp;
+        region.IdEjecutivo = IdEv;
+        _seleccionRepo.Hospitales[0].IdEspecialista = 80;
+
+        var service = CreateService();
+        var resultado = await service.GenerarAsync(1, idUsuario: 99);
+
+        resultado.Rutas.Select(r => r.IdEspecialista).Should().BeEquivalentTo(new int?[] { 60, 80 });
+        var rutaOverride = resultado.Rutas.Single(r => r.IdEspecialista == 80);
+        rutaOverride.Visitas.Should().ContainSingle()
+            .Which.IdEspecialista.Should().Be(80);
+        resultado.Rutas.Single(r => r.IdEspecialista == IdEp).Visitas.Should().HaveCount(2);
     }
 
     [Fact]

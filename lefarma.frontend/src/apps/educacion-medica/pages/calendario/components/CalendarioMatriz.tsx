@@ -14,6 +14,7 @@ import { usePermission } from '@/hooks/usePermission';
 import type { CalendarioItem } from '../../../types/educacionMedica.types';
 import {
   esFinDeSemana,
+  claveEvento,
   fechaMedia,
   fmtHora,
   fmtMoneda,
@@ -26,6 +27,7 @@ interface CalendarioMatrizProps {
   items: CalendarioItem[];
   seleccionadoId: number | null;
   onSelect: (item: CalendarioItem) => void;
+  onAbrirMatriz?: () => void;
 }
 
 interface GrupoEjecutivo {
@@ -70,7 +72,12 @@ function Resumen({ items, compacto = false }: { items: CalendarioItem[]; compact
   );
 }
 
-export function CalendarioMatriz({ items, seleccionadoId, onSelect }: CalendarioMatrizProps) {
+export function CalendarioMatriz({
+  items,
+  seleccionadoId,
+  onSelect,
+  onAbrirMatriz,
+}: CalendarioMatrizProps) {
   const puedeVerMatriz = usePermission({
     require: 'educacion_medica.talleres.puede_ver',
   });
@@ -127,19 +134,30 @@ export function CalendarioMatriz({ items, seleccionadoId, onSelect }: Calendario
           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800 dark:bg-slate-900">
             Solo lectura
           </span>
-          {puedeVerMatriz && (
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card text-[10px]"
-            >
-              <Link to="/educacion-medica/talleres">
+          {puedeVerMatriz &&
+            (onAbrirMatriz ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card text-[10px]"
+                onClick={onAbrirMatriz}
+              >
                 Abrir matriz general
                 <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          )}
+              </Button>
+            ) : (
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 rounded-lg border-slate-200 bg-card text-[10px]"
+              >
+                <Link to="/educacion-medica/talleres">
+                  Abrir matriz general
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -258,7 +276,7 @@ export function CalendarioMatriz({ items, seleccionadoId, onSelect }: Calendario
                         const activo = item.idRutaVisita === seleccionadoId;
                         return (
                           <tr
-                            key={item.idRutaVisita}
+                            key={claveEvento(item)}
                             className={`cursor-pointer transition-colors ${
                               activo
                                 ? 'bg-orange-50/70 dark:bg-orange-950/20'
@@ -328,7 +346,7 @@ export function CalendarioMatriz({ items, seleccionadoId, onSelect }: Calendario
                 <div className="space-y-1.5 p-3 md:hidden">
                   {ejecutivo.items.map((item) => (
                     <button
-                      key={item.idRutaVisita}
+                      key={claveEvento(item)}
                       type="button"
                       onClick={() => onSelect(item)}
                       className={[

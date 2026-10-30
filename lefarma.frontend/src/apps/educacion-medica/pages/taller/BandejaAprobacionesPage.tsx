@@ -342,7 +342,7 @@ export default function BandejaAprobacionesPage() {
       return;
     }
     if (item.tipo === 'matriz') {
-      navigate(`/educacion-medica/talleres?idMatriz=${item.idEntidad}`);
+      navigate(`/educacion-medica/panel-rutas?vista=matriz&idMatriz=${item.idEntidad}`);
       return;
     }
     navigate(`/educacion-medica/seleccion?idSeleccion=${item.idEntidad}`);
@@ -700,8 +700,7 @@ export default function BandejaAprobacionesPage() {
                     <p className="text-xs text-muted-foreground">Equipos</p>
                     <p>
                       {matrizEquipos.length} ·{' '}
-                      {matrizEquipos.filter((e) => e.esBloqueado).length} bloqueadas /{' '}
-                      {matrizEquipos.filter((e) => !e.esBloqueado).length} en captura
+                      {matrizDetalle.esEditable ? 'Captura abierta' : 'Captura cerrada'}
                     </p>
                   </div>
                 </div>

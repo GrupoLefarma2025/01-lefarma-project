@@ -107,11 +107,16 @@ export default function MisAsignacionesPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() =>
-              navigate(
-                `/educacion-medica/talleres/mis-talleres?idSeleccionHospital=${row.original.idSeleccionHospital}&nuevo=1`
-              )
-            }
+            onClick={() => {
+              const params = new URLSearchParams({
+                idSeleccion: String(row.original.idSeleccionMensual),
+                vista: 'semana',
+                fecha: row.original.fechaVisita,
+                visita: String(row.original.idRutaVisita),
+                nuevo: '1',
+              });
+              navigate(`/educacion-medica/panel-rutas?${params.toString()}`);
+            }}
           >
             <ClipboardPlus className="mr-1.5 h-4 w-4" />
             Registrar taller

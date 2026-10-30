@@ -1,16 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '@/apps/educacion-medica/services/educacionMedica.api';
-import type { Taller } from '@/apps/educacion-medica/types/educacionMedica.types';
+import type {
+  CalendarioItem,
+  EjecutivoRegion,
+  EjecutivoSuplente,
+  EspecialistaPersona,
+  Taller,
+} from '@/apps/educacion-medica/types/educacionMedica.types';
 
-const aTexto = (valor: string | number | null | undefined) =>
-  valor == null ? '' : String(valor);
+const aTexto = (valor: string | number | null | undefined) => (valor == null ? '' : String(valor));
 const aNumero = (valor: string): number | null => {
   const limpio = valor.trim();
   if (!limpio) return null;
@@ -23,7 +35,7 @@ const aTextoONull = (valor: string): string | null => {
 };
 
 const fmtFecha = (fecha: string | null | undefined) => {
-  if (!fecha) return '—';
+  if (!fecha) return '-';
   const [anio, mes, dia] = fecha.slice(0, 10).split('-');
   return `${dia}/${mes}/${anio}`;
 };
@@ -32,6 +44,10 @@ interface SolicitarCambioModalProps {
   open: boolean;
   onClose: () => void;
   taller: Taller | null;
+  visita?: CalendarioItem | null;
+  ejecutivos?: EjecutivoRegion[];
+  suplentes?: EjecutivoSuplente[];
+  especialistas?: EspecialistaPersona[];
   onCreated: () => void;
 }
 
@@ -43,8 +59,15 @@ export function SolicitarCambioModal({
   open,
   onClose,
   taller,
+  visita,
+  ejecutivos = [],
+  suplentes = [],
+  especialistas = [],
   onCreated,
 }: SolicitarCambioModalProps) {
+  const [fechaVisita, setFechaVisita] = useState('');
+  const [idEjecutivo, setIdEjecutivo] = useState('');
+  const [idEspecialista, setIdEspecialista] = useState('');
   const [fechaTaller, setFechaTaller] = useState('');
   const [horaTaller, setHoraTaller] = useState('');
   const [lugar, setLugar] = useState('');
@@ -55,13 +78,46 @@ export function SolicitarCambioModal({
   useEffect(() => {
     if (open && taller) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- precarga del diff al abrir el modal
+      setFechaVisita(aTexto(visita?.fecha?.slice(0, 10)));
+      setIdEjecutivo(aTexto(visita?.idEjecutivo ?? taller.idEjecutivo));
+      setIdEspecialista(aTexto(visita?.idEspecialista ?? taller.idEspecialista));
       setFechaTaller(aTexto(taller.fechaTaller?.slice(0, 10)));
       setHoraTaller(aTexto(taller.horaTaller?.slice(0, 5)));
       setLugar(aTexto(taller.lugar));
       setNumeroParticipantes(aTexto(taller.numeroParticipantes));
       setMotivo('');
     }
-  }, [open, taller]);
+  }, [open, taller, visita]);
+
+  const opcionesEjecutivo = useMemo(() => {
+    const mapa = new Map<number, string>();
+    ejecutivos.forEach((ejecutivo) => mapa.set(ejecutivo.idUsuario, ejecutivo.nombreUsuario));
+    suplentes.forEach((suplente) => {
+      if (!mapa.has(suplente.idUsuario)) {
+        mapa.set(suplente.idUsuario, suplente.nombreUsuario);
+      }
+    });
+    const actual = visita?.idEjecutivo ?? taller?.idEjecutivo;
+    if (actual && !mapa.has(actual)) {
+      mapa.set(actual, visita?.nombreEjecutivo ?? taller?.nombreEjecutivo ?? `Ejecutivo ${actual}`);
+    }
+    return [...mapa.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [ejecutivos, suplentes, visita, taller]);
+
+  const opcionesEspecialista = useMemo(() => {
+    const mapa = new Map<number, string>();
+    especialistas.forEach((especialista) =>
+      mapa.set(especialista.idUsuario, especialista.nombreUsuario)
+    );
+    const actual = visita?.idEspecialista ?? taller?.idEspecialista;
+    if (actual && !mapa.has(actual)) {
+      mapa.set(
+        actual,
+        visita?.nombreEspecialista ?? taller?.nombreEspecialista ?? `Especialista ${actual}`
+      );
+    }
+    return [...mapa.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [especialistas, visita, taller]);
 
   const enviar = async () => {
     if (!taller) return;
@@ -72,26 +128,49 @@ export function SolicitarCambioModal({
 
     const payload: {
       motivo: string;
+      fechaVisita?: string | null;
       fechaTaller?: string | null;
       horaTaller?: string | null;
       lugar?: string | null;
       numeroParticipantes?: number | null;
+      idEjecutivo?: number | null;
+      idEspecialista?: number | null;
     } = { motivo: motivo.trim() };
 
-    const fechaNueva = aTextoONull(fechaTaller);
+    const fechaVisitaNueva = aTextoONull(fechaVisita);
+    const fechaTallerNueva = aTextoONull(fechaTaller);
     const horaNueva = aTextoONull(horaTaller);
     const lugarNuevo = aTextoONull(lugar);
     const participantesNuevo = aNumero(numeroParticipantes);
+    const ejecutivoActual = visita?.idEjecutivo ?? taller.idEjecutivo;
+    const especialistaActual = visita?.idEspecialista ?? taller.idEspecialista;
 
-    if (fechaNueva && fechaNueva !== taller.fechaTaller?.slice(0, 10)) payload.fechaTaller = fechaNueva;
-    if (horaNueva && horaNueva !== taller.horaTaller?.slice(0, 5)) payload.horaTaller = horaNueva;
-    if (lugarNuevo && lugarNuevo !== taller.lugar) payload.lugar = lugarNuevo;
+    if (fechaVisitaNueva && fechaVisitaNueva !== visita?.fecha?.slice(0, 10)) {
+      payload.fechaVisita = fechaVisitaNueva;
+    }
+    if (fechaTallerNueva && fechaTallerNueva !== taller.fechaTaller?.slice(0, 10)) {
+      payload.fechaTaller = fechaTallerNueva;
+    }
+    if (horaNueva && horaNueva !== taller.horaTaller?.slice(0, 5)) {
+      payload.horaTaller = horaNueva;
+    }
+    if (lugarNuevo && lugarNuevo !== taller.lugar) {
+      payload.lugar = lugarNuevo;
+    }
     if (participantesNuevo != null && participantesNuevo !== taller.numeroParticipantes) {
       payload.numeroParticipantes = participantesNuevo;
     }
+    if (idEjecutivo && Number(idEjecutivo) !== ejecutivoActual) {
+      payload.idEjecutivo = Number(idEjecutivo);
+    }
+    if (idEspecialista && Number(idEspecialista) !== especialistaActual) {
+      payload.idEspecialista = Number(idEspecialista);
+    }
 
     if (Object.keys(payload).length <= 1) {
-      toast.error('Modifica al menos un campo (fecha, hora, lugar o participantes).');
+      toast.error(
+        'Modifica al menos un campo (visita, fecha, hora, lugar, participantes o responsable).'
+      );
       return;
     }
 
@@ -119,7 +198,7 @@ export function SolicitarCambioModal({
       setOpen={(o) => {
         if (!o) onClose();
       }}
-      title={`Solicitar cambio del taller${taller?.nombreHospital ? ` — ${taller.nombreHospital}` : ''}`}
+      title={`Solicitar cambio del taller${taller?.nombreHospital ? ` - ${taller.nombreHospital}` : ''}`}
       size="wide"
       footer={
         <div className="flex justify-end gap-2 pt-2">
@@ -140,23 +219,83 @@ export function SolicitarCambioModal({
             auditoría (motivo, antes/después).
           </p>
 
+          {visita && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="space-y-1">
+                <Label>Fecha de visita</Label>
+                <Input
+                  type="date"
+                  value={fechaVisita}
+                  onChange={(e) => setFechaVisita(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">Actual: {fmtFecha(visita.fecha)}</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Ejecutivo</Label>
+                <Select value={idEjecutivo} onValueChange={setIdEjecutivo}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Sin asignar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {opcionesEjecutivo.map(([id, nombre]) => (
+                      <SelectItem key={id} value={String(id)}>
+                        {nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Actual: {visita.nombreEjecutivo ?? 'Sin asignar'}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <Label>Especialista</Label>
+                <Select value={idEspecialista} onValueChange={setIdEspecialista}>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Sin asignar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {opcionesEspecialista.map(([id, nombre]) => (
+                      <SelectItem key={id} value={String(id)}>
+                        {nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Actual: {visita.nombreEspecialista ?? 'Sin asignar'}
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1">
               <Label>Fecha del taller</Label>
-              <Input type="date" value={fechaTaller} onChange={(e) => setFechaTaller(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Actual: {fmtFecha(taller.fechaTaller)}</p>
+              <Input
+                type="date"
+                value={fechaTaller}
+                onChange={(e) => setFechaTaller(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Actual: {fmtFecha(taller.fechaTaller)}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Hora</Label>
-              <Input type="time" value={horaTaller} onChange={(e) => setHoraTaller(e.target.value)} />
+              <Input
+                type="time"
+                value={horaTaller}
+                onChange={(e) => setHoraTaller(e.target.value)}
+              />
               <p className="text-xs text-muted-foreground">
-                Actual: {taller.horaTaller?.slice(0, 5) ?? '—'}
+                Actual: {taller.horaTaller?.slice(0, 5) ?? '-'}
               </p>
             </div>
             <div className="space-y-1">
               <Label>Lugar</Label>
               <Input value={lugar} onChange={(e) => setLugar(e.target.value)} />
-              <p className="text-xs text-muted-foreground">Actual: {taller.lugar ?? '—'}</p>
+              <p className="text-xs text-muted-foreground">Actual: {taller.lugar ?? '-'}</p>
             </div>
             <div className="space-y-1">
               <Label>No. de participantes</Label>
@@ -167,7 +306,7 @@ export function SolicitarCambioModal({
                 onChange={(e) => setNumeroParticipantes(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Actual: {taller.numeroParticipantes ?? '—'}
+                Actual: {taller.numeroParticipantes ?? '-'}
               </p>
             </div>
           </div>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { construirSnapshotSolicitud, tieneCoordenadas } from './viaticosHandoff';
+import {
+  construirSnapshotSolicitud,
+  esEstadoRutaCotizable,
+  tieneCoordenadas,
+} from './viaticosHandoff';
 import type { Asignacion } from '../../types/educacionMedica.types';
 
 const crearAsignacion = (overrides: Partial<Asignacion> = {}): Asignacion => ({
@@ -59,6 +63,23 @@ describe('construirSnapshotSolicitud', () => {
     expect(origenEm.idRutaVisitas).toEqual([1]);
   });
 
+  it('usa al especialista de la ruta como viajero de la cotización', () => {
+    const visita = crearAsignacion();
+
+    const datos = construirSnapshotSolicitud(
+      { idRuta: 7, nombre: 'Ruta A', visitas: [visita] },
+      [visita],
+      'Ana Pérez',
+      { idUsuario: 42, nombre: 'Dr. Roberto', rol: 'especialista' }
+    );
+
+    expect(datos.persona).toMatchObject({
+      modo: 'otra',
+      empleadoId: 42,
+      nombre: 'Dr. Roberto',
+    });
+  });
+
   it('no envía destinos con coordenadas incompletas', () => {
     const valida = crearAsignacion({ idRutaVisita: 1 });
     const incompleta = crearAsignacion({ idRutaVisita: 2, latitud: null, longitud: -103 });
@@ -73,5 +94,19 @@ describe('construirSnapshotSolicitud', () => {
     );
 
     expect(datos.destinos).toHaveLength(1);
+  });
+});
+
+describe('esEstadoRutaCotizable', () => {
+  it.each(['Archivada', 'Cancelada', 'Rechazada'])('bloquea la ruta %s', (estado) => {
+    expect(esEstadoRutaCotizable(estado)).toBe(false);
+  });
+
+  it.each(['Creada', 'Cerrada'])('permite cotizar la ruta %s', (estado) => {
+    expect(esEstadoRutaCotizable(estado)).toBe(true);
+  });
+
+  it('no considera cotizable una ruta sin estado', () => {
+    expect(esEstadoRutaCotizable(null)).toBe(false);
   });
 });

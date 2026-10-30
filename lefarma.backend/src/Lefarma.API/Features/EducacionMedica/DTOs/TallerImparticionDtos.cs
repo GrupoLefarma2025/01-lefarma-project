@@ -193,14 +193,17 @@ public class CrearSolicitudCambioRequest
     [MaxLength(500)]
     public string Motivo { get; set; } = string.Empty;
 
+    public DateOnly? FechaVisita { get; set; }
     public DateOnly? FechaTaller { get; set; }
     public TimeOnly? HoraTaller { get; set; }
 
     [MaxLength(200)]
     public string? Lugar { get; set; }
 
-    [Range(0, int.MaxValue, ErrorMessage = "El número de participantes no puede ser negativo.")]
+    [Range(0, int.MaxValue, ErrorMessage = "El n�mero de participantes no puede ser negativo.")]
     public int? NumeroParticipantes { get; set; }
+    public int? IdEjecutivo { get; set; }
+    public int? IdEspecialista { get; set; }
 }
 
 /// <summary>Resolución del CEM sobre una solicitud: aprobar (aplica el ajuste) o rechazar (solo motivo).</summary>

@@ -2,8 +2,8 @@ namespace Lefarma.API.Domain.Entities.EducacionMedica;
 
 /// <summary>
 /// Matriz de talleres por ejecutivo y mes (FOR-005, ADR-00015). La captura se
-/// bloquea al generarla (es_bloqueado = 1) y el GV puede reabrirla (es_bloqueado = 0)
-/// mientras la matriz general siga en el paso inicial (ADR-00007).
+/// bloquea cuando la matriz general sale del paso inicial (ADR-00018); el flag
+/// EsBloqueado se conserva como dato histórico y ya no gobierna la edición.
 /// </summary>
 public class MatrizIndividual
 {

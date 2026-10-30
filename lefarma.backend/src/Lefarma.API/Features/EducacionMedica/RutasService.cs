@@ -146,13 +146,14 @@ public class RutasService : IRutasService
         // Nuevo modelo (ADR-00015): la ruta se genera por especialista. Si la selección
         // aún no tiene especialistas, se usa el ejecutivo y se crea una ruta sin especialista
         // para que la planeación no se detenga. El modelo de equipos queda como fallback legacy.
-        var usaEspecialistas = regiones.Any(r => r.IdEjecutivo.HasValue || r.IdEspecialista.HasValue);
+        var usaEspecialistas = regiones.Any(r => r.IdEjecutivo.HasValue || r.IdEspecialista.HasValue)
+            || hospitales.Any(h => h.IdEspecialista.HasValue);
 
         var conRegion = hospitales
             .Where(h => h.IdRegion.HasValue
                 && regionesPorId.TryGetValue(h.IdRegion.Value, out var region)
                 && (usaEspecialistas
-                    ? region.IdEjecutivo.HasValue || region.IdEspecialista.HasValue
+                    ? h.IdEspecialista.HasValue || region.IdEjecutivo.HasValue || region.IdEspecialista.HasValue
                     : region.IdEquipo.HasValue))
             .ToList();
 
@@ -172,8 +173,9 @@ public class RutasService : IRutasService
         if (usaEspecialistas)
         {
             var demandas = conRegion
-                .Where(h => regionesPorId[h.IdRegion!.Value].IdEspecialista.HasValue)
-                .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEspecialista!.Value)
+                .Select(h => new { h, IdEspecialista = EspecialistaEfectivo(h, regionesPorId) })
+                .Where(x => x.IdEspecialista.HasValue)
+                .GroupBy(x => x.IdEspecialista!.Value)
                 .ToDictionary(g => g.Key, g => g.Count());
 
             foreach (var (idEspecialista, demanda) in demandas.OrderBy(d => d.Key))
@@ -260,7 +262,7 @@ public class RutasService : IRutasService
         if (usaEspecialistas)
         {
             var idsEspecialistas = conRegion
-                .Select(h => regionesPorId[h.IdRegion!.Value].IdEspecialista)
+                .Select(h => EspecialistaEfectivo(h, regionesPorId))
                 .Where(id => id.HasValue)
                 .Select(id => id!.Value)
                 .Distinct()
@@ -276,7 +278,7 @@ public class RutasService : IRutasService
                         ct);
 
             foreach (var grupoEspecialista in conRegion
-                .GroupBy(h => regionesPorId[h.IdRegion!.Value].IdEspecialista)
+                .GroupBy(h => EspecialistaEfectivo(h, regionesPorId))
                 .OrderBy(g => g.Key ?? int.MaxValue))
             {
                 var idEspecialista = grupoEspecialista.Key;
@@ -676,6 +678,7 @@ public class RutasService : IRutasService
             IdRuta = ruta.IdRuta,
             IdSeleccionHospital = request.IdSeleccionHospital,
             IdHospital = hospital.IdHospital,
+            IdTipoVisita = request.IdTipoVisita,
             IdEjecutivo = hospital.IdEjecutivo ?? idEjecutivoRegion,
             IdEspecialista = ruta.IdEspecialista ?? idEspecialistaRegion,
             FechaVisita = request.FechaVisita,
@@ -1405,6 +1408,14 @@ public class RutasService : IRutasService
         return (maxDia, maxSemana, maxForaneos);
     }
 
+    private static int? EspecialistaEfectivo(
+        SeleccionHospital hospital,
+        IReadOnlyDictionary<int, SeleccionRegion> regiones)
+        => hospital.IdEspecialista
+            ?? (hospital.IdRegion.HasValue
+                ? regiones.GetValueOrDefault(hospital.IdRegion.Value)?.IdEspecialista
+                : null);
+
     private static List<RutaVisita> DistribuirEnDias(
         Ruta ruta,
         List<SeleccionHospital> hospitales,
@@ -1909,23 +1920,32 @@ public class RutasService : IRutasService
             .ToDictionary(r => r.IdRegion, r => r.Nombre ?? $"Región {r.IdRegion}");
 
         string? nombreHospital = null;
+        Hospital? hospitalAsokam = null;
         if (visita.IdHospital.HasValue)
         {
-            var hospital = await _hospitalRepository.GetByIdAsync(visita.IdHospital.Value, ct);
-            nombreHospital = hospital?.NombreContacto ?? $"Hospital {visita.IdHospital}";
+            hospitalAsokam = await _hospitalRepository.GetByIdAsync(visita.IdHospital.Value, ct);
+            nombreHospital = hospitalAsokam?.NombreContacto ?? $"Hospital {visita.IdHospital}";
         }
 
         var esForanea = visita.IdHospital.HasValue
             ? (await _extensionRepository.GetByHospitalIdAsync(visita.IdHospital.Value, ct))?.EsZonaMetropolitana != true
             : false;
 
-        return ArmarVisitaDto(
+        var dto = ArmarVisitaDto(
             visita,
             hospitales,
             regiones,
             new Dictionary<int, string> { [visita.IdHospital ?? 0] = nombreHospital ?? string.Empty },
             esForanea ? null : new Dictionary<int, bool?> { [visita.IdHospital ?? 0] = true },
             nombreHospitalForzado: nombreHospital);
+
+        if (!dto.Latitud.HasValue)
+        {
+            dto.Latitud = hospitalAsokam?.Latitud;
+            dto.Longitud = hospitalAsokam?.Longitud;
+        }
+
+        return dto;
     }
 
     private static RutaVisitaDto ArmarVisitaDto(
@@ -1966,6 +1986,10 @@ public class RutasService : IRutasService
             NombreRegion = hospital?.IdRegion.HasValue == true
                 ? regiones.GetValueOrDefault(hospital.IdRegion.Value)
                 : null,
+            EntidadFederativa = hospital?.EntidadFederativa,
+            CiudadMunicipio = hospital?.CiudadMunicipio,
+            Latitud = hospital?.LatitudSnapshot,
+            Longitud = hospital?.LongitudSnapshot,
         };
     }
 }

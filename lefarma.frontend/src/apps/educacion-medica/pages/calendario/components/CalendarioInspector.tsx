@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
   CalendarDays,
   Check,
+  ClipboardList,
+  Eye,
+  FileImage,
+  Package,
   ChevronRight,
   Clock3,
   Loader2,
@@ -17,6 +21,7 @@ import {
   UserRound,
   Users,
   X,
+  MapIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
@@ -34,14 +39,27 @@ import { usePermission } from '@/hooks/usePermission';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { educacionMedicaApi } from '../../../services/educacionMedica.api';
 import type {
+  ActividadVisita,
   CalendarioItem,
   EjecutivoRegion,
   EjecutivoSuplente,
+  ActualizarTallerRequest,
   EspecialistaPersona,
+  SugerenciaEspecialista,
   Taller,
 } from '../../../types/educacionMedica.types';
 import { toApiError } from '@/utils/errors';
+import { TallerDetalleModal } from '../../../pages/taller/components/TallerDetalleModal';
+import { TallerAsistenciaModal } from '../../../pages/taller/components/TallerAsistenciaModal';
+import { TallerEvidenciasModal } from '../../../pages/taller/components/TallerEvidenciasModal';
+import { TallerMaterialModal } from '../../../pages/taller/components/TallerMaterialModal';
+import { TallerFormModal } from '../../../pages/taller/components/TallerFormModal';
+import { SolicitarCambioModal } from '../../../pages/taller/components/SolicitarCambioModal';
+import { ResolverSolicitudCambioModal } from '../../../pages/taller/components/ResolverSolicitudCambioModal';
+import { ActividadVisitaTab } from './ActividadVisitaTab';
+import { TextoExpandible } from './TextoExpandible';
 import {
+  claveEvento,
   estadoEtiqueta,
   estiloEvento,
   fechaCompacta,
@@ -65,6 +83,12 @@ interface CalendarioInspectorProps {
   onCrearTaller: (item: CalendarioItem) => void;
   pendientes: CalendarioItem[];
   onSelectItem: (item: CalendarioItem) => void;
+  sugerencia?: SugerenciaEspecialista | null;
+  aplicandoSugerencia?: boolean;
+  onAplicarSugerencia?: (sugerencia: SugerenciaEspecialista) => void;
+  /** La matriz general está fuera de Creada: la captura de talleres está cerrada. */
+  capturaBloqueada?: boolean;
+  onAbrirMatriz?: () => void;
 }
 
 function Dato({
@@ -77,16 +101,14 @@ function Dato({
   value: string;
 }) {
   return (
-    <div className="flex items-start gap-2.5 rounded-xl border border-slate-200/70 bg-slate-50/60 px-3 py-2.5 dark:border-slate-800 dark:bg-slate-900/50">
-      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
-      <div className="min-w-0">
-        <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400">
-          {label}
-        </p>
-        <p className="mt-0.5 truncate text-xs font-semibold text-slate-700 dark:text-slate-200">
-          {value}
-        </p>
-      </div>
+    <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-slate-200/70 bg-slate-50/60 px-3 py-1.5 dark:border-slate-800 dark:bg-slate-900/50">
+      <span className="flex shrink-0 items-center gap-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </span>
+      <span className="min-w-0 truncate text-right text-xs font-semibold text-slate-700 dark:text-slate-200">
+        {value}
+      </span>
     </div>
   );
 }
@@ -101,12 +123,32 @@ export function CalendarioInspector({
   onCrearTaller,
   pendientes,
   onSelectItem,
+  sugerencia,
+  aplicandoSugerencia = false,
+  onAplicarSugerencia,
+  capturaBloqueada = false,
+  onAbrirMatriz,
 }: CalendarioInspectorProps) {
   const puedeGestionar = usePermission({
     require: 'educacion_medica.rutas.puede_gestionar',
   });
   const puedeCapturar = usePermission({
     require: 'educacion_medica.talleres.puede_capturar',
+  });
+  const puedeGestionarEvidencias = usePermission({
+    require: 'educacion_medica.evidencias.puede_gestionar',
+  });
+  const puedeGestionarMaterial = usePermission({
+    require: 'educacion_medica.materiales.puede_gestionar',
+  });
+  const puedeConfirmarMaterial = usePermission({
+    require: 'educacion_medica.materiales.puede_confirmar',
+  });
+  const puedeAjustarTalleres = usePermission({
+    require: 'educacion_medica.talleres.puede_ajustar',
+  });
+  const puedeSolicitarAsistida = usePermission({
+    require: 'educacion_medica.talleres.puede_capturar_asistida',
   });
 
   const [idEjecutivo, setIdEjecutivo] = useState(HEREDAR);
@@ -116,9 +158,21 @@ export function CalendarioInspector({
   const [guardandoEjecutivo, setGuardandoEjecutivo] = useState(false);
   const [guardandoEspecialista, setGuardandoEspecialista] = useState(false);
   const [moviendo, setMoviendo] = useState(false);
-  const [tab, setTab] = useState<'detalle' | 'talleres'>('detalle');
+  const [tab, setTab] = useState<'detalle' | 'talleres' | 'actividad'>('detalle');
   const [talleres, setTalleres] = useState<Taller[]>([]);
   const [cargandoTalleres, setCargandoTalleres] = useState(false);
+  const [actividad, setActividad] = useState<ActividadVisita | null>(null);
+  const [cargandoActividad, setCargandoActividad] = useState(false);
+  const [refrescoActividad, setRefrescoActividad] = useState(0);
+  const [detalleTaller, setDetalleTaller] = useState<Taller | null>(null);
+  const [asistenciaTaller, setAsistenciaTaller] = useState<Taller | null>(null);
+  const [evidenciasTaller, setEvidenciasTaller] = useState<Taller | null>(null);
+  const [materialTaller, setMaterialTaller] = useState<Taller | null>(null);
+  const [editarTaller, setEditarTaller] = useState<Taller | null>(null);
+  const [solicitudTaller, setSolicitudTaller] = useState<Taller | null>(null);
+  const [resolverTaller, setResolverTaller] = useState<Taller | null>(null);
+  const [guardandoTaller, setGuardandoTaller] = useState(false);
+  const idRutaVisita = item?.idRutaVisita ?? null;
 
   /* eslint-disable react-hooks/set-state-in-effect -- sincroniza el formulario con la actividad seleccionada */
   useEffect(() => {
@@ -130,34 +184,71 @@ export function CalendarioInspector({
   }, [item?.idRutaVisita, item?.idEjecutivo, item?.idEspecialista, item?.fecha, item]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  /* eslint-disable react-hooks/set-state-in-effect -- carga los talleres de la visita seleccionada */
-  useEffect(() => {
-    if (!item?.idRutaVisita) {
+  const cargarTalleres = useCallback(async () => {
+    if (!idRutaVisita) {
       setTalleres([]);
       return;
     }
 
-    let cancelado = false;
     setCargandoTalleres(true);
-    void educacionMedicaApi.talleres
-      .getByVisita(item.idRutaVisita)
+    try {
+      const response = await educacionMedicaApi.talleres.getByVisita(idRutaVisita);
+      if (response.data.success) {
+        setTalleres(response.data.data ?? []);
+      }
+    } catch {
+      setTalleres([]);
+    } finally {
+      setCargandoTalleres(false);
+    }
+  }, [idRutaVisita]);
+
+  /* eslint-disable react-hooks/set-state-in-effect -- carga los talleres de la visita seleccionada */
+  useEffect(() => {
+    void cargarTalleres();
+  }, [cargarTalleres, item?.idTaller]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- carga la actividad al abrir la pestaña */
+  useEffect(() => {
+    if (!idRutaVisita || tab !== 'actividad') return;
+
+    let cancelado = false;
+    setCargandoActividad(true);
+    void educacionMedicaApi.calendario
+      .actividad(idRutaVisita)
       .then((response) => {
-        if (!cancelado && response.data.success) {
-          setTalleres(response.data.data ?? []);
-        }
+        if (cancelado) return;
+        setActividad(response.data.success ? (response.data.data ?? null) : null);
       })
       .catch(() => {
-        if (!cancelado) setTalleres([]);
+        if (!cancelado) setActividad(null);
       })
       .finally(() => {
-        if (!cancelado) setCargandoTalleres(false);
+        if (!cancelado) setCargandoActividad(false);
       });
 
     return () => {
       cancelado = true;
     };
-  }, [item?.idRutaVisita, item?.idTaller]);
+  }, [idRutaVisita, tab, refrescoActividad]);
   /* eslint-enable react-hooks/set-state-in-effect */
+
+  const abrirSolicitudTaller = (idTaller: number) => {
+    const taller = talleres.find((item) => item.idTaller === idTaller);
+    if (taller) setSolicitudTaller(taller);
+  };
+
+  const abrirResolverSolicitud = (idTaller: number) => {
+    const taller = talleres.find((item) => item.idTaller === idTaller);
+    if (taller) setResolverTaller(taller);
+  };
+
+  const refrescarActividad = () => {
+    setRefrescoActividad((valor) => valor + 1);
+    void cargarTalleres();
+    void onRefresh();
+  };
 
   const opcionesEjecutivo = useMemo(() => {
     const mapa = new Map<number, { nombre: string; etiqueta: string }>();
@@ -238,7 +329,7 @@ export function CalendarioInspector({
             <div className="mt-2.5 space-y-1.5">
               {pendientes.slice(0, 4).map((pendiente) => (
                 <button
-                  key={pendiente.idRutaVisita}
+                  key={claveEvento(pendiente)}
                   type="button"
                   onClick={() => onSelectItem(pendiente)}
                   className="flex w-full items-center gap-2.5 rounded-xl border border-amber-200/70 bg-amber-50/50 px-2.5 py-2 text-left transition-colors hover:bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
@@ -276,6 +367,13 @@ export function CalendarioInspector({
 
   const estilo = estiloEvento[tonoEvento(item)];
   const hora = fmtHora(item.hora);
+  const horariosTalleres = [
+    ...new Set(
+      talleres
+        .map((taller) => fmtHora(taller.horaTaller))
+        .filter((horario): horario is string => Boolean(horario))
+    ),
+  ];
 
   const aplicarEjecutivo = async () => {
     if (!puedeGestionar || !item) return;
@@ -356,16 +454,27 @@ export function CalendarioInspector({
               {iniciales(item.hospital)}
             </span>
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-100">
-                {item.hospital ?? 'Hospital sin nombre'}
-              </p>
+              <TextoExpandible
+                text={item.hospital}
+                fallback="Hospital sin nombre"
+                lineas={2}
+                className="text-[15px] font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-100"
+                triggerClassName="w-full"
+              />
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-500 dark:text-slate-400">
                 <span className="inline-flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
+                  <MapIcon className="h-3 w-3" />
                   {item.region ?? 'Sin región'}
                 </span>
-                <span className="text-slate-300 dark:text-slate-700">·</span>
+                <span className="text-slate-300 dark:text-slate-700">-</span>
                 <span>{item.gerencia}</span>
+              </p>
+              <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-400 dark:text-slate-500">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {item.entidadFederativa ?? 'Sin estado'},{' '}
+                  {item.ciudadMunicipio ?? 'Sin municipio'}
+                </span>
               </p>
             </div>
           </div>
@@ -407,7 +516,10 @@ export function CalendarioInspector({
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(value) => setTab(value as 'detalle' | 'talleres')}>
+      <Tabs
+        value={tab}
+        onValueChange={(value) => setTab(value as 'detalle' | 'talleres' | 'actividad')}
+      >
         <div className="border-b border-slate-200/70 px-4 pt-1 dark:border-slate-800">
           <TabsList className="h-9 w-full justify-start gap-1 rounded-none bg-transparent p-0">
             <TabsTrigger
@@ -421,17 +533,27 @@ export function CalendarioInspector({
               className="gap-1.5 rounded-none border-b-2 border-transparent px-2 text-[11px] data-[state=active]:border-orange-500 data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:shadow-none dark:data-[state=active]:text-orange-300"
             >
               Talleres
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px] tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] tabular-nums text-slate-500 dark:bg-slate-800 dark:text-slate-400">
                 {talleres.length}
               </span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="actividad"
+              className="rounded-none border-b-2 border-transparent px-2 text-[11px] data-[state=active]:border-orange-500 data-[state=active]:bg-transparent data-[state=active]:text-orange-600 data-[state=active]:shadow-none dark:data-[state=active]:text-orange-300"
+            >
+              Actividad
             </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="detalle" className="space-y-5 p-5">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-1.5">
             <Dato icon={CalendarDays} label="Fecha" value={fechaCompacta(item.fecha)} />
-            <Dato icon={Clock3} label="Hora" value={hora ?? 'Sin hora'} />
+            <Dato
+              icon={Clock3}
+              label={item.idTaller ? 'Hora del taller' : 'Hora'}
+              value={hora ?? 'Sin hora'}
+            />
             <Dato
               icon={UserRound}
               label="Ejecutivo"
@@ -444,26 +566,11 @@ export function CalendarioInspector({
             />
           </div>
 
-          {(item.tema || item.producto) && (
-            <div className="rounded-xl border border-slate-200/70 px-3 py-3 dark:border-slate-800">
-              <p className="text-[10px] font-medium uppercase tracking-[0.08em] text-slate-400">
-                Actividad
-              </p>
-              <p className="mt-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
-                {item.tema ?? item.producto}
-              </p>
-              {item.producto && item.tema && (
-                <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
-                  {item.producto}
-                  {item.cantidad ? ` · ${item.cantidad} unidades` : ''}
-                </p>
-              )}
-              {item.participantes != null && (
-                <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-                  <Users className="h-3 w-3" />
-                  {item.participantes} participantes
-                </p>
-              )}
+          {talleres.length > 1 && (
+            <div className="rounded-lg border border-slate-200/70 bg-slate-50/60 px-3 py-2 text-[11px] leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400">
+              Esta visita tiene {talleres.length} talleres
+              {horariosTalleres.length > 0 ? `: ${horariosTalleres.join(' · ')}` : ''}. Cada uno se
+              muestra por separado en la pestaña Talleres.
             </div>
           )}
 
@@ -546,6 +653,27 @@ export function CalendarioInspector({
 
               <div className="space-y-2">
                 <Label className="text-xs">Especialista</Label>
+                {sugerencia && !item.idEspecialista && (
+                  <div className="flex items-center gap-2 rounded-lg border border-orange-200/70 bg-orange-50/60 px-2.5 py-2 dark:border-orange-900/60 dark:bg-orange-950/20">
+                    <Sparkles className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+                    <p className="min-w-0 flex-1 text-[10px] leading-relaxed text-orange-800 dark:text-orange-200">
+                      <span className="font-semibold">{sugerencia.nombreEspecialista}</span>{' '}
+                      {sugerencia.motivo.toLowerCase()}.
+                    </p>
+                    <Button
+                      size="sm"
+                      className="h-7 shrink-0 rounded-lg bg-[#eb6c36] px-2 text-[10px] text-white hover:bg-[#d95a2b]"
+                      onClick={() => onAplicarSugerencia?.(sugerencia)}
+                      disabled={aplicandoSugerencia || !onAplicarSugerencia}
+                    >
+                      {aplicandoSugerencia ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        'Aplicar'
+                      )}
+                    </Button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Select value={idEspecialista} onValueChange={setIdEspecialista}>
                     <SelectTrigger className="h-9 min-w-0 flex-1 text-xs">
@@ -652,14 +780,14 @@ export function CalendarioInspector({
               <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                 Talleres de esta visita
               </p>
-              <p className="mt-0.5 text-[10px] text-slate-400">
+              <p className="mt-0.5 text-[11px] text-slate-400">
                 {talleres.length} registrado{talleres.length === 1 ? '' : 's'}
               </p>
             </div>
-            {puedeCapturar && (
+            {(puedeCapturar || puedeSolicitarAsistida) && !capturaBloqueada && (
               <Button
                 size="sm"
-                className="h-8 gap-1 rounded-lg bg-[#eb6c36] px-2.5 text-[10px] text-white hover:bg-[#d95a2b]"
+                className="h-8 gap-1 rounded-lg bg-[#eb6c36] px-2.5 text-[11px] text-white hover:bg-[#d95a2b]"
                 onClick={() => onCrearTaller(item)}
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -667,6 +795,13 @@ export function CalendarioInspector({
               </Button>
             )}
           </div>
+
+          {capturaBloqueada && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] leading-relaxed text-amber-800 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-300">
+              Captura cerrada: la matriz está en autorización. Para cambiar un taller usa
+              «Solicitar cambio» en la pestaña Actividad.
+            </div>
+          )}
 
           {cargandoTalleres ? (
             <div className="space-y-2">
@@ -681,14 +816,14 @@ export function CalendarioInspector({
               <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-300">
                 Sin taller registrado
               </p>
-              <p className="mt-1 text-[10px] leading-relaxed text-slate-400">
+              <p className="mt-1 text-[11px] leading-relaxed text-slate-400">
                 Programa el primer taller usando la fecha de la visita.
               </p>
-              {puedeCapturar && (
+              {(puedeCapturar || puedeSolicitarAsistida) && !capturaBloqueada && (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="mt-3 h-8 rounded-lg text-[10px]"
+                  className="mt-3 h-8 rounded-lg text-[11px]"
                   onClick={() => onCrearTaller(item)}
                 >
                   <Plus className="mr-1 h-3.5 w-3.5" />
@@ -708,23 +843,29 @@ export function CalendarioInspector({
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                         {taller.fechaTaller
                           ? fechaCompacta(taller.fechaTaller.slice(0, 10))
                           : fechaCompacta(item.fecha)}
                         {taller.horaTaller ? ` · ${fmtHora(taller.horaTaller)}` : ''}
                       </p>
-                      <p className="mt-0.5 text-[9px] text-slate-400">
-                        {producto?.nombreProducto ?? 'Sin producto'}
-                        {producto?.cantidad != null ? ` · ${producto.cantidad} pzas` : ''}
+                      <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                        {taller.tema ?? 'Sin tema capturado'}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        {producto
+                          ? `Producto: ${producto.nombreProducto ?? 'Sin producto'}${
+                              producto.cantidad != null ? ` · ${producto.cantidad} pzas` : ''
+                            }`
+                          : 'Sin producto'}
                       </p>
                     </div>
-                    <Badge variant="secondary" className="rounded-full text-[9px]">
+                    <Badge variant="secondary" className="rounded-full text-[10px]">
                       {estadoEtiqueta[taller.estado] ?? taller.estado}
                     </Badge>
                   </div>
 
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
                     <span className="inline-flex items-center gap-1 text-slate-500 dark:text-slate-400">
                       <Users className="h-3 w-3" />
                       {taller.numeroParticipantes ?? 0} participantes
@@ -735,7 +876,7 @@ export function CalendarioInspector({
                     </span>
                   </div>
 
-                  <div className="mt-2 space-y-0.5 text-[9px] text-slate-400">
+                  <div className="mt-2 space-y-0.5 text-[11px] text-slate-400">
                     <p>Ejecutivo: {taller.nombreEjecutivo ?? 'Sin asignar'}</p>
                     <p>Especialista: {taller.nombreEspecialista ?? 'Sin asignar'}</p>
                   </div>
@@ -745,7 +886,7 @@ export function CalendarioInspector({
                       {taller.solicitudCambioPendiente && (
                         <Badge
                           variant="secondary"
-                          className="rounded-full border-amber-200 bg-amber-50 text-[8px] text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+                          className="rounded-full border-amber-200 bg-amber-50 text-[10px] text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
                         >
                           Cambio pendiente
                         </Badge>
@@ -753,7 +894,7 @@ export function CalendarioInspector({
                       {taller.esExtraordinario && (
                         <Badge
                           variant="secondary"
-                          className="rounded-full border-violet-200 bg-violet-50 text-[8px] text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300"
+                          className="rounded-full border-violet-200 bg-violet-50 text-[10px] text-violet-700 dark:border-violet-900 dark:bg-violet-950 dark:text-violet-300"
                         >
                           Extraordinario
                         </Badge>
@@ -762,22 +903,207 @@ export function CalendarioInspector({
                   )}
 
                   <Button
-                    asChild
                     variant="outline"
                     size="sm"
-                    className="mt-3 h-7 w-full justify-between rounded-lg px-2.5 text-[9px]"
+                    className="mt-3 h-8 w-full justify-between rounded-lg px-2.5 text-[11px]"
+                    onClick={() => setDetalleTaller(taller)}
                   >
-                    <Link to="/educacion-medica/talleres">
-                      Abrir en matriz
-                      <ChevronRight className="h-3 w-3" />
-                    </Link>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Eye className="h-3 w-3" />
+                      Ver detalle
+                    </span>
+                    <ChevronRight className="h-3 w-3" />
                   </Button>
                 </div>
               );
             })
           )}
         </TabsContent>
+
+        <TabsContent value="actividad">
+          <ActividadVisitaTab
+            actividad={actividad}
+            cargando={cargandoActividad}
+            puedeResolverSolicitud={puedeAjustarTalleres}
+            puedeSolicitarAsistida={puedeSolicitarAsistida}
+            onSolicitarCambio={abrirSolicitudTaller}
+            onResolverSolicitud={abrirResolverSolicitud}
+          />
+        </TabsContent>
       </Tabs>
+
+      <TallerDetalleModal
+        open={detalleTaller !== null}
+        onClose={() => setDetalleTaller(null)}
+        taller={detalleTaller}
+        tipoVisita={item.tipoVisita}
+        ubicacion={
+          detalleTaller
+            ? { nombreRegion: detalleTaller.region, institucion: item.institucion }
+            : null
+        }
+        acciones={
+          detalleTaller ? (
+            <>
+              {puedeCapturar && !capturaBloqueada && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 rounded-lg text-[10px]"
+                  onClick={() => {
+                    setEditarTaller(detalleTaller);
+                    setDetalleTaller(null);
+                  }}
+                >
+                  <Presentation className="h-3.5 w-3.5" />
+                  Editar
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 rounded-lg text-[10px]"
+                onClick={() => {
+                  setAsistenciaTaller(detalleTaller);
+                  setDetalleTaller(null);
+                }}
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                Asistencia
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 rounded-lg text-[10px]"
+                onClick={() => {
+                  setEvidenciasTaller(detalleTaller);
+                  setDetalleTaller(null);
+                }}
+              >
+                <FileImage className="h-3.5 w-3.5" />
+                Evidencias
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 gap-1.5 rounded-lg text-[10px]"
+                onClick={() => {
+                  setMaterialTaller(detalleTaller);
+                  setDetalleTaller(null);
+                }}
+              >
+                <Package className="h-3.5 w-3.5" />
+                Material
+              </Button>
+              {onAbrirMatriz ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 rounded-lg text-[10px]"
+                  onClick={onAbrirMatriz}
+                >
+                  <Presentation className="h-3.5 w-3.5" />
+                  Abrir en matriz
+                </Button>
+              ) : (
+                <Button
+                  asChild
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5 rounded-lg text-[10px]"
+                >
+                  <Link to="/educacion-medica/talleres">
+                    <Presentation className="h-3.5 w-3.5" />
+                    Abrir en matriz
+                  </Link>
+                </Button>
+              )}
+            </>
+          ) : null
+        }
+      />
+
+      <TallerAsistenciaModal
+        open={asistenciaTaller !== null}
+        onClose={() => setAsistenciaTaller(null)}
+        taller={asistenciaTaller}
+        puedeCapturar={puedeCapturar}
+        onChanged={() => {
+          void cargarTalleres();
+          void onRefresh();
+        }}
+      />
+
+      <TallerEvidenciasModal
+        open={evidenciasTaller !== null}
+        onClose={() => setEvidenciasTaller(null)}
+        taller={evidenciasTaller}
+        puedeGestionar={puedeGestionarEvidencias}
+        onChanged={() => {
+          void cargarTalleres();
+          void onRefresh();
+        }}
+      />
+
+      <TallerMaterialModal
+        open={materialTaller !== null}
+        onClose={() => setMaterialTaller(null)}
+        taller={materialTaller}
+        puedeGestionar={puedeGestionarMaterial}
+        puedeConfirmar={puedeConfirmarMaterial}
+        onChanged={() => {
+          void cargarTalleres();
+          void onRefresh();
+        }}
+      />
+
+      <TallerFormModal
+        open={editarTaller !== null}
+        onClose={() => setEditarTaller(null)}
+        taller={editarTaller}
+        asignaciones={[]}
+        guardando={guardandoTaller}
+        onGuardar={async (payload, idTaller) => {
+          if (!idTaller) return;
+          setGuardandoTaller(true);
+          try {
+            const response = await educacionMedicaApi.talleres.actualizar(
+              idTaller,
+              payload as ActualizarTallerRequest
+            );
+            if (!response.data.success) {
+              throw new Error(response.data.message ?? 'No se pudo actualizar el taller.');
+            }
+            toast.success('Taller actualizado.');
+            setEditarTaller(null);
+            void cargarTalleres();
+            void onRefresh();
+          } catch (err: unknown) {
+            toast.error(toApiError(err).message ?? 'No se pudo actualizar el taller.');
+          } finally {
+            setGuardandoTaller(false);
+          }
+        }}
+      />
+
+      <SolicitarCambioModal
+        open={solicitudTaller !== null}
+        onClose={() => setSolicitudTaller(null)}
+        taller={solicitudTaller}
+        visita={item}
+        ejecutivos={ejecutivos}
+        suplentes={suplentes}
+        especialistas={especialistas}
+        onCreated={refrescarActividad}
+      />
+
+      <ResolverSolicitudCambioModal
+        open={resolverTaller !== null}
+        onClose={() => setResolverTaller(null)}
+        taller={resolverTaller}
+        solicitud={resolverTaller?.solicitudCambioPendiente ?? null}
+        onResolved={refrescarActividad}
+      />
     </aside>
   );
 }

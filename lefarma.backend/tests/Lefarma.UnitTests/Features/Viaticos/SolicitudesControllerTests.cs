@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
+using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Domain.Entities.Viaticos;
 using Lefarma.API.Infrastructure.Data;
 using Lefarma.API.Shared.Constants;
@@ -134,6 +135,7 @@ public class SolicitudesControllerTests
     public async Task PostDesdeEducacionMedica_CreaLigaYReutilizaMismoConjunto()
     {
         using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(9, new[] { 101, 102, 103, 104 });
         using var cliente = ctx.Servidor.CreateClient();
         cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7001");
         cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
@@ -192,10 +194,91 @@ public class SolicitudesControllerTests
     }
 
     [Fact]
+    public async Task PostDesdeEducacionMedica_RutaConEspecialistasDistintos_Retorna409()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(12, new[] { 601 }, idEspecialista: 20);
+        using (var scope = ctx.Servidor.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.RutasVisitas.Add(new RutaVisita
+            {
+                IdRutaVisita = 602,
+                IdRuta = 12,
+                IdEspecialista = 21,
+                FechaVisita = new DateOnly(2026, 10, 21),
+                Orden = 2,
+                FechaCreacion = DateTime.UtcNow,
+                FechaModificacion = DateTime.UtcNow,
+            });
+            db.SaveChanges();
+        }
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7004");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 12,
+            id_ruta_visitas = new[] { 601, 602 },
+            datos = new { destinos = new[] { 601, 602 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        (await resp.Content.ReadAsStringAsync()).Should().Contain("especialistas distintos");
+    }
+
+    [Theory]
+    [InlineData(Ruta.EstadoArchivada)]
+    [InlineData(Ruta.EstadoCancelada)]
+    [InlineData(Ruta.EstadoRechazada)]
+    public async Task PostDesdeEducacionMedica_RutaNoVigente_Retorna409(string estadoRuta)
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(11, new[] { 501 }, estado: estadoRuta);
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7005");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 11,
+            id_ruta_visitas = new[] { 501 },
+            datos = new { destinos = new[] { 501 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        var texto = await resp.Content.ReadAsStringAsync();
+        texto.Should().Contain(estadoRuta);
+        texto.Should().Contain("no se puede cotizar");
+    }
+
+    [Fact]
+    public async Task PostDesdeEducacionMedica_RutaCerrada_PermiteCotizar()
+    {
+        using var ctx = new TestContext();
+        ctx.SembrarRutaConVisitas(13, new[] { 502 }, estado: Ruta.EstadoCerrada);
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", "7006");
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Solicitar);
+
+        var resp = await cliente.PostAsJsonAsync("/api/viaticos/solicitudes/desde-educacion-medica", new
+        {
+            id_ruta = 13,
+            id_ruta_visitas = new[] { 502 },
+            datos = new { destinos = new[] { 502 } }
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
     public async Task PostDesdeEducacionMedica_VisitaEnCotizacionActiva_Retorna409ConFolio()
     {
         using var ctx = new TestContext();
         const int userId = 7002;
+        ctx.SembrarRutaConVisitas(10, new[] { 201 });
         _ = ctx.SembrarCotizacionEducacionMedica(
             userId, idRuta: 10, idRutaVisitas: new[] { 201 }, estado: "enviada", folio: "VIA-EM-9999");
 
@@ -907,6 +990,42 @@ public class SolicitudesControllerTests
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var s = db.Solicitudes.AsNoTracking().Single(x => x.IdSolicitud == idSolicitud);
             s.IdUsuarioSolicitante.Should().Be(userIdEsperado);
+        }
+
+        public void SembrarRutaConVisitas(
+            int idRuta,
+            int[] idRutaVisitas,
+            int idEspecialista = 20,
+            string estado = Ruta.EstadoCreada)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var ahora = DateTime.UtcNow;
+            db.Rutas.Add(new Ruta
+            {
+                IdRuta = idRuta,
+                IdSeleccionMensual = 3,
+                IdEspecialista = idEspecialista,
+                Version = 1,
+                Nombre = $"Ruta prueba {idRuta}",
+                Estado = estado,
+                FechaCreacion = ahora,
+                FechaModificacion = ahora,
+            });
+            for (var i = 0; i < idRutaVisitas.Length; i++)
+            {
+                db.RutasVisitas.Add(new RutaVisita
+                {
+                    IdRutaVisita = idRutaVisitas[i],
+                    IdRuta = idRuta,
+                    IdEspecialista = idEspecialista,
+                    FechaVisita = new DateOnly(2026, 10, 21),
+                    Orden = i + 1,
+                    FechaCreacion = ahora,
+                    FechaModificacion = ahora,
+                });
+            }
+            db.SaveChanges();
         }
 
         public int SembrarCotizacionEducacionMedica(

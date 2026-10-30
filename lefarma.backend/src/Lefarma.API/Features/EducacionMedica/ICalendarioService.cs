@@ -6,7 +6,19 @@ public interface ICalendarioService
 {
     Task<List<CalendarioItemDto>> GetCalendarioAsync(
         CalendarioFiltro filtro,
+        int idUsuario,
+        bool verTodas,
         CancellationToken ct = default);
 
-    Task<CalendarioItemDto?> GetItemAsync(int idRutaVisita, CancellationToken ct = default);
+    Task<CalendarioItemDto?> GetItemAsync(
+        int idRutaVisita,
+        int idUsuario,
+        bool verTodas,
+        CancellationToken ct = default);
+
+    Task<ActividadVisitaDto?> GetActividadVisitaAsync(
+        int idRutaVisita,
+        int idUsuario,
+        bool verTodas,
+        CancellationToken ct = default);
 }

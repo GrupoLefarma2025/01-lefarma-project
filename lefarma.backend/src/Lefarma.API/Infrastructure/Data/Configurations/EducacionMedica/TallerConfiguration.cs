@@ -37,6 +37,7 @@ public class TallerConfiguration : IEntityTypeConfiguration<Taller>
         builder.Property(e => e.IdMatrizGeneral).HasColumnName("id_matriz_general");
         builder.Property(e => e.IdRutaVisita).HasColumnName("id_ruta_visita");
         builder.Property(e => e.IdTemaTaller).HasColumnName("id_tema_taller");
+        builder.Property(e => e.Tema).HasColumnName("tema").HasMaxLength(200);
         builder.Property(e => e.FechaRealizado).HasColumnName("fecha_realizado");
         builder.Property(e => e.EsExtraordinario).HasColumnName("es_extraordinario");
         builder.Property(e => e.MotivoExtraordinario).HasColumnName("motivo_extraordinario").HasMaxLength(500);

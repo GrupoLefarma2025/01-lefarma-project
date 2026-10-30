@@ -9,6 +9,7 @@ import type {
   PagedResult,
   Producto,
   TipoGerencia,
+  TipoVisitaOpcion,
   UpsertHospitalExtensionRequest,
   Region,
   UpsertRegionRequest,
@@ -47,6 +48,7 @@ import type {
   AsignarEjecutivoVisitaRequest,
   CalendarioFiltro,
   CalendarioItem,
+  ActividadVisita,
   SugerenciaEspecialista,
   DividirRegionRequest,
   MoverHospitalARegionRequest,
@@ -80,10 +82,10 @@ import type {
   Taller,
   CrearTallerRequest,
   ActualizarTallerRequest,
-  MatrizIndividual,
   MatrizGeneralResumen,
   MatrizTalleresDetalle,
   ConcentracionEquipo,
+  MatrizRevision,
   ActualizarCostosTallerRequest,
   MatrizDocumento,
   RutaVisita,
@@ -164,6 +166,9 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<Producto[]>>(`${BASE}/productos`, {
         params: search ? { search } : undefined,
       }),
+  },
+  tipoVisita: {
+    getAll: () => API.get<ApiResponse<TipoVisitaOpcion[]>>(`${BASE}/tipo-visita`),
   },
   tipoGerencia: {
     getAll: () => API.get<ApiResponse<TipoGerencia[]>>(`${BASE}/tipo-gerencia`),
@@ -435,6 +440,7 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<CalendarioItem[]>>(`${BASE}/calendario`, {
         params: {
           ...(filtro.idSeleccion ? { idSeleccion: filtro.idSeleccion } : {}),
+          ...(filtro.version ? { version: filtro.version } : {}),
           ...(filtro.desde ? { desde: filtro.desde } : {}),
           ...(filtro.hasta ? { hasta: filtro.hasta } : {}),
           ...(filtro.idGerencia ? { idGerencia: filtro.idGerencia } : {}),
@@ -447,6 +453,8 @@ export const educacionMedicaApi = {
       }),
     getById: (idRutaVisita: number) =>
       API.get<ApiResponse<CalendarioItem>>(`${BASE}/calendario/${idRutaVisita}`),
+    actividad: (idRutaVisita: number) =>
+      API.get<ApiResponse<ActividadVisita>>(`${BASE}/calendario/visitas/${idRutaVisita}/actividad`),
     sugerencias: (idSeleccion: number, desde?: string, hasta?: string) =>
       API.get<ApiResponse<SugerenciaEspecialista[]>>(`${BASE}/calendario/sugerencias`, {
         params: {
@@ -571,14 +579,6 @@ export const educacionMedicaApi = {
       API.put<ApiResponse<Taller>>(`${BASE}/talleres/${idTaller}`, payload),
     eliminar: (idTaller: number) =>
       API.delete<ApiResponse<unknown>>(`${BASE}/talleres/${idTaller}`),
-    generarMatrizIndividual: (idMatrizIndividual: number) =>
-      API.post<ApiResponse<MatrizIndividual>>(
-        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/generar`
-      ),
-    reabrirMatrizIndividual: (idMatrizIndividual: number) =>
-      API.post<ApiResponse<MatrizIndividual>>(
-        `${BASE}/talleres/matrices-individuales/${idMatrizIndividual}/reabrir`
-      ),
     // Impartición (ADR-00008)
     material: (idTaller: number) =>
       API.get<ApiResponse<TallerMaterial | null>>(`${BASE}/talleres/${idTaller}/material`),
@@ -652,6 +652,10 @@ export const educacionMedicaApi = {
       API.get<ApiResponse<ConcentracionEquipo[]>>(
         `${BASE}/matrices-talleres/${idMatrizGeneral}/concentracion`
       ),
+    revision: (idMatrizGeneral: number, idRutaVersion?: number | null) =>
+      API.get<ApiResponse<MatrizRevision>>(`${BASE}/matrices-talleres/${idMatrizGeneral}/revision`, {
+        params: idRutaVersion ? { idRutaVersion } : undefined,
+      }),
     actualizarCostos: (
       idMatrizGeneral: number,
       idTaller: number,

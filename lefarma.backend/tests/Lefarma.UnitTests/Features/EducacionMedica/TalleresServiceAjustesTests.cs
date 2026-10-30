@@ -92,6 +92,26 @@ public class TalleresServiceAjustesTests
             FechaVisita = new DateOnly(2026, 10, 20),
             Orden = 1,
         });
+
+        var periodo = new DateOnly(2026, 10, 1);
+        contexto.MatricesIndividuales.Add(new MatrizIndividual
+        {
+            IdMatrizIndividual = 1,
+            IdEquipo = IdEquipo,
+            Periodo = periodo,
+        });
+
+        var pasoInicio = contexto.WorkflowPasos.First(p => p.IdPaso == _workflow.PasosMatriz["Concentracion"]);
+        contexto.MatricesGenerales.Add(new MatrizGeneral
+        {
+            IdMatrizGeneral = 1,
+            IdTipoGerencia = 1,
+            Periodo = periodo,
+            IdWorkflow = _workflow.WfMatriz.IdWorkflow,
+            IdPasoActual = pasoInicio.IdPaso,
+            IdEstado = pasoInicio.IdEstado,
+        });
+
         contexto.Talleres.Add(new Taller
         {
             IdTaller = IdTaller,
@@ -106,6 +126,8 @@ public class TalleresServiceAjustesTests
             Estado = Taller.EstadoProgramado,
             Activo = true,
             IdUsuarioCreacion = IdEv,
+            IdMatrizIndividual = 1,
+            IdMatrizGeneral = 1,
         });
         contexto.SaveChanges();
     }
@@ -118,6 +140,13 @@ public class TalleresServiceAjustesTests
         _notificationMock.Object,
         new UserPermissionService(_workflow.Asokam, new MemoryCache(new MemoryCacheOptions())),
         NullLogger<TalleresService>.Instance);
+
+    private void BloquearCaptura()
+    {
+        var general = _workflow.Context.MatricesGenerales.Single();
+        general.IdPasoActual = _workflow.PasosMatriz["GvImss"];
+        _workflow.Context.SaveChanges();
+    }
 
     private static ActualizarTallerRequest NuevoAjuste(DateOnly fecha, string? motivo = "Reagenda por imprevisto") => new()
     {
@@ -227,8 +256,28 @@ public class TalleresServiceAjustesTests
     // ----- Solicitudes de cambio (ADR-00010, decisiones 13-15) -----
 
     [Fact]
+    public async Task CrearSolicitud_TallerCreadaConCandado_Debe_CrearPendiente()
+    {
+        BloquearCaptura();
+        var taller = _workflow.Context.Talleres.Single();
+        taller.Estado = Taller.EstadoCreada;
+        _workflow.Context.SaveChanges();
+
+        var servicio = CrearServicio();
+
+        var solicitud = await servicio.CrearSolicitudCambioAsync(IdTaller, new CrearSolicitudCambioRequest
+        {
+            Motivo = "El hospital pidió cambiar el lugar",
+            Lugar = "Aula 3",
+        }, IdEv);
+
+        solicitud.Estado.Should().Be(TallerSolicitudCambio.EstadoPendiente);
+    }
+
+    [Fact]
     public async Task CrearSolicitud_MiembroDelEquipo_Debe_CrearPendienteYNotificarAlCem()
     {
+        BloquearCaptura();
         var servicio = CrearServicio();
 
         var solicitud = await servicio.CrearSolicitudCambioAsync(IdTaller, new CrearSolicitudCambioRequest
@@ -251,6 +300,7 @@ public class TalleresServiceAjustesTests
     [Fact]
     public async Task CrearSolicitud_SinCambios_Debe_Fallar()
     {
+        BloquearCaptura();
         var servicio = CrearServicio();
 
         var act = () => servicio.CrearSolicitudCambioAsync(IdTaller,
@@ -262,6 +312,7 @@ public class TalleresServiceAjustesTests
     [Fact]
     public async Task CrearSolicitud_Duplicada_Debe_Fallar()
     {
+        BloquearCaptura();
         var servicio = CrearServicio();
         await servicio.CrearSolicitudCambioAsync(IdTaller,
             new CrearSolicitudCambioRequest { Motivo = "Primera", Lugar = "Aula 1" }, IdEv);
@@ -275,6 +326,7 @@ public class TalleresServiceAjustesTests
     [Fact]
     public async Task ResolverSolicitud_Aprobar_Debe_AplicarAjusteYNotificarAlSolicitante()
     {
+        BloquearCaptura();
         _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.TalleresAjustar);
         var servicio = CrearServicio();
         var solicitud = await servicio.CrearSolicitudCambioAsync(IdTaller, new CrearSolicitudCambioRequest
@@ -300,6 +352,7 @@ public class TalleresServiceAjustesTests
     [Fact]
     public async Task ResolverSolicitud_Rechazar_NoDebe_AplicarElCambio()
     {
+        BloquearCaptura();
         _workflow.OtorgarPermiso(IdCem, Permissions.EducacionMedica.TalleresAjustar);
         var servicio = CrearServicio();
         var solicitud = await servicio.CrearSolicitudCambioAsync(IdTaller, new CrearSolicitudCambioRequest
@@ -319,6 +372,7 @@ public class TalleresServiceAjustesTests
     [Fact]
     public async Task ResolverSolicitud_SinPermisoDeAjuste_Debe_Fallar()
     {
+        BloquearCaptura();
         var servicio = CrearServicio();
         var solicitud = await servicio.CrearSolicitudCambioAsync(IdTaller,
             new CrearSolicitudCambioRequest { Motivo = "Cambio", Lugar = "Aula 1" }, IdEv);

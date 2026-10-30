@@ -1,3 +1,4 @@
+using System.Text.Json;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.EducacionMedica;
 using Lefarma.API.Features.EducacionMedica;
@@ -240,70 +241,60 @@ public class TalleresServiceTests
     }
 
     [Fact]
-    public async Task Generar_Debe_BloquearLaCapturaDelEquipo()
+    public async Task CrearSolicitudCambio_SinCandado_Debe_Fallar()
     {
         var taller = await CapturarTallerAsync();
-        var servicio = CrearServicio();
-
-        var matriz = await servicio.GenerarMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
-
-        matriz.EsBloqueado.Should().BeTrue();
-        matriz.FechaBloqueo.Should().NotBeNull();
-
-        var act = () => servicio.CrearAsync(NuevaSolicitud(), IdEv);
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ya está bloqueada*reabr*");
-    }
-
-    [Fact]
-    public async Task Generar_SinTalleres_Debe_Fallar()
-    {
-        var contexto = _workflow.Context;
-        var individual = new MatrizIndividual
-        {
-            IdEquipo = IdEquipo,
-            Periodo = Periodo,
-        };
-        contexto.MatricesIndividuales.Add(individual);
-        contexto.SaveChanges();
+        var entidad = _workflow.Context.Talleres.Single(t => t.IdTaller == taller.IdTaller);
+        entidad.Estado = Taller.EstadoProgramado;
+        _workflow.Context.SaveChanges();
 
         var servicio = CrearServicio();
-        var act = () => servicio.GenerarMatrizIndividualAsync(individual.IdMatrizIndividual, IdEv);
+        var act = () => servicio.CrearSolicitudCambioAsync(
+            taller.IdTaller,
+            new CrearSolicitudCambioRequest
+            {
+                Motivo = "Cambio de fecha de visita",
+                FechaVisita = new DateOnly(2026, 10, 22),
+            },
+            IdEv);
 
         await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*no tiene talleres capturados*");
+            .WithMessage("*candado*");
     }
 
     [Fact]
-    public async Task Reabrir_Debe_DesbloquearLaCaptura()
+    public async Task CrearSolicitudCambio_ConCandado_Debe_GuardarCambiosDeVisita()
     {
         var taller = await CapturarTallerAsync();
-        var servicio = CrearServicio();
-        await servicio.GenerarMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
+        var entidad = _workflow.Context.Talleres.Single(t => t.IdTaller == taller.IdTaller);
+        entidad.Estado = Taller.EstadoProgramado;
+        entidad.IdRutaVisita = 1;
+        _workflow.Context.SaveChanges();
 
-        var matriz = await servicio.ReabrirMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, _workflow.UsuarioGvImss);
-
-        matriz.EsBloqueado.Should().BeFalse();
-        matriz.FechaDesbloqueo.Should().NotBeNull();
-        matriz.FechaBloqueo.Should().NotBeNull();
-    }
-
-    [Fact]
-    public async Task Reabrir_ConMatrizGeneralFueraDelPasoInicial_Debe_Fallar()
-    {
-        var taller = await CapturarTallerAsync();
-        var servicio = CrearServicio();
-        await servicio.GenerarMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, IdEv);
-
-        // La general avanza a firma GV: ya no se puede reabrir hasta devolverla a Creada
         var general = _workflow.Context.MatricesGenerales.Single();
         general.IdPasoActual = _workflow.PasosMatriz["GvImss"];
         _workflow.Context.SaveChanges();
 
-        var act = () => servicio.ReabrirMatrizIndividualAsync(taller.IdMatrizIndividual!.Value, _workflow.UsuarioGvImss);
+        var servicio = CrearServicio();
 
-        await act.Should().ThrowAsync<InvalidOperationException>()
-            .WithMessage("*ya está en autorización*");
+        var solicitud = await servicio.CrearSolicitudCambioAsync(
+            taller.IdTaller,
+            new CrearSolicitudCambioRequest
+            {
+                Motivo = "Cambio de fecha de visita",
+                FechaVisita = new DateOnly(2026, 10, 22),
+                IdEjecutivo = IdEp,
+                IdEspecialista = IdEv,
+            },
+            IdEv);
+
+        using var datos = JsonDocument.Parse(solicitud.DatosJson!);
+        datos.RootElement.GetProperty("despues").GetProperty("fechaVisita").GetString()
+            .Should().Be("2026-10-22");
+        datos.RootElement.GetProperty("despues").GetProperty("idEjecutivo").GetInt32()
+            .Should().Be(IdEp);
+        datos.RootElement.GetProperty("despues").GetProperty("idEspecialista").GetInt32()
+            .Should().Be(IdEv);
     }
 
     [Fact]
@@ -329,7 +320,6 @@ public class TalleresServiceTests
         resultado.IdEquipo.Should().Be(IdEquipo);
         resultado.Periodo.Should().Be(Periodo);
         resultado.Matriz.Should().NotBeNull();
-        resultado.Matriz!.EsBloqueado.Should().BeFalse();
         resultado.Talleres.Should().HaveCount(1);
         resultado.EstadoMatrizGeneral.Should().Be("Creada");
         resultado.PasoActualMatrizGeneral.Should().Be("Creada");

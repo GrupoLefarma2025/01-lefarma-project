@@ -1,14 +1,41 @@
 import { solicitudesApi } from '@/apps/viaticos/services/solicitudes.api';
-import type { Asignacion } from '../../types/educacionMedica.types';
+
+export interface VisitaCotizable {
+  idRutaVisita: number;
+  idRuta: number;
+  idSeleccionMensual?: number | null;
+  fechaVisita: string;
+  orden: number;
+  nombreHospital: string | null;
+  nombreRegion?: string | null;
+  entidadFederativa?: string | null;
+  ciudadMunicipio?: string | null;
+  latitud?: number | null;
+  longitud?: number | null;
+}
+
+export interface ViajeroCotizacion {
+  idUsuario: number;
+  nombre: string;
+  rol: 'especialista' | 'ejecutivo';
+}
 
 export interface RutaParaCotizar {
   idRuta: number;
   nombre: string;
-  visitas: Asignacion[];
+  idSeleccionMensual?: number | null;
+  visitas: VisitaCotizable[];
+  viajero?: ViajeroCotizacion;
 }
 
+const ESTADOS_RUTA_NO_COTIZABLES = new Set(['Archivada', 'Cancelada', 'Rechazada']);
+
+/** Una ruta archivada, cancelada o rechazada ya no puede generar cotizaciones. */
+export const esEstadoRutaCotizable = (estado: string | null | undefined): boolean =>
+  estado != null && !ESTADOS_RUTA_NO_COTIZABLES.has(estado);
+
 /** Un destino solo puede enviarse a cotizar si el hospital tiene coordenadas. */
-export const tieneCoordenadas = (visita: Asignacion): boolean =>
+export const tieneCoordenadas = (visita: VisitaCotizable): boolean =>
   typeof visita.latitud === 'number' &&
   Number.isFinite(visita.latitud) &&
   typeof visita.longitud === 'number' &&
@@ -22,10 +49,25 @@ export const tieneCoordenadas = (visita: Asignacion): boolean =>
  */
 export function construirSnapshotSolicitud(
   ruta: RutaParaCotizar,
-  visitas: Asignacion[],
-  nombreUsuario: string
+  visitas: VisitaCotizable[],
+  nombreUsuario: string,
+  viajero?: ViajeroCotizacion
 ): Record<string, unknown> {
   const seleccionadas = visitas.filter(tieneCoordenadas);
+  const persona =
+    viajero && viajero.idUsuario > 0
+      ? {
+          modo: 'otra',
+          empleadoId: viajero.idUsuario,
+          nombre: viajero.nombre.trim(),
+          motivo: 'Talleres médicos en hospitales',
+        }
+      : {
+          modo: 'mia',
+          empleadoId: null,
+          nombre: nombreUsuario.trim(),
+          motivo: 'Talleres médicos en hospitales',
+        };
 
   const destinos = seleccionadas.map((visita, indice) => ({
     id: `em-${visita.idRutaVisita}`,
@@ -52,12 +94,7 @@ export function construirSnapshotSolicitud(
 
   return {
     version: 'solicitud-v2',
-    persona: {
-      modo: 'mia',
-      empleadoId: null,
-      nombre: nombreUsuario.trim(),
-      motivo: 'Talleres médicos en hospitales',
-    },
+    persona,
     transporte: {
       modo: 'solicitado',
       compartir: false,
@@ -80,7 +117,7 @@ export function construirSnapshotSolicitud(
     origenEm: {
       idRuta: ruta.idRuta,
       nombreRuta: ruta.nombre,
-      idSeleccionMensual: ruta.visitas[0]?.idSeleccionMensual ?? null,
+      idSeleccionMensual: ruta.idSeleccionMensual ?? ruta.visitas[0]?.idSeleccionMensual ?? null,
       idRutaVisitas: seleccionadas.map((visita) => visita.idRutaVisita),
     },
   };
@@ -94,7 +131,7 @@ export function construirSnapshotSolicitud(
  */
 export async function crearBorradorDesdeRuta(
   ruta: RutaParaCotizar,
-  visitas: Asignacion[],
+  visitas: VisitaCotizable[],
   nombreUsuario: string
 ): Promise<{ idSolicitud: number; folio: string | null; reutilizado: boolean }> {
   const seleccionadas = visitas.filter(tieneCoordenadas);
@@ -102,10 +139,10 @@ export async function crearBorradorDesdeRuta(
     throw new Error('Selecciona al menos un hospital con coordenadas para cotizar.');
   }
 
-  const datos = construirSnapshotSolicitud(ruta, seleccionadas, nombreUsuario);
+  const datos = construirSnapshotSolicitud(ruta, seleccionadas, nombreUsuario, ruta.viajero);
   const respuesta = await solicitudesApi.crearDesdeEducacionMedica({
     id_ruta: ruta.idRuta,
-    id_seleccion_mensual: seleccionadas[0]?.idSeleccionMensual ?? null,
+    id_seleccion_mensual: ruta.idSeleccionMensual ?? seleccionadas[0]?.idSeleccionMensual ?? null,
     id_ruta_visitas: seleccionadas.map((visita) => visita.idRutaVisita),
     datos,
   });

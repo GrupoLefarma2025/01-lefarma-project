@@ -37,7 +37,11 @@ public class CalendarioController : ControllerBase
     {
         try
         {
-            var items = await _service.GetCalendarioAsync(filtro, ct);
+            var items = await _service.GetCalendarioAsync(
+                filtro,
+                User.GetUserId(),
+                PuedeVerTodas(),
+                ct);
             return Ok(new ApiResponse<List<CalendarioItemDto>>
             {
                 Success = true,
@@ -60,7 +64,11 @@ public class CalendarioController : ControllerBase
     [SwaggerResponse(404, "Visita no encontrada")]
     public async Task<IActionResult> GetItem(int idRutaVisita, CancellationToken ct)
     {
-        var item = await _service.GetItemAsync(idRutaVisita, ct);
+        var item = await _service.GetItemAsync(
+            idRutaVisita,
+            User.GetUserId(),
+            PuedeVerTodas(),
+            ct);
         if (item is null)
         {
             return NotFound(new ApiResponse<object>
@@ -78,8 +86,36 @@ public class CalendarioController : ControllerBase
         });
     }
 
-    [HttpGet("sugerencias")]
+    [HttpGet("visitas/{idRutaVisita:int}/actividad")]
     [HasPermission(Permissions.EducacionMedica.TalleresVer)]
+    [SwaggerOperation(
+        Summary = "Actividad de una visita",
+        Description = "Historial de la visita, sus talleres, solicitudes de cambio y ajustes post-cierre.")]
+    [SwaggerResponse(200, "Actividad obtenida", typeof(ApiResponse<ActividadVisitaDto>))]
+    [SwaggerResponse(404, "Visita no encontrada")]
+    public async Task<IActionResult> GetActividadVisita(int idRutaVisita, CancellationToken ct)
+    {
+        var actividad = await _service.GetActividadVisitaAsync(
+            idRutaVisita, User.GetUserId(), PuedeVerTodas(), ct);
+        if (actividad is null)
+        {
+            return NotFound(new ApiResponse<object>
+            {
+                Success = false,
+                Message = $"Visita {idRutaVisita} no encontrada.",
+            });
+        }
+
+        return Ok(new ApiResponse<ActividadVisitaDto>
+        {
+            Success = true,
+            Message = "Actividad obtenida exitosamente.",
+            Data = actividad,
+        });
+    }
+
+    [HttpGet("sugerencias")]
+    [HasPermission(Permissions.EducacionMedica.RutasVer)]
     [SwaggerOperation(
         Summary = "Sugerir especialistas para el calendario",
         Description = "Propone especialistas para visitas sin asignar priorizando ciudad/día y respetando capacidad.")]
@@ -143,4 +179,8 @@ public class CalendarioController : ControllerBase
             return Conflict(new ApiResponse<object> { Success = false, Message = ex.Message });
         }
     }
+
+    private bool PuedeVerTodas() =>
+        User.TienePermiso(Permissions.EducacionMedica.CalendarioVerTodos)
+        || User.TienePermiso(Permissions.EducacionMedica.RutasVer);
 }

@@ -43,6 +43,7 @@ import { toApiError } from '@/utils/errors';
 import { educacionMedicaApi } from '../../services/educacionMedica.api';
 import { CotizarRutaModal } from './components/CotizarRutaModal';
 import { crearBorradorDesdeRuta } from './viaticosHandoff';
+import type { RutaParaCotizar } from './viaticosHandoff';
 import { fechaLarga, rangoSemanal, semanaIso } from './rutasUtils';
 import type { Asignacion, MisTalleresResponse, Taller } from '../../types/educacionMedica.types';
 
@@ -73,14 +74,9 @@ const diasDeSemana = (lunes: string) =>
 
 const mesDe = (fecha: string) => fecha.slice(0, 7);
 
-const FONDOS_GRUPO = [
-  'bg-slate-50 dark:bg-slate-900',
-  'bg-card',
-  'bg-blue-50 dark:bg-blue-950',
-];
+const FONDOS_GRUPO = ['bg-slate-50 dark:bg-slate-900', 'bg-card', 'bg-blue-50 dark:bg-blue-950'];
 
-const CLASE_EXTRA =
-  'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300';
+const CLASE_EXTRA = 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300';
 
 const fmtHora = (hora?: string | null) => (hora ? hora.slice(0, 5) : null);
 
@@ -98,13 +94,6 @@ const ESTADO_TALLER: Record<string, { punto: string; texto: string }> = {
   Cancelado: { punto: 'bg-red-600', texto: 'text-red-700 dark:text-red-300' },
 };
 
-const ESTADOS_COTIZACION_ACTIVA = new Set([
-  'borrador',
-  'enviada',
-  'autorizada',
-  'autorizada_con_ajustes',
-]);
-
 const ESTADO_COTIZACION: Record<string, string> = {
   borrador: 'Borrador',
   enviada: 'Enviada',
@@ -118,8 +107,7 @@ const CLASE_ESTADO_COTIZACION: Record<string, string> = {
   borrador: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
   enviada: 'bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300',
   autorizada: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300',
-  autorizada_con_ajustes:
-    'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
+  autorizada_con_ajustes: 'bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300',
   rechazada: 'bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300',
   cancelada: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300',
 };
@@ -257,8 +245,7 @@ function DiaPlaneacion({
   mostrarTalleres: boolean;
   enlaceTalleres: boolean;
 }) {
-  const total =
-    (mostrarVisitas ? visitas.length : 0) + (mostrarTalleres ? talleres.length : 0);
+  const total = (mostrarVisitas ? visitas.length : 0) + (mostrarTalleres ? talleres.length : 0);
 
   return (
     <Card className={esHoy ? 'border-primary' : undefined}>
@@ -287,9 +274,7 @@ function DiaPlaneacion({
         ) : (
           <>
             {mostrarVisitas &&
-              visitas.map((visita) => (
-                <VisitaItem key={visita.idRutaVisita} visita={visita} />
-              ))}
+              visitas.map((visita) => <VisitaItem key={visita.idRutaVisita} visita={visita} />)}
             {mostrarTalleres &&
               talleres.map((taller) => (
                 <TallerItem key={taller.idTaller} taller={taller} enlace={enlaceTalleres} />
@@ -391,7 +376,10 @@ export default function MiPlaneacionPage() {
         ...new Map(
           respuestas
             .flatMap((respuesta) => respuesta?.talleres ?? [])
-            .filter((taller) => taller.fechaTaller && fechasSemana.includes(taller.fechaTaller.slice(0, 10)))
+            .filter(
+              (taller) =>
+                taller.fechaTaller && fechasSemana.includes(taller.fechaTaller.slice(0, 10))
+            )
             .map((taller) => [taller.idTaller, taller] as const)
         ).values(),
       ];
@@ -485,9 +473,7 @@ export default function MiPlaneacionPage() {
 
   const cotizacionesVisibles = useMemo(
     () =>
-      puedeCotizar &&
-      idRutaSeleccionada != null &&
-      cotizacionesRutaId === idRutaSeleccionada
+      puedeCotizar && idRutaSeleccionada != null && cotizacionesRutaId === idRutaSeleccionada
         ? cotizaciones
         : [],
     [puedeCotizar, idRutaSeleccionada, cotizacionesRutaId, cotizaciones]
@@ -502,26 +488,6 @@ export default function MiPlaneacionPage() {
         const lista = mapa.get(idVisita) ?? [];
         lista.push(cotizacion);
         mapa.set(idVisita, lista);
-      }
-    }
-    return mapa;
-  }, [cotizacionesVisibles]);
-
-  const visitasBloqueadas = useMemo(() => {
-    const mapa = new Map<
-      number,
-      { idSolicitud: number; folio: string | null; estado: string }
-    >();
-    for (const cotizacion of cotizacionesVisibles) {
-      if (!ESTADOS_COTIZACION_ACTIVA.has(cotizacion.estado)) continue;
-      for (const idVisita of cotizacion.id_ruta_visitas) {
-        if (!mapa.has(idVisita)) {
-          mapa.set(idVisita, {
-            idSolicitud: cotizacion.id_solicitud,
-            folio: cotizacion.folio,
-            estado: cotizacion.estado,
-          });
-        }
       }
     }
     return mapa;
@@ -555,12 +521,13 @@ export default function MiPlaneacionPage() {
   const mostrarTalleres = filtro !== 'Visitas';
   const sinDatosSemana = !loading && visitasSemana.length === 0 && talleres.length === 0;
 
-  const confirmarCotizacion = async (visitasSeleccionadas: Asignacion[]) => {
-    if (!rutaCotizar) return;
-
+  const confirmarCotizacion = async (
+    ruta: RutaParaCotizar,
+    visitasSeleccionadas: Parameters<typeof crearBorradorDesdeRuta>[1]
+  ) => {
     try {
       const resultado = await crearBorradorDesdeRuta(
-        rutaCotizar,
+        ruta,
         visitasSeleccionadas,
         user?.nombre ?? ''
       );
@@ -570,9 +537,7 @@ export default function MiPlaneacionPage() {
           `Se abrió la cotización ${resultado.folio ?? ''} existente para esta ruta.`.trim()
         );
       } else {
-        toast.success(
-          `Cotización creada${resultado.folio ? `: ${resultado.folio}` : ''}.`
-        );
+        toast.success(`Cotización creada${resultado.folio ? `: ${resultado.folio}` : ''}.`);
       }
       navigate(`/viaticos/solicitud/${resultado.idSolicitud}`);
     } catch (error: unknown) {
@@ -633,7 +598,7 @@ export default function MiPlaneacionPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-0 bg-primary text-primary-foreground hover:brightness-95 hover:text-primary-foreground"
+                className="border-0 bg-primary text-primary-foreground hover:text-primary-foreground hover:brightness-95"
                 onClick={() => setSemana(lunesDe(hoy))}
               >
                 Hoy
@@ -686,11 +651,7 @@ export default function MiPlaneacionPage() {
             <div className="grid grid-cols-3 gap-2">
               <Metric label="Visitas" value={resumenSemana.visitas} icon={Hospital} />
               <Metric label="Talleres" value={resumenSemana.talleres} icon={Presentation} />
-              <Metric
-                label="Días con actividad"
-                value={resumenSemana.dias}
-                icon={CalendarDays}
-              />
+              <Metric label="Días con actividad" value={resumenSemana.dias} icon={CalendarDays} />
             </div>
           )}
 
@@ -713,9 +674,7 @@ export default function MiPlaneacionPage() {
                   esHoy={fecha === hoy}
                   esManana={fecha === sumarDias(hoy, 1)}
                   visitas={visitasSemana.filter((visita) => visita.fechaVisita === fecha)}
-                  talleres={talleres.filter(
-                    (taller) => taller.fechaTaller?.slice(0, 10) === fecha
-                  )}
+                  talleres={talleres.filter((taller) => taller.fechaTaller?.slice(0, 10) === fecha)}
                   mostrarVisitas={mostrarVisitas}
                   mostrarTalleres={mostrarTalleres}
                   enlaceTalleres={puedeCapturar}
@@ -870,12 +829,7 @@ export default function MiPlaneacionPage() {
                               size="sm"
                               className="h-7 px-2 text-xs"
                               onClick={() =>
-                                navigate(
-                                  rutaCotizacion(
-                                    cotizacion.id_solicitud,
-                                    cotizacion.estado
-                                  )
-                                )
+                                navigate(rutaCotizacion(cotizacion.id_solicitud, cotizacion.estado))
                               }
                             >
                               Abrir
@@ -996,10 +950,7 @@ export default function MiPlaneacionPage() {
                                             className="font-mono text-[11px] text-primary hover:underline"
                                             onClick={() =>
                                               navigate(
-                                                rutaCotizacion(
-                                                  ultima.id_solicitud,
-                                                  ultima.estado
-                                                )
+                                                rutaCotizacion(ultima.id_solicitud, ultima.estado)
                                               )
                                             }
                                           >
@@ -1049,11 +1000,9 @@ export default function MiPlaneacionPage() {
       {rutaCotizar && (
         <CotizarRutaModal
           key={rutaCotizar.idRuta}
-          ruta={rutaCotizar}
-          visitasCotizadas={visitasBloqueadas}
-          onAbrirCotizacion={(idSolicitud, estado) =>
-            navigate(rutaCotizacion(idSolicitud, estado))
-          }
+          rutas={[rutaCotizar]}
+          rutaInicialId={rutaCotizar.idRuta}
+          onAbrirCotizacion={(idSolicitud, estado) => navigate(rutaCotizacion(idSolicitud, estado))}
           onConfirm={confirmarCotizacion}
           onClose={() => setRutaCotizar(null)}
         />

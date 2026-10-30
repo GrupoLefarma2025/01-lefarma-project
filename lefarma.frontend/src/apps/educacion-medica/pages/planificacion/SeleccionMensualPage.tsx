@@ -9,7 +9,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import type { AccionWorkflow } from '@/components/workflows/workflowAccion';
 import { useAuthStore } from '@/shared/auth/authStore';
-import { DatePicker } from '@/components/ui/date-picker';
 import { Switch } from '@/components/ui/switch';
 import {
   Select,
@@ -63,10 +62,7 @@ import { DocumentoFirmaModal } from '@/apps/educacion-medica/components/Document
 import { DocumentoHeaderCard } from '@/apps/educacion-medica/components/DocumentoHeaderCard';
 import { DocumentoHistorialModal } from '@/apps/educacion-medica/components/DocumentoHistorialModal';
 import { DocumentoArchivosModal } from '@/apps/educacion-medica/components/DocumentoArchivosModal';
-import {
-  formatearFechaSeleccion as formatearFecha,
-  formatearPeriodoSeleccion,
-} from '@/apps/educacion-medica/components/seleccionUtils';
+import { formatearPeriodoSeleccion } from '@/apps/educacion-medica/components/seleccionUtils';
 
 const HospitalesMap = lazy(() =>
   import('@/apps/educacion-medica/components/HospitalesMap').then((m) => ({
@@ -125,9 +121,7 @@ export default function SeleccionMensualPage() {
   });
 
   const [modalNueva, setModalNueva] = useState(false);
-  const [nuevaFecha, setNuevaFecha] = useState<string | null>(null);
-  const [nuevaInicio, setNuevaInicio] = useState<string | null>(null);
-  const [nuevaFin, setNuevaFin] = useState<string | null>(null);
+  const [nuevoPeriodo, setNuevoPeriodo] = useState<string | null>(null);
   const [nuevoObjetivo, setNuevoObjetivo] = useState('64');
   const [nuevaGerencia, setNuevaGerencia] = useState<number | null>(null);
   const [tiposGerencia, setTiposGerencia] = useState<TipoGerencia[]>([]);
@@ -344,15 +338,22 @@ export default function SeleccionMensualPage() {
   // ── Filtros del listado ────────────────────────────────────────────────────
   const seleccionesFiltradas = useMemo(() => {
     return selecciones.filter((s) => {
-      if (appliedFiltros.idTipoGerencia !== 'all' && s.idTipoGerencia !== Number(appliedFiltros.idTipoGerencia))
+      if (
+        appliedFiltros.idTipoGerencia !== 'all' &&
+        s.idTipoGerencia !== Number(appliedFiltros.idTipoGerencia)
+      )
         return false;
       if (appliedFiltros.idEstado !== 'all' && s.idEstado !== Number(appliedFiltros.idEstado))
         return false;
-      if (appliedFiltros.periodo !== 'all' && s.fechaSeleccion.slice(0, 7) !== appliedFiltros.periodo)
+      if (
+        appliedFiltros.periodo !== 'all' &&
+        s.fechaSeleccion.slice(0, 7) !== appliedFiltros.periodo
+      )
         return false;
       if (appliedFiltros.busqueda.trim()) {
         const term = appliedFiltros.busqueda.trim().toLowerCase();
-        const texto = `${formatearPeriodoSeleccion(s.fechaSeleccion)} ${s.tipoGerencia ?? ''} ${s.nombreUsuarioCreacion ?? ''}`.toLowerCase();
+        const texto =
+          `${formatearPeriodoSeleccion(s.fechaSeleccion)} ${s.tipoGerencia ?? ''} ${s.nombreUsuarioCreacion ?? ''}`.toLowerCase();
         if (!texto.includes(term)) return false;
       }
       return true;
@@ -364,7 +365,10 @@ export default function SeleccionMensualPage() {
     return [...set].sort().reverse();
   }, [selecciones]);
 
-  const updateDraft = <K extends keyof FiltrosSelecciones>(key: K, value: FiltrosSelecciones[K]) => {
+  const updateDraft = <K extends keyof FiltrosSelecciones>(
+    key: K,
+    value: FiltrosSelecciones[K]
+  ) => {
     setDraftFiltros((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -442,28 +446,22 @@ export default function SeleccionMensualPage() {
   };
 
   // ── Nueva selección ────────────────────────────────────────────────────────
-  const errorFechasNueva = useMemo(() => {
-    if (nuevaInicio && nuevaFin && nuevaFin <= nuevaInicio) {
-      return 'La fecha de fin de vigencia debe ser posterior al inicio.';
+  const mesFuturo = useMemo(() => {
+    const hoy = new Date();
+    const siguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    return `${siguiente.getFullYear()}-${String(siguiente.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const errorPeriodo = useMemo(() => {
+    if (!nuevoPeriodo) return 'Selecciona el mes de la planeación.';
+    if (nuevoPeriodo <= new Date().toISOString().slice(0, 7)) {
+      return 'La selección debe ser de un mes futuro.';
     }
     return null;
-  }, [nuevaInicio, nuevaFin]);
+  }, [nuevoPeriodo]);
 
   const abrirModalNueva = () => {
-    // Defaults: próximo día 15 de reunión; vigencia de 45 días a partir del día siguiente
-    const hoy = new Date();
-    const aIso = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-
-    const dia15 = hoy.getDate() <= 15 ? new Date(hoy.getFullYear(), hoy.getMonth(), 15) : new Date(hoy.getFullYear(), hoy.getMonth() + 1, 15);
-    const inicio = new Date(dia15);
-    inicio.setDate(inicio.getDate() + 1);
-    const fin = new Date(inicio);
-    fin.setDate(fin.getDate() + 45);
-
-    setNuevaFecha(aIso(dia15));
-    setNuevaInicio(aIso(inicio));
-    setNuevaFin(aIso(fin));
+    setNuevoPeriodo(mesFuturo);
     setNuevaGerencia(null);
     setModalNueva(true);
   };
@@ -473,17 +471,27 @@ export default function SeleccionMensualPage() {
       toast.error('Selecciona el tipo de gerencia de la selección.');
       return;
     }
-    if (!nuevaFecha || !nuevaInicio || !nuevaFin) {
-      toast.error('Completa la fecha de selección y las fechas de vigencia.');
+    if (!nuevoPeriodo || errorPeriodo) {
+      toast.error(errorPeriodo ?? 'Selecciona el mes de la planeación.');
       return;
     }
     setGuardando(true);
     try {
+      const [anio, mes] = nuevoPeriodo.split('-').map(Number);
+      const existentes = await educacionMedicaApi.seleccionesMensuales.getAll(anio, mes);
+      const conflicto = (existentes.data.data ?? []).some(
+        (seleccion) =>
+          seleccion.idTipoGerencia === nuevaGerencia &&
+          seleccion.estado !== 'Cancelada' &&
+          seleccion.estado !== 'Rechazada'
+      );
+      if (conflicto) {
+        throw new Error('Ya existe una selección para esa gerencia y mes.');
+      }
+
       const response = await educacionMedicaApi.seleccionesMensuales.create({
-        fechaSeleccion: nuevaFecha,
+        periodo: nuevoPeriodo,
         idTipoGerencia: nuevaGerencia,
-        fechaInicioVigencia: nuevaInicio,
-        fechaFinVigencia: nuevaFin,
         talleresObjetivoMes: Number(nuevoObjetivo) || null,
       });
       if (response.data.success && response.data.data) {
@@ -659,8 +667,7 @@ export default function SeleccionMensualPage() {
         region.idRegion,
         {
           idEjecutivo: region.idEjecutivo,
-          idEspecialista:
-            idEspecialista === 'sin-especialista' ? null : Number(idEspecialista),
+          idEspecialista: idEspecialista === 'sin-especialista' ? null : Number(idEspecialista),
         }
       );
       if (response.data.success) {
@@ -700,8 +707,7 @@ export default function SeleccionMensualPage() {
     } catch (error: unknown) {
       return {
         ok: false,
-        mensaje:
-          toApiError(error).message ?? 'Error al asignar el ejecutivo del hospital',
+        mensaje: toApiError(error).message ?? 'Error al asignar el ejecutivo del hospital',
       };
     }
   };
@@ -778,9 +784,8 @@ export default function SeleccionMensualPage() {
 
   const cargarFiltrosDisponibles = async (idSeleccionMensual: number) => {
     try {
-      const response = await educacionMedicaApi.seleccionesMensuales.obtenerFiltrosDisponibles(
-        idSeleccionMensual
-      );
+      const response =
+        await educacionMedicaApi.seleccionesMensuales.obtenerFiltrosDisponibles(idSeleccionMensual);
       if (response.data.success) {
         setFiltrosDisponibles(response.data.data ?? null);
       }
@@ -903,7 +908,11 @@ export default function SeleccionMensualPage() {
     try {
       const response = await educacionMedicaApi.seleccionesMensuales.firmar(
         detalle.idSeleccionMensual,
-        { idAccion: accion.idAccion, comentario: comentario ?? null, datosAdicionales: datosAdicionales ?? null }
+        {
+          idAccion: accion.idAccion,
+          comentario: comentario ?? null,
+          datosAdicionales: datosAdicionales ?? null,
+        }
       );
 
       if (response.data.success) {
@@ -1047,7 +1056,10 @@ export default function SeleccionMensualPage() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Estado</label>
-              <Select value={draftFiltros.idEstado} onValueChange={(v) => updateDraft('idEstado', v)}>
+              <Select
+                value={draftFiltros.idEstado}
+                onValueChange={(v) => updateDraft('idEstado', v)}
+              >
                 <SelectTrigger className="h-10">
                   <SelectValue />
                 </SelectTrigger>
@@ -1101,11 +1113,11 @@ export default function SeleccionMensualPage() {
           subtitle="Todas las selecciones creadas, en cualquier estado"
           onVer={(s) => abrirSeleccion(s.idSeleccionMensual)}
           onEditar={(s) => abrirSeleccion(s.idSeleccionMensual)}
-            onRutas={(s) =>
-              navigate(
-                `/educacion-medica/calendario?idSeleccion=${s.idSeleccionMensual}&vista=especialista`
-              )
-            }
+          onRutas={(s) =>
+            navigate(
+              `/educacion-medica/panel-rutas?idSeleccion=${s.idSeleccionMensual}&vista=mes`
+            )
+          }
           onFirma={abrirFirmaLista}
           onHistorial={abrirHistorialLista}
           onArchivos={abrirArchivosLista}
@@ -1163,14 +1175,7 @@ export default function SeleccionMensualPage() {
                 Cancelar
               </Button>
               <Button
-                disabled={
-                  guardando ||
-                  !nuevaGerencia ||
-                  !nuevaFecha ||
-                  !nuevaInicio ||
-                  !nuevaFin ||
-                  Boolean(errorFechasNueva)
-                }
+                disabled={guardando || !nuevaGerencia || !nuevoPeriodo || Boolean(errorPeriodo)}
                 onClick={crearSeleccion}
               >
                 {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -1196,32 +1201,21 @@ export default function SeleccionMensualPage() {
                 64 IMSS / 64 descentralizados); cada gerencia firma su propia selección.
               </p>
             </div>
-
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Fecha de la reunión (día 15)</label>
-              <DatePicker value={nuevaFecha} onChange={setNuevaFecha} placeholder="Seleccionar" />
+              <label className="text-sm font-medium">Mes de planeación</label>
+              <Input
+                type="month"
+                min={mesFuturo}
+                value={nuevoPeriodo ?? ''}
+                onChange={(e) => setNuevoPeriodo(e.target.value || null)}
+              />
               <p className="text-xs text-muted-foreground">
-                Reunión mensual donde se eligen los hospitales de los próximos 45 días (normalmente
-                el día 15 o el siguiente día hábil).
+                Solo se permiten meses futuros. Las rutas se distribuyen en los días hábiles de ese
+                mes.
               </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Inicio de vigencia</label>
-              <DatePicker value={nuevaInicio} onChange={setNuevaInicio} placeholder="Seleccionar" />
-              <p className="text-xs text-muted-foreground">
-                Primer día del periodo que se va a planificar.
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium">Fin de vigencia (~45 días)</label>
-              <DatePicker value={nuevaFin} onChange={setNuevaFin} placeholder="Seleccionar" />
-              <p className="text-xs text-muted-foreground">
-                Último día del periodo. Las rutas se distribuyen entre los días laborales (Lun–Vie)
-                de este rango; la capacidad de cada especialista se calcula sobre estas fechas.
-              </p>
-              {errorFechasNueva && <p className="text-xs text-destructive">{errorFechasNueva}</p>}
+              {errorPeriodo && nuevoPeriodo && (
+                <p className="text-xs text-destructive">{errorPeriodo}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -1293,11 +1287,8 @@ export default function SeleccionMensualPage() {
         <CardContent className="space-y-4 pt-6">
           <div className="grid gap-4 text-sm sm:grid-cols-4">
             <div>
-              <p className="text-muted-foreground">Vigencia</p>
-              <p>
-                {formatearFecha(detalle.fechaInicioVigencia)} —{' '}
-                {formatearFecha(detalle.fechaFinVigencia)}
-              </p>
+              <p className="text-muted-foreground">Mes</p>
+              <p>{formatearPeriodoSeleccion(detalle.fechaSeleccion)}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Hospitales</p>
@@ -1319,11 +1310,7 @@ export default function SeleccionMensualPage() {
               Resumen
             </Button>
             {detalle.estado === 'Creada' && (
-              <Button
-                size="sm"
-                disabled={guardando}
-                onClick={accionEstado}
-              >
+              <Button size="sm" disabled={guardando} onClick={accionEstado}>
                 <UserCheck className="mr-2 h-4 w-4" />
                 Enviar a autorización
               </Button>
@@ -1333,8 +1320,8 @@ export default function SeleccionMensualPage() {
                 size="sm"
                 onClick={() =>
                   navigate(
-                  `/educacion-medica/calendario?idSeleccion=${detalle.idSeleccionMensual}&vista=especialista`
-                )
+                    `/educacion-medica/panel-rutas?idSeleccion=${detalle.idSeleccionMensual}&vista=mes`
+                  )
                 }
               >
                 <RouteIcon className="mr-2 h-4 w-4" />
@@ -1347,7 +1334,12 @@ export default function SeleccionMensualPage() {
                   <Plus className="mr-2 h-4 w-4" />
                   Agregar hospital
                 </Button>
-                <Button size="sm" variant="outline" disabled={guardando || rankingCargando} onClick={abrirRanking}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={guardando || rankingCargando}
+                  onClick={abrirRanking}
+                >
                   <Sparkles className="mr-2 h-4 w-4" />
                   Sugerir hospitales
                 </Button>
@@ -1496,10 +1488,7 @@ export default function SeleccionMensualPage() {
             <Button variant="outline" onClick={() => setModalHospital(false)}>
               Cancelar
             </Button>
-            <Button
-              disabled={guardando || !hospitalElegidoId}
-              onClick={agregarHospital}
-            >
+            <Button disabled={guardando || !hospitalElegidoId} onClick={agregarHospital}>
               {guardando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Agregar
             </Button>
@@ -1609,11 +1598,7 @@ export default function SeleccionMensualPage() {
         </div>
       </Modal>
 
-      <ResumenSeleccionModal
-        open={modalResumen}
-        onOpenChange={setModalResumen}
-        detalle={detalle}
-      />
+      <ResumenSeleccionModal open={modalResumen} onOpenChange={setModalResumen} detalle={detalle} />
 
       <DocumentoFirmaModal
         open={modalFirma}

@@ -2,8 +2,16 @@ import { useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Eye, MapPin, SearchX, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { CalendarioItem } from '../../../types/educacionMedica.types';
-import { fechaMedia, fmtHora, fmtMoneda, iniciales, tonoAvatar } from '../calendarioUtils';
+import {
+  claveEvento,
+  fechaMedia,
+  fmtHora,
+  fmtMoneda,
+  iniciales,
+  tonoAvatar,
+} from '../calendarioUtils';
 import { EstadoActividadBadge, MarcasActividad } from './CalendarioEstado';
+import { TextoExpandible } from './TextoExpandible';
 
 type ColumnaOrden = 'fecha' | 'hospital' | 'region' | 'ejecutivo' | 'especialista' | 'estado';
 
@@ -69,7 +77,7 @@ function Persona({ nombre }: { nombre: string | null }) {
       >
         {iniciales(nombre)}
       </span>
-      <span className="truncate">{nombre}</span>
+      <TextoExpandible text={nombre} className="max-w-[190px] truncate" />
     </span>
   );
 }
@@ -140,6 +148,9 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                 <th className="w-[150px] border-b border-slate-200/80 px-3 py-2.5 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800">
                   Institución
                 </th>
+                <th className="w-[130px] border-b border-slate-200/80 px-3 py-2.5 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800">
+                  Estado
+                </th>
                 <EncabezadoOrdenable
                   columna="estado"
                   actual={orden.columna}
@@ -147,10 +158,10 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                   onOrdenar={cambiarOrden}
                   className="w-[105px] border-b border-slate-200/80 dark:border-slate-800"
                 >
-                  Estado
+                  Estatus
                 </EncabezadoOrdenable>
                 <th className="w-[120px] border-b border-slate-200/80 px-3 py-2.5 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800">
-                  Ciudad
+                  Municipio
                 </th>
                 <th className="w-[80px] border-b border-slate-200/80 px-3 py-2.5 text-left text-[9px] font-semibold uppercase tracking-[0.08em] text-slate-400 dark:border-slate-800">
                   Participantes
@@ -205,7 +216,7 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                   : 'bg-card hover:bg-slate-50/80 dark:hover:bg-slate-900/50';
                 return (
                   <tr
-                    key={item.idRutaVisita}
+                    key={claveEvento(item)}
                     className={`cursor-pointer transition-colors ${fondo}`}
                     onClick={() => onSelect(item)}
                   >
@@ -230,30 +241,53 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                           }`}
                         />
                         <div className="min-w-0">
-                          <p className="truncate font-semibold text-slate-700 dark:text-slate-200">
-                            {item.hospital ?? 'Hospital sin nombre'}
-                          </p>
-                          <p className="mt-0.5 flex items-center gap-1 truncate text-[9px] text-slate-400">
-                            <MapPin className="h-2.5 w-2.5" />
-                            {item.region ?? 'Sin región'}
+                          <TextoExpandible
+                            text={item.hospital}
+                            fallback="Hospital sin nombre"
+                            className="font-semibold text-slate-700 dark:text-slate-200"
+                            triggerClassName="w-full"
+                          />
+                          <p className="mt-0.5 flex items-center gap-1 text-[9px] text-slate-400">
+                            <MapPin className="h-2.5 w-2.5 shrink-0" />
+                            <TextoExpandible
+                              text={item.region}
+                              fallback="Sin región"
+                              className="truncate"
+                              triggerClassName="min-w-0 flex-1"
+                            />
                           </p>
                         </div>
                       </div>
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                      <span className="block truncate">{item.region ?? '—'}</span>
+                      <TextoExpandible
+                        text={item.region}
+                        className="block max-w-[150px] truncate"
+                      />
                       <span className="mt-0.5 block truncate text-[9px] text-slate-400">
                         {item.gerencia}
                       </span>
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                      <span className="block truncate">{item.institucion ?? '—'}</span>
+                      <TextoExpandible
+                        text={item.institucion}
+                        className="block max-w-[170px] truncate"
+                      />
+                    </td>
+                    <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
+                      <TextoExpandible
+                        text={item.entidadFederativa}
+                        className="block max-w-[130px] truncate"
+                      />
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 dark:border-slate-800/70">
                       <EstadoActividadBadge estado={item.estado} />
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                      <span className="block truncate">{item.ciudadMunicipio ?? '—'}</span>
+                      <TextoExpandible
+                        text={item.ciudadMunicipio}
+                        className="block max-w-[130px] truncate"
+                      />
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-center tabular-nums text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
                       {item.participantes ?? '—'}
@@ -273,7 +307,10 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                       </span>
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
-                      <span className="block truncate">{item.producto ?? '—'}</span>
+                      <TextoExpandible
+                        text={item.producto}
+                        className="block max-w-[150px] truncate"
+                      />
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2.5 text-right tabular-nums text-slate-500 dark:border-slate-800/70 dark:text-slate-400">
                       {item.cantidad ?? '—'}
@@ -317,7 +354,7 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
           const activo = item.idRutaVisita === seleccionadoId;
           return (
             <button
-              key={item.idRutaVisita}
+              key={claveEvento(item)}
               type="button"
               onClick={() => onSelect(item)}
               className={[
@@ -335,6 +372,11 @@ export function CalendarioTabla({ items, seleccionadoId, onSelect }: CalendarioT
                   <p className="mt-1 flex items-center gap-1 text-[10px] text-slate-400">
                     <MapPin className="h-3 w-3" />
                     {item.region ?? 'Sin región'} · {item.gerencia}
+                  </p>
+                  <p className="mt-0.5 flex items-center gap-1 text-[10px] text-slate-400">
+                    <MapPin className="h-3 w-3" />
+                    {item.entidadFederativa ?? 'Sin estado'} ·{' '}
+                    {item.ciudadMunicipio ?? 'Sin municipio'}
                   </p>
                 </div>
                 <EstadoActividadBadge estado={item.estado} />

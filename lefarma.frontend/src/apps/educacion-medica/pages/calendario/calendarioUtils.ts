@@ -247,3 +247,5 @@ export const fmtMoneda = (valor: number | null | undefined) =>
         currency: 'MXN',
         minimumFractionDigits: 2,
       }).format(valor);
+export const claveEvento = (item: { idRutaVisita: number; idTaller: number | null }) =>
+  item.idTaller ? `taller-${item.idTaller}` : `visita-${item.idRutaVisita}`;

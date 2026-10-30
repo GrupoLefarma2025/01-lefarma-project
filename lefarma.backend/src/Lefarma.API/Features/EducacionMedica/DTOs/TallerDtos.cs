@@ -44,6 +44,7 @@ public class TallerDto
     public string? Observaciones { get; set; }
     public int? IdMatrizIndividual { get; set; }
     public int? IdMatrizGeneral { get; set; }
+    public string? Tema { get; set; }
     /// <summary>Fecha real de cierre (estado Realizado; ADR-00008).</summary>
     public DateOnly? FechaRealizado { get; set; }
     /// <summary>1 = taller extraordinario (ADR-00011): hospital del catálogo fuera de la selección.</summary>
@@ -65,10 +66,6 @@ public class MatrizIndividualDto
     public int IdMatrizIndividual { get; set; }
     public int IdEquipo { get; set; }
     public DateOnly Periodo { get; set; }
-    /// <summary>0 = captura abierta; 1 = captura bloqueada (generada por el equipo).</summary>
-    public bool EsBloqueado { get; set; }
-    public DateTime? FechaBloqueo { get; set; }
-    public DateTime? FechaDesbloqueo { get; set; }
     public int? IdEjecutivo { get; set; }
     public string? NombreEjecutivo { get; set; }
     public int? IdEspecialista { get; set; }
@@ -123,6 +120,9 @@ public class CrearTallerRequest
     /// <summary>Visita de la ruta desde la que se crea el taller; hereda hospital, ejecutivo, especialista, fecha y hora.</summary>
     public int? IdRutaVisita { get; set; }
 
+    /// <summary>Tipo de visita (taller, informativa, captación de queja, otro).</summary>
+    public int? IdTipoVisita { get; set; }
+
     /// <summary>Hospital de la selección; obligatorio en el modo normal (null en extraordinario).</summary>
     [Range(1, int.MaxValue, ErrorMessage = "El hospital de la selección es obligatorio.")]
     public int? IdSeleccionHospital { get; set; }
@@ -164,6 +164,9 @@ public class CrearTallerRequest
     [MaxLength(500)]
     public string? Observaciones { get; set; }
 
+
+    [MaxLength(200)]
+    public string? Tema { get; set; }
     public List<GuardarTallerRecursoRequest>? Recursos { get; set; }
 }
 
@@ -188,6 +191,9 @@ public class ActualizarTallerRequest
 
     [MaxLength(500)]
     public string? Observaciones { get; set; }
+
+    [MaxLength(200)]
+    public string? Tema { get; set; }
 
     /// <summary>Motivo del ajuste post-cierre (obligatorio con el taller Autorizado/Programado; ADR-00010).</summary>
     [MaxLength(500)]
