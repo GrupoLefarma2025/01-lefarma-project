@@ -39,6 +39,10 @@ export interface CreateSolicitudPersonalRequest {
 export interface SolicitudPersonalDetalleDto {
   fecha: string;
   comentario?: string | null;
+  entrada?: string | null;
+  entro?: string | null;
+  salida?: string | null;
+  salio?: string | null;
 }
 
 export interface SolicitudPersonalResponse {
@@ -61,6 +65,8 @@ export interface SolicitudPersonalResponse {
   idUsuarioSolicitante?: number;
   solicitanteNombre?: string;
   solicitantePuesto?: string;
+  /** Ubicación del empleado según Asistencias (vwEmpleados.ubicacion). */
+  ubicacion?: string | null;
   idTipoSolicitud: number;
   tipoSolicitudNombre?: string;
   categoria: string;

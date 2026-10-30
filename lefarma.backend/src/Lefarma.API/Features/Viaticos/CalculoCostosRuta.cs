@@ -124,6 +124,43 @@ public static class CalculoCostosRuta
     }
     private const int BufferMin = 30;
     private const double SnapKm = 25.0;
+
+    /// <summary>
+    /// IATA de las ciudades que no estan en <see cref="Ciudades"/> ni en
+    /// <see cref="Aeropuertos"/>. Solo se usa para el enlace de busqueda de
+    /// vuelos (Google Flights exige el codigo, no el nombre de la ciudad).
+    /// </summary>
+    private static readonly Dictionary<string, string> Iatas = new(StringComparer.Ordinal)
+    {
+        ["ciudad de mexico"] = "MEX", ["cdmx"] = "MEX",
+        ["guadalajara"] = "GDL", ["monterrey"] = "MTY", ["cancun"] = "CUN",
+        ["queretaro"] = "QRO", ["puebla"] = "PBC", ["leon"] = "BJX",
+        ["toluca"] = "TLC", ["tijuana"] = "TIJ", ["mexicali"] = "MXL",
+        ["durango"] = "DGO", ["victoria de durango"] = "DGO",
+        ["morelia"] = "MLM", ["oaxaca"] = "OAX", ["oaxaca de juarez"] = "OAX",
+        ["merida"] = "MID", ["villahermosa"] = "VSA", ["tuxtla gutierrez"] = "TGZ",
+        ["veracruz"] = "VER", ["tampico"] = "TAM", ["torreon"] = "TRC",
+        ["chihuahua"] = "CUU", ["ciudad juarez"] = "CJS", ["hermosillo"] = "HMO",
+        ["culiacan"] = "CUL", ["los mochis"] = "LMM", ["la paz"] = "LAP",
+        ["los cabos"] = "SJD", ["san jose del cabo"] = "SJD", ["mazatlan"] = "MZT",
+        ["puerto vallarta"] = "PVR", ["manzanillo"] = "ZLO", ["colima"] = "CLQ",
+        ["aguascalientes"] = "AGU", ["san luis potosi"] = "SLP", ["zacatecas"] = "ZCL",
+        ["acapulco"] = "ACA", ["ixtapa"] = "ZIH", ["zihuatanejo"] = "ZIH",
+        ["huatulco"] = "HUX", ["puerto escondido"] = "PXM", ["tapachula"] = "TAP",
+        ["campeche"] = "CPE", ["chetumal"] = "CTM", ["cozumel"] = "CZM",
+    };
+
+    /// <summary>IATA de una ciudad por nombre (ignora acentos) o null.</summary>
+    private static string? IataDeCiudad(string? nombre)
+    {
+        var buscado = NormalizarTexto(nombre ?? "");
+        if (buscado.Length == 0) return null;
+        if (Iatas.TryGetValue(buscado, out var directo)) return directo;
+        // "Heroica Victoria de Durango" o "Morelia, Mich." contienen la ciudad.
+        foreach (var (ciudad, iata) in Iatas)
+            if (buscado.Contains(ciudad, StringComparison.Ordinal)) return iata;
+        return null;
+    }
     private const string UberEstimateUrl = "https://www.uber.com/mx/es/price-estimate/";
     private const string DidiUrl = "https://web.didiglobal.com/mx/pasajero/";
     private const string PreciosCneUrl = "https://publicacionexterna.azurewebsites.net/publicaciones/prices";
@@ -189,27 +226,30 @@ public static class CalculoCostosRuta
         return md <= SnapKm ? (mejor, md) : (null, md);
     }
 
-    private static List<ViajeBus> ViajesBusSeed(DateOnly fecha, double km, string fuente)
+    /// <summary>
+    /// Ultimo recurso cuando ningun transportista cotizo: UNA fila generica de
+    /// autobus, sin marca inventada. Poner "ADO" o "ETN" cuando su sitio ni
+    /// vende la ruta es peor que no mostrarlos; el estimado solo sirve para
+    /// presupuestar y se etiqueta como tal.
+    /// </summary>
+    private static List<ViajeBus> ViajesBusSeed(DateOnly fecha, double km, string fuente,
+        string? slugOrigen = null, string? slugDestino = null)
     {
         var base_ = 250 + km * 1.05;
-        var lineas = new[]
-        {
-            ("ETN Turistar", 1.30, 0.92, 22, 30, "https://etn.com.mx", "nocturno, directo"),
-            ("ADO Gl / Platino", 1.25, 1.00, 8, 0, "https://www.ado.com.mx", "matutino"),
-            ("Primera Plus", 1.10, 1.02, 14, 30, "https://www.primeraplus.com.mx", "vespertino"),
-        };
-        return lineas.Select(l =>
-        {
-            var dur = km / 72.0 + 0.5;
-            dur *= l.Item3;
-            var sal = fecha.ToDateTime(new TimeOnly(l.Item4, l.Item5));
-            var arr = sal.AddHours(dur);
-            var fare = base_ * l.Item2;
-            // Precio unico tambien en el estimado: el rango deja de existir como
-            // formato. La etiqueta "Estimado" es la que advierte que no es cotizacion.
-            var precio = Math.Round(fare, 2);
-            return new ViajeBus(l.Item1, sal, arr, precio, precio, null, fuente, l.Item6, l.Item7);
-        }).ToList();
+        // La unica busqueda real que conocemos para cualquier ruta es ClickBus;
+        // sin slugs no hay enlace (y el frontend lo muestra deshabilitado).
+        var urlBusqueda = slugOrigen is not null && slugDestino is not null
+            ? $"https://www.clickbus.com.mx/trips?departure_place={slugOrigen}"
+              + $"&arrival_place={slugDestino}&departure_date={fecha:yyyy-MM-dd}&minPrice=0&maxPrice=5000"
+            : "";
+        var salida = fecha.ToDateTime(new TimeOnly(8, 0));
+        var llegada = salida.AddHours(km / 72.0 + 0.5);
+        var precio = Math.Round(base_ * 1.15, 2);
+        return
+        [
+            new ViajeBus("Autobús (estimado)", salida, llegada, precio, precio, null, fuente,
+                urlBusqueda, "sin proveedor: horario y precio estimados de referencia"),
+        ];
     }
 
     // ---------- Clientes HTTP ----------
@@ -404,7 +444,8 @@ public static class CalculoCostosRuta
     private const string ClickBusAdapterBase = "https://adapter.clickbus.com.mx/api";
 
     /// <summary>Lugar del catalogo de ClickBus (`places/get-all`).</summary>
-    private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo, string Estado);
+    private sealed record LugarClickBus(string Slug, string Nombre, string Ciudad, string Tipo, string Estado,
+        double Lat = 0, double Lon = 0);
 
     /// <summary>
     /// Viajes reales de autobus desde el adapter de ClickBus.
@@ -520,6 +561,192 @@ public static class CalculoCostosRuta
         }
     }
 
+    // ---------- Primera Plus (buscador en vivo) ----------
+
+    private const string PrimeraPlusApiBase = "https://one-api.primeraplus.com.mx/api/v2";
+
+    /// <summary>
+    /// Viajes reales del buscador de Primera Plus (el mismo de
+    /// viaje.primeraplus.com.mx). Solo devuelve salidas comprables para la
+    /// fecha pedida: si la ruta no se vende, no hay filas.
+    /// </summary>
+    internal static async Task<List<ViajeBus>> BuscarBusesPrimeraPlusAsync(HttpClient http, IMemoryCache cache,
+        string origen, string? estadoOrigen, double latOrigen, double lonOrigen,
+        string destino, string? estadoDestino, double latDestino, double lonDestino,
+        DateOnly fecha, CancellationToken ct)
+    {
+        try
+        {
+            var slugOrigen = await SlugPrimeraPlusAsync(http, cache, origen, estadoOrigen,
+                latOrigen, lonOrigen, preferirCiudad: true, ct);
+            var slugDestino = await SlugPrimeraPlusAsync(http, cache, destino, estadoDestino,
+                latDestino, lonDestino, preferirCiudad: false, ct);
+            if (slugOrigen is null || slugDestino is null) return [];
+
+            var clave = $"viaticos:pp:trips:{slugOrigen}:{slugDestino}:{fecha:yyyy-MM-dd}";
+            if (cache.TryGetValue(clave, out List<ViajeBus>? cacheados) && cacheados is not null)
+                return cacheados;
+
+            var llave = await ApiKeyPrimeraPlusAsync(http, cache, ct);
+            if (llave is null) return [];
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            var t = cts.Token;
+
+            using var busqueda = await PostJsonPrimeraPlusAsync(http, llave, $"{PrimeraPlusApiBase}/search",
+                new Dictionary<string, object?>
+                {
+                    ["origin"] = slugOrigen,
+                    ["destination"] = slugDestino,
+                    ["date"] = fecha.ToString("dd-MM-yyyy"),
+                    ["passengers"] = new[] { "adult" },
+                    ["way"] = "departure",
+                    ["round"] = false,
+                }, t);
+            if (busqueda is null
+                || !busqueda.RootElement.TryGetProperty("search", out var s)
+                || !s.TryGetProperty("id", out var idEl)) return [];
+            var id = idEl.ValueKind == JsonValueKind.Number ? idEl.GetInt64().ToString() : idEl.GetString();
+            if (string.IsNullOrWhiteSpace(id)) return [];
+
+            using var pedido = PedidoPrimeraPlus(HttpMethod.Get, $"{PrimeraPlusApiBase}/search/{id}?type=bus", llave);
+            using var res = await http.SendAsync(pedido, t);
+            if (!res.IsSuccessStatusCode) return [];
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+
+            var lineas = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (doc.RootElement.TryGetProperty("lines", out var ls) && ls.ValueKind == JsonValueKind.Object)
+                foreach (var l in ls.EnumerateObject())
+                    if (l.Value.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
+                        lineas[l.Name] = n.GetString() ?? l.Name;
+
+            var terminales = new Dictionary<string, CostosRutaTerminal>(StringComparer.OrdinalIgnoreCase);
+            if (doc.RootElement.TryGetProperty("terminals", out var ts) && ts.ValueKind == JsonValueKind.Object)
+                foreach (var term in ts.EnumerateObject())
+                {
+                    var nombre = term.Value.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String
+                        ? n.GetString() ?? "" : "";
+                    if (nombre.Length == 0) continue;
+                    var ciudad = term.Value.TryGetProperty("city_name", out var c) && c.ValueKind == JsonValueKind.String
+                        ? c.GetString() ?? "" : "";
+                    var lat = 0.0;
+                    var lon = 0.0;
+                    if (term.Value.TryGetProperty("coordinates", out var coords))
+                    {
+                        lat = Coordenada(coords, "lat");
+                        lon = Coordenada(coords, "long");
+                    }
+                    terminales[term.Name] = new CostosRutaTerminal
+                    {
+                        Nombre = string.IsNullOrWhiteSpace(ciudad) ? nombre : $"{nombre}, {ciudad}",
+                        Latitud = double.IsFinite(lat) ? lat : 0,
+                        Longitud = double.IsFinite(lon) ? lon : 0,
+                    };
+                }
+
+            if (!doc.RootElement.TryGetProperty("trips", out var trips) || trips.ValueKind != JsonValueKind.Array)
+                return [];
+
+            var urlCompra = UrlPrimeraPlus(slugOrigen, slugDestino, fecha);
+            var viajes = new List<ViajeBus>();
+            foreach (var trip in trips.EnumerateArray())
+            {
+                if (!trip.TryGetProperty("is_buyable", out var comprable) || comprable.ValueKind != JsonValueKind.True)
+                    continue;
+                if (!trip.TryGetProperty("availability", out var disp)
+                    || disp.ValueKind != JsonValueKind.Number || disp.GetInt32() <= 0) continue;
+
+                var salida = FechaHoraPrimeraPlus(trip, "departure");
+                var llegada = FechaHoraPrimeraPlus(trip, "arrival");
+                if (salida is null || llegada is null) continue;
+                // El buscador incluye una salida "abierta" con fecha 2030.
+                if (salida.Value.Date != fecha.ToDateTime(TimeOnly.MinValue)) continue;
+
+                if (!trip.TryGetProperty("pricing", out var pricing)
+                    || !pricing.TryGetProperty("total", out var totalEl)
+                    || totalEl.ValueKind != JsonValueKind.Number) continue;
+                var total = Math.Round(totalEl.GetDouble(), 2);
+                if (total <= 0) continue;
+
+                var lineaId = trip.TryGetProperty("line_id", out var lid) ? lid.GetString() ?? "" : "";
+                var nombreLinea = lineas.TryGetValue(lineaId, out var nl) ? nl : "Primera Plus";
+                var origenId = trip.TryGetProperty("origin_id", out var oid) ? oid.GetString() ?? "" : "";
+                var destinoId = trip.TryGetProperty("destination_id", out var did) ? did.GetString() ?? "" : "";
+                viajes.Add(new ViajeBus(nombreLinea, salida.Value, llegada.Value, total, total,
+                    disp.GetInt32(), "Primera Plus (en vivo)", urlCompra,
+                    "precio y horario del buscador de Primera Plus",
+                    terminales.GetValueOrDefault(origenId), terminales.GetValueOrDefault(destinoId)));
+            }
+
+            var lista = viajes.OrderBy(v => v.Salida).Take(40).ToList();
+            cache.Set(clave, lista, TimeSpan.FromMinutes(10));
+            return lista;
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Llave publica del buscador (config del sitio), cacheada 12 h.</summary>
+    private static async Task<string?> ApiKeyPrimeraPlusAsync(HttpClient http, IMemoryCache cache, CancellationToken ct)
+    {
+        const string clave = "viaticos:pp:apikey";
+        if (cache.TryGetValue(clave, out string? guardada) && guardada is not null) return guardada;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
+            using var pedido = PedidoPrimeraPlus(HttpMethod.Get, $"{PrimeraPlusApiBase}/config", null);
+            using var res = await http.SendAsync(pedido, cts.Token);
+            if (!res.IsSuccessStatusCode) return null;
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(cts.Token),
+                cancellationToken: cts.Token);
+            var llave = doc.RootElement.TryGetProperty("config", out var cfg)
+                && cfg.TryGetProperty("environment_variables", out var env)
+                && env.TryGetProperty("api", out var api)
+                && api.TryGetProperty("desktopKey", out var k)
+                && k.ValueKind == JsonValueKind.String
+                    ? k.GetString()
+                    : null;
+            if (!string.IsNullOrWhiteSpace(llave)) cache.Set(clave, llave, TimeSpan.FromHours(12));
+            return llave;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static HttpRequestMessage PedidoPrimeraPlus(HttpMethod metodo, string url, string? llave)
+    {
+        var pedido = new HttpRequestMessage(metodo, url);
+        pedido.Headers.TryAddWithoutValidation("origin", "https://viaje.primeraplus.com.mx");
+        pedido.Headers.TryAddWithoutValidation("referer", "https://viaje.primeraplus.com.mx/");
+        pedido.Headers.TryAddWithoutValidation("accept", "application/json");
+        if (!string.IsNullOrWhiteSpace(llave))
+            pedido.Headers.TryAddWithoutValidation("authorization", $"Token token={llave}");
+        return pedido;
+    }
+
+    private static async Task<JsonDocument?> PostJsonPrimeraPlusAsync(HttpClient http, string llave,
+        string url, object cuerpo, CancellationToken ct)
+    {
+        using var pedido = PedidoPrimeraPlus(HttpMethod.Post, url, llave);
+        pedido.Content = JsonContent.Create(cuerpo);
+        using var res = await http.SendAsync(pedido, ct);
+        if (!res.IsSuccessStatusCode) return null;
+        return await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+    }
+
+    private static DateTime? FechaHoraPrimeraPlus(JsonElement el, string propiedad)
+    {
+        if (!el.TryGetProperty(propiedad, out var v) || v.ValueKind != JsonValueKind.String) return null;
+        return DateTime.TryParse(v.GetString(), System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out var dt) ? dt : null;
+    }
+
     /// <summary>
     /// Catalogo de lugares de ClickBus (slug + nombre + ciudad + tipo de terminal).
     /// Se cachea 12 h: son 1,642 destinos y cambia poco.
@@ -553,7 +780,9 @@ public static class CalculoCostosRuta
                             && state.TryGetProperty("name", out var nombreEstado)
                             && nombreEstado.ValueKind == JsonValueKind.String
                                 ? nombreEstado.GetString() ?? ""
-                                : ""));
+                                : "",
+                        Coordenada(p, "latitude"),
+                        Coordenada(p, "longitude")));
                 }
             }
         }
@@ -625,6 +854,182 @@ public static class CalculoCostosRuta
             .First().Lugar.Slug;
     }
 
+    // Catalogo publico del buscador de Primera Plus. Devuelve ciudades y
+    // terminales con el slug que usa su URL de resultados.
+    private const string PrimeraPlusPlacesUrl = "https://one-api.primeraplus.com.mx/api/v2/places";
+
+    /// <summary>Una entrada del catalogo de Primera Plus.</summary>
+    private sealed record LugarPrimeraPlus(string Slug, string Ciudad, string Estado, string Tipo,
+        double Lat = 0, double Lon = 0);
+
+    /// <summary>URL de resultados de Primera Plus para slugs y fecha.</summary>
+    private static string UrlPrimeraPlus(string slugOrigen, string slugDestino, DateOnly fecha) =>
+        $"https://viaje.primeraplus.com.mx/search/{slugOrigen}/{slugDestino}/{fecha:yyyy-MM-dd}"
+        + "/p/general-1/departures?lang=spanish&seatsOnResultsDiscounts=true";
+
+    /// <summary>
+    /// Nombre de ciudad -> slug de Primera Plus. El origen prefiere la entrada de
+    /// ciudad ("Todas las terminales") y el destino la terminal concreta: en su
+    /// buscador una ciudad como destino no siempre devuelve horarios. Con varias
+    /// terminales gana la mas cercana al punto del viaje.
+    /// </summary>
+    private static async Task<string?> SlugPrimeraPlusAsync(HttpClient http, IMemoryCache cache,
+        string ciudad, string? estado, double lat, double lon, bool preferirCiudad, CancellationToken ct)
+    {
+        var buscado = NormalizarTexto(ciudad);
+        if (buscado.Length == 0) return null;
+        var clave = $"viaticos:primeraplus:{buscado}:{NormalizarTexto(estado ?? "")}";
+        if (cache.TryGetValue(clave, out string? guardado) && guardado is not null) return guardado;
+
+        try
+        {
+            var lugares = await ConsultarLugaresPrimeraPlusAsync(http, ciudad, ct);
+
+            // El municipio del punto puede no existir en su catalogo (caso real:
+            // "La Aldea", que viaja desde/hacia Morelia). Ahi manda la ciudad
+            // que devuelve el geocodificador inverso para esas coordenadas.
+            if (!lugares.Any(l => NormalizarTexto(l.Ciudad) == buscado))
+            {
+                var alternativa = await CiudadNominatimAsync(http, cache, lat, lon, ct);
+                if (!string.IsNullOrWhiteSpace(alternativa))
+                {
+                    var otros = await ConsultarLugaresPrimeraPlusAsync(http, alternativa, ct);
+                    if (otros.Count > 0)
+                    {
+                        lugares = otros;
+                        buscado = NormalizarTexto(alternativa);
+                    }
+                }
+            }
+
+            var deLaCiudad = lugares.Where(l => NormalizarTexto(l.Ciudad) == buscado).ToList();
+            if (deLaCiudad.Count == 0)
+            {
+                // Sin coincidencia de ciudad no se inventa una terminal: mejor
+                // el respaldo (pagina de busqueda) que un slug de otra ciudad.
+                return null;
+            }
+            var estadoBuscado = NormalizarTexto(estado ?? "");
+            if (estadoBuscado.Length > 0)
+            {
+                var delEstado = deLaCiudad
+                    .Where(l => NormalizarTexto(l.Estado).Contains(estadoBuscado, StringComparison.Ordinal))
+                    .ToList();
+                if (delEstado.Count > 0) deLaCiudad = delEstado;
+            }
+
+            var preferidos = deLaCiudad.Where(l => l.Tipo == (preferirCiudad ? "city" : "terminal")).ToList();
+            if (preferidos.Count == 0)
+                preferidos = deLaCiudad.Where(l => l.Tipo == (preferirCiudad ? "terminal" : "city")).ToList();
+            if (preferidos.Count == 0) preferidos = deLaCiudad;
+            if (preferidos.Count == 0) return null;
+
+            var elegido = preferidos
+                .OrderBy(l => double.IsFinite(l.Lat) && double.IsFinite(l.Lon) && (l.Lat != 0 || l.Lon != 0)
+                    ? HaversineKm(lat, lon, l.Lat, l.Lon)
+                    : double.MaxValue)
+                .First();
+
+            cache.Set(clave, elegido.Slug, TimeSpan.FromHours(12));
+            return elegido.Slug;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw; // El cliente se fue: no seguir buscando slugs.
+        }
+        catch
+        {
+            return null; // Sin catalogo: el llamador usa el respaldo.
+        }
+    }
+
+    /// <summary>Lugares del catalogo de Primera Plus para una consulta de texto.</summary>
+    private static async Task<List<LugarPrimeraPlus>> ConsultarLugaresPrimeraPlusAsync(
+        HttpClient http, string consulta, CancellationToken ct)
+    {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(3));
+        var t = cts.Token;
+        // Su API solo responde con Origin del buscador (sin el, 401): no es
+        // autenticacion, es la misma llamada que hace la pagina.
+        using var pedido = new HttpRequestMessage(HttpMethod.Get,
+            $"{PrimeraPlusPlacesUrl}?q={Uri.EscapeDataString(consulta.Trim())}");
+        pedido.Headers.TryAddWithoutValidation("origin", "https://viaje.primeraplus.com.mx");
+        pedido.Headers.TryAddWithoutValidation("referer", "https://viaje.primeraplus.com.mx/");
+        pedido.Headers.TryAddWithoutValidation("accept", "application/json, text/javascript, */*; q=0.01");
+        using var res = await http.SendAsync(pedido, t);
+        if (!res.IsSuccessStatusCode) return [];
+        using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) return [];
+
+        return doc.RootElement.EnumerateArray()
+            .Where(p => p.ValueKind == JsonValueKind.Object)
+            .Select(p => new LugarPrimeraPlus(
+                p.TryGetProperty("slug", out var s) ? s.GetString() ?? "" : "",
+                p.TryGetProperty("city_name", out var c) ? c.GetString() ?? "" : "",
+                p.TryGetProperty("state", out var e) ? e.GetString() ?? "" : "",
+                p.TryGetProperty("result_type", out var r) ? r.GetString() ?? "" : "",
+                Coordenada(p, "lat"),
+                Coordenada(p, "long")))
+            .Where(l => l.Slug.Length > 0)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Ciudad real de un punto segun Nominatim (geocodificacion inversa). Se usa
+    /// cuando el municipio del viaje no existe en el catalogo del transportista;
+    /// cachea 24 h por coordenada redondeada (~100 m).
+    /// </summary>
+    private static async Task<string?> CiudadNominatimAsync(HttpClient http, IMemoryCache cache,
+        double lat, double lon, CancellationToken ct)
+    {
+        if (!double.IsFinite(lat) || !double.IsFinite(lon) || (lat == 0 && lon == 0)) return null;
+        var clave = $"viaticos:nominatim:{lat:F3},{lon:F3}";
+        if (cache.TryGetValue(clave, out string? guardado) && guardado is not null) return guardado;
+
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(3));
+            var t = cts.Token;
+            var cultura = System.Globalization.CultureInfo.InvariantCulture;
+            using var pedido = new HttpRequestMessage(HttpMethod.Get,
+                "https://nominatim.openstreetmap.org/reverse?lat=" + lat.ToString(cultura)
+                + "&lon=" + lon.ToString(cultura) + "&format=jsonv2&zoom=10&accept-language=es");
+            pedido.Headers.TryAddWithoutValidation("user-agent",
+                "viaticos-capturas/1.0 (+https://capturas.app.grupolefarma.com.mx)");
+            using var res = await http.SendAsync(pedido, t);
+            if (!res.IsSuccessStatusCode) return null;
+            using var doc = await JsonDocument.ParseAsync(await res.Content.ReadAsStreamAsync(t), cancellationToken: t);
+            if (!doc.RootElement.TryGetProperty("address", out var direccion)
+                || direccion.ValueKind != JsonValueKind.Object) return null;
+
+            var ciudad = TextoJson(direccion, "city") ?? TextoJson(direccion, "municipality")
+                ?? TextoJson(direccion, "county") ?? TextoJson(direccion, "town")
+                ?? TextoJson(direccion, "village");
+            if (ciudad is null) return null;
+
+            cache.Set(clave, ciudad, TimeSpan.FromHours(24));
+            return ciudad;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TextoJson(JsonElement objeto, string propiedad)
+    {
+        if (!objeto.TryGetProperty(propiedad, out var valor) || valor.ValueKind != JsonValueKind.String)
+            return null;
+        var texto = valor.GetString()?.Trim();
+        return string.IsNullOrEmpty(texto) ? null : texto;
+    }
+
     /// <summary>Minusculas, sin acentos y sin espacios sobrantes, para comparar nombres de lugar.</summary>
     private static string NormalizarTexto(string s)
     {
@@ -637,7 +1042,13 @@ public static class CalculoCostosRuta
                 == System.Globalization.UnicodeCategory.NonSpacingMark) continue;
             sb.Append(ch);
         }
-        return sb.ToString().Trim().ToLowerInvariant();
+        var limpio = sb.ToString().Trim().ToLowerInvariant();
+
+        // ClickBus nombra la misma ciudad de dos formas: "CDMX" en terminales
+        // sueltas (Terrapuerto El Angel) y "Ciudad de Mexico" en el grupo
+        // "Todas las Terminales". Sin unificar, buscar "CDMX" empata con UNA
+        // terminal y devuelve cero salidas, cuando el grupo si tiene.
+        return limpio is "cdmx" or "df" ? "ciudad de mexico" : limpio;
     }
 
     /// <summary>
@@ -788,22 +1199,21 @@ public static class CalculoCostosRuta
     {
         var ft = 0.5 + kmAerea / 760.0;
         var base_ = 690 + kmAerea * 1.45;
-        var lineas = new[]
+        // Un solo estimado generico: no se inventa que aerolinea vuela la ruta
+        // (Viva, por ejemplo, no vuela MEX-DGO). La busqueda real va a Google
+        // Flights, que si trae quien la opera y a que precio.
+        var consulta = $"Flights from {origen} to {destino} on {fecha:yyyy-MM-dd}";
+        var url = $"https://www.google.com/travel/flights?q={Uri.EscapeDataString(consulta)}"
+                + "&curr=MXN&hl=es-MX";
+        var salida = fecha.ToDateTime(new TimeOnly(8, 0));
+        var llegada = salida.AddHours(ft);
+        var precio = Math.Round(base_, 2);
+        return Task.FromResult(new List<ViajeVuelo>
         {
-            ("VivaAerobus", 0.82, 6, 25, "ultra bajo costo", "https://www.vivaaerobus.com/es-mx"),
-            ("Volaris", 0.90, 11, 5, "bajo costo", "https://www.volaris.com/"),
-            ("Aeroméxico", 1.32, 17, 40, "servicio completo", "https://www.aeromexico.com/es-mx"),
-        };
-        var out_ = lineas.Select((l, ix) =>
-        {
-            var sal = fecha.ToDateTime(new TimeOnly(l.Item3, l.Item4));
-            var arr = sal.AddHours(ft);
-            var fare = base_ * l.Item2;
-            return new ViajeVuelo(l.Item1, sal, arr, Math.Round(fare * 0.85, 2), Math.Round(fare * 1.18, 2),
+            new("Vuelo (estimado)", salida, llegada, precio, precio,
                 "estimado fase 1 (sin proveedor; interfaz IVuelosClient lista)",
-                l.Item6, $"{l.Item5} · vuelo estimado {(1000 + (int)kmAerea % 900) + ix}");
-        }).ToList();
-        return Task.FromResult(out_);
+                url, "vuelo estimado: consulta aerolineas y precios reales"),
+        });
     }
 
     // ---------- Cálculo ----------
@@ -1177,14 +1587,38 @@ public static class CalculoCostosRuta
             var ciudadDestino = string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio;
             foreach (var f in fechas)
             {
-                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, DateOnly.FromDateTime(f), cache, ct, a.Estado, b.Estado));
-                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, DateOnly.FromDateTime(f), ct));
+                var fechaBusqueda = DateOnly.FromDateTime(f);
+                candidatos.AddRange(await BuscarBusesClickBusAsync(http, ciudadOrigen, ciudadDestino, fechaBusqueda, cache, ct, a.Estado, b.Estado));
+                candidatos.AddRange(await BuscarBusesPrimeraPlusAsync(http, cache,
+                    ciudadOrigen, a.Estado, a.Lat, a.Lon, ciudadDestino, b.Estado, b.Lat, b.Lon, fechaBusqueda, ct));
+                candidatos.AddRange(await BuscarBusesDistribusionAsync(http, a.Nombre, b.Nombre, fechaBusqueda, ct));
             }
             // El estimado es el ultimo recurso: solo aparece cuando ningun
             // proveedor cotizo. Con precio real, la tabla no mezcla estimados.
             var busEstimado = candidatos.Count == 0;
             if (busEstimado)
-                candidatos = ViajesBusSeed(DateOnly.FromDateTime(deadline), km, "estimado: sin proveedor de autobuses");
+            {
+                // El enlace de la fila estimada abre la busqueda real de ClickBus
+                // (cacheado 12 h); si su catalogo no responde, la fila queda sin
+                // URL en vez de mandar a la portada de un transportista que
+                // quiza ni vende la ruta.
+                string? slugOrigen = null, slugDestino = null;
+                try
+                {
+                    using var ctsCatalogo = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    ctsCatalogo.CancelAfter(TimeSpan.FromSeconds(3));
+                    var catalogo = await ObtenerLugaresClickBusAsync(http, cache, ctsCatalogo.Token);
+                    slugOrigen = ResolverSlugClickBus(catalogo, ciudadOrigen, a.Estado);
+                    slugDestino = ResolverSlugClickBus(catalogo, ciudadDestino, b.Estado);
+                }
+                catch
+                {
+                    // sin catalogo de ClickBus: la fila estimada va sin URL
+                }
+
+                candidatos = ViajesBusSeed(DateOnly.FromDateTime(deadline), km,
+                    "estimado: sin proveedor de autobuses", slugOrigen, slugDestino);
+            }
             foreach (var g in candidatos.GroupBy(v => v.Linea))
             {
                 var mejor = MejorHorario(g.ToList(), salidaPrevia, 30, deadline,
@@ -1195,7 +1629,9 @@ public static class CalculoCostosRuta
                     null, null, null, null, mejor.Llegada > deadline, saleAntes,
                     mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
                     mejor.Fuente, busEstimado, $"{mejor.Nota} · cotiza en el sitio/app oficial",
-                    mejor.Url, "ClickBus",
+                    mejor.Url,
+                    mejor.Url.Length == 0 ? ""
+                        : mejor.Url.Contains("primeraplus", StringComparison.OrdinalIgnoreCase) ? "Primera Plus" : "ClickBus",
                     "ver costo del boleto", $"boleto {mejor.Linea} {a.Nombre} → {b.Nombre}", "",
                     mejor.TerminalOrigen, mejor.TerminalDestino));
             }
@@ -1205,8 +1641,14 @@ public static class CalculoCostosRuta
             if (air >= 300 || (iataO is not null && iataD is not null))
             {
                 var cands = new List<ViajeVuelo>();
+                // Google Flights exige el codigo IATA: con el nombre de la
+                // ciudad devuelve la portada generica y no busca nada.
+                var vueloDesde = iataO ?? IataDeCiudad(a.Municipio) ?? IataDeCiudad(a.Nombre)
+                    ?? (string.IsNullOrWhiteSpace(a.Municipio) ? a.Nombre : a.Municipio);
+                var vueloHasta = iataD ?? IataDeCiudad(b.Municipio) ?? IataDeCiudad(b.Nombre)
+                    ?? (string.IsNullOrWhiteSpace(b.Municipio) ? b.Nombre : b.Municipio);
                 foreach (var f in fechas)
-                    cands.AddRange(await BuscarVuelosEstimadosAsync(air, iataO ?? a.Nombre, iataD ?? b.Nombre, DateOnly.FromDateTime(f), ct));
+                    cands.AddRange(await BuscarVuelosEstimadosAsync(air, vueloDesde, vueloHasta, DateOnly.FromDateTime(f), ct));
                 foreach (var g in cands.GroupBy(v => v.Linea))
                 {
                     var mejor = MejorHorario(g.ToList(), salidaPrevia, 120, deadline,
@@ -1216,8 +1658,8 @@ public static class CalculoCostosRuta
                         mejor.PrecioDesde, mejor.PrecioHasta, (mejor.PrecioDesde + mejor.PrecioHasta) / 2, true,
                         null, null, null, null, mejor.Llegada > deadline, saleAntes,
                         mejor.Llegada > deadline ? (int)(mejor.Llegada - deadline).TotalMinutes : 0,
-                        mejor.Fuente, true, $"{mejor.Nota} · llegar al aeropuerto + 120 min antes · cotiza en el sitio oficial",
-                        mejor.Url, mejor.Linea, "ver costo del vuelo", $"vuelo {mejor.Linea} {iataO} → {iataD}", ""));
+                        mejor.Fuente, true, $"{mejor.Nota} · llegar al aeropuerto + 120 min antes · precio real en Google Flights",
+                        mejor.Url, "Google Flights", "ver costo del vuelo", $"vuelo {mejor.Linea} {vueloDesde} → {vueloHasta}", ""));
                 }
             }
 

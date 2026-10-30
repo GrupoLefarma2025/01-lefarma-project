@@ -8,7 +8,7 @@ import { API } from '@/shared/api/apiClient';
 import type { ApiResponse } from '@/types/api.types';
 import { DataTable } from '@/components/ui/data-table';
 import type { ColumnDef } from '@/components/ui/data-table';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,7 +71,13 @@ import { toast } from 'sonner';
 import type { OrdenCompraResponse } from '@/types/ordenCompra.types';
 import type { WorkflowEstado } from '@/types/workflow.types';
 import { fetchWorkflowEstados } from '@/hooks/useWorkflowEstados';
-import type { ComprobanteResponse, PartidaPendienteResponse, HistorialComprobante } from '@/types/comprobante.types';
+import type {
+  ComprobanteResponse,
+  PartidaPendienteResponse,
+  HistorialComprobante,
+  PartidaFacturacionResponse,
+  ComprobanteAsignacionResponse,
+} from '@/types/comprobante.types';
 import type { Usuario } from '@/types/usuario.types';
 import { comprobanteService } from '@/services/comprobanteService';
 import { fetchFirmaObjectUrl, firmasEndpoints } from '@/services/firmas.service';
@@ -366,6 +372,71 @@ const fmtFecha = (dateStr: string | null | undefined) => {
   }
 };
 
+const fmtFechaHora = (dateStr: string | null | undefined) => {
+  if (!dateStr) return '-';
+  const fecha = new Date(dateStr);
+  if (Number.isNaN(fecha.getTime())) return dateStr;
+  return fecha.toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+/**
+ * Firma capturada en un evento de la bitácora. Se descarga como blob
+ * autenticado y no se pinta si el evento no tiene firma (404).
+ */
+function FirmaEventoRow({
+  idEvento,
+  nombreUsuario,
+}: {
+  idEvento: number;
+  nombreUsuario?: string | null;
+}) {
+  const [url, setUrl] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelado = false;
+    let objectUrl: string | null = null;
+
+    fetchFirmaObjectUrl(firmasEndpoints.firmaEvento(idEvento)).then((u) => {
+      if (cancelado) {
+        if (u) URL.revokeObjectURL(u);
+        return;
+      }
+      objectUrl = u;
+      setUrl(u);
+    });
+
+    return () => {
+      cancelado = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [idEvento]);
+
+  if (url === undefined) {
+    return <span data-firma-loading="" className="inline-block h-6 w-20" />;
+  }
+  if (!url) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        Firma
+      </span>
+      <img
+        src={url}
+        alt={`Firma de ${nombreUsuario || 'usuario'}`}
+        className="h-12 max-w-[14rem] object-contain"
+      />
+    </div>
+  );
+}
+
 export default function AutorizacionesOC() {
   usePageTitle('Autorizaciones OC', 'Bandeja de firmas y detalle de autorización');
   const navigate = useNavigate();
@@ -433,6 +504,11 @@ export default function AutorizacionesOC() {
   const [historialComprobantes, setHistorialComprobantes] = useState<HistorialComprobante[]>([]);
   const [isHistorialComprobantesOpen, setIsHistorialComprobantesOpen] = useState(false);
   const [historialCategoria, setHistorialCategoria] = useState<'pago' | 'gasto'>('pago');
+  const [eliminandoComprobanteId, setEliminandoComprobanteId] = useState<number | null>(null);
+  const [partidaComprobaciones, setPartidaComprobaciones] = useState<PartidaPendienteResponse | null>(null);
+  const [facturacionPartida, setFacturacionPartida] = useState<PartidaFacturacionResponse | null>(null);
+  const [loadingFacturacionPartida, setLoadingFacturacionPartida] = useState(false);
+  const [eliminandoAsignacionId, setEliminandoAsignacionId] = useState<number | null>(null);
 
   //Permisos
   const puedeVerTodas = usePermission({ require: 'orden_compra.puede_ver_todas_las_ordenes' });
@@ -999,6 +1075,96 @@ export default function AutorizacionesOC() {
     }
 };
 
+  const handleBorrarComprobanteGasto = async (comprobante: HistorialComprobante) => {
+    if (!selectedOrden || eliminandoComprobanteId !== null) return;
+    if (!window.confirm('¿Deseas eliminar este comprobante de gasto? Solo se revertirán sus asignaciones; los demás comprobantes se conservarán. Esta acción no se puede deshacer.')) return;
+
+    setEliminandoComprobanteId(comprobante.idComprobante);
+    try {
+      await comprobanteService.eliminar(comprobante.idComprobante);
+      toast.success('Comprobante de gasto eliminado correctamente');
+
+      const quedanComprobantes = historialComprobantes.some(
+        (c) => c.activo && c.idComprobante !== comprobante.idComprobante
+      );
+      setHistorialComprobantes((prev) => prev.map((c) =>
+        c.idComprobante === comprobante.idComprobante ? { ...c, activo: false, estado: 3 } : c
+      ));
+      setComprobantesWorkflow((prev) => {
+        const next = { ...prev };
+        if (!quedanComprobantes) {
+          delete next.comprobante_gasto;
+        } else {
+          next.comprobante_gasto = (next.comprobante_gasto ?? [])
+            .filter((c) => c.idComprobante !== comprobante.idComprobante);
+        }
+        return next;
+      });
+
+      await fetchDetalle(selectedOrden.idOrden);
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al eliminar el comprobante de gasto');
+    } finally {
+      setEliminandoComprobanteId(null);
+    }
+  };
+
+  const abrirComprobacionesPartida = async (partida: PartidaPendienteResponse) => {
+    setPartidaComprobaciones(partida);
+    setFacturacionPartida(null);
+    setLoadingFacturacionPartida(true);
+    try {
+      const facturacion = await comprobanteService.getFacturacionPartida(partida.idPartida);
+      setFacturacionPartida(facturacion);
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'No se pudieron cargar las comprobaciones de la partida');
+    } finally {
+      setLoadingFacturacionPartida(false);
+    }
+  };
+
+  const cerrarComprobacionesPartida = () => {
+    if (eliminandoAsignacionId !== null) return;
+    setPartidaComprobaciones(null);
+    setFacturacionPartida(null);
+  };
+
+  const handleEliminarAsignacionParcial = async (asignacion: ComprobanteAsignacionResponse) => {
+    if (!selectedOrden || !partidaComprobaciones || eliminandoAsignacionId !== null) return;
+    const monto = formatCurrency(asignacion.importeAsignado);
+    if (!window.confirm(`¿Deseas eliminar esta comprobación parcial de ${monto}? Se revertirá solo esta asignación de la partida #${partidaComprobaciones.numeroPartida}; las demás comprobaciones se conservarán.`)) return;
+
+    setEliminandoAsignacionId(asignacion.idAsignacion);
+    try {
+      const facturacionActualizada = await comprobanteService.eliminarAsignacion(asignacion.idAsignacion);
+      setFacturacionPartida(facturacionActualizada);
+      toast.success('Comprobación parcial eliminada correctamente');
+
+      const otrasPartidasConGasto = partidasPendientes.some(
+        (p) => p.idPartida !== partidaComprobaciones.idPartida && p.importeFacturado > 0
+      );
+      if (!otrasPartidasConGasto && facturacionActualizada.importeFacturado <= 0) {
+        setComprobantesWorkflow((prev) => {
+          const next = { ...prev };
+          delete next.comprobante_gasto;
+          return next;
+        });
+      }
+
+      await Promise.all([
+        fetchPartidasPendientes(selectedOrden.idOrden),
+        fetchArchivosOrden(selectedOrden.idOrden),
+      ]);
+    } catch (error: unknown) {
+      const err = toApiError(error);
+      toast.error(err.errors?.[0]?.description ?? err.message ?? 'Error al eliminar la comprobación parcial');
+    } finally {
+      setEliminandoAsignacionId(null);
+    }
+  };
+
   // Bitácora de pagos: entradas del historial JSON, más reciente primero.
   const historialOrdenOrdenado = useMemo(
     () =>
@@ -1288,16 +1454,25 @@ export default function AutorizacionesOC() {
   };
 
   const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return ordenes.filter((o) => {
       const matchEstado = estadoFilter === 'all' || o.idEstado === Number(estadoFilter);
       const matchCreador = creadorFilter === 'all' || o.idUsuarioCreador === creadorFilter;
-      const q = search.trim().toLowerCase();
+      const proveedores = [o.idProveedor, ...o.partidas.map((p) => p.idProveedor)]
+        .map((id) => (id ? allProveedoresMap.get(id) : undefined));
       const matchSearch =
         q.length === 0 ||
-        o.folio.toLowerCase().includes(q);
+        [
+          o.folio,
+          o.razonSocialProveedor,
+          o.notaFormaPago,
+          o.notasGenerales,
+          ...proveedores.flatMap((p) => [p?.razonSocial, p?.detalle?.personaContactoNombre]),
+          ...o.partidas.map((p) => p.descripcion),
+        ].some((value) => value?.toLowerCase().includes(q));
       return matchEstado && matchCreador && matchSearch;
     });
-  }, [ordenes, estadoFilter, creadorFilter, search]);
+  }, [ordenes, estadoFilter, creadorFilter, search, allProveedoresMap]);
 
   const columns: ColumnDef<OrdenCompraResponse>[] = useMemo(() => [
     {
@@ -1420,16 +1595,12 @@ export default function AutorizacionesOC() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="space-y-4 xl:col-span-12">
           <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Filtros de Bandeja</CardTitle>
-              <CardDescription>Filtra por estado, creador o búsqueda rápida</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-4">
+            <CardContent className="grid grid-cols-1 gap-3 pt-6 md:grid-cols-4">
               <div className="relative md:col-span-2">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
                   className="pl-9"
-                  placeholder="Buscar por folio, proveedor o contacto"
+                  placeholder="Buscar por folio, proveedor, contacto, notas o partidas"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -2223,6 +2394,65 @@ export default function AutorizacionesOC() {
                               const eventosPaso = eventosPorPaso.get(paso.idPaso) || [];
                               const ultimoEvento = eventosPaso[eventosPaso.length - 1];
 
+                              // Fecha en que la orden llegó a este paso (última transición
+                              // cuyo destino es el paso). Para el paso inicial se usa la creación.
+                              const fechaEnPoderDesdePaso = (() => {
+                                let fecha: string | null = null;
+                                for (const ev of historial) {
+                                  if (!ev.datosSnapshot) continue;
+                                  try {
+                                    const snap = JSON.parse(ev.datosSnapshot) as {
+                                      idPasoNuevo?: number | null;
+                                    };
+                                    if (snap.idPasoNuevo !== paso.idPaso) continue;
+                                    if (
+                                      !fecha ||
+                                      new Date(ev.fechaEvento).getTime() > new Date(fecha).getTime()
+                                    ) {
+                                      fecha = ev.fechaEvento;
+                                    }
+                                  } catch {
+                                    // snapshot inválido: se ignora
+                                  }
+                                }
+                                if (fecha) return fecha;
+                                return paso.idPaso === selectedOrden?.idPasoActual
+                                  ? (selectedOrden?.fechaCreacion ?? null)
+                                  : null;
+                              })();
+
+                              // Fecha de la autorización propia de este paso: el evento
+                              // que salió del paso (snapshot.idPasoAnterior = este paso).
+                              // En el paso actual todavía no existe: queda "Pendiente".
+                              const fechaAutorizacionPaso = (() => {
+                                let fecha: string | null = null;
+                                for (const ev of historial) {
+                                  if (!ev.datosSnapshot) continue;
+                                  try {
+                                    const snap = JSON.parse(ev.datosSnapshot) as {
+                                      idPasoAnterior?: number | null;
+                                    };
+                                    if (snap.idPasoAnterior !== paso.idPaso) continue;
+                                    const nombre = (ev.nombreAccion || '').trim().toLowerCase();
+                                    if (
+                                      !nombre.startsWith('autoriz') &&
+                                      !nombre.startsWith('aprob')
+                                    ) {
+                                      continue;
+                                    }
+                                    if (
+                                      !fecha ||
+                                      new Date(ev.fechaEvento).getTime() > new Date(fecha).getTime()
+                                    ) {
+                                      fecha = ev.fechaEvento;
+                                    }
+                                  } catch {
+                                    // snapshot inválido: se ignora
+                                  }
+                                }
+                                return fecha;
+                              })();
+
                               // Visual del dot
                               const dotBg = isCompletado
                                 ? 'bg-emerald-500 border-emerald-500'
@@ -2323,7 +2553,7 @@ export default function AutorizacionesOC() {
                                     )}
                                     {eventosPaso.length > 0 && !isExpanded && (
                                       <p className="mt-1 ml-7 text-[11px] text-muted-foreground">
-                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFecha(ultimoEvento.fechaEvento)}
+                                        {eventosPaso.length} evento(s) · {renderNombreAccion(ultimoEvento)} · {fmtFechaHora(ultimoEvento.fechaEvento)}
                                       </p>
                                     )}
 
@@ -2338,6 +2568,41 @@ export default function AutorizacionesOC() {
                                           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                                             Historial de actividad
                                           </p>
+
+                                          {/* Fechas de la orden dentro del historial */}
+                                          <div className="mb-2 grid grid-cols-1 gap-2 rounded-md border bg-background/80 px-3 py-2 sm:grid-cols-3">
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                Fecha de creación
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fmtFechaHora(selectedOrden?.fechaCreacion)}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                Fecha de autorización
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fechaAutorizacionPaso
+                                                  ? fmtFechaHora(fechaAutorizacionPaso)
+                                                  : isActual
+                                                    ? 'Pendiente'
+                                                    : '—'}
+                                              </p>
+                                            </div>
+                                            <div>
+                                              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                                En su poder desde
+                                              </p>
+                                              <p className="text-[11px] font-medium">
+                                                {fechaEnPoderDesdePaso
+                                                  ? fmtFechaHora(fechaEnPoderDesdePaso)
+                                                  : '—'}
+                                              </p>
+                                            </div>
+                                          </div>
+
                                           {eventosPaso.length === 0 ? (
                                             <p className="rounded border bg-background/80 p-2 text-xs text-muted-foreground">Sin actividad registrada en este paso.</p>
                                           ) : (
@@ -2369,7 +2634,7 @@ export default function AutorizacionesOC() {
                                                       {item.nombreAccion || `Acción ${item.idAccion}`}
                                                     </span>
                                                     <span className="text-[10px] text-muted-foreground whitespace-nowrap flex-shrink-0">
-                                                      {fmtFecha(item.fechaEvento)}
+                                                      {fmtFechaHora(item.fechaEvento)}
                                                     </span>
                                                   </div>
                                                   {/* Cuerpo con etiquetas */}
@@ -2381,6 +2646,10 @@ export default function AutorizacionesOC() {
                                                         <span>{item.nombreUsuario || `Usuario ${item.idUsuario}`}</span>
                                                       </div>
                                                     </div>
+                                                    <FirmaEventoRow
+                                                      idEvento={item.idEvento}
+                                                      nombreUsuario={item.nombreUsuario}
+                                                    />
                                                     {showTrans && (
                                                       <div className="flex items-center gap-2">
                                                         <span className="w-20 flex-shrink-0 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Movimiento</span>
@@ -2547,6 +2816,19 @@ export default function AutorizacionesOC() {
                                             <p className="mt-1 text-[10px] text-amber-600">
                                               Pendiente: {partida.importePendiente.toLocaleString('es-MX', { style: 'currency', currency: 'MXN' })}
                                             </p>
+                                          )}
+                                          {partida.importeFacturado > 0 && !ordenCerrada && (
+                                            <div className="mt-2 flex justify-end">
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 px-2 text-[11px] text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                onClick={() => abrirComprobacionesPartida(partida)}
+                                                title="Eliminar una comprobación parcial de esta partida"
+                                              >
+                                                <Trash2 className="h-3 w-3" /> Quitar comprobación
+                                              </Button>
+                                            </div>
                                           )}
                                         </div>
                                       );
@@ -3188,6 +3470,78 @@ export default function AutorizacionesOC() {
         </div>
       </Modal>
 
+      {/* ── Modal comprobaciones aplicadas a una partida ── */}
+      <Modal
+        id="modal-comprobaciones-partida"
+        open={partidaComprobaciones !== null}
+        setOpen={(open) => { if (!open) cerrarComprobacionesPartida(); }}
+        title={partidaComprobaciones ? `Comprobaciones de la partida #${partidaComprobaciones.numeroPartida}` : 'Comprobaciones de la partida'}
+        subtitle={partidaComprobaciones?.descripcionPartida}
+        size="md"
+        canClose={eliminandoAsignacionId === null}
+        footer={
+          <Button variant="outline" onClick={cerrarComprobacionesPartida} disabled={eliminandoAsignacionId !== null}>
+            Cerrar
+          </Button>
+        }
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Selecciona la comprobación parcial que deseas eliminar. Se revertirá únicamente su importe y cantidad en esta partida.
+          </p>
+
+          {loadingFacturacionPartida ? (
+            <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando comprobaciones...
+            </div>
+          ) : !facturacionPartida || facturacionPartida.asignaciones.length === 0 ? (
+            <div className="flex items-center justify-center gap-2 rounded-lg border bg-muted/20 px-3 py-8 text-sm text-muted-foreground">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" /> No hay comprobaciones aplicadas a esta partida.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {facturacionPartida.asignaciones.map((asignacion) => (
+                <div key={asignacion.idAsignacion} className="rounded-lg border bg-card p-3 shadow-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="rounded-full border bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                      {asignacion.tipoComprobante || 'Comprobante'}
+                    </span>
+                    <span className="text-sm font-semibold">{formatCurrency(asignacion.importeAsignado)}</span>
+                  </div>
+                  <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    <p>
+                      Asignado el {new Date(asignacion.fechaAsignacion).toLocaleDateString('es-MX', {
+                        day: '2-digit', month: 'long', year: 'numeric',
+                      })}
+                    </p>
+                    {asignacion.uuidCfdi && <p className="truncate font-mono text-[10px]">{asignacion.uuidCfdi}</p>}
+                    {asignacion.notas && <p className="text-foreground">{asignacion.notas}</p>}
+                  </div>
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={eliminandoAsignacionId !== null}
+                      onClick={() => handleEliminarAsignacionParcial(asignacion)}
+                    >
+                      {eliminandoAsignacionId === asignacion.idAsignacion
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : <Trash2 className="h-3.5 w-3.5" />}
+                      Eliminar comprobación parcial
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <p className="text-[11px] text-muted-foreground">
+            Las demás asignaciones y comprobantes se conservarán. Si se elimina la última asignación de un comprobante, este se marcará como cancelado.
+          </p>
+        </div>
+      </Modal>
+
       {/* ── Modal historial de comprobantes ── */}
       <Modal
         id="modal-historial-comprobantes"
@@ -3310,6 +3664,23 @@ export default function AutorizacionesOC() {
                           <span>{comp.nombreUsuarioSubio || `Usuario ${comp.idUsuarioSubio}`}</span>
                         </div>
                       </div>
+
+                      {historialCategoria === 'gasto' && comp.activo && selectedOrden?.idEstado !== 10 && (
+                        <div className="flex justify-end border-t px-3 py-2">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={eliminandoComprobanteId !== null}
+                            onClick={() => handleBorrarComprobanteGasto(comp)}
+                          >
+                            {eliminandoComprobanteId === comp.idComprobante
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <Trash2 className="h-3.5 w-3.5" />}
+                            Eliminar comprobante
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

@@ -191,6 +191,37 @@ public class ComprobanteController : ControllerBase
     }
 
     /// <summary>
+    /// Elimina un comprobante y revierte únicamente sus asignaciones.
+    /// </summary>
+    [HttpDelete("{id:int}")]
+    [SwaggerOperation(Summary = "Eliminar comprobante", Description = "Elimina un comprobante, revierte sus asignaciones a partidas y desactiva sus archivos relacionados sin afectar los demás comprobantes.")]
+    public async Task<IActionResult> Eliminar(int id, CancellationToken ct)
+    {
+        var result = await _service.EliminarAsync(id, GetUserId(), ct);
+        return result.ToActionResult(this, _ => Ok(new ApiResponse<object>
+        {
+            Success = true,
+            Message = "Comprobante eliminado correctamente"
+        }));
+    }
+
+    /// <summary>
+    /// Elimina una asignación parcial de gasto y conserva el comprobante y sus demás asignaciones.
+    /// </summary>
+    [HttpDelete("asignaciones/{idAsignacion:int}")]
+    [SwaggerOperation(Summary = "Eliminar asignación parcial de gasto", Description = "Revierte únicamente el importe y la cantidad aplicados a una partida. Si el comprobante queda sin asignaciones, se marca como cancelado.")]
+    public async Task<IActionResult> EliminarAsignacion(int idAsignacion, CancellationToken ct)
+    {
+        var result = await _service.EliminarAsignacionAsync(idAsignacion, GetUserId(), ct);
+        return result.ToActionResult(this, data => Ok(new ApiResponse<PartidaFacturacionResponse>
+        {
+            Success = true,
+            Message = "Asignación parcial eliminada correctamente",
+            Data = data
+        }));
+    }
+
+    /// <summary>
     /// Elimina todos los comprobantes de una categoría para una orden y revierte sus asignaciones.
     /// </summary>
     [HttpDelete("orden/{idOrden:int}")]

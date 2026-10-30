@@ -1,0 +1,14 @@
+{
+  "origen": {
+    "longitud": -99.1332,
+    "latitud": 19.4326
+  },
+  "fecha_salida": "2026-10-28",
+  "destino": {
+    "longitud": -104.6532,
+    "latitud": 24.0277
+  },
+  "fecha_regreso": null,
+  "personas": 1,
+  "con_capturas": true
+}

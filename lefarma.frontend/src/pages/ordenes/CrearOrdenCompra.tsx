@@ -377,19 +377,23 @@ function UnidadMedidaSelector({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className="w-full justify-between border-input bg-transparent"
+              className="group w-full justify-between border-input bg-transparent"
             >
               <span className="truncate">
                 {selectedUnidad ? (
                   <span className="flex items-center gap-2">
                     <span className="font-medium">{selectedUnidad.abreviatura}</span>
-                    <span className="text-sm text-muted-foreground">— {selectedUnidad.nombre}</span>
+                    <span className="text-sm text-muted-foreground group-hover:text-accent-foreground">
+                      — {selectedUnidad.nombre}
+                    </span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground">Seleccionar unidad...</span>
+                  <span className="text-muted-foreground group-hover:text-accent-foreground">
+                    Seleccionar unidad...
+                  </span>
                 )}
               </span>
-              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-accent-foreground" />
             </Button>
           </FormControl>
         </PopoverTrigger>
@@ -421,16 +425,16 @@ function UnidadMedidaSelector({
                           onChange(unidad.idUnidadMedida);
                           setOpen(false);
                         }}
-                        className="flex cursor-pointer items-center justify-between rounded-md px-2 py-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
+                        className="group flex cursor-pointer items-center justify-between rounded-md px-2 py-2 text-sm outline-none focus:bg-accent focus:text-accent-foreground"
                       >
                         <span className="flex items-center gap-3">
                           <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-accent text-xs font-semibold text-accent-foreground">
                             {unidad.abreviatura}
                           </span>
-                          <span className="text-sm text-popover-foreground">{unidad.nombre}</span>
+                          <span className="text-sm">{unidad.nombre}</span>
                         </span>
                         {value === unidad.idUnidadMedida && (
-                          <Check className="h-4 w-4 text-primary" />
+                          <Check className="h-4 w-4 text-primary group-data-[selected=true]:text-accent-foreground" />
                         )}
                       </CommandItem>
                     ))}
@@ -515,6 +519,7 @@ export default function CrearOrdenCompra() {
     control: form.control,
     name: 'partidas',
   });
+  const [partidaResaltadaIndex, setPartidaResaltadaIndex] = useState<number | null>(null);
 
   const isGrupoLefarma = /grupolefarma/i.test(empresaSession?.nombre ?? '');
   const empresasSeleccionables = useMemo(() => {
@@ -1759,7 +1764,7 @@ export default function CrearOrdenCompra() {
 
           {/* Card: Partidas */}
           <Card>
-            <CardHeader className="pb-4">
+            <CardHeader className="sticky top-0 z-10 rounded-t-xl bg-card pb-4">
               <div className="flex flex-col gap-4">
                 <div className="flex flex-row items-center justify-between">
                   <CardTitle className="text-lg font-semibold">Partidas</CardTitle>
@@ -1767,7 +1772,10 @@ export default function CrearOrdenCompra() {
                     type="button"
                     variant="default"
                     size="default"
-                    onClick={() => append({ ...emptyPartida, idTipoImpuesto: defaultTipoImpuestoId })}
+                    onClick={() => {
+                      setPartidaResaltadaIndex(fields.length);
+                      append({ ...emptyPartida, idTipoImpuesto: defaultTipoImpuestoId });
+                    }}
                     className="text-base font-semibold shadow-sm"
                   >
                     <Plus className="mr-2 h-5 w-5" /> Agregar Partida
@@ -1796,7 +1804,17 @@ export default function CrearOrdenCompra() {
                         <div className="bg-primary/40 h-0.5 w-24 rounded-full" />
                       </div>
                     )}
-                    <div className="space-y-4 rounded-lg border bg-card p-4">
+                    <div
+                      className={cn(
+                        'space-y-4 rounded-lg border bg-card p-4',
+                        index === partidaResaltadaIndex && 'partida-nueva'
+                      )}
+                      onAnimationEnd={(event) => {
+                        if (event.target === event.currentTarget) {
+                          setPartidaResaltadaIndex(null);
+                        }
+                      }}
+                    >
                       <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                         <div className="flex items-center gap-2">
                           <span className="bg-primary/10 flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold text-primary">

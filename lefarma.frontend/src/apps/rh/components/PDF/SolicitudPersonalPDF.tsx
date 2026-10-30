@@ -366,7 +366,7 @@ function LegacyFormattedPDF({
             <td style={s.tdValue}>
               {solicitud.empresaNombre?.toUpperCase() ?? `ID ${solicitud.idEmpresa}`}
             </td>
-            <td style={s.thBlue}>Sucursal</td>
+            <td style={s.thBlue}>Ubicación</td>
             <td style={s.tdValue}>
               {solicitud.sucursalNombre?.toUpperCase() ?? `ID ${solicitud.idSucursal}`}
             </td>

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using FluentAssertions;
 using Lefarma.API.Domain.Entities.Auth;
@@ -559,6 +560,233 @@ public class AprobacionesControllerTests
             e.Tipo == "autorizada" && e.PayloadJson!.Contains("\"ruta\":\"nueva\""));
     }
 
+    // ---------------- POST /{id}/autorizar: resumen de la version autorizada ----------------
+
+    [Fact]
+    public async Task Autorizar_ConRutaNueva_GuardaResumenAutorizadoYBandejaLoDevuelve()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7100;
+        // Snapshot previo: la ruta vieja es de transporte solicitado (sus
+        // casetas NO aplican) y el total raiz es un valor historico.
+        var id = ctx.SembrarSolicitud(
+            adminId,
+            "enviada",
+            """
+            {"calculo":{"generado_en":"2026-10-20T09:00:00","modo_transporte":"solicitado",
+              "tramos":[{"de":"Vieja","a":"Ruta","casetas":[{"nombre":"Vieja","costo":111}]}]},
+             "comida":350,"autobus":999,"total":55555}
+            """);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                generado_en = "2026-10-22T10:00:00",
+                modo_transporte = "propio",
+                tramos = new[]
+                {
+                    new
+                    {
+                        de = "CDMX",
+                        a = "Puebla",
+                        casetas = new[]
+                        {
+                            new { nombre = "Caseta A", costo = 120.50m },
+                            new { nombre = "Caseta B", costo = 79.50m },
+                        },
+                    },
+                    new
+                    {
+                        de = "Puebla",
+                        a = "Veracruz",
+                        casetas = new[] { new { nombre = "Caseta C", costo = 100m } },
+                    },
+                },
+            },
+            opciones = new object[]
+            {
+                new { tipo = "vuelo", linea = "Vuelo elegido", precio = 5000m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+                new { tipo = "hotel", linea = "Hotel elegido", precio = 2000m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+                new { tipo = "taxi", linea = "Taxi elegido", precio = 300m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+                new { tipo = "auto", linea = "Renta elegida", precio = 800m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+                // No elegida: no debe sumar en ninguna columna.
+                new { tipo = "autobus", linea = "Bus descartado", precio = 700m, moneda = "MXN", fuente = "proveedor", fue_elegida = false },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var resumen = ctx.LeeResumenAutorizado(id);
+        resumen.ValueKind.Should().Be(JsonValueKind.Object);
+        resumen.GetProperty("autobus").ValueKind.Should().Be(JsonValueKind.Null);
+        resumen.GetProperty("avion").GetDecimal().Should().Be(5000m);
+        resumen.GetProperty("gasolina").GetDecimal().Should().Be(800m);
+        // Casetas solo aplican en automovil propio: 120.50 + 79.50 + 100.
+        resumen.GetProperty("casetas").GetDecimal().Should().Be(300m);
+        resumen.GetProperty("hospedaje").GetDecimal().Should().Be(2000m);
+        // comida no viene de opciones ni del calculo: se conserva la previa.
+        resumen.GetProperty("comida").GetDecimal().Should().Be(350m);
+        resumen.GetProperty("taxi").GetDecimal().Should().Be(300m);
+        resumen.GetProperty("total").GetDecimal().Should().Be(8750m);
+
+        // La bandeja FOR-008 proyecta el resumen, no el total raiz historico.
+        var bandejaResp = await cliente.GetAsync("/api/viaticos/solicitudes");
+        bandejaResp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var envelope = await bandejaResp.Content.ReadFromJsonAsync<ApiEnvelope<List<BandejaItemJson>>>();
+        var fila = envelope!.Data!.Single(x => x.IdSolicitud == id);
+        // El resumen autorizado manda incluso en null: el 999 historico no se
+        // cuela en una version donde no se eligio autobus.
+        fila.Autobus.Should().BeNull();
+        fila.Avion.Should().Be(5000m);
+        fila.Gasolina.Should().Be(800m);
+        fila.Casetas.Should().Be(300m);
+        fila.Hospedaje.Should().Be(2000m);
+        fila.Comida.Should().Be(350m);
+        fila.Taxi.Should().Be(300m);
+        fila.Total.Should().Be(8750m);
+    }
+
+    [Fact]
+    public async Task Autorizar_TransporteSolicitado_DejaCasetasNullYNoInventaCero()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7150;
+        var id = ctx.SembrarSolicitud(adminId, "enviada", """{"total":1000}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                generado_en = "2026-10-22T10:00:00",
+                modo_transporte = "solicitado",
+                tramos = new[] { new { de = "CDMX", a = "Puebla", casetas = new[] { new { nombre = "Caseta A", costo = 120m } } } },
+            },
+            opciones = new object[]
+            {
+                new { tipo = "vuelo", linea = "Vuelo", precio = 2500m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+        var resumen = ctx.LeeResumenAutorizado(id);
+        // En transporte solicitado las casetas ya van dentro del boleto.
+        resumen.GetProperty("casetas").ValueKind.Should().Be(JsonValueKind.Null);
+        resumen.GetProperty("total").GetDecimal().Should().Be(2500m);
+    }
+
+    [Fact]
+    public async Task Autorizar_ConservaOpcionesOriginalesYNoPierdeLaRutaCalculada()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7200;
+        var id = ctx.SembrarSolicitud(
+            adminId,
+            "enviada",
+            """{"calculo":{"modo_transporte":"solicitado","tramos":[{"de":"Ruta","a":"Original"}]},"total":1000}""");
+        ctx.SembrarOpcion(
+            id,
+            "vuelo",
+            "Vuelo original",
+            4500m,
+            fueElegida: true,
+            datosJson: """{"tramo":1,"de":"CDMX","a":"Puebla"}""");
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                modo_transporte = "solicitado",
+                tramos = new[] { new { de = "Ruta", a = "Nueva" } },
+            },
+            opciones = new object[]
+            {
+                // Sin url_compra: la ruta recalculada puede no traer enlace.
+                new { tipo = "vuelo", linea = "Vuelo nuevo", precio = 4800m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var doc = JsonDocument.Parse(ctx.LeeDatosJson(id));
+        var raiz = doc.RootElement;
+
+        // La referencia original queda congelada con todos sus campos.
+        var originales = raiz.GetProperty("opciones_originales");
+        originales.ValueKind.Should().Be(JsonValueKind.Array);
+        originales.GetArrayLength().Should().Be(1);
+        var original = originales[0];
+        original.GetProperty("tipo").GetString().Should().Be("vuelo");
+        original.GetProperty("linea").GetString().Should().Be("Vuelo original");
+        original.GetProperty("precio").GetDecimal().Should().Be(4500m);
+        original.GetProperty("fuente").GetString().Should().Be("proveedor");
+        original.GetProperty("fue_elegida").GetBoolean().Should().BeTrue();
+        original.GetProperty("datos").GetProperty("tramo").GetInt32().Should().Be(1);
+
+        // La ruta calculada original no se pierde; la nueva queda autorizada.
+        raiz.GetProperty("calculo").GetProperty("tramos")[0].GetProperty("a").GetString().Should().Be("Original");
+        raiz.GetProperty("calculo_autorizado").GetProperty("tramos")[0].GetProperty("a").GetString().Should().Be("Nueva");
+
+        // Las opciones vigentes son las de esta autorizacion.
+        var opciones = ctx.LeeOpciones(id);
+        opciones.Should().ContainSingle();
+        opciones[0].Linea.Should().Be("Vuelo nuevo");
+        opciones[0].UrlCompra.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Autorizar_ConOpcionesOriginalesPrevias_NoLasPisa()
+    {
+        using var ctx = new TestContext();
+        const int adminId = 7300;
+        // Un recálculo anterior ya dejo su referencia: es la original y no se
+        // debe reemplazar por una version intermedia.
+        var id = ctx.SembrarSolicitud(
+            adminId,
+            "enviada",
+            """
+            {"calculo":{"modo_transporte":"solicitado","tramos":[{"de":"Origen","a":"Vigente"}]},
+             "opciones_originales":[{"id_opcion":1,"tipo":"vuelo","linea":"Primera referencia","precio":4000}]}
+            """);
+        ctx.SembrarOpcion(id, "vuelo", "Vuelo vigente", 4200m, fueElegida: true);
+
+        using var cliente = ctx.Servidor.CreateClient();
+        cliente.DefaultRequestHeaders.Add("X-Test-UserId", adminId.ToString());
+        cliente.DefaultRequestHeaders.Add("X-Test-Permissions", Permissions.Viaticos.Autorizar);
+
+        var resp = await cliente.PostAsJsonAsync($"/api/viaticos/solicitudes/{id}/autorizar", new
+        {
+            calculo = new
+            {
+                modo_transporte = "solicitado",
+                tramos = new[] { new { de = "Origen", a = "Recalculada" } },
+            },
+            opciones = new object[]
+            {
+                new { tipo = "vuelo", linea = "Vuelo recalculado", precio = 4300m, moneda = "MXN", fuente = "proveedor", fue_elegida = true },
+            },
+        });
+
+        resp.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using var doc = JsonDocument.Parse(ctx.LeeDatosJson(id));
+        var originales = doc.RootElement.GetProperty("opciones_originales");
+        originales.GetArrayLength().Should().Be(1);
+        originales[0].GetProperty("linea").GetString().Should().Be("Primera referencia");
+    }
+
     // ---------------- POST /{id}/ajustes ----------------
 
     [Fact]
@@ -820,6 +1048,46 @@ public class AprobacionesControllerTests
                 .Where(x => x.IdSolicitud == idSolicitud)
                 .OrderBy(x => x.IdOpcion)
                 .ToList();
+        }
+
+        public void SembrarOpcion(
+            int idSolicitud,
+            string tipo,
+            string linea,
+            decimal? precio,
+            bool fueElegida,
+            string? datosJson = null,
+            string? urlCompra = null,
+            string fuente = "proveedor")
+        {
+            using var scope = Servidor.Host.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.SolicitudOpciones.Add(new SolicitudOpcion
+            {
+                IdSolicitud = idSolicitud,
+                Tipo = tipo,
+                Linea = linea,
+                DatosJson = datosJson,
+                Precio = precio,
+                Moneda = "MXN",
+                UrlCompra = urlCompra,
+                Fuente = fuente,
+                FueElegida = fueElegida,
+            });
+            db.SaveChanges();
+        }
+
+        /// <summary>
+        /// Lee <c>datos.resumen_autorizado</c> como elemento JSON. Falla el test
+        /// con un mensaje claro si la propiedad no existe: es el contrato que
+        /// consume el concentrado FOR-008.
+        /// </summary>
+        public JsonElement LeeResumenAutorizado(int idSolicitud)
+        {
+            using var doc = JsonDocument.Parse(LeeDatosJson(idSolicitud));
+            doc.RootElement.TryGetProperty("resumen_autorizado", out var resumen)
+                .Should().BeTrue("la autorizacion debe sellar datos.resumen_autorizado");
+            return resumen.Clone();
         }
 
         public List<SolicitudAjuste> LeeAjustes(int idSolicitud)

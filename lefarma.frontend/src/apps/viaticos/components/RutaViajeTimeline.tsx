@@ -7,7 +7,17 @@ export interface NodoRutaTimeline {
   detalles: ReactNode[];
   /** Etiquetas cortas del tramo (km, tiempo, horarios) que van bajo el título. */
   chips?: string[];
+  /** Importe de la opción que llega a esta parada. */
+  costo?: number | null;
+  /** Enlace real de compra; sin URL no se pinta ningún enlace. */
+  urlCompra?: string | null;
   testId?: string;
+}
+
+const formatoMxn = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+
+function urlCompraVisible(url: string | null | undefined): string | null {
+  return typeof url === 'string' && url.trim() !== '' ? url.trim() : null;
 }
 
 /**
@@ -147,35 +157,52 @@ export function RutaViajeTimeline({ nodos }: { nodos: NodoRutaTimeline[] }) {
             style={{ boxShadow: '0 0 8px var(--primary)' }}
           />
         </span>
-        {nodos.map((nodo, i) => (
-          <li key={nodo.id} className="relative pl-6">
-            <span
-              ref={(el) => { puntosRef.current[i] = el; }}
-              aria-hidden
-              className="absolute left-0 top-1 flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-background"
-            >
-              <span className="ruta-punto-relleno absolute inset-0 rounded-full bg-primary" />
-            </span>
-            <p className="font-medium">{nodo.titulo}</p>
-            {nodo.chips && nodo.chips.length > 0 ? (
-              <div className="mt-1 flex flex-wrap gap-1">
-                {nodo.chips.map((chip) => (
-                  <span
-                    key={chip}
-                    className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
-                  >
-                    {chip}
-                  </span>
-                ))}
-              </div>
-            ) : null}
-            {nodo.detalles.map((linea, idx) => (
-              <p key={idx} data-testid={idx === 0 ? nodo.testId : undefined} className="text-xs text-muted-foreground">
-                {typeof linea === 'string' ? <LineaConCoordenadas texto={linea} /> : linea}
-              </p>
-            ))}
-          </li>
-        ))}
+        {nodos.map((nodo, i) => {
+          const urlCompra = urlCompraVisible(nodo.urlCompra);
+          return (
+            <li key={nodo.id} className="relative pl-6">
+              <span
+                ref={(el) => { puntosRef.current[i] = el; }}
+                aria-hidden
+                className="absolute left-0 top-1 flex h-3.5 w-3.5 items-center justify-center overflow-hidden rounded-full border-2 border-primary bg-background"
+              >
+                <span className="ruta-punto-relleno absolute inset-0 rounded-full bg-primary" />
+              </span>
+              <p className="font-medium">{nodo.titulo}</p>
+              {nodo.chips && nodo.chips.length > 0 ? (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {nodo.chips.map((chip) => (
+                    <span
+                      key={chip}
+                      className="rounded-full border bg-muted/40 px-2 py-0.5 text-[11px] font-medium text-muted-foreground"
+                    >
+                      {chip}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {nodo.detalles.map((linea, idx) => (
+                <p key={idx} data-testid={idx === 0 ? nodo.testId : undefined} className="text-xs text-muted-foreground">
+                  {typeof linea === 'string' ? <LineaConCoordenadas texto={linea} /> : linea}
+                </p>
+              ))}
+              {typeof nodo.costo === 'number' && Number.isFinite(nodo.costo) ? (
+                <p className="mt-1 text-sm font-semibold tabular-nums">{formatoMxn.format(nodo.costo)}</p>
+              ) : null}
+              {urlCompra ? (
+                <a
+                  href={urlCompra}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={`Ir a compra: ${nodo.titulo}`}
+                  className="mt-1 inline-flex text-xs font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+                >
+                  Ir a compra
+                </a>
+              ) : null}
+            </li>
+          );
+        })}
       </ol>
     </>
   );

@@ -1,0 +1,18 @@
+{
+  "name": "viaticos-capturas",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Servicio de capturas de pantalla y cotizaciones para el modulo de viaticos (Traefik + Playwright + OpenCode opcional)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "playwright": "^1.64.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

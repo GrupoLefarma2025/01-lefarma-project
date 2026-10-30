@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Info } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import type { CostosRutaOferta, CostosRutaTerminal } from '../types/costosRuta.t
 import { horaAmPm } from '../services/calculoViaje';
 import { CeldaCaptura } from './celdasCotizacion';
 import { LineaConCoordenadas } from './LineaConCoordenadas';
-import { capturarUrls } from '../services/capturas.api';
+import { buscarCaptura } from '../services/capturas.api';
 
 export interface TablaOpcionesProps {
   /** Etiqueta del tramo, para el encabezado de la tabla. */
@@ -178,91 +179,67 @@ function TerminalLinea({ terminal }: { terminal?: CostosRutaTerminal | null }) {
 
 /** Capturas ya tomadas en esta sesión del navegador, por URL. */
 const capturasPorUrl = new Map<string, string>();
-/** URLs con captura en curso, para no pedirla dos veces. */
-const capturasEnCurso = new Set<string>();
-
-/** Solo los enlaces de resultados de ClickBus prueban el precio. */
-function esCapturable(url: string | undefined): boolean {
-  return typeof url === 'string' && url.includes('/trips?departure_place=');
-}
-
-/** Nombre estable y válido ([a-zA-Z0-9_-]) derivado de la URL. */
-function nombreCaptura(url: string): string {
-  let hash = 7;
-  for (const c of url) hash = (hash * 31 + c.charCodeAt(0)) | 0;
-  return `bus-${Math.abs(hash).toString(36)}`;
-}
 
 /**
- * Toma en segundo plano la captura de las mejores ofertas de autobús, sin
- * bloquear la tabla.
- *
- * La dependencia del efecto es la lista de URLs (string), no el arreglo de
- * ofertas: si dependiera del arreglo, cada re-render reiniciaría el efecto y
- * la limpieza descartaría el resultado de la captura en curso (el PNG se
- * generaba pero nunca llegaba a la tabla).
+ * Cualquier enlace externo http(s) se puede capturar: con el modo agente del
+ * backend, OpenCode navega el sitio real (aunque el deep link no traiga los
+ * resultados); en modo script el worker de Playwright tambien lo intenta.
  */
-function useCapturasAutomaticas(ofertas: CostosRutaOferta[]): Record<string, string> {
-  const [rutas, setRutas] = useState<Record<string, string>>({});
-  // Referencia estable: el efecto no debe reiniciarse cuando el padre
-  // reconstruye el arreglo de ofertas en cada render.
-  const ofertasRef = useRef(ofertas);
-  ofertasRef.current = ofertas;
-
-  const clave = [
-    ...new Set(
-      ofertas
-        .filter((o) => o.modo === 'bus' && esCapturable(o.comprar?.url))
-        .map((o) => o.comprar?.url as string),
-    ),
-  ]
-    .slice(0, 2)
-    .join('|');
-
-  useEffect(() => {
-    const urls = clave.split('|').filter((u) => u.length > 0);
-    if (urls.length === 0) return;
-
-    // Hidrata lo ya capturado en esta sesión del navegador.
-    const conocidas: Record<string, string> = {};
-    for (const url of urls) {
-      const ruta = capturasPorUrl.get(url);
-      if (ruta) conocidas[url] = ruta;
-    }
-    if (Object.keys(conocidas).length > 0) setRutas((prev) => ({ ...prev, ...conocidas }));
-
-    const pendientes = urls.filter((u) => !capturasPorUrl.has(u) && !capturasEnCurso.has(u));
-    if (pendientes.length === 0) return;
-    for (const url of pendientes) capturasEnCurso.add(url);
-
-    void (async () => {
-      for (const url of pendientes) {
-        try {
-          const [resultado] = await capturarUrls([{ url, nombre: nombreCaptura(url) }]);
-          if (resultado?.ok && resultado.archivo) {
-            const archivo = resultado.archivo;
-            capturasPorUrl.set(url, archivo);
-            // El padre arma `solicitud_opciones` con estos mismos objetos: al
-            // dejarlo en la oferta, la captura viaja al enviar.
-            for (const oferta of ofertasRef.current) {
-              if (oferta.comprar?.url === url) oferta.rutaCaptura = archivo;
-            }
-            setRutas((prev) => ({ ...prev, [url]: archivo }));
-          }
-        } catch {
-          // Sin captura: la fila se queda en "Sin captura" y el flujo sigue.
-        } finally {
-          capturasEnCurso.delete(url);
-        }
-      }
-    })();
-  }, [clave]);
-
-  return rutas;
+function esCapturable(url: string | undefined): boolean {
+  return typeof url === 'string' && /^https?:\/\//i.test(url);
 }
 
 export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: TablaOpcionesProps) {
-  const capturas = useCapturasAutomaticas(ofertas);
+  // Sin capturas automaticas: la busqueda real se pide fila por fila con Volver a buscar.
+  const capturas = Object.fromEntries(capturasPorUrl) as Record<string, string>;
+  // Capturas pedidas con "Volver a buscar" en esta sesion, por id de oferta.
+  // Se separan de `capturas` (indexado por URL) porque dos filas pueden
+  // compartir enlace y cada una tiene su propia busqueda.
+  const [rebuscadas, setRebuscadas] = useState<Record<string, string>>({});
+  const [rebuscando, setRebuscando] = useState<Record<string, boolean>>({});
+
+  async function rebuscarDe(oferta: CostosRutaOferta) {
+    const url = oferta.comprar?.url;
+    if (!url) return;
+
+    const contexto = [
+      `Ruta: ${oferta.de} → ${oferta.a}`,
+      oferta.comprar?.fecha ? `Fecha: ${oferta.comprar.fecha}` : '',
+    ]
+      .filter(Boolean)
+      .join('; ');
+
+    setRebuscando((previo) => ({ ...previo, [oferta.id]: true }));
+    try {
+      const resultado = await buscarCaptura(url, contexto);
+      if (!resultado.archivo) {
+        throw new Error(resultado.error ?? 'El agente no devolvio ninguna captura.');
+      }
+      capturasPorUrl.set(url, resultado.archivo);
+      // La oferta es un objeto de trabajo del wizard (no una prop de React):
+      // dejar la ruta in situ hace que viaje al enviar la solicitud.
+      oferta.rutaCaptura = resultado.archivo;
+      setRebuscadas((previo) => ({ ...previo, [oferta.id]: resultado.archivo as string }));
+      if (resultado.error) {
+        toast.warning(resultado.error);
+      } else {
+        toast.success('Captura actualizada con la búsqueda real del viaje.');
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'No se pudo volver a buscar la oferta en el sitio.',
+      );
+    } finally {
+      setRebuscando((previo) => {
+        const copia = { ...previo };
+        delete copia[oferta.id];
+        return copia;
+      });
+    }
+  }
+
   return (
     <div className="space-y-2">
       <div className="font-medium">{titulo}</div>
@@ -303,8 +280,7 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
             const elegida = opcionElegidaId === o.id;
             const etiqueta = `${o.linea} ${o.salidaTxt} → ${o.llegadaTxt}`;
             const urlCompra = o.comprar?.url;
-            const rutaCaptura = capturas[urlCompra ?? ''] ?? o.capturas?.[0] ?? o.rutaCaptura;
-            const capturando = !rutaCaptura && esCapturable(urlCompra);
+            const rutaCaptura = rebuscadas[o.id] ?? capturas[urlCompra ?? ''] ?? o.capturas?.[0] ?? o.rutaCaptura;
             return (
               <TableRow key={o.id} data-state={elegida ? 'selected' : undefined}>
                 <TableCell>
@@ -388,11 +364,12 @@ export function TablaOpciones({ titulo, ofertas, opcionElegidaId, onElegir }: Ta
                   <Badge variant="outline" className="whitespace-nowrap tabular-nums">{o.precioTxt}</Badge>
                 </TableCell>
                 <TableCell>
-                  {capturando ? (
-                    <span className="text-xs text-muted-foreground">Capturando…</span>
-                  ) : (
-                    <CeldaCaptura ruta={rutaCaptura} etiqueta={etiqueta} />
-                  )}
+                  <CeldaCaptura
+                    ruta={rutaCaptura}
+                    etiqueta={etiqueta}
+                    onRebuscar={esCapturable(urlCompra) ? () => rebuscarDe(o) : undefined}
+                    rebuscando={Boolean(rebuscando[o.id])}
+                  />
                 </TableCell>
                 <TableCell>
                   {o.comprar?.url ? (

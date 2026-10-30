@@ -236,6 +236,86 @@ public class EmpleadoRepository : IEmpleadoRepository
             .FirstOrDefaultAsync(cancellationToken);
     }
 
+    public async Task<Dictionary<int, VwEmpleado>> ObtenerEmpleadosPorUsuariosAsync(
+        IEnumerable<int> idsUsuarios,
+        CancellationToken cancellationToken = default)
+    {
+        var ids = idsUsuarios.Distinct().ToList();
+        var resultado = new Dictionary<int, VwEmpleado>();
+        if (ids.Count == 0)
+            return resultado;
+
+        // 1) Resolución directa por numero_empleado (Lefarma)
+        var detalles = await _appContext.UsuariosDetalle
+            .AsNoTracking()
+            .Where(d => ids.Contains(d.IdUsuario) && d.Activo)
+            .Select(d => new { d.IdUsuario, d.NumeroEmpleado })
+            .ToListAsync(cancellationToken);
+
+        var nominaPorUsuario = new Dictionary<int, long>();
+        foreach (var detalle in detalles)
+        {
+            if (TryParseNomina(detalle.NumeroEmpleado, out var nomina))
+                nominaPorUsuario[detalle.IdUsuario] = nomina;
+        }
+
+        var nominas = nominaPorUsuario.Values.Distinct().ToList();
+        if (nominas.Count > 0)
+        {
+            var empleados = await _asistenciasContext.VwEmpleados
+                .AsNoTracking()
+                .Where(e => e.Nomina.HasValue && nominas.Contains(e.Nomina.Value))
+                .ToListAsync(cancellationToken);
+
+            var porNomina = empleados
+                .GroupBy(e => e.Nomina!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            foreach (var (idUsuario, nomina) in nominaPorUsuario)
+            {
+                if (porNomina.TryGetValue(nomina, out var empleado))
+                    resultado[idUsuario] = empleado;
+            }
+        }
+
+        // 2) Fallback por correo (Asokam) para los que no resolvieron por nómina
+        var pendientes = ids.Where(id => !resultado.ContainsKey(id)).ToList();
+        if (pendientes.Count == 0)
+            return resultado;
+
+        var correosPorUsuario = await _asokamContext.Usuarios
+            .AsNoTracking()
+            .Where(u => pendientes.Contains(u.IdUsuario) && u.Correo != null && u.Correo != "")
+            .Select(u => new { u.IdUsuario, u.Correo })
+            .ToListAsync(cancellationToken);
+
+        var correos = correosPorUsuario
+            .Select(c => c.Correo!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (correos.Count > 0)
+        {
+            var empleados = await _asistenciasContext.VwEmpleados
+                .AsNoTracking()
+                .Where(e => e.Correo != null && correos.Contains(e.Correo))
+                .ToListAsync(cancellationToken);
+
+            var porCorreo = empleados
+                .Where(e => !string.IsNullOrWhiteSpace(e.Correo))
+                .GroupBy(e => e.Correo!.Trim(), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var correo in correosPorUsuario)
+            {
+                if (porCorreo.TryGetValue(correo.Correo!.Trim(), out var empleado))
+                    resultado[correo.IdUsuario] = empleado;
+            }
+        }
+
+        return resultado;
+    }
+
     private async Task<Dictionary<long, int>> ResolverPorNumeroEmpleadoAsync(
         List<long> nominas,
         CancellationToken cancellationToken)

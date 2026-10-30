@@ -519,8 +519,8 @@ export function DataTable<TData>({
                   ))}
                 </div>
               )}
-              <Table>
-                <TableHeader>
+              <Table containerClassName="overflow-visible">
+                <TableHeader className="sticky top-0 z-10 bg-muted">
                   {table.getHeaderGroups().map((headerGroup) => (
                     <TableRow key={headerGroup.id} className="bg-muted/60 hover:bg-muted/60">
                       {headerGroup.headers.map((header) => (

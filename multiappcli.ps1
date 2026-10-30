@@ -101,24 +101,38 @@ function Start-DevProcess {
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true
     $psi.CreateNoWindow = $true
+    $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
+    $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
 
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
     $proc.EnableRaisingEvents = $true
 
-    $null = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -SourceIdentifier "$Name-stdout" -MessageData @{ Name = $Name; Color = $Color } -Action {
+    # dotnet watch y Vite escriben avisos informativos por stderr; solo se resalta en rojo
+    # lo que de verdad es un error (MSBuild y Vite reportan errores reales por stdout).
+    $errorPattern = '(\berror\b|\berr!|\bfailed\b|\bfatal\b|\bexception\b|\bunhandled\b)'
+
+    $null = Register-ObjectEvent -InputObject $proc -EventName OutputDataReceived -SourceIdentifier "$Name-stdout" -MessageData @{ Name = $Name; Color = $Color; ErrorPattern = $errorPattern } -Action {
         $m = $Event.MessageData
         $d = $Event.SourceEventArgs.Data
         if ($null -ne $d) {
-            Write-Host "[$($m.Name)] $d" -ForegroundColor $m.Color
+            if ($d -match $m.ErrorPattern) {
+                Write-Host "[$($m.Name) ERR] $d" -ForegroundColor Red
+            } else {
+                Write-Host "[$($m.Name)] $d" -ForegroundColor $m.Color
+            }
         }
     }
 
-    $null = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -SourceIdentifier "$Name-stderr" -MessageData @{ Name = $Name; Color = 'Red' } -Action {
+    $null = Register-ObjectEvent -InputObject $proc -EventName ErrorDataReceived -SourceIdentifier "$Name-stderr" -MessageData @{ Name = $Name; Color = 'DarkYellow'; ErrorPattern = $errorPattern } -Action {
         $m = $Event.MessageData
         $d = $Event.SourceEventArgs.Data
         if ($null -ne $d) {
-            Write-Host "[$($m.Name) ERR] $d" -ForegroundColor $m.Color
+            if ($d -match $m.ErrorPattern) {
+                Write-Host "[$($m.Name) ERR] $d" -ForegroundColor Red
+            } else {
+                Write-Host "[$($m.Name)] $d" -ForegroundColor $m.Color
+            }
         }
     }
 
@@ -153,6 +167,8 @@ function Invoke-DevForeground {
 
     Write-Host "Lefarma dev — backend :5174 | frontend :5173 (misma terminal; Ctrl+C para detener)" -ForegroundColor Cyan
 
+    $env:DOTNET_WATCH_SUPPRESS_EMOJIS = "1"
+    $env:BROWSERSLIST_IGNORE_OLD_DATA = "1"
     $backendProc = Start-DevProcess -Name "backend" -Color Cyan -FileName $dotnet -Arguments @("watch", "run", "--launch-profile", "http") -WorkingDirectory $Backend
     Start-Sleep -Seconds 2
     $frontendProc = Start-DevProcess -Name "frontend" -Color Green -FileName $npm -Arguments @("run", "dev") -WorkingDirectory $Frontend
@@ -197,7 +213,7 @@ function Invoke-DevBackground {
     Write-Host "Lefarma dev (background/oculto) — backend :5174 | frontend :5173" -ForegroundColor Cyan
     Write-Host "Backend PID $($backendProc.Id)  log: $backendLog" -ForegroundColor DarkGray
     Write-Host "Frontend PID $($frontendProc.Id) log: $frontendLog" -ForegroundColor DarkGray
-    Write-Host "Ver logs: Get-Content -Path `"$backendLog`" -Wait   (o `"$frontendLog`")" -ForegroundColor DarkGray
+    Write-Host "Ver logs: Get-Content -Path `"$backendLog`" -Wait -Encoding UTF8   (o `"$frontendLog`")" -ForegroundColor DarkGray
     Write-Host "Detener:  .\multiappcli.ps1 stop" -ForegroundColor Green
 }
 

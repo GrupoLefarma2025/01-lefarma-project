@@ -31,3 +31,63 @@ export async function capturarUrls(
   const datos = (respuesta.data as { data?: CapturaResultado[] } | undefined)?.data;
   return Array.isArray(datos) ? datos : [];
 }
+
+/**
+ * Adjunta un PNG tomado FUERA del backend (captura manual del usuario o del
+ * navegador del agente). El backend lo publica en la carpeta configurada en
+ * `CapturasSettings:OutputPath` y devuelve la misma ruta publica que la captura
+ * automatica (`capturas-viaticos/<nombre>.png`).
+ *
+ * El `Content-Type` no se fija a mano: axios pone el boundary del multipart.
+ */
+export async function adjuntarCaptura(
+  archivo: File,
+  nombre: string,
+): Promise<CapturaResultado | null> {
+  const datos = new FormData();
+  datos.append('Nombre', nombre);
+  datos.append('Archivo', archivo, archivo.name || `${nombre}.png`);
+
+  const respuesta = await API.post('/viaticos/capturas/adjuntar', datos, {
+    timeout: 60_000,
+  });
+  return (respuesta.data as { data?: CapturaResultado } | undefined)?.data ?? null;
+}
+
+/**
+ * Resultado de `POST /api/viaticos/capturas/buscar`: la captura de la pagina de
+ * RESULTADOS del proveedor (no la portada) y los datos del viaje que el agente
+ * logro extraer.
+ */
+export interface CapturaBuscada {
+  archivo: string | null;
+  url_captura: string | null;
+  datos: Record<string, unknown> | null;
+  modelo: string | null;
+  buscado_en: string | null;
+  error: string | null;
+}
+
+/**
+ * Pide al agente (OpenCode + Playwright MCP, via backend) abrir la URL de la
+ * oferta, llenar el buscador del sitio con `contexto` (origen, destino y fecha)
+ * y capturar los RESULTADOS con el costo. Puede tardar minutos: el timeout es
+ * de 15 min.
+ */
+export async function buscarCaptura(
+  url: string,
+  contexto?: string,
+): Promise<CapturaBuscada> {
+  const respuesta = await API.post(
+    '/viaticos/capturas/buscar',
+    { url, contexto: contexto ?? null },
+    { timeout: 900_000 },
+  );
+  const cuerpo = respuesta.data as
+    | { success?: boolean; message?: string; data?: CapturaBuscada }
+    | undefined;
+  if (!cuerpo?.success || !cuerpo.data) {
+    throw new Error(cuerpo?.message ?? 'No se pudo buscar la oferta en el sitio.');
+  }
+  return cuerpo.data;
+}

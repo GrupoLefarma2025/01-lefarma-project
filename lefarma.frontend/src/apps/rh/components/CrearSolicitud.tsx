@@ -5,6 +5,7 @@ import * as z from 'zod';
 import { API } from '@/shared/api/apiClient';
 import { empleadoApi, misLimitesApi } from '@/apps/rh/services/rh.api';
 import { usuariosCatalogoApi, type UsuarioCatalogo } from '@/apps/rh/services/rh.api';
+import { resolverTipoSolicitudIncidencia } from '@/apps/rh/utils/incidencias';
 import { ApiResponse } from '@/types/api.types';
 import type { SaldoVacacionesResponse } from '@/types/vacaciones.types';
 import { usePermission } from '@/hooks/usePermission';
@@ -135,49 +136,6 @@ interface CrearSolicitudProps {
   incidencia?: IncidenciaChecadoResponse | null;
   fechaInicial?: string;
   onDirtyChange?: (dirty: boolean) => void;
-}
-
-function buscarTipoIncidencia(
-  tipos: TipoSolicitudResponse[],
-  incidencia: IncidenciaChecadoResponse
-): TipoSolicitudResponse | null {
-  const incidenciaEntrada = (incidencia.incidenciaEntrada ?? '').toLowerCase();
-  const incidenciaSalida = (incidencia.incidenciaSalida ?? '').toLowerCase();
-  const msgError = (incidencia.msgError ?? '').toLowerCase();
-  const tiposIncidencia = tipos.filter((t) => t.categoria === '1');
-
-  if (incidenciaEntrada && !incidenciaSalida) {
-    return (
-      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('retard')) ?? null
-    );
-  }
-
-  if (incidenciaSalida && !incidenciaEntrada) {
-    return (
-      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('salida temprana')) ?? null
-    );
-  }
-
-  if (msgError || (incidenciaEntrada && incidenciaSalida)) {
-    const tieneEntrada = incidencia.entro != null;
-    const tieneSalida = incidencia.salio != null;
-
-    if (!tieneEntrada && tieneSalida) {
-      return (
-        tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('entrada')) ?? null
-      );
-    }
-    if (tieneEntrada && !tieneSalida) {
-      return (
-        tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('salida')) ?? null
-      );
-    }
-    return (
-      tiposIncidencia.find((t) => t.nombre.toLowerCase().includes('entrada')) ?? null
-    );
-  }
-
-  return null;
 }
 
 function mismasFechas(a: string[], b: string[]) {
@@ -508,16 +466,25 @@ export function CrearSolicitud({ idSolicitud, onClose, onSaved, incidencia, fech
     }
   }, [isEditing, idSolicitud]);
 
+  const preseleccionAplicadaRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!incidencia || isEditing || tiposSolicitud.length === 0) return;
 
-    const tipo = buscarTipoIncidencia(tiposSolicitud, incidencia);
-    if (tipo) {
-      form.setValue('categoria', tipo.categoria, { shouldValidate: true, shouldDirty: false });
-      form.setValue('idTipoSolicitud', tipo.idTipoSolicitud, {
-        shouldValidate: true,
-        shouldDirty: false,
-      });
+    const clavePreseleccion = `${incidencia.nomina ?? ''}-${incidencia.fecha}`;
+    if (preseleccionAplicadaRef.current !== clavePreseleccion) {
+      const preseleccion = resolverTipoSolicitudIncidencia(incidencia, tiposSolicitud);
+      if (preseleccion) {
+        form.setValue('categoria', preseleccion.categoria, {
+          shouldValidate: true,
+          shouldDirty: false,
+        });
+        form.setValue('idTipoSolicitud', preseleccion.idTipoSolicitud, {
+          shouldValidate: true,
+          shouldDirty: false,
+        });
+      }
+      preseleccionAplicadaRef.current = clavePreseleccion;
     }
 
     if (fechaInicial) {

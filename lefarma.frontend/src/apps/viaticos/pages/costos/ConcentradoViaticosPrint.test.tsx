@@ -269,6 +269,133 @@ describe('ConcentradoViaticosPrint FOR-008 sobre datos persistidos', () => {
     );
   });
 
+  /**
+   * Selección mixta del concentrado: dos autorizadas y una enviada. La enviada
+   * no puede llegar al documento oficial, pero sí a la vista previa de la
+   * selección cuando quien monta apaga el filtro.
+   */
+  const seleccionMixta: SolicitudConcentrado[] = [
+    {
+      id_solicitud: 101,
+      nombre_solicitante: 'AUTORIZADA UNO',
+      gerencia: 'IMSS',
+      estado: 'autorizada',
+      fecha: '05/10/2026 AL 09/10/2026',
+      origen: 'CDMX',
+      destino: 'PUEBLA',
+      autobus: 100,
+      avion: null,
+      gasolina: null,
+      casetas: null,
+      hospedaje: 50,
+      comida: 25,
+      taxi: 10,
+      total: 185,
+    },
+    {
+      id_solicitud: 102,
+      nombre_solicitante: 'AUTORIZADA DOS',
+      gerencia: 'IMSS Bienestar',
+      estado: 'autorizada_con_ajustes',
+      fecha: '12/10/2026 AL 15/10/2026',
+      origen: 'CDMX',
+      destino: 'MONTERREY',
+      autobus: null,
+      avion: 200,
+      gasolina: 30,
+      casetas: 40,
+      hospedaje: null,
+      comida: 50,
+      taxi: 20,
+      total: 340,
+    },
+    {
+      id_solicitud: 103,
+      nombre_solicitante: 'ENVIADA TRES',
+      gerencia: 'IMSS',
+      estado: 'enviada',
+      fecha: '20/10/2026 AL 22/10/2026',
+      origen: 'CDMX',
+      destino: 'QUERÉTARO',
+      autobus: null,
+      avion: null,
+      gasolina: null,
+      casetas: null,
+      hospedaje: null,
+      comida: null,
+      taxi: 900,
+      total: 900,
+    },
+  ];
+
+  it('con soloAutorizadas=true imprime solo las autorizadas de la selección y sus totales', () => {
+    const { container } = renderConcentrado(seleccionMixta);
+    const filas = within(tablaDatos(container).querySelector('tbody')! as HTMLElement)
+      .getAllByRole('row');
+    expect(filas).toHaveLength(2);
+    expect(container).toHaveTextContent('AUTORIZADA UNO');
+    expect(container).toHaveTextContent('AUTORIZADA DOS');
+    expect(container).not.toHaveTextContent('ENVIADA TRES');
+
+    // El pie suma exactamente las dos filas impresas, no la selección completa.
+    const totales = within(
+      tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
+    ).getAllByRole('cell');
+    expect(totales[1]).toHaveTextContent('$100.00'); // Autobus
+    expect(totales[2]).toHaveTextContent('$200.00'); // Avion
+    expect(totales[7]).toHaveTextContent('$30.00'); // Taxi: solo de la segunda
+    expect(totales[8]).toHaveTextContent('$525.00'); // 185 + 340, nunca 900
+    expect(totales[8]).not.toHaveTextContent('1,425');
+  });
+
+  it('con soloAutorizadas=false imprime exactamente las filas recibidas, sin inventar importes', () => {
+    const { container } = render(
+      <ConcentradoViaticosPrint
+        solicitudes={seleccionMixta}
+        nombreResponsable="EDUCACION MEDICA"
+        fecha="2026-09-01"
+        soloAutorizadas={false}
+      />,
+    );
+    const cuerpo = tablaDatos(container).querySelector('tbody')! as HTMLElement;
+    const filas = within(cuerpo).getAllByRole('row');
+    expect(filas).toHaveLength(3);
+    expect(within(filas[2]).getAllByRole('cell')[1]).toHaveTextContent('ENVIADA TRES');
+    // Null sigue siendo celda vacía, nunca $0.00.
+    expect(within(filas[2]).getAllByRole('cell')[6]).toHaveTextContent('—');
+    expect(container).not.toHaveTextContent('$0.00');
+
+    const totales = within(
+      tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
+    ).getAllByRole('cell');
+    expect(totales[7]).toHaveTextContent('$930.00'); // Taxi: 10 + 20 + 900
+    expect(totales[8]).toHaveTextContent('$1,425.00'); // 185 + 340 + 900
+  });
+
+  it('la agrupación y los subtotales solo cuentan las filas impresas', () => {
+    const { container } = render(
+      <ConcentradoViaticosPrint
+        solicitudes={seleccionMixta}
+        nombreResponsable="EDUCACION MEDICA"
+        fecha="2026-09-01"
+        grupoPor="gerencia"
+      />,
+    );
+    const cuerpo = tablaDatos(container).querySelector('tbody')! as HTMLElement;
+    // La enviada es de IMSS: el bloque solo declara la autorizada.
+    expect(cuerpo).toHaveTextContent(/Gerencia: IMSS · 1 solicitud/i);
+    expect(cuerpo).toHaveTextContent(/Gerencia: IMSS Bienestar · 1 solicitud/i);
+    const subtotales = cuerpo.querySelectorAll('.concentrado-subtotal-grupo');
+    expect(subtotales).toHaveLength(2);
+    expect(subtotales[0]).toHaveTextContent('$185.00');
+    expect(subtotales[1]).toHaveTextContent('$340.00');
+
+    const totales = within(
+      tablaDatos(container).querySelector('tfoot tr')! as HTMLElement,
+    ).getAllByRole('cell');
+    expect(totales[8]).toHaveTextContent('$525.00');
+  });
+
   it('agrupa por gerencia con banda y subtotal por bloque', () => {
     const { container } = render(
       <ConcentradoViaticosPrint

@@ -32,6 +32,13 @@ public interface IEmpleadoRepository
         int idUsuario,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Empleados de Asistencias para varios usuarios (una consulta por nómina y una por correo).
+    /// </summary>
+    Task<Dictionary<int, VwEmpleado>> ObtenerEmpleadosPorUsuariosAsync(
+        IEnumerable<int> idsUsuarios,
+        CancellationToken cancellationToken = default);
+
     Task<string?> ObtenerNombreEmpleadoAsync(
     long? nomina = null,
     int? idUsuario = null,

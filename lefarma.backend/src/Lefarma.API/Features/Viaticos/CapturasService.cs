@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
@@ -36,6 +37,35 @@ public class CapturasSettings
     /// defecto 120s; las pruebas lo acortan.
     /// </summary>
     public int HardTimeoutSeconds { get; set; } = 120;
+
+    /// <summary>
+    /// Carpeta fisica donde se publican los PNG (capturas del script y capturas
+    /// adjuntadas desde fuera). Vacia = <c>wwwroot/media/capturas-viaticos</c>.
+    /// Si es relativa se resuelve contra el ContentRoot de la API; si es
+    /// absoluta se usa tal cual (por ejemplo una unidad de red).
+    /// </summary>
+    public string OutputPath { get; set; } = "";
+
+    /// <summary>
+    /// Motor de captura: <c>script</c> (Playwright directo con
+    /// captura-viaticos.mjs, comportamiento historico) o <c>agente</c> (el
+    /// servicio externo <c>viaticos-capturas</c> corre OpenCode + Playwright MCP
+    /// dentro de su contenedor y devuelve el PNG; sirve para sitios con busqueda
+    /// dinamica donde el deep link no alcanza).
+    /// </summary>
+    public string Modo { get; set; } = "script";
+
+    /// <summary>
+    /// URL base del servicio <c>viaticos-capturas</c> cuando <see cref="Modo"/>
+    /// es <c>agente</c> (por ejemplo <c>https://capturas.app.grupolefarma.com.mx</c>).
+    /// </summary>
+    public string ServicioAgenteUrl { get; set; } = "";
+
+    /// <summary>API key (<c>x-api-key</c>) del servicio externo en modo agente.</summary>
+    public string ServicioAgenteApiKey { get; set; } = "";
+
+    /// <summary>Timeout del servicio externo en modo agente (segundos).</summary>
+    public int AgenteTimeoutSeconds { get; set; } = 300;
 }
 
 /// <summary>
@@ -96,22 +126,26 @@ public class CapturasService
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<CapturasService> _logger;
     private readonly ICapturasScriptRunner _runner;
+    private readonly IHttpClientFactory? _httpClientFactory;
 
     private readonly string _scriptPath;
     private readonly string _publicRoot;
     private readonly string _targetCapturasDir;
-    private readonly string _publicRelativeTarget = "capturas-viaticos";
+    /// <summary>Carpeta publica (relativa a la raiz de capturas) que viaja en los DTO.</summary>
+    public const string CarpetaPublica = "capturas-viaticos";
 
     public CapturasService(
         IOptions<CapturasSettings> settings,
         IWebHostEnvironment env,
         ILogger<CapturasService> logger,
-        ICapturasScriptRunner runner)
+        ICapturasScriptRunner runner,
+        IHttpClientFactory? httpClientFactory = null)
     {
         _settings = settings.Value;
         _env = env;
         _logger = logger;
         _runner = runner;
+        _httpClientFactory = httpClientFactory;
 
         string frontendRoot;
         if (!string.IsNullOrWhiteSpace(_settings.ScriptPath))
@@ -133,9 +167,33 @@ public class CapturasService
         // "capturas/viaticos" duplicaria el segmento y el PNG no se
         // encontraria en disco.
         _publicRoot = Path.Combine(frontendRoot, "public");
-        _targetCapturasDir = Path.Combine(env.WebRootPath, "media", _publicRelativeTarget);
+        _targetCapturasDir = ResolverDirectorioCapturas(env, _settings);
         Directory.CreateDirectory(_targetCapturasDir);
     }
+
+    /// <summary>
+    /// Carpeta fisica de los PNG. Manda <see cref="CapturasSettings.OutputPath"/>
+    /// cuando esta poblado; si no, el default historico
+    /// <c>wwwroot/media/capturas-viaticos</c>. La ruta publica que viaja en los
+    /// DTO sigue siendo <see cref="CarpetaPublica"/>, sin importar la carpeta
+    /// fisica, para que el GET autenticado siga resolviendo igual.
+    /// </summary>
+    public static string ResolverDirectorioCapturas(IWebHostEnvironment env, CapturasSettings settings)
+    {
+        var configurada = settings.OutputPath?.Trim();
+        if (!string.IsNullOrEmpty(configurada))
+        {
+            var ruta = Path.IsPathRooted(configurada)
+                ? configurada
+                : Path.Combine(env.ContentRootPath, configurada);
+            return Path.GetFullPath(ruta);
+        }
+
+        return Path.GetFullPath(Path.Combine(env.WebRootPath, "media", CarpetaPublica));
+    }
+
+    /// <summary>Carpeta fisica donde viven los PNG (para el controller).</summary>
+    public string DirectorioCapturas => _targetCapturasDir;
 
     /// <summary>Solo valida (cantidad, esquema, dominios prohibidos, destinos internos, whitelist). Sin I/O.</summary>
     public CapturaServiceResult Validate(IReadOnlyList<CapturaItem> items)
@@ -224,6 +282,24 @@ public class CapturasService
             return new CapturaServiceResult { Outcome = CapturaOutcome.Ok, Results = new() };
         }
 
+        // Modo agente: el servicio externo (viaticos-capturas) corre OpenCode +
+        // Playwright MCP dentro de su contenedor y devuelve el PNG ya renderizado.
+        // Si una URL falla con el agente, se reintenta con el script local.
+        if (string.Equals(_settings.Modo, "agente", StringComparison.OrdinalIgnoreCase))
+        {
+            return await CapturarConAgenteConFallbackAsync(items, ct);
+        }
+
+        return await CapturarConScriptAsync(items, ct);
+    }
+
+    /// <summary>
+    /// Captura con el script local de Playwright (captura-viaticos.mjs). Se usa
+    /// en <c>Modo=script</c> y como fallback cuando el agente no logra una URL.
+    /// </summary>
+    private async Task<CapturaServiceResult> CapturarConScriptAsync(
+        IReadOnlyList<CapturaItem> items, CancellationToken ct)
+    {
         if (!File.Exists(_scriptPath))
         {
             _logger.LogWarning("captura-viaticos.mjs no encontrado en {Path}", _scriptPath);
@@ -334,7 +410,7 @@ public class CapturasService
             try
             {
                 File.Copy(src, dst, overwrite: true);
-                r.Archivo = $"{_publicRelativeTarget}/{name}";
+                r.Archivo = $"{CarpetaPublica}/{name}";
             }
             catch (Exception ex)
             {
@@ -347,6 +423,361 @@ public class CapturasService
 
         return new CapturaServiceResult { Outcome = CapturaOutcome.Ok, Results = parsed };
     }
+
+    /// <summary>
+    /// Modo agente con fallback: primero intenta el agente y, si alguna URL
+    /// quedo sin captura, la reintenta con el script local de Playwright.
+    /// </summary>
+    private async Task<CapturaServiceResult> CapturarConAgenteConFallbackAsync(
+        IReadOnlyList<CapturaItem> items, CancellationToken ct)
+    {
+        var agente = await CapturarConAgenteAsync(items, ct);
+
+        var pendientes = items
+            .Where(item =>
+            {
+                var resultado = agente.Results.FirstOrDefault(r =>
+                    string.Equals(r.Url, item.Url, StringComparison.OrdinalIgnoreCase));
+                return resultado is null || !resultado.Ok;
+            })
+            .ToList();
+
+        if (pendientes.Count == 0 || !File.Exists(_scriptPath))
+        {
+            return agente;
+        }
+
+        _logger.LogInformation(
+            "Fallback script para {Cantidad} captura(s) que el agente no pudo tomar",
+            pendientes.Count);
+
+        var script = await CapturarConScriptAsync(pendientes, ct);
+        var porUrl = script.Results
+            .Where(r => !string.IsNullOrWhiteSpace(r.Url))
+            .GroupBy(r => r.Url!, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var resultado in agente.Results)
+        {
+            if (resultado.Ok || string.IsNullOrWhiteSpace(resultado.Url)) continue;
+            if (!porUrl.TryGetValue(resultado.Url, out var respaldo) ||
+                !respaldo.Ok ||
+                string.IsNullOrWhiteSpace(respaldo.Archivo))
+            {
+                continue;
+            }
+
+            resultado.Ok = true;
+            resultado.Archivo = respaldo.Archivo;
+            resultado.Error = null;
+        }
+
+        return agente;
+    }
+
+    /// <summary>
+    /// Busca la informacion del viaje (transportista, horarios, precio) y toma
+    /// la captura en una sola corrida del agente. Si el agente no esta
+    /// disponible o falla, se conserva la captura por script y los datos van en
+    /// <c>null</c>: el endpoint siempre responde, nunca 500 por el agente.
+    /// </summary>
+    public Task<BusquedaCapturaResult> BuscarAsync(CapturaItem item, CancellationToken ct)
+        => BuscarAsync(item, null, ct);
+
+    /// <summary>
+    /// Igual que <see cref="BuscarAsync(CapturaItem, CancellationToken)"/> pero
+    /// con el contexto de la ruta (origen, destino y fecha) para que el agente
+    /// llene el buscador del sitio y capture los RESULTADOS, no la portada.
+    /// </summary>
+    public async Task<BusquedaCapturaResult> BuscarAsync(
+        CapturaItem item, string? contexto, CancellationToken ct)
+    {
+        var validacion = Validate(new[] { item });
+        if (validacion.Outcome != CapturaOutcome.Ok)
+        {
+            return new BusquedaCapturaResult
+            {
+                Captura = new CapturaResultDto
+                {
+                    Url = item.Url,
+                    Ok = false,
+                    Error = validacion.Message,
+                },
+            };
+        }
+
+        var modoAgente = string.Equals(_settings.Modo, "agente", StringComparison.OrdinalIgnoreCase);
+        string? advertencia = null;
+        if (modoAgente &&
+            _httpClientFactory is not null &&
+            !string.IsNullOrWhiteSpace(_settings.ServicioAgenteUrl))
+        {
+            try
+            {
+                return await BuscarConAgenteAsync(item, contexto, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "busqueda agentica fallo para {Url}; se conserva solo la captura", item.Url);
+                advertencia =
+                    "El agente no pudo completar la busqueda; la captura puede ser de la portada. " +
+                    TextoCorto(ex.Message);
+            }
+        }
+
+        var captura = await CapturarAsync(new[] { item }, ct);
+        var resultado = captura.Results.FirstOrDefault() ?? new CapturaResultDto
+        {
+            Url = item.Url,
+            Ok = false,
+            Error = captura.Message,
+        };
+
+        return new BusquedaCapturaResult
+        {
+            Captura = resultado,
+            Datos = null,
+            Advertencia = advertencia,
+        };
+    }
+
+    private static string TextoCorto(string texto, int maximo = 300)
+        => texto.Length <= maximo ? texto : texto[..maximo];
+
+    /// <summary>
+    /// Llama a POST /v1/agentico/buscar del servicio externo, descarga el PNG y
+    /// devuelve tambien los datos estructurados del viaje y el modelo usado.
+    /// </summary>
+    private async Task<BusquedaCapturaResult> BuscarConAgenteAsync(
+        CapturaItem item, string? contexto, CancellationToken ct)
+    {
+        var baseUrl = _settings.ServicioAgenteUrl.TrimEnd('/');
+        var cliente = _httpClientFactory!.CreateClient("capturas-agente");
+        cliente.Timeout = TimeSpan.FromSeconds(Math.Max(60, _settings.AgenteTimeoutSeconds));
+
+        using var peticion = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/agentico/buscar");
+        if (!string.IsNullOrWhiteSpace(_settings.ServicioAgenteApiKey))
+        {
+            peticion.Headers.TryAddWithoutValidation("x-api-key", _settings.ServicioAgenteApiKey.Trim());
+        }
+        var contextoNormalizado = string.IsNullOrWhiteSpace(contexto)
+            ? null
+            : contexto.Trim()[..Math.Min(contexto.Trim().Length, 2000)];
+        peticion.Content = JsonContent.Create(new
+        {
+            url = item.Url,
+            nombre = string.IsNullOrWhiteSpace(item.Nombre) ? "informacion" : item.Nombre,
+            contexto = contextoNormalizado,
+        });
+
+        using var respuesta = await cliente.SendAsync(peticion, ct);
+        var cuerpo = await respuesta.Content.ReadAsStringAsync(ct);
+        if (!respuesta.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"servicio agente {respuesta.StatusCode}: {Truncate(cuerpo, 200)}");
+        }
+
+        string? archivoAgente = null;
+        JsonElement? datos = null;
+        string? modelo = null;
+        using (var doc = JsonDocument.Parse(cuerpo))
+        {
+            var raiz = doc.RootElement;
+            if (raiz.TryGetProperty("archivo", out var archivoEl) &&
+                archivoEl.ValueKind == JsonValueKind.String)
+            {
+                archivoAgente = archivoEl.GetString();
+            }
+            if (raiz.TryGetProperty("datos", out var datosEl) &&
+                datosEl.ValueKind == JsonValueKind.Object)
+            {
+                datos = datosEl.Clone();
+            }
+            if (raiz.TryGetProperty("modelo", out var modeloEl) &&
+                modeloEl.ValueKind == JsonValueKind.String)
+            {
+                modelo = modeloEl.GetString();
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(archivoAgente))
+        {
+            throw new InvalidOperationException($"servicio agente sin archivo: {Truncate(cuerpo, 200)}");
+        }
+
+        using var descarga = await cliente.GetAsync(
+            $"{baseUrl}/c/{Uri.EscapeDataString(archivoAgente)}", ct);
+        if (!descarga.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"no se pudo descargar la captura {archivoAgente}: {descarga.StatusCode}");
+        }
+
+        var bytes = await descarga.Content.ReadAsByteArrayAsync(ct);
+        if (bytes.Length < 10_000)
+        {
+            throw new InvalidOperationException($"captura sospechosamente pequena ({bytes.Length} bytes)");
+        }
+
+        var nombre = Path.GetFileName(archivoAgente);
+        if (string.IsNullOrWhiteSpace(nombre)) nombre = $"agentico-{Guid.NewGuid():N}.png";
+        if (!nombre.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) nombre += ".png";
+        var destino = Path.Combine(_targetCapturasDir, nombre);
+        await File.WriteAllBytesAsync(destino, bytes, ct);
+
+        return new BusquedaCapturaResult
+        {
+            Captura = new CapturaResultDto
+            {
+                Url = item.Url,
+                Ok = true,
+                Archivo = $"{CarpetaPublica}/{nombre}",
+            },
+            Datos = datos,
+            Modelo = modelo,
+            BuscadoEn = DateTime.UtcNow,
+        };
+    }
+
+    /// <summary>
+    /// Modo agente: pide la captura al servicio externo <c>viaticos-capturas</c>
+    /// (POST /v1/agentico/capturar), descarga el PNG desde GET /c/{archivo} y lo
+    /// publica en la carpeta de capturas con el mismo shape de salida que el
+    /// modo script. Los errores por URL se devuelven como ok=false, nunca 500.
+    /// </summary>
+    private async Task<CapturaServiceResult> CapturarConAgenteAsync(
+        IReadOnlyList<CapturaItem> items, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(_settings.ServicioAgenteUrl))
+        {
+            return FallarTodos(items, "modo agente sin CapturasSettings:ServicioAgenteUrl configurado");
+        }
+        if (_httpClientFactory is null)
+        {
+            return FallarTodos(items, "modo agente sin IHttpClientFactory disponible en el contenedor de servicios");
+        }
+
+        var baseUrl = _settings.ServicioAgenteUrl.TrimEnd('/');
+        var cliente = _httpClientFactory.CreateClient("capturas-agente");
+        cliente.Timeout = TimeSpan.FromSeconds(Math.Max(30, _settings.AgenteTimeoutSeconds));
+        var resultados = new List<CapturaResultDto>(items.Count);
+
+        foreach (var item in items)
+        {
+            try
+            {
+                using var peticion = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/agentico/capturar");
+                if (!string.IsNullOrWhiteSpace(_settings.ServicioAgenteApiKey))
+                {
+                    peticion.Headers.TryAddWithoutValidation("x-api-key", _settings.ServicioAgenteApiKey.Trim());
+                }
+                peticion.Content = JsonContent.Create(new
+                {
+                    url = item.Url,
+                    nombre = string.IsNullOrWhiteSpace(item.Nombre) ? "agentico" : item.Nombre,
+                });
+
+                using var respuesta = await cliente.SendAsync(peticion, ct);
+                var cuerpo = await respuesta.Content.ReadAsStringAsync(ct);
+                if (!respuesta.IsSuccessStatusCode)
+                {
+                    resultados.Add(new CapturaResultDto
+                    {
+                        Url = item.Url,
+                        Ok = false,
+                        Error = $"servicio agente {respuesta.StatusCode}: {Truncate(cuerpo, 200)}",
+                    });
+                    continue;
+                }
+
+                string? archivoAgente = null;
+                using (var doc = JsonDocument.Parse(cuerpo))
+                {
+                    if (doc.RootElement.TryGetProperty("archivo", out var a) && a.ValueKind == JsonValueKind.String)
+                    {
+                        archivoAgente = a.GetString();
+                    }
+                }
+                if (string.IsNullOrWhiteSpace(archivoAgente))
+                {
+                    resultados.Add(new CapturaResultDto
+                    {
+                        Url = item.Url,
+                        Ok = false,
+                        Error = $"servicio agente sin archivo en la respuesta: {Truncate(cuerpo, 200)}",
+                    });
+                    continue;
+                }
+
+                using var descarga = await cliente.GetAsync(
+                    $"{baseUrl}/c/{Uri.EscapeDataString(archivoAgente)}", ct);
+                if (!descarga.IsSuccessStatusCode)
+                {
+                    resultados.Add(new CapturaResultDto
+                    {
+                        Url = item.Url,
+                        Ok = false,
+                        Error = $"no se pudo descargar la captura {archivoAgente}: {descarga.StatusCode}",
+                    });
+                    continue;
+                }
+
+                var bytes = await descarga.Content.ReadAsByteArrayAsync(ct);
+                if (bytes.Length < 10_000)
+                {
+                    resultados.Add(new CapturaResultDto
+                    {
+                        Url = item.Url,
+                        Ok = false,
+                        Error = $"captura sospechosamente pequena ({bytes.Length} bytes)",
+                    });
+                    continue;
+                }
+
+                var nombre = Path.GetFileName(archivoAgente);
+                if (string.IsNullOrWhiteSpace(nombre)) nombre = $"agentico-{Guid.NewGuid():N}.png";
+                if (!nombre.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) nombre += ".png";
+                var destino = Path.Combine(_targetCapturasDir, nombre);
+                await File.WriteAllBytesAsync(destino, bytes, ct);
+
+                resultados.Add(new CapturaResultDto
+                {
+                    Url = item.Url,
+                    Ok = true,
+                    Archivo = $"{CarpetaPublica}/{nombre}",
+                });
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "captura agente fallo para {Url}", item.Url);
+                resultados.Add(new CapturaResultDto
+                {
+                    Url = item.Url,
+                    Ok = false,
+                    Error = Truncate(ex.Message, 200),
+                });
+            }
+        }
+
+        return new CapturaServiceResult { Outcome = CapturaOutcome.Ok, Results = resultados };
+    }
+
+    private static CapturaServiceResult FallarTodos(IReadOnlyList<CapturaItem> items, string error)
+        => new()
+        {
+            Outcome = CapturaOutcome.Ok,
+            Results = items.Select(i => new CapturaResultDto { Url = i.Url, Ok = false, Error = error }).ToList(),
+        };
 
     private string ResolveFrontendRoot()
     {

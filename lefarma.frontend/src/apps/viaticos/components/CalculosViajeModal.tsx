@@ -22,7 +22,9 @@ import { ModoTransporteBadge } from './ModoTransporteBadge';
 import { DireccionTramo } from './DireccionTramo';
 import {
   MARGEN_CARRO,
+  claveHotel,
   construirCalculo,
+  construirOpcionesPropuesta,
   construirRequestHotel,
   construirRequestHotelRegreso,
   construirRequestTramo,
@@ -31,6 +33,8 @@ import {
   fechaCorta,
   horaAmPm,
   minutosConMargen,
+  ofertaCalculada,
+  resumenCostosRuta,
   salidaAproximada,
   sumarMinutos,
   type TramoViaje,
@@ -39,9 +43,8 @@ import { costosRutaApi } from '../services/costosRuta.api';
 import { casetasDeRuta } from '../services/casetasRuta';
 import { hidratarSolicitud } from '../services/solicitudDraft';
 import { solicitudesApi } from '../services/solicitudes.api';
-import { aprobacionesApi } from '../services/aprobaciones.api';
 import type { CostosRutaResponse } from '../types/costosRuta.types';
-import type { CalculoViaje, OpcionCotizacion, Solicitud } from '../types/solicitud.types';
+import type { CalculoViaje, PropuestaRuta, Solicitud } from '../types/solicitud.types';
 
 function mxn(n: number): string {
   return n.toLocaleString('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 0 });
@@ -53,33 +56,13 @@ function fechaHoraAmPm(valor: string): string {
   return `${fecha} ${horaAmPm(hora) ?? hora}`;
 }
 
-function claveHotel(hotel: { lugar: string; nombre?: string; checkIn: string; distanciaKm?: number }): string {
-  return `${hotel.nombre ?? hotel.lugar}|${hotel.checkIn}|${hotel.distanciaKm ?? ''}`;
-}
-
-/**
- * Modo del motor -> tipo que se guarda en `solicitud_opciones.tipo`. El CHECK
- * de la tabla solo acepta estos valores; guardar el modo crudo ('avion',
- * 'bus', 'uber') hacía fallar el envío con un error 500.
- */
-const TIPO_OPCION: Record<string, string> = {
-  avion: 'vuelo',
-  bus: 'autobus',
-  auto: 'auto',
-  renta: 'renta',
-  uber: 'taxi',
-  taxi: 'taxi',
-  publico: 'publico',
-  metro: 'publico',
-};
-
 export function CalculosViajeModal({
   solicitud,
   open,
   onOpenChange,
   onEnviado,
   modo = 'enviar',
-  onAutorizado,
+  onPropuesta,
 }: {
   solicitud: Solicitud | null;
   open: boolean;
@@ -87,10 +70,16 @@ export function CalculosViajeModal({
   onEnviado: (id: number) => void;
   /**
    * 'enviar' = flujo del viajero (borrador -> concentrado).
-   * 'autorizar' = flujo del revisor: recalcula la misma solicitud y guarda la
-   * versión nueva como ruta autorizada, sin crear otra solicitud.
+   * 'autorizar' = flujo del revisor: recalcula la misma solicitud y entrega la
+   * propuesta al padre; la solicitud no cambia en el servidor desde aquí.
    */
   modo?: 'enviar' | 'autorizar';
+  /** Versión calculada (cálculo + opciones + resumen) que el revisor confirma. */
+  onPropuesta?: (propuesta: PropuestaRuta) => void;
+  /**
+   * @deprecated La propuesta se entrega con `onPropuesta` y la autorización se
+   * registra en el concentrado; se conserva para no romper llamadas previas.
+   */
   onAutorizado?: (id: number) => void;
 }) {
   const [paso, setPaso] = useState(0);
@@ -269,6 +258,7 @@ export function CalculosViajeModal({
       tipo: PuntoRutaResumen['tipo'],
       detalle?: string,
       chips?: string[],
+      importes?: { costo?: number | null; urlCompra?: string | null },
     ) => {
       const clave = `${lat.toFixed(4)},${lng.toFixed(4)}`;
       // Los marcadores del mapa no se repiten, pero el diagrama sí: un viaje
@@ -294,6 +284,8 @@ export function CalculosViajeModal({
           `${nombre} · ${lat.toFixed(5)}, ${lng.toFixed(5)}`,
         ],
         chips,
+        costo: importes?.costo ?? null,
+        urlCompra: importes?.urlCompra ?? null,
       });
     };
     const agregarSegmento = (
@@ -306,12 +298,8 @@ export function CalculosViajeModal({
       segmentos.push({ tipo, puntos: [de, a], etiqueta });
     };
 
-    const ofertaDe = (indice: number) => {
-      const persona = resultados[indice]?.resultados[0];
-      if (!persona) return null;
-      const opciones = persona.tramos.flatMap((t) => t.opciones);
-      return opciones.find((o) => o.id === seleccion[indice]) ?? opciones[0] ?? null;
-    };
+    const ofertaDe = (indice: number) =>
+      ofertaCalculada(resultados[indice], seleccion[indice] ?? null) ?? null;
 
     tramos.forEach((tramo, indice) => {
       const oferta = ofertaDe(indice);
@@ -322,6 +310,13 @@ export function CalculosViajeModal({
         ? [hotel!.latitud as number, hotel!.longitud as number]
         : [tramo.hasta.punto.latitud, tramo.hasta.punto.longitud];
       const destinoNombre = conHotel ? (hotel!.nombre ?? hotel!.lugar) : tramo.hasta.nombre;
+      // El importe de la parada es el del hotel cuando se duerme ahí y el de la
+      // oferta de transporte cuando solo se llega al punto.
+      const importesDestino = conHotel && hotel
+        ? { costo: hotel.precioTotal ?? hotel.precioNoche ?? null, urlCompra: hotel.link || null }
+        : oferta
+          ? { costo: oferta.costoGrupo ?? null, urlCompra: oferta.comprar?.url || null }
+          : undefined;
 
       agregarPunto(origen[0], origen[1], tramo.desde.nombre, indice === 0 ? 'origen' : 'punto');
 
@@ -376,6 +371,7 @@ export function CalculosViajeModal({
             ? `En taxi desde ${terminalDestino!.nombre}${minutosTaxiPunta ? ` · ~${minutosTaxiPunta} min` : ''}`
             : `${detalleLargo} hasta ${nombreHasta}`,
           chipsTramo,
+          importesDestino,
         );
       } else {
         // Sin terminal: auto propio, renta o taxi de punta a punta.
@@ -391,6 +387,7 @@ export function CalculosViajeModal({
           conHotel ? 'hotel' : tramo.esRegreso ? 'regreso' : 'punto',
           `En carretera desde ${tramo.desde.nombre}${oferta ? ` · ${oferta.linea}` : ''}${conHotel ? ' · duerme ahí' : ''}`,
           chipsTramo,
+          importesDestino,
         );
       }
     });
@@ -479,41 +476,48 @@ export function CalculosViajeModal({
 
   async function enviar() {
     if (!solicitud || !resultadoActual) return;
-    const opciones: OpcionCotizacion[] = [];
+    const modoCalculo = esCarro ? 'propio' : 'solicitado';
+    const opciones = construirOpcionesPropuesta(
+      tramos,
+      resultados,
+      seleccion,
+      hotelResultados,
+      usarHotel,
+      hotelElegido,
+    );
+    // Una sola versión coherente: el cálculo usa las mismas selecciones que
+    // las opciones y el resumen, y conserva costo/enlace en la ruta.
+    const calculo: CalculoViaje = {
+      ...construirCalculo(tramos, resultados, modoCalculo, seleccion),
+      ruta: {
+        puntos: cadenaResumen.puntos.map((p) => ({
+          lat: p.lat,
+          lng: p.lng,
+          nombre: p.nombre,
+          tipo: p.tipo,
+          detalle: p.detalle,
+        })),
+        nodos: cadenaResumen.nodos.map((n) => ({
+          titulo: n.titulo,
+          detalles: n.detalles.map((d) => String(d)),
+          chips: n.chips ?? [],
+          costo: n.costo ?? null,
+          url_compra: n.urlCompra ?? null,
+        })),
+        segmentos: cadenaResumen.segmentos.map((s) => ({
+          tipo: s.tipo,
+          puntos: s.puntos,
+        })),
+      },
+    };
+    const resumen = resumenCostosRuta(calculo, opciones, modoCalculo);
 
-    tramos.forEach((_tramo, i) => {
-      const oferta = resultados[i]?.resultados[0]?.tramos[0]?.opciones.find((o) => o.id === seleccion[i]);
-      if (!oferta?.comprar?.url) return;
-      opciones.push({
-        // El modo del motor (avion, bus, uber...) se guarda con el catálogo que
-        // acepta el CHECK de solicitud_opciones.tipo; si no, el INSERT falla.
-        tipo: TIPO_OPCION[oferta.modo] ?? oferta.modo,
-        linea: oferta.linea,
-        precio: oferta.costoGrupo,
-        moneda: 'MXN',
-        url_compra: oferta.comprar.url,
-        fuente: oferta.fuente,
-        fue_elegida: true,
-        ruta_captura: oferta.capturas?.[0] ?? oferta.rutaCaptura ?? null,
-        capturas: oferta.capturas ?? (oferta.rutaCaptura ? [oferta.rutaCaptura] : []),
-      });
-    });
-
-    for (const [indice, response] of Object.entries(hotelResultados)) {
-      const clave = hotelElegido[Number(indice)];
-      const hotel = response.resultados[0]?.hotelesPropuestos.find((h) => claveHotel(h) === clave);
-      if (!hotel?.link) continue;
-      opciones.push({
-        tipo: 'hotel',
-        linea: `${hotel.nombre ?? hotel.lugar} (${hotel.checkIn} al ${hotel.checkOut})`,
-        precio: hotel.precioTotal ?? hotel.precioNoche ?? null,
-        moneda: 'MXN',
-        url_compra: hotel.link,
-        fuente: `${hotel.fuente} (estimado)`,
-        fue_elegida: true,
-        ruta_captura: null,
-        capturas: [],
-      });
+    if (modo === 'autorizar') {
+      // El concentrado registra la autorización con esta propuesta; aquí no se
+      // toca la solicitud del servidor.
+      onPropuesta?.({ calculo, opciones, resumen });
+      onOpenChange(false);
+      return;
     }
 
     setEnviando(true);
@@ -522,42 +526,6 @@ export function CalculosViajeModal({
       // del envío (la propuesta del wizard queda como referencia). Se incluye
       // la cadena revisada (terminales, hoteles y taxis) para que el detalle
       // pueda mostrar la evolución sin recalcular.
-      const calculo: CalculoViaje = {
-        ...construirCalculo(tramos, resultados, esCarro ? 'propio' : 'solicitado'),
-        ruta: {
-          puntos: cadenaResumen.puntos.map((p) => ({
-            lat: p.lat,
-            lng: p.lng,
-            nombre: p.nombre,
-            tipo: p.tipo,
-            detalle: p.detalle,
-          })),
-          nodos: cadenaResumen.nodos.map((n) => ({
-            titulo: n.titulo,
-            detalles: n.detalles.map((d) => String(d)),
-            chips: n.chips ?? [],
-          })),
-          segmentos: cadenaResumen.segmentos.map((s) => ({
-            tipo: s.tipo,
-            puntos: s.puntos,
-          })),
-        },
-      };
-      if (modo === 'autorizar') {
-        const res = await aprobacionesApi.autorizar(solicitud.id_solicitud, {
-          calculo,
-          ...(opciones.length > 0 ? { opciones } : {}),
-        });
-        if (!res.data.success) {
-          toast.error(res.data.message ?? 'No se pudo autorizar la ruta.');
-          return;
-        }
-        toast.success('Ruta autorizada.');
-        onAutorizado?.(solicitud.id_solicitud);
-        onOpenChange(false);
-        return;
-      }
-
       const res = opciones.length > 0
         ? await solicitudesApi.guardarOpciones(solicitud.id_solicitud, opciones, calculo)
         : await solicitudesApi.enviar(solicitud.id_solicitud, calculo);
@@ -569,10 +537,7 @@ export function CalculosViajeModal({
       onEnviado(solicitud.id_solicitud);
       onOpenChange(false);
     } catch (falla: unknown) {
-      toast.error(
-        toApiError(falla).message
-          || (modo === 'autorizar' ? 'No se pudo autorizar la ruta.' : 'No se pudo enviar a concentrado.'),
-      );
+      toast.error(toApiError(falla).message || 'No se pudo enviar a concentrado.');
     } finally {
       setEnviando(false);
     }
@@ -590,7 +555,7 @@ export function CalculosViajeModal({
             {tramo
               ? `Paso ${paso + 1} de ${tramos.length}: ${paso === 0 ? 'Origen' : tramo.desde.nombre} → ${tramo.esRegreso ? 'Regreso' : tramo.hasta.nombre}`
               : modo === 'autorizar'
-                ? 'Calcula cada tramo y autoriza esta nueva versión de la ruta.'
+                ? 'Calcula cada tramo y revisa esta nueva versión antes de autorizarla.'
                 : 'Calcula cada tramo y envía la solicitud al concentrado.'}
           </DialogDescription>
         </DialogHeader>
@@ -927,8 +892,8 @@ export function CalculosViajeModal({
           nodos={cadenaResumen.nodos}
           onEnviar={() => { void enviar(); }}
           enviando={enviando}
-          textoAccion={modo === 'autorizar' ? 'Autorizar ruta' : 'Enviar a concentrado'}
-          textoEnviando={modo === 'autorizar' ? 'Autorizando…' : 'Enviando…'}
+          textoAccion={modo === 'autorizar' ? 'Usar esta ruta' : 'Enviar a concentrado'}
+          textoEnviando={modo === 'autorizar' ? 'Aplicando…' : 'Enviando…'}
         />
       </DialogContent>
     </Dialog>

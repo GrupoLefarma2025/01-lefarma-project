@@ -61,7 +61,7 @@ type VistaKey = 'ninguna' | 'empresa' | 'sucursal' | 'tipo' | 'solicitante' | 'c
 const VISTAS: Array<{ value: VistaKey; label: string }> = [
   { value: 'ninguna', label: 'Sin agrupación' },
   { value: 'empresa', label: 'Empresa' },
-  { value: 'sucursal', label: 'Sucursal' },
+  { value: 'sucursal', label: 'Ubicación' },
   { value: 'tipo', label: 'Justificación de incidencias' },
   { value: 'solicitante', label: 'Solicitante' },
   { value: 'creador', label: 'Creado por' },

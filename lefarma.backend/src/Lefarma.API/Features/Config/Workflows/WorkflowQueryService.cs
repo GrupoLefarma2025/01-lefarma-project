@@ -298,14 +298,20 @@ public class WorkflowQueryService : BaseService, IWorkflowQueryService
     {
         try
         {
+            // Las bitácoras de OC anteriores a la columna polimórfica guardaron
+            // tipo_entidad/id_entidad en NULL y solo tienen id_orden. Se incluyen
+            // por id_orden para no perder el historial de esas órdenes.
+            var incluirLegacyOrdenCompra = tipoEntidad == CodigoProceso.ORDEN_COMPRA;
+
             var historial = await _context.WorkflowBitacoras
                 .AsNoTracking()
-                .Where(b => b.TipoEntidad == tipoEntidad && b.IdEntidad == idEntidad)
+                .Where(b => (b.TipoEntidad == tipoEntidad && b.IdEntidad == idEntidad)
+                         || (incluirLegacyOrdenCompra && b.IdOrden == idEntidad))
                 .OrderByDescending(b => b.FechaEvento)
                 .Select(b => new HistorialWorkflowItemResponse
                 {
                     IdEvento = b.IdEvento,
-                    IdEntidad = b.IdEntidad,
+                    IdEntidad = idEntidad,
                     IdPaso = b.IdPaso,
                     NombrePaso = b.Paso != null ? b.Paso.NombrePaso : null,
                     IdAccion = b.IdAccion,

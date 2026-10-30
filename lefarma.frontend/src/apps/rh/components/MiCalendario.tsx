@@ -819,11 +819,17 @@ export function MiCalendario({ onSolicitudGuardada }: { onSolicitudGuardada?: ()
                     </div>
 
                     {dia.esDiaNoLaborable ? (
-                      <div className="mb-1 rounded bg-red-100 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-red-700 dark:bg-red-950/50 dark:text-red-300">
+                      <div
+                        title={dia.noHabilDescripcion ?? 'No laborable'}
+                        className="mb-1 truncate rounded bg-red-100 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-red-700 dark:bg-red-950/50 dark:text-red-300"
+                      >
                         {dia.noHabilDescripcion ?? 'No laborable'}
                       </div>
                     ) : dia.esDescanso ? (
-                      <div className="mb-1 rounded bg-slate-200 px-1.5 py-0.5 text-center text-xs font-semibold uppercase tracking-wide text-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+                      <div
+                        title="Día de descanso según tu jornada"
+                        className="mb-1 truncate rounded bg-slate-200 px-1 py-0.5 text-center text-[10px] font-semibold uppercase text-slate-700 dark:bg-slate-800/60 dark:text-slate-300"
+                      >
                         Descanso
                       </div>
                     ) : null}

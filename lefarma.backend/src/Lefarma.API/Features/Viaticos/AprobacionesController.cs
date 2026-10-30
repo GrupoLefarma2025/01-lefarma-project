@@ -176,14 +176,14 @@ public class AprobacionesController : ControllerBase
                 Fecha = ComponerRangoFecha(fechaSalida, fechaRegreso),
                 FechaSalida = fechaSalida,
                 FechaRegreso = fechaRegreso,
-                Autobus = LeerDecimal(datos, "autobus"),
-                Avion = LeerDecimal(datos, "avion"),
-                Gasolina = LeerDecimal(datos, "gasolina"),
-                Casetas = LeerDecimal(datos, "casetas"),
-                VehiculoPropio = LeerDecimal(datos, "vehiculo_propio"),
-                Hospedaje = LeerDecimal(datos, "hospedaje"),
-                Comida = LeerDecimal(datos, "comida"),
-                Taxi = LeerDecimal(datos, "taxi"),
+                Autobus = LeerConcepto(datos, "autobus"),
+                Avion = LeerConcepto(datos, "avion"),
+                Gasolina = LeerConcepto(datos, "gasolina"),
+                Casetas = LeerConcepto(datos, "casetas"),
+                VehiculoPropio = LeerConcepto(datos, "vehiculo_propio"),
+                Hospedaje = LeerConcepto(datos, "hospedaje"),
+                Comida = LeerConcepto(datos, "comida"),
+                Taxi = LeerConcepto(datos, "taxi"),
                 Total = LeerTotalDesdeJson(datos),
                 FechaCreacion = f.FechaCreacion,
                 FechaModificacion = f.FechaModificacion,
@@ -285,6 +285,19 @@ public class AprobacionesController : ControllerBase
 
         if (nuevasOpciones is not null)
         {
+            // La cotizacion que estaba vigente se conserva ANTES de
+            // reemplazarla: el concentrado compara la version original (la del
+            // viajero) contra la recalculada. Solo la primera vez: si ya hay
+            // una referencia original no se pisa con una version intermedia.
+            if (solicitud.Opciones.Count > 0
+                && LeerPropiedadSnapshot(solicitud.DatosJson, "opciones_originales") is null)
+            {
+                EscribirPropiedadSnapshot(
+                    solicitud,
+                    "opciones_originales",
+                    SerializarOpciones(solicitud.Opciones));
+            }
+
             if (solicitud.Opciones.Count > 0)
             {
                 _context.SolicitudOpciones.RemoveRange(solicitud.Opciones);
@@ -294,7 +307,11 @@ public class AprobacionesController : ControllerBase
 
         // La ruta autorizada se conserva aparte: la calculada por el viajero
         // no se pierde y la pestana "Ruta autorizada" del detalle la muestra.
-        AplicarCalculoAutorizado(solicitud, body?.Calculo);
+        var calculoAutorizado = AplicarCalculoAutorizado(solicitud, body?.Calculo);
+
+        // El desglose del FOR-008 se sella con la ultima version autorizada:
+        // opciones elegidas de ESTA autorizacion + ruta autorizada.
+        GuardarResumenAutorizado(solicitud, nuevasOpciones ?? solicitud.Opciones, calculoAutorizado);
 
         solicitud.Estado = "autorizada";
         solicitud.FechaModificacion = ahora;
@@ -603,8 +620,10 @@ public class AprobacionesController : ControllerBase
     /// Guarda la ruta autorizada dentro del snapshot sin tocar la ruta
     /// calculada: con un calculo nuevo ese es el autorizado; sin calculo se
     /// copia el vigente (se autorizo la ruta que eligio la persona viajera).
+    /// Devuelve el calculo que quedo como autorizado (<c>null</c> si no habia
+    /// ninguno) para que el resumen se calcule sobre el mismo.
     /// </summary>
-    private static void AplicarCalculoAutorizado(Solicitud solicitud, JsonElement? calculo)
+    private static JsonElement? AplicarCalculoAutorizado(Solicitud solicitud, JsonElement? calculo)
     {
         var autorizado = calculo is { ValueKind: JsonValueKind.Object }
             ? calculo
@@ -613,7 +632,172 @@ public class AprobacionesController : ControllerBase
         if (autorizado is { ValueKind: JsonValueKind.Object })
         {
             EscribirPropiedadSnapshot(solicitud, "calculo_autorizado", autorizado.Value);
+            return autorizado;
         }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Snapshot JSON de las opciones vigentes, en el orden en que se guardaron.
+    /// Es la referencia "original" que el concentrado conserva al autorizar una
+    /// ruta nueva: mismas claves que <c>SolicitudOpcionDto</c> mas
+    /// <c>datos</c> (los metadatos de <c>datos_json</c>, ya parseados).
+    /// </summary>
+    private static JsonElement SerializarOpciones(IEnumerable<SolicitudOpcion> opciones)
+    {
+        var lista = opciones
+            .OrderBy(o => o.IdOpcion)
+            .Select(o => new Dictionary<string, object?>
+            {
+                ["id_opcion"] = o.IdOpcion,
+                ["tipo"] = o.Tipo,
+                ["linea"] = o.Linea,
+                ["precio"] = o.Precio,
+                ["moneda"] = o.Moneda,
+                ["url_compra"] = o.UrlCompra,
+                ["fuente"] = o.Fuente,
+                ["fue_elegida"] = o.FueElegida,
+                ["ruta_captura"] = o.RutaCaptura,
+                ["datos"] = ParsearDatosJson(o.DatosJson),
+            })
+            .ToList();
+
+        return JsonSerializer.SerializeToElement(lista);
+    }
+
+    /// <summary>
+    /// Sella en <c>datos.resumen_autorizado</c> el desglose que imprime el
+    /// FOR-008, calculado con las opciones FUE_ELEGIDA de esta autorizacion y
+    /// la ruta autorizada:
+    /// <list type="bullet">
+    ///   <item><c>autobus</c>/<c>avion</c>/<c>hospedaje</c>/<c>taxi</c>/<c>gasolina</c>:
+    ///   suma de precios de las opciones elegidas del tipo correspondiente.</item>
+    ///   <item><c>casetas</c>: solo con <c>modo_transporte = "propio"</c>, suma
+    ///   de <c>calculo.tramos[].casetas[].costo</c>; en cualquier otro modo
+    ///   <c>null</c> (no aplican).</item>
+    ///   <item><c>comida</c>: no viene de opciones ni del calculo; se conserva
+    ///   el valor numerico que ya traia el snapshot.</item>
+    ///   <item><c>total</c>: suma de los conceptos no nulos; <c>null</c> si no
+    ///   hay ninguno.</item>
+    /// </list>
+    /// Un concepto sin dato queda <c>null</c>, nunca en 0: 0 afirmaria un costo
+    /// que nadie cotizo.
+    /// </summary>
+    private static void GuardarResumenAutorizado(
+        Solicitud solicitud,
+        IEnumerable<SolicitudOpcion> opciones,
+        JsonElement? calculo)
+    {
+        var elegidas = opciones.Where(o => o.FueElegida).ToList();
+
+        decimal? autobus = SumarOpciones(elegidas, "autobus");
+        decimal? avion = SumarOpciones(elegidas, "vuelo", "avion");
+        decimal? gasolina = SumarOpciones(elegidas, "auto", "renta");
+        decimal? hospedaje = SumarOpciones(elegidas, "hotel");
+        decimal? taxi = SumarOpciones(elegidas, "taxi");
+        decimal? casetas = EsModoPropio(calculo) ? SumarCasetas(calculo) : null;
+        // comida se lee ANTES de escribir resumen_autorizado: es el valor
+        // previo del snapshot raiz, el que ya usaba la bandeja.
+        decimal? comida = LeerDecimal(ParsearDatosJson(solicitud.DatosJson), "comida");
+
+        var conceptos = new[] { autobus, avion, gasolina, casetas, hospedaje, comida, taxi };
+        decimal? total = conceptos.Any(c => c.HasValue)
+            ? conceptos.Sum(c => c ?? 0m)
+            : null;
+
+        EscribirPropiedadSnapshot(
+            solicitud,
+            "resumen_autorizado",
+            JsonSerializer.SerializeToElement(new
+            {
+                autobus,
+                avion,
+                gasolina,
+                casetas,
+                hospedaje,
+                comida,
+                taxi,
+                total,
+            }));
+    }
+
+    /// <summary>
+    /// Suma los precios de las opciones cuyo <c>tipo</c> esta en
+    /// <paramref name="tipos"/> (sin distinguir mayusculas; el catalogo guarda
+    /// <c>vuelo</c>, <c>autobus</c>, <c>auto</c>, <c>renta</c>, <c>taxi</c>,
+    /// <c>hotel</c> y <c>publico</c>). Si ninguna trae precio numerico devuelve
+    /// <c>null</c>, no 0.
+    /// </summary>
+    private static decimal? SumarOpciones(IEnumerable<SolicitudOpcion> opciones, params string[] tipos)
+    {
+        decimal? total = null;
+        foreach (var opcion in opciones)
+        {
+            if (opcion.Precio is not { } precio)
+            {
+                continue;
+            }
+
+            var tipo = opcion.Tipo?.Trim();
+            if (!tipos.Any(t => string.Equals(t, tipo, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            total = (total ?? 0m) + precio;
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// ¿La ruta autorizada se hizo en automovil propio? Es la unica condicion
+    /// bajo la cual las casetas son un costo del viaje (en transporte
+    /// solicitado ya vienen dentro del boleto).
+    /// </summary>
+    private static bool EsModoPropio(JsonElement? calculo)
+        => calculo is { ValueKind: JsonValueKind.Object } raiz
+           && LeerTextoDesdeJson(raiz, "modo_transporte") is { } modo
+           && string.Equals(modo, "propio", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Suma <c>calculo.tramos[].casetas[].costo</c> de la ruta autorizada. Una
+    /// caseta con <c>costo</c> null o de otro tipo no entra (no se inventa); sin
+    /// ninguna caseta con costo devuelve <c>null</c>.
+    /// </summary>
+    private static decimal? SumarCasetas(JsonElement? calculo)
+    {
+        if (calculo is not { ValueKind: JsonValueKind.Object } raiz
+            || !raiz.TryGetProperty("tramos", out var tramos)
+            || tramos.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        decimal? total = null;
+        foreach (var tramo in tramos.EnumerateArray())
+        {
+            if (tramo.ValueKind != JsonValueKind.Object
+                || !tramo.TryGetProperty("casetas", out var casetas)
+                || casetas.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+
+            foreach (var caseta in casetas.EnumerateArray())
+            {
+                if (caseta.ValueKind == JsonValueKind.Object
+                    && caseta.TryGetProperty("costo", out var costo)
+                    && costo.ValueKind == JsonValueKind.Number
+                    && costo.TryGetDecimal(out var monto))
+                {
+                    total = (total ?? 0m) + monto;
+                }
+            }
+        }
+
+        return total;
     }
 
     /// <summary>
@@ -727,13 +911,37 @@ public class AprobacionesController : ControllerBase
     }
 
     /// <summary>
-    /// Total de la bandeja: <c>$.total</c>. <c>null</c> significa "no se conoce"
-    /// (la clave no existe, no es numerica o el JSON no parsea): el concentrado
-    /// lo imprime como "—" y NUNCA lo coacciona a un $0.00 inventado. Nunca
-    /// lanza.
+    /// Concepto del concentrado. Si existe la ultima version autorizada
+    /// (<c>datos.resumen_autorizado</c>), sus claves mandan incluso cuando el
+    /// valor es <c>null</c>: el documento debe reflejar esa version, no un
+    /// importe viejo del snapshot raiz. Solo se cae al snapshot raiz cuando la
+    /// clave no existe en el resumen (o el resumen no existe), como en las
+    /// solicitudes autorizadas antes de esta funcionalidad.
+    /// </summary>
+    private static decimal? LeerConcepto(JsonElement? snapshot, string clave)
+    {
+        if (snapshot is { } raiz
+            && raiz.TryGetProperty("resumen_autorizado", out var resumen)
+            && resumen.ValueKind == JsonValueKind.Object
+            && resumen.TryGetProperty(clave, out var valorAutorizado))
+        {
+            return valorAutorizado.ValueKind == JsonValueKind.Number
+                   && valorAutorizado.TryGetDecimal(out var numero)
+                ? numero
+                : null;
+        }
+
+        return LeerDecimal(snapshot, clave);
+    }
+
+    /// <summary>
+    /// Total de la bandeja: <c>$.resumen_autorizado.total</c> si existe; si no,
+    /// <c>$.total</c>. <c>null</c> significa "no se conoce" (la clave no
+    /// existe, no es numerica o el JSON no parsea): el concentrado lo imprime
+    /// como "—" y NUNCA lo coacciona a un $0.00 inventado. Nunca lanza.
     /// </summary>
     private static decimal? LeerTotalDesdeJson(JsonElement? snapshot)
-        => LeerDecimal(snapshot, "total");
+        => LeerConcepto(snapshot, "total");
 
     /// <summary>
     /// Extrae una clave de texto del snapshot <c>solicitudes.datos_json</c>

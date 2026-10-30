@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 using FluentAssertions;
 using Lefarma.API.Features.Viaticos;
+using Lefarma.API.Infrastructure.Data;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace Lefarma.UnitTests.Features.Viaticos;
@@ -161,8 +163,8 @@ public class CapturasEndpointSecurityTests : IClassFixture<CapturasEndpointSecur
     private CapturasController CrearController()
     {
         var servicio = _factory.Services.GetRequiredService<CapturasService>();
-        var env = _factory.Services.GetRequiredService<IWebHostEnvironment>();
-        return new CapturasController(servicio, env);
+        var contexto = _factory.Services.GetRequiredService<ApplicationDbContext>();
+        return new CapturasController(servicio, contexto, NullLogger<CapturasController>.Instance);
     }
 
     // ------------------------------------------------------------------ //

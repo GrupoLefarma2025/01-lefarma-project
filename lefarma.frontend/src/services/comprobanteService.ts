@@ -117,6 +117,17 @@ export const comprobanteService = {
     return res.data.data!;
   },
 
+  async eliminarAsignacion(idAsignacion: number): Promise<PartidaFacturacionResponse> {
+    const res = await API.delete<ApiResponse<PartidaFacturacionResponse>>(
+      `${BASE}/asignaciones/${idAsignacion}`
+    );
+    return res.data.data!;
+  },
+
+  async eliminar(idComprobante: number): Promise<void> {
+    await API.delete<ApiResponse<void>>(`${BASE}/${idComprobante}`);
+  },
+
   async eliminarPorOrden(idOrden: number, categoria: 'gasto' | 'pago'): Promise<void> {
     await API.delete<ApiResponse<void>>(`${BASE}/orden/${idOrden}?categoria=${categoria}`);
   },

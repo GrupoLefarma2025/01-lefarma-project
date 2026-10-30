@@ -23,6 +23,8 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public int? IdUsuarioSolicitante { get; set; }
         public string? SolicitanteNombre { get; set; }
         public string? SolicitantePuesto { get; set; }
+        /// <summary>Ubicación del empleado según Asistencias (vwEmpleados.ubicacion).</summary>
+        public string? Ubicacion { get; set; }
 
         public int IdTipoSolicitud { get; set; }
         public string? TipoSolicitudNombre { get; set; }
@@ -74,6 +76,7 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
         public string? OrderDirection { get; set; } = "asc";
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 20;
+        public bool SoloConteo { get; set; }
 
         // Filtros adicionales estilo incidencias de checado
         public string? Periodo { get; set; }
@@ -106,5 +109,9 @@ namespace Lefarma.API.Features.Rh.SolicitudesPersonal.DTOs
     {
         public DateTime Fecha { get; set; }
         public string? Comentario { get; set; }
+        public TimeSpan? Entrada { get; set; }
+        public TimeSpan? Entro { get; set; }
+        public TimeSpan? Salida { get; set; }
+        public TimeSpan? Salio { get; set; }
     }
 }
